@@ -473,6 +473,9 @@ impl hd_opt::prove::Cx for Env<'_> {
     fn length_name(&self) -> hd_base::Symbol {
         self.run.syms.intern("$len")
     }
+    fn load_name(&self) -> hd_base::Symbol {
+        self.run.syms.intern("$load")
+    }
     fn tuple(&self, t: Ty) -> bool {
         let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
         matches!(self.run.pool.get(t), TyData::Adt(AdtId::Product { .. }, _))

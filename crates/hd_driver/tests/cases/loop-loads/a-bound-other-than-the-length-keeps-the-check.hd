@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: `n` is not the list's length, so the index keeps its bounds
+# check; the buffer pointer still loads once before the loop.
+use std.collections.UniqList
+
+pub fn sum_prefix(xs: &UniqList[i64], n: usize) -> i64:
+    let mut s: i64 = 0
+    for i in 0..n:
+        s += xs[i]
+    s

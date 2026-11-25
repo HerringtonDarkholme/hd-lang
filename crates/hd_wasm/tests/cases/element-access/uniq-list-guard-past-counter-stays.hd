@@ -1,10 +1,7 @@
 # @dump: wat
 # @build: v8 release
-# expected: an unchanged field read through a reference loads once, not
-# per read or per iteration (issue: a loop reloads an unchanged struct
-# field read through a reference on every iteration)
-# `i + 1` may reach the length, so its guard stays. `len` loads once,
-# before the loop, and the buffer address once per iteration (#1689).
+# `i + 1` may reach the length, so its guard stays; `items[i]`'s goes.
+# `len` and the buffer address load once, before the loop (#1689, #2368).
 use std.collections.UniqList
 
 fn pairs(items: &UniqList[i32]) -> i32:

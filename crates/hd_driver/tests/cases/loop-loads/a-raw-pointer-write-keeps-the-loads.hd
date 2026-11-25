@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: wasmtime release std
+# #2368: a raw `Ptr.write` takes no loan and may write any memory, so the
+# loop keeps its loads and the index its bounds check.
+use std.collections.UniqList
+use std.rt.Ptr
+
+pub fn sum_index(xs: &UniqList[i64], out: Ptr[i64]) -> i64:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s += xs[i]
+        out.write(s)
+    s

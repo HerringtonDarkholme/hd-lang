@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: the loop stores to `r`, the local the loads go through, so the
+# buffer pointer and length load on every iteration and the check stays.
+use std.collections.UniqList
+
+pub fn alternate(xs: &UniqList[i64], ys: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    let mut r = xs
+    for i in 0..xs.len():
+        s += r[i]
+        r = ys
+    s

@@ -2,52 +2,43 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $pairs (param $items i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $key i32)
-    ;; 13 |     for i in 0..items.len():
+  (func $pairs (param $items i32) (result i32) (local $total i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 i32)
+    ;; 10 |     for i in 0..items.len():
     local.get $items
     i32.load $heap offset=8
     local.set $t0
+    local.get $items
+    i32.load $heap offset=8
+    local.set $t1
+    local.get $items
+    i32.load $heap
+    local.set $items
     block
       loop
-        local.get $t1
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.tee $i
-        local.get $t1
+        local.get $t2
+        local.set $i
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 14 |         total += items[i] + items[i + 1]
-        local.tee $key
+        local.set $t2
+    ;; 11 |         total += items[i] + items[i + 1]
         local.get $items
-        i32.load $heap offset=8
-        i32.ge_u
-        if
-          i32.const 65 ;; &"index-out-of-bounds"
-          i32.const 19
-          i32.const 84 ;; &"uniq list index out of bounds"
-          i32.const 29
-          i32.const 0
-          call_indirect $table0 (param i32 i32 i32 i32)
-          unreachable
-        end
-        local.get $items
-        i32.load $heap
-        local.get $key
+        local.get $i
         i32.const 4
         i32.mul
         i32.add
         i32.load $heap
-        local.set $key
+        local.set $t3
         local.get $i
         i32.const 1
         i32.add
         local.tee $i
-        local.get $items
-        i32.load $heap offset=8
+        local.get $t1
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -59,7 +50,6 @@
           unreachable
         end
         local.get $items
-        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -67,12 +57,12 @@
         i32.load $heap
         local.set $i
         local.get $total
-        local.get $key
+        local.get $t3
         local.get $i
         i32.add
         i32.add
         local.set $total
-    ;; 13 |     for i in 0..items.len():
+    ;; 10 |     for i in 0..items.len():
         br 0
       end
     end

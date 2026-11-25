@@ -19,6 +19,10 @@
 //!   index `y & (xs.len() - 1)` behind a test that the length is above
 //!   zero ([`Lists::masked`]).
 //!
+//! In release, a loop that writes no memory then reads each load through
+//! a reference once before it, and loses each `if i >= n: panic` guard its
+//! test decides ([`loop_loads`], #2368).
+//!
 //! A list keeps its length where the hoisting pass's region row says so
 //! (`Body::stable_lists`). Cost: one pass over the body for its stores,
 //! the dominance and loop forest once per body with a loop
@@ -34,6 +38,8 @@ use hd_tir::ir::{
 use hd_tir::own::ElementChecks;
 use hd_types::{Prim, Ty};
 
+mod loop_loads;
+
 /// The type and call facts the proofs read, which the backend's layout
 /// decides: the driver answers them from `hd_layout` and the call record.
 pub trait Cx {
@@ -45,6 +51,8 @@ pub trait Cx {
     fn elems_tracked(&self, t: Ty) -> bool;
     /// The name of a hidden local holding a list's length.
     fn length_name(&self) -> hd_base::Symbol;
+    /// The name of a hidden local holding a load hoisted out of a loop.
+    fn load_name(&self) -> hd_base::Symbol;
     /// Whether `t` is a tuple.
     fn tuple(&self, t: Ty) -> bool;
     /// The type reference type `t` refers to, and whether it is fat.
@@ -130,6 +138,9 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) -> Result<(), String> {
         && !headers.is_empty()
     {
         root_at_headers(b, cx, topo, &headers)?;
+    }
+    if release {
+        loop_loads::run(b, cx)?;
     }
     Ok(())
 }
@@ -317,6 +328,8 @@ struct Sets {
     /// (`NONE` for a field's).
     stores: Vec<Vec<(u32, u32)>>,
     referenced: Vec<bool>,
+    /// Each block's number of `Break`s to its label.
+    breaks: Vec<u32>,
     index_reads: std::sync::OnceLock<(Vec<u32>, Vec<u32>)>,
 }
 
@@ -325,7 +338,14 @@ impl Sets {
         let locals = b.local_ty.len();
         let mut sets = vec![Vec::new(); locals];
         let mut referenced = vec![false; locals];
+        let mut breaks = vec![0; b.len()];
         for i in 0..b.len() {
+            if b.tags[i] == Tag::Break
+                && let Some(&blk) = b.label_inst.get(b.data[i][0] as usize)
+                && let Some(n) = breaks.get_mut(blk as usize)
+            {
+                *n += 1;
+            }
             if let Some((local, whole)) = b.stored_local(i) {
                 let value = if whole { b.data[i][1] } else { NONE };
                 sets[local.idx()].push((hd_tir::ir::u32_of(i), value));
@@ -341,9 +361,23 @@ impl Sets {
         Sets {
             stores: sets,
             referenced,
+            breaks,
             index_reads: std::sync::OnceLock::new(),
         }
     }
+}
+
+/// An exact `usize` induction variable from 0 by 1 below a bound
+/// ([`Lists::induction`]).
+struct Induction {
+    /// The variable, a local.
+    current: usize,
+    /// The loop test's condition.
+    cond: u32,
+    /// The store of `i + 1`.
+    step: u32,
+    /// The bound's source.
+    len: u32,
 }
 
 /// One body's shapes for the list proofs: its blocks, dominance and loop
@@ -649,6 +683,13 @@ impl Lists<'_> {
                     r = *value;
                 }
                 Tag::Coerce if b.record(w).first() == Some(&(Coercion::Identity as u32)) => r = a,
+                // An inlined call's value: its scope's one way out.
+                Tag::Scope
+                    if let Some(v) = b.wrapper_value(i)
+                        && self.sets.breaks.get(a as usize) == Some(&1) =>
+                {
+                    r = v;
+                }
                 Tag::Read
                     if self.field_read(i)
                         && let Some((from, Step::Field(k))) = b.read_step(i) =>
@@ -697,9 +738,11 @@ impl Lists<'_> {
         (self.ty_of(index) == usize_ty()).then_some((root, index))
     }
 
-    /// Exact `usize` induction from zero to an unchanged list's length,
-    /// `while i < n` or `while i < xs.len()`, with `i = i + 1` in the loop.
-    fn rising(&self, l: u32, test: u32) -> Vec<u32> {
+    /// The exact `usize` induction of loop `l` whose `test` goes on while
+    /// `i < n`: `i` set to 0 before the loop and to `i + 1` in it, and the
+    /// bound `n`'s source, set before the loop or read before the test on
+    /// each iteration.
+    fn induction(&self, l: u32, test: u32) -> Option<Induction> {
         let b = self.b;
         let cond = b.data[test as usize][0];
         // Where an `&&` test holds, so does its first operand.
@@ -708,14 +751,12 @@ impl Lists<'_> {
             lt = b.data[lt as usize][0];
         }
         if !self.is_op(lt, Tag::Prim, PrimOp::Lt as u32) {
-            return Vec::new();
+            return None;
         }
         let [cur, end] = *b.record(b.data[lt as usize][1]) else {
-            return Vec::new();
+            return None;
         };
-        let Some(current) = read_local(b, cur) else {
-            return Vec::new();
-        };
+        let current = read_local(b, cur)?;
         let bound = read_local(b, end);
         if self.ty_of(cur) != usize_ty()
             || self.ty_of(end) != usize_ty()
@@ -724,44 +765,94 @@ impl Lists<'_> {
                 .flatten()
                 .any(|x| (self.cell)(x) || b.local_flags[x] & local_flags::CAPTURED_ASSIGNED != 0)
         {
-            return Vec::new();
+            return None;
         }
-        let Some([init, step]) = init_and_step(&self.sets.stores[current], |x| self.in_loop(x, l))
-        else {
-            return Vec::new();
-        };
+        let [init, step] = init_and_step(&self.sets.stores[current], |x| self.in_loop(x, l))?;
         if self.in_loop(init.0, l)
             || !self.in_loop(step.0, l)
             || !self.dominates(init.0, l)
             || self.const_usize(self.source(init.1)) != Some(0)
             || !self.is_op(step.1, Tag::Prim, PrimOp::Add as u32)
         {
-            return Vec::new();
+            return None;
         }
         let [before, one] = *b.record(b.data[step.1 as usize][1]) else {
-            return Vec::new();
+            return None;
         };
         if read_local(b, before) != Some(current) || self.const_usize(one) != Some(1) {
-            return Vec::new();
+            return None;
         }
-        // The bound: a local set once before the loop from a length read
-        // (`for i in 0..n`), or a length the test reads on each iteration
-        // (`while i < xs.len()`, #2186), which the loop keeps as the list's.
+        // The bound: a local set once before the loop (`for i in 0..n`),
+        // or a value the test reads on each iteration (`while i <
+        // xs.len()`, #2186).
         let len = match bound {
             Some(bound) => {
                 let [(bound_set, value)] = self.sets.stores[bound].as_slice() else {
-                    return Vec::new();
+                    return None;
                 };
                 if !self.dominates(*bound_set, l) {
-                    return Vec::new();
+                    return None;
                 }
                 self.source(*value)
             }
             None => self.source(end),
         };
-        if !self.is_op(len, Tag::Intrinsic, IntrinsicOp::ListLen as u32)
-            || !(self.dominates(len, l) || bound.is_none() && self.dominates(len, lt))
-        {
+        // A constant bound holds everywhere.
+        let held = Ref(len).as_inst().is_none()
+            || self.computed_before(len, l)
+            || bound.is_none() && self.computed_before(len, lt);
+        held.then_some(Induction {
+            current,
+            cond,
+            step: step.0,
+            len,
+        })
+    }
+
+    /// Whether value `v` is computed on every path to `j` before it: it
+    /// dominates `j`, or it is the one way out of an inlined call's
+    /// scope that does, as `n` in `for i in 0..xs.len()`.
+    fn computed_before(&self, v: u32, j: u32) -> bool {
+        let b = self.b;
+        let mut v = v;
+        for _ in 0..8 {
+            if self.dominates(v, j) {
+                return true;
+            }
+            let blk = self.topo.blk[v as usize];
+            let s = blk.wrapping_add(1) as usize;
+            if blk == NONE
+                || b.tags.get(s) != Some(&Tag::Scope)
+                || b.data[s][0] != blk
+                || b.wrapper_value(s) != Some(v)
+                || self.sets.breaks.get(blk as usize) != Some(&1)
+            {
+                return false;
+            }
+            v = hd_tir::ir::u32_of(s);
+        }
+        false
+    }
+
+    /// Whether `index` is induction `ind`'s value where `x` reads it:
+    /// read after the test and before the step, and before `x`.
+    fn induction_index(&self, ind: &Induction, index: u32, x: u32) -> bool {
+        let index = self.source(index);
+        read_local(self.b, index) == Some(ind.current)
+            && self.dominates(ind.cond, index)
+            && self.dominates(index, ind.step)
+            && self.dominates(index, x)
+    }
+
+    /// Exact `usize` induction from zero to an unchanged list's length,
+    /// `while i < n` or `while i < xs.len()`, with `i = i + 1` in the loop.
+    fn rising(&self, l: u32, test: u32) -> Vec<u32> {
+        let b = self.b;
+        let Some(ind) = self.induction(l, test) else {
+            return Vec::new();
+        };
+        let len = ind.len;
+        if !self.is_op(len, Tag::Intrinsic, IntrinsicOp::ListLen as u32) {
             return Vec::new();
         }
         let Some(root) = b
@@ -781,14 +872,7 @@ impl Lists<'_> {
                 let Some((list, index)) = self.elem_access(x as usize) else {
                     return false;
                 };
-                if list != root {
-                    return false;
-                }
-                let index = self.source(index);
-                read_local(b, index) == Some(current)
-                    && self.dominates(cond, index)
-                    && self.dominates(index, step.0)
-                    && self.dominates(index, x)
+                list == root && self.induction_index(&ind, index, x)
             })
             .collect()
     }
@@ -1266,6 +1350,9 @@ mod tests {
             false
         }
         fn length_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn load_name(&self) -> Symbol {
             Symbol::NONE
         }
         fn tuple(&self, _: Ty) -> bool {
@@ -1878,5 +1965,90 @@ mod tests {
                 });
             }
         }
+    }
+
+    /// `k` loops after one another over a reference `xs`, each `for i in
+    /// 0..n` with `n` loaded from `*xs .0` before it, whose body loads
+    /// `*xs .0` and `*xs .1` and guards `i >= *xs .0` with a panic.
+    fn read_only_loops(k: usize) -> Body {
+        let mut b = build();
+        let root = b.open_block();
+        let xs = local(&mut b, REF_LIST);
+        let zero = b.const_value(usize_ty(), 0);
+        let one = b.const_value(usize_ty(), 1);
+        let load = |b: &mut TirBuilder, field: u32| {
+            let word = b.place(&Place {
+                root: PlaceRoot::Local(xs),
+                proj: vec![Proj::Deref, Proj::Field(field)],
+            });
+            b.emit(Tag::Read, word, ReadMode::Copy as u32, usize_ty(), AT)
+        };
+        for _ in 0..k {
+            let index = b.local(usize_ty(), Symbol::NONE, 0, AT);
+            let bound = b.local(usize_ty(), Symbol::NONE, 0, AT);
+            b.set(index, zero, AT);
+            let length = load(&mut b, 0);
+            b.set(bound, length, AT);
+            let lp = b.open_loop();
+            let block = b.open_block();
+            let current = b.get(index, usize_ty(), AT);
+            let end = b.get(bound, usize_ty(), AT);
+            let condition = b.prim(PrimOp::Lt as u32, &[current, end], Ty::BOOL, AT);
+            test_branch(&mut b, lp.0.raw(), condition);
+            let at = b.get(index, usize_ty(), AT);
+            let len = load(&mut b, 0);
+            let out = b.prim(PrimOp::Ge as u32, &[at, len], Ty::BOOL, AT);
+            let panic = b.open_block();
+            call(&mut b, 2, &[], Ty::VOID);
+            let panic = b.close_block(panic, None, Ty::VOID, AT);
+            let arms = b.refs_record(&[panic, Ref(NONE)]);
+            b.emit(Tag::If, out.0, arms, Ty::VOID, AT);
+            load(&mut b, 1);
+            let before = b.get(index, usize_ty(), AT);
+            let step = b.prim(PrimOp::Add as u32, &[before, one], usize_ty(), AT);
+            b.set(index, step, AT);
+            let block = b.close_block(block, None, Ty::VOID, AT);
+            b.close_loop(lp, block, Ty::VOID, AT);
+        }
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        finish(b, root)
+    }
+
+    #[test]
+    fn read_only_loops_hoist_their_loads_and_drop_decided_guards_in_linear_work() {
+        let mut work = Vec::new();
+        for k in [8, 16] {
+            let mut body = read_only_loops(k);
+            let before = body.len();
+            let ((), scanned) =
+                count_scans(|| run(&mut body, &Facts, true).expect("hoisted loads splice"));
+            work.push(scanned);
+            // Two insertions per loop and place (`*xs .0`, `*xs .1`) shift
+            // each later instruction; the loads become reads of locals.
+            assert_eq!(body.len(), before + 4 * k);
+            let loads = body
+                .tags
+                .iter()
+                .enumerate()
+                .filter(|&(i, &t)| {
+                    t == Tag::Read
+                        && body
+                            .decode_place(body.data[i][0])
+                            .is_some_and(|p| p.proj.first() == Some(&Proj::Deref))
+                })
+                .count();
+            // Each loop's two loads stand before it; the one before its
+            // bound stays.
+            assert_eq!(loads, 3 * k, "{k} loops");
+            let decided = body
+                .tags
+                .iter()
+                .enumerate()
+                .filter(|&(i, &t)| t == Tag::If && body.data[i][0] & Ref::CONST_BIT != 0)
+                .count();
+            assert_eq!(decided, k, "every guard is decided");
+        }
+        // Twice the loops, at most twice the work: no loop rescans another.
+        assert!(work[1] <= 2 * work[0], "{work:?}");
     }
 }
