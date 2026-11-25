@@ -30,7 +30,11 @@
 //!    place the caller can reach may keep the address past the call (a
 //!    local reference parameter outlives nothing else, `ref.local`). A
 //!    local is spilled at every remaining address or at none: if one
-//!    address must stay, copies would only add work.
+//!    address must stay, copies would only add work. The pipeline's
+//!    `cold_spill` knob turns spills off where the loop's back edge
+//!    already holds a call (wasmtime's epoch check): there the spilled
+//!    fields and the copy's frame are all live across that call, past
+//!    the callee-saved registers (`hd_opt::passes::OPTIMIZED_WASMTIME`).
 //! 3. **Cleanup.** A binding no read uses any more is deleted with the
 //!    `Ref`s and reads that fed only it, so the local has no address.
 //!
@@ -112,11 +116,17 @@ fn value(word: u32, n: usize) -> Option<usize> {
 /// `Call`, as (call, `extra` word).
 type ArgUse = (u32, u32);
 
-/// Runs the pass over `b`; whether it changed anything.
+/// Runs the pass over `b`; whether it changed anything. `spill` allows
+/// step 2's spills (the pipeline's `cold_spill` knob).
 ///
 /// # Errors
 /// A malformed body the splice cannot renumber.
-pub fn run(b: &mut Body, pool: &InternPool, copies: &dyn Fn(Ty) -> bool) -> Result<bool, String> {
+pub fn run(
+    b: &mut Body,
+    pool: &InternPool,
+    copies: &dyn Fn(Ty) -> bool,
+    spill: bool,
+) -> Result<bool, String> {
     let n = b.len();
     let locals = b.local_ty.len();
     charge(n + locals);
@@ -279,7 +289,11 @@ pub fn run(b: &mut Body, pool: &InternPool, copies: &dyn Fn(Ty) -> bool) -> Resu
         });
     }
     // 3. Spills.
-    let spills = spills(b, pool, &topo, &alias, &base, &direct, &arg_use);
+    let spills = if spill {
+        spills(b, pool, &topo, &alias, &base, &direct, &arg_use)
+    } else {
+        Vec::new()
+    };
     let mut inserts = Vec::new();
     let mut values: Vec<u32> = Vec::new();
     for s in spills {
