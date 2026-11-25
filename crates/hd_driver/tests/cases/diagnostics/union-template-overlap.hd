@@ -1,12 +1,33 @@
 # @dump: diagnostics
 # @build: std
-# trait.target.union.conditional and trait.overlap.error: the std union Eq
-# implementation already covers unions whose members implement Eq.
+# trait.target.union.conditional and trait.overlap.error: a local union
+# template conflicts with explicit implementations of that same trait.
+use std.meta.{Field, Structure, UnionType, Variant, Walker}
 
-impl Eq for (i32 | string):
+trait Probe < ?Copy:
+    fn eq(&self, other: &Self) -> bool
+
+struct Noop: pass
+
+impl[S < ?Copy] Walker[S] for Noop:
+    type Error = never
+
+    fn variant(&mut self, value: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < ?Copy](&mut self, field: Field[S, F], value: &F) -> Result[void, never]:
+        .Ok(())
+
+impl[T < ?Copy & UnionType] Probe for T by Structure:
+    fn eq(&self, other: &Self) -> bool:
+        let mut walker = Noop {}
+        _ := Structure::walk(self, &mut walker)
+        false
+
+impl Probe for (i32 | string):
     fn eq(&self, other: &Self) -> bool:
         false
 
-impl Eq for (i64 | bool):
+impl Probe for (i64 | bool):
     fn eq(&self, other: &Self) -> bool:
         false
