@@ -1,0 +1,53 @@
+# @dump: stdout
+# @build: release std | release checked std
+# `work!` has no suspension point, so it runs in its frame, and a parameter
+# it only reads could be lent from that frame. The frame's end releases
+# only counts: a `UniqList`'s buffer and elements, which its `Drop` frees,
+# would leak (the checked build's audit). `Bag` leaks that way on
+# origin/main; `UniqList` itself does once sroa forwards `consume`'s
+# `list.len()`, so its parameter is only read. The body owns both, and
+# drops them on each path.
+use std.collections.UniqList
+
+struct Parcel:
+    label: string
+
+impl !Copy for Parcel
+
+struct Bag:
+    items: UniqList[Parcel]
+    count: usize
+
+impl !Copy for Bag
+
+fn parcels(n: usize) -> UniqList[Parcel]:
+    let mut out = UniqList::[Parcel].new()
+    let i: usize = 0
+    while i < n:
+        out.push(Parcel { label: "p$i" })
+        i += 1
+    out
+
+fn consume(list: UniqList[Parcel]) -> usize:
+    list.len()
+
+fn work!(list: UniqList[Parcel], take: bool) -> usize:
+    if take:
+        return consume(list)
+    +0
+
+fn count(b: Bag) -> usize:
+    b.count
+
+fn bag_work!(b: Bag, take: bool) -> usize:
+    if take:
+        return count(b)
+    +0
+
+fn run!() -> usize:
+    let lists = work!(parcels(5), true) + work!(parcels(3), false)
+    let bags = bag_work!(Bag { items: parcels(2), count: 2 }, true)
+    lists + bags + bag_work!(Bag { items: parcels(1), count: 1 }, false)
+
+pub fn main!() -> void $ Console:
+    println("${run!()}")
