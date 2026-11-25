@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# @package: different-facade-declaration-is-not-an-import-fix
+use pkg.api.hidden.take
+
+pub fn probe() -> i32:
+    take()
+# @file: api/mod.hd
+pub use self.visible.{take}
+# @file: api/hidden.hd
+pub fn take() -> i32:
+    +1
+# @file: api/visible.hd
+pub fn take() -> i32:
+    +2

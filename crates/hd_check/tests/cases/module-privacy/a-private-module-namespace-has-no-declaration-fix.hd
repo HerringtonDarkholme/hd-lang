@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @package: private-module-namespace-has-no-declaration-fix
+use pkg.api.hidden
+
+pub fn probe() -> i32:
+    hidden.take()
+# @file: api/mod.hd
+pub use self.hidden.{take}
+# @file: api/hidden.hd
+pub fn take() -> i32:
+    +1
