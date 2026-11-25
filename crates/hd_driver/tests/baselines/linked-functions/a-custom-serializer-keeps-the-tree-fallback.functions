@@ -11,10 +11,10 @@ std/encoding.json/push_quoted#0
 std/encoding.json/impl TextWriter.spaced_key#0
 std/encoding.json/impl Display for Json.to_string#0
 std/rt.alloc/release_acyclic#0
+std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/encoding.json/push_escaped#0
 std/rt.alloc/block_of#0
 app/main/main#0
-std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/encoding.json/encode_fallback#0 [app.main.Odd]
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -34,7 +34,6 @@ std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/rt.entry/host_provider#0 [Console]
 std/rt.alloc/retain_known#0
-std/collections.uniq_list/impl ByteBuffer for UniqList[u8].take_text#0
 std/rt.memory/room#0
 std/rt.alloc/alloc#0
 std/rt.bytes/impl TextRoom.grow#0
@@ -46,6 +45,7 @@ std/rt.alloc/free_block#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
 std/rt.bytes/impl TextSink for TextRoom.append_unsigned#0
 std/rt.cycle/hold_room#0
+std/rt.bytes/impl TextBuffer #2.grow_bytes#0
 std/rt.alloc/init.init#0
 std/encoding.json/line_break#0
 std/format/impl Display for f64.to_string#0
@@ -53,10 +53,8 @@ std/format/Display.write#0 [std.encoding.json.Json]
 std/text/impl StringBuilder.build#0
 std/rt.alloc/release_known_acyclic#0
 std/encoding.json/impl TextWriter.add_key#0
-std/collections.uniq_list/impl UniqList[u8].grow_bytes#0
 std/encoding.json/key_print#0
 std/encoding.json/impl TextWriter.give_up#0
-std/collections.uniq_list/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
 std/encoding.json/impl JsonWriter.put#0
 std/encoding.json/impl TextWriter.finish#0
 app/main/impl Serialize for Odd.serialize#0 [std.encoding.json.TextWriter]
@@ -72,7 +70,7 @@ std/rt.alloc/retain_value#0 [std.encoding.json.ObjectEntry]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry?]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
-std/rt.alloc/release_value#0 [std.collections.uniq_list.UniqList[u8]]
+std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
 std/rt.alloc/release_value#0 [std.encoding.json.Json]
 std/rt.alloc/retain_value#0 [std.encoding.json.Json]
 std/rt.alloc/release_value#0 [std.encoding.json.TextWriter]
