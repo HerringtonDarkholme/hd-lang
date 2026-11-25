@@ -1,0 +1,20 @@
+# @dump: diagnostics
+# A tuple arity error preserves the pattern bindings for recovery.
+fn binding(value: (i32,)) -> i32:
+    let (first, second) = value
+    first + second
+
+fn arm(value: (i32,)) -> i32:
+    match value:
+        (first, second) => first + second
+
+fn loop(values: List[(i32,)]) -> void:
+    for (first, second) in values:
+        let _ = first + second
+
+fn comprehension(values: List[(i32,)]) -> List[i32]:
+    [for (first, second) in values => first + second]
+
+fn nested(value: ((i32,), i32)) -> i32:
+    let ((first, second), last) = value
+    first + second + last
