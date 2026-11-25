@@ -1,7 +1,7 @@
 # test: SHA-256 preserves bytes across random chunk splits and FIPS boundary vectors
-# Spec std/digest SHA-256: std-digest.sha256.fips, std-digest.sha256.length,
-# std-digest.sha256.update-ref, std-digest.sha256.finish, std-digest.sha256.oneshot.
-use std.digest.{Sha256, sha256}
+# Spec std/crypto SHA-256: std-crypto.sha256.fips, std-crypto.sha256.length,
+# std-crypto.sha256.update-ref, std-crypto.sha256.finish, std-crypto.sha256.oneshot.
+use std.crypto.sha256.{Sha256, sha256}
 use std.testing.{Choices, assert_equal, it_each, it_prop_with}
 
 fn random_chunks(c: &mut Choices) -> List[List[u8]]:

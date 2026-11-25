@@ -101,7 +101,7 @@ in-memory writer holds no host resource. Each handle type implements
 A downloader shows progress while it hashes a large file:
 
 ```text
-use std.digest.Sha256
+use std.crypto.sha256.Sha256
 use std.http.{Http, Request}
 
 fn fetch_digest!(url: string) -> Result[string, &dyn Error] $ Http + Console:

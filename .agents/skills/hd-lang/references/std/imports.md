@@ -58,7 +58,7 @@ use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, h, ms, now, s, s
 `std.time.minutes(count)` constructs minutes; `90min` is the fixed duration literal spelling.
 
 Other modules: `std.http` and `std.net` (requests and sockets),
-`std.encoding` (base64 and hex), `std.digest` (hashes), `std.validate`
+`std.encoding` (base64 and hex), `std.crypto` (hashes), `std.validate`
 (checked input), `std.iter` (iterator types), `std.format`.
 
 ## Looking a name up
