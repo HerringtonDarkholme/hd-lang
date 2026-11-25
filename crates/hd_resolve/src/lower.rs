@@ -6774,14 +6774,10 @@ impl Lower<'_, '_, '_> {
     /// `Integer` and `Float`: the standard library's numeric families
     /// (`trait.target.numeric-family`).
     fn numeric_family(&self, generics: &[Generic]) -> bool {
-        let known = &self.names.known;
-        generics.iter().filter(|g| !g.row).all(|g| {
-            let written: Vec<Ty> = (g.bounds.iter().copied())
-                .filter(|b| self.trait_of(*b) != Some(known.copy))
-                .collect();
-            matches!(written.as_slice(), [b]
-                if self.trait_of(*b).is_some_and(|t| [known.num, known.integer, known.float].contains(&t)))
-        })
+        generics
+            .iter()
+            .filter(|g| !g.row)
+            .all(|g| g.numeric_family(&self.names).is_some())
     }
 
     /// Whether the target of an inherent implementation is a tuple or a

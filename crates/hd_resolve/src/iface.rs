@@ -254,6 +254,21 @@ pub struct Generic {
 }
 
 impl Generic {
+    /// The one sealed numeric bound after ignoring the ordinary Copy bound.
+    /// Read semantic bounds, not their written order or first-bound shortcut.
+    #[must_use]
+    pub fn numeric_family(&self, names: &Names<'_>) -> Option<DefId> {
+        let mut bounds = self
+            .bounds
+            .iter()
+            .map(|&b| names.pool.trait_value(b).map(|(d, _)| d))
+            .filter(|b| *b != Some(names.known.copy));
+        let bound = bounds.next()??;
+        (bounds.next().is_none()
+            && [names.known.num, names.known.integer, names.known.float].contains(&bound))
+        .then_some(bound)
+    }
+
     #[must_use]
     pub fn plain(name: Symbol) -> Self {
         Self {

@@ -300,6 +300,9 @@ impl Unit<'_, '_> {
                 if *trait_ != DefId::NONE {
                     continue;
                 }
+                // The bound list belongs to the implementation, not to each
+                // member. Expand it once; primitive family size is fixed.
+                let targets = self.targets(h.def, *self_ty);
                 for f in Src::child(h.node, SyntaxKind::Block)
                     .into_iter()
                     .flat_map(NodeRef::children)
@@ -314,7 +317,7 @@ impl Unit<'_, '_> {
                     }
                     by_name.entry(name).or_default().push((
                         h.def,
-                        self.targets(h.def, *self_ty),
+                        targets.clone(),
                         m.src.span(f),
                         super::has_cfg(&m.src, f),
                     ));
@@ -404,7 +407,7 @@ impl Unit<'_, '_> {
             .get(&def)
             .filter(|_| p.owner == def)
             .and_then(|imp| imp.generics.get(usize::from(p.index)))
-            .and_then(|g| g.bound);
+            .and_then(|g| g.numeric_family(&self.names));
         let Some(bound) = bound else {
             return vec![self_ty];
         };

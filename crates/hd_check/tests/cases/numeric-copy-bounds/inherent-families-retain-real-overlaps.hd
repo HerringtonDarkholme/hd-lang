@@ -1,0 +1,52 @@
+# @dump: diagnostics
+# @build: std
+# expected: each later member/implementation still collides with the numeric family.
+use std.num.{Num, Integer, Float}
+
+impl[N < Copy & Num] N:
+    fn probe_0_0(self) -> bool:
+        true
+
+impl[N < Integer & Copy] N:
+    fn probe_0_0(self) -> bool:
+        false
+
+impl[N < Num & Copy] N:
+    fn probe_0_1(self) -> bool:
+        true
+
+impl[N < Copy & Integer] N:
+    fn probe_0_1(self) -> bool:
+        false
+
+impl[N < Copy & Num] N:
+    fn probe_1_0(self) -> bool:
+        true
+
+impl[N < Float & Copy] N:
+    fn probe_1_0(self) -> bool:
+        false
+
+impl[N < Num & Copy] N:
+    fn probe_1_1(self) -> bool:
+        true
+
+impl[N < Copy & Float] N:
+    fn probe_1_1(self) -> bool:
+        false
+
+impl[N < Copy & Integer] N:
+    fn probe_2_0(self) -> bool:
+        true
+
+impl i32:
+    fn probe_2_0(self) -> bool:
+        false
+
+impl[N < Integer & Copy] N:
+    fn probe_2_1(self) -> bool:
+        true
+
+impl i32:
+    fn probe_2_1(self) -> bool:
+        false

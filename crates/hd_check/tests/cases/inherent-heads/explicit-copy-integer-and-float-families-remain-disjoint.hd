@@ -1,12 +1,11 @@
 # @dump: diagnostics
 # @build: std
 # expected: no diagnostics; explicit Copy preserves disjoint numeric families.
-# gap: #2377; the current duplicate-inherent-member diagnostic is incorrect.
 use std.num.{Integer, Float}
 impl[N < Copy & Integer] N:
     fn copied_numeric_probe(self) -> bool:
         true
 
-impl[N < Float] N:
+impl[N < Copy & Float] N:
     fn copied_numeric_probe(self) -> bool:
         false

@@ -83,7 +83,9 @@ impl<'a> Universe<'a> {
                 if p.owner != imp.def {
                     return None;
                 }
-                imp.generics.get(usize::from(p.index))?.bound
+                imp.generics
+                    .get(usize::from(p.index))?
+                    .numeric_family(&self.names)
             })
             .collect();
         out.sort_stable_by_key(|d| self.names.path_hash(*d));
@@ -314,7 +316,7 @@ impl<'a> Universe<'a> {
             return None;
         }
         let g = imp.generics.get(usize::from(p.index))?;
-        let b = g.bound?;
+        let b = g.numeric_family(&self.names)?;
         let members: Vec<Ty> = self
             .impls
             .get(&b)?

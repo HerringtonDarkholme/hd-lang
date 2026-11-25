@@ -1,18 +1,20 @@
 //! A sealed family contributes only its primitive heads to the member index.
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
 use hd_sched::SerialOrder;
-use std::fmt::Write as _;
 
-fn comparisons(width: usize) -> Result<u64, String> {
-    let mut source = String::from(
-        "use std.num.Integer\nimpl[N < Integer] N:\n    fn family_probe(self) -> usize: 0\n",
-    );
+fn comparisons(width: usize, leading_copy: bool) -> Result<u64, String> {
+    let family = include_str!("programs/inherent_numeric_families/family.hd");
+    let mut source = if leading_copy {
+        family.to_owned()
+    } else {
+        family.replace("Copy & Integer", "Integer & Copy")
+    };
     for index in 0..width {
-        writeln!(
-            source,
-            "struct Local{index}: pass\nimpl Local{index}:\n    fn family_probe(self) -> usize: 0",
-        )
-        .map_err(|error| error.to_string())?;
+        source.push('\n');
+        source.push_str(
+            &include_str!("programs/inherent_numeric_families/unrelated.hd")
+                .replace("LocalReceiver", &format!("Local{index}")),
+        );
     }
     let mut sources = hd_driver::std_sources();
     sources.insert("rt_tests/stage_case.hd", &source);
@@ -46,18 +48,20 @@ fn unrelated_heads_do_not_compare_with_a_sealed_numeric_family() -> Result<(), S
     // Each measurement deliberately builds std cold in a fresh store,
     // keeping the fixed std contribution equal in all three runs.
     // The only source-sized work is one candidate-index visit per local type.
-    let fixed = comparisons(0)?;
-    for width in [100, 1_000] {
-        let work = comparisons(width)?;
-        println!(
-            "width {width}: {work} visits, fixed {fixed}, delta {}",
-            work - fixed
-        );
-        assert_eq!(
-            work - fixed,
-            width as u64,
-            "width {width}: {work}, base {fixed}"
-        );
+    for leading_copy in [false, true] {
+        let fixed = comparisons(0, leading_copy)?;
+        for width in [100, 1_000] {
+            let work = comparisons(width, leading_copy)?;
+            println!(
+                "leading Copy {leading_copy}, width {width}: {work} visits, fixed {fixed}, delta {}",
+                work - fixed
+            );
+            assert_eq!(
+                work - fixed,
+                width as u64,
+                "leading Copy {leading_copy}, width {width}: {work}, base {fixed}"
+            );
+        }
     }
     Ok(())
 }

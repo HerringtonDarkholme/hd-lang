@@ -6,6 +6,6 @@ impl[N < Integer & Copy] N:
     fn copied_numeric_probe(self) -> bool:
         true
 
-impl[N < Float] N:
+impl[N < Float & Copy] N:
     fn copied_numeric_probe(self) -> bool:
         false
