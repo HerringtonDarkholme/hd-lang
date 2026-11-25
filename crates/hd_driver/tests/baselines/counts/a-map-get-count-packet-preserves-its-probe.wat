@@ -25,17 +25,15 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $t2
       i32.const 16
       i32.mul
       i32.add
       local.tee $t3
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.tee $t0
       local.get $t3
-      i32.load $heap offset=12
+      i32.load $heap offset=44
       local.set $t3
       local.tee $t4
       if

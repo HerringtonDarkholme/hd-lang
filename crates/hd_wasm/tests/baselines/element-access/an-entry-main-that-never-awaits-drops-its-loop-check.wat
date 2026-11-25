@@ -15,14 +15,11 @@
     i32.const 1
     i32.store $heap offset=16
     local.get $provider1
-    i32.const 4
-    i32.add
-    local.tee $provider1.vtable
     i32.const 2
-    i32.store $heap offset=16
-    local.get $provider1.vtable
-    i32.const 3
     i32.store $heap offset=20
+    local.get $provider1
+    i32.const 3
+    i32.store $heap offset=24
     local.get $provider1
     ;; 11 |     n := xs.len()
     i32.load $heap offset=4

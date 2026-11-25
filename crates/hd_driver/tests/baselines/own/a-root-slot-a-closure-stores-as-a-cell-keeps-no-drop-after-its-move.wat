@@ -268,7 +268,7 @@
     local.get $t3
     local.get $t1
   )
-  (func $rounds (param $n i32) (result i32) (local $i i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32) (local $total i32) (local $t7 i32)
+  (func $rounds (param $n i32) (result i32) (local $x.1 i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32) (local $total i32) (local $t7 i32)
     ;; 11 |     let mut xs: List[string] = ["a"]
     global.get $stack
     global.get $stack_limit
@@ -286,13 +286,13 @@
     global.set $stack
     i32.const 1
     call $rt:list_buf
-    local.tee $i
+    local.tee $x.1
     i32.const 1
     i32.store $heap offset=4
-    local.get $i
+    local.get $x.1
     i32.const 176 ;; &"a"
     i32.store $heap offset=16
-    local.get $i
+    local.get $x.1
     i32.const 1
     i32.store $heap offset=20
     local.get $t0
@@ -302,7 +302,7 @@
     i32.const 8
     i32.add
     local.tee $xs
-    local.get $i
+    local.get $x.1
     i32.store $heap
     ;; 12 |     for i in 0..n:
     block
@@ -316,11 +316,8 @@
         i64.const 0
         i64.store $heap offset=16
         local.get $t0
-        i32.const 24
-        i32.add
-        local.tee $i
         local.get $t1
-        i32.store $heap
+        i32.store $heap offset=24
         local.get $t1
         i32.const -2
         i32.gt_u
@@ -332,17 +329,17 @@
         i32.const 1
         i32.add
         local.set $t1
+        local.get $t0
     ;; 13 |         tag := "r$i"
-        local.get $i
-        i32.load $heap
+        i32.load $heap offset=24
         i64.extend_i32_u
         local.tee $t2
         call $unsigned_width
-        local.set $i
+        local.set $x.1
         i32.const 1
         local.set $t3
         i64.const 1
-        local.get $i
+        local.get $x.1
         i64.extend_i32_u
         i64.add
         local.tee $t4
@@ -381,7 +378,7 @@
         local.get $t6
         local.get $t3
         i32.add
-        local.get $i
+        local.get $x.1
         call $write_unsigned_sized
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
         local.get $xs
@@ -389,34 +386,34 @@
         i32.const 8
         i32.const 2
         call $rt:new/class-1'2
-        local.tee $i
+        local.tee $x.1
     ;; 13 |         tag := "r$i"
         local.get $t6
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
         i32.store $heap
-        local.get $i
+        local.get $x.1
     ;; 13 |         tag := "r$i"
         local.get $t5
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
         i32.store $heap offset=4
-        local.get $i
+        local.get $x.1
         call $"impl[T] List[T].map[string, string, fn(&string) -> string]"
-        local.set $i
+        local.set $x.1
         local.get $xs
         i32.load $heap
         local.get $xs
-        local.get $i
+        local.get $x.1
         i32.store $heap
-        local.tee $i
+        local.tee $x.1
         if
-          local.get $i
+          local.get $x.1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $i
+            local.get $x.1
             call $rt:release_ref'2
           end
         end
@@ -445,11 +442,11 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $i
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $i
+        local.get $x.1
         i32.load $heap offset=20
-        local.set $i
+        local.set $x.1
         local.set $xs
         local.get $t7
         i32.const -2
@@ -473,12 +470,12 @@
           call $retain
         end
         local.get $xs
-        local.get $i
+        local.get $x.1
         call $eat
-        local.set $i
+        local.set $x.1
         local.get $total
         i64.extend_i32_u
-        local.get $i
+        local.get $x.1
         i64.extend_i32_u
         i64.add
         local.tee $t2

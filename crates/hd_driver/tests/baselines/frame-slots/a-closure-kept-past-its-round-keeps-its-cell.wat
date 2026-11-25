@@ -136,7 +136,7 @@
     local.get $env
     i32.load $heap
   )
-  (func $fresh (param $n i32) (result i32) (local $out i32) (local $t1 i32) (local $i i32) (local $total i32) (local $t0 i32)
+  (func $fresh (param $n i32) (result i32) (local $out i32) (local $t0 i32) (local $i i32) (local $total i32)
     ;; 19 |     let mut out = +0
     global.get $stack
     global.get $stack_limit
@@ -150,42 +150,39 @@
     global.get $stack
     i32.const 16
     i32.sub
-    local.tee $t0
+    local.tee $total
     global.set $stack
     ;; 20 |     for i in +0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_s
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.set $i
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-        local.get $t0
+        local.set $t0
+        local.get $total
         i64.const 0
         i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $total
+        local.get $total
     ;; 21 |         let total = i
         local.get $i
-        i32.store $heap
+        i32.store $heap offset=8
     ;; 25 |         out += step()
         local.get $total
         local.get $total
-        i32.load $heap
+        i32.load $heap offset=8
         i32.const 1
         i32.add
-        i32.store $heap
+        i32.store $heap offset=8
         local.get $out
         local.get $total
-        i32.load $heap
+        i32.load $heap offset=8
         i32.add
         local.set $out
     ;; 20 |     for i in +0..n:
@@ -195,7 +192,7 @@
     ;; 26 |     out
     local.get $out
     ;; 19 |     let mut out = +0
-    local.get $t0
+    local.get $total
     i32.const 16
     i32.add
     global.set $stack

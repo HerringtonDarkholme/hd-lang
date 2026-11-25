@@ -26,18 +26,14 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $k.0
     i32.const 16
     i32.mul
     i32.add
-    i32.const 8
-    i32.add
     local.tee $m
-    i32.load $heap
+    i32.load $heap offset=40
     local.get $m
-    i32.load $heap offset=4
+    i32.load $heap offset=44
     local.set $m
     drop
     local.get $m
@@ -62,18 +58,14 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $k.0
     i32.const 16
     i32.mul
     i32.add
-    i32.const 8
-    i32.add
     local.tee $m
-    i32.load $heap
+    i32.load $heap offset=40
     local.get $m
-    i32.load $heap offset=4
+    i32.load $heap offset=44
     local.set $m
     local.tee $k.0
     if

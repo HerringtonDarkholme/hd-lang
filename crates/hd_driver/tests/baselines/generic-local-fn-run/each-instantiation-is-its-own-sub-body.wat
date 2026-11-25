@@ -223,7 +223,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $a.0 i32) (local $a.1 i32) (local $value.0 i32) (local $s.0 i32) (local $s.1 i32) (local $n i32) (local $t0 i32) (local $t.0 i32) (local $t.1 i32) (local $k i32) (local $t1 i64) (local $value'1 i64) (local $t2 i32) (local $value'2 i64) (local $t3 i32) (local $t4 i64) (local $value'3 i64) (local $t5 i32) (local $value'4 i64) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $a.0 i32) (local $a.1 i32) (local $value.0 i32) (local $s.0 i32) (local $s.1 i32) (local $n i32) (local $t.0 i32) (local $t.1 i32) (local $t0 i64) (local $value'1 i64) (local $t1 i32) (local $value'2 i64) (local $t2 i32) (local $t3 i64) (local $value'3 i64) (local $t4 i32) (local $t5 i32) (local $value'4 i64) (local $t6 i32) (local $text.0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32)
     ;; 64 |     let (a, n, s) = generic("c")
     global.get $stack
     global.get $stack_limit
@@ -237,7 +237,7 @@
     global.get $stack
     i32.const 32
     i32.sub
-    local.tee $t0
+    local.tee $n
     global.set $stack
     i32.const 115 ;; &"c"
     i32.const 1
@@ -247,17 +247,13 @@
     local.set $value.0
     local.set $a.1
     local.set $a.0
-    local.get $t0
+    local.get $n
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.set $n
     block
       local.get $n
       local.get $value.0
-      i32.store $heap
+      i32.store $heap offset=8
       br 0
       unreachable
     end
@@ -269,18 +265,14 @@
     local.set $t.1
     local.set $t.0
     ;; 64 |     let (a, n, s) = generic("c")
-    local.get $t0
+    local.get $n
     i64.const 0
     i64.store $heap offset=16
-    local.get $t0
-    i32.const 24
-    i32.add
-    local.set $k
     ;; 65 |     let (t, k) = outer("o")
     block
-      local.get $k
+      local.get $n
       local.get $value.0
-      i32.store $heap
+      i32.store $heap offset=24
       br 0
       unreachable
     end
@@ -297,9 +289,9 @@
       call $rt:release_ref'2
     end
     local.get $n
-    i32.load $heap
+    i32.load $heap offset=8
     i64.extend_i32_s
-    local.tee $t1
+    local.tee $t0
     local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
@@ -309,11 +301,11 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t2
+      local.set $t1
     end
     local.get $value.0
     i64.extend_i32_u
-    local.get $t2
+    local.get $t1
     i64.extend_i32_u
     i64.add
     local.tee $value'1
@@ -325,7 +317,7 @@
     end
     local.get $value'1
     i32.wrap_i64
-    local.set $t2
+    local.set $t1
     local.get $s.0
     local.tee $value.0
     if
@@ -348,8 +340,8 @@
       local.get $value.0
       call $rt:release_ref'2
     end
-    local.get $k
-    i32.load $heap
+    local.get $n
+    i32.load $heap offset=24
     i64.extend_i32_s
     local.tee $value'1
     local.tee $value'2
@@ -361,11 +353,11 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t3
+      local.set $t2
     end
     local.get $value.0
     i64.extend_i32_u
-    local.get $t3
+    local.get $t2
     i64.extend_i32_u
     i64.add
     local.tee $value'2
@@ -377,7 +369,7 @@
     end
     local.get $value'2
     i32.wrap_i64
-    local.set $t3
+    local.set $t2
     i32.const 7
     call $"nested[usize]"
     i64.extend_i32_u
@@ -387,11 +379,11 @@
     i32.const 3
     call $countdown
     i64.extend_i32_s
-    local.tee $t4
+    local.tee $t3
     local.tee $value'3
     call $signed_magnitude
     call $unsigned_width
-    local.set $n
+    local.set $t4
     local.get $value'3
     i64.const 0
     i64.lt_s
@@ -399,7 +391,7 @@
       i32.const 1
       local.set $t5
     end
-    local.get $n
+    local.get $t4
     i64.extend_i32_u
     local.get $t5
     i64.extend_i32_u
@@ -420,7 +412,7 @@
     local.tee $value'4
     call $signed_magnitude
     call $unsigned_width
-    local.set $n
+    local.set $t4
     local.get $value'4
     i64.const 0
     i64.lt_s
@@ -428,7 +420,7 @@
       i32.const 1
       local.set $t6
     end
-    local.get $n
+    local.get $t4
     i64.extend_i32_u
     local.get $t6
     i64.extend_i32_u
@@ -445,8 +437,8 @@
     local.set $t6
     i32.const 1
     call $"Named.shout[Sq]"
-    local.set $n
-    local.set $k
+    local.set $t4
+    local.set $text.0
     local.get $a.1
     local.tee $t7
     i32.const -2
@@ -460,7 +452,7 @@
     i32.add
     local.tee $t7
     i64.extend_i32_u
-    local.get $t2
+    local.get $t1
     i64.extend_i32_u
     i64.add
     local.tee $value'4
@@ -535,7 +527,7 @@
     i32.add
     local.tee $t13
     i64.extend_i32_u
-    local.get $t3
+    local.get $t2
     i64.extend_i32_u
     i64.add
     local.tee $value'4
@@ -635,7 +627,7 @@
     i32.add
     local.tee $t21
     i64.extend_i32_u
-    local.get $n
+    local.get $t4
     i64.extend_i32_u
     i64.add
     local.tee $value'4
@@ -692,25 +684,25 @@
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
-    local.get $t1
+    local.get $t0
     local.get $t23
     local.get $t7
     i32.add
-    local.get $t2
+    local.get $t1
     call $write_signed_sized
     local.get $t23
     i64.extend_i32_u
     local.get $t8
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -719,14 +711,14 @@
     local.get $t9
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     local.get $s.0
     local.get $s.1
@@ -741,14 +733,14 @@
     local.get $t10
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -757,14 +749,14 @@
     local.get $t11
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     local.get $t.0
     local.get $t.1
@@ -779,14 +771,14 @@
     local.get $t12
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -794,21 +786,21 @@
     local.get $t23
     local.get $t13
     i32.add
-    local.get $t3
+    local.get $t2
     call $write_signed_sized
     local.get $t23
     i64.extend_i32_u
     local.get $t14
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -823,18 +815,18 @@
     local.get $t16
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
-    local.get $t4
+    local.get $t3
     local.get $t23
     local.get $t17
     i32.add
@@ -845,14 +837,14 @@
     local.get $t18
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -867,14 +859,14 @@
     local.get $t20
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     i32.const 32
     i32.store8 $heap
@@ -883,21 +875,21 @@
     local.get $t21
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
-    local.get $k
-    local.get $n
+    local.get $text.0
+    local.get $t4
     call $rt:memory_copy/0/0
-    local.get $k
+    local.get $text.0
     if
-      local.get $k
+      local.get $text.0
       call $rt:release_ref'2
     end
     local.get $t23
@@ -906,7 +898,7 @@
     local.get $provider0.vtable
     call $"println[string]"
     ;; 64 |     let (a, n, s) = generic("c")
-    local.get $t0
+    local.get $n
     i32.const 32
     i32.add
     global.set $stack

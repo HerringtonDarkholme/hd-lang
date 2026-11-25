@@ -9,7 +9,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 27 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 26 |     println(demo(Image { width: 4, pixels: [1, 2, 3] }, 64))
     i32.const 3
     call $rt:list_buf
@@ -20,14 +20,11 @@
     i32.const 1
     i32.store8 $heap offset=16
     local.get $t0
-    i32.const 1
-    i32.add
-    local.tee $t1
     i32.const 2
-    i32.store8 $heap offset=16
-    local.get $t1
-    i32.const 3
     i32.store8 $heap offset=17
+    local.get $t0
+    i32.const 3
+    i32.store8 $heap offset=18
     i32.const 4
     local.get $t0
     i32.const 64

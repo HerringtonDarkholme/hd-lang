@@ -11,7 +11,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value.0 i32) (local $t.1 i32) (local $s i32) (local $l.0 i32) (local $l.1 i32) (local $t.0 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value.0 i32) (local $s i32) (local $l.0 i32) (local $l.1 i32) (local $t.0 i32) (local $t.1 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 20 |     let (s, l, t) = total([1, 2, 3], 10, "t", "l")
     i32.const 3
     call $rt:list_buf
@@ -22,14 +22,11 @@
     i32.const 1
     i32.store $heap offset=16
     local.get $value.0
-    i32.const 4
-    i32.add
-    local.tee $t.1
     i32.const 2
-    i32.store $heap offset=16
-    local.get $t.1
-    i32.const 3
     i32.store $heap offset=20
+    local.get $value.0
+    i32.const 3
+    i32.store $heap offset=24
     local.get $value.0
     i32.const 10
     i32.const 113 ;; &"t"

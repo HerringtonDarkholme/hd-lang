@@ -50,7 +50,7 @@
     i32.add
     global.set $stack
   )
-  (func $read_list (param $t1 i32) (result i32) (local $us i32) (local $t0 i32)
+  (func $read_list (param $t1 i32) (result i32) (local $t0 i32)
     ;; 19 |     first_name(&us).len()
     global.get $stack
     global.get $stack_limit
@@ -70,13 +70,10 @@
     i64.const 0
     i64.store $heap
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $us
     local.get $t1
-    i32.store $heap
-    local.get $us
-    i32.load $heap
+    i32.store $heap offset=8
+    local.get $t0
+    i32.load $heap offset=8
     local.set $t1
     i32.const 0
     local.get $t1

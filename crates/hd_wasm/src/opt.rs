@@ -30,7 +30,11 @@
 //! 8. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
 //!    that pushes one value over what it found, is `R` and the store at
 //!    `c` more offset; through a later `R; i32.add` (`x + c + y` is
-//!    `x + y + c`) the constant reaches a store or a load of the sum;
+//!    `x + y + c`) the constant reaches a store or a load of the sum; and
+//!    through a local `t` written once with it, when each read of `t`
+//!    after that write, inside the construct that holds it, and a tee's
+//!    own value, is the address of a load or store: `t` holds `x`, and each
+//!    of those takes `c` in its offset (a multi-leaf value's stores);
 //! 9. `X; local.set a; P; local.get a`, where those are `a`'s only write
 //!    and read, `X` is a straight-line run that pushes one value and `P`
 //!    pushes a local, a global or a constant that `X` cannot change, is
@@ -3002,13 +3006,55 @@ struct StoreOffset {
     parent: Option<usize>,
 }
 
+/// An offset candidate on the stack: a constant addition (`offsets`), or
+/// a read of a local that holds one (rule 8's `local.tee`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Addend {
+    Here(usize),
+    Local(u32),
+}
+
+/// A local written once with an offset candidate, whose reads may each
+/// take the candidate's constant in their offset instead.
+struct HeldAddend {
+    /// The candidate the local's one write stores.
+    candidate: usize,
+    /// The construct that holds the write: its depth and number.
+    depth: usize,
+    construct: u32,
+    /// Whether the write is a `local.tee`, whose own value is one more use.
+    tee: bool,
+    /// The loads and stores whose address is the local's value.
+    uses: Vec<usize>,
+}
+
 fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> bool {
+    let (reads, writes) = counts_with(f, visit);
+    let params = f.params.len();
     let mut depth = 0usize;
-    let mut active = Vec::<(usize, usize)>::new();
+    let mut active = Vec::<(usize, Addend)>::new();
     let mut offsets = Vec::<StoreOffset>::new();
+    let mut held: Vec<Option<HeldAddend>> = (0..reads.len()).map(|_| None).collect();
+    // The open blocks, loops and arms, each numbered once.
+    let mut constructs = vec![0u32];
+    let mut numbered = 0u32;
     let mut order = None;
     for i in 0..f.body.len() {
         visit();
+        match f.body[i] {
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
+                numbered += 1;
+                constructs.push(numbered);
+            }
+            Ins::Op(I::Else) => {
+                numbered += 1;
+                *constructs.last_mut().expect("an arm") = numbered;
+            }
+            Ins::Op(I::End) => {
+                constructs.pop();
+            }
+            _ => {}
+        }
         let Some((pops, pushes)) = effect(&f.body[i], arity, &f.symbols) else {
             depth = 0;
             active.clear();
@@ -3049,38 +3095,112 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
             (i.checked_sub(1).and_then(|p| f.body.get(p)), f.body[i])
             && *c >= 0
         {
-            active.push((depth, offsets.len()));
+            active.push((depth, Addend::Here(offsets.len())));
             offsets.push(StoreOffset {
                 at: i - 1,
                 addend: c.cast_unsigned(),
-                parent: address,
+                parent: address.and_then(|a| match a {
+                    Addend::Here(id) => Some(id),
+                    Addend::Local(_) => None,
+                }),
             });
         } else if let Ins::Op(mut op) = f.body[i]
             && with_offset(&op, 0).is_some()
         {
-            let mut address = if is_load(&op) { top } else { address };
-            while let Some(id) = address {
-                visit();
-                let StoreOffset { at, addend, parent } = offsets[id];
-                let Some(store) = with_offset(&op, addend) else {
-                    break;
-                };
-                op = store;
-                let order = order.get_or_insert_with(|| ScheduleOrder::new(f.body.len(), visit));
-                order.remove(at);
-                order.remove(at + 1);
-                if let Some(origins) = &mut f.origins {
-                    origins[i] = origins[at].or(origins[at + 1]).or(origins[i]);
+            match if is_load(&op) { top } else { address } {
+                Some(Addend::Local(l)) => {
+                    if let Some(h) = &mut held[l as usize] {
+                        h.uses.push(i);
+                    }
                 }
-                address = parent;
+                mut address => {
+                    while let Some(Addend::Here(id)) = address {
+                        visit();
+                        let StoreOffset { at, addend, parent } = offsets[id];
+                        let Some(store) = with_offset(&op, addend) else {
+                            break;
+                        };
+                        op = store;
+                        let order =
+                            order.get_or_insert_with(|| ScheduleOrder::new(f.body.len(), visit));
+                        order.remove(at);
+                        order.remove(at + 1);
+                        if let Some(origins) = &mut f.origins {
+                            origins[i] = origins[at].or(origins[at + 1]).or(origins[i]);
+                        }
+                        address = parent.map(Addend::Here);
+                    }
+                    f.body[i] = Ins::Op(op);
+                }
             }
-            f.body[i] = Ins::Op(op);
         } else if matches!(f.body[i], Ins::Op(I::I32Add))
             && let Some(id) = address.or(top)
         {
             // `x + c + y` is `x + y + c`: the constant goes on to the load
             // or store of the sum.
             active.push((depth, id));
+        } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = f.body[i]
+            && let Some(Addend::Here(candidate)) = top
+            && l as usize >= params
+            && writes[l as usize] == 1
+        {
+            // `t` holds `x + c`: each read of it that is an address may
+            // read `x` and take `c` in its offset.
+            let depth_at = constructs.len() - 1;
+            let tee = matches!(f.body[i], Ins::Op(I::LocalTee(_)));
+            held[l as usize] = Some(HeldAddend {
+                candidate,
+                depth: depth_at,
+                construct: constructs[depth_at],
+                tee,
+                uses: Vec::new(),
+            });
+            if tee {
+                active.push((depth, Addend::Local(l)));
+            }
+        } else if let Ins::Op(I::LocalGet(l)) = f.body[i]
+            && let Some(h) = &held[l as usize]
+            && constructs.get(h.depth) == Some(&h.construct)
+        {
+            // The read follows the one write inside the construct that
+            // holds it, so the write ran first.
+            active.push((depth, Addend::Local(l)));
+        }
+    }
+    // A held candidate moves when every read of its local, and a tee's
+    // own value, is an address that takes its constants.
+    for (l, h) in held.iter().enumerate() {
+        let Some(h) = h else { continue };
+        let mut chain = Vec::new();
+        let mut at = Some(h.candidate);
+        while let Some(id) = at {
+            visit();
+            chain.push(id);
+            at = offsets[id].parent;
+        }
+        let total = chain
+            .iter()
+            .try_fold(0u32, |sum, &id| sum.checked_add(offsets[id].addend));
+        let Some(total) = total else { continue };
+        let ops: Option<Vec<I>> = h
+            .uses
+            .iter()
+            .map(|&u| match &f.body[u] {
+                Ins::Op(op) => with_offset(op, total),
+                _ => None,
+            })
+            .collect();
+        let Some(ops) = ops.filter(|_| h.uses.len() == reads[l] as usize + usize::from(h.tee))
+        else {
+            continue;
+        };
+        for (&u, op) in h.uses.iter().zip(ops) {
+            f.body[u] = Ins::Op(op);
+        }
+        let order = order.get_or_insert_with(|| ScheduleOrder::new(f.body.len(), visit));
+        for id in chain {
+            order.remove(offsets[id].at);
+            order.remove(offsets[id].at + 1);
         }
     }
     let Some(order) = order else {

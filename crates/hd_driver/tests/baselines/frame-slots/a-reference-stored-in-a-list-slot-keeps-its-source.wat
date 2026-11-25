@@ -16,7 +16,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $replaced (param $ps i32) (result i32) (local $k i32) (local $t0 i32) (local $d i32) (local $p i32) (local $q i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $junk.0 i32) (local $junk.1 i32)
+  (func $replaced (param $ps i32) (result i32) (local $k i32) (local $d i32) (local $p i32) (local $q i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $junk.0 i32) (local $junk.1 i32)
     ;; 14 |     p := make(k)
     global.get $stack
     global.get $stack_limit
@@ -30,26 +30,23 @@
     global.get $stack
     i32.const 48
     i32.sub
-    local.tee $t0
+    local.tee $k
     global.set $stack
-    local.get $t0
+    local.get $k
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $k
-    local.get $ps
-    i32.store $heap
     local.get $k
-    i32.load $heap
+    local.get $ps
+    i32.store $heap offset=8
+    local.get $k
+    i32.load $heap offset=8
     call $make
     local.set $ps
     local.set $d
-    local.get $t0
+    local.get $k
     i64.const 0
     i64.store $heap offset=16
-    local.get $t0
+    local.get $k
     i32.const 24
     i32.add
     local.tee $p
@@ -60,7 +57,7 @@
     i32.store $heap offset=4
     ;; 15 |     q := make(k + 1)
     local.get $k
-    i32.load $heap
+    i32.load $heap offset=8
     local.tee $ps
     i32.const 2147483646
     i32.gt_s
@@ -75,10 +72,10 @@
     local.set $ps
     local.set $d
     ;; 14 |     p := make(k)
-    local.get $t0
+    local.get $k
     i64.const 0
     i64.store $heap offset=32
-    local.get $t0
+    local.get $k
     i32.const 40
     i32.add
     local.tee $q
@@ -126,13 +123,13 @@
     i32.store $heap offset=16
     ;; 19 |     junk := "j${k}"
     local.get $k
-    i32.load $heap
+    i32.load $heap offset=8
     i64.extend_i32_s
-    local.tee $t1
+    local.tee $t0
     local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $k
+    local.set $t1
     local.get $value
     i64.const 0
     i64.lt_s
@@ -140,7 +137,7 @@
       i32.const 1
       local.set $t2
     end
-    local.get $k
+    local.get $t1
     i64.extend_i32_u
     local.get $t2
     i64.extend_i32_u
@@ -156,7 +153,7 @@
     i32.wrap_i64
     local.set $t2
     i32.const 1
-    local.set $k
+    local.set $t1
     i64.const 1
     local.get $t2
     i64.extend_i32_u
@@ -193,9 +190,9 @@
     i32.wrap_i64
     i32.const 106
     i32.store8 $heap
-    local.get $t1
+    local.get $t0
     local.get $junk.0
-    local.get $k
+    local.get $t1
     i32.add
     local.get $t2
     call $write_signed_sized
@@ -213,11 +210,11 @@
     end
     local.get $ps
     i32.load $heap offset=16
-    local.tee $k
+    local.tee $d
     i32.load $heap
-    local.get $k
+    local.get $d
     i32.load $heap offset=4
-    local.set $k
+    local.set $d
     drop
     local.get $ps
     if
@@ -252,17 +249,17 @@
     end
     local.get $t2
     i64.extend_i32_u
-    local.get $k
+    local.get $d
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     local.set $ps
     local.get $junk.0
@@ -275,17 +272,17 @@
     local.get $junk.1
     i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $t0
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t1
+    local.get $t0
     i32.wrap_i64
     ;; 14 |     p := make(k)
-    local.get $t0
+    local.get $k
     i32.const 48
     i32.add
     global.set $stack

@@ -4,7 +4,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"same[i32]" (param $b i32) (param $t1 i32) (result i32) (local $a i32) (local $t0 i32)
+  (func $"same[i32]" (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
     ;; 8 |     a == b
     global.get $stack
     global.get $stack_limit
@@ -24,24 +24,18 @@
     i64.const 0
     i64.store $heap
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $a
-    local.get $b
-    i32.store $heap
+    local.get $t1
+    i32.store $heap offset=8
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
     local.get $t0
-    i32.const 24
-    i32.add
-    local.tee $b
-    local.get $t1
-    i32.store $heap
-    local.get $a
-    i32.load $heap
-    local.get $b
-    i32.load $heap
+    local.get $t2
+    i32.store $heap offset=24
+    local.get $t0
+    i32.load $heap offset=8
+    local.get $t0
+    i32.load $heap offset=24
     i32.eq
     local.get $t0
     i32.const 32

@@ -39,14 +39,11 @@
     i64.const 1
     i64.store $heap offset=16
     local.get $t1
-    i32.const 8
-    i32.add
-    local.tee $xs
     i64.const 2
-    i64.store $heap offset=16
-    local.get $xs
-    i64.const 3
     i64.store $heap offset=24
+    local.get $t1
+    i64.const 3
+    i64.store $heap offset=32
     local.get $t0
     i64.const 0
     i64.store $heap

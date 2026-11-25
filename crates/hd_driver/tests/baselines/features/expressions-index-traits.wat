@@ -8,7 +8,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $n i32) (local $t0 i32)
+  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 21 |     n[i].len()
     global.get $stack
     global.get $stack_limit
@@ -28,14 +28,11 @@
     i64.const 0
     i64.store $heap
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $n
     local.get $t1
-    i32.store $heap
+    i32.store $heap offset=8
     local.get $i
-    local.get $n
-    i32.load $heap
+    local.get $t0
+    i32.load $heap offset=8
     local.tee $t1
     i32.load $heap offset=4
     i32.ge_u
@@ -121,7 +118,7 @@
     local.get $value.1
     i32.store $heap offset=20
   )
-  (func $generic_first (param $xs i32) (result i32) (local $items i32) (local $t0 i32)
+  (func $generic_first (param $xs i32) (result i32) (local $t0 i32)
     ;; 30 |     first(xs).len()
     global.get $stack
     global.get $stack_limit
@@ -141,13 +138,10 @@
     i64.const 0
     i64.store $heap
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $items
     local.get $xs
-    i32.store $heap
-    local.get $items
-    i32.load $heap
+    i32.store $heap offset=8
+    local.get $t0
+    i32.load $heap offset=8
     local.set $xs
     i32.const 0
     local.get $xs
@@ -158,12 +152,9 @@
       unreachable
     end
     local.get $xs
-    i32.const 16
-    i32.add
-    local.tee $xs
-    i32.load $heap
+    i32.load $heap offset=16
     local.get $xs
-    i32.load $heap offset=4
+    i32.load $heap offset=20
     local.set $xs
     drop
     local.get $xs

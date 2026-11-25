@@ -412,7 +412,7 @@
       end
     end
   )
-  (func $literal (param $n i32) (result i32) (local $xs i32) (local $t0 i32)
+  (func $literal (param $n i32) (result i32) (local $xs i32)
     ;; 55 |     let mut xs = [1, 2, 3]
     i32.const 3
     call $rt:list_buf
@@ -423,14 +423,11 @@
     i32.const 1
     i32.store $heap offset=16
     local.get $xs
-    i32.const 4
-    i32.add
-    local.tee $t0
     i32.const 2
-    i32.store $heap offset=16
-    local.get $t0
-    i32.const 3
     i32.store $heap offset=20
+    local.get $xs
+    i32.const 3
+    i32.store $heap offset=24
     ;; 56 |     xs[0] = n
     i32.const 0
     local.get $xs

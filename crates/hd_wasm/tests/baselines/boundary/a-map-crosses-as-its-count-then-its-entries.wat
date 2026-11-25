@@ -154,8 +154,6 @@
           i32.const 14
           i32.mul
           i32.add
-          i32.const 32
-          i32.add
           local.get $t4
           i32.const 12
           i32.mul
@@ -163,12 +161,12 @@
           local.set $t5
           local.get $t0
           local.get $t5
-          i32.load $heap
+          i32.load $heap offset=32
           local.get $t5
-          i32.load $heap offset=4
+          i32.load $heap offset=36
           call $rt:enc'3
           local.get $t5
-          i32.load $heap offset=8
+          i32.load $heap offset=40
           call $rt:enc'2
           local.set $t0
         end

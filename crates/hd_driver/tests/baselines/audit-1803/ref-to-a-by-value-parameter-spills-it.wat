@@ -73,7 +73,7 @@
       call $rt:release_ref
     end
   )
-  (func $sum (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $p i32) (local $t0 i32)
+  (func $sum (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $p i32)
     ;; 17 |     r := &p
     global.get $stack
     global.get $stack_limit
@@ -87,36 +87,33 @@
     global.get $stack
     i32.const 24
     i32.sub
-    local.tee $t0
+    local.tee $p
     global.set $stack
-    local.get $t0
+    local.get $p
     i64.const 0
     i64.store $heap
+    local.get $p
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $p
+    i32.store $heap offset=16
+    local.get $p
     local.get $t1
-    i32.store $heap offset=8
+    i32.store $heap offset=20
     local.get $p
     local.get $t2
-    i32.store $heap offset=12
+    i32.store $heap offset=8
     local.get $p
     local.get $t3
-    i32.store $heap
-    local.get $p
-    local.get $t4
-    i32.store $heap offset=4
+    i32.store $heap offset=12
     local.get $p
     ;; 18 |     r.x + r.y
-    i32.load $heap offset=8
+    i32.load $heap offset=16
     ;; 17 |     r := &p
     local.get $p
     ;; 18 |     r.x + r.y
-    i32.load $heap offset=12
+    i32.load $heap offset=20
     i32.add
     ;; 17 |     r := &p
-    local.get $t0
+    local.get $p
     i32.const 24
     i32.add
     global.set $stack

@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_fresh" (func $rt:release_fresh (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local (result f64) (local $values i32) (local $t0 i32)
+  (func $local (result f64) (local $values i32)
     ;; 10 |     values := [1.5, 2.5, 3.5]
     i32.const 3
     call $rt:list_buf
@@ -15,14 +15,11 @@
     f64.const 0x1.8p+0
     f64.store $heap offset=16
     local.get $values
-    i32.const 8
-    i32.add
-    local.tee $t0
     f64.const 0x1.4p+1
-    f64.store $heap offset=16
-    local.get $t0
-    f64.const 0x1.cp+1
     f64.store $heap offset=24
+    local.get $values
+    f64.const 0x1.cp+1
+    f64.store $heap offset=32
     ;; 11 |     values[2]
     i32.const 2
     local.get $values
