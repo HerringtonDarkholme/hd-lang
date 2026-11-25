@@ -1051,11 +1051,21 @@ impl Person:  # error: invalid-impl-target
 
 #### Implementation Modules
 
-1. r[trait.own.module.inherent-target] An inherent implementation must be declared in the module that declares its target type, except as `trait.own.module.inherent.std` allows.
-2. r[trait.own.module.inherent.std] An inherent implementation that `trait.own.inherent.std` allows may be declared in any module of the standard library.
+1. r[trait.own.module.inherent-target] An inherent implementation must be declared in the module that declares its target type, except as `trait.own.module.inherent.home` allows.
+2. r[trait.own.module.inherent.home] An inherent implementation that `trait.own.inherent.std` allows must be declared in its target's home module, listed below.
 3. r[trait.own.module.trait] A trait implementation must be declared in a module that declares one of three things. They are the trait, the target's outer type constructor, or the outer type constructor of a trait argument that gives its package ownership.
 4. r[trait.own.module.error] An implementation declared in any other module of the owning package is an error. Error: `nonlocal-impl`.
 5. r[trait.own.module.generated] A derived implementation is generated in the module of its declaration, so it always satisfies these rules.
+
+| Built-in target | Home module |
+| --- | --- |
+| `bool` | `std.core` |
+| Integer and floating-point primitives | `std.num` |
+| `string`, `char` | `std.text` |
+| `List[T]` | `std.collections.list` |
+| `Map[K, V]` | `std.collections.map` |
+| `Option[T]` | `std.option` |
+| `Result[T, E]` | `std.result` |
 
 ```hd
 trait Greet:

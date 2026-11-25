@@ -12,6 +12,7 @@ pub use std.rt.bytes.{
     ByteBuffer,
     TextRoom,
     TextBuffer,
+    TextBuilderValue,
     TextSink,
     bytes_at,
     bytes_concat,

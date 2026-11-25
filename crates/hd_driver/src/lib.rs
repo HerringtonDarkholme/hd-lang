@@ -62,6 +62,7 @@ pub mod bench;
 mod checked_rooms;
 mod dbg;
 pub mod diagnostics;
+mod import_hints;
 mod own;
 mod package_result;
 pub use own::copy_report_label;
@@ -1304,23 +1305,22 @@ fn skim_module(
     }
 }
 
-/// Whether module `m` is in std's language layer ([`module_graph`]): a
-/// top-level std module outside the core layer and the runtime, other
-/// than `std.testing`.
-fn std_layer(table: &ModuleTable, m: usize) -> bool {
-    let module = &table.modules[m];
-    table.roots[usize::from(module.package)] == "std"
-        && module.role != Role::Test
-        && module
-            .path
-            .strip_prefix("std.")
-            .is_some_and(|rest| !rest.contains('.'))
-        && ![
-            hd_resolve::known::CORE_MODULE,
-            hd_resolve::known::RUNTIME_MODULE,
-            hd_resolve::known::TESTING_MODULE,
-        ]
-        .contains(&module.path.as_str())
+/// The fixed language providers: prelude declarations, compiler-known
+/// items and built-in inherent homes. These are checking prerequisites,
+/// not source `use` edges, so they create no artificial module cycles.
+/// Cost: O(K) lookups for the fixed compiler tables, never a path-table scan.
+fn language_modules(table: &ModuleTable) -> Vec<usize> {
+    let paths = hd_resolve::known::PRELUDE
+        .iter()
+        .map(|(p, _)| *p)
+        .chain(hd_resolve::known::item_modules().iter().map(String::as_str))
+        .chain(hd_resolve::known::BUILTIN_HOMES.iter().map(|(_, p)| *p));
+    let mut modules: Vec<usize> = paths
+        .filter_map(|p| table.module(p).map(ModuleId::idx))
+        .collect();
+    modules.sort_stable();
+    modules.dedup();
+    modules
 }
 
 /// An implicit use of module `path` as a namespace.
@@ -1626,9 +1626,8 @@ fn repl_texts(
     // The compiler roots `std.rt.entry` and the runtime after an entry, a
     // REPL input's too (`RT_SOURCE`).
     stack.extend(rt_roots(table, false, false).map(ModuleId::idx));
-    // And std's language layer, which every module sees with no `use`
-    // ([`module_graph`]).
-    stack.extend((0..n).filter(|&m| std_layer(table, m)));
+    // Fixed implicit providers, closed through their real uses below.
+    stack.extend(language_modules(table));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -1928,6 +1927,9 @@ struct Run<'a> {
     /// check root reaches it, and the units of those modules' closures
     /// ([`Run::builds`], [`Run::builds_module`]).
     check_scope: OnceLock<Option<(Vec<bool>, Vec<bool>)>>,
+    /// Real-use closure of the fixed implicit language providers, once per run.
+    language_units: OnceLock<Vec<UnitId>>,
+    language_key: OnceLock<Option<Hash128>>,
     /// For a REPL input's build, per unit: whether the input's closure or
     /// the runtime's holds it ([`Run::builds`]); `None` for every other
     /// run.
@@ -3061,6 +3063,8 @@ fn build_packages_inner(
         reached,
         check_roots: packages.check_roots.clone(),
         check_scope: OnceLock::new(),
+        language_units: OnceLock::new(),
+        language_key: OnceLock::new(),
         repl_scope: OnceLock::new(),
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
@@ -3548,40 +3552,16 @@ fn module_graph(
             })
             .collect()
     };
-    // std's top-level modules are its language layer: the compiler names
-    // their items, their implementations for built-in types are visible
-    // with no `use` (`trait.own.inherent.std.no-use`), and their exports
-    // are the import hints' homes. So each module with the whole prelude
-    // depends on them all, except the core layer, the runtime and
-    // `std.testing`, which only test code sees. They depend on each other
-    // in a ring, one edge each, and every other module depends on the
-    // first: O(modules) edges, not modules x layer.
     let unread = |m: usize| reached.is_some_and(|r| !r[m]);
-    let layer: Vec<usize> = (0..table.modules.len())
-        .filter(|&m| std_layer(table, m) && !unread(m))
-        .collect();
-    let mut place = vec![u32::MAX; table.modules.len()];
-    for (i, &m) in layer.iter().enumerate() {
-        place[m] = u32_of(i);
-    }
     let refs: Vec<Vec<hd_project::UseRef>> = skims
         .iter()
         .enumerate()
         .map(|(m, s)| {
             if unread(m) {
-                return Vec::new();
+                Vec::new()
+            } else {
+                s.refs.clone()
             }
-            let mut refs = s.refs.clone();
-            let next = match place[m] {
-                u32::MAX => layer.first(),
-                i => layer.get(i as usize + 1).or(layer.first()),
-            };
-            if let Some(&next) = next.filter(|&&next| next != m)
-                && hd_resolve::known::prelude_rows(&table.modules[m].path).len() > 1
-            {
-                refs.push(namespace_ref(&table.modules[next].path));
-            }
-            refs
         })
         .collect();
     let declares: Vec<bool> = skims
@@ -4314,8 +4294,10 @@ impl Run<'_> {
     /// graph grouped before the run ([`module_graph`]). An interface task
     /// waits for the interface tasks of the units its unit uses, so for its
     /// whole closure; a header check and a module's prep wait only for the
-    /// interfaces they read directly. Cost: O(units + unit edges), plus a
-    /// closure walk per kept REPL unit a unit uses.
+    /// interfaces they read directly and the fixed language providers.
+    /// Provider closure is computed once; each check adds O(L) prerequisite
+    /// edges for the L provider units, independent of program size. Other
+    /// work is O(units + unit edges), plus kept REPL closure walks.
     #[inline(never)]
     fn unit_graph(&self, sp: &dyn Spawn) {
         let g = &self.graph;
@@ -4356,7 +4338,16 @@ impl Run<'_> {
             let deps = tasks_of(&g.uses[f.idx()], &iface_task);
             let t = sp.add(TaskKind::UnitIface(f.raw()), &deps);
             iface_task[f.idx()] = Some(t);
-            let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &[t]);
+        }
+        let language_deps = tasks_of(self.language_units(), &iface_task);
+        for &f in g
+            .order
+            .iter()
+            .filter(|f| !kept[f.idx()] && self.builds(**f))
+        {
+            let mut deps = language_deps.clone();
+            deps.extend(iface_task[f.idx()]);
+            let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &deps);
             sp.edge(hc, pr);
         }
         // A program's collection crosses packages (`crates/hd_mono/DESIGN.md` §13.2): the
@@ -4373,6 +4364,7 @@ impl Run<'_> {
         for rt in rt_roots(&self.table, self.checked(), self.report()) {
             starts.extend(self.module_units(rt.idx()));
         }
+        starts.extend_from_slice(self.language_units());
         let reached = self.reach_mask(starts);
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
@@ -4389,7 +4381,10 @@ impl Run<'_> {
             }
             // In the test role, its `tests:` block's lowering and check
             // read the interfaces of the units it uses too.
-            let deps = tasks_of(&self.module_units(m), &iface_task);
+            let mut deps = tasks_of(&self.module_units(m), &iface_task);
+            deps.extend_from_slice(&language_deps);
+            deps.sort_stable_by_key(|t| t.0);
+            deps.dedup();
             // A REPL input's task is held until its edges from the
             // earlier inputs' are in.
             let kind = TaskKind::ModulePrep(u32_of(m));
@@ -4576,10 +4571,47 @@ impl Run<'_> {
         units
     }
 
+    /// Provider closure is shared by all checks, not rediscovered per module.
+    fn language_units(&self) -> &[UnitId] {
+        self.language_units.get_or_init(|| {
+            self.closure_of(
+                language_modules(&self.table)
+                    .into_iter()
+                    .map(|m| self.table.modules[m].unit),
+            )
+        })
+    }
+
+    /// Checking sees implicit providers without adding source-cycle edges.
+    fn check_closure(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<UnitId> {
+        let mut units = self.closure_of(starts);
+        units.extend_from_slice(self.language_units());
+        units.sort_stable_by_key(|u| u.raw());
+        units.dedup();
+        units
+    }
+
+    /// One key for the implicit interfaces every header and body can read.
+    /// Cost: O(L) once for the provider closure; O(1) per checking key.
+    fn language_key(&self) -> Option<Hash128> {
+        *self.language_key.get_or_init(|| {
+            let mut key = hd_base::StableHasher::new("language-providers");
+            for &unit in self.language_units() {
+                let iface = self.iface_of(unit)?;
+                key.str(&self.table.units[unit.idx()].path);
+                key.hash(iface.deep_hash);
+                key.hash(iface.heads_hash);
+                key.hash(iface.names_hash);
+            }
+            Some(key.finish())
+        })
+    }
+
     /// The units module `m`'s check reads, in unit order: the closure of
-    /// [`Self::module_units`] (`crates/hd_cache/DESIGN.md` §5.3).
+    /// [`Self::module_units`] and the fixed implicit providers
+    /// (`crates/hd_cache/DESIGN.md` §5.3).
     fn module_closure(&self, m: usize) -> Vec<UnitId> {
-        self.closure_of(self.module_units(m))
+        self.check_closure(self.module_units(m))
     }
 
     fn iface_of(&self, f: UnitId) -> Option<Arc<UnitIface>> {
@@ -5496,9 +5528,13 @@ impl Run<'_> {
                 .repl_scope
                 .get_or_init(|| {
                     let m = self.repl_inputs.input?;
-                    Some(self.reach_mask(
-                        std::iter::once(self.table.modules[m].unit).chain(self.rt_units()),
-                    ))
+                    Some(
+                        self.reach_mask(
+                            std::iter::once(self.table.modules[m].unit)
+                                .chain(self.rt_units())
+                                .chain(self.language_units().iter().copied()),
+                        ),
+                    )
                 })
                 .as_ref()
                 .is_none_or(|s| s[f.idx()])
@@ -5531,20 +5567,15 @@ impl Run<'_> {
     /// from FILE's modules, `tests:` blocks included, as it filters its
     /// output, and builds the reached modules' unit closures. A program
     /// checks only the root package's modules its entry reaches through
-    /// `use`s (`cli.exe.reach`), and builds every unit's interface as an
-    /// unscoped run does; another package's bodies follow the reached
-    /// modules' closures as before. A program whose root package is std
-    /// is unscoped, since the compiler reaches std's items through its
-    /// known items, not only through `use`. Cost: one walk over the
-    /// reached modules' uses.
+    /// `use`s (`cli.exe.reach`). Dependency interfaces are limited to the
+    /// real-use closure plus fixed language providers and runtime roots;
+    /// unscoped checks still include every module of the root package.
+    /// Cost: one walk over reached modules' uses, including fixed implicit roots.
     fn check_scope(&self) -> Option<(Vec<bool>, Vec<bool>)> {
         let n = self.table.modules.len();
         let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
         let program = match &self.goal {
             Goal::Program { entry } | Goal::Scenario { entry, .. } => {
-                if self.table.identities[0] == "std" {
-                    return None;
-                }
                 let path = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 Some(
                     self.table
@@ -5558,9 +5589,19 @@ impl Run<'_> {
         let mut stack: Vec<usize> = if let Some(entry) = program {
             vec![entry]
         } else {
-            let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
-            (0..n).filter(|&m| roots.contains(file_of(m))).collect()
+            match self.check_roots.as_ref().filter(|_| self.analyze()) {
+                Some(roots) => (0..n).filter(|&m| roots.contains(file_of(m))).collect(),
+                None => (0..n)
+                    .filter(|&m| self.table.modules[m].package == 0)
+                    .collect(),
+            }
         };
+        // These are implicit program roots even when std is the root
+        // package itself. No package needs an all-interfaces exception.
+        if program.is_some() {
+            stack.extend(language_modules(&self.table));
+            stack.extend(rt_roots(&self.table, self.checked(), self.report()).map(ModuleId::idx));
+        }
         let mut reach = vec![false; n];
         while let Some(m) = stack.pop() {
             if std::mem::replace(&mut reach[m], true)
@@ -5582,18 +5623,16 @@ impl Run<'_> {
                     .map(ModuleId::idx),
             );
         }
-        let units = if program.is_some() {
-            for (m, module) in self.table.modules.iter().enumerate() {
-                reach[m] |= module.package != 0;
-            }
-            vec![true; self.table.units.len()]
-        } else {
-            self.reach_mask(
-                (0..n)
-                    .filter(|&m| reach[m])
-                    .flat_map(|m| self.module_units(m)),
-            )
-        };
+        let starts: Vec<UnitId> = (0..n)
+            .filter(|&m| reach[m])
+            .flat_map(|m| self.module_units(m))
+            .chain(self.rt_units())
+            .chain(self.language_units().iter().copied())
+            .collect();
+        let units = self.reach_mask(starts);
+        for (m, module) in self.table.modules.iter().enumerate() {
+            reach[m] |= module.package != 0;
+        }
         Some((reach, units))
     }
 
@@ -5811,12 +5850,9 @@ impl Run<'_> {
         out
     }
 
-    /// Every interface of a unit's closure (its own included).
-    fn closure_ifaces(&self, fid: UnitId) -> Option<Vec<Arc<UnitIface>>> {
-        self.closure(fid)
-            .into_iter()
-            .map(|c| self.iface_of(c))
-            .collect()
+    /// The interfaces of an already computed checking closure, in its order.
+    fn closure_ifaces(&self, closure: &[UnitId]) -> Option<Vec<Arc<UnitIface>>> {
+        closure.iter().map(|&c| self.iface_of(c)).collect()
     }
 
     /// Where an item, or one of its written types (`slot`), sits in its
@@ -5901,8 +5937,13 @@ impl Run<'_> {
             self.blocked(Stage::HeaderCheck);
             return;
         };
+        let Some(language_key) = self.language_key() else {
+            self.blocked(Stage::HeaderCheck);
+            return;
+        };
         // The closure's paths and deep hashes, as one digest.
         let reach: Vec<(&str, Hash128)> = std::iter::once(("$closure", digest.deep))
+            .chain(std::iter::once(("$language", language_key)))
             .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
             .collect();
         // A test's fuel budget for the root package ([`Packages::body_fuel`])
@@ -5954,8 +5995,8 @@ impl Run<'_> {
             return;
         }
         self.computed(Stage::HeaderCheck);
-        let closure = self.closure(fid);
-        let Some(all) = self.closure_ifaces(fid) else {
+        let closure = self.check_closure([fid]);
+        let Some(all) = self.closure_ifaces(&closure) else {
             self.blocked(Stage::HeaderCheck);
             return;
         };
@@ -5976,7 +6017,8 @@ impl Run<'_> {
             &[],
             closure.iter().copied().zip(all.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        );
+        )
+        .with_import_hints(import_hints::hint);
         let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
@@ -6735,6 +6777,7 @@ impl Run<'_> {
                 self.digest(c)?.deep,
             ));
         }
+        closure.push(("$language", self.language_key()?));
         closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
         // A REPL input sees `src/lib.hd`'s private declarations, which no
         // interface carries (`cli.repl.package.lib`).
@@ -7188,7 +7231,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        );
+        )
+        .with_import_hints(import_hints::hint);
         let names = self.names();
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
@@ -8714,7 +8758,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        );
+        )
+        .with_import_hints(import_hints::hint);
         let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
@@ -8772,7 +8817,7 @@ impl Run<'_> {
         let tmod = self.template_mods[tm]
             .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
-        let closure = self.closure(self.table.modules[tm].unit);
+        let closure = self.check_closure([self.table.modules[tm].unit]);
         let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
             .iter()
             .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
@@ -8784,7 +8829,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        );
+        )
+        .with_import_hints(import_hints::hint);
         let own_impls: Vec<&Item> = tmod
             .items
             .iter()
@@ -12132,6 +12178,9 @@ impl TuplePlans for Run<'_> {
 }
 
 impl hd_resolve::World for Run<'_> {
+    fn import_hint(&self, name: &str) -> Option<hd_resolve::iface::ImportHint> {
+        Some(import_hints::hint(name))
+    }
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.module_nodes
             .get(&module)

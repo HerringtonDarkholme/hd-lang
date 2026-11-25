@@ -122,24 +122,6 @@ pub fn report_of(error: &dyn Error) -> ErrorReport:
 fn entry_report(error: &dyn Error) -> string:
     report_of(error).to_string()
 
-# The error that `context` wraps around an `.Err`: its text is the message,
-# and its source is the wrapped error (r-std-error.context.private-wrapper).
-## An error that adds a context message over its source.
-## See [std-error.context.private-wrapper](../../spec/std/error.md#r-std-error.context.private-wrapper).
-struct ContextError:
-    message: string
-    error: *dyn Error
-
-# Keep handwritten Display: retain the existing Error.source implementation and original reference.
-impl Display for ContextError:
-    fn to_string(&self) -> string:
-        self.message
-
-# Keep handwritten Error: return the original erased source reference without wrapping it.
-impl Error for ContextError:
-    fn source(&self) -> (*dyn Error)?:
-        .Some(self.error)
-
 # The error that `message` returns: only a text (r-std-error.message.reference-struct).
 @error("$text")
 struct MessageError:
@@ -153,35 +135,3 @@ pub fn message(text: string) -> *dyn Error:
 
 # Builtin errors have no declaration on which to place @error.
 impl Error for never
-
-# Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
-# (r-std-error.context.ok, r-std-error.context.erased-wrapper).
-impl[T, E < Error & 'static] Result[T, E]:
-    ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
-    ## See [std-error.context.reference-result](../../spec/std/error.md#r-std-error.context.reference-result).
-    pub fn context(self, message: string) -> Result[T, *dyn Error]:
-        match self:
-            .Ok(value) => .Ok(value)
-            .Err(error) =>
-                # Both boxes escape in the returned trait value: the context and its retained source.
-                .Err(box(ContextError { message: message, error: box(error) }))
-
-# `Option.context` lives here, beside `Result.context`, so a program that never
-# names `Error` does not join this module (r-std-option.context.reference-result).
-impl[T] T?:
-    ## `.Ok` of the value for a `.Some`, and `.Err` of `message(text)` for a `.None`.
-    ## See [std-option.context.reference-result](../../spec/std/option.md#r-std-option.context.reference-result).
-    pub fn context(self, text: string) -> Result[T, *dyn Error]:
-        match self:
-            .Some(value) => .Ok(value)
-            .None => .Err(message(text))
-
-# The private wrapper keeps its existing Debug implementation: the erased
-# source has no Debug, so its Display text stands in for it.
-# Keep handwritten Debug: display the erased source, which need not implement Debug.
-impl Debug for ContextError:
-    fn debug(&self, out: *mut DebugWriter) -> void:
-        out.debug_struct("ContextError")
-            .field("message", self.message)
-            .field("source", self.error.to_string())
-            .finish()

@@ -5,6 +5,7 @@
 //! lines and interleaved below them. Blessing never rewrites source cases.
 //! `# @package: NAME` names the case's root package (`app` by default).
 //! `# @single-file: true` builds the case as a single-file program.
+//! `# @std-module: num.hd` checks a diagnostic case inside that std module.
 //! The `functions` view lists the linked program's functions in link order.
 //! `# @dependency: [KEY=]NAME [fetched]` begins a dependency package's `@file`s.
 
@@ -75,6 +76,9 @@ pub struct Program {
     /// (`# @single-file: true`), whose declarations print under the
     /// file's stem (`trait.typeid.name.single-file`).
     pub single_file: bool,
+    /// A diagnostic-only std build prepends the case to this existing
+    /// module, so inherent implementations can be tested in their home.
+    pub std_module: Option<String>,
     /// The dependency packages the case declares
     /// (`# @dependency: money fetched`), which the root requires by name.
     pub deps: Vec<CaseDependency>,
@@ -129,6 +133,7 @@ impl Program {
             filter: None,
             package: None,
             single_file: false,
+            std_module: None,
             deps: Vec::new(),
             marked: span.is_some(),
         })
@@ -212,6 +217,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut filter = None;
     let mut package = None;
     let mut single_file = false;
+    let mut std_module = None;
     let mut deps: Vec<CaseDependency> = Vec::new();
     let mut dep_names = std::collections::BTreeSet::new();
     // The current dependency file, once `@file` follows `@dependency`.
@@ -248,6 +254,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "filter"
                         | "package"
                         | "single-file"
+                        | "std-module"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -334,6 +341,12 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         return Err(format!("invalid module path `{value}`"));
                     }
                     main_path = Some(value.to_owned());
+                }
+                "std-module" => {
+                    if !module_path_ok(value) {
+                        return Err(format!("invalid std module path `{value}`"));
+                    }
+                    std_module = Some(value.to_owned());
                 }
                 "entry" => entries.extend(value.split_whitespace().map(str::to_owned)),
                 "filter" => filter = Some(value.to_owned()),
@@ -499,6 +512,23 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .to_owned(),
         );
     }
+    if let Some(path) = &std_module {
+        if builds.is_empty()
+            || !builds.iter().all(|(_, b)| b.std)
+            || dumps.iter().any(|d| d != "diagnostics")
+        {
+            return Err("`@std-module` requires only std diagnostic builds".to_owned());
+        }
+        let std = hd_driver::std_sources();
+        for file in
+            std::iter::once(path.as_str()).chain(program.files.iter().map(|(p, _)| p.as_str()))
+        {
+            if hd_project::SourceSet::read(&std, file).is_none() {
+                return Err(format!("no std module `{file}`"));
+            }
+        }
+    }
+    program.std_module = std_module;
     // A `std` build checks the case as std's `rt_tests/stage_case.hd`;
     // the `fixed` view applies its edits to the case's own file names.
     if builds.iter().any(|(_, b)| b.std) && dumps.iter().any(|d| d == "fixed") {
@@ -900,7 +930,25 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
 /// runtime modules (`module.rt.std-only`).
 fn std_with_case(p: &Program) -> hd_project::MemorySources {
     let mut std = hd_driver::std_sources();
-    std.insert(own::STD_CASE, &p.text);
+    if let Some(path) = &p.std_module {
+        // Cost: one copy of each selected module, only for this fixture.
+        // Keeping the case first preserves its diagnostic source offsets.
+        for (path, added) in std::iter::once((path.as_str(), p.text.as_str())).chain(
+            p.files
+                .iter()
+                .map(|(path, text)| (path.as_str(), text.as_str())),
+        ) {
+            if let Some(original) = hd_project::SourceSet::read(&std, path) {
+                let mut text = String::with_capacity(added.len() + 1 + original.len());
+                text.push_str(added);
+                text.push('\n');
+                text.push_str(&String::from_utf8_lossy(&original));
+                std.insert(path, &text);
+            }
+        }
+    } else {
+        std.insert(own::STD_CASE, &p.text);
+    }
     std
 }
 
@@ -925,7 +973,9 @@ fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_drive
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let mut packages = packages(p, build);
-    packages.std_leaf = build.std.then_some(own::STD_CASE);
+    packages.std_leaf = build
+        .std
+        .then_some(p.std_module.as_deref().unwrap_or(own::STD_CASE));
     let goal = if build.tests {
         Goal::CheckTests
     } else {

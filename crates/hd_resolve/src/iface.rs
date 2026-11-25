@@ -1118,23 +1118,25 @@ impl ImportHint {
     }
 }
 
-/// One unit interface's public std exports by the name an import hint
-/// asks for (#1876): built once, on the first hint that reads the
-/// interface, so a hint costs one probe per interface instead of a pass
-/// over every export.
+/// Public std exports by the name an import hint asks for (#1876).
+/// An interface builds its local index on the first hint; the driver can
+/// instead supply a process-wide index of the embedded std's exports.
+/// Owned names let either index outlive the interner that built it.
 #[derive(Debug, Default)]
 pub struct ImportIndex {
     /// By name, each std export of it: its module path, its item, and
     /// whether that path is a re-export rather than the declaring module
     /// (a trait of `std.core` is named by the module that re-exports it,
     /// as Rust's std names core's).
-    by_name: HashMap<Symbol, Vec<(String, DefId, bool)>>,
+    by_name: HashMap<String, Vec<(String, DefId, bool)>>,
     /// By last segment, the std modules that export something.
     by_leaf: HashMap<String, Vec<String>>,
 }
 
 impl ImportIndex {
-    fn new(names: &Names<'_>, exports: &[Export]) -> ImportIndex {
+    /// Own the public names and paths; the source interner may then be dropped.
+    #[must_use]
+    pub fn new(names: &Names<'_>, exports: &[Export]) -> ImportIndex {
         let mut out = ImportIndex::default();
         let mut modules = hd_base::HashSet::default();
         for e in exports {
@@ -1160,11 +1162,17 @@ impl ImportIndex {
                 declared != e.module
             };
             out.by_name
-                .entry(e.name)
+                .entry(names.text(e.name).to_owned())
                 .or_default()
                 .push((e.module.clone(), e.def, reexport));
         }
         out
+    }
+
+    /// One name probe, plus work proportional to its matching candidates.
+    #[must_use]
+    pub fn hint(&self, name: &str) -> ImportHint {
+        import_hint([self], name)
     }
 }
 
@@ -1230,18 +1238,25 @@ pub fn std_import_hint<'a>(
     ifaces: impl IntoIterator<Item = &'a UnitIface>,
     name: &str,
 ) -> ImportHint {
+    import_hint(
+        ifaces.into_iter().map(|iface| {
+            iface
+                .import_index
+                .get_or_init(|| ImportIndex::new(names, &iface.exports))
+        }),
+        name,
+    )
+}
+
+fn import_hint<'a>(indexes: impl IntoIterator<Item = &'a ImportIndex>, name: &str) -> ImportHint {
     let mut items = HashMap::<DefId, (bool, String)>::default();
     let mut modules = std::collections::BTreeSet::new();
-    let sym = names.syms.find(name);
-    for iface in ifaces {
+    for index in indexes {
         crate::work::hint_work(1);
-        let index = iface
-            .import_index
-            .get_or_init(|| ImportIndex::new(names, &iface.exports));
         if let Some(found) = index.by_leaf.get(name) {
             modules.extend(found.iter().cloned());
         }
-        let Some(exports) = sym.and_then(|s| index.by_name.get(&s)) else {
+        let Some(exports) = index.by_name.get(name) else {
             continue;
         };
         for (module, def, reexport) in exports {
@@ -1359,6 +1374,7 @@ pub struct Lookup<'a> {
     pub own_index: HashMap<DefId, usize>,
     pub ifaces: Vec<&'a UnitIface>,
     index: &'a IfaceIndex,
+    import_hints: Option<fn(&str) -> ImportHint>,
     by_unit: Vec<Option<&'a UnitIface>>,
     /// The own items' derivation templates by trait, made on the first
     /// derivation that asks.
@@ -1405,8 +1421,24 @@ impl<'a> Lookup<'a> {
             ifaces: visible,
             index,
             by_unit,
+            import_hints: None,
             templates: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Supply complete, immutable std advice independently of this check's closure.
+    #[must_use]
+    pub fn with_import_hints(mut self, hints: fn(&str) -> ImportHint) -> Self {
+        self.import_hints = Some(hints);
+        self
+    }
+
+    #[must_use]
+    pub fn import_hint(&self, names: &Names<'_>, name: &str) -> ImportHint {
+        self.import_hints.map_or_else(
+            || std_import_hint(names, self.ifaces.iter().copied(), name),
+            |hints| hints(name),
+        )
     }
 
     /// The derivation template of `trait_` (`annot.template.form`): the

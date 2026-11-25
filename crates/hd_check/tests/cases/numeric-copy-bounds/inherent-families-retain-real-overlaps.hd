@@ -1,5 +1,6 @@
 # @dump: diagnostics
 # @build: std
+# @std-module: num.hd
 # expected: each later member/implementation still collides with the numeric family.
 use std.num.{Num, Integer, Float}
 

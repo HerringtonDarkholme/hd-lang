@@ -349,7 +349,7 @@ fn report(names: List[string]) -> string:
     out.build()
 ```
 
-1. r[std-text.join.display-list] `std.text` gives `List[T < Display]` the method `join(&self, separator: string) -> string`, requiring no import.
+1. r[std-text.join.list-home] `std.collections.list` gives `List[T < Display]` the method `join(&self, separator: string) -> string`, requiring no import.
 2. r[std-text.join.display-result] `join` returns each element's `Display.write` text in list order, separated by `separator`, with no leading or trailing separator.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.

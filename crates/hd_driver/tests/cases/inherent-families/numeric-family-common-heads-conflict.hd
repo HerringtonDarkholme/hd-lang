@@ -1,7 +1,8 @@
 # @dump: diagnostics
 # @build: std
+# @std-module: num.hd
 # Spec: trait.target.numeric-family.each, trait.inherent.unique-unifying.
-# The sealed numeric family membership is independent of the declaration folder.
+# The sealed numeric family overlaps are checked in their std.num home.
 use std.num.{Integer, Float, Num}
 
 # Each pair below overlaps at its concrete member, in either declaration order.

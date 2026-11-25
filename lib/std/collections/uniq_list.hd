@@ -743,39 +743,15 @@ fn unique_uniq_list[T < ?Copy](items: &mut UniqList[T]) -> void:
         unique(items.buffer.at(index).as_mut())
         index += 1
 
-impl[T] List[T]:
-    ## Returns a new list in ascending order by `compare`. The sort is stable.
-    ## See [std-collections.access.sorted-by](../../../spec/std/collections.md#r-std-collections.access.sorted-by).
-    pub fn sorted_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&self, compare: F) -> List[T]:
-        if self.len() <= 1:
-            return *self
-        let mut sorted = UniqList::[T].from_list(*self)
-        sorted.sort_by(compare)
-        let mut out: List[T] = []
-        list_reserve(&mut out, sorted.len())
-        let index: usize = 0
-        size := sorted.len
-        sorted.len = 0
-        while index < size:
-            out.push(sorted.buffer.at(index).read())
-            index += 1
-        out
-
-impl[T < Ord] List[T]:
-    # A stable sort in ascending order.
-    ## Returns the elements in ascending order by `Ord`.
-    ## See [std-collections.helper.sorted](../../../spec/std/collections.md#r-std-collections.helper.sorted).
-    pub fn sorted(&self) -> List[T]:
-        if self.len() <= 1:
-            return *self
-        let mut sorted = UniqList::[T].from_list(*self)
-        sorted.sort()
-        let mut out: List[T] = []
-        list_reserve(&mut out, sorted.len())
-        let index: usize = 0
-        size := sorted.len
-        sorted.len = 0
-        while index < size:
-            out.push(sorted.buffer.at(index).read())
-            index += 1
-        out
+# Sorting lives with List; transferring the private unique buffer stays here.
+@inline(.Always)
+pub fn finish_sorted_list[T](sorted: &mut UniqList[T]) -> List[T]:
+    let mut out: List[T] = []
+    list_reserve(&mut out, sorted.len())
+    let index: usize = 0
+    size := sorted.len
+    sorted.len = 0
+    while index < size:
+        out.push(sorted.buffer.at(index).read())
+        index += 1
+    out

@@ -301,3 +301,11 @@ runs, make the target unambiguous:
 HD_CACHE=/private/tmp/hd-cache ./target/debug/hd examples/hello/hello.hd
 rm -rf /private/tmp/hd-cache/obj
 ```
+
+A diagnostic stage case with `# @build: std` can add
+`# @std-module: num.hd` to prepend its declarations to an existing std
+module. This preserves the case's source offsets while testing inherent
+implementations in their required home. The directive requires only the
+`diagnostics` view and std builds; other std cases keep the isolated
+`std.rt_tests.stage_case` module. Additional `# @file:` sections in a
+`@std-module` case prepend declarations to those existing std files too.

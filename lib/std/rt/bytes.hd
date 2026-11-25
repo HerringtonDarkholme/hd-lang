@@ -67,6 +67,11 @@ pub trait TextSink < ?Copy:
     fn append_signed(&mut self, value: i64) -> void
     fn append_unsigned(&mut self, value: u64) -> void
 
+# A value constructor available only inside std, so sibling modules can
+# keep a local builder without exposing its representation or API.
+pub trait TextBuilderValue < ?Copy:
+    fn new_value() -> Self
+
 # A private unique byte accumulator: Buffer owns the room and frees it,
 # while len counts initialized bytes. Dropping its u8 payload needs no
 # per-element loop.

@@ -164,3 +164,64 @@ fn every_known_item_is_declared() {
         );
     }
 }
+
+#[test]
+fn builtin_homes_are_complete_unique_and_enforced() {
+    use hd_resolve::known::{BUILTIN_HOMES, BuiltinHome};
+    use hd_types::{AdtId, Prim, Ty, TyData, TyList};
+    let pool = InternPool::new();
+    let paths = PathTable::new();
+    let syms = ShardedInterner::default();
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let expected = Prim::ALL
+        .into_iter()
+        .map(BuiltinHome::Primitive)
+        .chain([
+            BuiltinHome::List,
+            BuiltinHome::Map,
+            BuiltinHome::Option,
+            BuiltinHome::Result,
+        ])
+        .collect::<Vec<_>>();
+    assert_eq!(BUILTIN_HOMES.len(), expected.len());
+    for key in expected {
+        let entries = BUILTIN_HOMES
+            .iter()
+            .filter(|(other, _)| *other == key)
+            .collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1, "{key:?}");
+        let home = entries[0].1;
+        let adt =
+            |def, args: &[Ty]| pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(args)));
+        let ty = match key {
+            BuiltinHome::Primitive(p) => Ty::prim(p),
+            BuiltinHome::List => adt(known.list, &[Ty::I32]),
+            BuiltinHome::Map => adt(known.map, &[Ty::I32, Ty::BOOL]),
+            BuiltinHome::Option => adt(known.option, &[Ty::I32]),
+            BuiltinHome::Result => adt(known.result, &[Ty::I32, Ty::BOOL]),
+        };
+        assert_eq!(known.inherent_home(&pool, ty), Some(home));
+        let placement = |module| {
+            hd_resolve::lower::impl_placement(
+                &names,
+                (module, &[]),
+                (DefId::NONE, TyList::EMPTY, ty),
+                hd_resolve::ImplKind::Written,
+                false,
+            )
+        };
+        assert_eq!(placement(home), None, "{key:?}");
+        assert_eq!(
+            placement("std.unrelated"),
+            Some(hd_diag::Code::NonlocalImpl),
+            "{key:?}"
+        );
+        assert_eq!(placement("app"), Some(hd_diag::Code::OrphanImpl), "{key:?}");
+    }
+}

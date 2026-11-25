@@ -1682,7 +1682,7 @@ pub type PolicyEdge = (ModuleId, u32, Vec<String>);
 ///   read before it is set. A facade's own `pub use` edge reaches the
 ///   module that declares a name it re-exports, and naming a module makes
 ///   the implementations it holds visible, std's implementations for
-///   primitives among them (`trait.own.module.inherent.std`). A written
+///   primitives among them (`trait.own.module.inherent.home`). A written
 ///   single use of a module also has one to the module's parent, whose
 ///   exports its binding reads (`module.use.ambiguous`), unless the
 ///   parent exports no item at all: it declares nothing, and its only

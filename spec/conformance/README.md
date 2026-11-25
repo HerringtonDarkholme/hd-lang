@@ -534,6 +534,13 @@ with `cancellation-cleanup`.
 
 ### Package Roles
 
+`# fixture-package-role: standard-library` compiles the primary file as a
+fresh module `std.conformance.NAME`, where `NAME` is the file's stem.
+The module belongs to the implementation's standard library and can use
+its declarations; it does not replace any existing standard-library module.
+This role tests restrictions on declarations inside the standard library.
+
+
 `# fixture-package-role: library` and
 `# fixture-package-role: root-application` select the synthetic
 multi-package environment. The primary file is compiled as the root module

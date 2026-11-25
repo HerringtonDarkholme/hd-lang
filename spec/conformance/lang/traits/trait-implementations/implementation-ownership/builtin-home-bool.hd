@@ -1,0 +1,6 @@
+# test: bool inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl bool: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass

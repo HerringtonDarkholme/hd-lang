@@ -649,12 +649,6 @@ impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
 
-impl[T] List[T]:
-    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
-    ## See [std-iter.list.enumerate.borrow](../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
-    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
-        self.iter().enumerate()
-
 ## A cursor whose front and back share the same remaining sequence.
 pub trait DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]:
     fn next_back(&mut self) -> T?
