@@ -1682,7 +1682,9 @@ pub type PolicyEdge = (ModuleId, u32, Vec<String>);
 ///   read before it is set. A facade's own `pub use` edge reaches the
 ///   module that declares a name it re-exports, and naming a module makes
 ///   the implementations it holds visible, std's implementations for
-///   primitives among them (`trait.own.module.inherent.std`);
+///   primitives among them (`trait.own.module.inherent.std`). A single
+///   use of a module also has one to the module's parent, whose exports
+///   its binding reads (`module.use.ambiguous`);
 /// - the policy edges (`module.cycle.edge`) are the written library uses
 ///   of one package, a `pub use` making none: the sibling rule
 ///   (`module.cycle.siblings`) judges their loops.
@@ -1759,6 +1761,19 @@ impl ModuleGraph {
                     named.push((t, Some(decls)));
                 } else if let Some(t) = table.module(&u.path) {
                     named.push((t, None));
+                    // A single use of a module also reads its parent's
+                    // exports, which may declare the same name
+                    // (`module.use.ambiguous`): a dependency edge, so the
+                    // parent's interface is built before the use is bound,
+                    // and no policy edge, since the use names the module.
+                    if let Some((parent, _)) = u.path.rsplit_once('.')
+                        && let Some(above) = table.module(parent)
+                        && above.idx() != m
+                        && (test || table.modules[above.idx()].role != Role::Test)
+                    {
+                        g.work += 1;
+                        deps.push(above);
+                    }
                 } else if let Some((parent, last)) = u.path.rsplit_once('.')
                     && let Some(t) = table.module(parent)
                 {
@@ -2157,6 +2172,48 @@ mod tests {
         assert_eq!(order, ["pkg.b.y", "pkg.a.x", "pkg.app"]);
         let main = t.unit_of_module("pkg.app").expect("main");
         assert_eq!(g.height[main.idx()], 2);
+    }
+
+    /// `module.use.ambiguous`: a single use of a module reads its parent's
+    /// exports, which may declare the same name, so it depends on the
+    /// parent; it judges no loop through it. Without the edge `main` was
+    /// bound before `pkg`'s interface was built under some schedules
+    /// (`HD_JOBS=2`), and `words()` cascaded into `unknown-name`.
+    #[test]
+    fn a_single_module_use_depends_on_the_parent() {
+        let single = |path: &str| UseRef {
+            grouped: false,
+            names: Vec::new(),
+            ..grouped(path, &[])
+        };
+        let (t, g) = graph_of(&[
+            ("src/lib.hd", Vec::new()),
+            ("src/words.hd", Vec::new()),
+            ("src/main.hd", vec![single("pkg.words")]),
+            ("src/shop/mod.hd", Vec::new()),
+            ("src/shop/cart.hd", vec![single("pkg.shop.ledger")]),
+            ("src/shop/ledger.hd", Vec::new()),
+        ]);
+        let id = |p: &str| t.module(p).expect(p);
+        let deps = |p: &str| -> Vec<&str> {
+            let mut d: Vec<&str> = g.deps[id(p).idx()]
+                .iter()
+                .map(|d| t.modules[d.idx()].path.as_str())
+                .collect();
+            hd_base::SliceSort::sort_stable(&mut d[..]);
+            d
+        };
+        assert_eq!(deps("pkg.main"), ["pkg", "pkg.words"]);
+        assert_eq!(deps("pkg.shop.cart"), ["pkg.shop", "pkg.shop.ledger"]);
+        let policy: Vec<ModuleId> = g.policy[id("pkg.main").idx()].iter().map(|e| e.0).collect();
+        assert_eq!(policy, [id("pkg.words")]);
+        let order: Vec<&str> = g
+            .order
+            .iter()
+            .map(|f| t.units[f.idx()].path.as_str())
+            .collect();
+        let at = |p: &str| order.iter().position(|o| *o == p).expect(p);
+        assert!(at("pkg") < at("pkg.main"), "{order:?}");
     }
 
     /// `module.use.facade.module`: a module's own `pub use M.{child}`
