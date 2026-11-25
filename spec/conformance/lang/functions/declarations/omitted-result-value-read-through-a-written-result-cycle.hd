@@ -1,0 +1,23 @@
+# test: a written result breaks a cycle reached by reading its function value
+# Rule: fn.decl.omitted-cycle.resolve.
+
+struct Wrap[T]:
+    job: T
+
+fn a():
+    item := Wrap { job: b }
+    let exact: Wrap[fn(i32) -> void $ Console] = item
+    +1
+
+fn b(n: i32) -> void:
+    if n > 0:
+        next := c
+        next(n - 1)
+
+fn c(n: i32) -> void:
+    println(n)
+    if n > 0:
+        b(n - 1)
+
+fn d() -> i32:
+    a()

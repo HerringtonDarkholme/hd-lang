@@ -1197,10 +1197,10 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
                     continue;
                 }
             };
-            if let std::collections::hash_map::Entry::Vacant(entry) = marks.entry(def) {
+            marks.entry(def).or_insert_with(|| {
                 let o = r.omits[&def];
-                entry.insert(r.cycles.enter(n, o.position, o.ret, false, None));
-            }
+                r.cycles.enter(n, o.position, o.ret, false, None)
+            });
             r.state.insert(def, State::Active);
             r.active.push(def);
             // `omitted_results` registers a callable's state together
