@@ -1,0 +1,18 @@
+# @dump: diagnostics
+fn first(n: i32):
+    if n == 0: +0 else: first(n - 1)
+
+fn `raw`(n: i32):
+    if n == 0: +0 else: raw(n - 1)
+
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn step(self):
+        if self.n == 0: +0 else: Counter { n: self.n - 1 }.step()
+
+fn outer() -> void:
+    fn local(n: i32):
+        if n == 0: +0 else: local(n - 1)
+    _ := local(+3)

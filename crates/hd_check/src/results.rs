@@ -319,13 +319,12 @@ impl Results {
                 continue;
             }
             let node = cx.src.parse.tree.node(at);
-            let (span, name) = match node
-                .name(&cx.src.parse.tokens)
-                .or_else(|| cx.src.name_after(node, TokenKind::KwFn))
-            {
-                Some(t) => (cx.src.token_span(t), cx.src.text(t)),
-                None => (cx.src.span(node), "this function"),
-            };
+            // Only named declarations have omitted-result vertices:
+            // omitted_results registers item/method declarations, and
+            // closure_with enters an omitted local scope only for FnDecl.
+            // ruled out: a nameless vertex; parsing requires its name.
+            let token = node.name_part(&cx.src.parse.tokens);
+            let (span, name) = (cx.src.token_span(token), cx.src.text(token));
             let msg = format!(
                 "`{name}` calls itself through functions without a result type; write its result type"
             );
