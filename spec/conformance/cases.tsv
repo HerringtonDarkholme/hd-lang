@@ -7363,7 +7363,7 @@ std/num/float-math/exp-ln-power.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/full-range-trig.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/function-values.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/inverse-and-scaled-logs.hd	runtime	accept	std/num.md#float-math
-std/num/float-math/module-constants.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/associated-constants.hd	runtime	accept	std/num.md#float-math
 std/result/borrowed-payloads/result-as-ref-shared-ok-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-ref.in-place
 std/result/borrowed-payloads/result-as-ref-shared-err-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-ref.in-place
 std/result/borrowed-payloads/result-as-ref-mutable-ok-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-ref.in-place

@@ -528,7 +528,9 @@ impl u64:
         if self > other: self - other else: other - self
 
 # `to_bits` and `from_bits` are Rust's: the IEEE 754 bit pattern, with the
-# sign bit on top (r-std-num.float-bits.exact).
+# sign bit on top (r-std-num.float-bits.exact). `pi` and `e` are Rust's
+# `f64::consts::PI` and `E` as associated functions, since hd has no
+# associated constants (#2285).
 impl f64:
     ## The IEEE 754 bit pattern of the value.
     ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
@@ -540,6 +542,16 @@ impl f64:
     pub fn from_bits(bits: u64) -> f64:
         f64_from(bits)
 
+    ## The circle constant pi, rounded to binary64.
+    ## See [std-num.float-math.constant.pi](../../spec/std/num.md#r-std-num.float-math.constant.pi).
+    pub fn pi() -> f64:
+        3.14159265358979323846264338327950288
+
+    ## Euler's number, rounded to binary64.
+    ## See [std-num.float-math.constant.e](../../spec/std/num.md#r-std-num.float-math.constant.e).
+    pub fn e() -> f64:
+        2.71828182845904523536028747135266250
+
 impl f32:
     ## The IEEE 754 bit pattern of the value.
     ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
@@ -550,6 +562,16 @@ impl f32:
     ## See [std-num.float-bits.from](../../spec/std/num.md#r-std-num.float-bits.from).
     pub fn from_bits(bits: u32) -> f32:
         f32_from(bits)
+
+    ## The circle constant pi, rounded to binary32.
+    ## See [std-num.float-math.constant.pi](../../spec/std/num.md#r-std-num.float-math.constant.pi).
+    pub fn pi() -> f32:
+        3.14159265358979323846264338327950288
+
+    ## Euler's number, rounded to binary32.
+    ## See [std-num.float-math.constant.e](../../spec/std/num.md#r-std-num.float-math.constant.e).
+    pub fn e() -> f32:
+        2.71828182845904523536028747135266250
 
 # `total_cmp` is the IEEE 754 totalOrder: a pattern with the sign bit set
 # is flipped whole, so a more negative value gets a smaller key, and any

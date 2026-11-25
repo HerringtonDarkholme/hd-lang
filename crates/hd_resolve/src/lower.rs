@@ -2226,8 +2226,8 @@ fn reexported_path(r: &Resolver<'_, '_>, u: &UseDecl, k: usize, parent: &str) ->
 /// The grouped name `g` of `u` names a child module of `u`'s module that
 /// declares no such name. In a `pub use` in that module it re-exports the
 /// child and binds no name (`module.use.facade.module`): a root facade
-/// re-exports modules named like prelude names, such as `std.meta` and
-/// `std.f64`. Any other module may not re-export it
+/// re-exports modules named like prelude names, such as `std.meta`.
+/// Any other module may not re-export it
 /// (`module.use.facade.module.own`), and a plain grouped use names
 /// declarations only (`module.use.grouped`): the namespace is `use M.child`.
 fn reexport_child(

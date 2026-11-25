@@ -1,4 +1,0 @@
-# std.f64: the module of `std.f64.consts`, which it re-exports so code can
-# write `use std.f64.consts.{PI, E}` (spec/std/num.md#r-std-num.float-math.constant.pi,
-# spec/lang/10-modules.md#r-module.use.facade.module).
-pub use std.f64.{consts}

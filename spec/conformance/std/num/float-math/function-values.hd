@@ -1,6 +1,4 @@
 # test: float methods are usable as ordinary function values at both widths
-use std.f64.consts.{PI, E}
-
 fn apply64(callback: fn(f64) -> f64, value: f64) -> f64:
     callback(value)
 
@@ -49,7 +47,7 @@ tests:
         assert_equal(angle(0.0, 1.0), 0.0)
 
     it("constant functions retain ordinary zero-argument function values"):
-        let pi: fn() -> f64 = PI
-        let e: fn() -> f64 = E
-        assert_equal(pi(), PI())
-        assert_equal(e(), E())
+        let pi: fn() -> f64 = f64::pi
+        let e: fn() -> f32 = f32::e
+        assert_equal(pi(), f64::pi())
+        assert_equal(e(), f32::e())

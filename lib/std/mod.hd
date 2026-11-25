@@ -14,8 +14,6 @@ pub use std.{
     crypto,
     encoding,
     error,
-    f32,
-    f64,
     format,
     fs,
     hash,

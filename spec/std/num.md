@@ -18,7 +18,7 @@ This chapter defines the numeric APIs of `std.num`:
 - `trunc`, `floor`, `ceil`, `round`, `round_ties_even`, and `copysign` on
   the floats;
 - `sqrt` on the floats, an intrinsic method;
-- trigonometric functions, logarithms, exponentials, powers, signs, and the `PI()` and `E()` constant functions;
+- trigonometric functions, logarithms, exponentials, powers, signs, and the constant functions `pi()` and `e()`;
 - integer parsing through `Parse`, with `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
 - float parsing through `Parse`;
@@ -732,13 +732,11 @@ Both floating-point widths provide the usual mathematical methods. Angles
 are in radians, with Rust's names and argument order:
 
 ```text
-use std.f64.consts.{PI, E}
-
 fn wave(turns: f64) -> f64:
-    (turns * 2.0 * PI()).sin()
+    (turns * 2.0 * f64::pi()).sin()
 
 fn growth(time: f64) -> f64:
-    time.exp() / E()
+    time.exp() / f64::e()
 ```
 
 Here `F` is either `f32` or `f64`:
@@ -780,8 +778,8 @@ Here `F` is either `f32` or `f64`:
 18. r[std-num.float-math.nan] Except the power identities, each mathematical method returns NaN for a NaN input; either NaN argument makes `atan2` return NaN.
 19. r[std-num.float-math.precision] The last bits of finite transcendental results and integer powers are implementation-dependent, as with Rust's corresponding methods.
 20. r[std-num.float-math.no-panic] None of these methods panics for any floating-point input or `i32` exponent.
-21. r[std-num.float-math.constant.pi] `std.f32.consts.PI() -> f32` and `std.f64.consts.PI() -> f64` return π rounded to the named width.
-22. r[std-num.float-math.constant.e] `std.f32.consts.E() -> f32` and `std.f64.consts.E() -> f64` return Euler's number rounded to the named width.
+21. r[std-num.float-math.constant.pi] The associated functions `f32::pi() -> f32` and `f64::pi() -> f64` return π rounded to the named width.
+22. r[std-num.float-math.constant.e] The associated functions `f32::e() -> f32` and `f64::e() -> f64` return Euler's number rounded to the named width.
 
 The signs below are the sign of `y`, including the sign of zero:
 
