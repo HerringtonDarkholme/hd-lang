@@ -1,0 +1,19 @@
+# @dump: stdout own
+# @build: release checked std
+# A raw copy of one slot's `Buffer[u8]` into the next slot of an outer
+# buffer, then a read of each (the room-audit probe of
+# `checked_rooms_reject_leaks_and_double_frees`).
+# expected: the second read's `Drop` reports "double free of the block".
+# Known failure (target/lane280/issues/sroa-drops-owner-before-raw-read.md):
+# sroa forwards `at`'s `&self` to `[$0 .ptr]`, so the last use of `slots`
+# is that copy and its `Drop [$0]` frees the room before
+# `Read move [ptr %63]` reads slot 1 through the raw address: the read
+# gives the freed room's poison bytes.
+use std.rt.memory.{Buffer, copy, size_of}
+
+pub fn main() -> void:
+    slots := Buffer::[Buffer[u8]].new(2)
+    slots.at(0).write(Buffer::[u8].new(8))
+    copy(slots.at(1).address, slots.at(0).address, size_of::[Buffer[u8]]())
+    _ := slots.at(0).read()
+    _ := slots.at(1).read()
