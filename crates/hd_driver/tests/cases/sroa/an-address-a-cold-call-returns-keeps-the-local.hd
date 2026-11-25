@@ -1,0 +1,38 @@
+# @dump: stdout
+# @build: release std | release checked std
+# #2365: `set` is copied into the loop under a branch, so its
+# `address_of` call is cold. The address it returns is `w.cells`'s own
+# storage, which `store_u64` writes after the call: a copy spilled around
+# that call would take the writes, and the loop would read zeroes back
+# (std's `float_reduce_large`, whose `iq.set` sits under `if digit != 0`).
+# Every call on `w` is cold, so nothing else keeps its slot. `w` keeps it,
+# and `fill` prints 4 (1 + 3).
+use std.meta.inline
+use std.rt.{address_of, load_u64, store_u64}
+
+struct Words:
+    cells: (u64, u64, u64, u64)
+
+impl Words:
+    @inline(.Always)
+    fn get(&self, index: usize) -> u64:
+        load_u64(address_of(&self.cells) + index * 8)
+
+    @inline(.Always)
+    fn set(&mut self, index: usize, value: u64) -> void:
+        store_u64(address_of(&self.cells) + index * 8, value)
+
+fn fill(n: usize) -> u64:
+    let mut w = Words { cells: (0, 0, 0, 0) }
+    let mut total: u64 = 0
+    let mut i: usize = 0
+    while i < n:
+        if i % 2 == 0:
+            w.set(i % 4, u64(i) + 1)
+        else:
+            total += w.get((i - 1) % 4)
+        i += 1
+    total
+
+pub fn main() -> void $ Console:
+    println("${fill(4)}")

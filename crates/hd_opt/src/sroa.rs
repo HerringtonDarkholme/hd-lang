@@ -26,9 +26,12 @@
 //!    call and `$x .path = $tmp` after it. Only a call under a condition
 //!    inside its innermost loop qualifies, so the copies stay off the hot
 //!    path, and straight-line code keeps its one address. Only a call
-//!    whose result and other arguments are primitives qualifies, so no
-//!    place the caller can reach may keep the address past the call (a
-//!    local reference parameter outlives nothing else, `ref.local`). A
+//!    whose other arguments are primitives and whose result is `void` or
+//!    `bool` qualifies, so no place the caller can reach may keep the
+//!    address past the call (a local reference parameter outlives nothing
+//!    else, `ref.local`). A wider result could be the address itself:
+//!    `address_of` returns it as a `usize`, and a store through it after
+//!    the call would land in the copy. A
 //!    local is spilled at every remaining address or at none: if one
 //!    address must stay, copies would only add work. The pipeline's
 //!    `cold_spill` knob turns spills off where the loop's back edge
@@ -497,8 +500,8 @@ fn spills(
 
 /// The referent type, when call `c`, which takes value `v` whole as a
 /// local reference argument, may take a spilled copy instead: a cold
-/// direct call that returns, whose result and other arguments are
-/// primitives.
+/// direct call that returns, whose other arguments are primitives and
+/// whose result is too narrow to hold an address (`void` or `bool`).
 fn spill_type(b: &Body, pool: &InternPool, v: usize, c: usize, cold: &mut Cold) -> Option<Ty> {
     let TyData::Ref {
         inner,
@@ -513,7 +516,10 @@ fn spill_type(b: &Body, pool: &InternPool, v: usize, c: usize, cold: &mut Cold) 
         charge(1);
         a == u32_of(v) || a & Ref::CONST_BIT != 0 || prim(b.ty[a as usize])
     });
-    (others && prim(b.ty[c]) && cold.is_cold(c)).then_some(inner)
+    // `address_of` (`mem_ref_address`) gives the referent's address as a
+    // `usize`, which the caller may write through after the call.
+    let addressless = b.ty[c] == Ty::VOID || b.ty[c] == Ty::BOOL;
+    (others && addressless && cold.is_cold(c)).then_some(inner)
 }
 
 /// Whether an instruction runs under a condition inside its innermost
