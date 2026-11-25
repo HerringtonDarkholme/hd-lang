@@ -71,7 +71,7 @@ std.num.ParseNumberError	std/num.md#integer-parsing
 std.error.ErrorReport	std/error.md#error-reports
 std.error.report_of	std/error.md#error-reports
 std.encoding	std/encoding.md#hex
-std.digest	std/digest.md#sha-256
+std.crypto	std/crypto.md#sha-256
 std.json.Json	std/json.md#json-values
 std.json.Number	std/json.md#numbers
 std.json.JsonError	std/json.md#json-errors

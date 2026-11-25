@@ -1,6 +1,6 @@
 # test: sha256 returns a Digest that matches the FIPS 180-2 example vectors for "", "abc", and the 448-bit message
-# Spec std/digest SHA-256: std-digest.sha256.fips, std-digest.sha256.length, std-digest.sha256.hex, std-digest.digest.to-hex (ENCODING-SURFACE; task #224).
-use std.digest.sha256
+# Spec std/crypto SHA-256: std-crypto.sha256.fips, std-crypto.sha256.length, std-crypto.sha256.hex, std-crypto.digest.to-hex (ENCODING-SURFACE; task #224).
+use std.crypto.sha256.sha256
 fn checksum(text: string) -> string:
     sha256(text.bytes().collect()).to_hex()
 

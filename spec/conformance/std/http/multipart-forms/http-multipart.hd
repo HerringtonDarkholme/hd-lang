@@ -11,7 +11,7 @@ use std.http.{
     Request,
     Url,
 }
-use std.digest.sha256
+use std.crypto.sha256.sha256
 
 fn request() -> Request:
     Request::post(Url::parse("https://example.test/upload").expect("fixture URL"))

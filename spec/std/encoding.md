@@ -212,4 +212,4 @@ pub enum DecodeError:
 > `InvalidPadding` position is ASCII, so that `position` is also the
 > character's index.
 
-See also: [Digest](digest.md), [Num](num.md#integer-parsing), [Strings](../lang/04-type-system.md#strings).
+See also: [Crypto](crypto.md), [Num](num.md#integer-parsing), [Strings](../lang/04-type-system.md#strings).

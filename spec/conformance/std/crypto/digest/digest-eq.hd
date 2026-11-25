@@ -1,7 +1,8 @@
 # test: Digest equality compares every byte, wherever two digests differ, and digests of different lengths are unequal
-# Spec std/digest Digest: std-digest.digest-value, std-digest.digest.eq, std-digest.digest.eq.constant-time, std-digest.digest.eq.length, std-digest.digest.eq.scope (task #473).
+# Spec std/crypto Digest: std-crypto.digest-value, std-crypto.digest.eq, std-crypto.digest.eq.constant-time, std-crypto.digest.eq.length, std-crypto.digest.eq.scope (task #473).
 # The constant-time property is not observable by a test; this fixture checks the result at each difference position.
-use std.digest.{Digest, sha256}
+use std.crypto.{Digest}
+use std.crypto.sha256.{sha256}
 use std.encoding.hex_decode
 
 fn signature_matches(body: List[u8], sent_hex: string) -> bool:

@@ -150,8 +150,8 @@
 150	45	std/collections.md
 151	36	std/collections.md
 152	45	std/collections.md
-153	45	std/collections.md,std/console.md,std/contract.md,std/digest.md
-154	42	std/digest.md,std/encoding.md,std/error.md,std/format.md
+153	45	std/collections.md,std/console.md,std/contract.md,std/crypto.md
+154	42	std/crypto.md,std/encoding.md,std/error.md,std/format.md
 155	45	std/format.md,std/fs.md,std/hash.md,std/host.md
 156	45	std/host.md,std/http.md
 157	45	std/http.md,std/iter.md
