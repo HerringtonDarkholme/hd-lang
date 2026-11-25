@@ -166,28 +166,26 @@ impl Em<'_, '_, '_> {
         cyclic: bool,
         recursive: bool,
     ) -> u32 {
-        let glue = (!parts.is_empty()).then(|| {
-            Sym::Helper(Helper::DropParts {
-                leaves: m.leaves.clone(),
-                parts,
-            })
-        });
-        self.new_object(m.size, glue, cyclic, recursive)
+        self.new_object(Some(m.size), parts_glue(m, parts), cyclic, recursive)
     }
 
-    /// A new counted object of `size` payload bytes whose descriptor
-    /// names release glue `glue`: a local holding its payload's address.
+    /// A new counted object of `size` payload bytes, or of the size on the
+    /// stack, whose descriptor names release glue `glue`: a local holding
+    /// its payload's address.
     pub(super) fn new_object(
         &mut self,
-        size: u32,
+        size: Option<u32>,
         glue: Option<Sym>,
         cyclic: bool,
         recursive: bool,
     ) -> u32 {
         let at = self.f.local(Val::I32);
-        self.f.u32(size);
+        if let Some(size) = size {
+            self.f.u32(size);
+        }
         crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
-        if self.input.runtime.checked.is_none()
+        if let Some(size) = size
+            && self.input.runtime.checked.is_none()
             && size
                 .checked_add(crate::module::HEADER)
                 .is_some_and(|n| n <= 2048)
@@ -200,18 +198,11 @@ impl Em<'_, '_, '_> {
         at
     }
 
-    /// The counted-block intrinsics of `std.rt.counted` (#2369). A block
-    /// is one counted object, `[count | descriptor | H | pad | tail]`, and
-    /// a `*H` names it by its payload's address: a copy is a retain, a drop
-    /// a release. Blocks are 16-aligned, so a payload is 8 past a multiple
-    /// of 16 and the tail at alignment `a <= 16` starts at the constant
-    /// [`Em::tail_offset`].
-    /// - `alloc_counted[H](header, tail_bytes, align)`: a new block of
-    ///   count 1 holding `header`, whose descriptor is an `H` object's:
-    ///   `H`'s release glue (its `Drop` hook drops the tail once, at count
-    ///   0, and the collector's trace runs it once per block) and cycle bit.
-    /// - `tail_of[H](block, align)`: the tail's first byte.
-    /// - `is_unique[H](block)`: the count is 1; a static block's is 0.
+    /// The `std.rt.counted` intrinsics (#2369) over a block
+    /// `[count | descriptor | H | pad | tail]` named by its payload's
+    /// address: `alloc_counted` makes one of count 1 whose descriptor is an
+    /// `H` object's (its release glue drops the tail once), `tail_of` adds
+    /// [`Em::tail_offset`], `is_unique` tests the count for 1.
     pub(super) fn counted_block(
         &mut self,
         i: u32,
@@ -219,8 +210,7 @@ impl Em<'_, '_, '_> {
         targs: TyList,
         args: &[u32],
     ) -> StageResult<()> {
-        // ruled out: the intrinsic table gives each `counted_` key one type
-        // parameter, `H`, which instances fill.
+        // ruled out: each `counted_` key has one type parameter, `H`.
         let targs = self.pool().list_items(targs);
         let t = targs[targs.len() - 1];
         let m = crate::layout::mem(self.pool(), self.env(), t)?;
@@ -241,21 +231,12 @@ impl Em<'_, '_, '_> {
             // ruled out: the intrinsic table's `counted_` keys are these three.
             _ => {
                 let header = self.retain_src(&Src::Ref(args[0]), t)?;
-                let parts = self.typed_parts(t)?;
-                let glue = (!parts.is_empty()).then(|| {
-                    Sym::Helper(Helper::DropParts {
-                        leaves: m.leaves.clone(),
-                        parts,
-                    })
-                });
+                let glue = parts_glue(&m, self.typed_parts(t)?);
                 let (cyclic, recursive) = (self.cyclic_object(t), self.recursive_object(t));
-                let at = self.f.local(Val::I32);
                 self.tail_offset(m.size, args[2])?;
                 self.push(args[1])?;
                 self.f.op(I::I32Add);
-                crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
-                self.f.helper(Helper::New);
-                self.f.set(at);
+                let at = self.new_object(None, glue, cyclic, recursive);
                 self.write_new(Dst::Mem(at, 0, &m.leaves), &header)?;
                 self.f.get(at);
             }
@@ -689,4 +670,14 @@ impl Em<'_, '_, '_> {
         }
         self.store(i)
     }
+}
+
+/// The release glue of a payload laid out as `m` holding `parts`, if any.
+fn parts_glue(m: &Mem, parts: Vec<(u32, crate::rt::Counted)>) -> Option<Sym> {
+    (!parts.is_empty()).then(|| {
+        Sym::Helper(Helper::DropParts {
+            leaves: m.leaves.clone(),
+            parts,
+        })
+    })
 }

@@ -95,11 +95,11 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::splice;
-use super::{CountedOp, Operand, OwnCx, Role, fill, operands};
+use super::{Operand, OwnCx, Role, fill, operands};
 use crate::ir::{
-    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, Loc, NONE, PlaceView, Proj, ReadMode, Ref,
-    Root, Tag, Topology, VARIANT, Word, is_suspension, local_flags, place, ref_word, slots,
-    sub_flags, u32_of, unique_word,
+    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root,
+    Tag, Topology, VARIANT, Word, is_suspension, local_flags, place, ref_word, slots, sub_flags,
+    u32_of, unique_word,
 };
 
 /// The longest chain of reads a place is resolved through.
@@ -564,7 +564,6 @@ pub(crate) fn run(
     t.relies = 0;
     let n = b.len();
     let fresh = fresh_buffers(b, cx);
-    fold_fresh_blocks(b, cx, &fresh, edits);
     let element_checks = super::ElementChecks::new(b);
     let mut marked = Vec::new();
     for i in 0..n {
@@ -615,61 +614,6 @@ pub(crate) fn run(
     regions(b, cx, topo, t);
     b.stable_lists.sort_stable();
     b.stable_lists.dedup();
-}
-
-/// `std.rt.is_unique` of a block nothing else holds ([`fresh_buffers`]'s
-/// `OWNED`: allocated in this body, or moved out of a local that was)
-/// is `true`, as an `IsUnique` of a fresh buffer is `FRESH`: each use of
-/// the call reads the constant and the call goes. The static empty block
-/// has count 0 and is never `OWNED`. O(n + operands), nothing without a
-/// test of a fresh block.
-fn fold_fresh_blocks(b: &mut Body, cx: &dyn OwnCx, fresh: &[u8], edits: &mut splice::Tables) {
-    let folded: Vec<bool> = (0..b.len())
-        .map(|i| {
-            counted_call(b, cx, i) == Some(CountedOp::IsUnique)
-                && b.call_args(i)
-                    .first()
-                    .and_then(|&v| read_through_coercions(b, v))
-                    .is_some_and(|r| fresh_level(b, fresh, b.data[r][0]) >= OWNED)
-        })
-        .collect();
-    if !folded.contains(&true) {
-        return;
-    }
-    b.consts.push((Ty::BOOL, 1));
-    let yes = Ref::konst(u32_of(b.consts.len() - 1)).0;
-    let mut writes = Vec::new();
-    for x in 0..b.len() {
-        slots(b, x, |at, w, word| {
-            if matches!(word, Word::Value(_)) && folded.get(w as usize) == Some(&true) {
-                writes.push((x, at));
-            }
-        });
-    }
-    for (x, at) in writes {
-        match at {
-            Loc::Data(k) => b.data[x][usize::from(k)] = yes,
-            Loc::Extra(e) => b.extra[e as usize] = yes,
-        }
-    }
-    for (i, _) in folded.iter().enumerate().filter(|(_, f)| **f) {
-        edits.remove(u32_of(i));
-    }
-}
-
-/// The `Read` that value `v` is, through same-type coercions.
-fn read_through_coercions(b: &Body, mut v: u32) -> Option<usize> {
-    for _ in 0..DEPTH {
-        let x = Ref(v).as_inst()?.0 as usize;
-        match b.tags[x] {
-            Tag::Read => return Some(x),
-            Tag::Coerce if b.ty[Ref(b.data[x][0]).as_inst()?.0 as usize] == b.ty[x] => {
-                v = b.data[x][0];
-            }
-            _ => return None,
-        }
-    }
-    None
 }
 
 /// Whether `b` runs in exclusive mode (`sub_flags::EXCLUSIVE`).
@@ -885,25 +829,12 @@ pub(crate) fn fresh_level(b: &Body, fresh: &[u8], word: u32) -> u8 {
     }
 }
 
-/// Which counted block intrinsic call `v` is.
-fn counted_call(b: &Body, cx: &dyn OwnCx, v: usize) -> Option<CountedOp> {
-    (b.tags[v] == Tag::Call)
-        .then(|| Callee::from_words(b.record(b.data[v][0])))
-        .flatten()
-        .and_then(|c| cx.counted_op(&c))
-}
-
 /// The level of new collection `v`: a body's nonempty literal is a buffer
 /// of its own. An empty one may be the static empty buffer, count 0, yet
 /// is [`UNIQUE`]: an unchecked change writes below its length, 0, or grows
 /// first, its capacity being 0, so never writes into it. A top-level
 /// binding's literal may be static data (`static_scalar_list`): 0.
-/// A counted block's allocation (`std.rt.alloc_counted`, #2369) is a block
-/// of its own, count 1.
-fn new_level(b: &Body, cx: &dyn OwnCx, v: usize) -> u8 {
-    if counted_call(b, cx, v) == Some(CountedOp::Alloc) {
-        return OWNED;
-    }
+fn new_level(b: &Body, v: usize) -> u8 {
     if !matches!(b.tags[v], Tag::NewList | Tag::NewMap) || b.top_level_initializer(v) {
         0
     } else if b.record(b.data[v][1]).is_empty() {
@@ -934,10 +865,7 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
     let n = b.len();
     let locals = b.local_ty.len();
     let mut level = vec![0; locals + n];
-    if !b.tags.contains(&Tag::NewList)
-        && !b.tags.contains(&Tag::NewMap)
-        && !(0..n).any(|v| counted_call(b, cx, v) == Some(CountedOp::Alloc))
-    {
+    if !b.tags.contains(&Tag::NewList) && !b.tags.contains(&Tag::NewMap) {
         return level;
     }
     for (l, flags) in b.local_flags.iter().enumerate() {
@@ -966,7 +894,7 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
     // (local, local it moves all of out of): no fresher than that one.
     let mut moved_from = Vec::new();
     for i in 0..n {
-        level[locals + i] = new_level(b, cx, i);
+        level[locals + i] = new_level(b, i);
         if level[locals + i] > 0 {
             read_of[i] = u32_of(locals + i);
         }
@@ -994,7 +922,7 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
                     continue;
                 }
                 let inst = Ref(b.data[i][1]).as_inst().is_some() && v < n;
-                level[li] = level[li].min(if inst { new_level(b, cx, v) } else { 0 });
+                level[li] = level[li].min(if inst { new_level(b, v) } else { 0 });
             }
             Tag::Ref if p.whole() => ref_of[i] = l,
             Tag::Ref => level[li] = 0,
@@ -1038,16 +966,6 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
             if matches!(b.tags[i], Tag::LoanEnd | Tag::Drop) {
                 continue;
             }
-        }
-        // A same-type coercion (a weakening) of all of it is it again.
-        if b.tags[i] == Tag::Coerce
-            && let Some(v) = Ref(b.data[i][0]).as_inst().map(|x| x.0 as usize)
-            && v < n
-            && read_of[v] != NONE
-            && b.ty[v] == b.ty[i]
-        {
-            read_of[i] = read_of[v];
-            continue;
         }
         // A count of all of it: a second owner, or one less.
         if let (Tag::Retain | Tag::Release, Some(&o)) =
@@ -1094,11 +1012,6 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
                         )
                 }
                 Tag::Prim | Tag::Drop => true,
-                // A block's tail address and uniqueness test count nothing.
-                Tag::Call => matches!(
-                    counted_call(b, cx, i),
-                    Some(CountedOp::Tail | CountedOp::IsUnique)
-                ),
                 tag => op.role == Role::Lend && matches!(tag, Tag::Read | Tag::Store),
             };
             if !lends {

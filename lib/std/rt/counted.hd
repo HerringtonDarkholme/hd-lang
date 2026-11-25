@@ -37,8 +37,7 @@ pub fn tail_of[H < ?Copy](block: *H, align: usize) -> Ptr[u8]:
 
 ## Whether `block` has one holder, so a write through a raw pointer changes
 ## no other holder's value. A static block has count 0: never unique. The
-## compiler supplies the body, and proves it `true` for a block nothing
-## else holds (crates/hd_tir/src/own/hoist.rs, `fold_fresh_blocks`).
+## compiler supplies the body.
 @intrinsic("counted_is_unique")
 pub fn is_unique[H < ?Copy](block: *H) -> bool:
     panic("intrinsic")
