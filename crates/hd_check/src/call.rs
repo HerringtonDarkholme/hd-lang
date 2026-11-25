@@ -1320,8 +1320,10 @@ impl Ck<'_, '_> {
                 {
                     return self.conversion(to, args, n);
                 }
-                if let Some(Named::Item(def)) = self.scope_name(&text) {
-                    return self.call_item(def, &[], args, n, bang, want);
+                if let Some(Named::Item(def)) = self.scope_name(&text)
+                    && let Some(item) = self.cx.lookup.item(def)
+                {
+                    return self.call_item(item, &[], args, n, bang, want);
                 }
                 if self.is_poison_name(&text) {
                     return Ok(self.poison_value(n));
@@ -1385,21 +1387,22 @@ impl Ck<'_, '_> {
                 if segs.first().is_some_and(|s| self.is_poison_name(s)) {
                     return Ok(self.poison_value(n));
                 }
-                match self.resolve_path(&segs) {
-                    Some(def)
+                match self
+                    .resolve_path(&segs)
+                    .and_then(|def| self.cx.lookup.item(def))
+                {
+                    Some(item)
                         if matches!(
-                            self.cx.lookup.item(def).map(|i| &i.data),
-                            Some(
-                                ItemData::Fn(_, _)
-                                    | ItemData::Struct(_, _)
-                                    | ItemData::Builtin
-                                    | ItemData::Enum { .. }
-                                    | ItemData::Newtype(..)
-                                    | ItemData::Alias { .. }
-                            )
+                            &item.data,
+                            ItemData::Fn(_, _)
+                                | ItemData::Struct(_, _)
+                                | ItemData::Builtin
+                                | ItemData::Enum { .. }
+                                | ItemData::Newtype(..)
+                                | ItemData::Alias { .. }
                         ) =>
                     {
-                        self.call_item(def, &explicit, args, n, bang, want)
+                        self.call_item(item, &explicit, args, n, bang, want)
                     }
                     _ if matches!(inner.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr) => {
                         self.member_call(n, inner, args, bang, want, explicit)
@@ -3096,7 +3099,7 @@ impl Ck<'_, '_> {
     /// A call of a function item, generic or not.
     pub(crate) fn call_item(
         &mut self,
-        def: DefId,
+        item: &Item,
         explicit: &[Ty],
         args: &Args<'_>,
         n: NodeRef<'_>,
@@ -3104,11 +3107,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        // ruled out: driver::body builds Lookup from the module's prepared
-        // items and closure interfaces; name/export lookup selects those items.
-        let Some(item) = self.cx.lookup.item(def) else {
-            return Ok(self.poison_value(n));
-        };
+        let def = item.def;
         if item.fn_attrs().is_some_and(|a| a.auto_closing)
             && self.auto_closing_statement != Some(n.index())
         {
@@ -3387,11 +3386,14 @@ impl Ck<'_, '_> {
             | ItemData::Enum { .. }
             | ItemData::Alias { .. } => {
                 let to = self.ctor(def, explicit, n);
+                // An alias calls the resolved item of the type it expands to.
+                if let TyData::Adt(AdtId::Declared(base), a) = pool.get(to)
+                    && base != def
+                    && let Some(item) = self.cx.lookup.item(base)
+                {
+                    return self.call_item(item, pool.list_items(a), args, n, bang, want);
+                }
                 match pool.get(to) {
-                    // An alias calls the type it expands to.
-                    TyData::Adt(AdtId::Declared(base), a) if base != def => {
-                        self.call_item(base, pool.list_items(a), args, n, bang, want)
-                    }
                     TyData::Prim(_) => self.conversion(to, args, n),
                     TyData::Param(_) if self.cast_numeric(to) => self.conversion(to, args, n),
                     _ => self.type_name_call(&name, to, args, n),
@@ -4404,11 +4406,14 @@ impl Ck<'_, '_> {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
                 Some(Named::Missing) => return Ok((Ref(NONE), Ty::POISON)),
                 Some(Named::Module(m)) => {
-                    let Some(def) = self.export(m, &name) else {
+                    let Some(item) = self
+                        .export(m, &name)
+                        .and_then(|def| self.cx.lookup.item(def))
+                    else {
                         self.missing_export(m, &name, callee);
                         return Ok((Ref(NONE), Ty::POISON));
                     };
-                    return self.call_item(def, &explicit, args, n, bang, want);
+                    return self.call_item(item, &explicit, args, n, bang, want);
                 }
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Enum | HeadKind::Alias)
