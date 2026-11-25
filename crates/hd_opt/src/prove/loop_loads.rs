@@ -21,7 +21,11 @@
 //! The load is read once before the loop into a new local. That read runs
 //! even when the loop runs no iteration, which is safe: each step of its
 //! place is a field or a dereference of a live reference, never an
-//! element or a payload, so it reads valid memory.
+//! element or a payload, so it reads valid memory. It goes before the
+//! loop's waiting hoisted checks, which must stand right before the loop.
+//! A check may replace its place's buffer, so a load whose place it may
+//! reach stays in the loop: only one that parts from every check's place
+//! at a field, through the same local, leaves.
 //!
 //! A guard `if i >= n: panic(..)` in such a loop whose test is `i < m`,
 //! with `i` the exact induction from 0 by 1 ([`Lists::induction`]), is
@@ -82,6 +86,10 @@ struct Key {
     path: Vec<Proj>,
 }
 
+/// A load group leaving its loop: the loop, the block and position its
+/// read goes to, its place, its type and its loads.
+type Hoist = (u32, (u32, u32), Key, Ty, Vec<u32>);
+
 /// One loop's facts.
 struct LoopFacts<'a, 'b> {
     lists: &'a Lists<'b>,
@@ -121,7 +129,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
     // `kills[i]`: how many instructions before `i` may write memory.
     let mut kills = vec![0u32; b.len() + 1];
     let mut decided = Vec::new();
-    let mut hoists: Vec<(u32, Key, Ty, Vec<u32>)> = Vec::new();
+    let mut hoists: Vec<Hoist> = Vec::new();
     {
         let plain = |i: usize| -> bool {
             let sub = topo.sub[i];
@@ -171,8 +179,27 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
                 first,
             };
             decided.extend(facts.guards(&body));
+            // The loop's waiting checks run between its hoisted reads and
+            // it, and one may replace its place's buffer: a load moves
+            // above them only where its place is apart from theirs.
+            let (at, checks) = lists.waiting(u32_of(l));
+            let from = first.saturating_sub(1);
+            let written: Option<Vec<Key>> = checks
+                .iter()
+                .map(|&u| facts.place_key(b.data[u as usize][0], u, from, DEPTH))
+                .collect();
             for (key, ty, loads) in facts.invariant_loads(&body, &mut claimed) {
-                hoists.push((u32_of(l), key, ty, loads));
+                if written
+                    .as_ref()
+                    .is_some_and(|w| w.iter().all(|c| apart(c, &key)))
+                {
+                    hoists.push((u32_of(l), at, key, ty, loads));
+                } else {
+                    // An inner loop's own position may still take it.
+                    for x in loads {
+                        claimed[x as usize] = false;
+                    }
+                }
             }
         }
     }
@@ -188,7 +215,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
     }
     let n = b.len();
     let mut inserts = Vec::new();
-    for (l, key, ty, loads) in hoists {
+    for (l, (block, pos), key, ty, loads) in hoists {
         let local = u32_of(b.local_ty.len());
         b.local_ty.push(ty);
         b.local_name.push(cx.load_name());
@@ -206,7 +233,6 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
         b.extra.extend(words);
         // Insertion `k` is value `n + k` (`insert_batch`).
         let read = u32_of(n + inserts.len());
-        let (block, pos) = (topo.blk[l as usize], topo.pos[l as usize]);
         let syn = b.syn[l as usize];
         let mode = b.data[loads[0] as usize][1];
         for (tag, data, ty) in [
@@ -228,6 +254,18 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
         }
     }
     hd_tir::own::insert_batch(b, &topo, &inserts).map(|_| ())
+}
+
+/// Whether places `a` and `b` are provably apart: through one local,
+/// they part at two fields. A place through another local may be reached
+/// by both, so it is not.
+fn apart(a: &Key, b: &Key) -> bool {
+    a.local == b.local
+        && a.path
+            .iter()
+            .zip(&b.path)
+            .find(|(x, y)| x != y)
+            .is_some_and(|steps| matches!(steps, (Proj::Field(_), Proj::Field(_))))
 }
 
 impl Lists<'_> {

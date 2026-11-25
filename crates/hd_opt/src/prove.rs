@@ -519,25 +519,10 @@ impl Lists<'_> {
     /// counts. Each with its hoisted `IsUnique`. O(the loop's rows and
     /// hoisted checks).
     fn kept(&self, l: u32) -> Vec<Header> {
-        use hd_tir::ir::unique_word::{DEFERRED_CACHE, DEFERRED_INIT, HOISTED};
+        use hd_tir::ir::unique_word::HOISTED;
         let b = self.b;
         let mut out: Vec<Header> = Vec::new();
-        // The hoisted checks waiting for the loop stand right before it:
-        // the backend runs one any other statement follows there.
-        let (blk, pos) = (self.topo.blk[l as usize], self.topo.pos[l as usize]);
-        let before = &b.record(b.data[blk as usize][0])[..pos as usize];
-        let first = before
-            .iter()
-            .rposition(|&u| {
-                b.tags[u as usize] != Tag::IsUnique
-                    || !matches!(
-                        b.data[u as usize][1],
-                        HOISTED | DEFERRED_INIT | DEFERRED_CACHE
-                    )
-            })
-            .map_or(0, |k| k + 1);
-        let mine = &before[first..];
-        let at = (blk, hd_tir::ir::u32_of(first));
+        let (at, mine) = self.waiting(l);
         for (root, [_, word, _, _, buffer]) in stable_rows(b, l) {
             let Some(indirect) = root.indirect().filter(|_| buffer == 1) else {
                 continue;
@@ -570,6 +555,27 @@ impl Lists<'_> {
             });
         }
         out
+    }
+
+    /// The hoisted checks waiting for loop `l`, which the backend runs
+    /// before it: they stand right before it in its block (`verify_owned`'s
+    /// invariant 23), so whatever runs once before the loop goes before
+    /// them. Where they start in the loop's block, and the checks.
+    /// O(the checks).
+    fn waiting(&self, l: u32) -> ((u32, u32), Vec<u32>) {
+        use hd_tir::ir::unique_word::{DEFERRED_CACHE, DEFERRED_INIT, HOISTED};
+        let b = self.b;
+        let (blk, pos) = (self.topo.blk[l as usize], self.topo.pos[l as usize]);
+        let before = &b.record(b.data[blk as usize][0])[..pos as usize];
+        let waits = |u: u32| {
+            b.tags[u as usize] == Tag::IsUnique
+                && matches!(
+                    b.data[u as usize][1],
+                    HOISTED | DEFERRED_INIT | DEFERRED_CACHE
+                )
+        };
+        let first = before.iter().rposition(|&u| !waits(u)).map_or(0, |k| k + 1);
+        ((blk, hd_tir::ir::u32_of(first)), before[first..].to_vec())
     }
 
     fn dominates(&self, d: u32, j: u32) -> bool {
