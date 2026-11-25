@@ -1,0 +1,36 @@
+# @dump: own wat stdout
+# @build: v8 release
+# #2367: a three-variant enum whose inlined constructor function builds
+# each variant on its own path; the match after it takes each path
+# straight to its arm with the payload bound, for any enum.
+use std.console.println
+use std.meta.inline
+
+enum Shape:
+    Dot
+    Line(i64)
+    Box(i64, i64)
+
+@inline
+fn pick(k: i64) -> Shape:
+    if k == 0:
+        return .Dot
+    if k < 10:
+        return .Line(k * 2)
+    .Box(k, k + 1)
+
+pub fn area(k: i64) -> i64:
+    match pick(k):
+        .Dot => 0
+        .Line(n) => n
+        .Box(w, h) => w * h
+
+pub fn main() -> void $ Console:
+    let mut s: i64 = 0
+    for k in [5, 0, 20, 0, 3]:
+        v := match pick(k):
+            .Dot => 0
+            .Line(n) => n
+            .Box(w, h) => w * h
+        s = s * 1000 + v
+    println("${area(0)} ${area(5)} ${area(20)} $s")

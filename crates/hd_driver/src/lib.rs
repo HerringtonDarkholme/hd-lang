@@ -1769,6 +1769,9 @@ struct Run<'a> {
     /// Whether `sroa` spills a local around a cold call that takes its
     /// address (its `cold_spill` knob; not on wasmtime).
     sroa_spill: bool,
+    /// Whether the pipeline sends an inlined body's known constructors to
+    /// the arms of the match on them (`known_ctor`, `hd_opt::known_ctor`).
+    known_ctor: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// The selected optimization pipeline, separate from arithmetic semantics.
@@ -3006,6 +3009,9 @@ fn build_packages_inner(
         sroa: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"sroa"),
+        known_ctor: hd_opt::passes::pipeline(packages.target, packages.level)
+            .tir
+            .contains(&"known_ctor"),
         sroa_spill: hd_opt::passes::pipeline(packages.target, packages.level)
             .knob("sroa", "cold_spill")
             == Some(1),

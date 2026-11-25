@@ -1,0 +1,18 @@
+# @dump: own stdout
+# @build: v8 release
+# #2367: the scrutinee is the constructor itself, with no join around
+# it: it goes, and the match runs the arm its variant selects. The pass
+# panicked here when it moved the constructor's new jump.
+use std.console.println
+
+enum Pick:
+    One(i64)
+    Neither
+
+pub fn direct(k: i64) -> i64:
+    match Pick.One(k):
+        .One(h) => h + 1
+        .Neither => -1
+
+pub fn main!() -> void $ Console:
+    println("${direct(4)}")
