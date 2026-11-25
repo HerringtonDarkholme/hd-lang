@@ -1,11 +1,7 @@
 # @dump: wat
 # @build: dev | checked | checked release
-# expected: a narrowing or sign change is at most two bound checks and a cast, with no allocation.
-# @helper: std/convert/impl TryFrom[i64] for i8.try_from
-# @helper: std/convert/impl TryFrom[u64] for i64.try_from
-# @helper: std/convert/impl TryFrom[i64] for u64.try_from
-# @helper: std/convert/impl TryFrom[u64] for usize.try_from
-# @helper: std/convert/impl TryFrom[i64] for i32.try_from
+# expected: release specializes shape guards to at most two bound checks and a cast; every profile allocates nothing.
+# @helper: std/convert/impl[S < Integer, T < Integer] TryFrom[S] for T.try_from
 use std.convert.TryFrom
 use std.num.TryFromIntError
 

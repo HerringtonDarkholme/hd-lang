@@ -285,15 +285,43 @@ impl Values {
                 }),
                 Tag::NewVariant if no_payload(body, i) => Some(Value::Variant(a)),
                 Tag::Coerce if transparent(body, i) => out.word(body, a),
-                Tag::Prim => match (PrimOp::from_u32(a), body.record(b).first()) {
-                    (Some(PrimOp::Not), Some(&x)) if body.ty[i] == Ty::BOOL => {
-                        match out.word(body, x) {
-                            Some(Value::Scalar(bits)) => Some(Value::Scalar(u64::from(bits == 0))),
-                            _ => None,
+                Tag::Prim => {
+                    let args = body.record(b);
+                    let op = PrimOp::from_u32(a);
+                    match (op, args) {
+                        (Some(PrimOp::Not), [x]) if body.ty[i] == Ty::BOOL => {
+                            match out.word(body, *x) {
+                                Some(Value::Scalar(bits)) => {
+                                    Some(Value::Scalar(u64::from(bits == 0)))
+                                }
+                                _ => None,
+                            }
                         }
+                        (Some(PrimOp::Conv), [x]) => {
+                            let types = (
+                                crate::scalar::primitive(word_ty(body, *x)),
+                                crate::scalar::primitive(body.ty[i]),
+                            );
+                            match (types, out.word(body, *x)) {
+                                ((Some(from), Some(to)), Some(Value::Scalar(bits))) => {
+                                    crate::scalar::convert(from, to, bits).map(Value::Scalar)
+                                }
+                                _ => None,
+                            }
+                        }
+                        (Some(op), [x, y]) => match (
+                            crate::scalar::primitive(word_ty(body, *x)),
+                            out.word(body, *x),
+                            out.word(body, *y),
+                        ) {
+                            (Some(p), Some(Value::Scalar(x)), Some(Value::Scalar(y))) => {
+                                crate::scalar::comparison(op, p, x, y).map(Value::Scalar)
+                            }
+                            _ => None,
+                        },
+                        _ => None,
                     }
-                    _ => None,
-                },
+                }
                 Tag::And | Tag::Or if body.ty[i] == Ty::BOOL => {
                     match (body.tags[i], out.word(body, a), out.word(body, b)) {
                         (Tag::And, Some(Value::Scalar(0)), _) => Some(Value::Scalar(0)),
@@ -385,7 +413,7 @@ impl Values {
             Tag::NewStruct | Tag::NewVariant => LITERAL & words(body.record(b)),
             Tag::NewTuple => LITERAL & word(a) & words(body.record(b)),
             Tag::Coerce if transparent(body, i) => word(a),
-            Tag::Prim if PrimOp::from_u32(a) == Some(PrimOp::Not) => words(body.record(b)),
+            Tag::Prim if total_primitive(a) => words(body.record(b)),
             Tag::And | Tag::Or => word(a) & word(b),
             _ => 0,
         }
@@ -642,7 +670,27 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     };
     let folds: Vec<(usize, Fold)> = (0..body.len())
         .filter_map(|i| match body.tags[i] {
-            Tag::And | Tag::Or => decisive(i).then_some((i, Fold::Left)),
+            Tag::And | Tag::Or if decisive(i) => Some((i, Fold::Left)),
+            Tag::And | Tag::Or => {
+                let left = body.data[i][0];
+                let pure = left & Ref::CONST_BIT != 0
+                    || values
+                        .pure
+                        .get(left as usize)
+                        .is_some_and(|p| p & PURE != 0);
+                let identity = match (body.tags[i], values.word(body, left)) {
+                    (Tag::And, Some(Value::Scalar(bits))) => bits != 0,
+                    (Tag::Or, Some(Value::Scalar(0))) => true,
+                    _ => false,
+                };
+                (pure && identity).then_some((i, Fold::Right))
+            }
+            Tag::Prim if total_primitive(body.data[i][0]) && values.pure[i] & PURE != 0 => {
+                values.val[i].and_then(|v| match v {
+                    Value::Scalar(bits) => Some((i, Fold::Scalar(bits))),
+                    Value::Variant(_) => None,
+                })
+            }
             // A literal condition is the backend's to fold, as it folds
             // `if true:` (with no block left around the arm): this pass
             // folds what only the instance's own values decide.
@@ -709,13 +757,17 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
                     out.ty[i] = Ty::NEVER;
                 }
             }
-            Fold::Left => {
-                let coercion = index(out.extra.len());
-                out.extra.push(2);
-                out.extra.push(Coercion::Identity as u32);
-                out.extra.push(NONE);
-                out.tags[i] = Tag::Coerce;
-                out.data[i] = [body.data[i][0], coercion];
+            Fold::Right => {
+                // A short-circuit RHS is an owned block, not an already
+                // computed value. Scope executes that block exactly once.
+                out.tags[i] = Tag::Scope;
+                out.data[i] = [body.data[i][1], empty];
+            }
+            Fold::Left => identity_value(&mut out, i, body.data[i][0]),
+            Fold::Scalar(bits) => {
+                let at = index(out.consts.len());
+                out.consts.push((body.ty[i], bits));
+                identity_value(&mut out, i, Ref::konst(at).0);
             }
         }
     }
@@ -1068,6 +1120,10 @@ fn collapsed(body: &Body, root: u32, value: Value) -> Option<Body> {
 
 /// How [`specialize`] folds one decision.
 enum Fold {
+    /// A pure scalar operation's concrete result.
+    Scalar(u64),
+    /// A pure identity left operand, so only the right operand runs.
+    Right,
     /// A decisive `&&` or `||`: its left operand.
     Left,
     /// An `If`: arm 0 or 1 runs.
@@ -1174,6 +1230,41 @@ fn mark(body: &Body, root: u32) -> Vec<bool> {
         }
     }
     live
+}
+
+fn word_ty(body: &Body, word: u32) -> Ty {
+    if word & Ref::CONST_BIT != 0 {
+        body.consts
+            .get((word & !Ref::CONST_BIT) as usize)
+            .map_or(Ty::POISON, |c| c.0)
+    } else {
+        body.ty.get(word as usize).copied().unwrap_or(Ty::POISON)
+    }
+}
+
+// Only total operations: checked arithmetic keeps its possible panic.
+fn total_primitive(op: u32) -> bool {
+    matches!(
+        PrimOp::from_u32(op),
+        Some(
+            PrimOp::Not
+                | PrimOp::Conv
+                | PrimOp::Eq
+                | PrimOp::Ne
+                | PrimOp::Lt
+                | PrimOp::Le
+                | PrimOp::Gt
+                | PrimOp::Ge
+        )
+    )
+}
+
+fn identity_value(body: &mut Body, i: usize, value: u32) {
+    let coercion = index(body.extra.len());
+    body.extra
+        .extend_from_slice(&[2, Coercion::Identity as u32, NONE]);
+    body.tags[i] = Tag::Coerce;
+    body.data[i] = [value, coercion];
 }
 
 #[cfg(test)]

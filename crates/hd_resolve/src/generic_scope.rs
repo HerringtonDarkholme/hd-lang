@@ -1,10 +1,10 @@
-//! The generic parameters of one kind in scope while a header is lowered,
-//! indexed by name and by type as they are declared (#1857).
+//! Generic parameters in scope while a header or body is checked, indexed
+//! by name and optionally by type as they are declared (#1857).
 //!
 //! Lowering pushes a declaration's parameters, looks names up at each use,
 //! and truncates back to the enclosing scope's length when the
-//! declaration's signature is done. Each of the three is O(1) here: an
-//! entry records the previous entry of the same name, so truncation
+//! declaration's signature is done. Push and lookup are O(1); truncation
+//! costs O(entries removed). An entry records the previous entry of the same name, so truncation
 //! restores the innermost one without a scan. A linear scan per use cost
 //! O(parameters in scope), and past `hd_base::limits::GENERIC_PARAMS` the
 //! rejected names still bind, so n uses of n names cost n² / 2.
@@ -15,7 +15,7 @@ use hd_base::{HashMap, Symbol};
 use hd_types::Ty;
 
 /// What an entry is found by: its name, and for a type parameter its type.
-pub(crate) trait Entry {
+pub trait Entry {
     fn name(&self) -> Symbol;
     /// The type a type parameter stands for, by which a projection or a
     /// `Fn` input finds its bounds; `None` for other kinds.
@@ -29,7 +29,7 @@ const NONE: usize = usize::MAX;
 
 /// Entries in declaration order, outermost first.
 #[derive(Clone)]
-pub(crate) struct Scoped<T> {
+pub struct Scoped<T> {
     items: Vec<T>,
     /// Each name's first (outermost) and last (innermost) entry.
     by_name: HashMap<Symbol, (usize, usize)>,
@@ -59,7 +59,7 @@ impl<T> Deref for Scoped<T> {
 
 impl<T: Entry> Scoped<T> {
     /// Appends `item`, the innermost entry of its name; returns its index.
-    pub(crate) fn push(&mut self, item: T) -> usize {
+    pub fn push(&mut self, item: T) -> usize {
         let at = self.items.len();
         let name = item.name();
         let entry = self.by_name.entry(name).or_insert((at, NONE));
@@ -74,7 +74,7 @@ impl<T: Entry> Scoped<T> {
 
     /// Drops the entries from `len` on, innermost first, so each name's
     /// innermost entry is the one it shadowed.
-    pub(crate) fn truncate(&mut self, len: usize) {
+    pub fn truncate(&mut self, len: usize) {
         for at in (len..self.items.len()).rev() {
             let (name, shadowed) = (self.items[at].name(), self.shadows[at]);
             if shadowed == NONE {
@@ -104,7 +104,8 @@ impl<T: Entry> Scoped<T> {
     }
 
     /// The innermost entry named `name`, which every use of it means.
-    pub(crate) fn last(&self, name: Symbol) -> Option<&T> {
+    #[must_use]
+    pub fn last(&self, name: Symbol) -> Option<&T> {
         self.last_index(name).map(|i| &self.items[i])
     }
 
@@ -114,7 +115,8 @@ impl<T: Entry> Scoped<T> {
         self.by_name.get(&name).map(|&(_, last)| last)
     }
 
-    pub(crate) fn contains(&self, name: Symbol) -> bool {
+    #[must_use]
+    pub fn contains(&self, name: Symbol) -> bool {
         crate::work::scope_probe();
         self.by_name.contains_key(&name)
     }
@@ -126,8 +128,16 @@ impl<T: Entry> Scoped<T> {
     }
 
     /// The entry at `i`, whose name and type the caller leaves as they are.
-    pub(crate) fn get_mut(&mut self, i: usize) -> Option<&mut T> {
+    pub fn get_mut(&mut self, i: usize) -> Option<&mut T> {
         self.items.get_mut(i)
+    }
+}
+
+// Checker bindings index their names only: the type payload may be poisoned
+// during recovery without changing the key of an indexed entry.
+impl Entry for (Symbol, Ty) {
+    fn name(&self) -> Symbol {
+        self.0
     }
 }
 

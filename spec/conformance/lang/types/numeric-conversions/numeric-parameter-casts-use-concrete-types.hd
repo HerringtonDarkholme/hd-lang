@@ -1,0 +1,48 @@
+# test: numeric parameter casts use concrete source and target rules
+# Rule: types.cast.family.
+# expect-stdout: 44
+# expect-stdout: -56
+# expect-stdout: 1.5
+# expect-stdout: 127
+# expect-stdout: 7.0
+# expect-stdout: 1
+# expect-stdout: 1.5
+# expect-stdout: 255
+# expect-stdout: 44
+# expect-stdout: 44
+use std.num.{Integer, Float, Num}
+
+fn integer[S < Integer, T < Integer](value: S) -> T:
+    T(value)
+
+fn floating[S < Float, T < Float](value: S) -> T:
+    T(value)
+
+fn numeric[S < Num, T < Num](value: S) -> T:
+    T(value)
+
+fn literal[T < Integer]() -> T:
+    T(1)
+
+fn float_literal[T < Float]() -> T:
+    T(1.5)
+
+fn parenthesized[T < Integer](value: i64) -> T:
+    T((value))
+
+fn aliased[T < Integer](value: i64) -> T:
+    type Target = T
+    Target(value)
+
+pub fn main() -> void $ Console:
+    println(integer::[i64, u8](+300))
+    println(integer::[u64, i8](200))
+    println(floating::[f32, f64](1.5))
+    println(numeric::[f64, i8](300.0))
+    println(numeric::[i32, f64](+7))
+    println(literal::[i8]())
+    println(float_literal::[f32]())
+    println(parenthesized::[u8](-1))
+    println(aliased::[u8](+300))
+    let action: fn(i64) -> u8 = integer::[i64, u8]
+    println(action(+300))

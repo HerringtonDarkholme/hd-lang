@@ -1,0 +1,25 @@
+# test: primitively suffixed parameter casts use the value rules
+# Rule: types.cast.family, types.cast.wrap.
+# expect-stdout: 44
+# expect-stdout: 44
+# expect-stdout: 255
+# expect-stdout: 44
+# expect-stdout: 300.0
+use std.num.{Integer, Num}
+
+fn literal[T < Integer]() -> T:
+    T(300i64)
+
+fn negative[T < Integer]() -> T:
+    T(-1i64)
+
+fn aliased[T < Num]() -> T:
+    type Target = T
+    Target(300u64)
+
+pub fn main() -> void $ Console:
+    println(literal::[u8]())
+    println(literal::[i8]())
+    println(negative::[u8]())
+    println(aliased::[i8]())
+    println(aliased::[f64]())

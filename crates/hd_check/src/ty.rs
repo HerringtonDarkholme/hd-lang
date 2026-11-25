@@ -348,11 +348,8 @@ impl Ck<'_, '_> {
         if name == "Self" {
             return self.self_ty;
         }
-        self.gens
-            .iter()
-            .rev()
-            .find(|(s, _)| self.cx.names.text(*s) == name)
-            .map(|(_, t)| *t)
+        let symbol = self.cx.names.syms.find(name)?;
+        self.gens.last(symbol).map(|(_, ty)| *ty)
     }
 
     /// [`hd_resolve::iface::type_typo`] in this body's scope.
@@ -438,7 +435,7 @@ impl Ck<'_, '_> {
                 // own `Self` is the local type.
                 let name = self.cx.names.text(g.name);
                 (name == "Self")
-                    .then(|| self.gens.iter().rev().find(|(s, _)| *s == g.name))
+                    .then(|| self.gens.last(g.name))
                     .flatten()
                     .map(|(_, t)| *t)
                     .or_else(|| self.type_param(name))

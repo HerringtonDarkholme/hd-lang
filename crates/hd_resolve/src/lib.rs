@@ -30,6 +30,7 @@ pub mod variance;
 pub mod view;
 pub mod work;
 
+pub use generic_scope::{Entry as GenericScopeEntry, Scoped as GenericScope};
 pub use header::Universe;
 pub use iface::{
     AliasUse, CallAttrs, Crossing, Export, Field, FnAttrs, FnSig, Generic, HeadKind, ImplKind,

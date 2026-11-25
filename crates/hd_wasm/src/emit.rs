@@ -3739,25 +3739,18 @@ impl Em<'_, '_, '_> {
             "int_min" | "int_max" => {
                 let (bits, signed, _) = self.num(self.ty_of(i));
                 let minimum = key == "int_min";
+                let value = hd_mono::scalar::integer_bound_bits(u32::from(bits), signed, minimum)
+                    .ok_or_else(|| {
+                    hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "integer-bound intrinsic has an invalid integer width",
+                    )
+                })?;
                 if bits == 64 {
-                    let value = match (minimum, signed) {
-                        (true, true) => i64::MIN,
-                        (true, false) => 0,
-                        (false, true) => i64::MAX,
-                        (false, false) => -1,
-                    };
-                    self.f.op(I::I64Const(value));
+                    self.f.op(I::I64Const(value.cast_signed()));
                 } else {
-                    let value = match (minimum, signed, bits) {
-                        (true, false, _) => 0,
-                        (true, true, 32) => i32::MIN,
-                        (true, true, _) => -(1i32 << (bits - 1)),
-                        (false, true, 32) => i32::MAX,
-                        (false, false, 32) => -1,
-                        (false, true, _) => width_mask(bits - 1),
-                        (false, false, _) => width_mask(bits),
-                    };
-                    self.f.i32(value);
+                    let [a, b, c, d, ..] = value.to_le_bytes();
+                    self.f.i32(i32::from_le_bytes([a, b, c, d]));
                 }
                 self.store(i)
             }

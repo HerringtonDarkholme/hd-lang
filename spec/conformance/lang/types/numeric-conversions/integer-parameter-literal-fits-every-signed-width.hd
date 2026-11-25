@@ -1,0 +1,6 @@
+# test: integer parameter literal fits every signed width
+# Rule: types.cast.family.
+use std.num.Integer
+
+fn too_large[T < Integer]() -> T:
+    T(300) # diagnostic: integer-literal-range
