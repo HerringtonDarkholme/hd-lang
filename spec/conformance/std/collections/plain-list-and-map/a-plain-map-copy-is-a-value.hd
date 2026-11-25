@@ -10,14 +10,14 @@ pub fn main() -> void $ Console:
         m.insert("k${i}", i64(i))
     c := m
     m.insert("k5", 500)
-    print("${m.get(&"k5").unwrap_or(-1)} ${c.get(&"k5").unwrap_or(-1)} ${m.len()} ${c.len()}|")
+    print("${m.get("k5").unwrap_or(-1)} ${c.get("k5").unwrap_or(-1)} ${m.len()} ${c.len()}|")
     for i in 0..100:
         if i % 3 == 0:
-            _ := m.remove(&"k${i}")
-    print("${m.len()} ${m.contains_key(&"k3")} ${m.contains_key(&"k4")} ${c.len()} ${c.contains_key(&"k3")}|")
+            _ := m.remove("k${i}")
+    print("${m.len()} ${m.contains_key("k3")} ${m.contains_key("k4")} ${c.len()} ${c.contains_key("k3")}|")
     for i in 0..1000:
         m.insert("x${i % 50}", i64(i))
-        _ := m.remove(&"x${(i + 25) % 50}")
+        _ := m.remove("x${(i + 25) % 50}")
     let mut s: i64 = 0
     for (k, v) in m.iter():
         s += v
@@ -27,11 +27,11 @@ pub fn main() -> void $ Console:
         for i in 0..25:
             ints.insert(i64(i), i64(round))
         for i in 0..25:
-            _ := ints.remove(&i64(i))
+            _ := ints.remove(i64(i))
         for i in 0..25:
             ints.insert(i64(i + 1000 * round), 1)
         for i in 0..25:
-            _ := ints.remove(&i64(i + 1000 * round))
+            _ := ints.remove(i64(i + 1000 * round))
     for i in 0..25:
         ints.insert(i64(i), 1)
     println("${ints.len()}")

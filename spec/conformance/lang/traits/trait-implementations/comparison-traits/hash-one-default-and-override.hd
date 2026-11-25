@@ -1,0 +1,29 @@
+# test: `Hash.hash_one` hashes the value's `hash` bytes by default, and an implementation may override it
+# Spec 09 Hashing: trait.hash.hash-one.
+# expect-stdout: true false 42
+use std.hash.Hasher
+
+struct Point:
+    x: i64
+    y: i64
+
+impl Hash for Point:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i64(self.x)
+        state.write_i64(self.y)
+
+# Every value lands in one bucket.
+struct Fixed:
+    id: i64
+
+impl Hash for Fixed:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i64(self.id)
+    fn hash_one(&self, seed: u64) -> u32:
+        42
+
+pub fn main() -> void $ Console:
+    a := Point { x: 1, y: 2 }
+    b := Point { x: 1, y: 2 }
+    c := Point { x: 2, y: 1 }
+    println("${a.hash_one(7) == b.hash_one(7)} ${a.hash_one(7) == c.hash_one(7)} ${Fixed { id: 3 }.hash_one(7)}")

@@ -41,7 +41,7 @@ pub use std.rt.bytes.{
 }
 pub use std.rt.counted.{alloc_counted, empty_block, is_unique, tail_of}
 pub use std.rt.cycle.{marking}
-pub use std.rt.hash.{FoldHasher, hash_key}
+pub use std.rt.hash.{FoldHasher, hash_integer, hash_key, hash_string}
 pub use std.rt.memory.{
     Buffer,
     Ptr,

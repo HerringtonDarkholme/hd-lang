@@ -1,6 +1,7 @@
 use std.num.Num
 use std.ops.Tuple
 use std.meta.inline
+use std.rt.{FoldHasher, hash_integer, hash_string}
 use std.meta.{Structure, UnionType, Walker, Variant, Field}
 
 # std.core: the language's core declarations
@@ -82,6 +83,15 @@ pub trait Hasher:
 ## See [trait.hash.module](../../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash < ?Copy:
     fn hash[H < Hasher](&self, state: &mut H) -> void
+    ## A 32-bit hash of this value under `seed`, for a hash table's buckets:
+    ## by default the seeded default hasher's digest of `hash`'s bytes.
+    ## Integers and strings override it with a one-step hash.
+    ## See [trait.hash.hash-one](../../../spec/lang/09-traits.md#r-trait.hash.hash-one).
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        let mut state = FoldHasher::with_seed(seed)
+        self.hash(&mut state)
+        u32(state.finish())
 
 ## The number of bytes in `text`.
 @intrinsic("bytes_len")
@@ -295,6 +305,9 @@ impl Hash for string:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u64(u64(bytes_len(*self)))
         state.write_str(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_string(*self, seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for char:
@@ -357,54 +370,81 @@ impl Hash for i8:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i8(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(u8(*self)), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i16:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i16(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(u16(*self)), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i32:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i32(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(u32(*self)), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i64:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_i64(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(*self), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u8:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u8(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(*self), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u16:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u16(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(*self), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u32:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u32(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(*self), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for usize:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_usize(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(u64(*self), seed)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u64:
     @inline(.Always)
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         state.write_u64(*self)
+    @inline(.Always)
+    fn hash_one(&self, seed: u64) -> u32:
+        hash_integer(*self, seed)
 
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
