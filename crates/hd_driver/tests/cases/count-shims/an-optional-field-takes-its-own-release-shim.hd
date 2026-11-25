@@ -1,0 +1,28 @@
+# @dump: functions
+# @build: release
+# `Repo` and `Person` count the same two addresses at the same places, but
+# `Person`'s second is an optional's, null when empty, so its release tests
+# it first. Their shims differ: when they shared one, the type that asked
+# first chose the body, and `Person` released its null `email` unchecked
+# (json-decode's `Package`, lane 271).
+struct Repo:
+    kind: string
+    url: string
+
+struct Person:
+    name: string
+    email: string?
+
+fn repo(n: i32) -> Repo:
+    Repo { kind: "git ${n}", url: "u ${n}" }
+
+fn person(n: i32) -> Person:
+    if n > 0:
+        Person { name: "p ${n}", email: .Some("e ${n}") }
+    else:
+        Person { name: "p ${n}", email: .None }
+
+pub fn main() -> void $ Console:
+    r := repo(1)
+    p := person(0)
+    println(r.kind.len() + p.name.len())
