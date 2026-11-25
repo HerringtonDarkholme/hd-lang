@@ -4,14 +4,17 @@
 trait Source:
     type Item
 
-impl[T < Source] (T::Item):
+trait Marker:
+    fn marker(self) -> i32
+
+impl[T < Source] Marker for (T::Item):
     fn marker(self) -> i32:
         +1
 
-impl i32:
+impl Marker for i32:
     fn marker(self) -> i32:
         +2
 
-impl[U < Source] (U::Item):
+impl[U < Source] Marker for (U::Item):
     fn marker(self) -> i32:
         +3
