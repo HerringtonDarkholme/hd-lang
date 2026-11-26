@@ -75,6 +75,23 @@ For each doc:
   stay.
 - **Links:** every relative link in an index resolves.
 
+## 4b. Removed language forms (do not skip)
+
+A doc sweep never finds a keyword or form that is still live in code. For
+every keyword, syntax form or feature removed (now or still lingering),
+check every copy of the language's word lists and rules:
+- the lexer's `fn keyword` table (`crates/hd_syntax/src/lexer.rs`) against
+  `lex.keyword.reserved-words.*`: a reserved word must start some construct;
+- the REPL completion list (`crates/hd_command/src/repl/complete.rs`), the
+  website highlighter (`website/src/highlight.ts`) and code-block sniffer
+  (`website/src/markdown.ts`), and the editor syntax files (`editors/`);
+- spec rules, examples and fixtures that exist only to reject the old form:
+  delete them, so the old form fails through the normal grammar;
+- the hd-lang skill's references (`.agents/skills/hd-lang/`).
+
+2026-11-25: `data` stayed reserved for months after `struct` replaced it
+(#2384), and the removed `defer` keyword stayed in three keyword lists.
+
 ## 5. Docs: folder sweep (do not skip)
 
 A text grep never finds a whole stale directory. List them:
