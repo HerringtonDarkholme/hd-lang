@@ -611,8 +611,10 @@ pub fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMu
         changed |= settled.run(f, Rule::Fold, fold);
         changed |= settled.run(f, Rule::Drops, drops);
         changed |= settled.run(f, Rule::Schedule, |f| schedule(f, np, arity));
-        changed |= settled.run(f, Rule::Zero, zero_releases);
-        changed |= settled.run(f, Rule::Live, |f| live_rules(f, arity));
+        // Zero's blocks serve Live when Zero leaves the body as it is.
+        let mut cfg = None;
+        changed |= settled.run(f, Rule::Zero, |f| zero_releases(f, &mut cfg, &mut || {}));
+        changed |= settled.run(f, Rule::Live, |f| live_rules(f, arity, cfg.take()));
         if !changed {
             break;
         }
@@ -948,13 +950,10 @@ fn pushes_zero_constant(ins: &Ins) -> bool {
 /// Deletes only release arguments/calls and stores proved redundant on
 /// every incoming path. Facts are persistent sets ([`Zeros`]) kept only at
 /// basic-block entries; one working set carries facts through each block.
-pub fn zero_releases(f: &mut Func) -> bool {
-    zero_releases_with(f, &mut || {})
-}
-
-/// [`zero_releases`], calling `visit` at each block its fixed point
-/// visits.
-pub fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
+/// It calls `visit` at each block its fixed point visits, reads the body's
+/// blocks from `cfg`, or makes them there, and empties `cfg` when it edits
+/// the body.
+pub fn zero_releases(f: &mut Func, cfg: &mut Option<Cfg>, visit: &mut dyn FnMut()) -> bool {
     let symbols = f.symbols.clone();
     let release_width = |ins: &Ins| {
         let Ins::Call(id, _) = ins else {
@@ -974,13 +973,12 @@ pub fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
     if !f.body.iter().any(|i| release_width(i).is_some()) && !f.body.windows(2).any(stores_zero) {
         return false;
     }
-    let Some(edges) = zero_edges(&f.body, &f.labels) else {
-        return false;
-    };
     if f.body.is_empty() {
         return false;
     }
-    let (point_at, starts) = basic_blocks(&edges, f.body.len());
+    let Some(g) = Cfg::of(f, cfg) else {
+        return false;
+    };
     let n = f.params.len() + f.locals.len();
     let mut zeros = Zeros::new(n);
     // Every local but a parameter starts zero: one set made in one pass.
@@ -989,29 +987,15 @@ pub fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         .map(|l| u32::try_from(l).expect("locals"))
         .collect();
     let known = zeros.sets.of_sorted(&all);
-    let gone = if forward_only(&edges, &point_at, &starts, f.body.len()) {
-        zero_sweep(
-            f,
-            &edges,
-            &point_at,
-            &starts,
-            (&mut zeros, known),
-            &release_width,
-        )
+    let gone = if g.forward {
+        zero_sweep(f, g, (&mut zeros, known), &release_width)
     } else {
-        zero_fixpoint(
-            f,
-            &edges,
-            &point_at,
-            &starts,
-            (&mut zeros, known),
-            &release_width,
-            visit,
-        )
+        zero_fixpoint(f, g, (&mut zeros, known), &release_width, visit)
     };
     if !gone.iter().any(|g| *g) {
         return false;
     }
+    *cfg = None;
     let mut origins = Remap::new(f.origins.as_deref());
     f.body = std::mem::take(&mut f.body)
         .into_iter()
@@ -1027,6 +1011,36 @@ pub fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         .collect();
     origins.finish(f);
     true
+}
+
+/// A body's basic blocks and their edges ([`zero_edges`],
+/// [`basic_blocks`]), made once per sweep of [`locals`] for Zero and
+/// Live while neither rule has edited the body.
+pub struct Cfg {
+    edges: Vec<ZeroEdges>,
+    point_at: Vec<usize>,
+    starts: Vec<usize>,
+    /// Every edge leads to a later block ([`forward_only`]).
+    forward: bool,
+}
+
+impl Cfg {
+    /// `f`'s blocks, from `cfg` or made there; `None` when its labels
+    /// do not nest.
+    fn of<'a>(f: &Func, cfg: &'a mut Option<Self>) -> Option<&'a Self> {
+        if cfg.is_none() {
+            let edges = zero_edges(&f.body, &f.labels)?;
+            let (point_at, starts) = basic_blocks(&edges, f.body.len());
+            let forward = forward_only(&edges, &point_at, &starts, f.body.len());
+            *cfg = Some(Self {
+                edges,
+                point_at,
+                starts,
+                forward,
+            });
+        }
+        cfg.as_ref()
+    }
 }
 
 /// Whether every edge of a body's basic blocks leads to a later block, so
@@ -1051,9 +1065,12 @@ fn forward_only(edges: &[ZeroEdges], point_at: &[usize], starts: &[usize], len: 
 /// meet costs where the two differ. It decides as [`zero_fixpoint`] does.
 fn zero_sweep(
     f: &Func,
-    edges: &[ZeroEdges],
-    point_at: &[usize],
-    starts: &[usize],
+    Cfg {
+        edges,
+        point_at,
+        starts,
+        ..
+    }: &Cfg,
     (zeros, entry): (&mut Zeros, Set),
     release_width: &dyn Fn(&Ins) -> Option<usize>,
 ) -> Vec<bool> {
@@ -1097,9 +1114,12 @@ fn zero_sweep(
 /// round of the loops before it: `O(V log B)` heap steps for `V` visits.
 fn zero_fixpoint(
     f: &Func,
-    edges: &[ZeroEdges],
-    point_at: &[usize],
-    starts: &[usize],
+    Cfg {
+        edges,
+        point_at,
+        starts,
+        ..
+    }: &Cfg,
     (zeros, entry): (&mut Zeros, Set),
     release_width: &dyn Fn(&Ins) -> Option<usize>,
     visit: &mut dyn FnMut(),
@@ -1284,7 +1304,7 @@ impl Drop for Live {
 
 impl Live {
     pub fn new(f: &Func, sets: Sets) -> Option<Self> {
-        let mut me = Self::blocks(f, sets)?;
+        let mut me = Self::blocks(f, None, sets)?;
         me.settle(f);
         Some(me)
     }
@@ -1370,13 +1390,18 @@ impl Live {
     /// arena for passes that only ask membership and union. Each block's
     /// first accesses are found in one forward pass, a local's stamp
     /// telling whether this block met it already: `O(B + n)`.
-    pub fn blocks(f: &Func, sets: Sets) -> Option<Self> {
+    pub fn blocks(f: &Func, mut cfg: Option<Cfg>, sets: Sets) -> Option<Self> {
         let n = f.params.len() + f.locals.len();
         if n == 0 || f.body.is_empty() {
             return None;
         }
-        let edges = zero_edges(&f.body, &f.labels)?;
-        let (point_at, starts) = basic_blocks(&edges, f.body.len());
+        Cfg::of(f, &mut cfg)?;
+        let Cfg {
+            edges,
+            point_at,
+            starts,
+            forward,
+        } = cfg?;
         let blocks = starts.len();
         let mut first = Vec::with_capacity(blocks + 1);
         let mut firsts = Vec::new();
@@ -1397,7 +1422,7 @@ impl Live {
         Some(Self {
             into: vec![Set::EMPTY; blocks],
             outs: vec![Set::EMPTY; blocks],
-            forward: forward_only(&edges, &point_at, &starts, f.body.len()),
+            forward,
             edges,
             point_at,
             starts,
@@ -1417,9 +1442,9 @@ impl Live {
     /// The live-out sets are dense rows ([`Live::rows`]) when they fit,
     /// and persistent sets above that.
     #[must_use]
-    pub fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
+    pub fn dead_accesses(f: &Func, cfg: Option<Cfg>) -> Option<Vec<bool>> {
         let body = &f.body;
-        let mut me = Self::blocks(f, Sets::unconsed())?;
+        let mut me = Self::blocks(f, cfg, Sets::unconsed())?;
         let rows = me.rows(f);
         if rows.is_none() {
             me.settle(f);
@@ -2133,14 +2158,14 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 /// body, as LLVM's `LiveIntervals::handleMove` and `LiveVariables`'
 /// kill updates keep liveness across a local rewrite instead of solving
 /// the function again.
-pub fn live_rules(f: &mut Func, arity: &Arity) -> bool {
-    let Some(mut dead) = Live::dead_accesses(f) else {
+pub fn live_rules(f: &mut Func, arity: &Arity, cfg: Option<Cfg>) -> bool {
+    let Some(mut dead) = Live::dead_accesses(f, cfg) else {
         return false;
     };
     let mut any = false;
     while let Some(next) = live_once(f, arity, &dead) {
         debug_assert!(
-            Live::dead_accesses(f).is_none_or(|solved| solved == next),
+            Live::dead_accesses(f, None).is_none_or(|solved| solved == next),
             "rule 13's carried dead accesses differ from a new liveness pass"
         );
         dead = next;

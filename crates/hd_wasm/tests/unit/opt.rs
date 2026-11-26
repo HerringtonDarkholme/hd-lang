@@ -1576,7 +1576,7 @@ mod origin_tests {
             ],
         );
         let f = run(f, |f| {
-            zero_releases(f);
+            zero_releases(f, &mut None, &mut || {});
         });
         assert_eq!(releases(&f), 2);
         assert_eq!(
@@ -1612,13 +1612,13 @@ mod origin_tests {
         };
         assert_eq!(
             releases(&run(branch(false), |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             0
         );
         assert_eq!(
             releases(&run(branch(true), |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             1
         );
@@ -1627,7 +1627,7 @@ mod origin_tests {
         exits.origins = Some(vec![Some(17); exits.body.len()]);
         assert_eq!(
             releases(&run(exits, |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             0
         );
@@ -1656,13 +1656,13 @@ mod origin_tests {
         };
         assert_eq!(
             releases(&run(loop_body(false), |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             1
         );
         assert_eq!(
             releases(&run(loop_body(true), |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             0
         );
@@ -1686,7 +1686,7 @@ mod origin_tests {
         table.labels.push(vec![0]);
         assert_eq!(
             releases(&run(table, |f| {
-                zero_releases(f);
+                zero_releases(f, &mut None, &mut || {});
             })),
             1
         );
@@ -1730,7 +1730,7 @@ mod origin_tests {
         };
         for (head, exit, kept) in [(false, false, 0), (true, false, 1), (false, true, 1)] {
             let f = run(body(head, exit), |f| {
-                live_rules(f, &Arity::new());
+                live_rules(f, &Arity::new(), None);
             });
             assert_eq!(zeros(&f), kept, "{:?}", f.body);
         }
@@ -1748,7 +1748,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(live_rules(f, &Arity::new()));
+                assert!(live_rules(f, &Arity::new(), None));
                 assert!(drops(f));
             },
         );
@@ -1783,7 +1783,7 @@ mod origin_tests {
         ]);
         body.push(op(I::End));
         let f = run(tracked(&symbols, 2, 2, body), |f| {
-            while live_rules(f, &Arity::new()) {}
+            while live_rules(f, &Arity::new(), None) {}
         });
         let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
         // The copy of 0 moves past the guard to its read, the copy of 1
@@ -1820,7 +1820,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                while live_rules(f, &Arity::new()) {}
+                while live_rules(f, &Arity::new(), None) {}
             },
         );
         let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
@@ -1845,7 +1845,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(!live_rules(f, &Arity::new()));
+                assert!(!live_rules(f, &Arity::new(), None));
             },
         );
         assert_eq!(f.body.len(), 5);
@@ -2000,7 +2000,8 @@ mod origin_tests {
                     body.extend(vec![Ins::Op(I::End); depth]);
                     let f = tracked(&symbols, 0, width as usize, body);
                     let before = live_set::hash_probes();
-                    let dead = Live::dead_accesses(&f).ok_or("structured body has liveness")?;
+                    let dead =
+                        Live::dead_accesses(&f, None).ok_or("structured body has liveness")?;
                     let hashes = live_set::hash_probes() - before;
                     assert_eq!(
                         hashes, 0,
@@ -2055,7 +2056,7 @@ mod origin_tests {
                 op(I::End),
             ]);
             let f = tracked(&symbols, 1, 1, body);
-            let mut live = Live::blocks(&f, Sets::default()).expect("blocks");
+            let mut live = Live::blocks(&f, None, Sets::default()).expect("blocks");
             assert!(!live.forward);
             let blocks = live.starts.len();
             let mut visits = 0;
@@ -2092,7 +2093,7 @@ mod origin_tests {
             body.extend([op(I::LocalGet(0)), op(I::BrIf(0)), op(I::End)]);
             body.extend((0..n).flat_map(|l| [op(I::LocalGet(l)), op(I::Drop)]));
             let f = tracked(&symbols, 0, n as usize, body);
-            let (dead, work) = hd_wasm::work::count_liveness(|| Live::dead_accesses(&f));
+            let (dead, work) = hd_wasm::work::count_liveness(|| Live::dead_accesses(&f, None));
             assert!(
                 dead.is_some_and(|dead| !dead[4]),
                 "the loop reads its write"
@@ -2155,12 +2156,12 @@ mod origin_tests {
         }
         for body in cases {
             let mut f = tracked(&symbols, 1, 2, body.clone());
-            let mut dead = Live::dead_accesses(&f).expect("analysed");
+            let mut dead = Live::dead_accesses(&f, None).expect("analysed");
             let mut rounds = 0;
             while let Some(next) = live_once(&mut f, &Arity::new(), &dead) {
                 assert_eq!(
                     Some(&next),
-                    Live::dead_accesses(&f).as_ref(),
+                    Live::dead_accesses(&f, None).as_ref(),
                     "{body:?} -> {:?}",
                     f.body
                 );
@@ -2204,7 +2205,7 @@ mod origin_tests {
                 .map(|edges| basic_blocks(&edges, f.body.len()).1.len())
                 .expect("edges");
             let mut visits = 0;
-            zero_releases_with(&mut f, &mut || visits += 1);
+            zero_releases(&mut f, &mut None, &mut || visits += 1);
             assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
         }
     }
@@ -2504,7 +2505,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(zero_releases(f));
+                assert!(zero_releases(f, &mut None, &mut || {}));
             },
         );
         assert!(matches!(
@@ -2538,7 +2539,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(zero_releases(f));
+                assert!(zero_releases(f, &mut None, &mut || {}));
             },
         );
         assert_eq!(releases(&f), 1);
@@ -2565,7 +2566,7 @@ mod origin_tests {
             ],
         );
         let f = run(f, |f| {
-            zero_releases(f);
+            zero_releases(f, &mut None, &mut || {});
         });
         assert_eq!(spans(&f), [12, 13]);
     }

@@ -170,7 +170,7 @@ pub mod opt {
         Arity, Live, OPERAND_REACH, Rule, Settled, basic_blocks, blocks, blocks_with, coalesce,
         copy_sources, drops, exits, fold, fold_constant_branches, forward, forward_with, ifs,
         inline_counts, live_once, live_rules, locals, locals_with_work, schedule, schedule_with,
-        shapes, static_counts, static_values, zero_edges, zero_releases, zero_releases_with,
+        shapes, static_counts, static_values, zero_edges, zero_releases,
     };
     pub mod bounds {
         pub use crate::opt::bounds::{rewrite, run};
