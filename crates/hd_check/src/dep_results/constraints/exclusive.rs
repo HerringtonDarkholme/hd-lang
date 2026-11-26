@@ -832,6 +832,7 @@ impl Gen<'_, '_> {
                     *excl,
                 )
             };
+            let cw = w(c);
             let mut held_hit = None;
             'pairs: for (a, ha) in held.iter().enumerate() {
                 for (bk, hb) in held.iter().enumerate().skip(a + 1) {
@@ -848,6 +849,36 @@ impl Gen<'_, '_> {
                                 held_hit = Some((args[bk], pa.0));
                                 break 'pairs;
                             }
+                        }
+                    }
+                }
+            }
+            // A later argument's use, write or move of a place an earlier
+            // argument's value holds `&mut` of, as `scores[1]` or
+            // `scores.len()` beside `&mut scores[0]` (`ref.elem.access.mut`).
+            if held_hit.is_none() {
+                'args: for (a, ha) in held.iter().enumerate() {
+                    for &k in *ha {
+                        // A loan the argument holds through a call's
+                        // result, not its own reference.
+                        let (i, p, excl) = place(k);
+                        if !excl || i == args[a] {
+                            continue;
+                        }
+                        let hit = |q: &Path| q.0 == p.0 && overlap(&p.1, &q.1);
+                        let from = args[a];
+                        let found = (window(&t.touches, |x| x.0, from, cw).iter())
+                            .chain(window(&t.moves, |x| x.0, from, cw))
+                            .find(|(i, q)| hit(q) && b.syn[*i as usize] != NodeIdx::NONE)
+                            .map(|x| x.0)
+                            .or_else(|| {
+                                (window(&t.writes, |x| x.2, from, cw).iter())
+                                    .find(|(i, q, _)| hit(q) && b.syn[*i as usize] != NodeIdx::NONE)
+                                    .map(|x| x.0)
+                            });
+                        if let Some(i) = found {
+                            held_hit = Some((i, p.0));
+                            break 'args;
                         }
                     }
                 }
@@ -871,7 +902,6 @@ impl Gen<'_, '_> {
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
-                let cw = w(c);
                 // A `&`: a write or a move in a later argument, in the
                 // order the body lists them.
                 let mut moving = false;
