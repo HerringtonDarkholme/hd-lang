@@ -6585,6 +6585,10 @@ lang/expressions/primary-expressions/list-literal-builds-an-expected-plain-list.
 lang/expressions/primary-expressions/list-literal-empty-builds-an-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
 lang/expressions/primary-expressions/list-literal-nested-builds-each-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
 lang/expressions/primary-expressions/list-literal-spread-into-an-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/postfix-expressions/indexing/plain-list-index-reads-writes-and-compound-assigns.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.mutable-place
+lang/expressions/postfix-expressions/indexing/plain-list-index-out-of-bounds-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.trait.shared-place
+lang/expressions/postfix-expressions/indexing/plain-list-element-loan-blocks-a-push.hd	type	reject:conflicting-access	lang/05-expressions.md#r-expr.index.trait.borrow-place
+lang/expressions/postfix-expressions/indexing/plain-list-two-element-loans-conflict.hd	type	reject:conflicting-access	lang/05-expressions.md#r-expr.index.trait.mutable-place
 lang/expressions/primary-expressions/map-literal-builds-an-expected-plain-map.hd	runtime	accept	lang/05-expressions.md#r-expr.map.type.trait
 lang/expressions/primary-expressions/list-literal-expected-type-without-from-list-literal-is-a-type-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.list.type.trait
 lang/expressions/primary-expressions/list-literal-without-a-builder-expected-type-is-a-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type

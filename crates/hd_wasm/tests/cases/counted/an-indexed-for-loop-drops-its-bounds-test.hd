@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# `xs[i]` on a `PlainList` is `Index::index` (#2369 step 2b), inlined to
+# a length load, a bounds test and a value load. In `for i in 0..xs.len()`
+# the range's end is that length, read from one unchanged place, so
+# `prove::loop_loads` drops the test (#2368): one value load per value,
+# as the builtin list's loop.
+use std.collections.PlainList
+
+fn sum_for(xs: &PlainList[i64]) -> i64:
+    let mut s: i64 = 0
+    # subject
+    for i in 0..xs.len():
+        s += xs[i]
+    s

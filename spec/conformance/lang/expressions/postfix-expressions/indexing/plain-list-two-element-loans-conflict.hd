@@ -1,0 +1,9 @@
+# test: two `&mut` references to different elements of one PlainList conflict, since each borrows the whole list
+# Spec 05 Index Traits: expr.index.trait.mutable-place (an element loan lends the receiver, Rust Vec's rule).
+use std.collections.PlainList
+
+fn bump_two(ys: &mut PlainList[i64]) -> void:
+    a := &mut ys[0]
+    b := &mut ys[1] # diagnostic: conflicting-access
+    *a += 1
+    *b += 1

@@ -1,0 +1,28 @@
+# test: a PlainList indexes through Index, IndexMut and IndexSet: reads, whole-element and field writes, compound assignment and `&mut` each change only the written copy
+# Spec 05 Index Traits: expr.index.trait.shared-place, expr.index.trait.mutable-place, expr.index.trait.write-ref.
+# expect-stdout: 10 7 12 3
+# expect-stdout: 7 9
+# expect-stdout: z c a
+use std.collections.PlainList
+
+struct P:
+    x: i64
+    y: i64
+
+pub fn main() -> void $ Console:
+    let mut xs: PlainList[i64] = [1, 2, 3]
+    xs[0] = 10
+    xs[1] += 5
+    ys := xs
+    xs[2] *= 4
+    println("${xs[0]} ${xs[1]} ${xs[2]} ${ys[2]}")
+    let mut ps: PlainList[P] = [P { x: 1, y: 2 }]
+    ps[0].x = 7
+    r := &mut ps[0]
+    r.y = 9
+    println("${ps[0].x} ${ps[0].y}")
+    let mut ss: PlainList[string] = ["a", "b"]
+    ss[1] = "c"
+    tt := ss
+    ss[0] = "z"
+    println("${ss[0]} ${ss[1]} ${tt[0]}")

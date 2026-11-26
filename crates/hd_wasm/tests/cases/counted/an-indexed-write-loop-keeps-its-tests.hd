@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# `xs[i] *= 2` on a `PlainList` is `IndexMut::index_mut` (#2369 step 2b):
+# a bounds test, `is_unique` and a cold copy, then the store.
+# expected: as the builtin's loop, one uniqueness test before the loop and
+# no bounds test in it (issue: a std list's write loop keeps its bounds
+# and uniqueness tests). The cold copy writes `xs.block`, so the length
+# load is not of an unchanged place and `loop_loads` keeps the test; std's
+# `is_unique` has no hoisting fact, as the builtin's `IsUnique` has.
+use std.collections.PlainList
+
+fn double(xs: &mut PlainList[i64]) -> void:
+    # subject
+    for i in 0..xs.len():
+        xs[i] *= 2

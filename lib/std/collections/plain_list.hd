@@ -11,7 +11,7 @@
 # empty list shares the static empty block (count 0), so `len` and
 # indexing never test for null and the first push takes the cold path.
 use std.meta.inline
-use std.ops.{FromListLiteral, Index}
+use std.ops.{FromListLiteral, Index, IndexMut, IndexSet}
 use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, is_unique, needs_drop, panic_with, size_of, tail_of}
 
 ## A list block's header.
@@ -227,6 +227,24 @@ impl[T] Index[usize] for PlainList[T]:
         if key >= self.len():
             panic_with("index-out-of-bounds", "list index out of bounds")
         self.elems().offset(key).as_ref()
+
+# `&mut xs[i]`, a field write and a compound assignment through `xs[i]`:
+# the element's loan borrows the whole list (the receiver is `&mut self`),
+# as Rust's `Vec`, so no push or other change can move the block under it.
+impl[T] IndexMut[usize] for PlainList[T]:
+    @inline(.Always)
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "list index out of bounds")
+        if !is_unique(self.block):
+            self.block = PlainList::[T].grown(self.block, 0, false)
+        self.elems().offset(key).as_mut()
+
+# `xs[i] = v`: `set`, which drops the value it replaces.
+impl[T] IndexSet[usize, T] for PlainList[T]:
+    @inline(.Always)
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.set(key, value)
 
 ## A cursor over a `PlainList`: a raw value pointer and its end.
 pub struct PlainListIter[T, 'a]:
