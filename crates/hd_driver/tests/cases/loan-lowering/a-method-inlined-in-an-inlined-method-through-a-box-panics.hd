@@ -1,0 +1,30 @@
+# @dump: stdout
+# @build: dev | release
+# expected: gap: #2369 (lane 299 issue 1). `bump` reads `self` through
+# `get`, both inlined, on a boxed `C`: the inner copy's read is the
+# caller's own loan, so this prints 2 and 3, as it does with neither
+# inlined. Today it panics borrow-conflict at `get`: only one inlined
+# level keeps its caller's loan key. Every std List method is inlined
+# and calls others (`index_set` -> `set` -> `len`), so `xs[1] = 9` on a
+# boxed list panics the same way.
+use std.meta.inline
+
+struct C:
+    v: i32
+
+impl C:
+    @inline(.Always)
+    fn get(&self) -> i32:
+        self.v
+
+    @inline(.Always)
+    fn bump(&mut self) -> void:
+        if self.get() > 0:
+            self.v += 1
+
+pub fn main() -> void $ Console:
+    c := box(C { v: 1 })
+    c.bump()
+    println("${c.v}")
+    c.bump()
+    println("${c.v}")
