@@ -606,8 +606,7 @@ only in fixed positions:
 | r[lex.contextual.const-generic] Const generic parameter | `const` | after `<` in a generic parameter, before its declared scalar type |
 
 1. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
-2. r[lex.defer.identifier] `defer` is an ordinary identifier, as in `defer(action)`.
-3. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
+2. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
 
 ```text
 fn use(value: i32) -> i32:

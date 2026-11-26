@@ -302,7 +302,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         if self.cleanup_blocks.is_empty() {
             self.err(
-                Code::DeferOutsideCleanupScope,
+                Code::CleanupOutsideScope,
                 at,
                 "a module's top level is not a cleanup scope",
             );

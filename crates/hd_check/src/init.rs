@@ -902,7 +902,7 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::UsingStmt => {
                 self.err(
-                    Code::DeferOutsideCleanupScope,
+                    Code::CleanupOutsideScope,
                     s,
                     "a module's top level is not a cleanup scope",
                 );

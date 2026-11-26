@@ -1077,10 +1077,10 @@ fn work(log: *mut List[string]) -> void:
 
 1. r[flow.cleanup.scopes] Cleanup scopes are function and closure bodies, loop bodies, each selected `if` or `else` suite, and match arms. Provider scopes and trailing callback blocks, including test bodies, are cleanup scopes too.
 2. r[flow.cleanup.not-scopes] Module top level and declaration bodies that do not execute are not cleanup scopes.
-3. r[flow.cleanup.outside] Cleanup registration at module top level is an error. Error: `defer-outside-cleanup-scope`.
+3. r[flow.cleanup.outside] Cleanup registration at module top level is an error. Error: `cleanup-outside-scope`.
 
 ```text
-using lock = Lock { name: "a" }  # error: defer-outside-cleanup-scope
+using lock = Lock { name: "a" }  # error: cleanup-outside-scope
 ```
 
 ### Panics
@@ -1151,7 +1151,7 @@ pub trait AsyncDisposable[$ R = $()]:
 11. r[flow.using.order.v2] Synchronous and asynchronous disposes of one block run in one last-in, first-out order.
 12. r[flow.using.loop.v2] Each loop iteration disposes the values that its body bound with `using` or `using!` before the next iteration begins.
 13. r[flow.using.unbound.v2] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
-14. r[flow.using.scopes.v2] A `using` or `using!` binding follows the [Cleanup Scopes](#cleanup-scopes) rules, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
+14. r[flow.using.scopes.v2] A `using` or `using!` binding follows the [Cleanup Scopes](#cleanup-scopes) rules, so one at module top level is an error. Error: `cleanup-outside-scope`.
 15. r[flow.using.async.driver] The registered call of `using!` is a bang call written at that statement, so `using!` outside a driver context is an error. `using` is accepted in ordinary and suspending functions. Error: `bang-call-outside-suspension`.
 16. r[flow.using.async.suite-suspends] A `using!` dispose suite may suspend, and the scope exit goes on once `dispose!` returns. A `using` dispose suite runs inline.
 17. r[flow.using.async.not-forbidden] An asynchronous dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
@@ -1240,7 +1240,7 @@ fn work(log: *mut List[string]) -> void:
 2. r[flow.auto-closing.order] That registration shares one cleanup stack with `using`, `using!`, and other auto-closing calls, in last-in, first-out order.
 3. r[flow.auto-closing.cleanup] The registered entry follows the selected protocol's `using` or `using!` rules for requirements, suspension, scope exit, cancellation, and panic.
 4. r[flow.auto-closing.uncompleted] A call that does not produce its result, because it propagates with `?` or panics, registers nothing.
-5. r[flow.auto-closing.scope] A statement call at module top level is an error, because module top level is not a cleanup scope. Error: `defer-outside-cleanup-scope`.
+5. r[flow.auto-closing.scope] A statement call at module top level is an error, because module top level is not a cleanup scope. Error: `cleanup-outside-scope`.
 
 ### Registered-Only Values
 

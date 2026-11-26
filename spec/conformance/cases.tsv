@@ -1205,7 +1205,7 @@ lang/control-flow/using-bindings/using-read-only-reference.hd	type	reject:not-wr
 lang/control-flow/using-bindings/using-read-only-dyn-reference.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.using.reference.read-only.v2
 lang/control-flow/using-bindings/using-place-other-call.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.using.place.v2
 std/ops/scope-guards/using-scope-guard-missing-row.hd	type	reject:missing-requirement	std/ops.md#scope-guards
-lang/control-flow/using-bindings/top-level-using.hd	type	reject:defer-outside-cleanup-scope	lang/06-control-flow.md#binding-and-registration
+lang/control-flow/using-bindings/top-level-using.hd	type	reject:cleanup-outside-scope	lang/06-control-flow.md#binding-and-registration
 lang/control-flow/using-bindings/using-dispose-order.hd	runtime	accept	lang/06-control-flow.md#binding-and-registration
 lang/control-flow/using-bindings/using-dispose-suspends.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.async.suite-suspends
 lang/control-flow/using-bindings/using-race-loser-disposes.hd	runtime	accept	lang/06-control-flow.md#binding-and-registration
@@ -6203,7 +6203,6 @@ lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-o
 lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-tuple-held-loan-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/references/dependent-results/conflicts-through-aliases/alias-write-to-other-field-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/lexical/keywords-and-reserved-words/data-ordinary-name.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.keyword.reserved-words.v2
-lang/lexical/keywords-and-reserved-words/defer-ordinary-name.hd	parse	accept	lang/01-lexical-structure.md#r-lex.defer.identifier
 lang/grammar/types/union-type-syntax.hd	parse	accept	lang/02-grammar.md#r-grammar.type.union
 lang/types/union-type-identity/union-type-identity-and-aliases.hd	type	accept	lang/04-type-system.md#r-types.union.identity
 lang/types/union-type-identity/union-order-is-type-identity.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.union.identity

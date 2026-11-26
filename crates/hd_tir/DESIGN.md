@@ -260,7 +260,7 @@ lexical frame. An expected context type is matched by type equality, so
 - `!` is part of the name, so suspension needs no inference.
 - A bang call outside a driver context is `bang-call-outside-suspension`
   ([`req.bang.driver-forms`](../../spec/lang/11-requirements-and-suspension.md#r-req.bang.driver-forms)).
-- **The `block_on` ban is direct-only.** In `defer` suites, default
+- **The `block_on` ban is direct-only.** In cleanup suites, default
   expressions, fact expressions and module initialization, a call whose
   resolved callee is `block_on` or `println` is an error. The check reads
   resolved callees in those contexts and no other body. An indirect call
@@ -1066,9 +1066,9 @@ The verifier checks each of these:
    decision block. `Defer` is inside its `Scope`.
 6. `Await`, `AwaitValue`, `AwaitAll` and `AwaitRace` occur only in a
    suspending body or closure. No `Return`, `Break`, `Continue` or
-   failing `?` leaf is inside a `defer` suite. A suspension point is
-   only where a `using!` binding's `dispose!` put it; the checker rejects
-   one that source writes in a `defer` suite.
+   failing `?` leaf is inside a cleanup suite. A suspension point is
+   only where a `using!` binding's `dispose!` put it; a `defer` action is
+   an `FnMut() -> void`, so it cannot suspend.
 7. (Reserved; the unused suspension side records were removed.)
 8. Every projected call key has checked borrowed provider evidence.
    Identity entries use exact-key lookup; open tails use the invocation

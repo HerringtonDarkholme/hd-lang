@@ -55,8 +55,7 @@ checking.
   `AsyncDisposable`, and `@auto_closing` calls whose `AutoClosing`
   result is registered for cleanup (`flow.using.*`,
   `flow.auto-closing.*`), not ownership. The local `^` mode was removed
-  (#163). `defer` is no keyword (`lex.defer.identifier`): `defer(action)`
-  is the std auto-closing call `std.ops.defer` (`std-ops.defer.*`), and
+  (#163). `defer(action)` is the std auto-closing call `std.ops.defer` (`std-ops.defer.*`), and
   its action is a `FnMut() -> void`, which cannot make a bang call.
 - No serializable closures in the first release; see #166.
 - Suspension lowering reserves no-op observability and replay hook points
