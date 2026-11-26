@@ -61,7 +61,7 @@ impl Display for YamlError:
 >   %21 = Break L4 %20 : never
 >   %22 = Block - : usize
 >   %23 = Scope %22 [] : usize
->   %24 = Prim Add [0:usize 17:usize] : usize
+>   %24 = Coerce 17:usize [Identity -] : usize
 >   %25 = Prim Add [%24 %23] : usize
 >   %26 = Store [$8] %25 : ()
 >   %27 = Read copy [$8] : usize
@@ -144,7 +144,7 @@ enum FsError:
 >   %8 = Break L3 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
->   %11 = Prim Add [0:usize 11:usize] : usize
+>   %11 = Coerce 11:usize [Identity -] : usize
 >   %12 = Prim Add [%11 %10] : usize
 >   %13 = Store [$9] %12 : ()
 >   %14 = Read copy [$9] : usize
@@ -274,7 +274,7 @@ enum LoadError:
 >   %8 = Break L4 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
->   %11 = Prim Add [0:usize 12:usize] : usize
+>   %11 = Coerce 12:usize [Identity -] : usize
 >   %12 = Prim Add [%11 %10] : usize
 >   %13 = Store [$13] %12 : ()
 >   %14 = Read copy [$13] : usize
@@ -388,7 +388,7 @@ enum LoadError:
 >   %66 = Retain %65 Value #0 : ()
 >   %67 = Call std/text/impl StringBuilder.text_width[] (%65) : usize
 >   %68 = Retain %67 Operation operand 0 #0 : ()
->   %69 = Prim Add [0:usize 11:usize] : usize
+>   %69 = Coerce 11:usize [Identity -] : usize
 >   %70 = Prim Add [%69 %67] : usize
 >   %71 = Call std/text/impl StringBuilder.value_new[] (%70) : string
 >   %72 = Call std/text/impl StringBuilder.value_text[] (%71, 0:usize, "not found: ") : ()

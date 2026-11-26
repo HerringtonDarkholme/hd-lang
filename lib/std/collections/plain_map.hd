@@ -297,14 +297,21 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
             Ptr::[MapHead[K, V]] { address: oindex - size_of::[MapHead[K, V]]() }.as_mut().len = 0
         fresh
 
+# A map literal builds the map itself.
 impl[K < Eq & Hash, V] FromMapLiteral[K, V] for PlainMap[K, V]:
+    type Builder = PlainMap[K, V]
+
     @inline(.Always)
-    fn with_capacity(capacity: usize) -> PlainMap[K, V]:
+    fn builder(capacity: usize) -> PlainMap[K, V]:
         PlainMap::[K, V].with_capacity(capacity)
 
     @inline(.Always)
-    fn insert(&mut self, key: K, value: V) -> void:
-        self.insert(key, value)
+    fn insert(builder: &mut PlainMap[K, V], key: K, value: V) -> void:
+        builder.insert(key, value)
+
+    @inline(.Always)
+    fn build(builder: PlainMap[K, V]) -> PlainMap[K, V]:
+        builder
 
 ## A cursor over a `PlainMap`'s entries, in the order they were written.
 pub struct PlainMapIter[K < Eq & Hash, V, 'a]:

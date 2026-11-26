@@ -189,6 +189,11 @@ impl Values {
         let locals = body.local_ty.len();
         let mut writes = vec![0u32; locals];
         let mut assigned = vec![NONE; locals];
+        // The stores of each local whose every write is a store to the
+        // local or a field path of it, in index order, with those paths:
+        // `Reaching` finds the one a read sees.
+        let mut slots: Vec<Vec<(u32, Vec<u32>)>> = vec![Vec::new(); locals];
+        let mut blocked = vec![false; locals];
         // A store into a field or variant payload of a local writes it
         // too, with no value of the whole local; a mutable reference to it
         // may write it anywhere, so the local has no single value.
@@ -204,8 +209,27 @@ impl Values {
                 } else {
                     NONE
                 };
+                match field_path(body, a) {
+                    Some((_, path)) if !mutable => slots[l.idx()].push((index(i), path)),
+                    _ => blocked[l.idx()] = true,
+                }
+            }
+            // Any address of a local, a shared one too, may reach a raw
+            // write (`address_of`), which no store here shows.
+            if body.tags[i] == Tag::Ref
+                && let Some(l) = body.local_in_place(a)
+            {
+                blocked[l.idx()] = true;
             }
         }
+        // A `defer` body runs at its scope's exit, out of index order.
+        let ordered = !body.tags.contains(&Tag::Defer);
+        for (l, stores) in slots.iter_mut().enumerate() {
+            if blocked[l] || !ordered {
+                stores.clear();
+            }
+        }
+        let reaching = Reaching::new(body, slots);
         let mut seeded = vec![None; locals];
         for &(l, value) in defaults {
             if writes[l] == 0 && body.local_flags[l] & local_flags::CAPTURED_ASSIGNED == 0 {
@@ -260,6 +284,22 @@ impl Values {
                 }
                 Tag::Scope => out.word(body, a),
                 Tag::Call => calls(i),
+                // A field of a local: the store that reaches it.
+                Tag::Read
+                    if let Some((l, path)) = field_path(body, a)
+                        && !path.is_empty()
+                        && body.local_flags[l]
+                            & if body.sub_root.len() > 1 {
+                                local_flags::CAPTURED_ASSIGNED
+                            } else {
+                                0
+                            }
+                            == 0 =>
+                {
+                    reaching
+                        .value(body, &mut arms, (&breaks, &from), (l, &path), i)
+                        .and_then(|word| out.word(body, word))
+                }
                 Tag::Read if body.local_read(i).is_none() => {
                     // A whole copy of an instruction's value (a match's
                     // scrutinee) is that value.
@@ -278,9 +318,15 @@ impl Values {
                         } else {
                             local_flags::PARAM
                         };
-                        (writes[l] == 1 && body.local_flags[l] & flags == 0)
-                            .then(|| out.word(body, assigned[l]))
-                            .flatten()
+                        if body.local_flags[l] & flags & local_flags::CAPTURED_ASSIGNED != 0 {
+                            return None;
+                        }
+                        if writes[l] == 1 && body.local_flags[l] & flags == 0 {
+                            return out.word(body, assigned[l]);
+                        }
+                        let word =
+                            reaching.value(body, &mut arms, (&breaks, &from), (l, &[]), i)?;
+                        out.word(body, word)
                     })
                 }),
                 Tag::NewVariant if no_payload(body, i) => Some(Value::Variant(a)),
@@ -315,7 +361,9 @@ impl Values {
                             out.word(body, *y),
                         ) {
                             (Some(p), Some(Value::Scalar(x)), Some(Value::Scalar(y))) => {
-                                crate::scalar::comparison(op, p, x, y).map(Value::Scalar)
+                                crate::scalar::comparison(op, p, x, y)
+                                    .or_else(|| crate::scalar::arithmetic(op, p, x, y))
+                                    .map(Value::Scalar)
                             }
                             _ => None,
                         },
@@ -342,7 +390,10 @@ impl Values {
                 }
                 Tag::If | Tag::Match => {
                     let chosen = out.chosen(body, i);
-                    arms.decide(i, chosen);
+                    // An `if` decided for its absent arm runs no arm: the
+                    // `if` itself, no arm of its own, marks it settled.
+                    let absent = body.tags[i] == Tag::If && out.taken(body, i).is_some();
+                    arms.decide(i, chosen.or_else(|| absent.then(|| index(i))));
                     if let Some(k) = chosen {
                         // A scalar-pattern decision can be an If chain as
                         // well as a switch. Its selected block may end in
@@ -417,7 +468,8 @@ impl Values {
             Tag::NewStruct | Tag::NewVariant => LITERAL & words(body.record(b)),
             Tag::NewTuple => LITERAL & word(a) & words(body.record(b)),
             Tag::Coerce if transparent(body, i) => word(a),
-            Tag::Prim if total_primitive(a) => words(body.record(b)),
+            // An operation whose value is known did not trap.
+            Tag::Prim if total_primitive(a) || self.val[i].is_some() => words(body.record(b)),
             Tag::And | Tag::Or => word(a) & word(b),
             _ => 0,
         }
@@ -637,6 +689,169 @@ impl Arms {
     }
 }
 
+/// The store a read of a local stored more than once sees, for the
+/// forward walk: the last store before the read in index order that a
+/// settled decision does not rule out, when it runs on every path to the
+/// read and no later store can reach the read around a loop. TIR is
+/// topological, so a block's members come before it: a store's enclosing
+/// blocks below the read's index are the ones the read is not in, and
+/// each must be an arm its decision always runs, or a plain block no live
+/// `Break` leaves before the store; never a loop body (it may run no
+/// round). A loop around the read but not the store must hold no store
+/// after the read, which its back edge would carry. This is the reaching
+/// definition SSA construction gives (Cytron et al.) on structured code,
+/// with SCCP's dead-arm pruning. Cost per read: the stores scanned back to
+/// the reaching one, and two walks up the read's and the store's blocks,
+/// O(s + d) for s stores and nesting depth d.
+struct Reaching {
+    /// Per local: its stores and the field path each writes.
+    stores: Vec<Vec<(u32, Vec<u32>)>>,
+    /// Per block: the `Loop` or `Scope` whose block it is, or `NONE`.
+    holder: Vec<u32>,
+    /// Per block: whether it is a loop's body.
+    looped: Vec<bool>,
+}
+
+/// The local and field path a place word names, when its steps are fields.
+fn field_path(body: &Body, word: u32) -> Option<(usize, Vec<u32>)> {
+    let p = body.decode_place(word)?;
+    let hd_tir::ir::PlaceRoot::Local(l) = p.root else {
+        return None;
+    };
+    let path = p
+        .proj
+        .iter()
+        .map(|s| match s {
+            hd_tir::ir::Proj::Field(f) => Some(*f),
+            _ => None,
+        })
+        .collect::<Option<Vec<u32>>>()?;
+    Some((l.idx(), path))
+}
+
+impl Reaching {
+    fn new(body: &Body, stores: Vec<Vec<(u32, Vec<u32>)>>) -> Self {
+        let n = if stores.iter().any(|s| !s.is_empty()) {
+            body.len()
+        } else {
+            0
+        };
+        let mut holder = vec![NONE; n];
+        let mut looped = vec![false; n];
+        for i in 0..n {
+            if matches!(body.tags[i], Tag::Loop | Tag::Scope)
+                && let Some(h) = holder.get_mut(body.data[i][0] as usize)
+            {
+                *h = index(i);
+                looped[body.data[i][0] as usize] = body.tags[i] == Tag::Loop;
+            }
+        }
+        Self {
+            stores,
+            holder,
+            looped,
+        }
+    }
+
+    /// The block enclosing `x`, through a loop's or scope's own block.
+    fn outer(&self, arms: &Arms, x: u32) -> u32 {
+        match arms.up(x) {
+            NONE => match self.holder.get(x as usize) {
+                Some(&h) if h != NONE => arms.up(h),
+                _ => NONE,
+            },
+            p => p,
+        }
+    }
+
+    /// The value word read `r` of field `path` of local `l` sees: the
+    /// value of the store that reaches it, or that value's field when the
+    /// store wrote a constructor of an enclosing path.
+    fn value(
+        &self,
+        body: &Body,
+        arms: &mut Arms,
+        (breaks, from): (&[u32], &[u32]),
+        (l, path): (usize, &[u32]),
+        r: usize,
+    ) -> Option<u32> {
+        let r = index(r);
+        // The writes that overlap the read: of the path, a prefix, or a
+        // field below it.
+        let overlaps = |p: &[u32]| p.iter().zip(path).all(|(x, y)| x == y);
+        let stores: Vec<&(u32, Vec<u32>)> = self
+            .stores
+            .get(l)?
+            .iter()
+            .filter(|(_, p)| overlaps(p))
+            .collect();
+        let before = stores.partition_point(|&&(st, _)| st < r);
+        let at = (0..before).rev().find(|&k| arms.live(stores[k].0, r))?;
+        let (s, written) = stores[at];
+        if written.len() > path.len() {
+            return None;
+        }
+        // The store's blocks that do not hold the read: arms that always
+        // run, or plain blocks no `Break` before the store leaves.
+        let mut x = self.outer(arms, *s);
+        while x != NONE && x < r {
+            let b = x as usize;
+            let d = arms.decision[b];
+            if d != NONE {
+                if arms.chosen[d as usize] != x {
+                    return None;
+                }
+            } else if self.looped[b]
+                || breaks[from[b] as usize..from[b + 1] as usize]
+                    .iter()
+                    .any(|&k| k < *s)
+            {
+                return None;
+            }
+            x = self.outer(arms, x);
+        }
+        if x == NONE {
+            return None;
+        }
+        // The read's loops that do not hold the store: no write after the
+        // read in one, which its back edge would bring round.
+        let after = stores.get(before).map_or(NONE, |w| w.0);
+        let mut y = self.outer(arms, r);
+        while y != NONE && y != x {
+            if self.looped[y as usize] && after < y {
+                return None;
+            }
+            y = self.outer(arms, y);
+        }
+        // The stored value, then its fields down to the read's path: a
+        // constructor, maybe the result of an inlined callee's scope,
+        // which its block's one `Break` leaves with.
+        let mut word = body.data[*s as usize][1];
+        for &f in &path[written.len()..] {
+            loop {
+                if word & Ref::CONST_BIT != 0 {
+                    return None;
+                }
+                let w = word as usize;
+                let [a, b] = *body.data.get(w)?;
+                word = match body.tags[w] {
+                    Tag::NewStruct => break,
+                    Tag::Scope if body.record(b).is_empty() => a,
+                    Tag::Block => match (b, &breaks[from[w] as usize..from[w + 1] as usize]) {
+                        (NONE, &[k]) => body.data[k as usize][1],
+                        (tail, &[]) if tail != NONE => tail,
+                        _ => return None,
+                    },
+                    Tag::Coerce if transparent(body, w) => a,
+                    _ => return None,
+                };
+            }
+            word = *body.record(body.data[word as usize][1]).get(f as usize)?;
+        }
+        Some(word)
+    }
+}
+
 /// `n`, a length or position in a body's columns, as a TIR word.
 fn index(n: usize) -> u32 {
     hd_tir::ir::u32_of(n)
@@ -698,8 +913,7 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
             // Primitive evaluation records scalar bits or no value. Share
             // the fallback with every other operation that cannot fold.
             Tag::Prim
-                if total_primitive(body.data[i][0])
-                    && values.pure[i] & PURE != 0
+                if values.pure[i] & PURE != 0
                     && let Some(Value::Scalar(bits)) = values.val[i] =>
             {
                 Some((i, Fold::Scalar(bits)))

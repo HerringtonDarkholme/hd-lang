@@ -156,17 +156,21 @@ pub trait IndexMut[K] < ?Copy & Index[K]:
 pub trait IndexSet[K, V < ?Copy] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 
-## The trait a list literal builds through: `[a, b]` with an expected type that implements it is `with_capacity(2)`, then `push(a)` and `push(b)`.
+## The trait a list literal builds through: `[a, b]` with an expected type that implements it is `builder(2)`, then `push` of `a` and of `b` into the builder, then `build` of it.
 ## See [expr.list.type.trait](../../spec/lang/05-expressions.md#r-expr.list.type.trait).
 pub trait FromListLiteral[T] < ?Copy:
-    fn with_capacity(capacity: usize) -> Self
-    fn push(&mut self, value: T) -> void
+    type Builder
+    fn builder(capacity: usize) -> Self::Builder
+    fn push(builder: &mut Self::Builder, value: T) -> void
+    fn build(builder: Self::Builder) -> Self
 
-## The trait a map literal builds through: `{k: v}` with an expected type that implements it is `with_capacity(1)`, then `insert(k, v)`.
+## The trait a map literal builds through: `{k: v}` with an expected type that implements it is `builder(1)`, then `insert` of `k` and `v` into the builder, then `build` of it.
 ## See [expr.map.type.trait](../../spec/lang/05-expressions.md#r-expr.map.type.trait).
 pub trait FromMapLiteral[K, V] < ?Copy:
-    fn with_capacity(capacity: usize) -> Self
-    fn insert(&mut self, key: K, value: V) -> void
+    type Builder
+    fn builder(capacity: usize) -> Self::Builder
+    fn insert(builder: &mut Self::Builder, key: K, value: V) -> void
+    fn build(builder: Self::Builder) -> Self
 
 # `v()` and `v() = x` on a value that is not a function: a callable value
 # reads through `Apply` and, when it also implements `Update`, stores

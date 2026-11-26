@@ -102,7 +102,7 @@ pub fn main() -> void $ Console:
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Prim Add [0:usize 6:usize] : usize
+>   %8 = Coerce 6:usize [Identity -] : usize
 >   %9 = Prim Add [%8 %7] : usize
 >   %10 = Store [$7] %9 : ()
 >   %11 = Read copy [$7] : usize

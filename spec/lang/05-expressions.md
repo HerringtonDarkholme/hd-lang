@@ -611,7 +611,7 @@ scores := {"Ada": 10, "Grace": 12}
 #### List Literals
 
 1. r[expr.list.order] A list literal evaluates its elements left to right.
-2. r[expr.list.type.trait] With an expected type `E` other than a `List` that implements `std.ops.FromListLiteral[T]`, a list literal produces `E.with_capacity(n)` followed by `push` of each element in order.
+2. r[expr.list.type.trait] With an expected type `E` other than a `List` that implements `std.ops.FromListLiteral[T]`, a list literal is `E.build(b)`, where `b` starts as `E.builder(n)` and takes `E.push(&mut b, x)` of each element `x` in order.
 3. r[expr.list.type] Otherwise a list literal produces `List[T]`, where every element is assignable to `T`.
 4. r[expr.list.spread] A list element ending in `...` is a spread.
 5. r[expr.list.spread.once] A spread's operand is evaluated once, in element order.
@@ -629,7 +629,7 @@ fn numbers(count: i32) -> List[i32]:
     [0, count...]  # error: type-mismatch
 ```
 
-In rule 2, `n` is the number of written elements plus each spread's count (rule 13), so the pushes never grow the value when every spread is counted. All elements and spread operands are evaluated before `with_capacity` runs.
+In rule 2, `n` is the number of written elements plus each spread's count (rule 13), so the pushes never grow the value when every spread is counted. All elements and spread operands are evaluated before `builder` runs.
 
 ```hd
 use std.collections.PlainList
@@ -642,7 +642,7 @@ fn firsts(rest: List[i64]) -> PlainList[i64]:
 
 1. r[expr.map.order] A map literal evaluates each key and then its value, processing entries from left to right.
 2. r[expr.map.duplicate.last] If two evaluated entries have equal keys, the later value replaces the earlier value.
-3. r[expr.map.type.trait] With an expected type `E` other than a `Map` that implements `std.ops.FromMapLiteral[K, V]`, a map literal produces `E.with_capacity(n)` followed by `insert(k, v)` of each entry in order.
+3. r[expr.map.type.trait] With an expected type `E` other than a `Map` that implements `std.ops.FromMapLiteral[K, V]`, a map literal is `E.build(b)`, where `b` starts as `E.builder(n)` and takes `E.insert(&mut b, k, v)` of each entry in order.
 4. r[expr.map.iteration.order] Map iteration follows the map's [deterministic order](04-type-system.md#r-types.map.order.deterministic) and is not part of map equality.
 5. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
 6. r[expr.collection.empty.map-constructor-fix] An unambiguous, empty type-qualified `Map.new()` call gets an exact `{}` fix when an expected map type determines both argument types.

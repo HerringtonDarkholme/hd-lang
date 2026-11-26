@@ -3737,11 +3737,12 @@ impl Ck<'_, '_> {
     /// A literal of the builder type `e` (`expr.list.type.trait`,
     /// `expr.map.type.trait`), `args` its trait's arguments. Its values
     /// evaluate in order (`expr.list.order`, `expr.map.order`), each
-    /// spread's operand once; then `E::with_capacity(n)` makes the
-    /// literal's local, `n` counting the written values and each spread's
-    /// length, and every value goes in by `push` (an entry by `insert`), a
-    /// spread's one at a time. With no spread `n` is a constant, so after
-    /// an inlined `with_capacity` no push grows the block.
+    /// spread's operand once; then `E::builder(n)` makes the literal's
+    /// local, `n` counting the written values and each counted spread,
+    /// every value goes into it by `E::push(&mut b, v)` (an entry by
+    /// `insert`), a spread's one at a time, and `E::build(b)` is the
+    /// value. A builder keeps its length and capacity in its own fields,
+    /// so with no spread each push's room test compares two constants.
     fn built_literal(
         &mut self,
         n: NodeRef<'_>,
@@ -3791,15 +3792,17 @@ impl Ck<'_, '_> {
                 total = self.b.prim(PrimOp::Add as u32, &[total, *len], us, at);
             }
         }
-        let (made, _, _) =
-            self.trait_call_inferred(trait_, "with_capacity", None, e, &[(total, us, n)], n)?;
+        let (made, bt, _) =
+            self.trait_call_inferred(trait_, "builder", None, e, &[(total, us, n)], n)?;
         let sym = self.cx.names.syms.intern("$literal");
-        let local = self.b.local(e, sym, local_flags::ASSIGNED, at);
+        let local = self.b.local(bt, sym, local_flags::ASSIGNED, at);
         self.set_local(local, made, at);
         self.mut_locals.push(local);
         let put = |me: &mut Self, values: &[(Ref, Ty, NodeRef<'_>)]| -> StageResult<()> {
-            let recv = me.local_place_ref(local, e, true, n);
-            me.trait_call_inferred(trait_, method, Some(recv), e, values, n)?;
+            let recv = me.local_place_ref(local, bt, true, n);
+            let mut all = vec![(recv, me.b.ty_of(recv), n)];
+            all.extend_from_slice(values);
+            me.trait_call_inferred(trait_, method, None, e, &all, n)?;
             Ok(())
         };
         for part in parts {
@@ -3812,7 +3815,9 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        Ok((self.b.get(local, e, at), e))
+        let built = self.b.get(local, bt, at);
+        let (r, _, _) = self.trait_call_inferred(trait_, "build", None, e, &[(built, bt, n)], n)?;
+        Ok((r, e))
     }
 
     fn map_expr(

@@ -59,8 +59,10 @@ impl[T] PlainList[T]:
             return PlainList::[T].new()
         PlainList::[T] { block: PlainList::[T].alloc(capacity, 0) }
 
-    # A new block with room for at least `want` values and length `len`.
-    @inline(.Always)
+    # A new block with room for at least `want` values and length `len`:
+    # one call, as the builtin list's `rt:list_buf`, so a caller carries
+    # no size check of its own.
+    @inline(.Never)
     fn alloc(want: usize, len: usize) -> *ListHead[T]:
         size := size_of::[T]()
         if want > 0xfffe0000 / (if size == 0: 1 else: size):
@@ -70,7 +72,12 @@ impl[T] PlainList[T]:
 
     @inline(.Always)
     fn head(&self) -> Ptr[ListHead[T]]:
-        Ptr::[ListHead[T]] { address: tail_of(self.block, 1).address - size_of::[ListHead[T]]() }
+        PlainList::[T].head_of(self.block)
+
+    # The header of `block`, to write through.
+    @inline(.Always)
+    fn head_of(block: *ListHead[T]) -> Ptr[ListHead[T]]:
+        Ptr::[ListHead[T]] { address: tail_of(block, 1).address - size_of::[ListHead[T]]() }
 
     @inline(.Always)
     fn elems(&self) -> Ptr[T]:
@@ -209,17 +216,47 @@ impl[T] PlainList[T]:
                 i += 1
         if unique:
             # The values moved: the old block's last release drops none.
-            Ptr::[ListHead[T]] { address: tail_of(old, 1).address - size_of::[ListHead[T]]() }.as_mut().len = 0
+            PlainList::[T].head_of(old).as_mut().len = 0
         fresh
 
+## A list literal's builder: the block, with its length and capacity in
+## fields rather than only in the block, so once inlined they are locals.
+## A literal of N values is then one allocation, N stores and one length
+## store, as the builtin list's: each push's room test compares two known
+## numbers and folds. A push past the capacity (a spread with no count)
+## grows the block on the cold path. The block's own length is written
+## when it grows and when the list is built, so a builder dropped before
+## `build` leaks its values instead of dropping them twice.
+pub struct PlainListBuilder[T]:
+    block: *ListHead[T]
+    len: usize
+    cap: usize
+
 impl[T] FromListLiteral[T] for PlainList[T]:
-    @inline(.Always)
-    fn with_capacity(capacity: usize) -> PlainList[T]:
-        PlainList::[T].with_capacity(capacity)
+    type Builder = PlainListBuilder[T]
 
     @inline(.Always)
-    fn push(&mut self, value: T) -> void:
-        self.push(value)
+    fn builder(capacity: usize) -> PlainListBuilder[T]:
+        block := if capacity == 0: empty_block::[ListHead[T]]() else: PlainList::[T].alloc(capacity, 0)
+        PlainListBuilder { block: block, len: 0, cap: capacity }
+
+    @inline(.Always)
+    fn push(builder: &mut PlainListBuilder[T], value: T) -> void:
+        n := builder.len
+        if n == builder.cap:
+            # A static empty block (capacity 0) is copied, a full one grown.
+            if n != 0:
+                PlainList::[T].head_of(builder.block).as_mut().len = n
+            builder.block = PlainList::[T].grown(builder.block, n + 1, n != 0)
+            builder.cap = builder.block.cap
+        Ptr::[T] { address: tail_of(builder.block, align_of::[T]()).address }.offset(n).write(value)
+        builder.len = n + 1
+
+    @inline(.Always)
+    fn build(builder: PlainListBuilder[T]) -> PlainList[T]:
+        if builder.len != 0:
+            PlainList::[T].head_of(builder.block).as_mut().len = builder.len
+        PlainList::[T] { block: builder.block }
 
 impl[T] Index[usize] for PlainList[T]:
     type Out = T

@@ -55,7 +55,7 @@ fn text(n: i32) -> string:
 >   %17 = Break L4 %16 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
->   %20 = Prim Add [0:usize 1:usize] : usize
+>   %20 = Coerce 1:usize [Identity -] : usize
 >   %21 = Prim Add [%20 %19] : usize
 >   %22 = Store [$8] %21 : ()
 >   %23 = Read copy [$8] : usize

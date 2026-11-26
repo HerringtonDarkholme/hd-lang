@@ -66,10 +66,7 @@
     i32.store $heap offset=8
     local.get $value
     i32.load $heap offset=8
-    local.get $value
-    i32.load $heap offset=8
-    i32.const 1
-    i32.add
+    i32.const 47
     i32.add
     local.get $provider0
     local.get $provider0.vtable

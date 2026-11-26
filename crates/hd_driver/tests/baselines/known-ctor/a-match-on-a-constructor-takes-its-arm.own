@@ -65,7 +65,7 @@ pub fn main!() -> void $ Console:
 >   %7 = Block - : ()
 >   %8 = Scope %7 [] : ()
 >   %9 = Read copy [$8] : i64
->   %10 = Prim Add [%9 1:i64] : i64
+>   %10 = Coerce 5:i64 [Identity -] : i64
 >   %11 = Block %10 : i64
 >   %12 = Scope %11 [] : i64
 >   %13 = Break L6 %12 : never
@@ -82,10 +82,10 @@ pub fn main!() -> void $ Console:
 >   %24 = Call std/rt.bytes/signed_magnitude[] (%23) : u64
 >   %25 = Call std/rt.bytes/unsigned_width[] (%24) : usize
 >   %26 = Read copy [$6] : i64
->   %27 = Prim Lt [%26 0:i64] : bool
+>   %27 = Block - : ()
 >   %28 = Block 1:usize : usize
 >   %29 = Block 0:usize : usize
->   %30 = If %27 [%28 %29] : usize
+>   %30 = If 0:bool [%28 %29] : usize
 >   %31 = Prim Add [%25 %30] : usize
 >   %32 = Break L2 %31 : never
 >   %33 = Block - : usize

@@ -2,89 +2,22 @@
 (module
   (import "fixture" "impl[T] PlainList[T].alloc[i64]" (func $"impl[T] PlainList[T].alloc[i64]" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 3 funcref))
-  (func $three (param $a i64) (param $b i64) (param $c i64) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 16 |     [a, b, c]
+  (func $three (param $a i64) (param $b i64) (param $c i64) (result i32) (local $t0 i32)
+    ;; 14 |     [a, b, c]
     i32.const 3
     i32.const 0
     call $"impl[T] PlainList[T].alloc[i64]"
     local.tee $t0
-    local.tee $t1
-    i32.load $heap offset=4
-    local.tee $t2
-    local.get $t1
-    i32.load $heap
-    i32.eq
-    if
-      local.get $t1
-      i32.const 1
-      call_indirect $table0 (param i32) (result i32)
-      local.tee $t1
-      local.set $t0
-    end
-    local.get $t1
-    local.get $t2
-    i32.const 8
-    i32.mul
-    i32.add
     local.get $a
     i64.store $heap offset=16
-    local.get $t1
-    local.get $t2
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
     local.get $t0
-    local.tee $t1
-    i32.load $heap offset=4
-    local.tee $t2
-    local.get $t1
-    i32.load $heap
-    i32.eq
-    if
-      local.get $t1
-      i32.const 1
-      call_indirect $table0 (param i32) (result i32)
-      local.tee $t1
-      local.set $t0
-    end
-    local.get $t1
-    local.get $t2
-    i32.const 8
-    i32.mul
-    i32.add
     local.get $b
-    i64.store $heap offset=16
-    local.get $t1
-    local.get $t2
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
+    i64.store $heap offset=24
     local.get $t0
-    local.tee $t1
-    i32.load $heap offset=4
-    local.tee $t2
-    local.get $t1
-    i32.load $heap
-    i32.eq
-    if
-      local.get $t1
-      i32.const 1
-      call_indirect $table0 (param i32) (result i32)
-      local.tee $t1
-      local.set $t0
-    end
-    local.get $t1
-    local.get $t2
-    i32.const 8
-    i32.mul
-    i32.add
     local.get $c
-    i64.store $heap offset=16
-    local.get $t1
-    local.get $t2
-    i32.const 1
-    i32.add
+    i64.store $heap offset=32
+    local.get $t0
+    i32.const 3
     i32.store $heap offset=4
     local.get $t0
   )

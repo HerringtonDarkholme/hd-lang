@@ -40,7 +40,7 @@ fn unexpected(at: usize) -> string:
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Prim Add [0:usize 19:usize] : usize
+>   %8 = Coerce 19:usize [Identity -] : usize
 >   %9 = Prim Add [%8 %7] : usize
 >   %10 = Store [$8] %9 : ()
 >   %11 = Read copy [$8] : usize

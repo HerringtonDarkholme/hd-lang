@@ -2,14 +2,12 @@
 # @build: v8 release
 # A `PlainList` literal (#2369 step 2a, `expr.list.type.trait`): its
 # expected type implements `FromListLiteral`, so `[a, b, c]` is
-# `with_capacity(3)` and three `push`es. The capacity is a constant, so
-# the block is allocated once at 3 values, and the fresh block needs no
-# uniqueness test.
-# expected: no `len == cap` test and cold growth call per push (issue:
-# a literal's pushes keep the builtin push's growth test). The block's
-# capacity is the constant 3 and its length the push count, but `alloc`
-# is a call and `ListPush` reads both words in the backend, where no TIR
-# fact reaches.
+# `builder(3)`, three `push`es into the builder and `build`. The builder
+# keeps its length and capacity in its fields, and the constant fold
+# after inlining follows the store that reaches each read of them, so
+# every push's room test folds and every value's offset is a constant:
+# one allocation, three stores and one length store, the builtin list
+# literal's code (`rt:list_buf(3)`, the length, three stores).
 use std.collections.PlainList
 
 fn three(a: i64, b: i64, c: i64) -> PlainList[i64]:

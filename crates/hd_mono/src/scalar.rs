@@ -113,6 +113,35 @@ pub(crate) fn comparison(op: PrimOp, p: Prim, left: u64, right: u64) -> Option<u
     None
 }
 
+/// An integer `+`, `-` or `*` of two constants, when the exact result fits
+/// the type: then neither a checked build's overflow panic nor a release
+/// build's wrap can happen, so the result is the same in every build.
+pub(crate) fn arithmetic(op: PrimOp, p: Prim, left: u64, right: u64) -> Option<u64> {
+    let (width, signed) = integer_type(p)?;
+    let wide = |bits: u64| {
+        let bits = integer(p, bits)?;
+        Some(if signed {
+            i128::from(bits.cast_signed())
+        } else {
+            i128::from(bits)
+        })
+    };
+    let (x, y) = (wide(left)?, wide(right)?);
+    let exact = match op {
+        PrimOp::Add => x + y,
+        PrimOp::Sub => x - y,
+        PrimOp::Mul => x.checked_mul(y)?,
+        _ => return None,
+    };
+    let (low, high) = if signed {
+        (-(1i128 << (width - 1)), (1i128 << (width - 1)) - 1)
+    } else {
+        (0, (1i128 << width) - 1)
+    };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    (low..=high).contains(&exact).then_some(exact as u64)
+}
+
 /// Integer bounds are constant results of the existing `int_min`/`int_max`
 /// intrinsics; an open result remains a call until its instance closes.
 #[must_use]
@@ -137,6 +166,25 @@ pub fn integer_bound_bits(width: u32, signed: bool, minimum: bool) -> Option<u64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn arithmetic_folds_only_results_that_fit_the_type() {
+        assert_eq!(arithmetic(PrimOp::Add, Prim::Usize, 2, 1), Some(3));
+        assert_eq!(arithmetic(PrimOp::Mul, Prim::Usize, 3, 8), Some(24));
+        assert_eq!(
+            arithmetic(PrimOp::Add, Prim::Usize, u64::from(u32::MAX), 1),
+            None
+        );
+        assert_eq!(arithmetic(PrimOp::Sub, Prim::U8, 0, 1), None);
+        assert_eq!(arithmetic(PrimOp::Sub, Prim::I32, 0, 1), Some(u64::MAX));
+        assert_eq!(arithmetic(PrimOp::Add, Prim::I8, 127, 1), None);
+        assert_eq!(
+            arithmetic(PrimOp::Mul, Prim::I64, i64::MAX.cast_unsigned(), 2),
+            None
+        );
+        assert_eq!(arithmetic(PrimOp::Div, Prim::Usize, 4, 2), None);
+        assert_eq!(arithmetic(PrimOp::Add, Prim::F64, 0, 0), None);
+    }
 
     #[test]
     fn conversions_accept_exactly_the_numeric_primitive_pairs() {

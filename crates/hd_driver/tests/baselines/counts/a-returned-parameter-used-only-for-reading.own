@@ -236,15 +236,15 @@ fn takes_temporary() -> string:
 >     uses $7: %10 -> %11 lend last
 >   local $8 value: u64 [read] value
 >     uses $8: %2 -> %3 lend last
->   %0 = Prim Add [41:usize 1:usize] : usize
->   %1 = Prim Conv [%0] : u64
+>   %0 = Coerce 42:usize [Identity -] : usize
+>   %1 = Coerce 42:u64 [Identity -] : u64
 >   %2 = Store [$8] %1 : ()
 >   %3 = Read copy [$8] : u64
 >   %4 = Call std/rt.bytes/unsigned_width[] (%3) : usize
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Prim Add [0:usize 21:usize] : usize
+>   %8 = Coerce 21:usize [Identity -] : usize
 >   %9 = Prim Add [%8 %7] : usize
 >   %10 = Store [$7] %9 : ()
 >   %11 = Read copy [$7] : usize

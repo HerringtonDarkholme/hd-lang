@@ -44,7 +44,7 @@ fn clean(raw: string) -> string:
 >   %5 = Break L4 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Prim Add [0:usize 1:usize] : usize
+>   %8 = Coerce 1:usize [Identity -] : usize
 >   %9 = Prim Add [%8 %7] : usize
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$10] %10 : ()
@@ -263,7 +263,7 @@ fn bare(raw: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Coerce 1:usize [Identity -] : usize
 >   %4 = Prim Add [%3 %1] : usize
 >   %5 = Prim Add [%4 1:usize] : usize
 >   %6 = Call std/text/impl StringBuilder.value_new[] (%5) : string
@@ -300,7 +300,7 @@ fn chain(raw: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Coerce 1:usize [Identity -] : usize
 >   %4 = Prim Add [%3 %1] : usize
 >   %5 = Prim Add [%4 1:usize] : usize
 >   %6 = Call std/text/impl StringBuilder.value_new[] (%5) : string
@@ -363,7 +363,7 @@ fn direct(raw: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Prim Add [0:usize 1:usize] : usize
+>   %3 = Coerce 1:usize [Identity -] : usize
 >   %4 = Prim Add [%3 %1] : usize
 >   %5 = Prim Add [%4 1:usize] : usize
 >   %6 = Call std/text/impl StringBuilder.value_new[] (%5) : string
