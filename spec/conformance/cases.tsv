@@ -3539,6 +3539,7 @@ std/crypto/digest/digest-value-copy.hd	runtime	accept	std/crypto.md#r-std-crypto
 std/crypto/streaming/digest-sha256-stream.hd	runtime	accept	std/crypto.md#r-std-crypto.sha256.update-ref
 std/crypto/streaming/sha256-handle-shared.hd	runtime	accept	std/crypto.md#r-std-crypto.sha256.new-ref
 std/crypto/hmac/digest-hmac.hd	runtime	accept	std/crypto.md#r-std-crypto.hmac.vectors
+std/crypto-sha512/streaming.hd	runtime	accept	std/crypto-sha512.md#r-std-crypto-sha512.hash
 std/json/parsing/json-adversarial-inputs.hd	runtime	accept	std/json.md#r-std-json.parse.strict
 std/json/typed-json/json-enum-tagging.hd	runtime	accept	std/json.md#tagged-enum-forms
 std/json/typed-json/json-model-round-trips.hd	runtime	accept	std/json.md#r-std-json.decode.direct.v2

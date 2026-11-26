@@ -1,8 +1,8 @@
 # std.crypto: cryptographic hashes over bytes (spec/std/crypto.md):
-# `Digest`, the result of a hash, here, and SHA-256 in `std.crypto.sha256`.
+# `Digest`, the result of a hash, here, and the SHA-256/SHA-512 child modules.
 use std.encoding.hex.hex_encode
 
-pub use std.crypto.{sha256}
+pub use std.crypto.{sha256, sha512}
 
 # A hash result: the bytes of a digest (r-std-crypto.digest-value).
 ## The result of a hash, as bytes. Compare digests with `==`, which takes the same time wherever they differ.

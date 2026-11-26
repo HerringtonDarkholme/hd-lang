@@ -139,6 +139,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/error.md` | `std-error` |
 | `std/encoding.md` | `std-encoding` |
 | `std/crypto.md` | `std-crypto` |
+| `std/crypto-sha512.md` | `std-crypto-sha512` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |
