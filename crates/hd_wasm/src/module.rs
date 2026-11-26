@@ -3136,6 +3136,10 @@ impl Module {
             crate::static_data::section(&self.data, &self.data_chunks, &mut || {})
         };
         let mut module = wasm_encoder::Module::new();
+        module.section(&wasm_encoder::CustomSection {
+            name: hd_host_abi::schema::BUILD_SECTION.into(),
+            data: std::borrow::Cow::Borrowed(if self.optimized { &[1, 1] } else { &[1, 0] }),
+        });
         if !self.package_contract.interfaces.is_empty() {
             self.package_contract
                 .interfaces
