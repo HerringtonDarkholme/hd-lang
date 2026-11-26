@@ -26,9 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     # Owner, 2026-11-24: Coverage is the scheduled-only exception to the
     # 10-minute job rule ("coverage is okay, it can be longer"). It runs about
-    # 32 minutes since #2342 dropped checked conformance; 60 leaves room for
-    # the runner speed spread (about 1.4x between runs).
-    timeout-minutes: 60
+    # 32 minutes since #2342 dropped checked conformance on a fast runner.
+    # Runner speed is bimodal: on 2026-11-26 two runs on main ran every test
+    # binary 3.4x slower (hd_driver all: 330 s -> 1,125 s) with no code or
+    # config change, so 60 minutes cancelled them. 120 covers a slow runner.
+    timeout-minutes: 120
     steps:
       # Full history maps the previous measured run's uncovered lines.
       - name: Check out
@@ -63,7 +65,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         # Redundant checked conformance is omitted using measured per-set coverage.
         # Per-set attribution remains available through scripts/coverage.ts --attribute.
-        run: node scripts/coverage.ts --check
+        # The runner's cores and model, to tell a slow runner from a slow change.
+        run: |
+          echo "runner: $(nproc) cores, $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2)"
+          node scripts/coverage.ts --check
 
       - name: Store the report
         # Failed checks still become the next reference when a report exists.
