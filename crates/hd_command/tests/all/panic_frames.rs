@@ -343,7 +343,7 @@ fn release_builds_keep_names_only_in_positions() -> Result<(), &'static str> {
         custom_sections(&debug)?,
         ["hd.build", "hd.lines", "name", "hd.positions"]
     );
-    let out = hd(&root, &["build", "--release"]);
+    let out = hd(&root, &["build", "--release", "--format", "wasm"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
     assert_eq!(
@@ -365,7 +365,7 @@ fn a_copy_inside_a_copy_reports_each_frame() {
         include_str!("programs/panic_frames/a_copy_inside_a_copy_reports_each_frame.hd"),
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
-    let out = hd(&root, &["build", "--release"]);
+    let out = hd(&root, &["build", "--release", "--format", "wasm"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let wasm = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
     let named = |f: &[u8]| wasm.windows(f.len()).any(|w| w == f);
@@ -395,7 +395,10 @@ fn a_program_that_derives_builds_its_positions() {
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     for (args, file) in [
         (&["build"][..], "build/debug/shop.wasm"),
-        (&["build", "--release"][..], "build/release/shop.wasm"),
+        (
+            &["build", "--release", "--format", "wasm"][..],
+            "build/release/shop.wasm",
+        ),
     ] {
         let out = hd(&root, args);
         assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
