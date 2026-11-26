@@ -1,0 +1,4 @@
+use pkg.previous.step as previous
+
+pub fn step() -> i32:
+    previous() + 1

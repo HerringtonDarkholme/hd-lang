@@ -546,3 +546,30 @@ pub(crate) fn projection_pair_visited() {
 pub fn result_cycle_work(width: u32, depth: u32, nested: bool) -> (usize, u64, u64) {
     crate::result_cycles::generated_work(width, depth, nested)
 }
+
+pub type PersistentMapContents = Vec<(u128, u128)>;
+
+/// Exercise the actual persistent method-map implementation and retain an
+/// ancestor while extending it. Only final and ancestor contents are read.
+#[must_use]
+pub fn persistent_method_map_history(
+    layers: &[Vec<(u128, u128)>],
+) -> (PersistentMapContents, PersistentMapContents) {
+    let mut map = crate::persistent::Map::default();
+    let mut first = None;
+    for layer in layers {
+        let mut own = crate::persistent::Map::default();
+        for &(k, v) in layer {
+            own.insert(k, v);
+        }
+        map = map.union(&own, |a, b| (*a).min(*b));
+        if first.is_none() {
+            first = Some(map.clone());
+        }
+    }
+    let contents = |m: &crate::persistent::Map<u128>| m.iter().map(|(k, v)| (k, *v)).collect();
+    (
+        contents(&map),
+        first.as_ref().map_or_else(Vec::new, contents),
+    )
+}

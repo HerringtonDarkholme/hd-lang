@@ -1350,10 +1350,59 @@ impl IfaceIndex {
         }
     }
 
+    /// The sole registered location, without granting visibility to it.
+    /// Missing and recovery-duplicate IDs have no unique location.
+    #[must_use]
+    pub fn unique_location(&self, def: DefId) -> Option<(UnitId, usize)> {
+        let location = self.location(def);
+        if matches!(location, Self::MISSING | Self::AMBIGUOUS) {
+            return None;
+        }
+        Some((
+            UnitId::from_raw(u32::try_from(location >> 32).ok()?),
+            usize::try_from(location & u64::from(u32::MAX)).ok()?,
+        ))
+    }
+
     fn location(&self, def: DefId) -> u64 {
         self.rows
             .get(def.raw())
             .map_or(Self::MISSING, |row| row.load(Ordering::Acquire))
+    }
+}
+
+/// An immutable checking context. The driver shares its dependency set
+/// and reads interfaces from its once-published unit table; lookup does
+/// not copy a closure or allocate a slot for every visible unit.
+pub trait InterfaceContext: Sync {
+    fn unit(&self, unit: UnitId) -> Option<&UnitIface>;
+    fn interfaces(&self) -> Box<dyn Iterator<Item = &UnitIface> + '_>;
+}
+
+/// Ordered interfaces, either supplied explicitly or shared by a context.
+pub enum Interfaces<'a> {
+    Materialized(Vec<&'a UnitIface>),
+    Shared(&'a dyn InterfaceContext),
+}
+
+impl<'a> Interfaces<'a> {
+    #[must_use]
+    pub fn iter(&self) -> Box<dyn Iterator<Item = &'a UnitIface> + '_> {
+        match self {
+            Self::Materialized(ifaces) => Box::new(ifaces.iter().copied()),
+            Self::Shared(context) => {
+                let context: &'a dyn InterfaceContext = *context;
+                context.interfaces()
+            }
+        }
+    }
+}
+
+impl<'a, 's> IntoIterator for &'s Interfaces<'a> {
+    type Item = &'a UnitIface;
+    type IntoIter = Box<dyn Iterator<Item = &'a UnitIface> + 's>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 
@@ -1362,7 +1411,7 @@ impl IfaceIndex {
 pub struct Lookup<'a> {
     pub own: &'a [Item],
     pub own_index: HashMap<DefId, usize>,
-    pub ifaces: Vec<&'a UnitIface>,
+    pub ifaces: Interfaces<'a>,
     index: &'a IfaceIndex,
     import_hints: ImportHints<'a>,
     by_unit: Vec<Option<&'a UnitIface>>,
@@ -1409,10 +1458,30 @@ impl<'a> Lookup<'a> {
         Self {
             own,
             own_index,
-            ifaces: visible,
+            ifaces: Interfaces::Materialized(visible),
             index,
             by_unit,
             import_hints,
+            templates: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Own items over a persistent dependency context. Only the own
+    /// declarations are indexed here; inherited metadata stays shared.
+    #[must_use]
+    pub fn with_context(
+        own: &'a [Item],
+        context: &'a dyn InterfaceContext,
+        index: &'a IfaceIndex,
+        import_hints: ImportHints<'a>,
+    ) -> Self {
+        Self {
+            own,
+            own_index: own.iter().enumerate().map(|(i, it)| (it.def, i)).collect(),
+            ifaces: Interfaces::Shared(context),
+            index,
+            import_hints,
+            by_unit: Vec::new(),
             templates: std::sync::OnceLock::new(),
         }
     }
@@ -1437,27 +1506,47 @@ impl<'a> Lookup<'a> {
     /// The interface of `unit`, when the closure holds it.
     #[must_use]
     pub fn unit(&self, unit: UnitId) -> Option<&'a UnitIface> {
-        self.by_unit.get(unit.idx()).copied().flatten()
+        match &self.ifaces {
+            Interfaces::Materialized(_) => self.by_unit.get(unit.idx()).copied().flatten(),
+            Interfaces::Shared(context) => context.unit(unit),
+        }
     }
     #[must_use]
     pub fn item(&self, d: DefId) -> Option<&'a Item> {
         if let Some(&i) = self.own_index.get(&d) {
             return self.own.get(i);
         }
+        self.interface_item(d)
+    }
+
+    /// An interface item only, preserving first-interface recovery order.
+    #[must_use]
+    pub fn interface_item(&self, d: DefId) -> Option<&'a Item> {
         match self.index.location(d) {
             IfaceIndex::AMBIGUOUS => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING if d == DefId::NONE => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING => None,
             location => {
-                // A location whose unit does not fit `usize` names no
-                // item, as a missing unit or slot does.
-                let unit = usize::try_from(location >> 32).ok()?;
-                let slot =
-                    usize::try_from(location & u64::from(u32::MAX)).expect("interface item slot");
-                self.by_unit.get(unit)?.as_ref()?.items.get(slot)
+                let unit = u32::try_from(location >> 32).ok()?;
+                let slot = usize::try_from(location & u64::from(u32::MAX)).ok()?;
+                self.unit(UnitId::from_raw(unit))?.items.get(slot)
             }
         }
     }
+
+    /// Whether any visible interface's item satisfies `test`. Recovery
+    /// duplicates keep the old ordered scan; ordinary IDs use one index
+    /// read rather than walking every interface of every caller.
+    pub fn interface_satisfies(&self, d: DefId, test: impl Fn(&Item) -> bool) -> bool {
+        match self.index.location(d) {
+            IfaceIndex::AMBIGUOUS => self.ifaces.iter().any(|f| f.item(d).is_some_and(&test)),
+            IfaceIndex::MISSING if d == DefId::NONE => {
+                self.ifaces.iter().any(|f| f.item(d).is_some_and(&test))
+            }
+            _ => self.interface_item(d).is_some_and(test),
+        }
+    }
+
     /// Failed trait declarations whose target still needs error recovery.
     #[must_use]
     pub fn poisoned_impls(&self) -> Vec<&'a Item> {

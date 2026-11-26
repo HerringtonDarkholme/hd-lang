@@ -22,116 +22,236 @@ use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, holds, with_
 use crate::body::{Ck, ExpectPosition, ProjectSite};
 use crate::ty::Named;
 
-/// Own methods followed by the shared methods of the ordered visible interfaces.
-#[derive(Default)]
+/// Own methods followed by shared immutable interface indexes. Every map
+/// is a persistent integer trie: extending a dependency copies key paths,
+/// never its method lists. Candidates retain (unit, local-order) positions.
+#[derive(Clone, Default)]
 pub struct MethodIndex {
-    /// Inherent methods: (impl, method).
-    pub inherent: HashMap<Symbol, Vec<(DefId, DefId)>>,
-    /// Where each inherent method of a name sits in `inherent`, by the
-    /// struct, enum or newtype its impl's target names, so a receiver of
-    /// that type is tried against those impls alone, as rustc's
-    /// `inherent_impls` keys them by the self type's ADT.
-    inherent_by_def: HashMap<(Symbol, DefId), Vec<u32>>,
-    /// Where the inherent methods of a name whose impl's target names no
-    /// struct, enum or newtype sit in `inherent`: a parameter, a tuple, a
-    /// reference or a primitive, each tried against every receiver.
-    inherent_open: HashMap<Symbol, Vec<u32>>,
-    /// The inherent method names of the impls whose target names each
-    /// struct, enum or newtype, and of those whose target names none, for
-    /// the "did you mean" hint ([`Self::inherent_names_for`]).
-    inherent_names: HashMap<DefId, Vec<Symbol>>,
-    open_names: Vec<Symbol>,
-    /// Trait methods: (trait, method).
-    pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
-    /// Each trait's method by name, for the traits of `traits`.
-    of_trait: HashMap<(DefId, Symbol), DefId>,
-    /// Each trait's method names, for the traits of `traits`.
-    names: HashMap<DefId, Vec<Symbol>>,
-    /// Each item indexed, by the order it was indexed in.
-    seen: HashMap<DefId, u32>,
-    shared: Option<std::sync::Arc<Self>>,
+    inherent: MethodMap,
+    inherent_by_def: MethodMap,
+    inherent_open: MethodMap,
+    inherent_names: NameMap,
+    open_names: Names,
+    traits: MethodMap,
+    of_trait: Map<(u128, DefId)>,
+    names: Map<(u128, std::sync::Arc<[Symbol]>)>,
+    seen: Map<u128>,
+    shared: Vec<std::sync::Arc<Self>>,
+}
+
+type Map<V> = crate::persistent::Map<V>;
+type Candidates = Map<(DefId, DefId)>;
+type MethodMap = Map<Candidates>;
+type Names = Map<(DefId, Symbol)>;
+type NameMap = Map<Names>;
+
+fn pair_key(a: Symbol, b: DefId) -> u128 {
+    (u128::from(a.raw()) << 32) | u128::from(b.raw())
+}
+fn method_key(a: DefId, b: Symbol) -> u128 {
+    (u128::from(a.raw()) << 32) | u128::from(b.raw())
+}
+fn add_candidate(map: &mut MethodMap, key: u128, order: u128, value: (DefId, DefId)) {
+    let mut entries = map.get(key).cloned().unwrap_or_default();
+    entries.insert(order, value);
+    map.insert(key, entries);
+}
+fn merge_nested<V>(a: &Map<Map<V>>, b: &Map<Map<V>>) -> Map<Map<V>> {
+    use crate::persistent::Merged;
+    a.union_by(b, |a, b| {
+        let merged = a.left_union(b);
+        if merged.ptr_eq(a) {
+            Merged::Left
+        } else if merged.ptr_eq(b) {
+            Merged::Right
+        } else {
+            Merged::Value(merged)
+        }
+    })
 }
 
 impl MethodIndex {
-    /// An interface closure has one index, independent of each module's private items.
     #[must_use]
     pub fn interfaces(lookup: &hd_resolve::Lookup<'_>, pool: hd_types::Types<'_>) -> Self {
         let mut ix = Self::default();
+        for (unit, iface) in lookup.ifaces.iter().enumerate() {
+            ix.extend(
+                unit as u128,
+                pool,
+                iface.items.impls().chain(iface.items.traits()),
+            );
+        }
+        ix
+    }
+
+    /// One interface's declarations, registered once in dependency order.
+    #[must_use]
+    pub fn unit(
+        unit: hd_base::UnitId,
+        iface: &hd_resolve::UnitIface,
+        pool: hd_types::Types<'_>,
+    ) -> Self {
+        let mut ix = Self::default();
         ix.extend(
+            u128::from(unit.raw()),
             pool,
-            lookup
-                .ifaces
-                .iter()
-                .flat_map(|f| f.items.impls().chain(f.items.traits())),
+            iface.items.impls().chain(iface.items.traits()),
         );
         ix
     }
 
-    /// Own declarations win, including declarations also held by an interface (#346).
+    /// Union two interface contexts, sharing pointer-equal subtrees.
+    /// Both inputs are interface indexes (unit/interfaces/union), whose
+    /// own overlay is absent; `with_own` is applied once at the body reader.
+    #[must_use]
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            inherent: merge_nested(&self.inherent, &other.inherent),
+            inherent_by_def: merge_nested(&self.inherent_by_def, &other.inherent_by_def),
+            inherent_open: merge_nested(&self.inherent_open, &other.inherent_open),
+            inherent_names: merge_nested(&self.inherent_names, &other.inherent_names),
+            open_names: self.open_names.left_union(&other.open_names),
+            traits: merge_nested(&self.traits, &other.traits),
+            of_trait: self.of_trait.union_by(&other.of_trait, |a, b| {
+                if a.0 <= b.0 {
+                    crate::persistent::Merged::Left
+                } else {
+                    crate::persistent::Merged::Right
+                }
+            }),
+            names: self.names.union_by(&other.names, |a, b| {
+                if a.0 <= b.0 {
+                    crate::persistent::Merged::Left
+                } else {
+                    crate::persistent::Merged::Right
+                }
+            }),
+            seen: self.seen.union_by(&other.seen, |a, b| {
+                if a <= b {
+                    crate::persistent::Merged::Left
+                } else {
+                    crate::persistent::Merged::Right
+                }
+            }),
+            shared: Vec::new(),
+        }
+    }
+
     #[must_use]
     pub fn with_own(
         lookup: &hd_resolve::Lookup<'_>,
         pool: hd_types::Types<'_>,
         shared: std::sync::Arc<Self>,
     ) -> Self {
+        Self::with_contexts(lookup, pool, &[shared])
+    }
+
+    /// A template body keeps the caller's context ahead of newly reached
+    /// template interfaces. Layers are explicit scopes, never a chain of
+    /// dependency parents; inherited maps within each scope remain flat.
+    #[must_use]
+    pub fn with_contexts(
+        lookup: &hd_resolve::Lookup<'_>,
+        pool: hd_types::Types<'_>,
+        shared: &[std::sync::Arc<Self>],
+    ) -> Self {
         let mut ix = Self::default();
-        ix.extend(pool, lookup.own.iter());
-        ix.shared = Some(shared);
+        ix.extend(0, pool, lookup.own.iter());
+        ix.shared = shared.to_vec();
         ix
+    }
+
+    fn layers(&self) -> impl Iterator<Item = &Self> {
+        std::iter::once(self).chain(self.shared.iter().map(AsRef::as_ref))
+    }
+    fn shadowed(&self, layer: usize, def: DefId) -> bool {
+        self.layers()
+            .take(layer)
+            .any(|ix| ix.seen.get(u128::from(def.raw())).is_some())
     }
 
     fn extend<'a>(
         &mut self,
+        unit: u128,
         pool: hd_types::Types<'_>,
         items: impl Iterator<Item = &'a hd_resolve::Item>,
     ) {
+        let mut serial = 0usize;
         for it in items {
-            let next = u32::try_from(self.seen.len()).unwrap_or(u32::MAX);
-            match self.seen.entry(it.def) {
-                hd_base::hash::hash_map::Entry::Occupied(_) => continue,
-                hd_base::hash::hash_map::Entry::Vacant(v) => {
-                    v.insert(next);
-                }
+            crate::work::method_context_step();
+            let def = u128::from(it.def.raw());
+            if self.seen.get(def).is_some() {
+                continue;
             }
+            let rank = (unit << 64) | self.seen.len() as u128;
+            self.seen.insert(def, rank);
             match &it.data {
-                // A trait impl's methods are found through its trait.
                 ItemData::Impl {
                     trait_,
                     methods,
                     self_ty,
                     ..
-                } => {
-                    if *trait_ == DefId::NONE {
-                        let head = match pool.get(*self_ty) {
-                            TyData::Adt(AdtId::Declared(def), _) => Some(def),
-                            _ => None,
-                        };
-                        for (n, m) in methods {
-                            let all = self.inherent.entry(*n).or_default();
-                            let at = u32::try_from(all.len()).unwrap_or(u32::MAX);
-                            all.push((it.def, *m));
-                            match head {
-                                Some(d) => self.inherent_by_def.entry((*n, d)).or_default(),
-                                None => self.inherent_open.entry(*n).or_default(),
-                            }
-                            .push(at);
-                            match head {
-                                Some(d) => self.inherent_names.entry(d).or_default(),
-                                None => &mut self.open_names,
-                            }
-                            .push(*n);
+                } if *trait_ == DefId::NONE => {
+                    let head = match pool.get(*self_ty) {
+                        TyData::Adt(AdtId::Declared(def), _) => Some(def),
+                        _ => None,
+                    };
+                    for (name, method) in methods {
+                        let order = (unit << 64) | serial as u128;
+                        serial += 1;
+                        add_candidate(
+                            &mut self.inherent,
+                            u128::from(name.raw()),
+                            order,
+                            (it.def, *method),
+                        );
+                        match head {
+                            Some(d) => add_candidate(
+                                &mut self.inherent_by_def,
+                                pair_key(*name, d),
+                                order,
+                                (it.def, *method),
+                            ),
+                            None => add_candidate(
+                                &mut self.inherent_open,
+                                u128::from(name.raw()),
+                                order,
+                                (it.def, *method),
+                            ),
+                        }
+                        if let Some(d) = head {
+                            let mut names = self
+                                .inherent_names
+                                .get(u128::from(d.raw()))
+                                .cloned()
+                                .unwrap_or_default();
+                            names.insert(order, (it.def, *name));
+                            self.inherent_names.insert(u128::from(d.raw()), names);
+                        } else {
+                            self.open_names.insert(order, (it.def, *name));
                         }
                     }
                 }
                 ItemData::Trait(t) => {
-                    for (n, m) in &t.methods {
-                        self.traits.entry(*n).or_default().push((it.def, *m));
-                        self.of_trait.entry((it.def, *n)).or_insert(*m);
-                        self.names.entry(it.def).or_default().push(*n);
+                    for (name, method) in &t.methods {
+                        let order = (unit << 64) | serial as u128;
+                        serial += 1;
+                        add_candidate(
+                            &mut self.traits,
+                            u128::from(name.raw()),
+                            order,
+                            (it.def, *method),
+                        );
+                        let key = method_key(it.def, *name);
+                        if self.of_trait.get(key).is_none() {
+                            self.of_trait.insert(key, (rank, *method));
+                        }
                     }
+                    self.names
+                        .insert(def, (rank, t.methods.iter().map(|m| m.0).collect()));
                 }
-                // No methods of their own: a method item is its owner's.
-                ItemData::Fn(..)
+                ItemData::Impl { .. }
+                | ItemData::Fn(..)
                 | ItemData::Struct(..)
                 | ItemData::Enum { .. }
                 | ItemData::Method { .. }
@@ -143,115 +263,121 @@ impl MethodIndex {
         }
     }
 
-    fn map(&self, inherent: bool) -> &HashMap<Symbol, Vec<(DefId, DefId)>> {
+    fn map(&self, inherent: bool) -> &MethodMap {
         if inherent {
             &self.inherent
         } else {
             &self.traits
         }
     }
-
+    fn first_unit(&self, order: u128, def: DefId) -> bool {
+        self.seen
+            .get(u128::from(def.raw()))
+            .is_some_and(|rank| rank >> 64 == order >> 64)
+    }
     fn candidates(&self, sym: Symbol, inherent: bool) -> Option<Vec<(DefId, DefId)>> {
-        let mut out = self.map(inherent).get(&sym).cloned().unwrap_or_default();
-        if let Some(shared) = &self.shared {
-            out.extend(
-                shared
-                    .map(inherent)
-                    .get(&sym)
-                    .into_iter()
-                    .flatten()
-                    .filter(|(def, _)| !self.seen.contains_key(def))
-                    .copied(),
-            );
+        let mut out = Vec::new();
+        for (layer, ix) in self.layers().enumerate() {
+            if let Some(entries) = ix.map(inherent).get(u128::from(sym.raw())) {
+                out.extend(
+                    entries
+                        .iter()
+                        .filter(|(order, (d, _))| {
+                            ix.first_unit(*order, *d) && !self.shadowed(layer, *d)
+                        })
+                        .map(|(_, &v)| v),
+                );
+            }
         }
         (!out.is_empty()).then_some(out)
     }
 
-    /// The inherent methods `sym` whose impls may take a receiver of type
-    /// `t`, in [`Self::candidates`] order: for a struct, enum or newtype,
-    /// the impls whose target names it and those whose target names none,
-    /// merged by position; otherwise every one. Cost: the impls of that
-    /// name and head, not every impl of the name.
     fn inherent_for(&self, sym: Symbol, t: &TyData) -> Option<Vec<(DefId, DefId)>> {
         let TyData::Adt(AdtId::Declared(def), _) = *t else {
             let all = self.candidates(sym, true);
             crate::work::trait_lookup(all.as_ref().map_or(0, Vec::len) as u64);
             return all;
         };
-        let pick = |ix: &Self, out: &mut Vec<(DefId, DefId)>, keep: &dyn Fn(DefId) -> bool| {
-            let Some(all) = ix.inherent.get(&sym) else {
-                return;
-            };
-            let none: &[u32] = &[];
-            let keyed = ix
-                .inherent_by_def
-                .get(&(sym, def))
-                .map_or(none, Vec::as_slice);
-            let open = ix.inherent_open.get(&sym).map_or(none, Vec::as_slice);
+        let mut out = Vec::new();
+        for (layer, ix) in self.layers().enumerate() {
+            let empty = Candidates::default();
+            let keyed = ix.inherent_by_def.get(pair_key(sym, def)).unwrap_or(&empty);
+            let open = ix
+                .inherent_open
+                .get(u128::from(sym.raw()))
+                .unwrap_or(&empty);
             crate::work::trait_lookup((keyed.len() + open.len()) as u64);
-            let (mut i, mut j) = (0, 0);
-            while i < keyed.len() || j < open.len() {
-                let at = if j == open.len() || (i < keyed.len() && keyed[i] < open[j]) {
-                    i += 1;
-                    keyed[i - 1]
+            let (mut a, mut b) = (keyed.iter().peekable(), open.iter().peekable());
+            while a.peek().is_some() || b.peek().is_some() {
+                let found = if b.peek().is_none()
+                    || a.peek()
+                        .is_some_and(|x| b.peek().is_some_and(|y| x.0 < y.0))
+                {
+                    a.next()
                 } else {
-                    j += 1;
-                    open[j - 1]
+                    b.next()
                 };
-                let found = all[at as usize];
-                if keep(found.0) {
-                    out.push(found);
+                if let Some((order, &(d, method))) = found
+                    && ix.first_unit(order, d)
+                    && !self.shadowed(layer, d)
+                {
+                    out.push((d, method));
                 }
             }
-        };
-        let mut out = Vec::new();
-        pick(self, &mut out, &|_| true);
-        if let Some(shared) = &self.shared {
-            pick(shared, &mut out, &|def| !self.seen.contains_key(&def));
         }
         (!out.is_empty()).then_some(out)
     }
 
-    /// Where trait `tr` stands among the traits of a name: an own item
-    /// first, in the order indexed, then the shared ones; `None` for an
-    /// item the index does not hold.
-    pub(crate) fn rank(&self, tr: DefId) -> Option<(bool, u32)> {
-        if let Some(&i) = self.seen.get(&tr) {
-            return Some((false, i));
-        }
-        let shared = self.shared.as_ref()?;
-        shared.seen.get(&tr).map(|&i| (true, i))
+    pub(crate) fn rank(&self, tr: DefId) -> Option<(usize, u128)> {
+        self.layers()
+            .enumerate()
+            .find_map(|(layer, ix)| ix.seen.get(u128::from(tr.raw())).map(|&rank| (layer, rank)))
     }
-
-    /// Trait `tr`'s method `sym`, when the index holds the trait and it
-    /// declares one: one probe.
     pub(crate) fn method_of(&self, tr: DefId, sym: Symbol) -> Option<DefId> {
-        if self.seen.contains_key(&tr) {
-            return self.of_trait.get(&(tr, sym)).copied();
-        }
-        self.shared.as_ref()?.of_trait.get(&(tr, sym)).copied()
+        let ix = self
+            .layers()
+            .find(|ix| ix.seen.get(u128::from(tr.raw())).is_some())?;
+        let &(rank, method) = ix.of_trait.get(method_key(tr, sym))?;
+        (ix.seen.get(u128::from(tr.raw())) == Some(&rank)).then_some(method)
     }
-
-    /// The method names trait `tr` declares, as [`Self::method_of`] finds
-    /// them: one probe.
     pub(crate) fn names_of(&self, tr: DefId) -> &[Symbol] {
-        let own = self.seen.contains_key(&tr).then_some(self);
-        let ix = own.or(self.shared.as_deref());
-        ix.and_then(|ix| ix.names.get(&tr))
-            .map_or(&[], Vec::as_slice)
+        self.layers()
+            .find(|ix| ix.seen.get(u128::from(tr.raw())).is_some())
+            .and_then(|ix| ix.names.get(u128::from(tr.raw())))
+            .map_or(&[], |(_, names)| names)
     }
-
-    /// Appends the inherent method names whose impls may take a receiver
-    /// of type `t`, as [`Self::inherent_for`] picks impls: for a struct,
-    /// enum or newtype, those of the impls naming it and of those naming
-    /// none; otherwise those naming none, since an impl naming a struct
-    /// takes no other receiver. Cost: those names.
     fn inherent_names_for(&self, t: &TyData, out: &mut Vec<Symbol>) {
-        for ix in std::iter::once(self).chain(self.shared.as_deref()) {
-            if let TyData::Adt(AdtId::Declared(def), _) = *t {
-                out.extend(ix.inherent_names.get(&def).into_iter().flatten());
+        for (layer, ix) in self.layers().enumerate() {
+            if let TyData::Adt(AdtId::Declared(def), _) = *t
+                && let Some(names) = ix.inherent_names.get(u128::from(def.raw()))
+            {
+                out.extend(
+                    names
+                        .iter()
+                        .filter(|(order, (d, _))| {
+                            ix.first_unit(*order, *d)
+                                && !self
+                                    .shared
+                                    .iter()
+                                    .take(layer.saturating_sub(1))
+                                    .any(|prior| prior.seen.get(u128::from(d.raw())).is_some())
+                        })
+                        .map(|(_, &(_, name))| name),
+                );
             }
-            out.extend(&ix.open_names);
+            out.extend(
+                ix.open_names
+                    .iter()
+                    .filter(|(order, (d, _))| {
+                        ix.first_unit(*order, *d)
+                            && !self
+                                .shared
+                                .iter()
+                                .take(layer.saturating_sub(1))
+                                .any(|prior| prior.seen.get(u128::from(d.raw())).is_some())
+                    })
+                    .map(|(_, &(_, name))| name),
+            );
         }
     }
 }
@@ -660,7 +786,7 @@ impl Ck<'_, '_> {
     ) -> Vec<(DefId, DefId)> {
         let index = self.method_index();
         let mut seen = HashSet::default();
-        let mut found: Vec<((bool, u32), DefId, DefId)> = of
+        let mut found: Vec<((usize, u128), DefId, DefId)> = of
             .into_iter()
             .filter(|&tr| seen.insert(tr))
             .filter_map(|tr| {
@@ -5396,7 +5522,7 @@ impl Ck<'_, '_> {
         // `sym`; the first in the method index's order wins.
         if let TyData::TraitValue { def, args, .. } = pool.get(t) {
             let index = self.method_index();
-            let mut best: Option<((bool, u32), DefId, DefId, TyList)> = None;
+            let mut best: Option<((usize, u128), DefId, DefId, TyList)> = None;
             crate::body::walk_supertraits(
                 self.cx.lookup,
                 pool,

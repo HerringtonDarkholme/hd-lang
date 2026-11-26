@@ -18,6 +18,7 @@ mod conform;
 pub mod crossing;
 mod dbg;
 mod frames;
+mod persistent;
 pub use dbg::DbgRef;
 pub mod delegate;
 mod dep_results;
