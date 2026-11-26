@@ -2,58 +2,73 @@
 
 **Scenario.** A service reads `config.json`, lets environment variables
 override single settings, falls back to defaults when the file is absent,
-and reports a bad value with its name.
+and reports every bad value with its name.
+
+**Derive, don't hand-parse.** `@derive(Deserialize)` reads the file,
+`env_decode` reads the environment into a struct, and `@derive(Validate)`
+checks the rules written on the fields. Don't read keys or variables one
+by one.
 
 ## The program
 
 ```hd
-use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
-use std.host.{Env, HostError, ScriptedEnv, env, env_as}
-use std.encoding.json.{JsonError, decode, encode_pretty}
-use std.path.Path
 use std.encoding.{Deserialize, Serialize}
+use std.encoding.json.{JsonError, decode, encode_pretty}
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
+use std.host.{Env, HostError, ScriptedEnv, env_decode}
+use std.path.Path
+use std.validate.{Validate, ValidationError, length, range}
 
-@derive(Serialize, Deserialize, Eq, Debug)
+@derive(Serialize, Deserialize, Validate, Eq, Debug)
 struct Limits:
+    @range(1, 10)
     retries: u32 = 3
     timeout_ms: u32 = 250
 
-@derive(Serialize, Deserialize, Eq, Debug)
+@derive(Serialize, Deserialize, Validate, Eq, Debug)
 struct Config:
+    @length(1, 40)
     name: string = "service"
+    @range(1024, 65535)
     port: u16 = 8080
     limits: Limits = Limits {}
     tags: List[string] = []
+
+# The settings the environment may override: an unset variable is `.None`.
+@derive(Deserialize)
+struct Overrides:
+    name: string?
+    port: u16?
 
 @error
 pub enum ConfigError:
     @error("cannot read the config file")
     Read(@from error: FsError)
-    @error("the config file is not valid")
+    @error("the config file is not valid JSON: $error")
     Parse(@from error: JsonError)
-    @error("bad environment value")
+    @error("$error")
     Environment(@from error: HostError)
+    @error("$error")
+    Invalid(@from error: ValidationError)
 
 # The file is optional: without it, every field takes its default.
 fn from_file!(path: Path) -> Result[Config, ConfigError] $ FsRead:
     if stat!(path)?.is_none():
         return .Ok(Config {})
-    text := read_text!(path)?
-    .Ok(decode::[Config](text)?)
+    .Ok(decode::[Config](read_text!(path)?)?)
 
-# Environment variables override the file, one setting at a time.
+# `APP_NAME` and `APP_PORT` override the file.
 fn with_environment(config: Config) -> Result[Config, ConfigError] $ Env:
-    let mut result = config
-    match env("APP_NAME"):
-        .Some(name) => result.name = name
-        .None => pass
-    match env_as::[u16]("APP_PORT")?:
-        .Some(port) => result.port = port
-        .None => pass
-    .Ok(result)
+    overrides := env_decode::[Overrides](prefix="APP_")?
+    .Ok(Config {
+        ...config,
+        name: overrides.name.unwrap_or(config.name),
+        port: overrides.port.unwrap_or(config.port),
+    })
 
 fn load!(path: Path) -> Result[Config, ConfigError] $ FsRead + Env:
-    with_environment(from_file!(path)?)
+    config := with_environment(from_file!(path)?)?
+    .Ok(config.validated()?)                    # the rules on the fields
 
 fn save!(path: Path, config: Config) -> Result[void, ConfigError] $ FsWrite:
     write_text!(path, encode_pretty(config))?
@@ -79,9 +94,18 @@ tests:
             assert_equal(config.port, 9000)
             assert_equal(config.limits, Limits { retries: 5, timeout_ms: 250 })
 
-    it("reports a bad environment value"):
+    it("names a bad environment value"):
         $.with(FsRead=MemoryFs::new(), Env=box(ScriptedEnv::new({"APP_PORT": "http"}))):
-            assert_equal(load!(Path("config.json")).is_err(), true)
+            error := load!(Path("config.json")).err().expect("an error")
+            assert_equal("$error", "invalid value for APP_PORT: invalid digit at position 0")
+
+    it("names every field that breaks a rule"):
+        fs := MemoryFs::new()
+        $.with(FsWrite=fs):
+            _ := write_text!(Path("config.json"), "{\"name\": \"\", \"port\": 80, \"limits\": {\"retries\": 0}}")
+        $.with(FsRead=fs, Env=box(ScriptedEnv::new({}))):
+            error := load!(Path("config.json")).err().expect("an error")
+            assert_equal("$error", "$.name: has the wrong length\n$.port: must be within the allowed range\n$.limits.retries: must be within the allowed range")
 
     it("saves and loads the same value"):
         fs := MemoryFs::new()
@@ -96,12 +120,25 @@ tests:
 - **Typed JSON**: `@derive(Serialize, Deserialize)` on each struct, then
   `decode::[Config](text)`. A field with a default may be missing from the
   file, an unknown field is ignored, and a missing field without a default
-  is an error that names its path.
+  is an error that names its path. `@rename("listenPort")` on a field, or
+  `@rename_all(.CamelCase)` on the struct, changes the JSON key (import
+  `rename`, `rename_all` from `std.encoding`).
 - **Defaults live on the struct.** With a default on every field,
   `Config {}` is the default configuration.
-- **Environment**: `env(name)` gives `string?`. `env_as::[T](name)` parses
-  the value and gives `Result[T?, HostError]`. Always write the type
-  argument, as `env_as::[u16]("APP_PORT")`.
+- **Environment**: `env_decode::[T](prefix="APP_")` reads each field of
+  `T` from `APP_` plus its name in uppercase (`port` reads `APP_PORT`). A
+  field that is `T?` or has a default may be unset; a list splits on
+  commas; a bad value is `HostError.InvalidValue`, naming the variable.
+  Decode the whole config this way when the environment is its only
+  source. For one variable, `env_as::[u16]("PORT")` gives
+  `Result[u16?, HostError]`, and `env("NAME")` the raw `string?`.
+- **Rules on the fields**: `@derive(Validate)` and rule facts from
+  `std.validate` on the fields: `@range(low, high)`, `@at_least(n)`,
+  `@max(n)`, `@length(min, max)`, `@pattern(regex)`, `@email()`,
+  `@url()`, `@one_of([...])`, `@unique()`, `@check(fn)`. Nested structs are
+  checked too. `value.validated()` returns the value, or a
+  `ValidationError` listing every broken rule with its path. Validate
+  after reading, whatever the source: JSON, environment or `@derive(Cli)`.
 - **One error type**: an `@error` enum with a `@from` variant per source,
   so `?` converts each failure on the way up. It is `pub` because the
   public `main` returns it.

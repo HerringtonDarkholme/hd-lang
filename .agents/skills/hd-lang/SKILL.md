@@ -1,6 +1,6 @@
 ---
 name: hd-lang
-description: Write, check, test and run hd-lang (hd) code - a statically typed, indentation-based language that compiles to WebAssembly. Gives the edit-check loop for the `hd` command, the rules that differ from Python and Rust, and an index of focused references - how-to pages by scenario (a command-line tool, files, JSON config, an HTTP API, concurrency, shared state, project layout), syntax by topic, the standard library, testing, packages, and the diagnostics agents hit most with their fixes. Use before writing or editing any `.hd` file or `hd.toml` package, and whenever running the `hd` command.
+description: Write, check, test and run hd-lang (hd) code - a statically typed, indentation-based language that compiles to WebAssembly. Names the derives and std helpers to reach for first (`@derive(Cli)` for command-line parsing, `@derive(Serialize, Deserialize)` for JSON, environment and regex decoding, `@derive(Validate)` for input rules, `@error` enums, standard fakes), the edit-check loop for the `hd` command, the rules that differ from Python and Rust, and an index of focused references - how-to pages by scenario (a command-line tool, files, configuration, an HTTP API, concurrency, shared state, project layout), syntax by topic, the standard library, testing, packages, and the diagnostics agents hit most with their fixes. Use before writing or editing any `.hd` file or `hd.toml` package, and whenever running the `hd` command.
 ---
 
 # Write hd-lang Code
@@ -31,9 +31,11 @@ disagree, the compiler is right: read its message, then `hd help` or
 
 ## Steps
 
-1. **Read** before writing. When the task matches a scenario under
-   [How to](#how-to-by-scenario), start from that page: it is a complete,
-   tested program to adapt. Otherwise open the page for the topic.
+1. **Read** before writing. Check [Derive First](#derive-first): hd
+   derives most parsers, codecs and checks. When the task matches a
+   scenario under [How to](#how-to-by-scenario), start from that page: it
+   is a complete, tested program to adapt. Otherwise open the page for the
+   topic.
 2. **Write** the code.
 3. **Check**: `hd check --format json FILE.hd`, or
    `hd check --format json --tests` inside a package. Each output line is
@@ -96,6 +98,28 @@ tests:
 largest: 1200 cents
 ```
 
+## Derive First
+
+hd writes from a type's fields what other languages write by hand. Before
+hand-writing a parser, a codec, a check or a mock, use these:
+
+| Job | Write |
+| --- | --- |
+| options, subcommands, `--help` | `@derive(Cli)` on a struct or enum, then `Options::parse_args()` ([cli-tool](references/how-to/cli-tool.md)) |
+| JSON in and out | `@derive(Serialize, Deserialize)`, then `decode::[T](text)` and `encode(value)` ([host](references/std/host.md#json)) |
+| configuration from environment variables | `env_decode::[T](prefix="APP_")` over the same `Deserialize` ([configuration](references/how-to/configuration.md)) |
+| fields out of a line of text | named regex groups, then `pattern.decode::[T](line)` ([text-records](references/how-to/text-records.md)) |
+| HTTP bodies | `response.json::[T]()` and `request.set_json(value)` ([http-api](references/how-to/http-api.md)) |
+| rules on input: ranges, lengths, emails | `@derive(Validate)`, `@range(1, 99)` and friends on fields, then `value.validated()` ([configuration](references/how-to/configuration.md), [domain-model](references/how-to/domain-model.md)) |
+| `==`, ordering, hashing, debug text, defaults | `@derive(Eq, PartialOrd, Ord, Hash, Debug, Default)` ([traits](references/language/traits.md#derived-implementations)) |
+| error types, messages, conversions | an `@error` enum, `@from` on a payload, then `?` ([errors](references/language/errors.md)) |
+| test doubles for console, files, clock, HTTP, processes | `MemoryConsole`, `MemoryFs`, `ManualClock`, `ScriptedHttp`, `ScriptedProcess` with `$.with` ([fakes](references/testing/fakes.md)) |
+| table and property tests | `it_each`, and `it_prop` with `@derive(Arbitrary)` ([unit-tests](references/testing/unit-tests.md)) |
+| several waits at once, retries, deadlines | `join!`, `race!`, and `std.task` policies ([concurrent-work](references/how-to/concurrent-work.md)) |
+
+The lower-level forms (`ArgParser`, `env`, `Json` trees, `captures`) are
+for shapes these do not fit.
+
 ## Rules That Surprise
 
 Syntax:
@@ -148,17 +172,17 @@ pieces it is made of.
 
 | To | Read |
 | --- | --- |
-| build a command-line tool: options, `--help`, exit status | [cli-tool.md](references/how-to/cli-tool.md) |
+| build a command-line tool: `@derive(Cli)` options, `--help`, exit status | [cli-tool.md](references/how-to/cli-tool.md) |
 | read standard input and transform it | [stdin-filter.md](references/how-to/stdin-filter.md) |
-| parse a text or CSV file into typed records, with line-numbered errors | [text-records.md](references/how-to/text-records.md) |
-| load configuration from JSON, environment variables and defaults | [configuration.md](references/how-to/configuration.md) |
+| parse a text or CSV file into typed records with regex `decode`, with line-numbered errors | [text-records.md](references/how-to/text-records.md) |
+| load configuration from JSON, environment variables and defaults, and validate it | [configuration.md](references/how-to/configuration.md) |
 | list, read, write and move files | [files-and-directories.md](references/how-to/files-and-directories.md) |
 | call an HTTP API and decode JSON | [http-api.md](references/how-to/http-api.md) |
 | run another program and read its output | [run-commands.md](references/how-to/run-commands.md) |
-| do several waits at once, with timeouts and retries | [concurrent-work.md](references/how-to/concurrent-work.md) |
+| do several waits at once, with timeouts and retries, or stop on Ctrl-C | [concurrent-work.md](references/how-to/concurrent-work.md) |
 | share and update state: `&mut`, `box`, or a provider | [shared-state.md](references/how-to/shared-state.md) |
 | model states, transitions and validation rules | [domain-model.md](references/how-to/domain-model.md) |
-| start a project and split it into modules | [project-layout.md](references/how-to/project-layout.md) |
+| start a project, split it into modules, and add subcommands | [project-layout.md](references/how-to/project-layout.md) |
 | translate a habit from Python, TypeScript, Rust or Go | [from-other-languages.md](references/how-to/from-other-languages.md) |
 
 ### Language
@@ -170,7 +194,7 @@ pieces it is made of.
 | [functions.md](references/language/functions.md) | functions, defaults and named arguments, closures, pipes, `if` / `match` / loops as expressions, `defer` |
 | [data.md](references/language/data.md) | structs, methods, enums, `match` patterns, let-else, newtypes and aliases |
 | [errors.md](references/language/errors.md) | `T?`, `Result`, `?`, `@error` enums, converting and reporting errors, exit codes |
-| [traits.md](references/language/traits.md) | traits, generics and bounds, `dyn` trait values, `@derive`, operators, `Display` |
+| [traits.md](references/language/traits.md) | traits, generics and bounds, `dyn` trait values, every `@derive` and its field facts, operators, `Display` |
 | [references.md](references/language/references.md) | values and copies, `&T` / `&mut T`, `box` and `*T`, stored closures, what may escape |
 | [requirements.md](references/language/requirements.md) | rows after `$`, `$.use`, `$.with`, callbacks with rows, host capabilities |
 | [suspension.md](references/language/suspension.md) | `!` functions and calls, `main!`, `join!`, `race!`, timeouts and retries |
@@ -181,9 +205,9 @@ pieces it is made of.
 | File | Covers |
 | --- | --- |
 | [imports.md](references/std/imports.md) | the prelude, and the import line for everything else |
-| [text.md](references/std/text.md) | string methods, parsing, building text, characters, regex |
+| [text.md](references/std/text.md) | string methods, parsing, building text, characters, regex and typed `decode` |
 | [collections.md](references/std/collections.md) | list, map, iterator, optional and result methods; `Set`, `Deque`, `Heap` |
-| [host.md](references/std/host.md) | console input, arguments, environment, files, time, JSON, random |
+| [host.md](references/std/host.md) | console input, arguments, environment and `env_decode`, files, time, JSON, random |
 
 ### Testing
 
@@ -209,7 +233,7 @@ instead.
 | File | Codes such as |
 | --- | --- |
 | [syntax.md](references/mistakes/syntax.md) | `syntax-error`, `missing-let`, `trailing-block-position`, text that prints wrong |
-| [types.md](references/mistakes/types.md) | `mixed-signedness`, `type-mismatch`, `non-reassignable-binding`, `unsatisfied-trait-bound`, `unknown-method`, `discarded-must-use-value` |
+| [types.md](references/mistakes/types.md) | `mixed-signedness`, `type-mismatch`, `non-reassignable-binding`, `unsatisfied-trait-bound`, `unknown-method`, `discarded-must-use-value`, derive mistakes such as `member-not-derivable` |
 | [references.md](references/mistakes/references.md) | `not-writable`, `local-reference-escapes`, `conflicting-access`, `reference-equality` |
 | [requirements.md](references/mistakes/requirements.md) | `missing-requirement`, `bang-call-outside-suspension`, `invalid-result-propagation`, `missing-capability`, `private-type-leak`, test and module errors |
 | [std.md](references/mistakes/std.md) | a std name or method that does not exist, or needs an import |

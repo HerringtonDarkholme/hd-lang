@@ -40,8 +40,9 @@ pub fn main() -> void $ Console + Clock:
 | --- | --- | --- |
 | `Console` | prelude | `println`, `print`, `eprintln` |
 | `ConsoleInput` | `std.console` | `read_line!`, `read_all!` |
-| `Args` | `std.cli` | the program's arguments |
-| `Env`, `Sys` | `std.host` | environment variables, system facts |
+| `Args` | `std.cli` | the program's arguments, parsed by a `@derive(Cli)` type's `parse_args()` |
+| `Env`, `Sys` | `std.host` | environment variables (`env_decode` reads a struct), system facts |
+| `Signals` | `std.host` | `$.use(Signals).wait!(.Interrupt)`, to handle Ctrl-C |
 | `Clock` | `std.time` | `now`, `sleep!` |
 | `Random` | `std.random` | random numbers |
 | `FsRead`, `FsWrite` | `std.fs` | reading and writing files |

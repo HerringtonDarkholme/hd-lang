@@ -94,11 +94,22 @@ indices, byte offsets), `f32`, `f64`. There is no `isize` and no `int`.
   literal takes no suffix: write `let mask: u64 = 0xFF`.
 - Conversions are calls: `i32(n)`, `usize(n)`, `f64(n)`, `i64(n)`. Nothing
   converts implicitly, and signed and unsigned integers do not mix.
+- A narrowing call keeps the low bits: `u8(300)` is `44`. For an error
+  instead, `u8::try_from(n)` returns a `Result`; it needs
+  `use std.convert.TryFrom`.
+- `i32::max_value()` and `u8::min_value()` give the limits; they need
+  `use std.num.Integer`.
 - `/` on integers truncates, `%` is the remainder, `**` is a power.
 - Integer overflow panics (with `--release` it wraps instead), and so does
   division by zero.
 
 ```hd
+use std.convert.TryFrom
+use std.num.Integer
+
+fn to_byte(n: i32) -> u8?:
+    u8::try_from(n).ok()                # `.Err` when n is outside 0..=255
+
 fn average(scores: List[i32]) -> f64:
     let sum: i64 = 0
     for score in scores:
@@ -109,10 +120,12 @@ fn last_index(scores: List[i32]) -> i32:
     i32(scores.len()) - 1       # `len()` is usize; convert before signed arithmetic
 
 println("${average([+90, 85])} ${last_index([+1, 2, 3])} ${7 / 2} ${7 % 2} ${2 ** 10} ${0xFF}")
+println("${debug(to_byte(+200))} ${debug(to_byte(+300))} ${i32::max_value()}")
 ```
 
 ```output
 87.5 2 3 1 1024 255
+Option.Some(200) Option.None 2147483647
 ```
 
 ## Strings and characters

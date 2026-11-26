@@ -12,9 +12,8 @@ way, and the code `hd check` reports. When a name is not here, run
 | `xs.append(x)` for one element | `type-mismatch` | `xs.push(x)` |
 | `xs.length`, `xs.size()` | `unknown-field`, `unknown-method` | `xs.len()` |
 | `xs.remove_at(i)` | `unknown-method` | `xs.remove(i)` |
-| `for (i, x) in xs.enumerate():` | `unknown-method` | `xs.iter().enumerate()` |
 | `for i in range(3):` | `unknown-name` | `for i in 0..3:` |
-| `m.insert(key, value)` | `unknown-method` | `m[key] = value` |
+| `m.insert(key, value)` as a statement | `discarded-must-use-value` | `m[key] = value`; `insert` returns the old value as `V?` |
 | `ys := xs.sort()` or returning `xs.sort()` | `missing-return-value` or a `void` mismatch | `xs.sorted()` gives a new list; `xs.sort()` sorts in place |
 | `Vec[T]`, `HashMap[K, V]`, `String` | `unknown-type` | `List[T]`, `Map[K, V]`, `string` |
 

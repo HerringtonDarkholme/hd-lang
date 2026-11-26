@@ -45,6 +45,17 @@ What was written, the code `hd check` reports, and what to write instead.
 | `type Output = Money` in an operator impl | `extra-trait-member` | `type Out = Money` |
 | `holder.callback()` on a function-typed field | `unknown-method` | `(holder.callback)()` |
 
+## Derives
+
+| Wrote | Code | Write instead |
+| --- | --- | --- |
+| `decode::[Plain](text)` on a struct with no derive | `unsatisfied-trait-bound` | `@derive(Deserialize)` on it, with `use std.encoding.Deserialize`; `Serialize` for `encode` |
+| `@derive(Cli)` with no import | `unknown-trait` | `use std.cli.Cli`; each derive outside the prelude imports its trait |
+| `@derive(Clone)` | `unknown-trait` | nothing: values copy |
+| `@range(1, 9)` or `@rename("x")` with no import | `unknown-name` | `use std.validate.range`, `use std.encoding.rename` |
+| `@derive(Validate)` with a field of your own type | `member-not-derivable` | `@derive(Validate)` on that type too |
+| a hand-written `impl Eq`, `Debug`, `Serialize` or parser for a plain struct | none: more code to keep in step | `@derive(...)` ([traits](../language/traits.md#derived-implementations)) |
+
 ## Generic calls
 
 | Wrote | Code | Write instead |

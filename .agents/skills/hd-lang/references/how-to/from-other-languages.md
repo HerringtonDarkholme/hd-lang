@@ -14,6 +14,9 @@ that explains it.
 | fields shared through a base class | a struct of the shared fields, held as a field; hd has no inheritance |
 | a tagged union, a sealed class, a Rust `enum` | `enum` with payloads, read with `match` |
 | a dataclass copy with changes, `{...obj, x: 1}`, `..base` | `Point { ...base, x: 1 }`, spread first |
+| `#[derive(Debug, PartialEq, Hash)]`, `@dataclass(eq=True, order=True)`, `__eq__` | `@derive(Eq, PartialOrd, Ord, Hash, Debug)` ([traits](../language/traits.md#derived-implementations)) |
+| `serde`, `json.loads` into a dataclass, `JSON.parse` with a type, `encoding/json` tags | `@derive(Serialize, Deserialize)`, then `decode::[T](text)` and `encode(value)`; `@rename("key")` for a tag |
+| pydantic, zod, `validator` tags | `@derive(Validate)` with `@range(1, 99)`, `@length(1, 80)`, `@email()` on fields, then `value.validated()` ([configuration](configuration.md)) |
 | `Vec<T>`, `list`, `T[]` | `List[T]`, literal `[1, 2]` |
 | `HashMap`, `dict`, `Record`, `map[K]V` | `Map[K, V]`, literal `{"k": v}` |
 | a tuple, `pair.0`, `pair[0]` | `(a, b)`, read with `pair._0` or `let (a, b) = pair` |
@@ -31,7 +34,7 @@ that explains it.
 | `a if c else b`, `c ? a : b` | `if c: a else: b` |
 | `switch`, `match` with `A \| B` arms | `match`, one pattern per arm, `_` for the rest |
 | `for i in range(n)`, `for (let i = 0; i < n; i++)` | `for i in 0..n:` |
-| `for i, x in enumerate(xs)` | `for (i, x) in xs.iter().enumerate():` |
+| `for i, x in enumerate(xs)` | `for (i, x) in xs.enumerate():` |
 | `while True`, `loop {}`, `for {}` | `while true:` |
 | `[f(x) for x in xs if c]`, `xs.filter(c).map(f)` | `[for x in xs if c => f(x)]`, or `xs.filter(c).map(f)` |
 | `lambda x: x + 1`, `x => x + 1`, `\|x\| x + 1` | `fn(x): x + 1` |
@@ -62,6 +65,7 @@ that explains it.
 | `s.upper()`, `toUpperCase()`, `to_uppercase()` | `s.upper()`, `s.lower()` |
 | `",".join(xs)`, `xs.join(",")` | `xs.join(",")` |
 | `s += piece` in a loop | `StringBuilder` or `parts.join("")` ([text](../std/text.md)) |
+| `re.match(...).groupdict()`, named captures into a struct | named groups, then `pattern.decode::[T](line)` ([text](../std/text.md#regex)) |
 
 ## Programs
 
@@ -71,12 +75,14 @@ that explains it.
 | `asyncio.gather`, `Promise.all`, a `WaitGroup` | `join!(a(), b())` |
 | `Promise.race`, `select` | `race!(a(), b())` |
 | a global, a singleton, a dependency-injection container | a trait in the row, `$.use(Trait)`, supplied with `$.with(Trait=value):` ([requirements](../language/requirements.md)) |
-| `mock.patch`, a mocking library | a small struct that implements the trait, installed with `$.with` ([fakes](../testing/fakes.md)) |
+| `mock.patch`, a mocking library | `MemoryFs`, `MemoryConsole`, `ManualClock`, `ScriptedHttp`, or a small struct that implements your trait, installed with `$.with` ([fakes](../testing/fakes.md)) |
+| `@pytest.mark.parametrize`, table tests, `proptest`, Hypothesis | `it_each` over rows, `it_prop` with `@derive(Arbitrary)` ([unit tests](../testing/unit-tests.md)) |
 | `import x`, `use x::y`, `require` | `use std.fs.{read_text}`, `use pkg.cart.total`, at the top of the file |
 | `public` / `private`, `pub`, an exported name | `pub`; everything else is private to its file |
 | `if __name__ == "__main__"`, `fn main()`, `func main()` | `pub fn main() -> void $ Console:` |
-| `sys.argv`, `process.argv`, `os.Args` | `args()` from `std.cli`, with `$ Args` |
-| `os.environ`, `process.env` | `env("NAME")` from `std.host`, with `$ Env` |
+| `argparse`, `click`, `clap` derive, `commander`, `flag` | `@derive(Cli)` on a struct, then `Options::parse_args()`, with `$ Args` ([cli-tool](cli-tool.md)) |
+| `sys.argv`, `process.argv`, `os.Args` as a raw list | `args()` from `std.cli`, with `$ Args` |
+| settings from `os.environ`, `process.env`, `envconfig` | `env_decode::[Settings](prefix="APP_")` from `std.host`, with `$ Env`; one variable is `env("NAME")` |
 | `open(path).read()`, `fs.readFile` | `read_text!(Path(path))?`, with `$ FsRead` |
 | `subprocess.run`, `exec.Command` | `Command::new("git").args([...]).run!()`, with `$ Process` |
 | `pytest`, `#[test]`, `describe` / `it` | a `tests:` block with `it("name"):` cases ([unit tests](../testing/unit-tests.md)) |

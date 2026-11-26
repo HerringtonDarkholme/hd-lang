@@ -95,6 +95,49 @@ Order.Shipped(total=6400, carrier="DHL")
 refused: cannot ship an order that is a draft
 ```
 
+## Rules on fields: `@derive(Validate)`
+
+A rule about one field's value, rather than about a move between states,
+is a fact on the field. `@derive(Validate)` checks every such fact, in
+nested structs and list elements too, and names each broken one by its
+path:
+
+```hd
+use std.validate.{Validate, at_least, length, range}
+
+@derive(Validate, Eq, Debug)
+struct Line:
+    @length(1, 40)
+    item: string
+    @range(1, 1000000)
+    cents: i64
+    @at_least(1)
+    quantity: u32
+
+@derive(Validate, Eq, Debug)
+struct Cart:
+    @length(1, 50)
+    lines: List[Line]
+
+cart := Cart { lines: [Line { item: "lamp", cents: 3200, quantity: 1 }, Line { item: "", cents: 0, quantity: 0 }] }
+match cart.validated():
+    .Ok(_) => println("valid")
+    .Err(error) => println("$error")
+```
+
+```output
+$.lines[1].item: has the wrong length
+$.lines[1].cents: must be within the allowed range
+$.lines[1].quantity: must not be below the minimum
+```
+
+The rules come from `std.validate`: `range`, `at_least`, `max`, `length`,
+`min_length`, `max_length`, `pattern`, `email`, `url`, `uuid`, `one_of`,
+`unique`, and `check(fn)` for a rule of your own. `validated()` returns
+the same value in `.Ok`, or `ValidationError`, whose `issues()` lists each
+path and code. Validate where data enters: after `decode`, `env_decode` or
+`parse_args`.
+
 ## The pieces
 
 - **One enum, one variant per state.** Data that only exists later, such
@@ -112,6 +155,9 @@ refused: cannot ship an order that is a draft
   step only on success; inside a `Result` function, `?` does the same.
 - **Rules with messages**: an `@error` enum, with `@derive(Eq, Debug)` so
   tests can compare with `assert_equal`.
-- For a value with a rule of its own, such as a non-empty name, keep the
-  field private and build it through a function that returns a `Result`
-  ([language/modules.md](../language/modules.md)).
+- **Field rules are facts, transitions are functions.** A quantity of at
+  least 1 is `@at_least(1)` under `@derive(Validate)`; "only a paid order
+  ships" is a `match`.
+- For a value that must never exist unchecked, such as a non-empty name,
+  keep the field private and build it through a function that returns a
+  `Result` ([language/modules.md](../language/modules.md)).

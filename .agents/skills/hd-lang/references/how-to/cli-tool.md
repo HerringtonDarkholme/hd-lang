@@ -13,6 +13,7 @@ of arguments.
 
 ```hd
 use std.cli.{Args, Cli, ScriptedArgs, positional, short}
+use std.collections.counts
 use std.console.{MemoryConsole, eprintln}
 use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
 use std.path.Path
@@ -34,10 +35,7 @@ struct Options:
 # The work is a plain function: no row, so it is easy to test.
 fn top_words(text: string, options: &Options) -> List[(string, usize)]:
     source := if options.ignore_case: text.lower() else: text
-    let mut counts: Map[string, usize] = {}
-    for word in source.split_whitespace():
-        *counts.get_or_insert(word, 0) += 1
-    counts.most_common(options.top)
+    counts(source.split_whitespace()).most_common(options.top)
 
 pub fn main!() -> ExitCode $ Args + Console + FsRead:
     options := match Options::parse_args():
@@ -130,6 +128,10 @@ at position 0`.
   - `Options::parse(["--top", "5"])` is pure, for tests.
   - Both return `Result[Options, CliError]`. `error.exit()` prints the
     usage or the help and picks the status.
+- **Rules on values**, such as a range: add `Validate` to the derive and
+  a rule fact to the field, `@range(1, 100)` from `std.validate`, then
+  check `options.validated()` after parsing. Its error names the field:
+  `$.top: must be within the allowed range`.
 - **Errors** go to standard error with `eprintln`, and `main` returns a
   failing `ExitCode`.
 - **In a package**, `hd.toml` must grant what `main` names: `Args = true`,

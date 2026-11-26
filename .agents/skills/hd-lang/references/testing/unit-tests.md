@@ -92,6 +92,24 @@ A property's parameter type picks the generator: numbers, `bool`,
 `string`, lists, and your own types with `@derive(Arbitrary)` (import
 `Arbitrary` from `std.testing`). `hd test --seed N` repeats a run.
 
+```hd
+use std.testing.Arbitrary
+
+@derive(Arbitrary, Debug)
+struct Point:
+    x: i32
+    y: i32
+
+fn norm1(p: Point) -> i64: i64(p.x).abs() + i64(p.y).abs()
+
+tests:
+    use std.testing.it_prop
+
+    it_prop("never negative", prop=fn!(p: Point):
+        assert(norm1(p) >= 0)
+    )
+```
+
 ## Tests that wait
 
 A case may make bang calls directly.

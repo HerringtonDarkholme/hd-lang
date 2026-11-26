@@ -16,15 +16,16 @@ hd test
 ## The shape to aim for
 
 Put the rules in plain functions with no row, keep the outside world in
-one thin module, and let `main` only read arguments and pick an exit
-status.
+one thin module, and let `main` only parse the arguments and pick an exit
+status. The arguments are a `@derive(Cli)` type, never a hand-matched
+list of strings.
 
 ```text
 todo/
   hd.toml
   src/
     main.hd             arguments in, exit status out
-    commands/mod.hd     one function per command; uses tasks and storage
+    commands/mod.hd     the commands as a `@derive(Cli)` enum, and what each does
     storage/mod.hd      load and save: the only module that touches files
     tasks/mod.hd        the types and rules: no `$`, no `!`
   tests/
@@ -139,57 +140,87 @@ tests:
 ```hd
 use pkg.storage.{StorageError, load, save}
 use pkg.tasks.{TaskError, added, completed, listing}
+use std.cli.{Cli, positional}
 use std.console.MemoryConsole
 use std.fs.{FsRead, FsWrite, MemoryFs}
 use std.path.Path
 
+## Keep a to-do list in todo.json
+@derive(Cli, Eq, Debug)
+pub struct Todo:
+    pub command: Command = .List
+
+@derive(Cli, Eq, Debug)
+pub enum Command:
+    ## add a task
+    Add(AddOptions)
+    ## mark a task as done
+    Done(DoneOptions)
+    ## print every task
+    List
+
+@derive(Cli, Eq, Debug)
+pub struct AddOptions:
+    ## what to do
+    @positional
+    pub title: string
+
+@derive(Cli, Eq, Debug)
+pub struct DoneOptions:
+    ## the task's number in the listing
+    @positional
+    pub number: usize
+
 @error
 pub enum CommandError:
-    @error("usage: todo [add TITLE | done NUMBER | list]")
-    Usage
-    @error("task error")
+    @error("$error")
     Task(@from error: TaskError)
-    @error("storage error")
+    @error("$error")
     Storage(@from error: StorageError)
 
-pub fn run!(arguments: List[string]) -> Result[void, CommandError] $ Console + FsRead + FsWrite:
+pub fn run!(command: Command) -> Result[void, CommandError] $ Console + FsRead + FsWrite:
     file := Path("todo.json")
     tasks := load!(file)?
-    match (arguments.get(0).unwrap_or("list"), arguments.get(1)):
-        ("add", .Some(title)) =>
-            save!(file, added(tasks, title)?)?
-            println("added: $title")
-        ("done", .Some(text)) =>
-            let .Ok(number) = text.parse::[usize]() else: return .Err(.Usage)
-            save!(file, completed(tasks, number)?)?
-            println("done: $number")
-        ("list", _) => println(listing(tasks))
-        _ => return .Err(.Usage)
+    match command:
+        .Add(options) =>
+            save!(file, added(tasks, options.title)?)?
+            println("added: ${options.title}")
+        .Done(options) =>
+            save!(file, completed(tasks, options.number)?)?
+            println("done: ${options.number}")
+        .List => println(listing(tasks))
     .Ok(())
 
 tests:
+    it("parses each command"):
+        assert_equal(Todo::parse(["add", "buy milk"]).ok(), .Some(Todo { command: .Add(AddOptions { title: "buy milk" }) }))
+        assert_equal(Todo::parse([]).ok(), .Some(Todo { command: .List }))
+        assert(Todo::parse(["done", "two"]).is_err())
+
     it("adds, completes and lists through fakes"):
         fs := MemoryFs::new()
         console := MemoryConsole::new()
         $.with(FsRead=fs, FsWrite=fs, Console=console):
-            assert(run!(["add", "buy milk"]).is_ok())
-            assert(run!(["done", "1"]).is_ok())
-            assert(run!([]).is_ok())
-            assert(run!(["done", "7"]).is_err())
-            assert(run!(["dance"]).is_err())
+            assert(run!(.Add(AddOptions { title: "buy milk" })).is_ok())
+            assert(run!(.Done(DoneOptions { number: 1 })).is_ok())
+            assert(run!(.List).is_ok())
+            assert(run!(.Done(DoneOptions { number: 7 })).is_err())
         assert_equal(console.output().join(""), "added: buy milk\ndone: 1\n1. [x] buy milk\n")
 ```
 
 <!-- file: todo/src/main.hd -->
 ```hd
-use pkg.commands.run
+use pkg.commands.{Todo, run}
+use std.cli.{Args, Cli}
 use std.console.eprintln
 use std.fs.{FsRead, FsWrite}
-use std.cli.{Args, args}
 use std.process.ExitCode
 
 pub fn main!() -> ExitCode $ Args + Console + FsRead + FsWrite:
-    match run!(args()):
+    todo := match Todo::parse_args():
+        .Ok(todo) => todo
+        .Err(error) => return error.exit()       # usage: status 2; --help: status 0
+    match run!(todo.command):
         .Ok(_) => ExitCode(0)
         .Err(error) =>
             eprintln("todo: $error")
@@ -209,9 +240,13 @@ it("keeps tasks between runs"):
     assert_equal(listed.stdout, "1. [ ] buy milk\n")
 
 it("fails with a message and status 1"):
-    let out = hd_run!(*Command::new("todo").arg("dance").current_dir(temp_dir()))
+    let out = hd_run!(*Command::new("todo").args(["done", "7"]).current_dir(temp_dir()))
     assert_equal(out.status, 1)
-    assert_equal(out.stderr, "todo: usage: todo [add TITLE | done NUMBER | list]\n")
+    assert_equal(out.stderr, "todo: there is no task 7\n")
+
+it("refuses an unknown command with status 2"):
+    let out = hd_run!(*Command::new("todo").arg("dance").current_dir(temp_dir()))
+    assert_equal(out.status, 2)
 ```
 
 ## Work on it
@@ -221,10 +256,36 @@ hd check --tests            # every module and its tests
 hd test                     # unit tests, then tests/todo.hd against the built program
 hd run -- add "buy milk"    # arguments go after `--`
 hd run -- list
+hd run -- --help            # the generated help
 hd fmt && hd lint
 ```
 
+`hd run -- --help` prints the help derived from the types and their `##`
+comments:
+
+```text
+usage: todo [options] [<command>]
+
+Keep a to-do list in todo.json
+
+commands:
+  add   add a task
+  done  mark a task as done
+  list  print every task
+
+options:
+  -h, --help  Print this help.
+```
+
 ## The pieces
+
+- **Subcommands are an enum.** `@derive(Cli)` on `Command`, whose
+  variants carry one `Cli` struct each (or none), reads `todo add TITLE`.
+  The field `command: Command = .List` makes `todo` alone list. Each
+  variant's `##` comment is its line in the help, and `todo add --help`
+  prints that command's own help. An unknown command or a bad value exits
+  with status 2 through `error.exit()`. `Todo::parse([...])` tests the
+  parser without a host ([cli-tool.md](cli-tool.md)).
 
 - **A folder of modules has `mod.hd`.** `src/tasks/mod.hd` is
   `pkg.tasks`. A lone file `src/tasks.hd` is the same module name, but it

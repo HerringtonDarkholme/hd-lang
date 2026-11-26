@@ -16,10 +16,14 @@ test requires must be installed in the test.
 | `Random` | `SeededRandom::new(seed)` from `std.random` | |
 | `Args` | `box(ScriptedArgs::new(program, values))` from `std.cli` | |
 | `Env` | `box(ScriptedEnv::new({"HOME": "/h"}))` from `std.host` | |
+| `Http` | `ScriptedHttp::new()` from `std.http`, then `reply(url, result)` | `http.received()` ([how-to/http-api.md](../how-to/http-api.md)) |
+| `Process` | `ScriptedProcess::new()` from `std.process`, then `reply(program, result)` | `process.received()` ([how-to/run-commands.md](../how-to/run-commands.md)) |
+| `Signals` | `ScriptedSignals::new([.Interrupt])` from `std.host` | |
 
-Each `new` in the first rows returns a shared object, ready to pass to
-`$.with`. `ScriptedArgs` and `ScriptedEnv` are plain values, so they are
-boxed at the call.
+Each `new` returns a shared object, ready to pass to `$.with`, except
+`ScriptedArgs` and `ScriptedEnv`: they are plain values, so they are boxed
+at the call. Reach for these before writing a fake of your own; write one
+only for your own traits.
 
 A unit test that reaches `println` without a console installed fails to
 check: ``missing-requirement: this needs `$ Console`, which the runner

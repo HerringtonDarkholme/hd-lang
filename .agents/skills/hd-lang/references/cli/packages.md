@@ -53,7 +53,7 @@ error: src/main.hd:5:24: missing-capability: `main` requires `FsRead` in `$ Cons
 
 `hd check --fix` adds the missing line. The keys are `Console`,
 `ConsoleInput`, `Args`, `Env`, `Clock`, `Random`, `FsRead`, `FsWrite`,
-`Process`, `Http`, `Net` and `Sys`.
+`Process`, `Http`, `Net`, `Sys` and `Signals`.
 
 | Value | Grants |
 | --- | --- |

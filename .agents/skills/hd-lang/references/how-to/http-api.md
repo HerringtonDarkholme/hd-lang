@@ -4,10 +4,14 @@
 answer, post a JSON body with a header, and test all of it without a
 network.
 
+**Derive the payloads.** `@derive(Serialize, Deserialize)` on each body
+type; `response.json::[T]()` decodes one and `set_json(value)` writes one.
+Don't walk a `Json` tree by hand.
+
 ## The program
 
 ```hd
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
+use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, Url, UrlError, get}
 use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize, Eq, Debug)
@@ -23,10 +27,10 @@ struct NewIssue:
 pub enum ApiError:
     @error("request failed")
     Transport(@from error: HttpError)
-    @error("bad address: $text")
-    Address(text: string)
-    @error("unexpected response body")
-    Body
+    @error("bad address")
+    Address(@from error: UrlError)
+    @error("unexpected response body: $error")
+    Body(@from error: BodyError)
 
 # GET: `get!` returns `.Err(.Status(response))` for a 4xx or 5xx status.
 fn repo!(name: string) -> Result[Repo?, ApiError] $ Http:
@@ -34,16 +38,11 @@ fn repo!(name: string) -> Result[Repo?, ApiError] $ Http:
         .Ok(response) => response
         .Err(.Status(response)) if response.status.code() == 404 => return .Ok(.None)
         .Err(error) => return .Err(.Transport(error))
-    match response.json::[Repo]():
-        .Ok(repo) => .Ok(.Some(repo))
-        .Err(_) => .Err(.Body)
+    .Ok(.Some(response.json::[Repo]()?))     # decode the body into the derived type
 
 # POST: build a `Request`, then `send!`. `send!` does not check the status.
 fn open_issue!(repo: string, title: string, token: string) -> Result[u16, ApiError] $ Http:
-    address := "https://api.example.com/repos/$repo/issues"
-    url := match Url::parse(address):
-        .Ok(url) => url
-        .Err(_) => return .Err(.Address(address))
+    url := Url::parse("https://api.example.com/repos/$repo/issues")?
     request := Request::post(url)
         .set_json(NewIssue { title: title })
         .set_header(.Authorization, "Bearer $token")
@@ -65,6 +64,13 @@ tests:
             assert_equal(repo!("hd").ok(), .Some(.Some(Repo { name: "hd", stars: 7 })))
             assert_equal(repo!("gone").ok(), .Some(.None))
         assert_equal(http.received().len(), 2)
+
+    it("reports a body that is not a repository"):
+        http := ScriptedHttp::new()
+        http.reply("https://api.example.com/repos/odd", .Ok(Response::status(.Ok).set_text("[]")))
+        $.with(Http=http):
+            error := repo!("odd").err().expect("an error")
+            assert_equal("$error", "unexpected response body: invalid JSON body: expected object at $")
 
     it("posts JSON with a header"):
         http := ScriptedHttp::new()
@@ -90,6 +96,14 @@ tests:
   its status; `response.ok()` turns a failing status into an error.
 - **Reading a response**: `response.status` (`.code()`, `.is_success()`),
   `response.json::[T]()`, `response.text()`, `response.header(name)`.
+  A body is read once; a second read is `BodyError.Used`.
+- **Query strings and forms** use the same derived types:
+  `request.set_query_as(value)`, `request.set_form(value)`, and
+  `request.query_as::[T]()` or `request.form::[T]()` to read one.
+- **One error type**: `@from` payloads for `HttpError`, `UrlError` and
+  `BodyError` let `?` pass each failure up. Check a decoded payload's
+  rules with `@derive(Validate)` and `.validated()`
+  ([configuration.md](configuration.md)).
 - **Header names** are an enum: `.Authorization`, `.ContentType`,
   `.UserAgent`, `.Accept`, or `.Other("x-custom")`.
 - **Errors**: `error.is_transient()` on an `HttpError` says whether a retry

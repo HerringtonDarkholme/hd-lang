@@ -7,11 +7,14 @@ total.
 ## The program
 
 ```hd
+use std.encoding.Deserialize
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
-use std.num.ParseNumberError
 use std.path.Path
+use std.regex.{Regex, RegexError}
+use std.text.r
 
-@derive(Eq, Debug)
+# A row's fields are the regex's named groups.
+@derive(Deserialize, Eq, Debug)
 struct Order:
     customer: string
     item: string
@@ -20,28 +23,23 @@ struct Order:
 @error
 @derive(Eq, Debug)
 pub enum ImportError:              # `pub`: the public `main` returns it
-    @error("line $line: expected 3 fields, found $found")
-    FieldCount(line: usize, found: usize)
-    @error("line $line: bad amount '$text'")
-    BadAmount(line: usize, text: string)
+    @error("line $line: expected customer,item,cents")
+    Shape(line: usize)
+    @error("line $line: $error")
+    Field(line: usize, error: RegexError)
     @error("cannot read the file")
     Read(@from error: FsError)
 
-fn parse_row(line: usize, text: string) -> Result[Order, ImportError]:
-    fields := text.split(",").map(fn(field): field.trim())
-    if fields.len() != 3:
-        return .Err(.FieldCount(line, fields.len()))
-    cents := match fields[2].parse::[i64]():
-        .Ok(cents) => cents
-        .Err(_) => return .Err(.BadAmount(line, fields[2]))
-    .Ok(Order { customer: fields[0], item: fields[1], cents: cents })
-
 fn parse(text: string) -> Result[List[Order], ImportError]:
+    row := Regex::new(r"^ *(?<customer>[^,]*?) *, *(?<item>[^,]*?) *, *(?<cents>[^,]*?) *$").expect("a valid pattern")
     let mut orders: List[Order] = []
     for (index, line) in text.lines().iter().enumerate():
         if index == 0 || line.trim() == "":     # the header, and blank lines
             continue
-        orders.push(parse_row(index + 1, line)?)
+        match row.decode::[Order](line):        # match, then build an Order from the groups
+            .Ok(order) => orders.push(order)
+            .Err(.NoMatch) => return .Err(.Shape(index + 1))
+            .Err(error) => return .Err(.Field(index + 1, error))
     .Ok(orders)
 
 fn totals(orders: List[Order]) -> List[(string, i64)]:
@@ -68,9 +66,9 @@ tests:
         ]))
 
     it("names the bad line"):
-        assert_equal(parse("h\nada,lamp\n"), .Err(.FieldCount(2, 2)))
+        assert_equal(parse("h\nada,lamp\n"), .Err(.Shape(2)))
         result := parse("h\nada,lamp,many\n")
-        assert_equal(result.err().map(fn(error): error.to_string()), .Some("line 2: bad amount 'many'"))
+        assert_equal(result.err().map(fn(error): error.to_string()), .Some("line 2: cannot decode regex group cents as i64"))
 
     it("totals by customer, largest first"):
         orders := parse("h\nada,lamp,100\ngrace,bulb,900\nada,desk,300\n").expect("valid rows")
@@ -85,8 +83,13 @@ tests:
 
 ## The pieces
 
-- **Split, then validate.** `text.lines()` gives the rows, `split(",")` the
-  fields, and `parse::[i64]()` a `Result` to turn into your own error.
+- **Decode, don't split by hand.** `@derive(Deserialize)` on the record,
+  and a regex with one named group per field: `row.decode::[Order](line)`
+  matches the line and builds the record, parsing `cents` as an `i64`.
+  `.Err(.NoMatch)` is a line of the wrong shape; any other `RegexError`
+  names the group that did not parse.
+- **Compile the pattern once**, outside the loop. Write it as a raw
+  string, `r"..."`, so `\d` needs no second backslash.
 - **One error enum for the whole job.** `@error` writes the messages, with
   `$name` reading the variant's fields. `@from` on `Read` lets `?` convert
   an `FsError`. Add `@derive(Eq, Debug)` so tests can compare errors.
@@ -96,5 +99,9 @@ tests:
 - **Sorting largest first**: sort by the negated key, or
   `sorted_by_key(...)` then `reversed()`.
 - **Money stays an integer** (cents). Format it at the edge.
-- For a quoted CSV dialect, write a small field splitter that walks
-  `line.chars()`; `split(",")` does not understand quotes.
+- **When the text is JSON**, skip the regex: `decode::[List[Order]](text)`
+  from `std.encoding.json` reads the same derived record
+  ([configuration.md](configuration.md)).
+- **Without a regex**: `line.split(",")` gives the fields and
+  `field.parse::[i64]()` a `Result`. Neither understands quoted CSV
+  fields; for those, walk `line.chars()`.

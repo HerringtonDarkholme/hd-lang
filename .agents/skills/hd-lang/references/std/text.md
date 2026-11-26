@@ -122,19 +122,35 @@ A number becomes text with `n.to_string()` or `"$n"`.
 `std.regex` compiles a pattern once and runs in linear time. Write the
 pattern as a raw string, `r"..."`, so `\d` needs no second backslash.
 
+To pull several fields out of a line, name the groups after the fields of
+a `@derive(Deserialize)` struct and call `decode::[T]`: it matches, then
+parses each group as its field's type.
+
 ```hd
+use std.encoding.Deserialize
 use std.regex.Regex
 use std.text.r
 
-fn status_of(line: string) -> i32?:
-    pattern := Regex::new(r"\"[A-Z]+ [^ ]*\" (\d\d\d)").expect("a valid pattern")
-    found := pattern.captures(line)?
-    code := found.get(1)?
-    code.text.parse::[i32]().ok()
+@derive(Deserialize, Debug)
+struct Hit:
+    method: string
+    path: string
+    status: i32
 
-println("${debug(status_of("\"GET /ok\" 200"))} ${debug(status_of("garbage"))}")
+fn hit_of(line: string) -> Hit?:
+    pattern := Regex::new(r"\"(?<method>[A-Z]+) (?<path>[^ ]*)\" (?<status>\d\d\d)").expect("a valid pattern")
+    pattern.decode::[Hit](line).ok()
+
+println("${debug(hit_of("\"GET /ok\" 200"))} ${debug(hit_of("garbage"))}")
 ```
 
 ```output
-Option.Some(200) Option.None
+Option.Some(Hit { method: "GET", path: "/ok", status: 200 }) Option.None
 ```
+
+`decode` returns `RegexError.NoMatch` when the line does not match, and
+`WrongType` naming the group that does not parse. A `T?` field is `.None`
+when its group took no part. For one group, `pattern.captures(line)`
+gives the groups: `get(1)` by number, `name("status")` by name, each a
+`Match?` with `.text`. `is_match`, `find`, `find_all`, `replace_all` and
+`split` cover the rest.

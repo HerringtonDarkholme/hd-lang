@@ -1,4 +1,4 @@
-# Talking To The Outside: Console, Files, Time, JSON
+# Talking To The Outside: Console, Arguments, Environment, Files, Time, JSON
 
 Each capability is a trait that the function's row must name
 ([language/requirements.md](../language/requirements.md)). Calls that wait
@@ -29,20 +29,8 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
 
 ## Arguments and environment
 
-```hd
-use std.host.{Env, env}
-use std.cli.{Args, args}
-
-pub fn main() -> void $ Console + Args + Env:
-    words := args()                             # the arguments after `--`
-    name := words.get(0).unwrap_or("world")
-    home := env("HOME").unwrap_or("?")          # `string?`
-    println("hello, $name from $home")
-```
-
-Run it as `hd greet.hd -- Ada`. For options, flags and `--help`, derive
-the parser from a struct with `@derive(Cli)`
-([how-to/cli-tool.md](../how-to/cli-tool.md)):
+Derive both. For options, flags and `--help`, derive the parser from a
+struct with `@derive(Cli)` ([how-to/cli-tool.md](../how-to/cli-tool.md)):
 
 ```hd
 use std.cli.{Args, Cli}
@@ -61,6 +49,51 @@ pub fn main() -> ExitCode $ Args + Console:
     println(volume.level)
     ExitCode(0)
 ```
+
+For settings in environment variables, decode them into a
+`@derive(Deserialize)` struct with `env_decode`. Each field reads the
+prefix plus its name in uppercase:
+
+```hd
+use std.encoding.Deserialize
+use std.host.{Env, HostError, ScriptedEnv, env_decode}
+
+@derive(Deserialize, Debug)
+struct Settings:
+    port: u16 = 8080                # reads APP_PORT
+    hosts: List[string] = []        # reads APP_HOSTS, split on commas
+    token: string?                  # reads APP_TOKEN; `.None` when unset
+
+fn settings() -> Result[Settings, HostError] $ Env:
+    env_decode::[Settings](prefix="APP_")
+
+$.with(Env=box(ScriptedEnv::new({"APP_HOSTS": "a.example,b.example"}))):
+    println(debug(settings()))
+$.with(Env=box(ScriptedEnv::new({"APP_PORT": "http"}))):
+    println("${settings().err().expect("a bad port")}")
+```
+
+```output
+Result.Ok(Settings { port: 8080, hosts: ["a.example", "b.example"], token: Option.None })
+invalid value for APP_PORT: invalid digit at position 0
+```
+
+When you need the raw values: `args()` from `std.cli` is the argument
+list, `env("HOME")` from `std.host` one variable as `string?`, and
+`env_as::[u16]("PORT")` one variable parsed, as `Result[u16?, HostError]`.
+
+```hd
+use std.host.{Env, env}
+use std.cli.{Args, args}
+
+pub fn main() -> void $ Console + Args + Env:
+    words := args()                             # the arguments after `--`
+    name := words.get(0).unwrap_or("world")
+    home := env("HOME").unwrap_or("?")          # `string?`
+    println("hello, $name from $home")
+```
+
+Run it as `hd greet.hd -- Ada`.
 
 ## Files
 
@@ -166,7 +199,13 @@ bad config: missing field at $.limits
 Option.Some(7)
 ```
 
-`encode_pretty(value)` writes indented text.
+`encode_pretty(value)` writes indented text. Field facts from
+`std.encoding` change the JSON view without a hand-written `impl`:
+`@rename("totalCents")` on a field, `@rename_all(.CamelCase)` on the type,
+`@skip()` to leave a field out, and `@skip_none()` to omit an absent
+optional ([language/traits.md](../language/traits.md#derived-implementations)).
+Reach for the untyped `parse` and `Json` only when the shape is not known
+in advance.
 
 ## Random
 

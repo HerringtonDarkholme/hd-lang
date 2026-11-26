@@ -110,16 +110,25 @@ A bare `List[Shape]` is the error `trait-used-as-type`.
 
 ## Derived implementations
 
-`@derive(...)` writes the standard implementations from the fields. The
-first four rows need no import.
+`@derive(...)` writes a trait's implementation from the type's fields.
+Derive before writing an `impl` by hand: a derived parser, codec or
+checker stays in step with the fields.
 
-| Derive | Gives |
-| --- | --- |
-| `Eq` | `==` and `!=` |
-| `Eq, PartialOrd, Ord` | `<`, `>`, `sorted()`, `max` (list all three) |
-| `Eq, Hash` | use as a map key or set element |
-| `Debug` | `debug(x)`, and `assert_equal` on the type |
-| `Serialize, Deserialize` | JSON; `use std.encoding.{Deserialize, Serialize}` |
+| Derive | Gives | Import |
+| --- | --- | --- |
+| `Eq` | `==` and `!=` | none |
+| `Eq, PartialOrd, Ord` | `<`, `>`, `sorted()`, `max` (list all three) | none |
+| `Eq, Hash` | use as a map key or set element | none |
+| `Debug` | `debug(x)`, and `assert_equal` on the type | none |
+| `Default` | `T::default()`, from the field defaults | `std.ops.Default` |
+| `Serialize, Deserialize` | JSON `encode` and `decode`, `env_decode`, regex `decode`, HTTP `json` and `set_json`, query and form values | `std.encoding` |
+| `MapKey` | a payload-free enum as a JSON object key | `std.encoding` |
+| `Cli` | a command-line parser with `--help` ([how-to/cli-tool.md](../how-to/cli-tool.md)) | `std.cli` |
+| `Validate` | `value.validated()`, checking the rule facts on its fields ([how-to/configuration.md](../how-to/configuration.md)) | `std.validate` |
+| `Arbitrary` | generated inputs for `it_prop` | `std.testing` |
+
+Values copy, so there is no `Clone` to derive. An `@error` enum gets
+`Display` and `Error` from its messages ([errors.md](errors.md)).
 
 ```hd
 @derive(Eq, PartialOrd, Ord, Hash, Debug)
@@ -142,6 +151,47 @@ println("$a < $b: ${a < b}; newest ${[a, b].sorted()[1]}; ${seen.len()} ${debug(
 ```
 
 Implementing `Display` is what lets a type appear in `"$value"`.
+
+**Field facts** configure one derive from the field. `@rename("qty")` and
+`@skip()` change the JSON view; `@rename_all(.CamelCase)` on the type
+renames every field. `@short('n')` and `@positional` shape a `Cli`
+argument, and `@range(1, 99)`, `@length(1, 80)` and the other
+`std.validate` rules feed `Validate`. Each fact is imported from the
+module of its trait.
+
+```hd
+use std.encoding.{Deserialize, MapKey, Serialize, rename, skip}
+use std.encoding.json.{decode, encode}
+use std.ops.Default
+
+@derive(Eq, Hash, Debug, Serialize, Deserialize, MapKey)
+enum Size:
+    Small
+    Large
+
+@derive(Default, Serialize, Deserialize, Eq, Debug)
+struct Order:
+    @rename("qty")
+    quantity: u32 = 1
+    sizes: Map[Size, u32]
+    @skip()
+    cached_total: u32 = 0
+
+order := Order { ...Order::default(), sizes: {.Large: 2}, cached_total: 7 }
+text := encode(order)
+println("${debug(Order::default())} $text")
+println(debug(decode::[Order](text)))
+```
+
+```output
+Order { quantity: 1, sizes: {}, cached_total: 0 } {"qty":1,"sizes":{"Large":2}}
+Result.Ok(Order { quantity: 1, sizes: {Size.Large: 2}, cached_total: 0 })
+```
+
+When one trait must see a field differently, write that one derivation as
+a block: `impl Serialize for Session by Structure:` with the member line
+`cache = pass` leaves `cache` out of that trait alone (`use
+std.meta.Structure`).
 
 ## Operators
 
