@@ -760,13 +760,15 @@ fn link_prepared(
     drop(span);
     let span = hd_base::trace::span("phase", || "link: emit instances".to_owned());
     for id in input.order {
-        let f = emit::instance(input, &mut m, *id).map_err(|error| {
-            locate_layout_error(error, || {
-                input
-                    .env
-                    .source_span(input.collected.table.item[id.idx()], hd_base::NodeIdx::NONE)
-            })
-        })?;
+        let f = m
+            .emit_local(|m| emit::instance(input, m, *id))
+            .map_err(|error| {
+                locate_layout_error(error, || {
+                    input
+                        .env
+                        .source_span(input.collected.table.item[id.idx()], hd_base::NodeIdx::NONE)
+                })
+            })?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     drop(span);
