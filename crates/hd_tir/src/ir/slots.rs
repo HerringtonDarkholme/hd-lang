@@ -85,18 +85,33 @@ enum Layout {
     Stored,
 }
 
+/// [`layout`] of each tag, by its number, made at compile time as LLVM's
+/// `TableGen` makes its operand tables: [`slots`] runs per instruction in
+/// every pass, so it reads the table rather than matching the tag again.
+const LAYOUTS: [[Layout; 2]; Tag::ALL.len()] = {
+    let mut out = [[L::Opaque; 2]; Tag::ALL.len()];
+    let mut k = 0;
+    while k < out.len() {
+        out[Tag::ALL[k] as usize] = layout(Tag::ALL[k]);
+        k += 1;
+    }
+    out
+};
+
 /// The layout of each data word of `tag`: its [`Op`]'s, but where the
 /// tag's role or record says more.
-fn layout(tag: Tag) -> [Layout; 2] {
-    let plain = |op| match op {
-        Op::Inst => L::One(Word::Inst),
-        Op::Value => L::One(Word::Value(Role::Lend)),
-        Op::Block => L::One(Word::Block),
-        Op::Place => L::Place(Role::Lend),
-        Op::Values => L::Each(Word::Value(Role::Lend)),
-        Op::Blocks => L::Each(Word::Block),
-        _ => L::Opaque,
-    };
+const fn layout(tag: Tag) -> [Layout; 2] {
+    const fn plain(op: Op) -> Layout {
+        match op {
+            Op::Inst => L::One(Word::Inst),
+            Op::Value => L::One(Word::Value(Role::Lend)),
+            Op::Block => L::One(Word::Block),
+            Op::Place => L::Place(Role::Lend),
+            Op::Values => L::Each(Word::Value(Role::Lend)),
+            Op::Blocks => L::Each(Word::Block),
+            _ => L::Opaque,
+        }
+    }
     let (a, b) = (plain(tag.operands().0), plain(tag.operands().1));
     let consume = Word::Value(Role::Consume);
     match tag {
@@ -131,7 +146,7 @@ fn layout(tag: Tag) -> [Layout; 2] {
 /// data word has none.
 pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
     let tag = b.tags[i];
-    let mut layouts = layout(tag);
+    let mut layouts = LAYOUTS[tag as usize];
     if tag == Tag::Return && b.data[i][1] == super::return_word::BORROWED {
         layouts[0] = L::One(Word::Value(Role::Lend));
     }
