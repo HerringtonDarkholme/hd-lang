@@ -1,0 +1,24 @@
+# test: a `&mut self` trait method whose implementation fills `Self` and a trait argument with one type parameter stores its argument into the receiver
+# Spec 13 Generic Locality: ref.generic.store, ref.lifetime.trait.impl-argument.
+struct P:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+trait Put[V]:
+    fn put(&mut self, value: V) -> void
+
+impl[T] Put[T] for Holder[T]:
+    fn put(&mut self, value: T) -> void:
+        self.value = value
+
+fn keep(h: &mut Holder[&P]) -> void:
+    p := P { name: "x${1}" }
+    h.put(&p) # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    let mut h = Holder { value: &q }
+    keep(&mut h)
+    println(h.value.name)

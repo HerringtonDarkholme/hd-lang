@@ -1,0 +1,37 @@
+# test: a store into a field of `r[k]` through a user IndexMut lands in the receiver, so a local reference cannot escape through it
+# Spec 13 Generic Locality: ref.generic.store, ref.lifetime.store.field; Spec 5: expr.index.trait.mutable-place.
+use std.ops.Index
+use std.ops.IndexMut
+use std.ops.IndexSet
+
+struct P:
+    name: string
+
+struct Pin['a]:
+    r: &'a P
+
+struct Holder[T]:
+    value: T
+
+impl[T] Index[usize] for Holder[T]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        &self.value
+
+impl[T] IndexMut[usize] for Holder[T]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        &mut self.value
+
+impl[T] IndexSet[usize, T] for Holder[T]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.value = value
+
+fn keep['a](h: &mut Holder[Pin['a]]) -> void:
+    p := P { name: "x${1}" }
+    h[0].r = &p # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    let mut h = Holder { value: Pin { r: &q } }
+    keep(&mut h)
+    println(h.value.r.name)

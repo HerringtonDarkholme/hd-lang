@@ -3024,7 +3024,7 @@ impl Ck<'_, '_> {
                         (ChoiceKind::Impl, imp) => {
                             let targs = pool.list_items(targs);
                             let imp = DefId::from_raw(imp);
-                            self.impl_trait_slots(ls, imp, targs, &mut impl_links)
+                            self.impl_trait_slots(ls, imp, (self_ty, targs), &mut impl_links)
                         }
                         (ChoiceKind::TraitValue, _) => {
                             vec![self.trait_value_self_slots(ls, trait_, self_ty)]
@@ -4578,19 +4578,29 @@ impl Ck<'_, '_> {
     }
 
     /// For the trait's abstract `Self` and then each trait argument, as a
-    /// call through implementation `imp` instantiates them with `targs`,
-    /// the trait lifetime each slot's implementation lifetime is
-    /// (`ref.lifetime.trait`). The slots of one implementation lifetime
+    /// call through implementation `imp` instantiates them with `self_ty`
+    /// and `targs`, the trait lifetime each slot's implementation lifetime
+    /// is (`ref.lifetime.trait`). The slots of one implementation lifetime
     /// that is no trait lifetime are one variable, pushed to `links`: with
     /// `impl['b] Put[&'b Point] for Cell['b]`, `put(&mut self, v: V)`
     /// stores `v` in the target's `'b` slot (`ref.lifetime.trait.impl-argument`).
+    /// So are the slots of one slot of an implementation's type parameter:
+    /// with `impl[T] IndexSet[usize, T] for Holder[T]`, `r[k] = v` stores
+    /// `v` in `r`'s `T` (`ref.generic.store`, `expr.index.trait.write-ref`).
     fn impl_trait_slots(
         &self,
         ls: &Layouts<'_>,
         imp: DefId,
-        targs: &[Ty],
+        (inst_self, targs): (Ty, &[Ty]),
         links: &mut Vec<(Var, Var)>,
     ) -> Vec<Vec<Option<u32>>> {
+        /// What an instance slot lies in: an implementation lifetime, or
+        /// slot `s` of what an implementation's type parameter stands for.
+        #[derive(Clone, Copy, PartialEq)]
+        enum Of {
+            Life(u32),
+            Param(ParamRef, usize),
+        }
         let Some(ItemData::Impl {
             trait_,
             trait_args,
@@ -4604,27 +4614,30 @@ impl Ck<'_, '_> {
             return Vec::new();
         };
         let pool = ls.pool;
-        let mut lts: Vec<Vec<u32>> = vec![
-            ls.slot_lifetimes(*self_ty, self_lifetimes)
-                .into_iter()
-                .map(u32::from)
-                .collect(),
+        let life = |l: u16| (l != 0).then_some(Of::Life(u32::from(l)));
+        let of = |decl: Ty, inst: Ty, ids: &[u16]| -> Option<Vec<Option<Of>>> {
+            let keys = line_up(ls, decl, inst)?;
+            Some(
+                (keys.into_iter())
+                    .map(|k| match k {
+                        Key::Decl(j) => ids.get(j).copied().and_then(life),
+                        Key::Param(q, s) => Some(Of::Param(q, s)),
+                        _ => None,
+                    })
+                    .collect(),
+            )
+        };
+        let ids = ls.slot_lifetimes(*self_ty, self_lifetimes);
+        let mut lts: Vec<Vec<Option<Of>>> = vec![
+            of(*self_ty, inst_self, &ids).unwrap_or_else(|| ids.iter().map(|&l| life(l)).collect()),
         ];
-        if !trait_slots.is_empty() {
-            let args = pool.list_items(*trait_args);
-            let mut at = 0;
-            for &a in args {
-                let end = at + pool.ref_slots(a);
-                let ids = ls.slot_lifetimes(a, trait_slots.get(at..end).unwrap_or(&[]));
-                at = end;
-                let inst = targs.get(lts.len() - 1).copied().unwrap_or(a);
-                let keys = line_up(ls, a, inst).unwrap_or_default();
-                let mine = keys.into_iter().map(|k| match k {
-                    Key::Decl(j) => ids.get(j).copied().map_or(0, u32::from),
-                    _ => 0,
-                });
-                lts.push(mine.collect());
-            }
+        let mut at = 0;
+        for &a in pool.list_items(*trait_args) {
+            let end = at + pool.ref_slots(a);
+            let ids = ls.slot_lifetimes(a, trait_slots.get(at..end).unwrap_or(&[]));
+            at = end;
+            let inst = targs.get(lts.len() - 1).copied().unwrap_or(a);
+            lts.push(of(a, inst, &ids).unwrap_or_default());
         }
         let at = |l: u32| {
             if l == STATIC {
@@ -4634,13 +4647,13 @@ impl Ck<'_, '_> {
                 .position(|&x| u32::from(x) == l && l != 0)
                 .map(|k| w(k + 1))
         };
-        let mut first: Vec<(u32, Var)> = Vec::new();
+        let mut first: Vec<(Of, Var)> = Vec::new();
         for (g, slots) in lts.iter().enumerate() {
             let index = u16::try_from(g).unwrap_or(u16::MAX);
-            for (s, &l) in slots.iter().enumerate() {
-                if l == 0 || at(l).is_some() {
+            for (s, &o) in slots.iter().enumerate() {
+                let Some(o) = o.filter(|&o| !matches!(o, Of::Life(l) if at(l).is_some())) else {
                     continue;
-                }
+                };
                 let v = Var::Param(
                     ParamRef {
                         owner: *trait_,
@@ -4648,14 +4661,21 @@ impl Ck<'_, '_> {
                     },
                     s,
                 );
-                match first.iter().find(|x| x.0 == l) {
+                match first.iter().find(|x| x.0 == o) {
                     Some(&(_, f)) => links.push((f, v)),
-                    None => first.push((l, v)),
+                    None => first.push((o, v)),
                 }
             }
         }
         (lts.iter())
-            .map(|slots| slots.iter().map(|&l| at(l)).collect())
+            .map(|slots| {
+                (slots.iter())
+                    .map(|o| match o {
+                        Some(Of::Life(l)) => at(*l),
+                        _ => None,
+                    })
+                    .collect()
+            })
             .collect()
     }
 

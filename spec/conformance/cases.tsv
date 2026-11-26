@@ -6061,6 +6061,17 @@ lang/references/generic-locality/static-bound-box-unbounded-parameter.hd	type	re
 lang/references/generic-locality/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 lang/references/generic-locality/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 lang/references/generic-locality/an-index-assignment-stores-like-index-set.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/an-index-assignment-of-a-caller-reference-runs-with-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-store-through-index-mut-stores-like-index-mut.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-store-through-index-mut-runs-with-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-store-into-a-field-of-an-index-mut-element-stores-into-the-receiver.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-store-into-a-field-of-an-index-mut-element-runs-with-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/an-index-read-keeps-the-elements-source.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.call
+lang/references/generic-locality/an-index-read-runs-with-the-elements-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.call
+lang/references/generic-locality/a-call-assignment-stores-like-update.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-call-assignment-runs-with-its-source.hd	runtime	accept	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-trait-method-through-a-generic-implementation-stores-into-the-receiver.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
+lang/references/generic-locality/a-store-through-a-returned-mutable-reference-stores-into-the-receiver.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
 lang/references/generic-locality/static-bound-unbounded-parameter-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
 lang/references/generic-locality/static-bound-impl-unmet.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.generic.static.impl
 lang/references/static-references/static-reference-parameter-reads-a-field.hd	type	accept	lang/13-values-and-references.md#r-ref.static.form

@@ -977,10 +977,19 @@ impl Gen<'_, '_> {
             self.each_into(&rs, &me.0);
             return;
         }
+        // A result slot behind a `&mut` is the place the callee lent, so a
+        // store through it lands in its variable (`ref.generic.store`):
+        // `*h.at(0) = v` with `fn at(&mut self, k: usize) -> &mut T`.
+        let lay = ls.of(me.1);
         for (k, &to) in me.0.iter().enumerate() {
+            let lent = under_mut(pool, &lay, k);
             for &v in sig.outs.get(k).into_iter().flatten() {
                 let r = var(&mut self.t, v);
-                self.flow(r, to);
+                if lent {
+                    self.c.equal(r, to, self.at);
+                } else {
+                    self.flow(r, to);
+                }
             }
         }
     }

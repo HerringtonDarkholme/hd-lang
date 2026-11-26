@@ -1,0 +1,40 @@
+# test: an index assignment through a user IndexSet may store a reference the caller passed, and one that lives as long as the holder
+# Spec 13 Generic Locality: ref.generic.store; Spec 5: expr.index.trait.write-ref.
+# expect-stdout: b
+# expect-stdout: c1
+use std.ops.Index
+use std.ops.IndexMut
+use std.ops.IndexSet
+
+struct P:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+impl[T] Index[usize] for Holder[T]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        &self.value
+
+impl[T] IndexMut[usize] for Holder[T]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        &mut self.value
+
+impl[T] IndexSet[usize, T] for Holder[T]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.value = value
+
+fn keep['a](h: &mut Holder[&'a P], p: &'a P) -> void:
+    h[0] = p
+
+pub fn main() -> void $ Console:
+    a := P { name: "a" }
+    b := P { name: "b" }
+    let mut h = Holder { value: &a }
+    keep(&mut h, &b)
+    println(h.value.name)
+    c := P { name: "c${1}" }
+    let mut k = Holder { value: &a }
+    k[0] = &c
+    println(k.value.name)
