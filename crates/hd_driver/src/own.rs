@@ -177,11 +177,6 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(Node, u32), bool>>,
-    /// While a recursive component is owned, each member's borrows, which
-    /// [`Env::summary_lends`] answers without recording: assumed while
-    /// its fixed point runs ([`Env::component_borrows`]), then the fixed
-    /// point while the passes run over the members.
-    assume: std::sync::Mutex<HashMap<Node, u64>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
     /// Per instance whose passes would borrow through a `&T` or `&mut T`
@@ -1900,7 +1895,14 @@ impl Env<'_> {
     /// query per distinct type, with constant-time warm lookup.
     fn layout_facts(&self, t: Ty) -> (bool, Option<bool>) {
         crate::work::layout_probe();
-        if let Some(facts) = lock(&self.run.own_types).get(t).and_then(|f| f.layout) {
+        if let Some(facts) = known_facts(self.run.layout_key, t).and_then(|f| f.layout) {
+            return facts;
+        }
+        let entry = lock(&self.run.own_types).get(t).copied();
+        if let Some(facts) = entry.and_then(|f| {
+            keep_facts(self.run.layout_key, t, f);
+            f.layout
+        }) {
             return facts;
         }
         // The backend's queries may ask this run's other facts: no lock
@@ -1914,18 +1916,23 @@ impl Env<'_> {
         ref_facts(pool, self.run.known.ptr, t, &mut memo);
         if let Some(entry) = memo.get_mut(t) {
             entry.layout = Some(facts);
+            keep_facts(self.run.layout_key, t, *entry);
         }
         facts
     }
 
     /// `t`'s reference facts from the run's layout memo ([`ref_facts`]).
     pub fn ref_facts(&self, t: Ty) -> RefFacts {
-        ref_facts(
-            &self.run.pool,
-            self.run.known.ptr,
-            t,
-            &mut lock(&self.run.own_types),
-        )
+        if let Some(f) = known_facts(self.run.layout_key, t) {
+            crate::work::layout_probe();
+            return f.refs;
+        }
+        let mut memo = lock(&self.run.own_types);
+        let refs = ref_facts(&self.run.pool, self.run.known.ptr, t, &mut memo);
+        if let Some(&entry) = memo.get(t) {
+            keep_facts(self.run.layout_key, t, entry);
+        }
+        refs
     }
 
     /// Runs the ownership passes over `body`, then, in checked and debug
@@ -3256,7 +3263,7 @@ impl Env<'_> {
             if glue {
                 lent = 0;
             }
-            if let Some(&fixed) = lock(&all.assume).get(&node) {
+            if let Some(fixed) = assumed(node) {
                 // The fixed point holds of the passes' last run.
                 assert!(
                     fixed & s.kept == 0,
@@ -3291,7 +3298,7 @@ impl Env<'_> {
         let lends = |m| {
             hd_tir::own::ParameterMode::Owned.with_lends(m, k) == hd_tir::own::ParameterMode::Lent
         };
-        if let Some(&m) = lock(&all.assume).get(&node) {
+        if let Some(m) = assumed(node) {
             return lends(m);
         }
         let key = (node, hd_tir::ir::u32_of(k));
@@ -3348,7 +3355,7 @@ impl Env<'_> {
             }
             assume.insert(m, mask);
         }
-        lock(&all.assume).clone_from(&assume);
+        ASSUME.with_borrow_mut(|a| a.clone_from(&assume));
         let mut fell = true;
         while fell {
             fell = false;
@@ -3363,12 +3370,12 @@ impl Env<'_> {
                     .unwrap_or(u64::MAX);
                 if a & kept != 0 {
                     assume.insert(m, a & !kept);
-                    lock(&all.assume).insert(m, a & !kept);
+                    ASSUME.with_borrow_mut(|assumed| assumed.insert(m, a & !kept));
                     fell = true;
                 }
             }
         }
-        lock(&all.assume).clear();
+        ASSUME.with_borrow_mut(HashMap::clear);
         assume
     }
 
@@ -3576,6 +3583,50 @@ impl Env<'_> {
 thread_local! {
     /// The bodies each running [`reading`] call has read, innermost last.
     static READS: RefCell<Vec<Vec<DefId>>> = const { RefCell::new(Vec::new()) };
+    /// While this thread owns a recursive component, each member's borrows,
+    /// which [`Env::summary_lends`] answers without recording: assumed
+    /// while its fixed point runs ([`Env::component_borrows`]), then the
+    /// fixed point while the passes run over the members. A component is
+    /// owned on one thread, so each thread holds its own.
+    static ASSUME: RefCell<HashMap<Node, u64>> = RefCell::new(HashMap::default());
+    /// Whether this thread is owning a component: a nested
+    /// [`Run::owned_bottom_up`] then stays on it, so no other component's
+    /// job runs inside this one.
+    static OWNING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// This thread's copies of the run's type facts it has read
+    /// (`Run::own_types`), and the run they are of (`Run::layout_key`):
+    /// a warm read takes no lock, so the threads that own components
+    /// do not queue on the run's table. A type's facts never change once
+    /// made, but its layout facts are added later, so a copy without
+    /// them asks the table again. Cost: one entry per type a thread reads.
+    static TYPE_FACTS: RefCell<(u64, HashMap<Ty, TypeFacts>)> =
+        RefCell::new((0, HashMap::default()));
+}
+
+/// One strongly connected component [`Run::owned_bottom_up`] owns: its
+/// members in path order, whether it is recursive, and their inlined
+/// bodies, taken by the thread that owns it.
+type Component = std::sync::Mutex<Option<(Vec<Node>, bool, HashMap<Node, (Body, Hash128)>)>>;
+
+/// Type `t`'s facts, when this thread has read them in run `run`.
+fn known_facts(run: u64, t: Ty) -> Option<TypeFacts> {
+    TYPE_FACTS.with_borrow(|(of, facts)| (*of == run).then(|| facts.get(&t).copied()).flatten())
+}
+
+/// Keeps a copy of type `t`'s facts in run `run` for this thread.
+fn keep_facts(run: u64, t: Ty, entry: TypeFacts) {
+    TYPE_FACTS.with_borrow_mut(|(of, facts)| {
+        if *of != run {
+            *of = run;
+            facts.clear();
+        }
+        facts.insert(t, entry);
+    });
+}
+
+/// Member `node`'s borrows while its recursive component is owned here.
+fn assumed(node: Node) -> Option<u64> {
+    ASSUME.with_borrow(|a| a.get(&node).copied())
 }
 
 /// Records reads of `defs` for the innermost [`reading`] call running.
@@ -4003,18 +4054,28 @@ impl Run<'_> {
         let _span = super::phase("collect: own bottom-up");
         self.with_env(p, |env| {
             let inlined = RefCell::new(HashMap::default());
+            // Each entered node's callees, for its component's level.
+            let edges = RefCell::new(HashMap::<Node, Vec<Node>>::default());
             let mut callees = |n: Node| {
                 // A refused body stays unowned: `owned_instance` reports it.
                 let span = super::phase("collect: inline");
                 let inlined_instance = env.inlined_instance(n);
                 drop(span);
-                let Ok(Some((body, hash))) = inlined_instance else {
-                    return env.borrowed_effect_callees(n);
+                let out = if let Ok(Some((body, hash))) = inlined_instance {
+                    let out = env.summarized_callees(&body);
+                    inlined.borrow_mut().insert(n, (body, hash));
+                    out
+                } else {
+                    env.borrowed_effect_callees(n)
                 };
-                let out = env.summarized_callees(&body);
-                inlined.borrow_mut().insert(n, (body, hash));
+                edges.borrow_mut().insert(n, out.clone());
                 out
             };
+            // The components to own, by level: a component's level is one
+            // above its highest callee component's in this walk, so the
+            // components of one level call none of each other's members.
+            let mut levels: Vec<Vec<Component>> = Vec::new();
+            let mut level_of: HashMap<Node, usize> = HashMap::default();
             let names = self.names();
             let mut canons = hd_mono::layout::CanonMemo::default();
             // A member's path, then one digest of its type arguments.
@@ -4089,25 +4150,82 @@ impl Run<'_> {
                     for &m in members.iter() {
                         lock(&all.cycle).insert(m, members[0]);
                     }
-                    let borrows = env.component_borrows(members, &inlined.borrow());
-                    *lock(&all.assume) = borrows;
                 }
+                let edges = edges.borrow();
+                let level = members
+                    .iter()
+                    .flat_map(|m| edges.get(m).into_iter().flatten())
+                    .filter(|c| !indices.contains_key(*c))
+                    .filter_map(|c| level_of.get(c))
+                    .map(|&l| l + 1)
+                    .max()
+                    .unwrap_or(0);
+                let mut inlined = inlined.borrow_mut();
+                let bodies = members
+                    .iter()
+                    .filter_map(|m| Some((*m, inlined.remove(m)?)))
+                    .collect();
                 for &m in members.iter() {
-                    let body = inlined.borrow_mut().remove(&m);
-                    let span = super::phase("collect: own passes");
-                    let owned = body.and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
-                    drop(span);
-                    if m.1 != TyList::EMPTY {
-                        let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
-                        lock(&self.instances).insert(m, owned);
-                    } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
-                        let _ = lazy.owned.set(Some(owned));
-                    }
+                    level_of.insert(m, level);
                 }
-                lock(&all.assume).clear();
+                if levels.len() <= level {
+                    levels.resize_with(level + 1, Vec::new);
+                }
+                levels[level].push(std::sync::Mutex::new(Some((
+                    std::mem::take(members),
+                    recursive,
+                    bodies,
+                ))));
             };
             hd_opt::inline::bottom_up(root, &done, &mut callees, &mut own);
+            // The passes over a component read only its callees' summaries
+            // and its own members' assumptions, so one level's components
+            // run on the task's threads (LLVM's CGSCC order, a level at a
+            // time). Each writes only its members' entries, so the result
+            // is the same at any thread count. A nested walk stays on its
+            // thread ([`OWNING`]).
+            let nested = OWNING.get() || READS.with_borrow(|r| !r.is_empty());
+            for level in &levels {
+                if nested || level.len() == 1 {
+                    for c in level {
+                        self.own_component(p, env, c);
+                    }
+                } else {
+                    hd_sched::par_map(level, |c| {
+                        self.with_env(p, |env| self.own_component(p, env, c));
+                    });
+                }
+            }
         });
+    }
+
+    /// Owns component `c` of [`Run::owned_bottom_up`] on this thread: a
+    /// recursive one's borrows first ([`Env::component_borrows`]), then the
+    /// passes over each member in path order.
+    fn own_component(&self, p: &ProgramTables, env: &Env<'_>, c: &Component) {
+        let Some((members, recursive, mut bodies)) = lock(c).take() else {
+            return;
+        };
+        let outer = OWNING.replace(true);
+        if recursive {
+            let borrows = env.component_borrows(&members, &bodies);
+            ASSUME.set(borrows);
+        }
+        for &m in &members {
+            let span = super::phase("collect: own passes");
+            let owned = bodies
+                .remove(&m)
+                .and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
+            drop(span);
+            if m.1 != TyList::EMPTY {
+                let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
+                lock(&self.instances).insert(m, owned);
+            } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
+                let _ = lazy.owned.set(Some(owned));
+            }
+        }
+        ASSUME.with_borrow_mut(HashMap::clear);
+        OWNING.set(outer);
     }
 }
 
