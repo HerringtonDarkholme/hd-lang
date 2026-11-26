@@ -1,6 +1,6 @@
 # @dump: diagnostics fixed
 # @main: src/main.hd
 # expected: a keyword import segment points to its backtick spelling
-use pkg.data
-# @file: src/data.hd
+use pkg.type
+# @file: src/type.hd
 pub fn read() -> i32: +1

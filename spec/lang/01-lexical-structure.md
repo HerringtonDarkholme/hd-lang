@@ -577,11 +577,11 @@ See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 r[lex.keyword.reserved-words.v2] The grammar uses these reserved words:
 
 ```text
-Self      break     continue  data      dyn       else
-enum      false     fn        for       if        impl
-in        is        let       match     mut       pass
-pub       return    self      struct    tests     trait
-true      type      while
+Self      break     continue  dyn       else      enum
+false     fn        for       if        impl      in
+is        let       match     mut       pass      pub
+return    self      struct    tests     trait     true
+type      while
 ```
 
 1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).

@@ -65,7 +65,7 @@ lang/02-grammar.md	15	mixed	lang/grammar/statements/header-after-indented-suite.
 lang/02-grammar.md	16	complete	-
 lang/02-grammar.md	17	mixed	lang/grammar/statements/copy-assignment-local.hd
 lang/02-grammar.md	18	mixed	lang/functions/parameters/nonfinal-vararg-declaration.hd
-lang/02-grammar.md	19	mixed	lang/grammar/declarations/pub-embedded-field.hd|lang/grammar/declarations/data-declaration.hd
+lang/02-grammar.md	19	mixed	lang/grammar/declarations/pub-embedded-field.hd
 lang/02-grammar.md	20	mixed	lang/grammar/declarations/pub-trait-method.hd|lang/grammar/declarations/colon-supertrait.hd
 lang/02-grammar.md	21	mixed	lang/grammar/declarations/row-alias-and-operator.hd
 lang/02-grammar.md	22	complete	-

@@ -1,5 +1,5 @@
 # @dump: diagnostics fixed
 # expected: direct hints preserve valid neighboring forms and unambiguous repairs
 struct Value:
-    `data`: i32
-fn read(value: Value) -> i32: value.data
+    `type`: i32
+fn read(value: Value) -> i32: value.type

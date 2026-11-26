@@ -1,4 +1,4 @@
 # @dump: diagnostics fixed
 # expected: direct hints preserve valid neighboring forms and unambiguous repairs
 struct Value:
-    data: i32
+    type: i32

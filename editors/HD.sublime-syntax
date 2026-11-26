@@ -53,7 +53,7 @@ contexts:
       scope: keyword.control.conditional.hd
     - match: '\b(?:for|while|in)\b'
       scope: keyword.control.loop.hd
-    - match: '\b(?:return|break|continue|pass|defer)\b'
+    - match: '\b(?:return|break|continue|pass)\b'
       scope: keyword.control.flow.hd
     - match: '\b(?:struct|enum|trait|impl|type)\b'
       scope: keyword.declaration.hd

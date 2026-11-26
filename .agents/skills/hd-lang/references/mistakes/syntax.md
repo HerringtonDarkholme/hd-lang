@@ -24,7 +24,7 @@ What was written, the code `hd check` reports, and what to write instead.
 | `n as i32` | `syntax-error` | `i32(n)` |
 | `xs.map(\|x\| x + 1)` | `syntax-error` | `xs.map(fn(x): x + 1)` |
 | `.Left \| .Right => 1` | `syntax-error` | one arm per pattern, or `_ =>` for the rest |
-| a variable named `data`, `type`, `in`, `is`, `mut`, `tests`, `dyn` or `pass` | `syntax-error` | another name: these are reserved words |
+| a variable named `type`, `in`, `is`, `mut`, `tests`, `dyn` or `pass` | `syntax-error` | another name: these are reserved words |
 
 ## Bindings
 

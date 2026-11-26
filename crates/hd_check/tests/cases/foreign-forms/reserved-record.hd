@@ -1,5 +1,5 @@
 # @dump: diagnostics fixed
 # expected: direct hints preserve valid neighboring forms and unambiguous repairs
 struct Value:
-    `data`: i32
-fn make() -> Value: Value { data: +1 }
+    `type`: i32
+fn make() -> Value: Value { type: +1 }
