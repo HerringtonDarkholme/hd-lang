@@ -1380,6 +1380,8 @@ struct Cx<'a> {
     crossing_arms: Vec<Hash128>,
     /// Whether a body sends a crossing to a worker (`crossing_sent`).
     worker_sends: bool,
+    /// [`ProgramEnv::crossing_items`], resolved once: a scan asks per call.
+    crossing: Option<(DefId, DefId, DefId, DefId)>,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2008,7 +2010,7 @@ impl Cx<'_> {
             return self.dbg_target(def, &key, args, parent);
         }
         // The worker's dispatcher: generated once every literal is numbered.
-        if self.env.crossing_items().is_some_and(|c| c.1 == def) {
+        if self.crossing.is_some_and(|c| c.1 == def) {
             self.crossing_run = Some(def);
             return Ok(CallTarget {
                 key: defaults::key(self.key(def, Sub::Body(0), TyList::EMPTY), &[], &[]),
@@ -3135,7 +3137,7 @@ impl Cx<'_> {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             let targs = pool.list(&targs);
-                            if self.env.crossing_items().is_some_and(|c| c.0 == def) {
+                            if self.crossing.is_some_and(|c| c.0 == def) {
                                 let f = pool.list_items(targs).first().copied();
                                 let number =
                                     self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls, id)?;
@@ -3468,7 +3470,7 @@ impl Cx<'_> {
         }
         // The dispatcher's arm k calls the code instance of lifted literal
         // k directly (`fn.crossing.lift`), as a known closure.
-        if self.env.crossing_items().is_some_and(|c| c.1 == item) {
+        if self.crossing.is_some_and(|c| c.1 == item) {
             let values = (0..body.len()).filter(|&i| body.tags[i] == Tag::CallValue);
             for (i, &key) in values.zip(&self.crossing_arms) {
                 calls.insert(hd_tir::ir::u32_of(i), Target::KnownClosure(key));
@@ -3835,6 +3837,7 @@ fn collect_roots(
         crossing_run: None,
         crossing_arms: Vec::new(),
         worker_sends: false,
+        crossing: env.crossing_items(),
     };
     if let Err(e) = cx.run(root, inits, extra) {
         return match cx.too_deep.take() {
@@ -3907,7 +3910,7 @@ impl Cx<'_> {
         // A program that sends to a worker holds the worker's root, which a
         // second instance runs (`std-remote.workers.serve`).
         if self.worker_sends
-            && let Some((.., serve, _)) = self.env.crossing_items()
+            && let Some((.., serve, _)) = self.crossing
         {
             let key = self.push(serve, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.worker = Some((serve, key));
@@ -3922,7 +3925,7 @@ impl Cx<'_> {
         if let Some(def) = self.crossing_run.take() {
             // A worker runs a closure that does not suspend and whose result
             // crosses back; no domain sends another.
-            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.3);
+            let wire = self.crossing.map_or(DefId::NONE, |c| c.3);
             let mut arms = Vec::new();
             for &(number, key, f) in &self.crossings.clone() {
                 if let TyData::Fn {
