@@ -1,0 +1,50 @@
+# test: GCM vectors, configuration, associated data and authentication
+use std.crypto.aes.Aes
+use std.crypto.cipher.{CipherError, Gcm}
+
+fn round_trip(key: Aes, nonce: List[u8], plain: List[u8]) -> Result[List[u8], CipherError]:
+    mode := Gcm::[Aes].new(key)?
+    mode.open(nonce, mode.seal(nonce, plain, []), [])
+
+use std.encoding.hex.hex_decode
+
+fn bytes(text: string) -> List[u8]:
+    hex_decode(text).unwrap()
+
+tests:
+    it("NIST GCM and caller input preservation"):
+        key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+        mode := Gcm::[Aes].new(key).unwrap()
+        nonce := [for _ in 0..12 => u8(0)]
+        plain := [for _ in 0..16 => u8(0)]
+        sealed := mode.seal(nonce, plain, [])
+        assert_equal(
+            sealed,
+            bytes("0388dace60b6a392f328c2b971b2fe78ab6e47d42cec13bdf53a67b21257bddf"),
+            reason="NIST",
+        )
+        assert(mode.open(nonce, sealed, []) == .Ok(plain), reason="round trip")
+        assert(round_trip(key, nonce, plain) == .Ok(plain), reason="example")
+        assert_equal(plain, [for _ in 0..16 => u8(0)], reason="input preserved")
+        for index in 0..sealed.len():
+            let mut changed = sealed
+            changed[index] = changed[index] ^ 1
+            assert(mode.open(nonce, changed, []) == .Err(.AuthenticationFailed), reason="tamper")
+        assert(
+            mode.open(nonce, sealed, [u8(1)]) == .Err(.AuthenticationFailed),
+            reason="associated",
+        )
+        assert(mode.open(nonce, [], []) == .Err(.AuthenticationFailed), reason="short")
+        for tag in 12..17:
+            short := Gcm::[Aes].with_tag_size(key, tag).unwrap()
+            output := short.seal(nonce, plain, [])
+            assert_equal(output.len(), 16 + tag, reason="tag size")
+            assert(short.open(nonce, output, []) == .Ok(plain), reason="short tag")
+        custom := Gcm::[Aes].with_nonce_size(key, 1).unwrap()
+        assert(
+            custom.open([u8(1)], custom.seal([u8(1)], plain, []), []) == .Ok(plain),
+            reason="custom nonce",
+        )
+        assert(Gcm::[Aes].with_nonce_size(key, 0).is_err(), reason="zero nonce")
+        assert(Gcm::[Aes].with_tag_size(key, 11).is_err(), reason="short tag rejected")
+        assert(Gcm::[Aes].with_tag_size(key, 17).is_err(), reason="long tag rejected")

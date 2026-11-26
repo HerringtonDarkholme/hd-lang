@@ -74,6 +74,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/crypto.md": "std-crypto",
   "std/crypto-sha512.md": "std-crypto-sha512",
   "std/crypto-aes.md": "std-crypto-aes",
+  "std/crypto-cipher.md": "std-crypto-cipher",
   "std/json.md": "std-json",
   "std/serde.md": "std-serde",
   "std/cli.md": "std-cli",

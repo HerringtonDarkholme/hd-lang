@@ -1369,3 +1369,4 @@ std/convert.md	1	complete	std/convert/try-from-works-through-a-generic-bound.hd
 std/crypto-sha512.md	1	complete	std/crypto-sha512/streaming.hd
 std/crypto-sha512.md	2	complete	std/crypto-sha512/streaming.hd
 std/crypto-aes.md	1	complete	std/crypto-aes/vectors.hd
+std/crypto-cipher.md	1	complete	std/crypto-cipher/gcm.hd

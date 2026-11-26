@@ -3541,6 +3541,13 @@ std/crypto/streaming/sha256-handle-shared.hd	runtime	accept	std/crypto.md#r-std-
 std/crypto/hmac/digest-hmac.hd	runtime	accept	std/crypto.md#r-std-crypto.hmac.vectors
 std/crypto-sha512/streaming.hd	runtime	accept	std/crypto-sha512.md#r-std-crypto-sha512.hash
 std/crypto-aes/vectors.hd	runtime	accept	std/crypto-aes.md#r-std-crypto-aes.algorithm
+std/crypto-cipher/gcm.hd	runtime	accept	std/crypto-cipher.md#r-std-crypto-cipher.gcm.seal
+std/crypto-cipher/ctr.hd	runtime	accept	std/crypto-cipher.md#r-std-crypto-cipher.ctr.chunks
+std/crypto-cipher/nonce-mismatch.hd	runtime	panic:explicit-panic	std/crypto-cipher.md#r-std-crypto-cipher.gcm.nonce-contract
+std/crypto-cipher/ctr-iv-mismatch.hd	runtime	panic:explicit-panic	std/crypto-cipher.md#r-std-crypto-cipher.ctr.iv
+std/crypto-aes/into.hd	runtime	accept	std/crypto-aes.md#r-std-crypto-aes.encrypt-into
+std/crypto-aes/into-short.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.into-bounds
+std/crypto-aes/into-outside.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.into-bounds
 std/crypto-aes/encrypt-15.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
 std/crypto-aes/encrypt-17.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
 std/crypto-aes/decrypt-15.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length

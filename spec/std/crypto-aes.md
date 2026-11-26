@@ -21,10 +21,14 @@ fn round_trip(key: List[u8], block: List[u8]) -> Result[List[u8], AesError]:
 6. r[std-crypto-aes.block-size] `block_size(&self) -> usize` returns 16.
 7. r[std-crypto-aes.encrypt] `encrypt_block(&self, block: List[u8]) -> List[u8]` returns the AES encryption of one 16-byte block.
 8. r[std-crypto-aes.decrypt] `decrypt_block(&self, block: List[u8]) -> List[u8]` returns the AES decryption of one 16-byte block.
-9. r[std-crypto-aes.block-length] Either block operation requires exactly 16 input bytes; any other length panics. Panic: `explicit-panic`.
+9. r[std-crypto-aes.block-length] `encrypt_block` and `decrypt_block` require exactly 16 input bytes; any other length panics. Panic: `explicit-panic`.
 10. r[std-crypto-aes.algorithm] Key lengths select AES-128, AES-192, or AES-256, using FIPS 197's key expansion and round transformations.
-11. r[std-crypto-aes.immutable] Block operations leave the key and the input list unchanged, so a cipher can process further blocks with the same key.
+11. r[std-crypto-aes.immutable] `encrypt_block` and `decrypt_block` leave the key and input list unchanged.
 12. r[std-crypto-aes.constant-time] Branches and memory addresses must not depend on key or block byte values; public key lengths, block lengths, and round counters may determine them.
+
+13. r[std-crypto-aes.encrypt-into] `encrypt_block_into(&self, block: &mut List[u8], offset: usize) -> void` encrypts the 16 bytes beginning at `offset` in place.
+14. r[std-crypto-aes.into-bounds] An offset beyond the list, or fewer than 16 remaining bytes, panics. Panic: `explicit-panic`.
+15. r[std-crypto-aes.into-preserves] In-place encryption preserves the expanded key, list length, and bytes outside that 16-byte range.
 
 > **Why.** Key construction returns an error, as Go's `NewCipher` does.
 > Block operations validate a caller contract; exact 16-byte values match

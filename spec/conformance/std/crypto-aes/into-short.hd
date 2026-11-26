@@ -1,0 +1,8 @@
+# test: AES in-place encryption validates remaining block length
+use std.crypto.aes.Aes
+
+tests:
+    it("offset contract"):
+        key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+        let mut buffer = [for _ in 0..20 => u8(0)]
+        key.encrypt_block_into(&mut buffer, 5) # panic: explicit-panic
