@@ -1,162 +1,477 @@
-# Native FFI: hd Calls C
+# Native FFI: C Providers For Host Traits
 
-Status: proposal, 2026-11-26; domain: language, runtime and host, CLI;
-not accepted. This is the design for #2388, and its first user is
-`std.terminal` (#2382). Nothing in it is accepted behavior. Under review:
-the owner's decision of 2026-11-26 (hd calls C directly, option D),
-[Host Boundary](../../spec/lang/10-modules.md#host-boundary) and its FFI
-note, [Native Package Providers](../../spec/cli/command-line.md#native-package-providers),
-and [Capability Grants](../../spec/cli/command-line.md#capability-grants).
+Status: proposal, 2026-11-26; domain: runtime and host, CLI; not
+accepted. Design for #2388, first used by `std.terminal` (#2382), after
+the owner's [decisions](#decisions). It revises
+[Package Host Traits](../../spec/lang/10-modules.md#package-host-traits)
+and [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
 
 ## The Proposal
 
-- A std module declares a C function with `@foreign("LIBRARY")` on an
-  ordinary function declaration, the form `@intrinsic` already uses. The
-  signature holds C-ABI types only. There is no grammar change.
-- A foreign call is one backend-neutral TIR primitive. The Wasm backend
-  lowers it to an import from `hd:ffi/LIBRARY`; an LLVM backend would
-  lower it to a direct call.
-- A foreign function named with `!` blocks. It runs on a host thread, and
-  the calling task suspends while the instance runs other tasks.
-- Per-OS layouts stay in a small flat C library. Std's first one,
-  `hd_term`, has seven functions and is linked into `hd`. Node and the
-  web supply the same symbols in JavaScript.
-- Phase 1 is std only. Packages come in phase 2, under a root grant that
-  names each library, as Deno's `--allow-ffi=PATH` does.
-
-The decided `Terminal` (#2382), written in hd over `hd_term` in place of
-new Rust and TypeScript host code:
+- C becomes a provider kind for any package's `@host` trait, beside the
+  JavaScript file. The contract, root consent, preflight and handle
+  registry are reused.
+- A C-bound trait's methods take C-ABI types only. The library exports
+  one entry symbol per trait that returns a table of function pointers in
+  method order, checked by ABI version and contract hash.
+- A `!` method gets a token, returns at once, and is completed later from
+  any thread through `hd_complete_*`. An abort slot runs on cancel.
+- A package ships its libraries prebuilt in `native/<target-triple>/`.
+  Std's `hd_term` is linked into `hd`, so users need no toolchain.
+- `Terminal` is std hd code over the public, flat, C-bound `TermHost`.
+  Node and the web load a JavaScript provider of the same trait.
 
 ```text
 # lib/std/terminal.hd, proposed
-@foreign("hd_term")
-fn hd_term_read(term: i32, into: &mut List[u8], cap: usize) -> i64:   # never blocks
-    panic("foreign")
+@host
+pub trait TermHost:   # public, as WireHttp is; bound to C: C-ABI types only
+    fn enable_raw(&mut self) -> i32                # 0, or -errno
+    fn disable_raw(&mut self) -> i32
+    fn read!(&mut self) -> Result[List[u8], i32]   # hd_complete_bytes or hd_complete_error
 
-@foreign("hd_term")
-fn hd_term_wait!(term: i32) -> i32:   # `!`: runs on a host thread
-    panic("foreign")
+struct NativeTerminal:   # private; the default profile binds it for `$ Terminal`
+    host: *mut dyn TermHost
 
-struct NativeTerminal:   # private: the default profile binds it for `$ Terminal`
-    term: i32
+fn status(code: i32) -> Result[void, ConsoleError]:
+    if code < 0: .Err(.Other(-code)) else: .Ok(())
 
 impl Terminal for NativeTerminal:
+    fn enable_raw_mode!(&mut self) -> Result[void, ConsoleError]:
+        status(self.host.enable_raw())
+
+    fn disable_raw_mode!(&mut self) -> Result[void, ConsoleError]:
+        status(self.host.disable_raw())
+
     fn read!(&mut self) -> Result[List[u8], ConsoleError]:
-        while true:
-            let mut bytes: List[u8] = []
-            bytes.resize(4096, 0)
-            cap := bytes.len()
-            n := hd_term_read(self.term, &mut bytes, cap)   # C writes into the list, for this call only
-            if n > 0:
-                bytes.truncate(usize(n))
-                return .Ok(bytes)
-            if n < 0:
-                return .Err(.Other(i32(-n)))
-            ready := hd_term_wait!(self.term)   # suspends; reads nothing, so a cancel loses no byte
-            if ready < 0:
-                return .Err(.Other(-ready))
-        .Ok([])
+        match self.host.read!():
+            .Ok(bytes) => .Ok(bytes)
+            .Err(code) => .Err(.Other(code))
 ```
 
 ## Open Questions
 
-One line each; options are in [Questions For The Owner](#questions-for-the-owner).
-
-1. Declare with `@foreign("lib")`, not an `extern` block? **Recommend yes.**
-2. Std only in phase 1, packages in phase 2? **Recommend yes.**
-3. A `!` foreign function blocks on a host thread, scalars only? **Recommend yes.**
-4. A cancelled blocking call runs on and its result is dropped? **Recommend yes.**
-5. `hd_term` linked into `hd`, and published as a dylib for embedders? **Recommend yes.**
-6. `Console.is_terminal` and `size` as host methods over `hd_term`? **Recommend yes.**
-7. Phase 2 consent as an `Ffi` key in `[capabilities]`? **Recommend yes.**
-8. Package FFI refused on Node, which picks Wasmtime? **Recommend yes, for now.**
-9. Raw mode restored at process exit only, not at instance close? **Recommend yes, for now.**
+1. Where does a library author get the C header? **Recommend: `hd build`
+   in the declaring package writes `native/include/<package>.h`.**
+2. Does a cancel run the abort slot even after C completed but before hd
+   took the result? **Recommend yes: it makes terminal reads lossless.**
 
 ## Problems It Solves
 
 | Program | Today | Proposed |
 | --- | --- | --- |
-| `cat notes.md \| pager`: keys come from `/dev/tty`, not stdin | no API; #2382 planned six host methods in Rust and TypeScript | `hd_term_open` picks stdin or `/dev/tty`; the rest is std hd code |
-| `race!(term.read!(), sleep!(16ms))` in a game loop | no API | `read!` suspends in `hd_term_wait!`; the timer cancels a wait that read nothing |
-| a panic while the terminal is raw | the shell stays raw | `hd_term_enable_raw` registers an `atexit` restore; a panic exits `hd` through `exit` |
-| a package that needs `sqlite3` | a native provider needs a custom Rust embedder ([`native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli)) | phase 2: `@foreign("sqlite3")`, a manifest path, and the app's `Ffi` grant |
+| `cat notes.md \| pager`: keys come from `/dev/tty` | no API; #2382 planned new Rust and TypeScript host code | `hd_term` opens stdin or `/dev/tty`; the rest is std hd code |
+| `race!(term.read!(), sleep!(16ms))` | no API | `read!` waits on a completion; a cancel runs `read_abort` and loses no byte |
+| a trap while the terminal is raw | the shell stays raw | `destroy` runs at instance close, trap or not, and restores the mode |
+| a package wrapping `sqlite3` | needs a custom Rust embedder ([`native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli)) | a flat C shim in `native/<triple>/` and the app's root consent |
 
 ## How It Works
 
-**Declaring.** A foreign function is a module-level function after
-`@foreign("LIB")`, with body `panic("foreign")`, the shape of std's
-`@intrinsic` declarations. Its name is the C symbol. It is never `pub`,
-so callers go through its module's wrapper; in phase 1 only std sees the
-name `foreign`.
+**Declaring.** The manifest decides the provider kind; the trait source is
+an ordinary `@host` trait. One entry may name both kinds:
 
-| hd type in the signature | C type | Wasm import type |
+```toml
+[host]
+"terminal.TermHost" = { c = "hd_term", js = "providers/term.mjs" }
+```
+
+When `[host]` names `c`, `hd check` holds the trait's methods to this
+table; anything else is `boundary-not-safe`.
+
+| hd type | C type | Wasm import type |
 | --- | --- | --- |
-| `bool`; `i8` to `u32`; `i64`, `u64`; `f32`, `f64` | the C type of the same width | `i32`; `i32`; `i64`; `f32`, `f64` |
-| `usize` | `size_t` | `i32`; a result out of range panics `host-contract` |
+| `bool`, integers, `f32`, `f64` | the C type of the same width (`usize` is `size_t`) | `i32`, `i64`, `f32`, `f64` |
 | `&T`, `&mut T`, T a number type | `const T *`, `T *` | `i32`, the address |
-| `&List[T]`, `&mut List[T]`, T a number type | `const T *`, `T *` to element 0; the length is its own `usize` | `i32` |
-| `string` | `const uint8_t *` to its UTF-8 bytes, no NUL | `i32` |
-| `u64` holding a host pointer C returned (opaque handle) | `void *` | `i64` |
+| `&List[T]`, `&mut List[T]`, T a number type | `const T *`, `T *`, then a `size_t` length | `i32`, `i32` |
+| `string` | `const uint8_t *` to its UTF-8 bytes, then a `size_t` length, no NUL | `i32`, `i32` |
+| a returned host handle | `void *`, the library's handle object | `i32`, a registry handle |
+| `!` result: a number, `List[u8]`, or `Result[` one of them `, i32]` | completed through the token | the `.finish` result |
 
-Structs, enums, optionals, closures and variadic functions are out; a
-per-OS struct is the library's job. Callbacks are out of scope, since C
-would re-enter the instance inside a call. A pointer is valid for the
-call only: each reference argument is already a local loan that ends at
-the return ([pointer loans](../compiler/ownership.md#pointer-loans-model-a)),
-and the library contract forbids keeping it, as cgo's rules do.
+A pointer lives for the call, as any local loan
+([pointer loans](../compiler/ownership.md#pointer-loans-model-a)); a `!`
+method takes scalars, because the instance runs on while C works.
 
-**Calling.** A call is a TIR `CallForeign` (a: the symbol, b: the
-arguments), which ownership treats as any call. The Wasm backend emits
-one import per reachable symbol, `hd:ffi/hd_term` `hd_term_read`, and
-lists each with its C signature in an `hd.foreign` custom section. A
-blocking call lowers to the existing `.start` and `.finish` host pair.
+**The C side.** `hd` generates a header from the trait. Its table holds
+`abi_version`, the 16-byte `contract_hash`, `create`, `destroy`, then the
+methods in source order, each `!` method followed by its abort slot. The
+token carries the host's completion table, so `hd_complete_*` are inline
+functions of the header, and a library links against nothing in `hd`.
+`TermHost`'s header is in [Appendix E](#the-c-header).
 
-**Binding on Wasmtime.** Startup reads `hd.foreign` once, beside the
-native-provider preflight. Std's libraries are built into `hd`: a static
-table maps each symbol to its C signature and a typed binder
-(`Linker::func_wrap`). A missing symbol or a differing signature refuses
-the run before the guest starts (`foreign-unavailable`).
+**Wasm.** A C-bound trait's methods lower like any package host import,
+under the same contract: scalars are import parameters, and a `!` method
+is the `.start` and `.finish` pair. New: a pointer argument passes its
+address and length, and the contract records slots and the trait's hash.
 
-A binder adds the memory's base to each pointer argument and calls C,
-with no codec and no copy. The base cannot move during a synchronous
-call: a shared memory's never changes, and only the calling instance
-grows its own. A `.cwasm` image is unchanged, since foreign imports bind
-at instantiation. Phase 2 opens a package library with `dlopen` and
-builds one trampoline per signature with Cranelift, as Deno does.
+**Binding on Wasmtime.** Before the guest starts, the host opens each
+package library from `native/<triple>/`, looks up its entry symbol,
+checks version and hash, and calls `create` per reachable trait. Any
+miss refuses the run, naming package, triple and trait. Std's linked
+`hd_term` takes the same path without a file.
 
-**Blocking calls.** A `!` foreign function runs on the `hd-io` blocking
-pool, as `Http.send!` does, and its completion wakes the reactor. It
-takes scalars only, because the instance keeps running and could grow
-memory or drop a buffer's frame. A running C call cannot be stopped: a
-cancel drops its result, as with Deno's `nonblocking` and Go's cgo.
-`hd_term_wait` wakes any earlier waiter, so `race!` leaves at most one
-blocked thread.
+Per call, the binder adds the memory's base to each pointer and calls the
+slot with `self`, with no codec. Std's binders are typed
+(`Linker::func_wrap`); a package's signatures get one Cranelift
+trampoline each per run, as Deno's do. The base cannot move mid-call: a
+shared memory's never does, and only the calling instance grows its own.
 
-**Node and the web.** For each std library, the JavaScript host carries
-a module with the same symbols; its `!` symbols return a Promise. On
-Node, `hd_term` uses `setRawMode`, a `tty.ReadStream` on `/dev/tty` and
-the `readable` event, and restores the mode on `exit`; no toolchain is
-needed. On the web, `hd_term_open` returns `-ENOTTY`, so `is_terminal`
-is false, `size` is `.None`, and the rest return `Unsupported` (#2382).
-Node 26's `node:ffi` is experimental and cannot block, so phase 2 refuses
-package libraries on Node, and `hd` with no `--engine` picks Wasmtime.
+**Completions.** As for a native provider's pending call:
+`hd_complete_*` may run on any thread and wakes the reactor, the first
+completion wins, a cancel runs the abort slot at most once, and a later
+completion is ignored. A token lives until completed or aborted. Bytes
+are copied at once, then into a new `List[u8]` on the instance's thread.
 
-**Authority.** There is no `unsafe` keyword: the private declaration is
-the unsafe part, and its module's `pub` API is the safe wrapper. A std
-library needs no grant of its own. `Terminal = true` in `[capabilities]`
-grants the trait, and the default profile binds it to std's private
-`NativeTerminal`, so only code with `$ Terminal` reaches `hd_term`. That
-binding of a std-written provider is new and needs approval. In phase 2,
-`Ffi = ["dep.sqlite_hd.sqlite3"]` consents to a package library, which
-has the process's authority, as Deno warns.
+**Engines.** Wasmtime binds `c`; Node and the web load `js`, with
+pointers as typed-array views. With no `--engine`, `hd` picks Wasmtime
+when every required trait has `c`, else Node. A `c`-only trait is refused
+on Node and the web at startup.
 
-**The Terminal.** `hd_term` has seven flat C functions; a terminal
-number hides `/dev/tty` or Windows' `CONIN$`. `hd run` and a `.cwasm`
-bind its imports from the table in `hd`; `hd install` adds no file;
-`hd test` swaps in `ScriptedTerminal`. `Console.is_terminal` and `size`
-stay host methods; Wasmtime's calls `hd_term` from Rust, so the platform
-code exists once. The C API, commands and fake are in
-[Appendix E](#the-terminal-end-to-end).
+**The Terminal.** `hd_term` keeps the saved termios, opens `/dev/tty`
+when stdin is not a terminal, and reads on one thread of its own. The
+default profile binds `$ Terminal` to `NativeTerminal` over `$ TermHost`,
+as `Http` is bound over `WireHttp`, under `Terminal = true`. Commands and
+the fake are in [Appendix E](#the-terminal-end-to-end).
+
+## Cost
+
+Line counts are estimates from the nearest built component, not
+measurements.
+
+| Component | Lines | Per-run cost |
+| --- | --- | --- |
+| manifest `{ c, js }`, engine choice, refusals | +120 Rust | O(host entries) |
+| checker: C type table; header writer | +300 Rust | O(methods of C-bound traits) |
+| Wasm: pointer arguments, slots and hash in the contract | +180 Rust | O(reachable methods) |
+| Wasmtime: open, entry, checks, `create`/`destroy`, tokens, aborts, trampolines | +600 Rust | O(libraries + reachable methods), at startup |
+| JavaScript glue: typed-array views for pointers | +100 TypeScript | none |
+| `hd_term`: termios, `/dev/tty`, reader thread; Windows console | +450 Rust | none until created |
+| `std.terminal` and its profile row | +150 hd, +10 Rust | none |
+| Node and web `TermHost` providers; `Console` queries | +200 TypeScript, +40 Rust | none |
+| spec, conformance and CLI cases | +180 | none |
+| #2382's Terminal host methods on two hosts, not written | about -450 avoided | none |
+
+- **Per call:** one Wasmtime host call, one addition per pointer, one
+  indirect call; a `!` call adds a reactor wake and two copies of bytes.
+- **Per run:** one `dlopen` and one entry lookup per package library, a
+  `create` per reachable trait, a trampoline per distinct signature.
+  Nothing grows with heap, program size or stored state.
+- **Removed:** nothing; the web compiler grows about 3 KB gzip. Build
+  order is in [Appendix E](#phases).
+
+## Appendix A. Stress Test
+
+| # | Case | What happens | What the design does |
+| --- | --- | --- | --- |
+| 1 | crossterm `enable_raw_mode` (`terminal/sys/unix.rs:108`) | needs `struct termios`, laid out differently on Linux and macOS (libc crate) | stays inside `hd_term`'s `enable_raw`; hd sees an `i32` |
+| 2 | Go `x/term` `makeRaw` (`term_unix.go`, v0.48.0) | per-OS ioctl constants (`TCGETS`, `TIOCGETA`) | same: they live in `hd_term` |
+| 3 | Windows: no `/dev/tty`, no termios | a termios API would not port | `CONIN$` and `SetConsoleMode` behind the same table |
+| 4 | `race!(term.read!(), sleep!(16ms))` at 60 frames a second | 60 cancels a second | each cancel runs `read_abort`; one reader thread serves every token, so no thread piles up |
+| 5 | abort and completion race, see below | bytes could be lost | **found**: lossless only if abort also runs after an accepted completion (question 2) |
+| 6 | an instance traps while raw | `atexit` would not run in an embedder | `destroy` runs at close, trap or not, and restores the mode |
+| 7 | `SIGKILL` while raw | nothing runs | left raw, as with crossterm |
+| 8 | a library completes a token after `read_abort` returned | use after free of the token | forbidden: a token's life ends at completion or abort; a concurrent completion is ignored |
+| 9 | a library built for an older trait | wrong slots | the contract hash differs: refused at startup, naming both hashes |
+| 10 | `native/` lacks `riscv64gc-unknown-linux-gnu` | no library | refused at startup, naming the package and the triple |
+| 11 | `fn read!(&mut self, into: &mut List[u8]) -> i64` in a C-bound trait | a cancel would free `into` while C writes | `boundary-not-safe`: `!` methods take scalars |
+| 12 | `fn put(&mut self, row: Row)` with a struct, in a C-bound trait | no C layout | `boundary-not-safe` |
+| 13 | C keeps a pointer, or writes past a length | corrupts the instance's heap | not checkable, as in every FFI; C has the process's authority, as Deno warns |
+| 14 | a worker grows the shared memory during a call | the base could move | a shared memory's base never changes (Wasmtime `SharedMemory::data`) |
+| 15 | two worker instances each `create` a `TermHost` | one terminal, two readers | `hd_term` keeps one reader: a second `enable_raw` returns `-EBUSY` |
+| 16 | a user names `$ TermHost` and implements it | `TermHost` is public | harmless: a user's provider is hd code, and only the profile binds the C one, under `Terminal = true` |
+| 17 | `sqlite3_open(const char *, sqlite3 **)` | needs a NUL and a host pointer | **found**: every C API needs a flat shim; the shim adds the NUL and keeps `sqlite3 *` as `self` or a returned handle |
+| 18 | `sqlite3_exec` with a callback | C would call into hd | not expressible: no function types in a C-bound trait |
+| 19 | a `c`-only trait under `hd run --engine node` | no provider | refused at startup, not mid-run |
+| 20 | an app needing a `c`-only and a `js`-only trait | no engine has both | **found**: refused everywhere, naming both traits |
+| 21 | a test of the pager | must not touch a terminal | `$.with(Terminal=ScriptedTerminal::new(chunks))`; no C runs |
+
+Case 5, the abort and completion race. `hd_term`'s reader thread reads
+into its own buffer and completes a token under the same lock that
+`read_abort` takes:
+
+| Order | Without the question 2 rule | With it |
+| --- | --- | --- |
+| abort, then the reader sees the token aborted | bytes stay buffered for the next `read!` | same |
+| completion accepted, then cancel before hd takes it | the host drops the bytes: lost | abort runs; `hd_term` puts its copy back at the front |
+| completion races abort on two threads | the lock orders them into one of the rows above | same |
+
+`hd_term` keeps a copy of its last completed bytes until the next `read`
+begins, which proves the earlier result was taken or aborted.
+
+Case 1 rewritten: crossterm's saved-termios logic moves into
+`hd_term`'s `enable_raw` slot.
+
+```rust
+// hd_term, Unix: the termios layout stays in the libc crate
+extern "C" fn enable_raw(this: *mut c_void) -> i32 {
+    let term = unsafe { &mut *this.cast::<Term>() };
+    let fd = match term.fd() { Ok(fd) => fd, Err(e) => return -e };
+    let mut t = unsafe { std::mem::zeroed::<libc::termios>() };
+    if unsafe { libc::tcgetattr(fd, &mut t) } != 0 { return -errno(); }
+    term.saved.get_or_insert(t);          // destroy restores it
+    unsafe { libc::cfmakeraw(&mut t) };
+    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &t) } != 0 { return -errno(); }
+    0
+}
+```
+
+## Appendix B. Prior Art, With Code
+
+**Node-API** ([n-api](https://nodejs.org/docs/latest-v26.x/api/n-api.html), Node 26):
+
+```c
+NAPI_MODULE_INIT(/* napi_env env, napi_value exports */) {
+  return create_addon(env);   /* one entry point per addon */
+}
+```
+
+`NAPI_VERSION` bakes the API version into the addon. A thread-safe
+function's callback "will be called on the main thread". hd takes the
+one entry point, the version check and completion on the instance's
+thread. Binaries built with `node-addon-api` "depend on the symbols of the
+Node-API C-based functions exported by Node.js"; hd's token carries the
+table instead.
+
+**Python** ([extending](https://docs.python.org/3/extending/extending.html), 3.15):
+
+```c
+static struct PyModuleDef spam_module = {
+    .m_base = PyModuleDef_HEAD_INIT, .m_name = "spam", .m_slots = spam_module_slots,
+};
+PyMODINIT_FUNC PyInit_spam(void) { return PyModuleDef_Init(&spam_module); }
+```
+
+All symbols but the init function "should be declared `static`". hd's
+`hd_term_TermHost` is the same shape: one exported function returning a
+static table.
+
+**SQLite extensions** ([loadext](https://www.sqlite.org/loadext.html)):
+
+```c
+int sqlite3_extension_init(sqlite3 *db, char **pzErrMsg,
+                           const sqlite3_api_routines *pApi) {
+  SQLITE_EXTENSION_INIT2(pApi);
+  return SQLITE_OK;
+}
+```
+
+The entry point is found by name, `sqlite3_X_init` from the file name,
+and receives `pApi`. hd names its entry from the library and the trait.
+
+**Deno** ([FFI](https://docs.deno.com/runtime/fundamentals/ffi/), v2.9.8):
+
+```ts
+const lib = Deno.dlopen("libexample.so", {
+  add: { parameters: ["i32", "i32"], result: "i32" },
+  slow: { parameters: ["u64"], result: "u64", nonblocking: true },
+});
+lib.symbols.add(5, 3);
+await lib.symbols.slow(1n);   // runs on a blocking thread
+```
+
+Deno builds a per-signature Cranelift trampoline, with libffi as the
+fallback ([dlfcn.rs](https://github.com/denoland/deno/blob/v2.9.8/ext/ffi/dlfcn.rs)).
+`nonblocking` runs in `spawn_blocking` with no cancellation
+([call.rs](https://github.com/denoland/deno/blob/v2.9.8/ext/ffi/call.rs)).
+It says loading a library equals `--allow-all`. hd takes the trampoline;
+completion callbacks replace the thread pool, so a cancel reaches C.
+
+**Bun** ([bun:ffi](https://bun.sh/docs/runtime/ffi), v1.4.5):
+
+```ts
+import { dlopen, FFIType, suffix } from "bun:ffi";
+const lib = dlopen(`libadd.${suffix}`, {
+  add: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
+});
+```
+
+Experimental; "Async functions are not supported". `buffer_length` passes
+a view's length beside its pointer, as hd does for lists and strings.
+
+**Python ctypes** ([docs](https://docs.python.org/3/library/ctypes.html)):
+
+```py
+libc = CDLL("libc.so.6")
+libc.strchr.restype = c_char_p
+libc.strchr.argtypes = [c_char_p, c_char]
+```
+
+It rebuilds the libffi `ffi_cif` on every call
+([callproc.c](https://github.com/python/cpython/blob/v3.15.2/Modules/_ctypes/callproc.c)).
+hd builds each call path once per run.
+
+**Rust and Go.** Rust's `unsafe extern "C" { fn tcgetattr(...); }` binds
+at link time, and the `libc` crate defines `termios` per target
+([docs.rs](https://docs.rs/libc/latest/libc/struct.termios.html)). Go's cgo
+rule: "C code may not keep a copy of a Go pointer after the call
+returns" ([cgo](https://pkg.go.dev/cmd/cgo)). hd takes the pointer rule
+and leaves per-target structs to C.
+
+```go
+// static void myprint(char* s) { printf("%s\n", s); }
+import "C"
+func main() { cs := C.CString("hi"); C.myprint(cs); C.free(unsafe.Pointer(cs)) }
+```
+
+**Wasmtime** ([Func](https://docs.rs/wasmtime/51.0.0/wasmtime/struct.Func.html); hd pins 49.0.2):
+
+```rust
+linker.func_wrap(module, "enable_raw", move |caller: Caller<'_, Host>| -> i32 {
+    unsafe { (table.enable_raw)(self_of(&caller)) }
+})?;
+```
+
+`Func::wrap` is "both safer and faster" than `func_new`; memory growth
+"may change the base pointer", but a shared memory's "does not change".
+
+**libffi** ([manual](https://github.com/libffi/libffi/blob/v3.8.2/doc/libffi.texi), 3.8.2):
+
+```c
+ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, &ffi_type_sint, args);  /* once */
+ffi_call(&cif, (void (*)(void))puts, &rc, values);             /* per call */
+```
+
+`ffi_call` reclassifies each argument per call (`ffi64.c`). It stays the
+fallback if a Cranelift trampoline cannot be built.
+
+**Node 26** ([node:ffi](https://nodejs.org/docs/latest-v26.x/api/ffi.html)):
+
+```js
+import { dlopen, suffix } from "node:ffi";
+using h = dlopen(`./mylib.${suffix}`, { add_i32: { arguments: ["int32", "int32"], return: "int32" } });
+```
+
+Experimental since v26.1.0, with no blocking-call option. It works in the
+pinned 26.13.1 (`dlopen(null)` called `getpid`, with an
+`ExperimentalWarning`). hd keeps JavaScript providers on Node.
+
+**WASI.** [`terminal.wit`](https://github.com/WebAssembly/wasi-cli/blob/v0.2.8/wit/terminal.wit)
+0.2.8 has no raw mode, size or input method.
+
+## Appendix C. Alternatives Considered
+
+- **`@foreign` functions** (this PR's first draft). Std declared C
+  functions with `@foreign("lib")`, each a TIR `CallForeign` and an
+  `hd:ffi` import, std only, with blocking calls on a thread pool.
+  Rejected by the owner: C is called through a host trait, as a
+  JavaScript provider is.
+- **An `extern` block.** New grammar, the costliest kind of change.
+- **One `dlsym` per method.** Rejected for one entry symbol, which
+  checks the whole table's version and hash once.
+- **Blocking calls on a thread pool.** A running C call cannot be
+  cancelled, and each cancelled wait holds a thread.
+- **Restore at `atexit` only.** Misses an instance that traps in a living
+  process; `destroy` covers both.
+- **Hiding `TermHost`.** Rejected by the owner: it is public, as
+  `WireHttp` is.
+- **A Rust native provider.** Built, but it needs a custom embedder; it
+  stays for that case.
+- **Declaring `termios` in hd per OS.** Rejected by the owner.
+
+## Appendix D. Today In hd
+
+- **Package host traits** (built, #51): an SDK's `@host` trait maps in
+  `[host]` to a JavaScript file; the root `[capabilities]` consents
+  ([design](../compiler/package-host-capabilities.md)).
+- **Native providers** (built, #2077 to #2083): `NAME.host.rs`, a custom
+  embedder's registry, pending calls, abort at most once, late completion
+  ignored, and the handle registry (`crates/hd_run_wasmtime/src/native.rs`).
+- **Import lowering**: a package method's scalars are import parameters;
+  strings and structured values go through the exchange buffer
+  (`push_args`, `crates/hd_wasm/src/boundary.rs`).
+- **The contract** lists reachable methods only, in source order
+  (`hd_host_abi::schema::Interface`).
+- **A provider bridge**: `Http` is std code over the public `@host`
+  `WireHttp`, and grants name `Http` (`PROVIDER_BRIDGES` in
+  `crates/hd_host_abi/src/lib.rs`; [`std-http.wire.host`](../../spec/std/http.md#r-std-http.wire.host)).
+- **Dependencies**: `hd add` and `hd fetch` record each fetched tree's
+  hash, which covers a package's `native/` folder.
+
+Rules this design revises, quoted:
+
+| Rule | Today | Proposed |
+| --- | --- | --- |
+| [Host Boundary note](../../spec/lang/10-modules.md#host-boundary) | "hd has no `extern` declaration and no FFI capability. A Wasm module can call only its imports, so a custom host trait that an embedder binds is hd's foreign function interface" | "hd has no `extern` declaration. A host trait is hd's foreign function interface: its provider is JavaScript, C that a package ships, or Rust that an embedder registers." |
+| [`native-no-discovery`](../../spec/cli/command-line.md#r-cli.host.package.native-no-discovery) | "An implementation never discovers or loads a dynamic library for a package host trait." | "An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder." |
+| [`native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli) | "The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait" | "On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration." |
+| [`native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node) | "Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node" | "Without an `--engine` flag, they run on Wasmtime when every required package host trait has a C provider, and else on Node." |
+
+## Appendix E. Details
+
+### Proposed Spec Rules
+
+Language tier, Package Host Traits and Runtime Profiles in
+`spec/lang/10-modules.md`:
+
+1. r[module.host.package.c-types] A package host trait bound to a C provider declares only methods whose parameter and result types are rows of the C value table. Error: `boundary-not-safe`.
+2. r[module.host.package.c-references] In such a trait, a local reference to a number or to a list of numbers is boundary-safe. The C function may use it only until the call returns.
+3. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
+4. r[module.host.package.c-parity] A C provider and a JavaScript provider of the same trait observe the same hd values.
+5. r[module.profile.bridge] A profile may bind a public std trait to std code over a std host trait. Grants name the public trait.
+
+```text
+@host
+pub trait Disk:   # bound to C by its package's [host] table
+    fn read!(&mut self, into: &mut List[u8]) -> i64   # error: boundary-not-safe
+    fn put(&mut self, row: Row) -> i32                 # error: boundary-not-safe
+```
+
+> **Why.** A suspending call outlives its frame when it is cancelled, so
+> it holds no pointer into the instance. C has no layout for a struct, so
+> a C shim flattens it.
+
+CLI tier, Package Host Declarations and a new C Providers section:
+
+1. r[cli.host.declaration.kinds] A `[host]` value is a provider-file string, or a table with a `c` library name, a `js` provider file, or both. Error: `invalid-manifest`.
+2. r[cli.host.c.file] `c = "NAME"` names the file `libNAME.so`, `libNAME.dylib` or `NAME.dll` in the package's `native/<target-triple>/` folder.
+3. r[cli.host.c.target-missing] A missing file for the running target refuses the run before the guest starts, naming the package and the triple. Error: `native-provider-missing`.
+4. r[cli.host.c.entry] The library exports one function per trait, named `NAME_TRAIT`, that returns the trait's table.
+5. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
+6. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
+7. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
+8. r[cli.host.c.complete] The first completion of a token decides the call's result, and the host ignores later ones.
+9. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot at most once.
+10. r[cli.host.c.token] A library uses a token until it completes it or the token's abort slot returns.
+11. r[cli.host.c.bytes] `hd_complete_bytes` copies the bytes before it returns, and the guest receives them as a new `List[u8]`.
+12. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
+13. r[cli.host.terminal] The default profile binds `Terminal` to std's provider over `TermHost`, and `Terminal` is a boolean capability key.
+
+The four revised rules are in [Appendix D](#appendix-d-today-in-hd).
+The `std-terminal.*` rules are #2382's.
+
+### The C Header
+
+`TermHost`'s table and entry symbol:
+
+```c
+typedef struct hd_TermHost {
+    uint32_t abi_version;                         /* HD_HOST_ABI_VERSION */
+    uint8_t contract_hash[16];                    /* this trait's signatures */
+    void *(*create)(void);                        /* at instance start */
+    void (*destroy)(void *self);                  /* at instance close, trap or not */
+    int32_t (*enable_raw)(void *self);
+    int32_t (*disable_raw)(void *self);
+    void (*read)(void *self, hd_token token);     /* returns at once */
+    void (*read_abort)(void *self, hd_token token);
+} hd_TermHost;
+
+const hd_TermHost *hd_term_TermHost(void);        /* the one entry symbol */
+```
+
+`hd_complete_i32`, `hd_complete_i64`, `hd_complete_f64`,
+`hd_complete_bytes(t, ptr, len)` and `hd_complete_error(t, errno)` are
+inline functions that call through the token's table.
+
+### The Terminal, End To End
+
+| Command | What happens |
+| --- | --- |
+| `hd run` | Wasmtime takes `hd_term_TermHost` from `hd` itself, checks it, calls `create` |
+| `hd build --release` | the `.cwasm` holds the `TermHost` imports; no file beside it |
+| `hd install` | the same artifact and launcher; a package's `native/<triple>/` file is installed with it |
+| `hd run --engine node` | the built-in JavaScript `TermHost` |
+| on the web | `TermHost`'s JavaScript provider returns `-ENOTTY`, so `read!` and the modes return an error; `is_terminal` is false and `size` is `.None` |
+| `hd test` | `ScriptedTerminal` replaces `Terminal`; no C runs |
+
+A program using it:
 
 ```text
 use std.terminal.Terminal
@@ -170,369 +485,7 @@ pub fn main!() -> void $ Console + Terminal:
     _ := term.disable_raw_mode!()
 ```
 
-## Cost
-
-Line counts are estimates from the nearest built component, not
-measurements.
-
-| Component | Lines | Per-run cost |
-| --- | --- | --- |
-| checker: `@foreign`, std-only, type table, `!` rule | +250 Rust | O(foreign declarations) |
-| TIR `CallForeign`, ownership, verifier | +150 Rust | O(calls), as any call |
-| Wasm lowering: imports, `hd.foreign`, blocking pair | +200 Rust | O(reachable symbols) |
-| profile binds a std-written provider | +150 Rust | O(row traits) |
-| Wasmtime binder: preflight, table, typed binders | +300 Rust | O(reachable symbols), at startup |
-| `hd_term`: termios, `/dev/tty`, `poll`, `ioctl`; Windows console | +450 Rust | none until called |
-| `std.terminal`: trait, `NativeTerminal`, `ScriptedTerminal` | +180 hd | none |
-| Node and web `hd_term` modules | +180 TypeScript | none until called |
-| spec, conformance and CLI cases | +150 | none |
-| #2382's six host methods on two hosts, not written | about -700 avoided | none |
-| phase 2: `dlopen`, Cranelift trampolines, manifest, `Ffi` | +700 Rust | a `dlopen` per library, a compile per signature |
-
-- **Per synchronous call:** one Wasmtime typed host call, one addition
-  per pointer argument, the C call. Nothing is encoded or copied.
-- **Per blocking call:** the same, plus a pool-thread hop and a reactor
-  wake, as `Http.send!` pays today.
-- **Startup:** a table lookup per reachable symbol; phase 1 opens no
-  library. Nothing scales with heap, program size or stored state.
-- **Size:** about 20 bytes of Wasm per reachable import; the web
-  compiler grows by the checker rows, an estimated 3 KB gzip of 2 MB.
-- **Removed:** nothing. Package host traits and native providers stay.
-
-Build order: checker and TIR, Wasm lowering, `hd_term` and its binder,
-`std.terminal` and the profile binding, then Node and web
-([phases](#phases)).
-
-## Appendix A. Stress Test
-
-| # | Case | What happens | What the design does |
-| --- | --- | --- | --- |
-| 1 | crossterm's `enable_raw_mode` (`terminal/sys/unix.rs:108`): save termios, make raw, restore later | needs `struct termios`, whose size and fields differ between Linux and macOS (libc crate) | the save stays in `hd_term_enable_raw`; hd never sees the struct |
-| 2 | Go `x/term` `makeRaw` (`term_unix.go`, v0.48.0) clears eight flag groups per OS | per-OS constants (`TCGETS` against `TIOCGETA`) | same: a flat call; the constants live in `hd_term` |
-| 3 | Windows: no `/dev/tty`, no termios | a termios API would not port | the terminal number hides `CONIN$`; the seven functions stay |
-| 4 | `race!(term.read!(), sleep!(16ms))` at 60 frames a second | each frame cancels a wait; a naive library leaves one blocked thread per frame until a key comes | **found**: `hd_term_wait` wakes the earlier waiter, so at most one thread waits |
-| 5 | a blocking `read(fd, buf, n)` declared as `fn read!(fd: i32, buf: &mut List[u8], n: usize)` | the frame could be dropped by a cancel while C writes into `buf` | rejected: `invalid-foreign-function`; split into a blocking wait and a non-blocking read |
-| 6 | `getaddrinfo`-shaped calls: blocking, with output buffers, no readiness call | [`module.ffi.blocking.scalars`](#foreign-functions) forbids buffers on blocking calls | **found**: the library returns a handle and a later synchronous call copies out; a copy-in-copy-out extension waits for a real case |
-| 7 | `sqlite3_open(const char *, sqlite3 **)` in phase 2 | needs a NUL and an out-pointer to a host pointer | `c_string(text)` copies with a NUL; the out-pointer is `&mut u64`, right only on 64-bit hosts. **Found**: a 32-bit host needs a pointer-sized handle type |
-| 8 | `qsort` or `sqlite3_exec` with a callback | C would call hd during a call | rejected at the declaration: a function type is not in the table |
-| 9 | C keeps the `buf` pointer and writes later | writes into a freed hd block | not checkable, as in every FFI; phase 1 limits it to std's audited library |
-| 10 | C writes past `cap` | corrupts the instance's heap | not checkable; FFI ends the Wasm sandbox for the process, as Deno's docs say |
-| 11 | a worker thread grows the shared memory during a call | the base could move | a shared memory's base never changes (Wasmtime `SharedMemory::data`) |
-| 12 | the instance grows its own memory during a call | impossible: it is inside the call | blocking calls take no pointer, so they need no stable base |
-| 13 | panic while raw | shell left raw | `atexit` restores it; `hd` exits through `exit` |
-| 14 | `SIGKILL` while raw | no handler runs | left raw, as with crossterm; `reset` fixes it |
-| 15 | an embedder whose instance traps but whose process lives | `atexit` never runs | **found**: the mode stays raw; the embedder calls `hd_term_disable_raw` (question 9) |
-| 16 | two worker instances each call `read!` | one terminal, two readers split the keystrokes | following #2382's one-reader rule, a second `enable_raw` returns `-EBUSY` |
-| 17 | `hd_term_read` returns a `size_t` above `u32` | does not fit `usize` | a `host-contract` panic |
-| 18 | std declares a signature that differs from `hd_term`'s table | wrong ABI at the call | refused at startup; phase 2's `dlopen` cannot check, which is why phase 1 is std only |
-| 19 | a test that never touches a terminal | `ScriptedTerminal` replaces the trait | no foreign call runs, so the test runs on the web too |
-
-Case 1 rewritten: crossterm's saved-termios logic moves, nearly line for
-line, into `hd_term`'s Unix side, and hd sees one integer.
-
-```rust
-// hd_term, Unix: the termios layout stays in the libc crate
-static SAVED: Mutex<Option<libc::termios>> = Mutex::new(None);
-
-#[no_mangle]
-pub extern "C" fn hd_term_enable_raw(term: i32) -> i32 {
-    let fd = fd_of(term);
-    let mut t = unsafe { std::mem::zeroed::<libc::termios>() };
-    if unsafe { libc::tcgetattr(fd, &mut t) } != 0 { return -errno(); }
-    let mut saved = SAVED.lock().unwrap();
-    if saved.is_none() { *saved = Some(t); unsafe { libc::atexit(restore) }; }
-    unsafe { libc::cfmakeraw(&mut t) };
-    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &t) } != 0 { return -errno(); }
-    0
-}
-```
-
-## Appendix B. Prior Art, With Code
-
-**Deno** ([FFI](https://docs.deno.com/runtime/fundamentals/ffi/), v2.9.8):
-
-```ts
-const lib = Deno.dlopen("libexample.so", {
-  add: { parameters: ["i32", "i32"], result: "i32" },
-  slow: { parameters: ["u64"], result: "u64", nonblocking: true },
-});
-lib.symbols.add(5, 3);              // 8
-await lib.symbols.slow(1n);         // runs on a blocking thread, returns a Promise
-```
-
-Run with `--allow-ffi[=PATH...]` ([permissions](https://docs.deno.com/runtime/reference/permissions/)).
-Deno says loading a library equals `--allow-all`. A per-signature
-Cranelift trampoline is the fast path, with libffi as fallback
-([dlfcn.rs](https://github.com/denoland/deno/blob/v2.9.8/ext/ffi/dlfcn.rs)).
-`nonblocking` runs `ffi_call` in `spawn_blocking`
-([call.rs](https://github.com/denoland/deno/blob/v2.9.8/ext/ffi/call.rs)),
-with no cancellation. hd takes the declaration list, `nonblocking` as
-`!`, the path grant and Cranelift. It rejects structs by value.
-
-**Bun** ([bun:ffi](https://bun.sh/docs/runtime/ffi), v1.4.5):
-
-```ts
-import { dlopen, FFIType, suffix } from "bun:ffi";
-const lib = dlopen(`libadd.${suffix}`, {
-  add: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
-});
-lib.symbols.add(1, 2);
-```
-
-Experimental; JavaScriptCore now makes the calls, and TinyCC remains only
-for `cc()`. "Async functions are not supported." Bun's `buffer_length`
-passes a view's length with its pointer. hd passes the length explicitly
-instead, because an hd list cannot be resized during the call.
-
-**Python ctypes** ([docs](https://docs.python.org/3/library/ctypes.html), 3.15):
-
-```py
-from ctypes import CDLL, c_char_p, c_char
-libc = CDLL("libc.so.6")
-libc.strchr.restype = c_char_p
-libc.strchr.argtypes = [c_char_p, c_char]
-libc.strchr(b"abcdef", b"d")        # b'def'
-```
-
-ctypes releases the GIL around each call. It rebuilds the libffi
-`ffi_cif` on every call
-([callproc.c](https://github.com/python/cpython/blob/v3.15.2/Modules/_ctypes/callproc.c)).
-hd takes typed declarations and rejects per-call type preparation.
-
-**Rust** ([external blocks](https://doc.rust-lang.org/reference/items/external-blocks.html), 2024 edition):
-
-```rust
-unsafe extern "C" {
-    fn tcgetattr(fd: c_int, t: *mut termios) -> c_int;  // unsafe to call
-    safe fn sqrt(x: f64) -> f64;                          // callable without `unsafe`
-}
-```
-
-Binding is at link time, with no `dlopen`. The `libc` crate defines
-`termios` per target (Linux `c_cc: [cc_t; 32]`, macOS `[cc_t; 20]`;
-[docs.rs](https://docs.rs/libc/latest/libc/struct.termios.html)). hd
-takes "the declaration is the unsafe part" without the keyword, and
-leaves per-target structs to the C library.
-
-**Go** ([cgo](https://pkg.go.dev/cmd/cgo), go1.27):
-
-```go
-// static void myprint(char* s) { printf("%s\n", s); }
-import "C"
-func main() {
-	cs := C.CString("hello")   // a malloc'd copy with a NUL
-	C.myprint(cs)
-	C.free(unsafe.Pointer(cs))
-}
-```
-
-"C code may not keep a copy of a Go pointer after the call returns." A
-goroutine in a C call holds its OS thread, and the scheduler hands its
-slot to another thread
-([cgocall.go](https://github.com/golang/go/blob/go1.27.4/src/runtime/cgocall.go)).
-Without cgo, `x/sys/unix` makes raw syscalls on Linux but calls libc on
-macOS. hd takes the pointer rule and the blocking-thread model.
-
-**Swift** ([wrapping a C library](https://www.swift.org/documentation/articles/wrapping-c-cpp-library-in-swift.html)):
-
-```swift
-// sqlite3.modulemap: module CSQLite { header "sqlite3.h" }
-import CSQLite
-guard sqlite3_open_v2(filename, &db, flags, nil) == SQLITE_OK else { return nil }
-```
-
-**Zig** ([0.15.2 docs](https://ziglang.org/documentation/0.15.2/)):
-
-```zig
-extern "c" fn atan2(a: f64, b: f64) f64;
-pub fn main() void { _ = atan2(1.0, 2.0); }
-```
-
-Both import C declarations through Clang, so struct layouts come from
-the target's headers. Zig removed `@cImport` in 0.17 for a build step
-([notes](https://ziglang.org/download/0.17.0/release-notes.html)). hd
-rejects header import: it would bring per-OS layouts into hd.
-
-**Wasmtime** ([Func](https://docs.rs/wasmtime/51.0.0/wasmtime/struct.Func.html); hd pins 49.0.2):
-
-```rust
-linker.func_wrap("hd:ffi/hd_term", "hd_term_open", || -> i32 {
-    unsafe { hd_term_open() }
-})?;
-```
-
-`Func::wrap` is "both safer and faster" than `func_new`. Memory growth
-"may change the base pointer", while a shared memory's base "does not
-change". hd uses typed binders and reads the base per call.
-
-**libffi** ([manual](https://github.com/libffi/libffi/blob/v3.8.2/doc/libffi.texi), 3.8.2):
-
-```c
-ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 1, &ffi_type_sint, args);  /* once */
-ffi_call(&cif, (void (*)(void))puts, &rc, values);             /* per call */
-```
-
-`ffi_call` reclassifies every argument on each call (`ffi64.c`); 3.7
-added reusable call plans. hd keeps it as phase 2's fallback: it adds a
-C library to the build, while Cranelift is already linked.
-
-**Node 26** ([node:ffi](https://nodejs.org/docs/latest-v26.x/api/ffi.html)):
-
-```js
-import { dlopen, suffix } from "node:ffi";
-using h = dlopen(`./mylib.${suffix}`, {
-  add_i32: { arguments: ["int32", "int32"], return: "int32" },
-});
-h.functions.add_i32(20, 22);
-```
-
-Added in v26.1.0, experimental, with a boolean `--allow-ffi`. It has no
-blocking-call option. `process.dlopen` loads Node addons only. hd uses a
-JavaScript `hd_term` on Node and defers `node:ffi` to phase 2.
-
-**WASI.** [`terminal.wit`](https://github.com/WebAssembly/wasi-cli/blob/v0.2.8/wit/terminal.wit)
-(0.2.8) has no raw mode, size or input method, so it cannot serve #2382.
-
-## Appendix C. Alternatives Considered
-
-- **An `extern` block.** New grammar, the costliest change in the
-  [Design Cost Order](../../AGENTS.md#design-cost-order). `@foreign`
-  parses today and reuses the `@intrinsic` shape.
-- **A package host trait for `Terminal`.** Rejected by the owner.
-- **Host intrinsics per terminal operation.** #2382's plan: six methods
-  each in Rust and TypeScript, about 700 lines, repeated for every OS
-  facility.
-- **Declaring `termios` in hd per OS.** Rejected by the owner.
-- **libffi for every call.** One more C library in the build, and
-  argument classification on each call. Typed binders cost less for
-  built-in libraries.
-- **Copy-in-copy-out buffers for blocking calls.** Correct under cancel,
-  but no phase 1 case needs it (stress case 6).
-- **A declared cancel function per blocking symbol.** Deno, Go and tokio
-  have none; a wakeable library is enough for `hd_term`.
-- **`hd_term` as a dylib beside `hd`.** `cargo install` builds no
-  dylib, so the user would fetch one per platform.
-
-## Appendix D. Today In hd
-
-- **Package host traits** (built, #51): an SDK's `@host` trait maps in
-  `[host]` to a JavaScript provider; the root `[capabilities]` consents
-  ([design](../compiler/package-host-capabilities.md)). Kept.
-- **Native providers** (built, #2077 to #2083): `hd build --engine
-  wasmtime` writes `NAME.host.rs`; a custom embedder registers providers
-  (`crates/hd_run_wasmtime/src/native.rs`). Kept.
-- **Std intrinsics**: `@intrinsic("name")` on a function with body
-  `panic("intrinsic")`, std only. `thread_spawn` already lowers to an
-  `hd:rt` import. `@foreign` copies this shape.
-- **Raw memory**: `std.rt.memory` has `Ptr[T]`, `Buffer[T]` and
-  `string_bytes`, std only
-  ([Typed Memory](../../spec/lang/10-modules.md#typed-memory)).
-- **Blocking work**: `Http.send!` and DNS run in `spawn_blocking` on
-  `hd-io`; the reactor delivers each `Done`
-  (`crates/hd_run_wasmtime/src/runtime/reactor.rs`).
-- **Memory**: Wasmtime 49.0.2 with `shared_memory(true)`; a program that
-  starts threads imports the shared heap `hd:rt` `heap`.
-- **Host calls in TIR**: `CallHost` appears only in std provider bodies
-  that `hd_wasm` generates (`crates/hd_tir/DESIGN.md` §8, check 9).
-  `CallForeign` is a real TIR call, so any backend lowers it.
-
-Rules this design revises, quoted:
-
-| Rule | Today | Proposed |
-| --- | --- | --- |
-| [Host Boundary note](../../spec/lang/10-modules.md#host-boundary) | "hd has no `extern` declaration and no FFI capability. A Wasm module can call only its imports, so a custom host trait that an embedder binds is hd's foreign function interface" | "A Wasm module calls only its imports. A foreign function is one, which the host resolves to its C symbol; a custom host trait that an embedder binds is the other interface." |
-| [`cli.host.package.native-no-discovery`](../../spec/cli/command-line.md#r-cli.host.package.native-no-discovery) | "An implementation never discovers or loads a dynamic library for a package host trait." | Phase 1: unchanged, since std libraries are built in. Phase 2: "An implementation loads a dynamic library only for a foreign library that a package declares and the root `Ffi` grant names." |
-| [`cli.host.package.native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli) | "The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait" | Unchanged: it concerns package host traits. Foreign functions are not providers. |
-| [`cli.host.package.native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node) | "Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node" | Unchanged. Phase 2 adds the mirror: a module needing a package library runs on Wasmtime; needing both refuses. |
-
-## Appendix E. Details
-
-### Proposed Spec Rules
-
-Language tier, a new subsection of Host Boundary in
-`spec/lang/10-modules.md`:
-
-#### Foreign Functions
-
-A **foreign function** is a function of a C library that hd code
-declares and calls:
-
-```text
-@foreign("hd_term")
-fn hd_term_isatty(stream: i32) -> i32:
-    panic("foreign")
-```
-
-1. r[module.ffi.decl] `@foreign("LIBRARY")` before a module-level function declares a foreign function of LIBRARY, whose C symbol is the function's name.
-2. r[module.ffi.body] Its body is `panic("foreign")`, and a call never runs it.
-3. r[module.ffi.std-only] Only the standard library sees the name `foreign`. In any other package, `@foreign` names no binding. Error: `unknown-name`.
-4. r[module.ffi.private] A foreign function is not `pub`. Error: `invalid-foreign-function`.
-5. r[module.ffi.shape] A foreign function has no type parameter, no requirement row and no default argument. Error: `invalid-foreign-function`.
-6. r[module.ffi.types] Each parameter type and the result type is a row of the foreign type table. Error: `invalid-foreign-function`.
-7. r[module.ffi.call] A call runs the C function with the arguments the table converts, and returns its converted result.
-8. r[module.ffi.reference] A reference argument passes the address of its referent, or of a list's first element. The address is valid until the call returns.
-9. r[module.ffi.blocking] A foreign function whose name ends in `!` is **blocking**: a call suspends its task while the C function runs on another thread.
-10. r[module.ffi.blocking.scalars] A blocking foreign function has no reference or `string` parameter. Error: `invalid-foreign-function`.
-11. r[module.ffi.blocking.cancel] Cancelling a blocking call does not stop the C function. Its result is dropped when it returns.
-12. r[module.ffi.usize-result] A `usize` result outside the type's range stops the call. Panic: `host-contract`.
-
-```text
-@foreign("hd_term")
-pub fn hd_term_open() -> i32:  # error: invalid-foreign-function
-    panic("foreign")
-
-@foreign("hd_term")
-fn hd_term_read!(term: i32, into: &mut List[u8], cap: usize) -> i64:  # error: invalid-foreign-function
-    panic("foreign")
-```
-
-> **Why.** A wrapper module is the safe API, so the declaration stays
-> private. A blocking call outlives its frame when cancelled, so it may
-> hold no pointer into the instance.
-
-Language tier, Runtime Profiles:
-
-8. r[module.profile.std-provider] A profile may bind a standard trait to a provider that the standard library writes in hd.
-
-CLI tier, `spec/cli/command-line.md`, a new Foreign Libraries section:
-
-1. r[cli.ffi.preflight] Before guest initialization, the host resolves every foreign function the module reaches.
-2. r[cli.ffi.unavailable] A missing library or symbol, or a signature that differs from the library's, refuses the run and names both. Error: `foreign-unavailable`.
-3. r[cli.ffi.std] `hd` supplies each library the standard library declares, on every engine, and opens no file for it.
-4. r[cli.ffi.javascript] On a JavaScript host, a std library's symbols are JavaScript functions with the same results.
-5. r[cli.ffi.needs] A std library's imports count as needs of the std trait whose provider declares them, for [Total Deny](../../spec/cli/command-line.md#total-deny).
-6. r[cli.host.terminal] The default profile binds `Terminal` (`std.terminal`) to the standard library's provider, and `Terminal` is a boolean capability key.
-
-The `std-terminal.*` rules themselves are #2382's.
-
-### The Terminal, End To End
-
-`hd_term`'s flat API. A terminal number hides the OS handle, so Windows
-(`CONIN$`, `SetConsoleMode`) has the same seven functions:
-
-```c
-int32_t hd_term_isatty(int32_t stream);              /* 0 stdin, 1 stdout, 2 stderr: 1 or 0 */
-int32_t hd_term_size(int32_t stream, uint16_t *cols, uint16_t *rows);  /* 0, or -errno */
-int32_t hd_term_open(void);              /* stdin if a terminal, else /dev/tty: a number >= 0, or -errno */
-int32_t hd_term_enable_raw(int32_t term);   /* saves the mode once, registers atexit restore */
-int32_t hd_term_disable_raw(int32_t term);  /* restores the saved mode: 0, or -errno */
-int32_t hd_term_wait(int32_t term);         /* blocks: 1 ready, 0 woken by a later wait, -errno */
-int64_t hd_term_read(int32_t term, uint8_t *buf, size_t cap);  /* never blocks: n, 0 none, -errno */
-```
-
-`std.terminal` declares five of them; the hosts' `Console` uses
-`hd_term_isatty` and `hd_term_size`.
-
-| Command | What happens |
-| --- | --- |
-| `hd run` | Wasmtime binds the five `hd:ffi/hd_term` imports from the built-in table; nothing is opened from disk |
-| `hd build --release` | the `.cwasm` holds the same imports; no companion file |
-| `hd install` | the same artifact and launcher; `hd_term` is inside `hd`, so nothing else is installed |
-| `hd run --engine node` | the JavaScript `hd_term` |
-| `hd test` | `$.with(Terminal=ScriptedTerminal::new(chunks))`; no foreign call runs |
-
-The fake, for tests (checked with `hd check --tests` against stub
-declarations):
+The fake:
 
 ```text
 pub struct ScriptedTerminal:
@@ -562,94 +515,80 @@ tests:
 
 ### Domain Checklists
 
-- **Grammar and formatting:** none new; `@foreign` is a decorator line.
-- **Typing:** the type table only; use-site inference unchanged.
-- **Ownership:** reference arguments are ordinary call loans.
-- **Inliner:** a `CallForeign` is opaque; its wrapper inlines as usual.
-- **Soundness:** C is trusted; std only in phase 1 (stress cases 9, 10).
-- **Diagnostics:** `invalid-foreign-function`, `foreign-unavailable`.
-- **Pipeline:** after checking, before ownership; no new pass.
-- **Determinism:** `hd.foreign` lists symbols in first-reach order.
-- **Host parity:** a conformance case per `hd_term` symbol on Node and
-  Wasmtime under a pseudo-terminal; the web returns `-ENOTTY`.
-- **Suspension:** blocking calls reuse `.start`/`.finish` and the reactor.
-- **Failure and cleanup:** `atexit` restore; Node's exit hook.
-- **Grants:** `Terminal = true`; phase 2 `Ffi` scope entries.
-- **Rollback:** delete `std.terminal` and the decorator; nothing else
-  depends on them.
+- **Grammar:** none new; the manifest gains a table form.
+- **Typing:** the C value table, checked against the manifest, rechecked
+  when `[host]` changes ([`map-recheck`](../../spec/cli/command-line.md#r-cli.host.declaration.map-recheck)).
+- **Ownership:** pointer arguments are ordinary call loans.
+- **Host parity:** each `TermHost` method on Wasmtime and Node under a
+  pseudo-terminal; the web returns `-ENOTTY`.
+- **Suspension:** the existing `.start`/`.finish` pair and reactor.
+- **Failure and cleanup:** `destroy` at close; a trap still closes.
+- **Grants:** root consent per trait, as today; `Terminal = true`.
+- **Security:** a C library has the process's authority; the fetched
+  tree's hash pins its binaries.
+- **Rollback:** remove the `c` kind; JavaScript and Rust providers stay.
 
 ### Phases
 
 | # | Step | Test |
 | --- | --- | --- |
-| 1 | checker: `@foreign`, std-only name, type table, `!` rule | diagnostics stage cases for each error |
-| 2 | TIR `CallForeign` and verifier | Rust test: a foreign call's loans end at the call |
-| 3 | Wasm lowering: imports and `hd.foreign` | `functions`-view stage case lists the imports |
-| 4 | `hd_term` crate, Unix | Rust test under a pseudo-terminal: raw, read, restore |
-| 5 | Wasmtime binder and preflight | refusal case for a missing symbol; a read through the binder |
-| 6 | blocking calls on `hd-io` | Rust test: 1000 cancelled waits leave one blocked thread |
-| 7 | `std.terminal` and the profile binding | `ScriptedTerminal` conformance cases |
-| 8 | Node and web `hd_term` | `--host` cases for `is_terminal` and `size` under a pipe |
-| 9 | `hd_term` on Windows | the step 4 test on Windows CI |
-| 10 | example pager in `examples/` | run by hand, as #2382's done check says |
+| 1 | manifest `{ c, js }` and the C value table check | diagnostics stage cases for each error |
+| 2 | Wasm: pointer arguments, slot and hash in the contract | `functions`-view stage case; contract snapshot |
+| 3 | header writer | a generated header compiles in a C test |
+| 4 | Wasmtime: open, entry, checks, `create`, `destroy` | refusal cases: missing triple, symbol, hash |
+| 5 | tokens, completions, aborts | Rust test: 1000 cancels, each abort once, no late delivery |
+| 6 | Cranelift trampolines for package libraries | a test library with every C type |
+| 7 | `hd_term` on Unix | Rust test under a pseudo-terminal: raw, read, abort, restore |
+| 8 | `std.terminal` and its profile row | `ScriptedTerminal` conformance cases |
+| 9 | Node and web providers; `Console` queries | `--host` cases under a pipe |
+| 10 | `hd_term` on Windows; the example pager | Windows CI; run by hand |
 
 ### Parse Log
 
 Each `text` block was parsed with `scripts/hd-conformance.sh parse`,
-which checks syntax only, and run through `hd check --tests`. `hd check`
-reports only names that do not exist yet: `foreign`, `std.terminal`,
-`Terminal` and `ConsoleError` in a block without imports. The
-`NativeTerminal` and `ScriptedTerminal` logic was also checked in one
-file against stub declarations without `@foreign`: no diagnostics.
+which checks syntax only, and run through `hd check --tests`. The
+diagnostics are only for names `std.terminal` does not have yet, and for
+the `[host]` entry a single file cannot carry. The
+`NativeTerminal` and `ScriptedTerminal` logic was also checked in one file
+with `TermHost`, `Terminal` and `ConsoleError` declared or imported: no
+diagnostics.
 
 | Block | Parser | `hd check` |
 | --- | --- | --- |
-| The Proposal, `std.terminal` excerpt | parses | `unknown-name` (`foreign`) lines 2 and 6; `unknown-trait` line 13 |
-| How It Works, a program using `Terminal` | parses | `unknown-module` (`std.terminal`) line 1 |
-| Foreign Functions, definition | parses | `unknown-name` line 1 |
-| Foreign Functions, error examples | parses | `unknown-name` lines 1 and 5 |
-| The Terminal, `ScriptedTerminal` | parses | `unknown-trait` (`Terminal`, `ConsoleError`) lines 8, 14, 15, 22 |
-| Question 1 example | parses | `unknown-name` line 2 |
+| The Proposal, `TermHost` and `NativeTerminal` | parses | `invalid-manifest` line 2 (no `[host]` entry in a single file); `unknown-trait` (`Terminal`) line 14 |
+| Proposed Spec Rules, error example | parses | `invalid-manifest` line 1 (no `[host]` entry); `unknown-type` (`Row`) line 4 |
+| The Terminal, a program using it | parses | `unknown-module` (`std.terminal`) line 1 |
+| The Terminal, `ScriptedTerminal` | parses | `unknown-trait` (`Terminal`) lines 8, 14, 15, 22 |
 
-## Questions For The Owner
+## Decisions
 
-1. **Declaration form.** Effect: whether FFI adds grammar.
-   (a) `@foreign("hd_term")` on a function with body `panic("foreign")`;
-   (b) an `extern "hd_term":` block of body-less declarations.
-   **Recommendation: (a)**, a compiler intrinsic with no syntax change.
-2. **Who declares.** Effect: whether a package can load C in phase 1.
-   (a) std only, as `@intrinsic`; (b) packages too, under a grant.
-   **Recommendation: (a)** until a package needs it.
-3. **Blocking calls.** Effect: whether `read!` can wait without stalling.
-   (a) a `!` foreign function runs on a host thread and takes scalars
-   only; (b) a `nonblocking` decorator argument.
-   **Recommendation: (a)**, reusing `!`.
-4. **Cancelling a blocking call.** Effect: what `race!` does to C.
-   (a) C runs to completion and the result is dropped; (b) a declared
-   cancel symbol the host calls. **Recommendation: (a)**, as Deno and Go.
-5. **Shipping `hd_term`.** Effect: the user's toolchain needs.
-   (a) linked into `hd`, and also published as a dylib for embedders;
-   (b) a dylib in release archives; (c) built on first use.
-   **Recommendation: (a)**: `cargo install` already builds it.
-6. **Console's queries.** Effect: whether two host methods are added.
-   (a) the hosts implement `is_terminal` and `size`, Wasmtime through
-   `hd_term`; (b) the profile's `Console` becomes std code.
-   **Recommendation: (a)**: two read-only methods, no device state.
-7. **Phase 2 grant.** Effect: how an app consents to a package library.
-   (a) `Ffi = ["dep.sqlite_hd.sqlite3"]` in `[capabilities]`;
-   (b) a separate `[ffi]` table. **Recommendation: (a)**, one grant table.
-8. **Package FFI on Node.** Effect: whether such a module runs on Node.
-   (a) refuse, and pick Wasmtime with no `--engine`; (b) use the
-   experimental `node:ffi`. **Recommendation: (a)** until it is stable
-   and can block.
-9. **Raw mode under an embedder.** Effect: a trapped instance in a living
-   process leaves the terminal raw. (a) restore at process exit only;
-   (b) the host calls a library close hook at instance close.
-   **Recommendation: (a)** for now; `hd` always exits.
+Owner, 2026-11-26, on the first draft's questions:
 
-```text
-# question 1, option (a)
-@foreign("hd_term")
-fn hd_term_open() -> i32:
-    panic("foreign")
-```
+1. **Declaration form:** "C func is called through host trait", as a
+   JavaScript provider is. No `@foreign`, no `extern`, no std-only phase
+   and no `Ffi` key.
+2. **Binding:** one entry symbol per trait returns a table of function
+   pointers in method order, with `abi_version` and `contract_hash`; a
+   mismatch is refused at startup.
+3. **Types:** C-ABI types only in a C-bound trait; std's public
+   `Terminal` is hd code over a flat C-bound `TermHost`.
+4. **Suspension:** completion callbacks with an `hd_token`, completed
+   from any thread, with an abort slot; not a thread pool.
+5. **Completion payload:** `!` arguments are scalars; a completion is a
+   scalar, bytes copied into a new `List[u8]`, or an errno.
+6. **Lifecycle:** `create()` at instance start for a reachable trait,
+   `destroy(self)` once at close, trap or not; the terminal's `destroy`
+   restores raw mode.
+7. **Engines:** one entry may name `c` and `js`; with no `--engine`,
+   Wasmtime when every required trait has `c`, else Node; `c`-only is
+   refused on Node and the web.
+8. **Shipping:** prebuilt libraries in `native/<target-triple>/`; a
+   missing target is refused at startup; std's `hd_term` is linked into
+   `hd`.
+9. **Terminal row:** the default profile binds `$ Terminal` to std's
+   `NativeTerminal` over `$ TermHost`; `Terminal = true` covers both.
+10. **Console:** `is_terminal` and `size` stay host methods; Wasmtime's
+    call the linked `hd_term` code.
+11. **`TermHost` visibility:** "just make TermHost public". It is a
+    public `@host` trait in std, so `module.host.package.marker` is
+    unchanged and nothing hides it.
