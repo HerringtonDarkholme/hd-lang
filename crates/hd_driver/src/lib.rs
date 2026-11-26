@@ -6079,8 +6079,8 @@ impl Run<'_> {
             &[],
             closure.iter().copied().zip(all.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        )
-        .with_import_hints(import_hints::hint);
+            hd_resolve::iface::ImportHints::Lazy(import_hints::index),
+        );
         let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
@@ -7293,8 +7293,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        )
-        .with_import_hints(import_hints::hint);
+            hd_resolve::iface::ImportHints::Lazy(import_hints::index),
+        );
         let names = self.names();
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
@@ -8820,8 +8820,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        )
-        .with_import_hints(import_hints::hint);
+            hd_resolve::iface::ImportHints::Lazy(import_hints::index),
+        );
         let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
@@ -8891,8 +8891,8 @@ impl Run<'_> {
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
-        )
-        .with_import_hints(import_hints::hint);
+            hd_resolve::iface::ImportHints::Lazy(import_hints::index),
+        );
         let own_impls: Vec<&Item> = tmod
             .items
             .iter()
@@ -12240,8 +12240,8 @@ impl TuplePlans for Run<'_> {
 }
 
 impl hd_resolve::World for Run<'_> {
-    fn import_hint(&self, name: &str) -> Option<hd_resolve::iface::ImportHint> {
-        Some(import_hints::hint(name))
+    fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+        hd_resolve::iface::ImportHints::Lazy(import_hints::index)
     }
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.module_nodes

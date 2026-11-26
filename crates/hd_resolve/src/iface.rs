@@ -1119,8 +1119,8 @@ impl ImportHint {
 }
 
 /// Public std exports by the name an import hint asks for (#1876).
-/// An interface builds its local index on the first hint; the driver can
-/// instead supply a process-wide index of the embedded std's exports.
+/// A caller supplies one explicit index; the driver builds its shared
+/// embedded-std index lazily, only when a diagnostic asks for advice.
 /// Owned names let either index outlive the interner that built it.
 #[derive(Debug, Default)]
 pub struct ImportIndex {
@@ -1132,6 +1132,26 @@ pub struct ImportIndex {
     /// By last segment, the std modules that export something.
     by_leaf: HashMap<String, Vec<String>>,
 }
+
+/// Explicit advice for a compiler world: an existing index, or its lazy factory.
+#[derive(Clone, Copy)]
+pub enum ImportHints<'a> {
+    Index(&'a ImportIndex),
+    Lazy(fn() -> &'static ImportIndex),
+}
+
+impl ImportHints<'_> {
+    pub(crate) fn hint(self, name: &str) -> ImportHint {
+        match self {
+            Self::Index(index) => index.hint(name),
+            Self::Lazy(index) => index().hint(name),
+        }
+    }
+}
+
+/// An explicit empty advice index for worlds with no std export source.
+pub static EMPTY_IMPORT_INDEX: std::sync::LazyLock<ImportIndex> =
+    std::sync::LazyLock::new(ImportIndex::default);
 
 impl ImportIndex {
     /// Own the public names and paths; the source interner may then be dropped.
@@ -1172,7 +1192,50 @@ impl ImportIndex {
     /// One name probe, plus work proportional to its matching candidates.
     #[must_use]
     pub fn hint(&self, name: &str) -> ImportHint {
-        import_hint([self], name)
+        let mut items = HashMap::<DefId, (bool, String)>::default();
+        let mut modules = std::collections::BTreeSet::new();
+        crate::work::hint_work(1);
+        if let Some(found) = self.by_leaf.get(name) {
+            modules.extend(found.iter().cloned());
+        }
+        for (module, def, reexport) in self.by_name.get(name).into_iter().flatten() {
+            crate::work::hint_work(1);
+            let path = format!("{module}.{name}");
+            let found = items.entry(*def).or_insert((*reexport, path.clone()));
+            if (*reexport, &path) < (found.0, &found.1) {
+                *found = (*reexport, path);
+            }
+        }
+        let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
+        paths.extend(modules);
+        paths.sort_stable();
+        paths.dedup();
+        match paths.as_slice() {
+            [] => ImportHint::default(),
+            [path] => ImportHint {
+                text: format!("; add `use {path}`"),
+                path: Some(path.clone()),
+            },
+            _ => {
+                let modules: Vec<_> = paths
+                    .iter()
+                    .take(3)
+                    .map(|p| {
+                        format!(
+                            "`{}`",
+                            p.rsplit_once('.').map_or(p.as_str(), |(module, _)| module)
+                        )
+                    })
+                    .collect();
+                ImportHint {
+                    text: format!(
+                        "; `{name}` has several public std homes: {}; add a `use` from the intended module",
+                        modules.join(", ")
+                    ),
+                    path: None,
+                }
+            }
+        }
     }
 }
 
@@ -1225,79 +1288,6 @@ pub fn type_typo<'n>(
         };
         params.contains(&s) || builtin(c) || item.is_some_and(fits)
     })
-}
-
-/// An import hint from the public std exports of `ifaces`, including the
-/// modules that contain them. Re-exports of one declaration count as one
-/// item, with its declaring module preferred over a re-export's path,
-/// except that a re-export is preferred over `std.core`. Each interface
-/// answers from its [`ImportIndex`].
-#[must_use]
-pub fn std_import_hint<'a>(
-    names: &Names<'_>,
-    ifaces: impl IntoIterator<Item = &'a UnitIface>,
-    name: &str,
-) -> ImportHint {
-    import_hint(
-        ifaces.into_iter().map(|iface| {
-            iface
-                .import_index
-                .get_or_init(|| ImportIndex::new(names, &iface.exports))
-        }),
-        name,
-    )
-}
-
-fn import_hint<'a>(indexes: impl IntoIterator<Item = &'a ImportIndex>, name: &str) -> ImportHint {
-    let mut items = HashMap::<DefId, (bool, String)>::default();
-    let mut modules = std::collections::BTreeSet::new();
-    for index in indexes {
-        crate::work::hint_work(1);
-        if let Some(found) = index.by_leaf.get(name) {
-            modules.extend(found.iter().cloned());
-        }
-        let Some(exports) = index.by_name.get(name) else {
-            continue;
-        };
-        for (module, def, reexport) in exports {
-            crate::work::hint_work(1);
-            let path = format!("{module}.{name}");
-            let found = items.entry(*def).or_insert((*reexport, path.clone()));
-            if (*reexport, &path) < (found.0, &found.1) {
-                *found = (*reexport, path);
-            }
-        }
-    }
-    let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
-    paths.extend(modules);
-    paths.sort_stable();
-    paths.dedup();
-    match paths.as_slice() {
-        [] => ImportHint::default(),
-        [path] => ImportHint {
-            text: format!("; add `use {path}`"),
-            path: Some(path.clone()),
-        },
-        _ => {
-            let modules: Vec<_> = paths
-                .iter()
-                .take(3)
-                .map(|p| {
-                    format!(
-                        "`{}`",
-                        p.rsplit_once('.').map_or(p.as_str(), |(module, _)| module)
-                    )
-                })
-                .collect();
-            ImportHint {
-                text: format!(
-                    "; `{name}` has several public std homes: {}; add a `use` from the intended module",
-                    modules.join(", ")
-                ),
-                path: None,
-            }
-        }
-    }
 }
 
 /// A run's dense interface-item directory. Each unit registers its index
@@ -1374,7 +1364,7 @@ pub struct Lookup<'a> {
     pub own_index: HashMap<DefId, usize>,
     pub ifaces: Vec<&'a UnitIface>,
     index: &'a IfaceIndex,
-    import_hints: Option<fn(&str) -> ImportHint>,
+    import_hints: ImportHints<'a>,
     by_unit: Vec<Option<&'a UnitIface>>,
     /// The own items' derivation templates by trait, made on the first
     /// derivation that asks.
@@ -1404,6 +1394,7 @@ impl<'a> Lookup<'a> {
         own: &'a [Item],
         ifaces: impl IntoIterator<Item = (UnitId, &'a UnitIface)>,
         index: &'a IfaceIndex,
+        import_hints: ImportHints<'a>,
     ) -> Self {
         let own_index = own.iter().enumerate().map(|(i, it)| (it.def, i)).collect();
         let mut visible = Vec::new();
@@ -1421,24 +1412,14 @@ impl<'a> Lookup<'a> {
             ifaces: visible,
             index,
             by_unit,
-            import_hints: None,
+            import_hints,
             templates: std::sync::OnceLock::new(),
         }
     }
 
-    /// Supply complete, immutable std advice independently of this check's closure.
     #[must_use]
-    pub fn with_import_hints(mut self, hints: fn(&str) -> ImportHint) -> Self {
-        self.import_hints = Some(hints);
-        self
-    }
-
-    #[must_use]
-    pub fn import_hint(&self, names: &Names<'_>, name: &str) -> ImportHint {
-        self.import_hints.map_or_else(
-            || std_import_hint(names, self.ifaces.iter().copied(), name),
-            |hints| hints(name),
-        )
+    pub fn import_hint(&self, name: &str) -> ImportHint {
+        self.import_hints.hint(name)
     }
 
     /// The derivation template of `trait_` (`annot.template.form`): the
@@ -1623,9 +1604,6 @@ pub struct UnitIface {
     /// exports, so a key over the reads of a unit's header lowering
     /// takes it with the deep hash (#248). Zero until the driver sets it.
     pub names_hash: Hash128,
-    /// The std exports by name, for import hints ([`ImportIndex`]): made
-    /// on the first hint that reads this interface. Outside every hash.
-    pub import_index: std::sync::OnceLock<ImportIndex>,
     /// Each trait's derivation template among the items, the first in
     /// order (`annot.template.form`), made on the first derivation that
     /// asks (#1928). Outside every hash.
@@ -3074,7 +3052,6 @@ pub fn unit_iface(
         loop_names: hd_base::HashSet::default(),
         broken_names: hd_base::HashSet::default(),
         names_hash: Hash128::default(),
-        import_index: std::sync::OnceLock::new(),
         templates: std::sync::OnceLock::new(),
         module_uses,
     }
@@ -3815,7 +3792,12 @@ mod tests {
         let index = super::IfaceIndex::default();
         index.insert(UnitId::from_raw(2), &first);
         let visible = [(UnitId::from_raw(2), &first)];
-        let lookup = super::Lookup::new(&[], visible, &index);
+        let lookup = super::Lookup::new(
+            &[],
+            visible,
+            &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
+        );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
             first.item(shared).unwrap()
@@ -3845,6 +3827,7 @@ mod tests {
             &own,
             [(UnitId::from_raw(2), &first), (UnitId::from_raw(7), &later)],
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(
             std::ptr::eq(lookup.item(shared).unwrap(), own.get(1).unwrap()),
@@ -3881,6 +3864,7 @@ mod tests {
                 (UnitId::from_raw(4), &second),
             ],
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
@@ -3893,6 +3877,7 @@ mod tests {
                 (UnitId::from_raw(4), &second),
             ],
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
@@ -3931,7 +3916,12 @@ mod tests {
         let iface = indexed_unit("app", lazy);
         let index = super::IfaceIndex::default();
         index.insert(UnitId::from_raw(0), &iface);
-        let lookup = super::Lookup::new(&[], [(UnitId::from_raw(0), &iface)], &index);
+        let lookup = super::Lookup::new(
+            &[],
+            [(UnitId::from_raw(0), &iface)],
+            &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
+        );
         assert_eq!(
             iface.items.decoded(),
             0,

@@ -112,7 +112,7 @@ thread_local! {
 }
 
 /// Count the work of std import hints on this thread
-/// ([`crate::iface::std_import_hint`]): one per export indexed, one per
+/// ([`crate::iface::ImportIndex`]): one per export indexed, one per
 /// interface asked, and one per export of the asked name.
 pub fn count_hint_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = HINT.with(|c| c.replace(Some(0)));

@@ -2408,11 +2408,11 @@ fn unknown_field_types(n: usize) -> String {
     s
 }
 
-// Resolver and checker: #1876, an unknown name's import hint asks each
-// interface's index of std exports by name, built once, with one probe:
+// Resolver and checker: #1876, an unknown name's import hint asks the
+// explicit std index by name, built once, with one probe:
 // a pass over every export of std per unknown name cost about 175 µs each.
 #[test]
-fn import_hints_probe_one_index_per_interface() {
+fn import_hints_probe_one_explicit_index() {
     on_test_stack(|| {
         for n in [1_000, 10_000] {
             let (out, work) = hd_resolve::work::count_hint_work(|| {
@@ -2421,7 +2421,7 @@ fn import_hints_probe_one_index_per_interface() {
             let shown = out.render();
             let hinted = shown.matches("; add `use std.text.StringBuilder`").count();
             assert_eq!(hinted, n / 2, "{n}: {shown}");
-            // The interfaces' exports indexed once (412 measured), then a
+            // The explicit std exports are indexed once, followed by a
             // few probes per unknown name (4.5 measured): not std's
             // exports per name.
             assert!(

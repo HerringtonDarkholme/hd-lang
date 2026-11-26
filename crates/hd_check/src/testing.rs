@@ -83,7 +83,12 @@ pub fn with_checker_items(
     let parsed = hd_syntax::parse(b"");
     let index = hd_resolve::iface::IfaceIndex::default();
     let items = items(names);
-    let lookup = Lookup::new(&items, std::iter::empty(), &index);
+    let lookup = Lookup::new(
+        &items,
+        std::iter::empty(),
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
     let owners = OwnerMap::default();
     let extra = UniverseImpls::default();
     let impls = ImplView {

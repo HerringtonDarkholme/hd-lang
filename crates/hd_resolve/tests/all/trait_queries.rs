@@ -42,8 +42,18 @@ fn with_lookups(mut test: impl FnMut(Names<'_>, &Lookup<'_>)) {
     let unit = UnitId::from_raw(0);
     let index = IfaceIndex::default();
     index.insert(unit, &iface);
-    let local = Lookup::new(&items, [], &index);
-    let cached = Lookup::new(&[], [(unit, &iface)], &index);
+    let local = Lookup::new(
+        &items,
+        [],
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
+    let cached = Lookup::new(
+        &[],
+        [(unit, &iface)],
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
     test(names, &local);
     test(names, &cached);
 }

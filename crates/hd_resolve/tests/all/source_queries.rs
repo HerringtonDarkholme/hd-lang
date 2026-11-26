@@ -313,7 +313,12 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
     let unit_id = UnitId::from_raw(0);
     let index = IfaceIndex::default();
     index.insert(unit_id, &unit);
-    let lookup = Lookup::new(&own, [(unit_id, &unit)], &index);
+    let lookup = Lookup::new(
+        &own,
+        [(unit_id, &unit)],
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
     let mut scope = ModuleScope::default();
     scope.bind(
         record.name,
@@ -462,6 +467,10 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
         calls: RefCell<Vec<String>>,
     }
     impl World for IndexedWorld {
+        fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+            hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX)
+        }
+
         fn module_path_node(&self, module: PathId) -> Option<&str> {
             (module == self.node).then_some("app.data")
         }
@@ -539,7 +548,7 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
 #[test]
 fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
     use hd_resolve::HeadKind;
-    use hd_resolve::iface::{Export, ImportHint, std_import_hint};
+    use hd_resolve::iface::{Export, ImportHint, ImportIndex};
     use hd_resolve::work::count_hint_work;
 
     let mut warm_work = Vec::new();
@@ -569,33 +578,23 @@ fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
             let label = format!("Filler{i}");
             exports.push(export("std.misc", &label, names.item("std.misc", &label)));
         }
-        // A complete declaration table accompanies the aliases: a runtime
-        // declaration is ordinary interface data, not malformed metadata.
-        let mut declared = hd_base::HashSet::default();
-        let items = exports
-            .iter()
-            .filter(|e| declared.insert(e.def))
-            .map(|e| {
-                Item::new(
-                    e.def,
-                    run.syms.intern(names.display_name(e.def)),
-                    true,
-                    ItemData::Struct(Vec::new(), TypeAttrs::default()),
-                )
-            })
-            .collect();
-        let iface = unit_iface(
-            "std",
-            Items::new(items),
-            exports,
-            Arc::from([]),
-            None,
-            &[],
-            Vec::new(),
-        );
-        let (hint, cold) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        let ((index, hint), cold) = count_hint_work(|| {
+            let index = ImportIndex::new(&names, &exports);
+            let hint = index.hint("Shared");
+            (index, hint)
+        });
         assert_eq!(hint.path.as_deref(), Some("std.text.Shared"));
         assert_eq!(hint.text, "; add `use std.text.Shared`");
+        // Explicit advice is independent of the lookup's visible interfaces.
+        let directory = IfaceIndex::default();
+        let lookup = Lookup::new(
+            &[],
+            [],
+            &directory,
+            hd_resolve::iface::ImportHints::Index(&index),
+        );
+        assert_eq!(lookup.import_hint("Shared"), hint);
+
         assert!(cold >= width, "the first hint indexes all exports");
         for label in [
             "RuntimeOnly",
@@ -605,21 +604,18 @@ fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
             "rt",
             "memory",
         ] {
-            let (hint, work) = count_hint_work(|| std_import_hint(&names, [&iface], label));
+            let (hint, work) = count_hint_work(|| index.hint(label));
             assert_eq!(hint, ImportHint::default(), "{width}: {label}");
-            assert_eq!(work, 1, "an absent name probes the built interface once");
+            assert_eq!(work, 1, "an absent name probes the explicit index once");
         }
         for (label, path) in [
             ("Node", "std.rtree.Node"),
             ("rtree", "std.rtree"),
             ("text", "std.text"),
         ] {
-            assert_eq!(
-                std_import_hint(&names, [&iface], label).path.as_deref(),
-                Some(path)
-            );
+            assert_eq!(index.hint(label).path.as_deref(), Some(path));
         }
-        let (again, work) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        let (again, work) = count_hint_work(|| index.hint("Shared"));
         assert_eq!(again, hint);
         warm_work.push(work);
     }
