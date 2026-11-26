@@ -125,6 +125,51 @@ mod tests {
     }
 
     #[test]
+    fn parallel_compilation_preserves_function_packs_at_increasing_width() {
+        use hd_run_wasmtime::internals::code_cache::compile_with_jobs;
+        for count in [100, 1000] {
+            let packs = MemoryStore::default();
+            let bytes = module(count);
+            let config = hd_run_wasmtime::EngineConfig {
+                compilation_jobs: 2,
+                ..Default::default()
+            };
+            let (cold_engine, cold_salt) = engine(config);
+            let (cold, stats) = compile_with_jobs(&packs, &cold_engine, cold_salt, &bytes, 2);
+            cold.expect("parallel cold compile");
+            assert!(stats.compiled >= u64::from(count), "{stats:?}");
+            assert_eq!(packs.drain_new().len(), 1, "one pack across workers");
+            let (warm_engine, warm_salt) = engine(config);
+            let (warm, stats) = compile_with_jobs(&packs, &warm_engine, warm_salt, &bytes, 2);
+            assert_eq!(stats.compiled, 0, "width {count}: {stats:?}");
+            assert!(stats.hits >= u64::from(count), "{stats:?}");
+            assert!(packs.drain_new().is_empty(), "a hit writes nothing");
+            assert_eq!(call(&warm_engine, &warm.expect("warm compile"), "f3"), 22);
+        }
+    }
+
+    #[test]
+    fn parallel_compilation_preserves_an_hd_program_pack() {
+        use hd_run_wasmtime::internals::code_cache::compile_with_jobs;
+        let packs = MemoryStore::default();
+        let bytes = program();
+        let config = hd_run_wasmtime::EngineConfig {
+            compilation_jobs: 2,
+            ..Default::default()
+        };
+        let (cold_engine, salt) = engine(config);
+        let (cold, stats) = compile_with_jobs(&packs, &cold_engine, salt, &bytes, 2);
+        cold.expect("parallel cold hd compile");
+        assert!(stats.compiled > 0);
+        for _ in 0..2 {
+            let (warm_engine, _) = engine(config);
+            let (warm, stats) = compile_with_jobs(&packs, &warm_engine, salt, &bytes, 2);
+            warm.expect("parallel warm hd compile");
+            assert_eq!(stats.compiled, 0, "{stats:?}");
+        }
+    }
+
+    #[test]
     fn a_damaged_or_foreign_pack_is_a_miss() {
         let packs = MemoryStore::default();
         let wasm = module(2);

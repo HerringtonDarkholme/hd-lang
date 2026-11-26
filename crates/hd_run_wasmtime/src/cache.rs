@@ -36,6 +36,7 @@ use crate::{EngineConfig, OptLevel};
 struct OnDemandKey {
     opt: OptLevel,
     max_stack: usize,
+    compilation_jobs: usize,
 }
 
 /// Compiled modules for one engine, bound to a small LRU so a process
@@ -57,6 +58,7 @@ pub(crate) struct ModuleCache {
     modules: Mutex<CacheState>,
     /// The engine's salt when the code cache is on for it.
     code: Option<hd_base::Hash128>,
+    compilation_jobs: usize,
 }
 
 /// Fits in the suite's noise: the suite compiles about a thousand
@@ -74,10 +76,11 @@ struct CacheState {
 impl ModuleCache {
     /// The cache of `engine`, which `code` says was made with the code
     /// cache on (`code_cache::configure`).
-    pub(crate) fn new(engine: &wasmtime::Engine, code: bool) -> Self {
+    pub(crate) fn new(engine: &wasmtime::Engine, code: bool, compilation_jobs: usize) -> Self {
         Self {
             modules: Mutex::new(CacheState::default()),
             code: code.then(|| crate::code_cache::salt(engine)),
+            compilation_jobs,
         }
     }
 
@@ -94,8 +97,8 @@ impl ModuleCache {
             }
         }
         let compiled = match self.code {
-            Some(salt) => crate::code_cache::compile(engine, salt, wasm)?,
-            None => wasmtime::Module::new(engine, wasm)?,
+            Some(salt) => crate::code_cache::compile(engine, salt, wasm, self.compilation_jobs)?,
+            None => crate::code_cache::compile_module(engine, wasm, self.compilation_jobs)?,
         };
         let compiled = Arc::new(compiled);
         let mut state = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
@@ -141,6 +144,7 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
     let key = OnDemandKey {
         opt: config.cranelift_opt,
         max_stack: config.max_wasm_stack,
+        compilation_jobs: config.compilation_jobs.max(1),
     };
     if let Some(shared) = on_demand_engines()
         .lock()
@@ -159,7 +163,7 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
         return Ok(Arc::clone(shared));
     }
     let shared = Arc::new(Shared {
-        cache: ModuleCache::new(&engine, code),
+        cache: ModuleCache::new(&engine, code, config.compilation_jobs),
         engine,
     });
     engines.insert(key, Arc::clone(&shared));

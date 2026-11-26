@@ -65,7 +65,8 @@ impl Session {
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
         let code = code_cache();
-        let config = hd_run_wasmtime::EngineConfig::pipeline(level);
+        let mut config = hd_run_wasmtime::EngineConfig::pipeline(level);
+        config.compilation_jobs = jobs;
         let workers = u32::try_from(jobs).map_err(|_| "too many test workers")?;
         let engine = hd_run_wasmtime::TestEngine::new(
             config,
@@ -217,7 +218,8 @@ pub(crate) fn run_program(
     host: &HostSetup,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     let _code = code_cache();
-    let config = hd_run_wasmtime::EngineConfig::pipeline(level);
+    let mut config = hd_run_wasmtime::EngineConfig::pipeline(level);
+    config.compilation_jobs = crate::default_jobs();
     let _configured = hd_base::trace::span("engine", || {
         format!("wasmtime OptLevel::{:?}", config.cranelift_opt)
     });

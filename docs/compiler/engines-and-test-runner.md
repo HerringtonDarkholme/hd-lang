@@ -31,17 +31,19 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
 | `max_wasm_stack` | 4 MiB, on a thread with 8 MiB more native stack | same |
 | allocation strategy | pooling for `hd test` (§18.3); on-demand otherwise | same |
-| parallel compilation | off | off |
+| parallel compilation | caller-selected, within `--jobs` | caller-selected, within `--jobs` |
 
 - **Test heaps start empty.** A pooled slot reserves no fixed initial
   heap before its case allocates anything. This is better than the
   design's small fixed per-slot heaps.
-- **Parallel compilation.** The design compiled a module's functions in
-  parallel, capped at the `--jobs` budget. Implementation differs:
-  wasmtime's `parallel-compilation` feature is off, so every module
-  compiles on one thread; test modules are kilobytes and the runner
-  already parallelizes across programs. Not judged: no large program has
-  been measured.
+- **Parallel compilation.** Single-program CLI runs and a package's
+  single test-module compile use the `--jobs` budget. Conformance and
+  fixture pools compile serially within each module, since their callers
+  already parallelize across small programs. The caller chooses; module
+  size does not. Scoped compiler workers start only on an in-process
+  module-cache miss, and inherit that compile's function-cache session.
+  A disk function-pack hit still translates the module and uses those
+  workers; it is not an in-process module-cache hit.
 - Winch cannot be the dev tier: it supports no GC.
 
 ### 18.2 Compile Caches

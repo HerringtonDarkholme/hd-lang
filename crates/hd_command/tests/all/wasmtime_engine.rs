@@ -98,6 +98,74 @@ fn program(name: &str, source: &str) -> Scratch {
 }
 
 #[test]
+fn single_module_compilers_obey_the_job_budget() {
+    let dir = work("compiler-jobs");
+    std::fs::create_dir_all(dir.join("src")).expect("source directory");
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-run-built/hd.toml"),
+    )
+    .expect("manifest");
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-run-built/src/main.hd"),
+    )
+    .expect("program");
+    let mut builder = hd(&dir);
+    builder.env("HD_ENGINE", "wasmtime");
+    let built = run(builder, &["build"], "");
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    for jobs in ["1", "2"] {
+        for (name, args) in [
+            ("program", vec!["run"]),
+            ("artifact", vec!["build/debug/greeter.wasm"]),
+        ] {
+            let trace = dir.join(format!("{name}-{jobs}.json"));
+            let mut command = hd(&dir);
+            command
+                .env("HD_TRACE", &trace)
+                .env("HD_ENGINE", "wasmtime")
+                .env("HD_JOBS", jobs);
+            let out = run(command, &args, "");
+            assert!(out.status.success(), "{}", text(&out.stderr));
+            assert_eq!(text(&out.stdout), "hello\n");
+            assert_compile_jobs(&trace, jobs);
+        }
+        let test_dir = work(&format!("compiler-test-jobs-{jobs}"));
+        std::fs::write(
+            test_dir.join("main.hd"),
+            include_str!("../../../../spec/conformance/cli/release-test-checked/main.hd"),
+        )
+        .expect("test source");
+        let trace = test_dir.join("trace.json");
+        let mut command = hd(&test_dir);
+        command
+            .env("HD_TRACE", &trace)
+            .env("HD_ENGINE", "wasmtime")
+            .env("HD_JOBS", jobs);
+        let out = run(command, &["test", "--release", "main.hd"], "");
+        assert_eq!(
+            out.status.code(),
+            Some(1),
+            "the fixture tests checked overflow"
+        );
+        assert_compile_jobs(&trace, jobs);
+    }
+}
+
+fn assert_compile_jobs(trace: &Path, jobs: &str) {
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(trace).expect("trace")).expect("json");
+    let events = json["traceEvents"].as_array().expect("events");
+    assert!(
+        events
+            .iter()
+            .any(|event| event["name"] == format!("wasmtime compile jobs={jobs}")),
+        "{json}"
+    );
+}
+
+#[test]
 fn samples_agree() {
     for sample in [
         "hello/hello.hd",

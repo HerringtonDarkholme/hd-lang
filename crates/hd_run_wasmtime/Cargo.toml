@@ -39,6 +39,8 @@ ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "=1.0.9"
 serde_json = "1"
+# Scoped compiler workers inherit the current module's function-cache session.
+rayon = "1"
 # The `hd-io` runtime that offloaded host operations run on
 # one current-thread runtime, so no `rt-multi-thread`; no `macros`,
 # `signal` or `fs`.
@@ -57,6 +59,7 @@ tokio = { version = "=1.53.2", default-features = false, features = [
 wasmtime = { version = "=49.0.2", default-features = false, features = [
     "cranelift",
     "incremental-cache",
+    "parallel-compilation",
     "pooling-allocator",
     "runtime",
     "std",

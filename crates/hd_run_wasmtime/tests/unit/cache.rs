@@ -25,8 +25,12 @@ mod tests {
         let bytes = empty_module();
         let store = MemoryStore::default();
         // Two separate wrappers, one shared engine: one compilation.
-        let first = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let second = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+        let config = EngineConfig {
+            compilation_jobs: 2,
+            ..Default::default()
+        };
+        let first = WasmtimeEngine::new(config).unwrap();
+        let second = WasmtimeEngine::new(config).unwrap();
         let a = first.load(&bytes, &store).unwrap();
         let b = second.load(&bytes, &store).unwrap();
         assert!(Arc::ptr_eq(a.code(), b.code()));
