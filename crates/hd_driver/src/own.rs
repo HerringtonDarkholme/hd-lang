@@ -4108,7 +4108,9 @@ impl Run<'_> {
             let mut callees = |n: Node| {
                 // A refused body stays unowned: `owned_instance` reports it.
                 let span = super::phase("collect: inline");
-                let inlined_instance = env.inlined_instance(n);
+                // The inliner asks a referent's layout per call site: once per run instead.
+                let inlined_instance =
+                    hd_layout::cached_for_run(self.layout_key, || env.inlined_instance(n));
                 drop(span);
                 let out = if let Ok(Some((body, hash))) = inlined_instance {
                     let out = env.summarized_callees(&body);
