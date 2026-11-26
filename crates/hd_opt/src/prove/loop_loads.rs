@@ -192,8 +192,12 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
                 .map(|&u| facts.place_key(b.data[u as usize][0], u, from, DEPTH))
                 .collect();
             for (key, ty, loads) in facts.invariant_loads(&body, &mut claimed) {
+                // A check that keeps the key's value (a block list's length)
+                // leaves it as a place apart from it does.
                 let near: Vec<usize> = written.as_ref().map_or(Vec::new(), |w| {
-                    (0..w.len()).filter(|&k| !apart(&w[k], &key)).collect()
+                    (0..w.len())
+                        .filter(|&k| !apart(&w[k], &key) && !facts.keeps_len(checks[k], &key))
+                        .collect()
                 });
                 // A load past a field of the one check's place `[*$p]` reads
                 // the value the check leaves, whose type is `$p`'s referent.
