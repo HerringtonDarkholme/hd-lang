@@ -29,7 +29,7 @@ name and call it with the bang: `use std.fs.read_text`, then
 
 ```hd
 use std.meta.{cold, inline}                     # @inline, @cold hints
-use std.cli.{Arg, ArgParser}                          # command-line options and --help
+use std.cli.{Cli, positional, short}                  # @derive(Cli): typed options and --help
 use std.cmp.{clamp, max, min}
 use std.collections.{Deque, Heap, Set, counts}
 use std.console.{ConsoleInput, MemoryConsole, ScriptedInput, eprintln, print, read_all, read_line}

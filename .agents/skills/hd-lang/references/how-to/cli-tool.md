@@ -4,37 +4,35 @@
 of a file. It needs options, a `--help`, an error on standard error, and
 an exit status.
 
+**Derive the parser from a struct.** `@derive(Cli)` turns a struct's
+fields into arguments, its `##` doc comments into the help text, and the
+parse into a typed value. Don't hand-build an `ArgParser` for a fixed set
+of arguments.
+
 ## The program
 
 ```hd
-use std.cli.{Arg, ArgParser, CliError, Parsed}
+use std.cli.{Args, Cli, ScriptedArgs, positional, short}
 use std.console.{MemoryConsole, eprintln}
 use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
-use std.cli.{Args, ScriptedArgs}
 use std.path.Path
 use std.process.ExitCode
 
+## Print the most frequent words of a file
+@derive(Cli)
 struct Options:
-    path: string
-    top: usize
+    ## the file to read
+    @positional
+    file: Path
+    ## how many words to print
+    @short('n')
+    top: usize = 3
+    ## count Tea and tea together
+    @short('i')
     ignore_case: bool
 
-fn parser() -> *mut ArgParser:
-    ArgParser::new("wordtop", about="Print the most frequent words of a file")
-        .arg(Arg { name: "file", kind: .Positional, required: true, help: "the file to read" })
-        .arg(Arg { name: "top", short: 'n', help: "how many words to print" })
-        .arg(Arg { name: "ignore-case", kind: .Flag, short: 'i', help: "count Tea and tea together" })
-
-fn options(parsed: Parsed) -> Result[Options, CliError]:
-    top := parsed.value_as::[usize]("top")?.unwrap_or(3)   # write the value type
-    .Ok(Options {
-        path: parsed.value("file").unwrap_or(""),
-        top: top,
-        ignore_case: parsed.flag("ignore-case"),
-    })
-
 # The work is a plain function: no row, so it is easy to test.
-fn top_words(text: string, options: Options) -> List[(string, usize)]:
+fn top_words(text: string, options: &Options) -> List[(string, usize)]:
     source := if options.ignore_case: text.lower() else: text
     let mut counts: Map[string, usize] = {}
     for word in source.split_whitespace():
@@ -42,18 +40,15 @@ fn top_words(text: string, options: Options) -> List[(string, usize)]:
     counts.most_common(options.top)
 
 pub fn main!() -> ExitCode $ Args + Console + FsRead:
-    parsed := match parser().parse_args():
-        .Ok(parsed) => parsed
+    options := match Options::parse_args():
+        .Ok(options) => options
         .Err(error) => return error.exit()       # usage error: status 2; --help: status 0
-    chosen := match options(parsed):
-        .Ok(chosen) => chosen
-        .Err(error) => return error.exit()
-    text := match read_text!(Path(chosen.path)):
+    text := match read_text!(options.file):
         .Ok(text) => text
         .Err(error) =>
-            eprintln("wordtop: ${chosen.path}: $error")
+            eprintln("wordtop: ${options.file}: $error")
             return ExitCode(1)
-    for (word, count) in top_words(text, chosen):
+    for (word, count) in top_words(text, &options):
         println("$count $word")
     ExitCode(0)
 
@@ -67,6 +62,11 @@ tests:
         $.with(Args=arguments, FsRead=fs, Console=console):
             assert_equal(main!(), ExitCode(0))
         assert_equal(console.output().join(""), "3 tea\n")
+
+    it("parses without a host"):
+        options := Options::parse(["notes.txt", "--top", "5"]).expect("valid arguments")
+        assert_equal(options.top, 5)
+        assert(!options.ignore_case)
 
     it("reports a missing file on standard error"):
         console := MemoryConsole::new()
@@ -99,23 +99,42 @@ options:
   -h, --help         Print this help.
 ```
 
+A bad value exits with status 2: `invalid value for --top: invalid digit
+at position 0`.
+
 ## The pieces
 
-- **Declare arguments** with `Arg`. `kind` is `.Option` (takes a value, the
-  default), `.Flag` (present or not) or `.Positional`. Other fields:
-  `short`, `help`, `required`, `choices`, `repeated`.
-- **Read them** from `Parsed`: `value(name)` gives `string?`, `flag(name)`
-  a `bool`, `values(name)` a list for a repeated option, and
-  `value_as::[T](name)` a parsed value. Always write the type argument,
-  as `value_as::[usize]("top")`.
-- **Exit status.** Return `ExitCode` from `main`. `error.exit()` on a
-  `CliError` prints the usage and picks the status. Without `std.cli`,
-  `args()` from `std.cli` gives the raw list
-  ([std/host.md](../std/host.md)).
-- **Errors** go to standard error with `eprintln`, and the function
-  returns a failing `ExitCode`.
-- **In a package**, `hd.toml` must grant what `main` names:
-  `Args = true`, `Console = true`, `FsRead = true`
-  ([cli/packages.md](../cli/packages.md)).
-- **Subcommands**: `parser.command("add", sub_parser)`, then
-  `parsed.command()` gives `(name, parsed)?`.
+- **Fields become arguments,** named in kebab-case (`ignore_case` is
+  `--ignore-case`), in declaration order:
+  - `bool` is a flag;
+  - a field with a default (`top: usize = 3`) is optional;
+  - `T?` reads `.None` when absent;
+  - `List[T]` collects every occurrence;
+  - any other field is required.
+  Field types: `string`, `char`, the integers, `f32`/`f64`, `Path`,
+  `Duration`, a newtype over one, or another `Cli` type.
+- **Field facts:** `@short('n')` adds `-n`. `@positional` reads a plain
+  argument instead of `--name`. A `List[T]` positional takes the rest and
+  must come last.
+- **Help text:** the struct's `##` comment is the description, and each
+  field's `##` comment is its help line. `--help` is built in.
+- **A closed set of values:** `@derive(Cli)` on a payload-free enum
+  (`enum Format: Json, Markdown`) accepts `--format json` and lists the
+  choices in the help.
+- **Subcommands:** `@derive(Cli)` on an enum whose variants carry one
+  `Cli` struct each (`enum Command: Build(BuildOptions), Stop`). A struct
+  field of that type (`command: Command`) reads `build --out site`.
+  Options before the command name are global.
+- **Parse:**
+  - `Options::parse_args()` reads the host's arguments and needs `$ Args`;
+  - `Options::parse(["--top", "5"])` is pure, for tests.
+  - Both return `Result[Options, CliError]`. `error.exit()` prints the
+    usage or the help and picks the status.
+- **Errors** go to standard error with `eprintln`, and `main` returns a
+  failing `ExitCode`.
+- **In a package**, `hd.toml` must grant what `main` names: `Args = true`,
+  `Console = true`, `FsRead = true` ([cli/packages.md](../cli/packages.md)).
+- **When the arguments aren't known until run time,** use the builder
+  underneath: `ArgParser::new(..).arg(Arg { .. })`, then `parse_args()`
+  and read the `Parsed` (`value`, `flag`, `values`, `value_as::[T]`).
+  `args()` from `std.cli` gives the raw list ([std/host.md](../std/host.md)).

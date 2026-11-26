@@ -40,20 +40,25 @@ pub fn main() -> void $ Console + Args + Env:
     println("hello, $name from $home")
 ```
 
-Run it as `hd greet.hd -- Ada`. For options, flags and `--help`, use
-`std.cli`:
+Run it as `hd greet.hd -- Ada`. For options, flags and `--help`, derive
+the parser from a struct with `@derive(Cli)`
+([how-to/cli-tool.md](../how-to/cli-tool.md)):
 
 ```hd
-use std.cli.{Arg, ArgParser}
-use std.cli.Args
+use std.cli.{Args, Cli}
 use std.process.ExitCode
 
+## Set the volume
+@derive(Cli)
+struct Volume:
+    ## how loud
+    level: string = "quiet"
+
 pub fn main() -> ExitCode $ Args + Console:
-    parser := ArgParser::new("volume").arg(Arg { name: "level", help: "how loud" })
-    parsed := match parser.parse_args():
-        .Ok(parsed) => parsed
+    volume := match Volume::parse_args():
+        .Ok(volume) => volume
         .Err(error) => return error.exit()      # prints usage; status 2, or 0 for --help
-    println(parsed.value("level").unwrap_or("quiet"))
+    println(volume.level)
     ExitCode(0)
 ```
 
