@@ -1,0 +1,29 @@
+# @dump: stdout
+# @build: dev | release
+# `bump` reads `self` through `get`, both inlined, on a boxed `C`: the
+# inner copy's `self`, a coercion of the outer one's, reaches the object
+# through the same lent pointer, so its read is the caller's own loan
+# and this prints 2 and 3, as with neither inlined (`lent_params`).
+# Every std List method is inlined and calls others (`index_set` ->
+# `set` -> `len`), so `xs[1] = 9` on a boxed list is this shape.
+use std.meta.inline
+
+struct C:
+    v: i32
+
+impl C:
+    @inline(.Always)
+    fn get(&self) -> i32:
+        self.v
+
+    @inline(.Always)
+    fn bump(&mut self) -> void:
+        if self.get() > 0:
+            self.v += 1
+
+pub fn main() -> void $ Console:
+    c := box(C { v: 1 })
+    c.bump()
+    println("${c.v}")
+    c.bump()
+    println("${c.v}")

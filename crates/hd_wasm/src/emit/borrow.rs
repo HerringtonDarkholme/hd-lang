@@ -90,8 +90,10 @@ pub struct CaptureOrigins {
 /// The inlined parameters that receive a lent `*T` argument (the `Read` a
 /// `LoanBegin` names), each with the pointer local it was read from: they
 /// reach the object through that pointer, so their accesses are the loan's
-/// own. One whole store each. Cost: two passes over the body, once per body
-/// ([`BorrowFacts`]).
+/// own. So is one stored from a whole read of such a parameter, or its
+/// `&mut T` to `&T` coercion: the `self` of a method inlined in an inlined
+/// method, through its caller's. One whole store each. Cost: two passes
+/// over the body, once per body ([`BorrowFacts`]).
 fn lent_params(b: &Body) -> Vec<(u32, u32)> {
     let mut sites = vec![false; b.len()];
     let mut stores = vec![0u8; b.local_ty.len()];
@@ -107,6 +109,8 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
         }
     }
     let mut out = Vec::new();
+    // Each lent parameter's pointer local, by local.
+    let mut pointer = vec![None; b.local_ty.len()];
     for i in 0..b.len() {
         let Some((l, true)) = (b.tags[i] == Tag::Store)
             .then(|| b.stored_local(i))
@@ -114,16 +118,21 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
         else {
             continue;
         };
-        let Some(v) = b
-            .direct_value(b.data[i][1])
-            .filter(|&v| sites[v] && b.tags[v] == Tag::Read)
-        else {
+        let Some(mut v) = (b.direct_value(b.data[i][1])).filter(|_| stores[l.idx()] == 1) else {
             continue;
         };
-        let place = b.view(b.data[v][0]);
-        if let Some(p) = place.local().filter(|_| place.whole())
-            && stores[l.idx()] == 1
+        let direct = sites[v] && b.tags[v] == Tag::Read;
+        while b.tags[v] == Tag::Coerce
+            && let Some(u) = b.direct_value(b.data[v][0])
         {
+            v = u;
+        }
+        let place = b.view(b.data[v][0]);
+        let from = (b.tags[v] == Tag::Read && place.whole())
+            .then(|| place.local())
+            .flatten();
+        if let Some(p) = from.and_then(|f| if direct { Some(f) } else { pointer[f as usize] }) {
+            pointer[l.idx()] = Some(p);
             out.push((l.raw(), p));
         }
     }
@@ -137,8 +146,12 @@ impl CaptureOrigins {
         eligible: impl Fn(hd_base::LocalId) -> bool,
     ) -> Self {
         let mut lent: Vec<Option<hd_base::LocalId>> = Vec::new();
+        // A parameter whose pointer an eligible one takes reaches the
+        // object through it too.
+        let mut pointers = vec![false; b.local_ty.len()];
         for &(l, p) in lent_params {
-            if eligible(hd_base::LocalId::from_raw(l)) {
+            if pointers[p as usize] || eligible(hd_base::LocalId::from_raw(l)) {
+                pointers[p as usize] = true;
                 lent.resize(b.local_ty.len(), None);
                 lent[l as usize] = Some(hd_base::LocalId::from_raw(p));
             }
