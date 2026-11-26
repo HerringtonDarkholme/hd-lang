@@ -492,7 +492,9 @@ Dev and release run the passes from one driver, `Run::owned_bottom_up`:
 the first time collection asks for a body, the walk owns it and what it
 calls, callees' strongly connected components first, one level of
 components at a time on the build's threads. Release records each
-body's summary for its callers; dev records none, and takes each node
+body's summary for its callers. Dev records none, so its components
+make one level (argument promotion, which reads a callee's owned body,
+keeps the levels), and it takes each node
 the walk meets from the store when it is current, without inlining it,
 owning it or walking its callees.
 

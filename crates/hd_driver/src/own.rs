@@ -4051,7 +4051,8 @@ impl Run<'_> {
 
     /// Owns the instances `root` reaches through the callee scan, the
     /// callees' strongly connected components first, one level of
-    /// components at a time on the task's threads; dev and release alike.
+    /// components at a time on the task's threads; dev and release alike,
+    /// though dev's components make one level.
     /// Release records each body's summary (`crates/hd_opt/DESIGN.md` §9,
     /// "Where they are computed"), which its callers' passes read. Dev
     /// records none, and takes a body from the store while its key
@@ -4248,7 +4249,12 @@ impl Run<'_> {
             // run on the task's threads (LLVM's CGSCC order, a level at a
             // time). Each writes only its members' entries, so the result
             // is the same at any thread count. A nested walk stays on its
-            // thread ([`OWNING`]).
+            // thread ([`OWNING`]). Dev passes read neither summaries nor,
+            // without argument promotion, a callee's owned body: all its
+            // components are one level.
+            if self.summaries.is_none() && !self.promote_args {
+                levels = vec![levels.into_iter().flatten().collect()];
+            }
             let nested = OWNING.get() || READS.with_borrow(|r| !r.is_empty());
             for level in &levels {
                 if nested || level.len() == 1 {
