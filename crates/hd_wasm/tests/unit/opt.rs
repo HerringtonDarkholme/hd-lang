@@ -2074,6 +2074,35 @@ mod origin_tests {
         }
     }
 
+    /// Liveness work per instruction stays flat as a body and its locals
+    /// grow 10x: a loop whose run writes and reads `n` locals, read once
+    /// more after it. Dense rows pay one bit per access and a row per
+    /// edge, so the work grows 9.9x; persistent sets paid a path of
+    /// `log2 n` nodes per access, 12.6x here and 3x the work.
+    #[test]
+    fn liveness_work_per_instruction_is_flat_in_body_size() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let work = |n: u32| {
+            let mut body = vec![op(I::Loop(BlockType::Empty))];
+            for l in 0..n {
+                body.extend([op(I::LocalGet(l)), op(I::I32Const(1)), op(I::I32Add)]);
+                body.push(op(I::LocalSet(l)));
+            }
+            body.extend([op(I::LocalGet(0)), op(I::BrIf(0)), op(I::End)]);
+            body.extend((0..n).flat_map(|l| [op(I::LocalGet(l)), op(I::Drop)]));
+            let f = tracked(&symbols, 0, n as usize, body);
+            let (dead, work) = hd_wasm::work::count_liveness(|| Live::dead_accesses(&f));
+            assert!(
+                dead.is_some_and(|dead| !dead[4]),
+                "the loop reads its write"
+            );
+            work
+        };
+        let (a, b) = (work(200), work(2000));
+        assert!(a > 0 && b * 10 <= a * 105, "{a} then {b}");
+    }
+
     /// Rule 13's rounds carry their dead accesses: after each round, the
     /// carried ones are what a new liveness pass finds. The bodies hold
     /// each shape a round can leave: two moves of one local whose spans

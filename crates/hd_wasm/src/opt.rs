@@ -1257,7 +1257,8 @@ pub fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>)
 /// block touches, not one per access, and the fixed point never walks
 /// the instructions again. Dead accesses come from each block's live-out
 /// set and the next access in the block, as LLVM's `LiveVariables`
-/// marks kills within a block.
+/// marks kills within a block. [`Live::dead_accesses`] solves the
+/// same equations on dense bit rows ([`Live::rows`]) when they fit.
 pub struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
@@ -1412,10 +1413,21 @@ impl Live {
     /// whether there is one; the block's live-out set answers only for
     /// its last access of each local: `O(B + a log n)` after the fixed
     /// point, for `a` first accesses, with no set made.
+    ///
+    /// The live-out sets are dense rows ([`Live::rows`]) when they fit,
+    /// and persistent sets above that.
     #[must_use]
     pub fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
         let body = &f.body;
-        let me = Self::new(f, Sets::unconsed())?;
+        let mut me = Self::blocks(f, Sets::unconsed())?;
+        let rows = me.rows(f);
+        if rows.is_none() {
+            me.settle(f);
+        }
+        let live_out = |p: usize, l: u32| match &rows {
+            Some(rows) => rows.has(p, l),
+            None => me.sets.contains(me.outs[p], l),
+        };
         let mut dead = vec![false; body.len()];
         let n = f.params.len() + f.locals.len();
         // `later[l]`: the block whose walk met `l` already;
@@ -1433,13 +1445,62 @@ impl Live {
                 dead[at] = if later[i] == p {
                     next_writes[i]
                 } else {
-                    !me.sets.contains(me.outs[p], l)
+                    !live_out(p, l)
                 };
                 later[i] = p;
                 next_writes[i] = write;
             }
         }
         Some(dead)
+    }
+
+    /// The locals live out of each block as dense bit rows, when the rows
+    /// take at most four words per instruction of the body, as the live
+    /// sets of production allocators are bit rows. The pass is
+    /// regalloc2's `compute_liveness`: a FIFO worklist seeded in
+    /// postorder (here the blocks last to first, as every edge but a
+    /// backedge leads forward), each visit unioning the block's live-in
+    /// row into its predecessors' live-out rows and queueing a
+    /// predecessor whose row grew. In a body that only branches forward
+    /// each block is visited once. A visit costs `W` words per
+    /// predecessor and one bit per first access, with no allocation, so
+    /// the pass is `O(V W)` words within the `4 L` the threshold allows,
+    /// where a persistent set pays a path of `log2 n` nodes per access.
+    fn rows(&self, f: &Func) -> Option<Rows> {
+        let len = f.body.len();
+        let words = (f.params.len() + f.locals.len()).div_ceil(64);
+        let blocks = self.starts.len();
+        if blocks.checked_mul(words)? > 4 * len {
+            return None;
+        }
+        let (first, preds) = self.predecessors(len);
+        let mut bits = vec![0u64; blocks * words];
+        let mut queue: std::collections::VecDeque<usize> = (0..blocks).rev().collect();
+        let mut queued = vec![true; blocks];
+        let mut live = vec![0u64; words];
+        let mut work = 0;
+        while let Some(p) = queue.pop_front() {
+            queued[p] = false;
+            live.copy_from_slice(&bits[p * words..][..words]);
+            for &(l, reads) in &self.firsts[self.first[p]..self.first[p + 1]] {
+                let (w, bit) = (l as usize / 64, 1u64 << (l % 64));
+                live[w] = if reads { live[w] | bit } else { live[w] & !bit };
+            }
+            for &q in &preds[first[p]..first[p + 1]] {
+                work += words;
+                let mut grew = false;
+                for (out, &x) in bits[q * words..][..words].iter_mut().zip(&live) {
+                    grew |= x & !*out != 0;
+                    *out |= x;
+                }
+                if grew && !queued[q] {
+                    queued[q] = true;
+                    queue.push_back(q);
+                }
+            }
+        }
+        crate::work::liveness(work);
+        Some(Rows { words, bits })
     }
 
     fn end(&self, p: usize, len: usize) -> usize {
@@ -1466,6 +1527,19 @@ impl Live {
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => sets.remove(live, *l),
             _ => live,
         }
+    }
+}
+
+/// Each block's live-out locals, `words` u64 per block ([`Live::rows`]).
+struct Rows {
+    words: usize,
+    bits: Vec<u64>,
+}
+
+impl Rows {
+    fn has(&self, p: usize, l: u32) -> bool {
+        let l = l as usize;
+        self.bits[p * self.words + l / 64] >> (l % 64) & 1 != 0
     }
 }
 
