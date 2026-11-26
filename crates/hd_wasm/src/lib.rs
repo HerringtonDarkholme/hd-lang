@@ -752,10 +752,13 @@ fn link_prepared(
             .then(|| (input.mutation_targets)())
             .flatten(),
     );
+    let span = hd_base::trace::span("phase", || "link: emit prepare".to_owned());
     address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
     emit::collect_loans(input, &mut m);
     emit::prepare_body_facts(input, &mut m);
+    drop(span);
+    let span = hd_base::trace::span("phase", || "link: emit instances".to_owned());
     for id in input.order {
         let f = emit::instance(input, &mut m, *id).map_err(|error| {
             locate_layout_error(error, || {
@@ -766,6 +769,8 @@ fn link_prepared(
         })?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
+    drop(span);
+    let span = hd_base::trace::span("phase", || "link: entry, shims".to_owned());
     rt::entry(input, &mut m)?;
     emit::shims(input, &mut m)?;
     #[cfg(feature = "checked-report")]
@@ -810,6 +815,8 @@ fn link_prepared(
         *session = linked;
         return Ok(mapped);
     }
+    drop(span);
+    let _span = hd_base::trace::span("phase", || "link: finish".to_owned());
     if track_origins {
         m.finish_with_origins()
     } else {

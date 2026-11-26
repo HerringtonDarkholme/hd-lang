@@ -10751,6 +10751,7 @@ impl Run<'_> {
                     extra.insert(r);
                 }
             }
+            let reach = phase("collect: reach");
             let collected = hd_mono::collect(
                 &self.pool,
                 env,
@@ -10761,6 +10762,7 @@ impl Run<'_> {
                 self.session.is_some(),
                 &self.planner,
             );
+            drop(reach);
             // Bodies decode as collection reaches them: a body whose bytes did
             // not decode fails the stage as a whole entry would.
             let collected = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
@@ -12103,7 +12105,9 @@ impl Run<'_> {
                 order: &c.order,
                 body: &body,
             };
+            let span = phase("link: own program");
             env.own_program(&instances);
+            drop(span);
             let mutation_targets =
                 || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
             let coinductive_flags =
@@ -12184,7 +12188,10 @@ impl Run<'_> {
             };
             // The `own` view shows an item's plain instance's final rows.
             let t = &c.collected.table;
-            for (id, b) in &settled.get_or_init(|| hd_wasm::settled(&input)).bodies {
+            let span = phase("link: settle");
+            let settled_now = settled.get_or_init(|| hd_wasm::settled(&input));
+            drop(span);
+            for (id, b) in &settled_now.bodies {
                 if !self.host.render_tir.is_empty()
                     && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
                 {

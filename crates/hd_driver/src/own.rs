@@ -4000,11 +4000,15 @@ impl Run<'_> {
                 lock(&self.instances).contains_key(&n)
             }
         };
+        let _span = super::phase("collect: own bottom-up");
         self.with_env(p, |env| {
             let inlined = RefCell::new(HashMap::default());
             let mut callees = |n: Node| {
                 // A refused body stays unowned: `owned_instance` reports it.
-                let Ok(Some((body, hash))) = env.inlined_instance(n) else {
+                let span = super::phase("collect: inline");
+                let inlined_instance = env.inlined_instance(n);
+                drop(span);
+                let Ok(Some((body, hash))) = inlined_instance else {
                     return env.borrowed_effect_callees(n);
                 };
                 let out = env.summarized_callees(&body);
@@ -4090,7 +4094,9 @@ impl Run<'_> {
                 }
                 for &m in members.iter() {
                     let body = inlined.borrow_mut().remove(&m);
+                    let span = super::phase("collect: own passes");
                     let owned = body.and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
+                    drop(span);
                     if m.1 != TyList::EMPTY {
                         let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
                         lock(&self.instances).insert(m, owned);
