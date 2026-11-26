@@ -4,8 +4,10 @@ exit: 0
 -- stdout
 2
 3
+4
 == @build: release
 exit: 0
 -- stdout
 2
 3
+4

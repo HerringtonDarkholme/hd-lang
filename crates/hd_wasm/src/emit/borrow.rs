@@ -81,20 +81,27 @@ type Key = (PlaceRoot, Vec<Proj>, u32);
 #[derive(Default)]
 pub struct CaptureOrigins {
     roots: Vec<Option<hd_base::LocalId>>,
+    /// The lent parameters whose pointer is a part of a place, as
+    /// `self.items` is: that place's key.
+    parts: HashMap<usize, Lent>,
     /// The inlined parameters that take a lent argument's pointer.
     lent: Vec<bool>,
     #[cfg(feature = "testing")]
     pub work: usize,
 }
 
+/// A lent pointer's place: a root and the steps to the pointer value.
+type Lent = (PlaceRoot, Vec<Proj>);
+
 /// The inlined parameters that receive a lent `*T` argument (the `Read` a
-/// `LoanBegin` names), each with the pointer local it was read from: they
-/// reach the object through that pointer, so their accesses are the loan's
-/// own. So is one stored from a whole read of such a parameter, or its
-/// `&mut T` to `&T` coercion: the `self` of a method inlined in an inlined
-/// method, through its caller's. One whole store each. Cost: two passes
-/// over the body, once per body ([`BorrowFacts`]).
-fn lent_params(b: &Body) -> Vec<(u32, u32)> {
+/// `LoanBegin` names), each with the place it was read from, a local or a
+/// part of one (`self.items`): they reach the object through that
+/// pointer, so their accesses are the loan's own. So is one stored from a
+/// whole read of such a parameter (named second), or its `&mut T` to `&T`
+/// coercion: the `self` of a method inlined in an inlined method, through
+/// its caller's. One whole store each. Cost: two passes over the body,
+/// once per body ([`BorrowFacts`]).
+fn lent_params(b: &Body) -> Vec<(u32, Option<u32>, Lent)> {
     let mut sites = vec![false; b.len()];
     let mut stores = vec![0u8; b.local_ty.len()];
     for i in 0..b.len() {
@@ -109,8 +116,8 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
         }
     }
     let mut out = Vec::new();
-    // Each lent parameter's pointer local, by local.
-    let mut pointer = vec![None; b.local_ty.len()];
+    // Each lent parameter's pointer, by local.
+    let mut pointer: Vec<Option<Lent>> = vec![None; b.local_ty.len()];
     for i in 0..b.len() {
         let Some((l, true)) = (b.tags[i] == Tag::Store)
             .then(|| b.stored_local(i))
@@ -127,13 +134,24 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
         {
             v = u;
         }
-        let place = b.view(b.data[v][0]);
-        let from = (b.tags[v] == Tag::Read && place.whole())
-            .then(|| place.local())
-            .flatten();
-        if let Some(p) = from.and_then(|f| if direct { Some(f) } else { pointer[f as usize] }) {
-            pointer[l.idx()] = Some(p);
-            out.push((l.raw(), p));
+        let Some(place) = (b.tags[v] == Tag::Read)
+            .then(|| b.decode_place(b.data[v][0]))
+            .flatten()
+        else {
+            continue;
+        };
+        let (lent, from) = match place.root {
+            PlaceRoot::Local(_) | PlaceRoot::Global(..) if direct => {
+                (Some((place.root, place.proj)), None)
+            }
+            PlaceRoot::Local(f) if place.proj.is_empty() => {
+                (pointer[f.idx()].clone(), Some(f.raw()))
+            }
+            _ => continue,
+        };
+        if let Some(lent) = lent {
+            pointer[l.idx()] = Some(lent.clone());
+            out.push((l.raw(), from, lent));
         }
     }
     out
@@ -142,18 +160,20 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
 impl CaptureOrigins {
     pub fn new(
         b: &Body,
-        lent_params: &[(u32, u32)],
+        lent_params: &[(u32, Option<u32>, Lent)],
         eligible: impl Fn(hd_base::LocalId) -> bool,
     ) -> Self {
-        let mut lent: Vec<Option<hd_base::LocalId>> = Vec::new();
-        // A parameter whose pointer an eligible one takes reaches the
-        // object through it too.
-        let mut pointers = vec![false; b.local_ty.len()];
-        for &(l, p) in lent_params {
-            if pointers[p as usize] || eligible(hd_base::LocalId::from_raw(l)) {
-                pointers[p as usize] = true;
+        let mut lent: Vec<Option<Lent>> = Vec::new();
+        for (l, from, p) in lent_params {
+            // One derived from a lent parameter reaches the object through
+            // that parameter's pointer, when that one was taken.
+            let take = match from {
+                Some(f) => lent.get(*f as usize).is_some_and(Option::is_some),
+                None => eligible(hd_base::LocalId::from_raw(*l)),
+            };
+            if take {
                 lent.resize(b.local_ty.len(), None);
-                lent[l as usize] = Some(hd_base::LocalId::from_raw(p));
+                lent[*l as usize] = Some(p.clone());
             }
         }
         if b.inlined_capture_origins.is_empty() && lent.is_empty() {
@@ -179,9 +199,16 @@ impl CaptureOrigins {
                 work += 1;
             }
         }
-        for (l, p) in lent.iter().enumerate() {
-            if roots[l].is_none() {
-                roots[l] = *p;
+        let mut parts = HashMap::default();
+        for (l, p) in lent.into_iter().enumerate() {
+            match p {
+                Some((PlaceRoot::Local(r), proj)) if proj.is_empty() => {
+                    roots[l] = roots[l].or(Some(r));
+                }
+                Some(p) => {
+                    parts.insert(l, p);
+                }
+                None => {}
             }
         }
         for l in 0..roots.len() {
@@ -195,6 +222,7 @@ impl CaptureOrigins {
         }
         Self {
             roots,
+            parts,
             lent: lent_params,
             #[cfg(feature = "testing")]
             work,
@@ -221,9 +249,12 @@ impl CaptureOrigins {
         if key.1.is_empty()
             && key.2 == ANY_FRAME
             && let PlaceRoot::Local(l) = key.0
-            && let Some(root) = self.roots.get(l.idx()).copied().flatten()
         {
-            key.0 = PlaceRoot::Local(root);
+            if let Some(root) = self.roots.get(l.idx()).copied().flatten() {
+                key.0 = PlaceRoot::Local(root);
+            } else if let Some((root, proj)) = self.parts.get(&l.idx()) {
+                return (*root, proj.clone(), ANY_FRAME);
+            }
         }
         key
     }
@@ -260,7 +291,7 @@ fn frames_of(b: &Body) -> Vec<u32> {
 /// Immutable frame and lifetime facts shared by sibling emitters.
 pub(super) struct BorrowFacts {
     frames: std::sync::Arc<[u32]>,
-    lent_params: Vec<(u32, u32)>,
+    lent_params: Vec<(u32, Option<u32>, Lent)>,
 }
 
 impl BorrowFacts {

@@ -4,8 +4,11 @@
 # inner copy's `self`, a coercion of the outer one's, reaches the object
 # through the same lent pointer, so its read is the caller's own loan
 # and this prints 2 and 3, as with neither inlined (`lent_params`).
-# Every std List method is inlined and calls others (`index_set` ->
-# `set` -> `len`), so `xs[1] = 9` on a boxed list is this shape.
+# `poke` lends the pointer a field holds, `h.item`: the copies key their
+# loan by that part of `h`, and it prints 4. Every std List method is
+# inlined and calls others (`index_set` -> `set` -> `len`), so
+# `xs[1] = 9` on a boxed list, or `by_ref().next()` on a list cursor,
+# is this shape.
 use std.meta.inline
 
 struct C:
@@ -21,9 +24,18 @@ impl C:
         if self.get() > 0:
             self.v += 1
 
+struct Holder:
+    item: *mut C
+
+fn poke(h: &mut Holder) -> void:
+    h.item.bump()
+
 pub fn main() -> void $ Console:
     c := box(C { v: 1 })
     c.bump()
     println("${c.v}")
     c.bump()
     println("${c.v}")
+    let mut h = Holder { item: c }
+    poke(&mut h)
+    println("${h.item.v}")
