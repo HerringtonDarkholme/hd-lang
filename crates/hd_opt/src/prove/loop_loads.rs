@@ -131,6 +131,8 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
     let mut kills = vec![0u32; b.len() + 1];
     let mut decided = Vec::new();
     let mut hoists: Vec<Hoist> = Vec::new();
+    // Loads below a hoisted check's place: (check, its type, steps, loads).
+    let mut under: Vec<(u32, Ty, Vec<Proj>, Vec<u32>)> = Vec::new();
     {
         let plain = |i: usize| -> bool {
             let sub = topo.sub[i];
@@ -190,11 +192,28 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
                 .map(|&u| facts.place_key(b.data[u as usize][0], u, from, DEPTH))
                 .collect();
             for (key, ty, loads) in facts.invariant_loads(&body, &mut claimed) {
-                if written
-                    .as_ref()
-                    .is_some_and(|w| w.iter().all(|c| apart(c, &key)))
-                {
+                let near: Vec<usize> = written.as_ref().map_or(Vec::new(), |w| {
+                    (0..w.len()).filter(|&k| !apart(&w[k], &key)).collect()
+                });
+                // A load past a field of the one check's place `[*$p]` reads
+                // the value the check leaves, whose type is `$p`'s referent.
+                let check = match (&written, near.as_slice()) {
+                    (Some(w), &[k]) => Some((checks[k], &w[k]))
+                        .filter(|(u, c)| {
+                            b.data[*u as usize][1] == hd_tir::ir::unique_word::HOISTED
+                                && c.path == [Proj::Deref]
+                                && c.local == key.local
+                                && matches!(key.path[..], [Proj::Deref, Proj::Field(_), ..])
+                        })
+                        .and_then(|(u, c)| {
+                            Some((u, cx.ref_target(b.local_ty[c.local as usize])?.0))
+                        }),
+                    _ => None,
+                };
+                if written.is_some() && near.is_empty() {
                     hoists.push((u32_of(l), at, key, ty, loads));
+                } else if let Some((u, t)) = check {
+                    under.push((u, t, key.path[1..].to_vec(), loads));
                 } else {
                     // An inner loop's own position may still take it.
                     for x in loads {
@@ -209,6 +228,21 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
         b.consts.push((Ty::BOOL, 0));
         for g in decided {
             b.data[g as usize][0] = Ref::konst(no).0;
+        }
+    }
+    for (u, t, path, loads) in under {
+        b.ty[u as usize] = t;
+        let words = hd_tir::ir::Place {
+            root: PlaceRoot::Value(Ref(u)),
+            proj: path,
+        }
+        .words()
+        .ok_or("a value's place is no record")?;
+        let word = u32_of(b.extra.len());
+        b.extra.push(u32_of(words.len()));
+        b.extra.extend(words);
+        for x in loads {
+            b.data[x as usize][0] = word;
         }
     }
     if hoists.is_empty() {
@@ -311,14 +345,19 @@ impl Lists<'_> {
             | Tag::LoanClose
             | Tag::LoanEnd
             | Tag::OwnLoans => false,
-            Tag::Store => !b.stored_local(i).is_some_and(|(l, _)| {
-                !self.sets.referenced[l.idx()]
-                    && !(self.cell)(l.idx())
-                    && b.local_flags[l.idx()] & local_flags::CAPTURED_ASSIGNED == 0
-            }),
+            Tag::Store => {
+                !(self.tail_store(i)
+                    || b.stored_local(i).is_some_and(|(l, _)| {
+                        !self.sets.referenced[l.idx()]
+                            && !(self.cell)(l.idx())
+                            && b.local_flags[l.idx()] & local_flags::CAPTURED_ASSIGNED == 0
+                    }))
+            }
             Tag::Call => {
                 let s = u32_of(i);
-                !(self.calls_panic(s) || self.intrinsic(s).is_some_and(|n| PURE.contains(&&*n)))
+                !(self.calls_panic(s)
+                    || self.tail_store(i)
+                    || self.intrinsic(s).is_some_and(|n| PURE.contains(&&*n)))
             }
             Tag::Intrinsic => !matches!(
                 IntrinsicOp::from_u32(b.data[i][0]),
@@ -333,6 +372,51 @@ impl Lists<'_> {
             ),
             _ => true,
         }
+    }
+}
+
+impl Lists<'_> {
+    /// Whether store or `Ptr.write` `i` writes through a pointer `std.rt.tail_of` gives,
+    /// then offsets and views: into a counted block's tail, past its
+    /// header, which no load here reads (a key never steps into a tail).
+    fn tail_store(&self, i: usize) -> bool {
+        let b = self.b;
+        let mut v = match (b.tags[i], b.view(b.data[i][0]).root) {
+            (Tag::Store, hd_tir::ir::Root::Value(v) | hd_tir::ir::Root::Ptr(v)) => v,
+            (Tag::Call, _) if self.intrinsic(u32_of(i)).as_deref() == Some("ptr_write") => {
+                b.record(b.data[i][1])[0]
+            }
+            _ => return false,
+        };
+        for _ in 0..DEPTH {
+            let Some(x) = Ref(v).as_inst().map(|x| x.0 as usize) else {
+                return false;
+            };
+            v = match (b.tags[x], b.view(b.data[x][0]).root) {
+                (Tag::Scope, _) => b.wrapper_value(x).unwrap_or(NONE),
+                (Tag::NewStruct, _) if b.record(b.data[x][1]).len() == 1 => {
+                    b.record(b.data[x][1])[0]
+                }
+                (Tag::Coerce, _) if b.same_value_coercion(x) => b.data[x][0],
+                (Tag::Read, hd_tir::ir::Root::Value(r)) => r,
+                // A pointer local set once, unaddressed.
+                (Tag::Read, hd_tir::ir::Root::Local(k))
+                    if b.view(b.data[x][0]).whole() && !self.sets.referenced[k as usize] =>
+                {
+                    match self.sets.stores[k as usize].as_slice() {
+                        [(_, value)] => *value,
+                        _ => return false,
+                    }
+                }
+                (Tag::Call, _) => match self.intrinsic(v).as_deref() {
+                    Some("counted_tail") => return true,
+                    Some("ptr_offset" | "ptr_mut") => b.record(b.data[x][1])[0],
+                    _ => return false,
+                },
+                _ => return false,
+            };
+        }
+        false
     }
 }
 
@@ -418,12 +502,7 @@ impl LoopFacts<'_, '_> {
                 Some(key)
             }
             Tag::Ref => self.place_key(b.data[i][0], v, from, depth),
-            Tag::Coerce
-                if b.record(b.data[i][1]).first()
-                    == Some(&(hd_tir::ir::Coercion::Identity as u32)) =>
-            {
-                self.target(b.data[i][0], from, depth)
-            }
+            Tag::Coerce if b.same_value_coercion(i) => self.target(b.data[i][0], from, depth),
             Tag::Scope
                 if let Some(w) = b.wrapper_value(i)
                     && self.lists.sets.breaks.get(b.data[i][0] as usize) == Some(&1) =>
@@ -497,18 +576,44 @@ impl LoopFacts<'_, '_> {
         let Some(ind) = lists.induction(self.l, test) else {
             return Vec::new();
         };
-        // The bound's place, unchanged from its load through the loop.
+        // The bound's place, unchanged from its load through the loop but
+        // for the loop's hoisted checks that keep its value.
         let bound = Ref(ind.len).as_inst().and_then(|len| {
             let len = len.0;
             let (lo, hi) = (len.min(self.first), len.max(self.first));
-            (self.kills[lo as usize] == self.kills[hi as usize + 1])
-                .then(|| self.load_key(ind.len, lo))
-                .flatten()
+            let key = self.load_key(ind.len, lo)?;
+            let kept = u32_of(
+                lists
+                    .waiting(self.l)
+                    .1
+                    .iter()
+                    .filter(|&&u| self.keeps_len(u, &key))
+                    .count(),
+            );
+            (self.kills[hi as usize + 1] - self.kills[lo as usize] == kept).then_some(key)
         });
         body.iter()
             .copied()
             .filter(|&x| lists.after_test(test, x) && self.decides(&ind, bound.as_ref(), x))
             .collect()
+    }
+
+    /// Whether hoisted check `u` of a std list `[*$p]` keeps `key`, its
+    /// block's length `[*$p .0 * .1]`: a copy keeps the length, the word
+    /// the list glue copies a shared block at (`rt:list_copy`).
+    fn keeps_len(&self, u: u32, key: &Key) -> bool {
+        let b = self.lists.b;
+        let c = self.place_key(
+            b.data[u as usize][0],
+            u,
+            self.first.saturating_sub(1),
+            DEPTH,
+        );
+        b.data[u as usize][1] == hd_tir::ir::unique_word::HOISTED
+            && c.is_some_and(|c| c.local == key.local && c.path == [Proj::Deref])
+            && key.path == [Proj::Deref, Proj::Field(0), Proj::Deref, Proj::Field(1)]
+            && (self.lists.cx.ref_target(b.local_ty[key.local as usize]))
+                .is_some_and(|(t, _)| self.lists.cx.block_list(t))
     }
 
     /// Whether `If` `x` is a guard `if i >= n: panic` that `ind` and the

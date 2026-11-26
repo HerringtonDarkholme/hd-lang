@@ -502,6 +502,9 @@ impl hd_opt::prove::Cx for Env<'_> {
             Callee::TraitMethod { .. } => None,
         }
     }
+    fn block_list(&self, t: Ty) -> bool {
+        OwnCx::block_list(self, t)
+    }
 }
 
 impl OwnCx for Env<'_> {

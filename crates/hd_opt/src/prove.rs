@@ -64,6 +64,11 @@ pub trait Cx {
     }
     /// The intrinsic `callee` names, if it names one.
     fn intrinsic(&self, callee: &Callee) -> Option<String>;
+    /// Whether `t` is a std list over one counted block, whose head the
+    /// list glue lays out as a list buffer (`hd_mono::layout::list_block_head`).
+    fn block_list(&self, _t: Ty) -> bool {
+        false
+    }
 }
 
 /// Clears the bounds check of each element access `b` proves in range.

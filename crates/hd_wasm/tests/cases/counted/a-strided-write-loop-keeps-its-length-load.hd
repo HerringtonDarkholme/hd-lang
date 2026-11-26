@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# Sieve's inner loop over a builtin `List` and a `PlainList` (#2369): both
+# make the block unique once before the loop and keep the block in a
+# local; `j += i` decides no bounds test, so both keep it.
+# expected: the std loop's bounds test reads the length from a local, as
+# the builtin's (issue: target/lane296/issues/2-a-std-lists-length-stays-a-load-under-its-make-unique.md).
+use std.collections.PlainList
+
+fn mark_builtin(flags: &mut List[bool], i: usize, n: usize) -> void:
+    let mut j = i * i
+    # subject
+    while j < n:
+        flags[j] = false
+        j += i
+
+fn mark_std(flags: &mut PlainList[bool], i: usize, n: usize) -> void:
+    let mut j = i * i
+    # subject
+    while j < n:
+        flags[j] = false
+        j += i

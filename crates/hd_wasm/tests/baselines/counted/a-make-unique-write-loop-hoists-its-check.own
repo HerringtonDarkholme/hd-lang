@@ -14,9 +14,9 @@ app/main/double
   local $6 key: usize [read] value
     uses $6: %26 -> %27 lend, %52 lend last
   local $7 self: &PlainList[i64] [read] value
-    uses $7: %42 -> %43 lend last
+    uses $7: none
   local $8 self: &PlainList[i64] [read] value
-    uses $8: %30 -> %31 lend last
+    uses $8: none
   local $9 self: &PlainList[i64] [read] value
     uses $9: %2 -> %3 lend last
   %0 = Read borrow [$0] : &mut PlainList[i64]
@@ -33,7 +33,7 @@ app/main/double
   %11 = Store [$2] %10 : ()
   %12 = Read copy [%7 .inclusive] : bool
   %13 = Store [$3] %12 : ()
-  %14 = IsUnique hoisted [*$0] : ()
+  %14 = IsUnique hoisted [*$0] : PlainList[i64]
   %15 = Read copy [$1] : usize
   %16 = Read copy [$2] : usize
   %17 = Prim Lt [%15 %16] : bool
@@ -50,19 +50,19 @@ app/main/double
   %28 = Read borrow [$5] : &mut PlainList[i64]
   %29 = Coerce %28 [Weaken -] : &PlainList[i64]
   %30 = Store [$8] %29 : ()
-  %31 = Read copy [*$8 .block * .len] : usize
+  %31 = Read copy [%14 .block * .len] : usize
   %32 = Break L2 %31 : never
   %33 = Block - : usize
   %34 = Scope %33 [] : usize
   %35 = Prim Ge [%27 %34] : bool
   %36 = Call std/rt.bytes/panic_with[] ("index-out-of-bounds", "list index out of bounds") : ()
   %37 = Block - : ()
-  %38 = If %35 [%37 -] : ()
+  %38 = If 0:bool [%37 -] : ()
   %39 = Read borrow [$5] : &mut PlainList[i64]
   %40 = Read borrow [$5] : &mut PlainList[i64]
   %41 = Coerce %40 [Weaken -] : &PlainList[i64]
   %42 = Store [$7] %41 : ()
-  %43 = Read borrow [*$7 .block] : *ListHead[i64]
+  %43 = Read borrow [%14 .block] : *ListHead[i64]
   %44 = Coerce %43 [Weaken -] : *ListHead[i64]
   %45 = Call std/rt.memory/align_of[i64] () : usize
   %46 = Call std/rt.counted/tail_of[ListHead[i64]] (%44, %45) : Ptr[u8]
