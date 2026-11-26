@@ -404,6 +404,8 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                     .any(|&(_, r)| hoist::ref_in_loop(r, last[r as usize], first[lp as usize], lp)))
     };
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut alias, mut plumb) = (Vec::new(), Vec::new());
+    hoist::aliases(b, &[], &mut alias, &mut plumb);
     for i in 0..n {
         if b.tags[i] != Tag::IsUnique {
             continue;
@@ -507,7 +509,9 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                     && last[xi] < l;
                 match tag {
                     Tag::Read if xw == ReadMode::Move as u32 && covers && !temp => Some("moves it"),
-                    Tag::Read if covers && kept[xi] => Some("copies it"),
+                    // An inlined copy of a parameter reference names it
+                    // (`own::hoist::aliases`): no second holder.
+                    Tag::Read if covers && kept[xi] && !plumb[xi] => Some("copies it"),
                     Tag::Store | Tag::Drop if covers && !temp => Some("writes it"),
                     Tag::Ref if (covers || below) && !temp && !elem_ref => {
                         Some("takes a reference to it")

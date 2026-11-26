@@ -300,6 +300,10 @@ pub(crate) struct Tables {
     moves: Vec<(u32, u32)>,
     /// Per local: its stores of all of it.
     stores: Vec<u32>,
+    /// Per local: the parameter it is a copy of ([`aliases`]), or `NONE`;
+    /// per instruction: a read of that parameter such a copy takes.
+    alias: Vec<u32>,
+    plumb: Vec<bool>,
     /// The loop's element reference locals: (local, candidate), a local
     /// whose every store is a local `&mut` reference to an element of the
     /// candidate that the loop uses up ([`elem_ref`]).
@@ -422,10 +426,12 @@ pub(crate) fn hoistable(s: &[u32]) -> bool {
 /// `p` holds, a second owner of its buffer, unless its result is uncounted.
 pub(crate) fn writes(b: &Body, cx: &dyn OwnCx, x: usize) -> bool {
     match b.tags[x] {
-        Tag::Call => {
-            Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| cx.may_write(&c))
-                || cx.counted(b.ty[x])
-        }
+        // A call that never returns writes nothing the loop reads after
+        // it; a pointer's reference counts nothing.
+        Tag::Call => Callee::from_words(b.record(b.data[x][0])).is_none_or(|c| {
+            !cx.never_returns(&c)
+                && (cx.may_write(&c) || (cx.counted(b.ty[x]) && !cx.plain_result(&c)))
+        }),
         Tag::CallValue | Tag::CallHost | Tag::DefaultCall => true,
         _ => false,
     }
@@ -1232,6 +1238,7 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = ops;
+    aliases(b, &t.pending.dead, &mut t.alias, &mut t.plumb);
     // Per local: references, fresh stores, reads that keep the value, and
     // borrows of its own place.
     t.borrows.clear();
@@ -1298,7 +1305,7 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     }
                 }
             }
-            Tag::Read if w != ReadMode::Move as u32 => {
+            Tag::Read if w != ReadMode::Move as u32 && !t.plumb[i] => {
                 let (l, _) = resolve(b, a, &mut steps, &mut raw);
                 if l == NONE || steps.contains(&ELEM) {
                     continue;
@@ -1430,6 +1437,119 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
     Some(l)
 }
 
+/// Fills `alias` and `plumb`: a local stored once with a copy of a
+/// parameter reference that is never stored (through value-keeping
+/// coercions and other such copies), and whose address is never taken,
+/// is that parameter, as an inlined `self` is its caller's argument:
+/// `[*$self .block]` is `[*$xs .block]`. The copy's read makes no second
+/// holder of what the reference refers to. One pass; a copy's local
+/// follows its source's, as the inliner numbers them.
+pub(crate) fn aliases(b: &Body, dead: &[bool], alias: &mut Vec<u32>, plumb: &mut Vec<bool>) {
+    let locals = b.local_ty.len();
+    fill(alias, locals, NONE);
+    fill(plumb, b.len(), false);
+    // Per local: stores, the whole local each copies, the copying read.
+    let mut src = vec![(0u32, NONE, NONE); locals];
+    for i in 0..b.len() {
+        let p = b.view(b.data[i][0]);
+        let live = matches!(b.tags[i], Tag::Ref | Tag::Store) && !dead.get(i).is_some_and(|&d| d);
+        let Some(l) = p.local().filter(|_| live) else {
+            continue;
+        };
+        let l = l as usize;
+        // A reference to `l` or a write of a part of it; one through it
+        // leaves it alone.
+        if b.tags[i] == Tag::Ref || !p.whole() {
+            if !matches!(p.first(b), Some(Proj::Deref)) {
+                src[l].0 = 2;
+            }
+            continue;
+        }
+        let mut v = b.data[i][1];
+        while Ref(v).as_inst().is_some() && b.same_value_coercion(v as usize) {
+            v = b.data[v as usize][0];
+        }
+        let copy = Ref(v).as_inst().is_some()
+            && b.tags[v as usize] == Tag::Read
+            && b.data[v as usize][1] != ReadMode::Move as u32
+            && b.data[v as usize][0] & place::BARE_LOCAL != 0;
+        let from = if copy {
+            b.data[v as usize][0] & !place::BARE_LOCAL
+        } else {
+            NONE
+        };
+        src[l] = (src[l].0 + 1, from, v);
+    }
+    for l in 0..locals {
+        let (n, f, v) = src[l];
+        let flags = local_flags::PARAM | local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED;
+        if n != 1 || f == NONE || b.local_flags[l] & flags != 0 {
+            continue;
+        }
+        let param = b.local_flags[f as usize] & local_flags::PARAM != 0;
+        alias[l] = if param && src[f as usize].0 == 0 {
+            f
+        } else {
+            alias[f as usize]
+        };
+        plumb[v as usize] = alias[l] != NONE;
+    }
+}
+
+/// Local `l` of a place whose `steps` start with a dereference, as the
+/// parameter an alias copies ([`aliases`]).
+fn unalias(alias: &[u32], l: u32, steps: &[u32]) -> u32 {
+    match alias.get(l as usize) {
+        Some(&r) if r != NONE && steps.first() == Some(&DEREF) => r,
+        _ => l,
+    }
+}
+
+/// The local, and its steps into `steps`, of the place whose pointer a
+/// pointer value at place `word` derives from (`std.rt.tail_of`, offsets,
+/// views), past the fields and scopes that carry it: memory it addresses
+/// lies below that place. `NONE` for any other root.
+fn pointer_place(
+    b: &Body,
+    cx: &dyn OwnCx,
+    word: u32,
+    steps: &mut Vec<u32>,
+    raw: &mut Vec<u32>,
+) -> u32 {
+    let Root::Value(mut v) = b.view(word).root else {
+        return NONE;
+    };
+    for _ in 0..4 * DEPTH {
+        let i = v as usize;
+        v = match (Ref(v).as_inst().map(|_| b.tags[i]), b.data.get(i)) {
+            (Some(Tag::Scope), Some(&[blk, _])) => match b.record(b.data[blk as usize][0]).last() {
+                Some(&x) if b.tags[x as usize] == Tag::Break => b.data[x as usize][1],
+                _ => return NONE,
+            },
+            (Some(Tag::NewStruct), Some(&[_, r])) if b.record(r).len() == 1 => b.record(r)[0],
+            (Some(Tag::Coerce), Some(&[a, _])) if b.same_value_coercion(i) => a,
+            (Some(Tag::Call), Some(&[c, r])) => {
+                match (Callee::from_words(b.record(c)), b.record(r).first()) {
+                    (Some(c), Some(&a))
+                        if cx.call_memory(&c) == super::CallMemory::Derive(0)
+                            || cx.plain_result(&c) =>
+                    {
+                        a
+                    }
+                    _ => return NONE,
+                }
+            }
+            (Some(Tag::Read), Some(&[p, _])) => match b.view(p).root {
+                Root::Value(r) => r,
+                Root::Local(_) => return resolve(b, p, steps, raw).0,
+                _ => return NONE,
+            },
+            _ => return NONE,
+        };
+    }
+    NONE
+}
+
 /// The list place a place rooted at a local names, as [`header_place`]
 /// checks a header read's (the places the checker roots at their local,
 /// `crate::ir::root_places`): with `elem`, the list whose element the
@@ -1448,6 +1568,7 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
     if (PlaceView { to, ..p }).push_steps(b, &mut t.steps).1 {
         return None;
     }
+    let l = unalias(&t.alias, l, &t.steps);
     if !hoistable(&t.steps) {
         return None;
     }
@@ -1555,6 +1676,9 @@ fn hoist_loop(
                 if let Some(arm) = unconditional_arm(b, i) {
                     blocks.push((arm, eager));
                 }
+            } else if b.tags[i] == Tag::Scope {
+                // An inlined body's block runs whenever its scope is reached.
+                blocks.push((b.data[i][0], eager));
             } else if b.tags[i] == Tag::IsUnique && !t.gone[i] {
                 let word = b.data[i][0];
                 let local = match unique_header(b, word) {
@@ -2095,7 +2219,11 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<us
     let mut raw = std::mem::take(&mut t.raw);
     match tag {
         Tag::Read | Tag::Store | Tag::Drop | Tag::Ref | Tag::IsUnique => {
-            let (l, temp) = resolve(b, a, &mut steps, &mut raw);
+            let (mut l, temp) = resolve(b, a, &mut steps, &mut raw);
+            if l == NONE {
+                l = pointer_place(b, cx, a, &mut steps, &mut raw);
+            }
+            l = unalias(&t.alias, l, &steps);
             let memory = raw.iter().any(|&s| s == ELEM || s == DEREF);
             for k in ks {
                 let c = t.cands[k];
@@ -2113,6 +2241,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<us
                 let exact = covers && steps.len() == c.len as usize;
                 let mine = mine || through;
                 let ok = match tag {
+                    _ if t.plumb[x as usize] => true,
                     Tag::Read if w == ReadMode::Move as u32 => temp || !covers,
                     // A read of the header, or of a place holding it, whose
                     // value a use keeps; for a place another reference or

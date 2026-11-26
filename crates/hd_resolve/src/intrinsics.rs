@@ -135,6 +135,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("count_retain", &[s(1, &[Any], VOID)]),
     ("counted_alloc", &[s(1, &[Any, USIZE, USIZE], COUNTED)]),
     ("counted_is_unique", &[s(1, &[COUNTED], BOOL)]),
+    ("counted_make_unique", &[s(1, &[REF_MUT], VOID)]),
     ("counted_tail", &[s(1, &[COUNTED, USIZE], PTR)]),
     ("crossing_run", &[s(0, &[U64, LIST], Opt)]),
     ("crossing_sent", &[s(1, &[Any], LIST)]),

@@ -228,7 +228,8 @@ impl Em<'_, '_, '_> {
                 self.tail_offset(m.size, args[1])?;
                 self.f.op(I::I32Add);
             }
-            // ruled out: the intrinsic table's `counted_` keys are these three.
+            // ruled out: the intrinsic table's other `counted_` key is `counted_alloc`;
+            // the ownership passes lower `counted_make_unique` to an `IsUnique`.
             _ => {
                 let header = self.retain_src(&Src::Ref(args[0]), t)?;
                 let desc = self.object_desc(t)?;

@@ -42,6 +42,16 @@ pub fn tail_of[H < ?Copy](block: *H, align: usize) -> Ptr[u8]:
 pub fn is_unique[H < ?Copy](block: *H) -> bool:
     panic("intrinsic")
 
+## Makes the block of `list`, a struct whose one field is a counted `*H`
+## laid out as a list buffer, its own: a shared block is copied at its
+## length, its values taking their own counts, and the old block loses a
+## holder. The ownership passes read the call as the built-in list's
+## make-unique (`IsUnique`), which a loop hoists (#2369), as Swift's
+## `array.make_mutable`. The compiler supplies the body.
+@intrinsic("counted_make_unique")
+pub fn make_unique[L](list: &mut L) -> void:
+    panic("intrinsic")
+
 ## The static empty block of an `H` of at most 48 bytes, whose header bytes
 ## are zero: count 0, so it is never unique and no retain or release
 ## changes it, and its tail is never read. Every empty value over a block

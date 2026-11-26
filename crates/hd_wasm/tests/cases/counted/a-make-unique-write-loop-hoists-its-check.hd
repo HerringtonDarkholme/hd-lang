@@ -1,0 +1,13 @@
+# @dump: own
+# @build: v8 release
+# `xs[i] *= 2` on a `PlainList` calls `std.rt.make_unique(self)`, which
+# the ownership passes read as the builtin list's `IsUnique` (#2369). The
+# inlined `self` is a copy of the parameter `xs`, so the check names
+# `[*$0]`; the bounds panic writes nothing and the store goes into the
+# block's tail, below it: one hoisted `IsUnique` before the loop.
+use std.collections.PlainList
+
+fn double(xs: &mut PlainList[i64]) -> void:
+    # subject
+    for i in 0..xs.len():
+        xs[i] *= 2

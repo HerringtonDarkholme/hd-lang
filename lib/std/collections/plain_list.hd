@@ -13,7 +13,7 @@
 use std.iter.{ExactSizeIterator, Iterable}
 use std.meta.inline
 use std.ops.{FromListLiteral, Index, IndexMut, IndexSet}
-use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, is_unique, needs_drop, panic_with, size_of, tail_of}
+use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, is_unique, make_unique, needs_drop, panic_with, size_of, tail_of}
 
 ## A list block's header.
 struct ListHead[T]:
@@ -114,8 +114,7 @@ impl[T] PlainList[T]:
     pub fn set(&mut self, index: usize, value: T) -> void:
         if index >= self.len():
             panic_with("index-out-of-bounds", "list index out of bounds")
-        if !is_unique(self.block):
-            self.block = PlainList::[T].grown(self.block, 0, false)
+        make_unique(self)
         at := self.elems().offset(index)
         if needs_drop::[T]():
             _ := at.read()
@@ -126,8 +125,7 @@ impl[T] PlainList[T]:
         n := self.len()
         if n == 0:
             return .None
-        if !is_unique(self.block):
-            self.block = PlainList::[T].grown(self.block, 0, false)
+        make_unique(self)
         self.head().as_mut().len = n - 1
         .Some(self.elems().offset(n - 1).read())
 
@@ -150,8 +148,7 @@ impl[T] PlainList[T]:
         n := self.len()
         if index >= n:
             panic_with("index-out-of-bounds", "list remove index out of bounds")
-        if !is_unique(self.block):
-            self.block = PlainList::[T].grown(self.block, 0, false)
+        make_unique(self)
         e := self.elems()
         out := e.offset(index).read()
         copy_bytes(e.offset(index).address, e.offset(index + 1).address, (n - index - 1) * size_of::[T]())
@@ -163,8 +160,7 @@ impl[T] PlainList[T]:
         n := self.len()
         if len >= n:
             return
-        if !is_unique(self.block):
-            self.block = PlainList::[T].grown(self.block, 0, false)
+        make_unique(self)
         # The length first: a value's drop sees the list already short.
         self.head().as_mut().len = len
         if needs_drop::[T]():
@@ -274,8 +270,7 @@ impl[T] IndexMut[usize] for PlainList[T]:
     fn index_mut(&mut self, key: usize) -> &mut T:
         if key >= self.len():
             panic_with("index-out-of-bounds", "list index out of bounds")
-        if !is_unique(self.block):
-            self.block = PlainList::[T].grown(self.block, 0, false)
+        make_unique(self)
         self.elems().offset(key).as_mut()
 
 # `xs[i] = v`: `set`, which drops the value it replaces.

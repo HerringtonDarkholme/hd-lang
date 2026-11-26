@@ -725,6 +725,14 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("list_reserve"))
     }
 
+    fn never_returns(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("panic"))
+    }
+
+    fn makes_unique(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("counted_make_unique"))
+    }
+
     fn made_block(&self, callee: &Callee) -> u8 {
         let Callee::Item { def, .. } = *callee else {
             return 0;

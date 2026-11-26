@@ -33,7 +33,7 @@ use hd_types::Ty;
 
 use crate::ir::{
     Body, Callee, CaptureMode, Coercion, IntrinsicOp, NONE, ReadMode, Ref, Root, Tag, Topology,
-    Word, slots, u32_of,
+    Word, place, slots, u32_of,
 };
 
 pub use hoist::{EntryTest, UNIQUE, entry_test, loop_statements, loop_test, result_level};
@@ -316,6 +316,18 @@ pub trait OwnCx {
     /// refers to in place and leaves that list's buffer unique, copying
     /// a shared one: a reserve.
     fn keeps_unique(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
+    /// Whether a call of `callee` never returns (a panic).
+    fn never_returns(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
+    /// Whether a call of `callee` makes the block of the list its one
+    /// argument refers to unique (`std.rt.make_unique`), which
+    /// [`make_unique`] lowers to the built-in list's `IsUnique`.
+    fn makes_unique(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
     }
@@ -724,6 +736,31 @@ pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + 
             Some(ListPush | ListReserve | MapSet | MapRemove | MapSlotEntryMut)
         );
     direct.then(|| (w + 1, b.record(w)[0])).into_iter()
+}
+
+/// `std.rt.make_unique(r)` becomes `IsUnique [*$l]`, or `[*r]` when `r`
+/// reads no bare local `$l`: the built-in list's make-unique, which
+/// copies a shared block by the list glue of the block's head
+/// ([`OwnCx::block_list`]) and which hoisting moves out of a loop, as
+/// Swift's `array.make_mutable`. `r` borrows a reference and counts
+/// nothing. One pass, after the rules that place the other checks.
+fn make_unique(b: &mut Body, cx: &dyn OwnCx) {
+    for i in 0..b.len() {
+        let c = (b.tags[i] == Tag::Call).then(|| Callee::from_words(b.record(b.data[i][0])));
+        if !c.flatten().is_some_and(|c| cx.makes_unique(&c)) {
+            continue;
+        }
+        let r = b.record(b.data[i][1])[0];
+        let [q, _] = b.data[r as usize];
+        let root = if b.tags[r as usize] == Tag::Read && q & place::BARE_LOCAL != 0 {
+            [place::ROOT_LOCAL, q & !place::BARE_LOCAL]
+        } else {
+            [place::ROOT_VALUE, r]
+        };
+        b.data[i] = [u32_of(b.extra.len()), 0];
+        b.extra.extend([3, root[0], root[1], place::PROJ_DEREF]);
+        (b.tags[i], b.ty[i]) = (Tag::IsUnique, Ty::VOID);
+    }
 }
 
 /// Clears `v` and refills it with `n` copies of `x`, as a pass resets one
@@ -1186,6 +1223,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     )?;
     loans::share_counters(b, cx.temporary_owner_name())?;
     insert::run(b, cx, scratch)?;
+    make_unique(b, cx);
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
     derive::run(b, topo, cx, &mut scratch.derive);
