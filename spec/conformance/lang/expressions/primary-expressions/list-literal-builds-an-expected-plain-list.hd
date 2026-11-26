@@ -1,0 +1,13 @@
+# test: a list literal whose expected type implements FromListLiteral builds that type, its elements pushed in order
+# Spec 05 List Literals: expr.list.type.trait, expr.list.order.
+# expect-stdout: 3
+# expect-stdout: 10 20 30
+use std.collections.PlainList
+
+fn three() -> PlainList[i64]:
+    [10, 20, 30]
+
+pub fn main() -> void $ Console:
+    xs := three()
+    println(xs.len())
+    println("${xs[0]} ${xs[1]} ${xs[2]}")

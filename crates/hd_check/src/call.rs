@@ -6332,17 +6332,20 @@ impl Ck<'_, '_> {
         args: &[(Ref, Ty, NodeRef<'_>)],
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
-        let (r, t, _) = self.trait_call_inferred(trait_, name, recv, rt, args, n)?;
+        let (r, t, _) = self.trait_call_inferred(trait_, name, Some(recv), rt, args, n)?;
         Ok((r, t))
     }
 
     /// The same call with its inferred trait arguments. A language
     /// desugaring such as `for` uses the trait's item type directly.
+    /// With no receiver it is the static call `T::name(args)` at the self
+    /// type `rt`, on values the desugaring computed: a builder literal's
+    /// `with_capacity(n)` (`expr.list.type.trait`).
     pub(crate) fn trait_call_inferred(
         &mut self,
         trait_: DefId,
         name: &str,
-        recv: Ref,
+        recv: Option<Ref>,
         rt: Ty,
         args: &[(Ref, Ty, NodeRef<'_>)],
         n: NodeRef<'_>,
@@ -6359,7 +6362,8 @@ impl Ck<'_, '_> {
             .map(|_| self.infer.fresh(pool, VarKind::General))
             .collect();
         // An operator's right operand fixes `Rhs` when the impl is generic.
-        if let (Some(first), Some((_, at, _))) = (targs.first().copied(), args.first())
+        if let (Some(_), Some(first), Some((_, at, _))) =
+            (recv, targs.first().copied(), args.first())
             && sig.params.get(1).is_some_and(
                 |p| matches!(pool.get(p.1), TyData::Param(q) if q.owner == trait_ && q.index == 1),
             )
@@ -6397,9 +6401,10 @@ impl Ck<'_, '_> {
             });
             with_assoc_args(pool, x, trait_, tl)
         };
-        let mut refs = vec![recv];
+        let mut refs: Vec<Ref> = recv.into_iter().collect();
+        let skip = refs.len();
         for (i, (r, at, an)) in args.iter().enumerate() {
-            let w = sig.params.get(i + 1).map(|p| inst(p.1));
+            let w = sig.params.get(i + skip).map(|p| inst(p.1));
             refs.push(match w {
                 Some(w) => self.coerce(*r, *at, w, *an, "operand", ExpectPosition::Operand),
                 None => *r,

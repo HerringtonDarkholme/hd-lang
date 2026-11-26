@@ -1,0 +1,17 @@
+# test: a list or map literal with no expected type, or an expected List or Map, stays the built-in List or Map
+# Spec 05 List Literals: expr.list.type, expr.list.type.trait; Map Literals: expr.map.type.trait.
+# expect-stdout: 6
+# expect-stdout: 1
+fn total(xs: List[i64]) -> i64:
+    let mut s: i64 = 0
+    for x in xs:
+        s += x
+    s
+
+pub fn main() -> void $ Console:
+    xs := [1, 2, 3]
+    let ys: List[i64] = xs
+    println(total(ys))
+    m := { "a": 1 }
+    let n: Map[string, i64] = m
+    println(n.len())

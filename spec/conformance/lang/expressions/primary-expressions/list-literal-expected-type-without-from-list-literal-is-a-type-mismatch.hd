@@ -1,0 +1,10 @@
+# test: a list literal whose expected type does not implement FromListLiteral is still a List, a type mismatch
+# Spec 05 List Literals: expr.list.type.trait, expr.list.type.
+struct Bag:
+    count: i64
+
+fn bag() -> Bag:
+    [1, 2] # diagnostic: type-mismatch
+
+pub fn main() -> void:
+    pass

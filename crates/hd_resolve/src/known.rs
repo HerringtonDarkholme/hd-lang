@@ -133,6 +133,10 @@ pub struct KnownItems {
     pub index: DefId,
     pub index_mut: DefId,
     pub index_set: DefId,
+    /// The traits a list or map literal builds an expected type through
+    /// (`expr.list.type.trait`, `expr.map.type.trait`).
+    pub from_list_literal: DefId,
+    pub from_map_literal: DefId,
     pub apply: DefId,
     pub update: DefId,
     pub neg: DefId,
@@ -500,6 +504,8 @@ impl KnownItems {
             index: item("std.ops", "Index"),
             index_mut: item("std.ops", "IndexMut"),
             index_set: item("std.ops", "IndexSet"),
+            from_list_literal: item("std.ops", "FromListLiteral"),
+            from_map_literal: item("std.ops", "FromMapLiteral"),
             apply: item("std.ops", "Apply"),
             update: item("std.ops", "Update"),
             neg: item("std.ops", "Neg"),

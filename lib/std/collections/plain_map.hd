@@ -15,6 +15,7 @@
 # cold path. Every empty map shares the static empty block (count 0,
 # capacity 0).
 use std.meta.inline
+use std.ops.FromMapLiteral
 use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, fill, is_unique, load_u32, load_u64, map_hash_seed, needs_drop, size_of, store_u32, store_u8, tail_of}
 
 EMPTY := u8(0x80)
@@ -95,6 +96,26 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
     ## An empty map; it allocates nothing.
     pub fn new() -> PlainMap[K, V]:
         PlainMap::[K, V] { block: empty_block::[MapHead[K, V]]() }
+
+    ## An empty map with room for `capacity` entries before it grows.
+    pub fn with_capacity(capacity: usize) -> PlainMap[K, V]:
+        if capacity == 0:
+            return PlainMap::[K, V].new()
+        let mut cap: usize = 4
+        while cap < capacity:
+            cap *= 2
+        block := PlainMap::[K, V].alloc(cap, 0, map_hash_seed())
+        fill(tail_of(block, 8).address, EMPTY, cap / 4 * GROUP)
+        PlainMap::[K, V] { block: block }
+
+    # A block of entry capacity `cap` with `len` live entries and none
+    # written; its index is not filled.
+    fn alloc(cap: usize, len: usize, seed: u64) -> *MapHead[K, V]:
+        alloc_counted::[MapHead[K, V]](
+            MapHead::[K, V] { len: len, used: 0, cap: cap, spare: 0, seed: seed, entries: Ptr::[Slot[K, V]] { address: 0 } },
+            cap / 4 * GROUP + cap * 4 + align_of::[Slot[K, V]]() + cap * size_of::[Slot[K, V]](),
+            8,
+        )
 
     # The header's place: write through it only to a unique block.
     @inline(.Always)
@@ -232,11 +253,7 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
             cap = ocap * 2
         seed := if ocap == 0: map_hash_seed() else: old.seed
         size := size_of::[Slot[K, V]]()
-        fresh := alloc_counted::[MapHead[K, V]](
-            MapHead::[K, V] { len: olen, used: 0, cap: cap, spare: 0, seed: seed, entries: Ptr::[Slot[K, V]] { address: 0 } },
-            cap / 4 * GROUP + cap * 4 + align_of::[Slot[K, V]]() + cap * size,
-            8,
-        )
+        fresh := PlainMap::[K, V].alloc(cap, olen, seed)
         nindex := tail_of(fresh, 8).address
         if ocap == 0:
             fill(nindex, EMPTY, cap / 4 * GROUP)
@@ -279,6 +296,15 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
             # The entries moved: the old block's last release drops none.
             Ptr::[MapHead[K, V]] { address: oindex - size_of::[MapHead[K, V]]() }.as_mut().len = 0
         fresh
+
+impl[K < Eq & Hash, V] FromMapLiteral[K, V] for PlainMap[K, V]:
+    @inline(.Always)
+    fn with_capacity(capacity: usize) -> PlainMap[K, V]:
+        PlainMap::[K, V].with_capacity(capacity)
+
+    @inline(.Always)
+    fn insert(&mut self, key: K, value: V) -> void:
+        self.insert(key, value)
 
 ## A cursor over a `PlainMap`'s entries, in the order they were written.
 pub struct PlainMapIter[K < Eq & Hash, V, 'a]:

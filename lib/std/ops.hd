@@ -156,6 +156,18 @@ pub trait IndexMut[K] < ?Copy & Index[K]:
 pub trait IndexSet[K, V < ?Copy] < ?Copy:
     fn index_set(&mut self, key: K, value: V) -> void
 
+## The trait a list literal builds through: `[a, b]` with an expected type that implements it is `with_capacity(2)`, then `push(a)` and `push(b)`.
+## See [expr.list.type.trait](../../spec/lang/05-expressions.md#r-expr.list.type.trait).
+pub trait FromListLiteral[T] < ?Copy:
+    fn with_capacity(capacity: usize) -> Self
+    fn push(&mut self, value: T) -> void
+
+## The trait a map literal builds through: `{k: v}` with an expected type that implements it is `with_capacity(1)`, then `insert(k, v)`.
+## See [expr.map.type.trait](../../spec/lang/05-expressions.md#r-expr.map.type.trait).
+pub trait FromMapLiteral[K, V] < ?Copy:
+    fn with_capacity(capacity: usize) -> Self
+    fn insert(&mut self, key: K, value: V) -> void
+
 # `v()` and `v() = x` on a value that is not a function: a callable value
 # reads through `Apply` and, when it also implements `Update`, stores
 # through it (spec/lang/05-expressions.md#callable-values). Neither takes a key.

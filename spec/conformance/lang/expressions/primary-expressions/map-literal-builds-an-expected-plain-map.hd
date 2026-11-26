@@ -1,0 +1,16 @@
+# test: a map literal whose expected type implements FromMapLiteral builds that type, a repeated key's later value winning
+# Spec 05 Map Literals: expr.map.type.trait, expr.map.duplicate.last.
+# expect-stdout: 2
+# expect-stdout: 3 2
+# expect-stdout: 0
+use std.collections.PlainMap
+
+fn table() -> PlainMap[string, i64]:
+    { "a": 1, "b": 2, "a": 3 }
+
+pub fn main() -> void $ Console:
+    m := table()
+    println(m.len())
+    println("${m.get("a").unwrap_or(0)} ${m.get("b").unwrap_or(0)}")
+    let empty: PlainMap[string, i64] = {}
+    println(empty.len())

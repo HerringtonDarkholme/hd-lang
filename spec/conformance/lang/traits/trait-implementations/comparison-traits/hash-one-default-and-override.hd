@@ -26,4 +26,6 @@ pub fn main() -> void $ Console:
     a := Point { x: 1, y: 2 }
     b := Point { x: 1, y: 2 }
     c := Point { x: 2, y: 1 }
-    println("${a.hash_one(7) == b.hash_one(7)} ${a.hash_one(7) == c.hash_one(7)} ${Fixed { id: 3 }.hash_one(7)}")
+    println(
+        "${a.hash_one(7) == b.hash_one(7)} ${a.hash_one(7) == c.hash_one(7)} ${Fixed { id: 3 }.hash_one(7)}",
+    )

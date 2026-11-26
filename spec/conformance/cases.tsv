@@ -6581,6 +6581,13 @@ lang/requirements/suspendt-protocol/race-completed-child-beats-cancelled-sibling
 lang/expressions/postfix-expressions/calls/call-of-a-value-of-unknown-type.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.callee-unknown
 lang/expressions/postfix-expressions/calls/spread-of-a-value-of-unknown-type.hd	type	reject:cannot-infer-type	lang/05-expressions.md#r-expr.call.spread.unknown
 lang/expressions/primary-expressions/list-spread-converts-each-element.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
+lang/expressions/primary-expressions/list-literal-builds-an-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/primary-expressions/list-literal-empty-builds-an-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/primary-expressions/list-literal-nested-builds-each-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/primary-expressions/list-literal-spread-into-an-expected-plain-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/primary-expressions/map-literal-builds-an-expected-plain-map.hd	runtime	accept	lang/05-expressions.md#r-expr.map.type.trait
+lang/expressions/primary-expressions/list-literal-expected-type-without-from-list-literal-is-a-type-mismatch.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.list.type.trait
+lang/expressions/primary-expressions/list-literal-without-a-builder-expected-type-is-a-list.hd	runtime	accept	lang/05-expressions.md#r-expr.list.type
 lang/control-flow/match-expressions/catch-all-and-variant-patterns/self-as-a-pattern.hd	type	reject:type-used-as-value	lang/06-control-flow.md#r-flow.match.self-pattern
 lang/grammar/patterns/variant-pattern-with-a-spread.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.variant-no-spread
 lang/traits/trait-declarations/projection-from-a-type-without-bounds.hd	type	reject:unknown-associated-type	lang/09-traits.md#r-trait.assoc.no-type
@@ -7408,6 +7415,8 @@ lang/types/numeric-conversions/num-parameter-literal-fits-integer-widths.hd	type
 lang/types/numeric-conversions/numeric-parameter-literals-fit-the-entire-bound.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
 lang/types/numeric-conversions/fractional-parameter-casts-use-the-value-rules.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
 lang/types/numeric-conversions/suffixed-parameter-casts-use-the-value-rules.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
+std/collections/plain-list-and-map/a-plain-list-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+std/collections/plain-list-and-map/a-plain-map-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
@@ -8963,5 +8972,3 @@ lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-call.hd
 lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 lang/references/pointer-loans/same-root/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
-std/collections/plain-list-and-map/a-plain-list-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
-std/collections/plain-list-and-map/a-plain-map-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

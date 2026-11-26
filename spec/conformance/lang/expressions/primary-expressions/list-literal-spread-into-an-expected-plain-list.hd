@@ -1,0 +1,17 @@
+# test: spreads into a built list literal insert each operand's elements at their position, operands evaluated once in order
+# Spec 05 List Literals: expr.list.type.trait, expr.list.spread.insert, expr.list.spread.once.
+# expect-stdout: a
+# expect-stdout: b
+# expect-stdout: 7
+# expect-stdout: 0 1 2 9 1 2
+use std.collections.PlainList
+
+fn noted(tag: string, xs: List[i64]) -> List[i64] $ Console:
+    println(tag)
+    xs
+
+pub fn main() -> void $ Console:
+    ys := [1, 2]
+    let zs: PlainList[i64] = [0, noted("a", ys)..., 9, noted("b", ys)...]
+    println(zs.len() + 1)
+    println("${zs[0]} ${zs[1]} ${zs[2]} ${zs[3]} ${zs[4]} ${zs[5]}")

@@ -1,0 +1,13 @@
+# test: a nested list literal builds the expected element type too, each inner literal through FromListLiteral
+# Spec 05 List Literals: expr.list.type.trait.
+# expect-stdout: 3 0 2
+# expect-stdout: 5
+use std.collections.PlainList
+
+fn grid() -> PlainList[PlainList[i64]]:
+    [[1, 2, 3], [], [4, 1]]
+
+pub fn main() -> void $ Console:
+    g := grid()
+    println("${g[0].len()} ${g[1].len()} ${g[2].len()}")
+    println(g[0][1] + g[2][0] - g[2][1])

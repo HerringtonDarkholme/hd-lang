@@ -611,32 +611,52 @@ scores := {"Ada": 10, "Grace": 12}
 #### List Literals
 
 1. r[expr.list.order] A list literal evaluates its elements left to right.
-2. r[expr.list.type] A list literal produces `List[T]`, where every element is assignable to `T`.
-3. r[expr.list.spread] A list element ending in `...` is a spread.
-4. r[expr.list.spread.once] A spread's operand is evaluated once, in element order.
-5. r[expr.list.spread.type] A spread's operand must have a list type `List[U]`. Error: `type-mismatch`.
-6. r[expr.list.spread.insert] The spread's elements are inserted at its position, in order.
-7. r[expr.list.spread.position] A literal may contain several spreads in any position, so `[0, xs...]` and `[xs..., ys...]` are valid.
-8. r[expr.list.spread.expected] With an expected `List[T]`, `U` must be assignable to `T`.
-9. r[expr.list.spread.inferred] Without an expected `List[T]`, a spread contributes `U` to the least common type of the elements.
-10. r[expr.list.spread.convert] Each element a spread inserts converts to the literal's element type exactly as an element written at its position would. So `[xs...]` with `xs: List[*Sq]` and an expected `List[*dyn Shape]` converts each `*Sq` to `*dyn Shape`.
+2. r[expr.list.type.trait] With an expected type `E` other than a `List` that implements `std.ops.FromListLiteral[T]`, a list literal produces `E.with_capacity(n)` followed by `push` of each element in order.
+3. r[expr.list.type] Otherwise a list literal produces `List[T]`, where every element is assignable to `T`.
+4. r[expr.list.spread] A list element ending in `...` is a spread.
+5. r[expr.list.spread.once] A spread's operand is evaluated once, in element order.
+6. r[expr.list.spread.type] A spread's operand must have a list type `List[U]`. Error: `type-mismatch`.
+7. r[expr.list.spread.insert] The spread's elements are inserted at its position, in order.
+8. r[expr.list.spread.position] A literal may contain several spreads in any position, so `[0, xs...]` and `[xs..., ys...]` are valid.
+9. r[expr.list.spread.expected] With an expected `List[T]`, `U` must be assignable to `T`.
+10. r[expr.list.spread.inferred] Without an expected `List[T]`, a spread contributes `U` to the least common type of the elements.
+11. r[expr.list.spread.convert] Each element a spread inserts converts to the literal's element type exactly as an element written at its position would. So `[xs...]` with `xs: List[*Sq]` and an expected `List[*dyn Shape]` converts each `*Sq` to `*dyn Shape`.
 
 ```text
 fn numbers(count: i32) -> List[i32]:
     [0, count...]  # error: type-mismatch
 ```
 
+In rule 2, `n` is the number of written elements plus each spread's length, so the pushes never grow the value. All elements and spread operands are evaluated before `with_capacity` runs.
+
+```hd
+use std.collections.PlainList
+
+fn firsts(rest: List[i64]) -> PlainList[i64]:
+    [1, 2, rest...]
+```
+
 #### Map Literals
 
 1. r[expr.map.order] A map literal evaluates each key and then its value, processing entries from left to right.
 2. r[expr.map.duplicate.last] If two evaluated entries have equal keys, the later value replaces the earlier value.
-3. r[expr.map.iteration.order] Map iteration follows the map's [deterministic order](04-type-system.md#r-types.map.order.deterministic) and is not part of map equality.
-4. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
-5. r[expr.collection.empty.map-constructor-fix] An unambiguous, empty type-qualified `Map.new()` call gets an exact `{}` fix when an expected map type determines both argument types.
+3. r[expr.map.type.trait] With an expected type `E` other than a `Map` that implements `std.ops.FromMapLiteral[K, V]`, a map literal produces `E.with_capacity(n)` followed by `insert(k, v)` of each entry in order.
+4. r[expr.map.iteration.order] Map iteration follows the map's [deterministic order](04-type-system.md#r-types.map.order.deterministic) and is not part of map equality.
+5. r[expr.map.keys] Key validity and equality/hash requirements are defined in [Type System](04-type-system.md#map-key-types).
+6. r[expr.collection.empty.map-constructor-fix] An unambiguous, empty type-qualified `Map.new()` call gets an exact `{}` fix when an expected map type determines both argument types.
 
 ```hd
 fn demo() -> Map[string, i32]:
     {"a": +1, "b": +2}
+```
+
+In rule 3, `n` is the number of entries, and an entry that repeats a key replaces the earlier value through `insert`.
+
+```hd
+use std.collections.PlainMap
+
+fn scores() -> PlainMap[string, i32]:
+    {"Ada": 10, "Grace": 12}
 ```
 
 #### Element Types

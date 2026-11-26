@@ -3289,6 +3289,9 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
+        if let Some(builder) = self.literal_builder(want, false)? {
+            return self.built_literal(n, kids, builder, false);
+        }
         let pool = self.pool();
         let list = self.cx.names.known.list;
         let elem = match self
@@ -3441,45 +3444,103 @@ impl Ck<'_, '_> {
         use hd_tir::ir::local_flags::ASSIGNED;
         let pool = self.pool();
         let at = operand.index();
-        let us = Ty::prim(Prim::Usize);
         let list = self.cx.names.known.list;
         let list_t = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
-        let acc_t = list_t;
-        let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
-        let src_l = self.b.local(t, sym(self, "$coll"), ASSIGNED, at);
-        self.set_local(src_l, r, at);
-        let source = |me: &mut Self| {
-            let v = me.b.get(src_l, t, at);
-            if me.ref_of(t).is_some() {
-                me.emit_deref(v, t, at).0
-            } else {
-                v
-            }
-        };
-        let intr = |me: &mut Self, op: IntrinsicOp, args: &[Ref], ty: Ty| {
-            let rec = me.b.refs_record(args);
-            me.b.emit(Tag::Intrinsic, op as u32, rec, ty, at)
-        };
-        let len_l = self.b.local(us, sym(self, "$len"), ASSIGNED, at);
-        let pos_l = self.b.local(us, sym(self, "$pos"), ASSIGNED, at);
-        let out_l = self.b.local(acc_t, sym(self, "$acc"), ASSIGNED, at);
-        let c = source(self);
-        let n = intr(self, IntrinsicOp::ListLen, &[c], us);
-        self.set_local(len_l, n, at);
+        let src = self.spread_local((r, t), at);
+        let len_l = self.spread_length(src, at);
+        let out_l = self
+            .b
+            .local(list_t, self.cx.names.syms.intern("$acc"), ASSIGNED, at);
         let empty = self.b.refs_record(&[]);
-        let fresh = self.b.emit(Tag::NewList, NONE, empty, acc_t, at);
+        let fresh = self.b.emit(Tag::NewList, NONE, empty, list_t, at);
         self.set_local(out_l, fresh, at);
-        let count = self.b.get(len_l, us, at);
-        self.reserve_room((out_l, acc_t), count, at);
+        let count = self.b.get(len_l, Ty::prim(Prim::Usize), at);
+        self.reserve_room((out_l, list_t), count, at);
+        let _ = self.spread_each(src, len_l, (item, elem), operand, &mut |me, x| {
+            let acc = me.b.get(out_l, list_t, at);
+            let rec = me.b.refs_record(&[acc, x]);
+            me.b.emit(
+                Tag::Intrinsic,
+                IntrinsicOp::ListPush as u32,
+                rec,
+                Ty::VOID,
+                at,
+            );
+            Ok(())
+        });
+        let v = self.b.get(out_l, list_t, at);
+        self.retype(v, list_t, at)
+    }
+
+    /// A spread operand's value `(r, t)` in a local of its own, evaluated
+    /// once (`expr.list.spread.once`).
+    fn spread_local(&mut self, (r, t): (Ref, Ty), at: hd_base::NodeIdx) -> (hd_base::LocalId, Ty) {
+        let sym = self.cx.names.syms.intern("$coll");
+        let l = self.b.local(t, sym, local_flags::ASSIGNED, at);
+        self.set_local(l, r, at);
+        (l, t)
+    }
+
+    /// The list a spread's local holds, through its reference if it is one.
+    fn spread_source(&mut self, (l, t): (hd_base::LocalId, Ty), at: hd_base::NodeIdx) -> Ref {
+        let v = self.b.get(l, t, at);
+        if self.ref_of(t).is_some() {
+            self.emit_deref(v, t, at).0
+        } else {
+            v
+        }
+    }
+
+    /// The length of the list a spread's local holds, in a local.
+    fn spread_length(
+        &mut self,
+        src: (hd_base::LocalId, Ty),
+        at: hd_base::NodeIdx,
+    ) -> hd_base::LocalId {
+        let us = Ty::prim(Prim::Usize);
+        let c = self.spread_source(src, at);
+        let rec = self.b.refs_record(&[c]);
+        let n = self
+            .b
+            .emit(Tag::Intrinsic, IntrinsicOp::ListLen as u32, rec, us, at);
+        let l = self.b.local(
+            us,
+            self.cx.names.syms.intern("$len"),
+            local_flags::ASSIGNED,
+            at,
+        );
+        self.set_local(l, n, at);
+        l
+    }
+
+    /// One counted loop over the `len_l` elements of the list in `src`:
+    /// each read, converted from `item` to `elem` as a written element
+    /// would be (`expr.list.spread.convert`), and handed to `sink`.
+    fn spread_each(
+        &mut self,
+        src: (hd_base::LocalId, Ty),
+        len_l: hd_base::LocalId,
+        (item, elem): (Ty, Ty),
+        operand: NodeRef<'_>,
+        sink: &mut dyn FnMut(&mut Self, Ref) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let at = operand.index();
+        let us = Ty::prim(Prim::Usize);
+        let pos_l = self.b.local(
+            us,
+            self.cx.names.syms.intern("$pos"),
+            local_flags::ASSIGNED,
+            at,
+        );
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (p, d) = (self.b.get(pos_l, us, at), self.b.get(len_l, us, at));
         let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
-        // The round: read, advance, convert and push.
+        // The round: read, advance, convert and hand on.
         let tb = self.b.open_block();
-        let (c, p) = (source(self), self.b.get(pos_l, us, at));
+        let (c, p) = (self.spread_source(src, at), self.b.get(pos_l, us, at));
         let x = self.b.element(c, p, item, at);
         let one = self.b.const_value(us, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
@@ -3492,8 +3553,7 @@ impl Ck<'_, '_> {
             "list spread",
             ExpectPosition::General,
         );
-        let acc = self.b.get(out_l, acc_t, at);
-        intr(self, IntrinsicOp::ListPush, &[acc, x], Ty::VOID);
+        sink(self, x)?;
         let then = self.b.close_block(tb, None, Ty::VOID, at);
         let eb = self.b.open_block();
         self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);
@@ -3502,8 +3562,156 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
         self.b.close_loop(lp, lbody, Ty::VOID, at);
-        let v = self.b.get(out_l, acc_t, at);
-        self.retype(v, list_t, at)
+        Ok(())
+    }
+
+    /// The type a list literal (`map`: a map literal) builds through
+    /// `std.ops.FromListLiteral[T]` (`FromMapLiteral[K, V]`), with the
+    /// trait's arguments: the expected type, when it is not `List` (`Map`)
+    /// and implements the trait (`expr.list.type.trait`,
+    /// `expr.map.type.trait`). A probe, as [`Self::iterator_item`] is: a
+    /// type without the impl reports nothing here and keeps the default.
+    fn literal_builder(
+        &mut self,
+        want: Option<Ty>,
+        map: bool,
+    ) -> StageResult<Option<(Ty, Vec<Ty>)>> {
+        let pool = self.pool();
+        let known = self.cx.names.known;
+        let (default, trait_, arity) = if map {
+            (known.map, known.from_map_literal, 2)
+        } else {
+            (known.list, known.from_list_literal, 1)
+        };
+        let Some(e) = self.literal_want(want).map(|w| self.infer.resolve(pool, w)) else {
+            return Ok(None);
+        };
+        if trait_.get().is_none()
+            || !matches!(pool.get(e), TyData::Adt(AdtId::Declared(d), _) if d != default)
+        {
+            return Ok(None);
+        }
+        let snap = self.infer.snapshot();
+        let args: Vec<Ty> = (0..arity)
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        let goal = TraitRef {
+            trait_,
+            self_ty: e,
+            args: pool.list(&args),
+        };
+        let Answer::Holds { learned, .. } = self.solve(goal)? else {
+            self.infer.rollback(snap);
+            return Ok(None);
+        };
+        for (v, t) in learned {
+            let var = pool.intern_ty(&TyData::Infer(v));
+            let _ = self.infer.unify(pool, var, t);
+        }
+        Ok(Some((
+            e,
+            args.iter().map(|&a| self.infer.resolve(pool, a)).collect(),
+        )))
+    }
+
+    /// A literal of the builder type `e` (`expr.list.type.trait`,
+    /// `expr.map.type.trait`), `args` its trait's arguments. Its values
+    /// evaluate in order (`expr.list.order`, `expr.map.order`), each
+    /// spread's operand once; then `E::with_capacity(n)` makes the
+    /// literal's local, `n` counting the written values and each spread's
+    /// length, and every value goes in by `push` (an entry by `insert`), a
+    /// spread's one at a time. With no spread `n` is a constant, so after
+    /// an inlined `with_capacity` no push grows the block.
+    fn built_literal(
+        &mut self,
+        n: NodeRef<'_>,
+        kids: &[NodeRef<'_>],
+        (e, args): (Ty, Vec<Ty>),
+        map: bool,
+    ) -> StageResult<(Ref, Ty)> {
+        type Spread<'s> = ((hd_base::LocalId, Ty), hd_base::LocalId, Ty, NodeRef<'s>);
+        type Values<'s> = Vec<(Ref, Ty, NodeRef<'s>)>;
+        let pool = self.pool();
+        let at = n.index();
+        let us = Ty::prim(Prim::Usize);
+        let known = self.cx.names.known;
+        let (trait_, method) = if map {
+            (known.from_map_literal, "insert")
+        } else {
+            (known.from_list_literal, "push")
+        };
+        let elem = args[0];
+        // A run of written values, or a spread (`Err`).
+        let mut parts: Vec<Result<Values<'_>, Spread<'_>>> = Vec::new();
+        let mut count = 0u64;
+        for &kid in kids {
+            if map {
+                let [ke, ve] = kid.parts();
+                let (kr, kt) = self.stored_expr(ke, Some(args[0]), "as this map key")?;
+                let kr = self.coerce(kr, kt, args[0], ke, "map key", ExpectPosition::General);
+                let (vr, vt) = self.stored_expr(ve, Some(args[1]), "as this map value")?;
+                let vr = self.coerce(vr, vt, args[1], ve, "map value", ExpectPosition::General);
+                parts.push(Ok(vec![(kr, args[0], ke), (vr, args[1], ve)]));
+            } else if kid.kind() == SyntaxKind::SpreadExpr {
+                let [operand] = kid.parts();
+                let list = known.list;
+                let list_ty =
+                    pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
+                let (r, t) = self.expr(operand, Some(list_ty))?;
+                // `expr.list.spread.type`: the operand is a list.
+                let Some(item) = self.list_item(self.infer.resolve(pool, t)) else {
+                    let t = self.resolved(t);
+                    if t != Ty::POISON && t != Ty::NEVER {
+                        let msg = format!("in spread: expected a list, found {}", self.show(t));
+                        self.err(Code::TypeMismatch, operand, &msg);
+                    }
+                    return Ok((Ref(NONE), Ty::POISON));
+                };
+                let src = self.spread_local((r, t), operand.index());
+                let len = self.spread_length(src, operand.index());
+                parts.push(Err((src, len, item, operand)));
+                continue;
+            } else {
+                let (r, t) = self.stored_expr(kid, Some(elem), "in this list")?;
+                let r = self.coerce(r, t, elem, kid, "list element", ExpectPosition::General);
+                parts.push(Ok(vec![(r, elem, kid)]));
+            }
+            count += 1;
+        }
+        let mut total = self.b.const_value(us, count);
+        for part in &parts {
+            if let Err((_, len, ..)) = part {
+                let len = self.b.get(*len, us, at);
+                total = self.b.prim(PrimOp::Add as u32, &[total, len], us, at);
+            }
+        }
+        let (made, _, _) =
+            self.trait_call_inferred(trait_, "with_capacity", None, e, &[(total, us, n)], n)?;
+        let sym = self.cx.names.syms.intern("$literal");
+        let local = self.b.local(e, sym, local_flags::ASSIGNED, at);
+        self.set_local(local, made, at);
+        self.mut_locals.push(local);
+        let put = |me: &mut Self, values: &[(Ref, Ty, NodeRef<'_>)]| -> StageResult<()> {
+            let place = crate::refs::Place {
+                root: crate::refs::Root::Local(local, me.scopes.depth()),
+                path: Vec::new(),
+                ty: e,
+            };
+            let recv = me.make_ref(&place, true, me.ref_ty(e, true, false), n);
+            me.trait_call_inferred(trait_, method, Some(recv), e, values, n)?;
+            Ok(())
+        };
+        for part in parts {
+            match part {
+                Ok(values) => put(self, &values)?,
+                Err((src, len, item, operand)) => {
+                    self.spread_each(src, len, (item, elem), operand, &mut |me, x| {
+                        put(me, &[(x, elem, operand)])
+                    })?;
+                }
+            }
+        }
+        Ok((self.b.get(local, e, at), e))
     }
 
     fn map_expr(
@@ -3512,6 +3720,9 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
+        if let Some(builder) = self.literal_builder(want, true)? {
+            return self.built_literal(n, kids, builder, true);
+        }
         let pool = self.pool();
         let map = self.cx.names.known.map;
         let (kw, vw) = match self
@@ -4282,7 +4493,8 @@ impl Ck<'_, '_> {
             // copy and advances with no trait value.
             _ => {
                 let iterable = self.cx.names.known.iterable;
-                let (r, t, args) = self.trait_call_inferred(iterable, "iter", sr, st, &[], src)?;
+                let (r, t, args) =
+                    self.trait_call_inferred(iterable, "iter", Some(sr), st, &[], src)?;
                 let t = self.normalize_deep(t)?;
                 let t = self.resolved(self.infer.resolve(pool, t));
                 // A source already reported, or one with no `Iterable`
