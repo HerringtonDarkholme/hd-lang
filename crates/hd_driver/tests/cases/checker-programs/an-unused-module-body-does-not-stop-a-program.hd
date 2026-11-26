@@ -1,0 +1,8 @@
+# @dump: stdout
+# expected: program reach skips unused bodies but still validates structural imports.
+pub fn main() -> void $ Console:
+    println("main")
+
+# @file: unused.hd
+pub fn unused() -> void:
+    _ := unknown_in_unused_body

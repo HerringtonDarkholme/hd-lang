@@ -1764,6 +1764,7 @@ impl ModuleGraph {
         for (module, &published) in table.modules.iter_mut().zip(&published) {
             module.published = published;
         }
+        let mut namespace_roots = vec![None; table.roots.len()];
         let mut named: Vec<(ModuleId, Option<Vec<String>>)> = Vec::new();
         for (m, list) in uses.iter().enumerate() {
             let module = &table.modules[m];
@@ -1827,6 +1828,10 @@ impl ModuleGraph {
                     }
                     named.push((t, Some(decls)));
                 } else if let Some(t) = table.module(&u.path) {
+                    let package = usize::from(table.modules[t.idx()].package);
+                    if u.line.is_some() && u.path == table.roots[package] {
+                        namespace_roots[package] = Some(t);
+                    }
                     named.push((t, None));
                 } else if let Some((parent, last)) = u.path.rsplit_once('.')
                     && let Some(t) = table.module(parent)
@@ -1859,7 +1864,40 @@ impl ModuleGraph {
             p.sort_stable_by_key(|e| (e.0.raw(), e.1));
             p.dedup_by(|b, a| a.0 == b.0);
         }
+        // An imported package namespace qualifies its library modules.
+        // Share their interface prerequisites at the root, not at every
+        // importer. These are not written source-use policy edges.
+        // Cost: one module scan and at most one edge per library module,
+        // independent of the number of imports of the same namespace.
+        let mut namespace_uses = Vec::new();
+        if namespace_roots.iter().any(Option::is_some) {
+            for root in namespace_roots.iter().flatten() {
+                let uses = g.deps[root.idx()].clone();
+                g.work += uses.len() as u64;
+                namespace_uses.push((*root, uses));
+            }
+            for (m, module) in table.modules.iter().enumerate() {
+                g.work += 1;
+                if let Some(root) = namespace_roots[usize::from(module.package)]
+                    && m != root.idx()
+                    && module.role == Role::Lib
+                    && !module.entry
+                {
+                    g.deps[root.idx()].push(module.id);
+                    g.work += 1;
+                }
+            }
+            for root in namespace_roots.into_iter().flatten() {
+                g.deps[root.idx()].sort_stable_by_key(|module| module.raw());
+                g.deps[root.idx()].dedup();
+            }
+        }
         g.group_units(table);
+        // Namespace children are interface prerequisites, not implicit
+        // initializers. Keep the original module-use edges for execution.
+        for (root, uses) in namespace_uses {
+            g.deps[root.idx()] = uses;
+        }
         g.find_loops(table);
         g
     }
@@ -2209,6 +2247,94 @@ mod tests {
             .collect();
         let g = ModuleGraph::build(&mut t, &uses, &declares);
         (t, g)
+    }
+
+    #[test]
+    fn an_implicit_library_header_does_not_import_the_package_namespace() {
+        let (table, graph) = graph_of(&[
+            ("src/lib.hd", Vec::new()),
+            ("src/unused.hd", Vec::new()),
+            (
+                "src/main.hd",
+                vec![UseRef {
+                    path: "pkg".to_owned(),
+                    ..UseRef::default()
+                }],
+            ),
+        ]);
+        let root = table.module("pkg").unwrap();
+        assert!(graph.deps[root.idx()].is_empty());
+    }
+
+    #[test]
+    fn imported_root_shares_namespace_interfaces_across_width_and_depth() {
+        let mut previous = Vec::new();
+        for width in [100usize, 1_000] {
+            for depth in [2usize, 20] {
+                let mut app = MemorySources::default();
+                app.insert("src/lib.hd", "");
+                let mut library = MemorySources::default();
+                library.insert("src/lib.hd", "");
+                library.insert("src/main.hd", "");
+                for index in 0..width {
+                    app.insert(&format!("src/client{index}.hd"), "");
+                    library.insert(&format!("src/child{index}.hd"), "");
+                }
+                let mut prefix = "src".to_owned();
+                for _ in 0..depth {
+                    prefix.push_str("/nested");
+                    library.insert(&format!("{prefix}/mod.hd"), "");
+                }
+                let package = |name, sources, requires| PackageIn {
+                    name,
+                    identity: name,
+                    sources,
+                    scope: Scope::Library,
+                    requires,
+                    entries: Vec::new(),
+                    dev_requires: Vec::new(),
+                };
+                let mut table = ModuleTable::discover_all(&[
+                    package("app", &app, vec![("library".to_owned(), 1)]),
+                    package("library", &library, Vec::new()),
+                ]);
+                assert!(table.problems.is_empty());
+                let mut uses = vec![Vec::new(); table.modules.len()];
+                for (m, module) in table.modules.iter().enumerate() {
+                    if module.path.starts_with("app.client") {
+                        uses[m].push(UseRef {
+                            path: "library".to_owned(),
+                            line: Some(0),
+                            ..UseRef::default()
+                        });
+                    }
+                }
+                let root = table.module("library").unwrap();
+                let mut exported = grouped("library.child0", &["x"]);
+                exported.public = true;
+                uses[root.idx()].push(exported);
+                let graph = ModuleGraph::build(&mut table, &uses, &vec![false; uses.len()]);
+                assert_eq!(
+                    graph.uses[table.modules[root.idx()].unit.idx()].len(),
+                    width + depth
+                );
+                assert_eq!(
+                    graph.deps[root.idx()],
+                    [table.module("library.child0").unwrap()]
+                );
+                for (m, module) in table.modules.iter().enumerate() {
+                    if module.path.starts_with("app.client") {
+                        assert_eq!(graph.deps[m], [root]);
+                    }
+                    assert!(graph.policy[m].is_empty());
+                }
+                println!("width {width}, depth {depth}: {} visits", graph.work);
+                previous.push(graph.work);
+            }
+        }
+        for (small, large) in previous[..2].iter().zip(&previous[2..]) {
+            assert!(*large <= 11 * *small, "tenfold width: {small} -> {large}");
+        }
     }
 
     fn unit_paths(t: &ModuleTable) -> Vec<&str> {

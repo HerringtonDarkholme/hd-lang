@@ -466,20 +466,30 @@ impl UseDecl {
     }
 
     fn missing_module(&self, module: &str) -> String {
-        let written = self.doc_test
-            || self
-                .path
-                .iter()
-                .any(|s| matches!(s.as_str(), "$tests" | "$tasks"));
-        let path = if written { &self.written_path } else { module };
-        let mut message = format!("no module named `{path}`");
-        if self.doc_test && self.written_root == "pkg" {
-            message.push_str(
-                "; doc tests see only library modules, not the executable's declarations",
-            );
-        }
-        message
+        missing_module_diagnostic(
+            module,
+            &self.written_path,
+            self.doc_test,
+            &self.written_root,
+        )
     }
+}
+
+/// Formats a missing module found in either skim metadata or full resolution.
+#[must_use]
+pub fn missing_module_diagnostic(
+    module: &str,
+    written_path: &str,
+    doc_test: bool,
+    written_root: &str,
+) -> String {
+    let written = doc_test || module.split('.').any(|s| matches!(s, "$tests" | "$tasks"));
+    let path = if written { written_path } else { module };
+    let mut message = format!("no module named `{path}`");
+    if doc_test && written_root == "pkg" {
+        message.push_str("; doc tests see only library modules, not the executable's declarations");
+    }
+    message
 }
 
 /// The top-level use declarations of a file, in order. The uses of its
@@ -1962,6 +1972,56 @@ fn test_scope_of(
     scope.overlay(&inner)
 }
 
+/// The same use-root failure at normalization and full name resolution.
+#[must_use]
+pub fn use_root_diagnostic<S: AsRef<str>>(error: UseRootError, path: &[S]) -> (Code, String) {
+    let dep = path.get(1).map_or("", AsRef::as_ref);
+    match error {
+        UseRootError::AboveRoot => (
+            Code::UnknownModule,
+            "the path goes above the root".to_owned(),
+        ),
+        UseRootError::UnknownDependency => (
+            Code::UnknownModule,
+            format!("`dep.{dep}` names no dependency of this package"),
+        ),
+        UseRootError::UnknownRoot => (
+            Code::UnknownModule,
+            format!(
+                "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
+                path.first().map_or("", AsRef::as_ref)
+            ),
+        ),
+        // `module.test.non-test-use.dev-dependency`,
+        // `cli.dep.dev-use.remove-first`.
+        UseRootError::TestOnly => (
+            Code::TestOnlyUse,
+            format!(
+                "`dep.{dep}` is a dev dependency, which only test code may use; to use it here, run `hd remove {dep}`, then `hd add {dep} PATH@VERSION` to put it in [dependencies]"
+            ),
+        ),
+        // `module.test.cyclic-dev-unit`.
+        UseRootError::CyclicTest => (
+            Code::CyclicTestDependency,
+            format!(
+                "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
+            ),
+        ),
+        // `module.rt.std-only.error`.
+        UseRootError::StdOnly => (
+            Code::StdOnlyUse,
+            format!(
+                "`{}` is a runtime module, which only the standard library may use",
+                path.iter()
+                    .take(3)
+                    .map(AsRef::as_ref)
+                    .collect::<Vec<_>>()
+                    .join(".")
+            ),
+        ),
+    }
+}
+
 /// Binds the names of `uses` in `scope`, and reports each use that names
 /// nothing, whose names stay quiet (poisoned).
 fn bind_uses(
@@ -1983,47 +2043,7 @@ fn bind_uses(
             continue;
         }
         if let Some(e) = u.root_error {
-            let dep = u.path.get(1).map_or("", String::as_str);
-            let (code, msg) = match e {
-                UseRootError::AboveRoot => (
-                    Code::UnknownModule,
-                    "the path goes above the root".to_owned(),
-                ),
-                UseRootError::UnknownDependency => (
-                    Code::UnknownModule,
-                    format!("`dep.{dep}` names no dependency of this package"),
-                ),
-                UseRootError::UnknownRoot => (
-                    Code::UnknownModule,
-                    format!(
-                        "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
-                        u.path.first().map_or("", String::as_str)
-                    ),
-                ),
-                // `module.test.non-test-use.dev-dependency`,
-                // `cli.dep.dev-use.remove-first`.
-                UseRootError::TestOnly => (
-                    Code::TestOnlyUse,
-                    format!(
-                        "`dep.{dep}` is a dev dependency, which only test code may use; to use it here, run `hd remove {dep}`, then `hd add {dep} PATH@VERSION` to put it in [dependencies]"
-                    ),
-                ),
-                // `module.test.cyclic-dev-unit`.
-                UseRootError::CyclicTest => (
-                    Code::CyclicTestDependency,
-                    format!(
-                        "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
-                    ),
-                ),
-                // `module.rt.std-only.error`.
-                UseRootError::StdOnly => (
-                    Code::StdOnlyUse,
-                    format!(
-                        "`{}` is a runtime module, which only the standard library may use",
-                        u.path.iter().take(3).cloned().collect::<Vec<_>>().join(".")
-                    ),
-                ),
-            };
+            let (code, msg) = use_root_diagnostic(e, &u.path);
             diags.error(code, u.span, &msg);
             poison_use(scope, names, u, row);
             continue;

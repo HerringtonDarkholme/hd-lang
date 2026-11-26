@@ -1,5 +1,4 @@
-use std.rt.inline
-use std.rt.TextBuilderValue
+use std.rt.{inline, TextBuilderValue}
 use std.text.StringBuilder
 use std.collections.uniq_list.{UniqList, finish_sorted_list}
 use std.collections.span.{Span, SpanMut, list_span, list_span_mut}
