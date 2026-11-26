@@ -202,6 +202,60 @@ struct Shared {
     live: RwLock<SymbolData>,
     /// The tables as they stood when the link froze them.
     frozen: OnceLock<SymbolData>,
+    /// A local view's module table ([`Symbols::local`]), which it reads
+    /// through; the view's own entries take ids with [`LOCAL`] set.
+    base: Option<Symbols>,
+}
+
+/// The bit of a local view's own ids ([`Symbols::local`]): one instance's
+/// emission numbers what it adds apart from the module, and the link
+/// renumbers it ([`Symbols::absorb`]).
+const LOCAL: u32 = 1 << 31;
+
+/// Entry `len` of a table: its id bits, `LOCAL` added in a local view.
+fn next_index(len: usize, local: u32) -> u32 {
+    let index = u32::try_from(len)
+        .ok()
+        .filter(|&i| i < LOCAL)
+        .expect("ruled out: a table holds under 2^31 entries, as Wasm index spaces do");
+    index | local
+}
+
+/// What [`Symbols::absorb`] gave a local view's entries: the module ids
+/// of its symbols, globals and signatures, by local index.
+pub(crate) struct Remap {
+    syms: Vec<SymId>,
+    globals: Vec<GlobalId>,
+    signatures: Vec<SigId>,
+}
+/// Id `id`, whose bits are `bits`: the module's own, or `table`'s entry.
+fn remapped<T: Copy>(table: &[T], bits: u32, id: T) -> T {
+    if bits & LOCAL == 0 {
+        id
+    } else {
+        table[(bits & !LOCAL) as usize]
+    }
+}
+impl Remap {
+    fn is_empty(&self) -> bool {
+        self.syms.is_empty() && self.globals.is_empty() && self.signatures.is_empty()
+    }
+    fn sym(&self, id: SymId) -> SymId {
+        remapped(&self.syms, id.0, id)
+    }
+    /// Renumbers `ins` into the module's ids.
+    fn ins(&self, ins: &mut Ins) {
+        match ins {
+            Ins::Call(s, _)
+            | Ins::TableSlot(s)
+            | Ins::Glue(s)
+            | Ins::DrainGlue(s)
+            | Ins::Descriptor(s, _) => *s = self.sym(*s),
+            Ins::GlobalGet(g) | Ins::GlobalSet(g) => *g = remapped(&self.globals, g.0, *g),
+            Ins::CallIndirect(sig, _) => *sig = remapped(&self.signatures, sig.0, *sig),
+            Ins::Op(_) | Ins::Static(_) | Ins::VTable(_) | Ins::LoadAll | Ins::SpillBase => {}
+        }
+    }
 }
 #[derive(Clone, Debug, Default)]
 struct SymbolData {
@@ -250,15 +304,63 @@ impl Symbols {
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
-    /// Entry `i` of the table `of` picks: the frozen one's when it was made
-    /// before the freeze, else the live one's under the lock.
-    fn entry<T>(&self, i: usize, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
+    /// Entry `id` of the table `of` picks: in a local view, the base's or
+    /// the view's own by its [`LOCAL`] bit; else the frozen one's when it
+    /// was made before the freeze, else the live one's under the lock.
+    fn entry<T>(&self, id: u32, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
+        if let Some(base) = &self.0.base {
+            if id & LOCAL == 0 {
+                return base.entry(id, of);
+            }
+            return Entry {
+                at: At::Live(self.live(), of, (id & !LOCAL) as usize),
+            };
+        }
+        let i = id as usize;
         let frozen = self.0.frozen.get().and_then(|f| of(f).get(i));
         Entry {
             at: match frozen {
                 Some(entry) => At::Frozen(entry),
                 None => At::Live(self.live(), of, i),
             },
+        }
+    }
+    /// [`LOCAL`] in a local view, else nothing.
+    fn local_bit(&self) -> u32 {
+        if self.0.base.is_some() { LOCAL } else { 0 }
+    }
+    /// A local view of this table for one instance's emission: it reads
+    /// this table, which stays as it is while the view lives, and numbers
+    /// what it adds with [`LOCAL`] set, in first-use order. Cost: one
+    /// empty table.
+    #[must_use]
+    pub(crate) fn local(&self) -> Self {
+        Self(Arc::new(Shared {
+            base: Some(self.clone()),
+            ..Shared::default()
+        }))
+    }
+    #[must_use]
+    pub(crate) fn is_local(&self) -> bool {
+        self.0.base.is_some()
+    }
+    /// Interns local view `local`'s entries into this table in their
+    /// first-use order, as the emission would have interned them here.
+    /// Cost: one intern per entry the view added.
+    pub(crate) fn absorb(&self, local: &Self) -> Remap {
+        let added = std::mem::take(&mut *local.live_mut());
+        Remap {
+            syms: added.names.into_iter().map(|s| self.intern(s)).collect(),
+            globals: added
+                .globals
+                .into_iter()
+                .map(|g| self.intern_global(g))
+                .collect(),
+            signatures: added
+                .signatures
+                .into_iter()
+                .map(|(p, r)| self.intern_signature(p, r))
+                .collect(),
         }
     }
     /// Copies the tables as they stand, so reads of their entries take no
@@ -269,18 +371,26 @@ impl Symbols {
     }
     #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.live().global_ids.get(&global).copied())
+        {
+            return id;
+        }
         let mut data = self.live_mut();
         if let Some(&id) = data.global_ids.get(&global) {
             return id;
         }
-        let id = GlobalId(u32::try_from(data.globals.len()).expect("globals"));
+        let id = GlobalId(next_index(data.globals.len(), self.local_bit()));
         data.globals.push(global);
         data.global_ids.insert(global, id);
         id
     }
     #[must_use]
     pub fn global(&self, id: GlobalId) -> Global {
-        *self.entry(id.0 as usize, |d| &d.globals)
+        *self.entry(id.0, |d| &d.globals)
     }
     #[must_use]
     #[cfg_attr(
@@ -295,18 +405,26 @@ impl Symbols {
     }
     #[must_use]
     pub fn intern(&self, symbol: Sym) -> SymId {
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.live().ids.get(&symbol).copied())
+        {
+            return id;
+        }
         let mut data = self.live_mut();
         if let Some(&id) = data.ids.get(&symbol) {
             return id;
         }
-        let id = SymId(u32::try_from(data.names.len()).expect("symbols"));
+        let id = SymId(next_index(data.names.len(), self.local_bit()));
         data.names.push(symbol.clone());
         data.ids.insert(symbol, id);
         id
     }
     #[must_use]
     pub fn get(&self, id: SymId) -> Entry<'_, Sym> {
-        self.entry(id.idx(), |d| &d.names)
+        self.entry(id.0, |d| &d.names)
     }
     #[must_use]
     pub fn cmp(&self, a: SymId, b: SymId) -> std::cmp::Ordering {
@@ -315,19 +433,27 @@ impl Symbols {
     }
     #[must_use]
     pub fn intern_signature(&self, params: Vec<Val>, results: Vec<Val>) -> SigId {
-        let mut data = self.live_mut();
         let signature = (params, results);
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.live().signature_ids.get(&signature).copied())
+        {
+            return id;
+        }
+        let mut data = self.live_mut();
         if let Some(&id) = data.signature_ids.get(&signature) {
             return id;
         }
-        let id = SigId(u32::try_from(data.signatures.len()).expect("signatures"));
+        let id = SigId(next_index(data.signatures.len(), self.local_bit()));
         data.signatures.push(signature.clone());
         data.signature_ids.insert(signature, id);
         id
     }
     #[must_use]
     pub fn signature(&self, id: SigId) -> Entry<'_, (Vec<Val>, Vec<Val>)> {
-        self.entry(id.0 as usize, |d| &d.signatures)
+        self.entry(id.0, |d| &d.signatures)
     }
 
     /// Actual emitted signatures take precedence after wide lowering. A
@@ -784,6 +910,15 @@ impl Func {
             Ins::Descriptor(s, _) => Some(Edge::Function(s)),
             Ins::VTable(k) => Some(Edge::VTable(k)),
             _ => None,
+        }
+    }
+    /// Moves this function, emitted against a local view of `symbols`,
+    /// into `symbols`' ids. Cost: one pass over the body when the view
+    /// added any entry.
+    fn remap(&mut self, remap: &Remap, symbols: &Symbols) {
+        self.symbols = symbols.clone();
+        if !remap.is_empty() {
+            self.body.iter_mut().for_each(|ins| remap.ins(ins));
         }
     }
     pub fn rebuild_callees(&mut self) {
@@ -1270,6 +1405,9 @@ pub struct Module {
     /// [`Module::finish`] finds a body naming it.
     pub symbols: Symbols,
     funcs: Vec<Option<Func>>,
+    /// The functions an instance's emission defined against its local
+    /// view of [`Module::symbols`], by local id ([`Module::emit_local`]).
+    local_defines: Vec<(SymId, Func)>,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<SymId>,
     /// Static data from [`STATIC_BASE`], deduplicated by content.
@@ -1457,6 +1595,7 @@ impl Module {
             package_interface_probes: 0,
             symbols: Symbols::default(),
             funcs: Vec::default(),
+            local_defines: Vec::new(),
             inst_order: Vec::default(),
             data: Vec::default(),
             data_at: hd_base::HashMap::default(),
@@ -1593,15 +1732,25 @@ impl Module {
         key
     }
 
-    pub fn define(&mut self, s: Sym, mut f: Func) {
-        let instance = matches!(
-            s,
-            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
-        );
+    pub fn define(&mut self, s: Sym, f: Func) {
         let id = self.symbols.intern(s);
         assert!(
             Arc::ptr_eq(&self.symbols.0, &f.symbols.0),
             "function belongs to module"
+        );
+        if self.symbols.is_local() {
+            // Its id is the local view's: the link places it once the
+            // view's entries have module ids ([`Module::emit_local`]).
+            self.local_defines.push((id, f));
+        } else {
+            self.place(id, f);
+        }
+    }
+    /// Places function `f` at symbol `id`.
+    fn place(&mut self, id: SymId, mut f: Func) {
+        let instance = matches!(
+            &*self.symbols.get(id),
+            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
         );
         if instance {
             self.inst_order.push(id);
@@ -1610,6 +1759,59 @@ impl Module {
         self.funcs
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
+    }
+    /// Runs `emit`, one instance's emission, against a local view of the
+    /// symbol table, then interns what the view added in its first-use
+    /// order, renumbers what the emission made into the module's ids and
+    /// places the functions it defined, in the order it defined them: the
+    /// module ends as if the emission had interned straight into it.
+    /// Cost: one intern per added entry, and one pass over each function
+    /// the emission made and over each vtable it added.
+    pub(crate) fn emit_local<E>(
+        &mut self,
+        emit: impl FnOnce(&mut Self) -> Result<Func, E>,
+    ) -> Result<Func, E> {
+        let vtables = self.vtables.len();
+        let local = self.symbols.local();
+        let module = std::mem::replace(&mut self.symbols, local);
+        let emitted = emit(self);
+        let local = std::mem::replace(&mut self.symbols, module);
+        let defines = std::mem::take(&mut self.local_defines);
+        let remap = self.symbols.absorb(&local);
+        let mut f = emitted?;
+        for (id, mut g) in defines {
+            g.remap(&remap, &self.symbols);
+            self.place(remap.sym(id), g);
+        }
+        if !remap.syms.is_empty() {
+            self.remap_vtables(vtables, &remap);
+        }
+        f.remap(&remap, &self.symbols);
+        Ok(f)
+    }
+    /// Renumbers vtables `from..` into the module's ids, and their hash
+    /// entries with them. A table holding a local id holds a symbol no
+    /// earlier table holds, so it stays apart from them.
+    fn remap_vtables(&mut self, from: usize, remap: &Remap) {
+        for k in from..self.vtables.len() {
+            let v = &self.vtables[k];
+            if !v.0.iter().chain(&v.2).any(|s| s.0 & LOCAL != 0) {
+                continue;
+            }
+            let old = vtable_hash(v);
+            if self.vtable_at.get(&old) == Some(&k) {
+                self.vtable_at.remove(&old);
+            }
+            let v = &mut self.vtables[k];
+            v.0.iter_mut()
+                .chain(&mut v.2)
+                .for_each(|s| *s = remap.sym(*s));
+            let at = self
+                .vtable_at
+                .entry(vtable_hash(&self.vtables[k]))
+                .or_insert(k);
+            *at = (*at).min(k);
+        }
     }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
         self.exports.push((name.into(), self.symbols.intern(s)));
