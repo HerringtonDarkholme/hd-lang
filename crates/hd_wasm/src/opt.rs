@@ -382,7 +382,7 @@ pub fn static_values(
             let Some(f) = &funcs[c] else { continue };
             crate::work::static_looks(f.body.len());
             let cf = &mut facts[c];
-            cf.fixed = fixed_locals(f, &params[c], &results, arity, &joins[c]);
+            cf.fixed = fixed_locals(f, &params[c], &results, &cf.writes);
             for site in &mut cf.sites {
                 for (k, arg) in site.args.iter_mut().enumerate() {
                     if !arg.proved && arg.holds(f, &cf.fixed, &results) {
@@ -473,6 +473,8 @@ struct Facts {
     writes_read: hd_base::HashSet<usize>,
     /// Each argument a callee's result produces, as (site, argument).
     produced_by: hd_base::HashMap<usize, Vec<(usize, usize)>>,
+    /// The local writes' producers, which every look reads.
+    writes: Writes,
     fixed: Vec<bool>,
 }
 
@@ -490,7 +492,10 @@ impl Facts {
                 proved: false,
             }
         };
-        let mut facts = Facts::default();
+        let mut facts = Facts {
+            writes: Writes::new(f, arity, joins),
+            ..Facts::default()
+        };
         for (at, ins) in f.body.iter().enumerate() {
             if let Ins::Op(I::LocalSet(_) | I::LocalTee(_)) = ins {
                 facts.writes_read.extend(produced(at, 0).from);
@@ -3941,7 +3946,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         return false;
     }
     let joins = constant_joins(&f.body);
-    let fixed = fixed_locals(f, static_params, &[], arity, &joins);
+    let fixed = fixed_locals(f, static_params, &[], &Writes::new(f, arity, &joins));
+    let mut found = Vec::new();
     let gone: Vec<(usize, usize)> = f
         .body
         .iter()
@@ -3949,7 +3955,11 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         .filter_map(|(k, ins)| {
             let (operands, drops) = rewrite(ins)?;
             (0..operands)
-                .all(|d| constant_before(f, k, d, &fixed, &[], arity, &joins))
+                .all(|d| {
+                    found.clear();
+                    sources(f, (k, d), arity, &joins, &mut found)
+                        && all_constant(f, &found, &fixed, &[])
+                })
                 .then_some((k, drops))
         })
         .collect();
@@ -4059,32 +4069,32 @@ fn constant_joins(body: &[Ins]) -> Vec<Option<usize>> {
     joins
 }
 
-fn constant_before(
+/// Appends to `out` the producers the value `depth` places below the
+/// stack top before `at` comes from: its one producer, or every arm's of
+/// the scalar `if`s it joins (`constant_joins`). False, with `out` as it
+/// was, where the walk cannot tell. It reads no fact, so a fixed point
+/// over the facts walks each value once, as SCCP builds its def-use
+/// graph once and iterates only the lattice.
+fn sources(
     f: &Func,
-    at: usize,
-    depth: usize,
-    fixed: &[bool],
-    results: &[Vec<bool>],
+    (at, depth): (usize, usize),
     arity: &Arity,
     joins: &[Option<usize>],
+    out: &mut Vec<(usize, usize)>,
 ) -> bool {
-    if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
-        return constant_at(&f.body[p], result, fixed, results);
-    }
-    if joins.is_empty() {
-        return false;
-    }
+    let start = out.len();
     let mut work = vec![(at, depth)];
     while let Some((at, depth)) = work.pop() {
-        if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
-            if !constant_at(&f.body[p], result, fixed, results) {
-                return false;
-            }
+        if let Some(found) = producer(&f.body, at, depth, arity, &f.symbols) {
+            out.push(found);
             continue;
         }
         let mut above = depth;
         let mut joined = false;
         for p in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
+            if joins.is_empty() {
+                break;
+            }
             if above == 0
                 && let Some(Some(otherwise)) = joins.get(p)
             {
@@ -4093,51 +4103,70 @@ fn constant_before(
                 break;
             }
             let Some((pops, pushes)) = effect(&f.body[p], arity, &f.symbols) else {
-                return false;
+                break;
             };
             if above >= pushes {
                 above = above - pushes + pops;
             } else if matches!(f.body[p], Ins::Op(I::LocalTee(_))) {
                 above = 0;
             } else {
-                return false;
+                break;
             }
         }
         if !joined {
+            out.truncate(start);
             return false;
         }
     }
     true
 }
 
-type LocalWrite = (usize, usize, Option<(usize, usize)>);
-
-fn fixed_locals(
+/// Whether every producer in `sources` gives a constant.
+fn all_constant(
     f: &Func,
-    params: &[bool],
+    sources: &[(usize, usize)],
+    fixed: &[bool],
     results: &[Vec<bool>],
-    arity: &Arity,
-    joins: &[Option<usize>],
-) -> Vec<bool> {
+) -> bool {
+    (sources.iter()).all(|&(p, result)| constant_at(&f.body[p], result, fixed, results))
+}
+
+/// Each local write's local and the range of [`Writes::sources`] its
+/// value comes from, `None` where unknown ([`sources`]).
+#[derive(Default)]
+struct Writes {
+    writes: Vec<(usize, Option<std::ops::Range<usize>>)>,
+    sources: Vec<(usize, usize)>,
+}
+
+impl Writes {
+    fn new(f: &Func, arity: &Arity, joins: &[Option<usize>]) -> Self {
+        let mut me = Self::default();
+        for (k, ins) in f.body.iter().enumerate() {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins {
+                let start = me.sources.len();
+                let known = sources(f, (k, 0), arity, joins, &mut me.sources);
+                me.writes
+                    .push((*l as usize, known.then_some(start..me.sources.len())));
+            }
+        }
+        me
+    }
+}
+
+fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], writes: &Writes) -> Vec<bool> {
     let np = f.params.len();
     let mut fixed = vec![false; np + f.locals.len()];
     fixed[..np].copy_from_slice(&params[..np]);
-    let mut writes: Vec<LocalWrite> = Vec::new();
-    for (k, ins) in f.body.iter().enumerate() {
-        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins {
-            writes.push((*l as usize, k, producer(&f.body, k, 0, arity, &f.symbols)));
-        }
-    }
     let mut grew = true;
     while grew {
         let mut open = vec![true; fixed.len()];
-        for &(l, at, from) in &writes {
-            let constant = from.map_or_else(
-                || constant_before(f, at, 0, &fixed, results, arity, joins),
-                |(p, result)| constant_at(&f.body[p], result, &fixed, results),
-            );
+        for (l, from) in &writes.writes {
+            let constant = from
+                .clone()
+                .is_some_and(|r| all_constant(f, &writes.sources[r], &fixed, results));
             if !constant {
-                open[l] = false;
+                open[*l] = false;
             }
         }
         for l in 0..np {
