@@ -1399,6 +1399,22 @@ struct Unit {
     /// [`Module::shims`] holds them, and in the order it asked, by shape.
     shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
     shim_queue: Vec<(Hash128, ShimRequest)>,
+    /// Its edits of the keyed tables emission only writes, in order.
+    edits: Vec<Edit>,
+}
+
+/// An edit of a table that emission writes and never reads, applied in
+/// emission order ([`Module::edit`]).
+pub(crate) enum Edit {
+    /// [`Module::stored`] gets this entry.
+    Stored(Hash128, Stored),
+    /// [`Module::storage_names`] gets this name, replacing one it holds
+    /// when `true`.
+    StorageName(Hash128, String, bool),
+    /// [`Module::frames`] gets this payload size.
+    Frame(Hash128, u32),
+    /// [`Module::frame_spills`] gets this layout.
+    FrameSpill(Hash128, crate::task::FrameSpill),
 }
 
 /// The module under construction.
@@ -1815,6 +1831,7 @@ impl Module {
                 self.shim_queue.push(request);
             }
         }
+        unit.edits.into_iter().for_each(|edit| self.edit(edit));
         for (id, mut g) in unit.defines {
             g.remap(&remap, &self.symbols);
             self.place(remap.sym(id), g);
@@ -1847,6 +1864,31 @@ impl Module {
                 .entry(vtable_hash(&self.vtables[k]))
                 .or_insert(k);
             *at = (*at).min(k);
+        }
+    }
+    /// Applies `edit`: in the instance's unit while one is emitted, which
+    /// the merge applies in the order the emission made them.
+    pub(crate) fn edit(&mut self, edit: Edit) {
+        if self.symbols.is_local() {
+            self.unit.edits.push(edit);
+            return;
+        }
+        match edit {
+            Edit::Stored(key, stored) => {
+                self.stored.insert(key, stored);
+            }
+            Edit::StorageName(key, name, true) => {
+                self.storage_names.insert(key, name);
+            }
+            Edit::StorageName(key, name, false) => {
+                self.storage_names.entry(key).or_insert(name);
+            }
+            Edit::Frame(key, size) => {
+                self.frames.insert(key, size);
+            }
+            Edit::FrameSpill(key, spill) => {
+                self.frame_spills.insert(key, spill);
+            }
         }
     }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {

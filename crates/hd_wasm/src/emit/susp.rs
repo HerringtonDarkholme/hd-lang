@@ -1585,7 +1585,7 @@ pub(super) fn finish(
         }
     }
     let (area, size) = save_area(&vals_all, &skipped, start);
-    em.m.frames.insert(key, size);
+    em.m.edit(crate::module::Edit::Frame(key, size));
     // One dense lookup table for all saved virtual locals. A wide
     // reference parameter must not search the whole frame per owner.
     let mut positions = vec![None; vals_all.len()];
@@ -1969,7 +1969,7 @@ pub(super) fn finish(
                 })?,
         )
     };
-    em.m.frame_spills.insert(
+    em.m.edit(crate::module::Edit::FrameSpill(
         key,
         crate::task::FrameSpill {
             start,
@@ -1983,7 +1983,7 @@ pub(super) fn finish(
                 .map(|(item, root)| (item, root, em.b.anchor_len())),
             names_counts: body.names_counts,
         },
-    );
+    ));
     if has_points {
         // Scalar storage is disjoint from stable addressable slots and any
         // synchronous host-drive buffer in this invocation's existing frame.

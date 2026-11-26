@@ -547,14 +547,14 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let vals = self.vals(t)?;
-        self.m.stored.insert(
+        self.m.edit(crate::module::Edit::Stored(
             h,
             crate::module::Stored {
                 vals,
                 counted,
                 slot,
             },
-        );
+        ));
         Ok(())
     }
 
