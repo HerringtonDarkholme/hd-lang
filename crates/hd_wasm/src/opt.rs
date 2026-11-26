@@ -895,14 +895,15 @@ impl Zeros {
         }
         known
     }
+}
 
-    fn has(&self, local: u32) -> bool {
-        match self.wrote.get(local as usize) {
-            Some(1) => true,
-            Some(2) => false,
-            _ => self.sets.contains(self.base, local),
-        }
-    }
+/// What [`decide_block`] reads and writes of rule 11's facts as it walks
+/// a block: [`Zeros`]' persistent sets, or a [`ZeroRow`].
+trait ZeroFacts {
+    fn has(&self, local: u32) -> bool;
+
+    /// Records a write of `local`, of zero bits when `zero`.
+    fn write(&mut self, local: u32, zero: bool);
 
     /// A pure push of zero bits; every other expression remains unknown.
     fn pushes(&self, ins: &Ins) -> bool {
@@ -921,13 +922,45 @@ impl Zeros {
         let zero = at.checked_sub(1).is_some_and(|p| {
             self.pushes(&body[p]) || matches!(body[p], Ins::Op(I::LocalTee(t)) if self.has(t))
         });
-        let Some(slot) = self.wrote.get_mut(*l as usize) else {
+        self.write(*l, zero);
+    }
+}
+
+impl ZeroFacts for Zeros {
+    fn has(&self, local: u32) -> bool {
+        match self.wrote.get(local as usize) {
+            Some(1) => true,
+            Some(2) => false,
+            _ => self.sets.contains(self.base, local),
+        }
+    }
+
+    fn write(&mut self, local: u32, zero: bool) {
+        let Some(slot) = self.wrote.get_mut(local as usize) else {
             return;
         };
         if *slot == 0 {
-            self.touched.push(*l);
+            self.touched.push(local);
         }
         *slot = if zero { 1 } else { 2 };
+    }
+}
+
+/// The locals known zero at one point, a bit each ([`zero_rows`]).
+struct ZeroRow(Vec<u64>);
+
+impl ZeroFacts for ZeroRow {
+    fn has(&self, local: u32) -> bool {
+        let l = local as usize;
+        self.0.get(l / 64).is_some_and(|w| w >> (l % 64) & 1 != 0)
+    }
+
+    fn write(&mut self, local: u32, zero: bool) {
+        let l = local as usize;
+        if let Some(w) = self.0.get_mut(l / 64) {
+            let bit = 1u64 << (l % 64);
+            *w = if zero { *w | bit } else { *w & !bit };
+        }
     }
 }
 
@@ -948,8 +981,9 @@ fn pushes_zero_constant(ins: &Ins) -> bool {
 }
 
 /// Deletes only release arguments/calls and stores proved redundant on
-/// every incoming path. Facts are persistent sets ([`Zeros`]) kept only at
-/// basic-block entries; one working set carries facts through each block.
+/// every incoming path. Facts are dense rows ([`zero_rows`]) or, above
+/// [`row_words`], persistent sets ([`Zeros`]) kept only at basic-block
+/// entries; one working set carries facts through each block.
 /// It calls `visit` at each block its fixed point visits, reads the body's
 /// blocks from `cfg`, or makes them there, and empties `cfg` when it edits
 /// the body.
@@ -980,17 +1014,10 @@ pub fn zero_releases(f: &mut Func, cfg: &mut Option<Cfg>, visit: &mut dyn FnMut(
         return false;
     };
     let n = f.params.len() + f.locals.len();
-    let mut zeros = Zeros::new(n);
-    // Every local but a parameter starts zero: one set made in one pass.
-    // ruled out: a local index past u32; Wasm counts locals in u32.
-    let all: Vec<u32> = (f.params.len()..n)
-        .map(|l| u32::try_from(l).expect("locals"))
-        .collect();
-    let known = zeros.sets.of_sorted(&all);
-    let gone = if g.forward {
-        zero_sweep(f, g, (&mut zeros, known), &release_width)
+    let gone = if let Some(words) = row_words(g.starts.len(), n, f.body.len()) {
+        zero_rows(f, g, words, &release_width, visit)
     } else {
-        zero_fixpoint(f, g, (&mut zeros, known), &release_width, visit)
+        zero_fixpoint(f, g, &release_width, visit)
     };
     if !gone.iter().any(|g| *g) {
         return false;
@@ -1011,6 +1038,87 @@ pub fn zero_releases(f: &mut Func, cfg: &mut Option<Cfg>, visit: &mut dyn FnMut(
         .collect();
     origins.finish(f);
     true
+}
+
+/// [`zero_releases`]' decisions on dense rows of known-zero locals,
+/// `words` u64 per block ([`row_words`]): [`zero_fixpoint`]'s worklist,
+/// lowest block first, where a write sets or clears one bit and a meet
+/// is `words` of `and` that changed the facts when it cleared a bit, not
+/// a path of `log2 n` nodes. A body that only branches forward visits
+/// each block once.
+fn zero_rows(
+    f: &Func,
+    Cfg {
+        edges,
+        point_at,
+        starts,
+        ..
+    }: &Cfg,
+    words: usize,
+    release_width: &dyn Fn(&Ins) -> Option<usize>,
+    visit: &mut dyn FnMut(),
+) -> Vec<bool> {
+    let (len, blocks) = (f.body.len(), starts.len());
+    let mut facts = vec![0u64; blocks * words];
+    // Every local but a parameter starts zero.
+    for l in f.params.len()..f.params.len() + f.locals.len() {
+        facts[l / 64] |= 1 << (l % 64);
+    }
+    let mut reached = vec![false; blocks];
+    reached[0] = true;
+    let mut queued = reached.clone();
+    let mut pending = BinaryHeap::from([Reverse(0)]);
+    let mut row = ZeroRow(vec![0; words]);
+    let mut work = 0;
+    while let Some(Reverse(p)) = pending.pop() {
+        visit();
+        queued[p] = false;
+        let end = starts.get(p + 1).copied().unwrap_or(len);
+        row.0.copy_from_slice(&facts[p * words..][..words]);
+        for at in starts[p]..end {
+            row.after(&f.body, at);
+        }
+        edges[end - 1].each(end, |to| {
+            let Some(&q) = point_at.get(to) else {
+                return;
+            };
+            work += words;
+            let into = &mut facts[q * words..][..words];
+            let changed = if std::mem::replace(&mut reached[q], true) {
+                let mut cut = false;
+                for (x, &y) in into.iter_mut().zip(&row.0) {
+                    cut |= *x & !y != 0;
+                    *x &= y;
+                }
+                cut
+            } else {
+                into.copy_from_slice(&row.0);
+                true
+            };
+            if changed && !queued[q] {
+                queued[q] = true;
+                pending.push(Reverse(q));
+            }
+        });
+    }
+    crate::work::zero_facts(work);
+    let mut gone = vec![false; len];
+    for p in (0..blocks).filter(|&p| reached[p]) {
+        row.0.copy_from_slice(&facts[p * words..][..words]);
+        let end = starts.get(p + 1).copied().unwrap_or(len);
+        decide_block(f, starts[p]..end, &mut row, &mut gone, release_width);
+    }
+    gone
+}
+
+/// The words of a dense row of `locals` bits, when a row per block of
+/// `blocks` takes at most four words per instruction of a body of `len`:
+/// storage and a pass's work linear in the body, where persistent sets
+/// pay `log2 n` nodes per access. Above it the persistent sets keep a
+/// huge body from holding `n²` facts.
+fn row_words(blocks: usize, locals: usize, len: usize) -> Option<usize> {
+    let words = locals.div_ceil(64);
+    (blocks.checked_mul(words)? <= 4 * len).then_some(words)
 }
 
 /// A body's basic blocks and their edges ([`zero_edges`],
@@ -1058,53 +1166,9 @@ fn forward_only(edges: &[ZeroEdges], point_at: &[usize], starts: &[usize], len: 
     forward
 }
 
-/// [`zero_releases`]' decisions for a body whose blocks only branch
-/// forward: one pass in block order meets each block's facts from its
-/// predecessors, decides, and drops them. A block's facts are a
-/// persistent set, so handing them to a successor copies nothing, and a
-/// meet costs where the two differ. It decides as [`zero_fixpoint`] does.
-fn zero_sweep(
-    f: &Func,
-    Cfg {
-        edges,
-        point_at,
-        starts,
-        ..
-    }: &Cfg,
-    (zeros, entry): (&mut Zeros, Set),
-    release_width: &dyn Fn(&Ins) -> Option<usize>,
-) -> Vec<bool> {
-    let mut waiting: Vec<Option<Set>> = vec![None; starts.len()];
-    waiting[0] = Some(entry);
-    let mut gone = vec![false; f.body.len()];
-    for point in 0..starts.len() {
-        let Some(known) = waiting[point].take() else {
-            continue;
-        };
-        let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        decide_block(
-            f,
-            starts[point]..end,
-            (zeros, known),
-            &mut gone,
-            release_width,
-        );
-        // The exit set is made on the first successor, if there is one.
-        let mut out = None;
-        edges[end - 1].each(end, |to| {
-            let Some(&next) = point_at.get(to) else {
-                return;
-            };
-            let known = *out.get_or_insert_with(|| zeros.leave());
-            let slot = &mut waiting[next];
-            *slot = Some(slot.map_or(known, |before| zeros.sets.intersection(before, known)));
-        });
-    }
-    gone
-}
-
-/// [`zero_releases`]' decisions for any body: the facts at each block's
-/// entry to a fixed point, then the decisions.
+/// [`zero_releases`]' decisions on persistent sets ([`Zeros`]), for a
+/// body whose dense rows would not fit: the facts at each block's entry
+/// to a fixed point, then the decisions.
 ///
 /// The worklist hands out the lowest queued block first, as clang's
 /// `ForwardDataflowWorklist` hands out blocks in reverse post-order.
@@ -1120,14 +1184,20 @@ fn zero_fixpoint(
         starts,
         ..
     }: &Cfg,
-    (zeros, entry): (&mut Zeros, Set),
     release_width: &dyn Fn(&Ins) -> Option<usize>,
     visit: &mut dyn FnMut(),
 ) -> Vec<bool> {
+    let n = f.params.len() + f.locals.len();
+    let zeros = &mut Zeros::new(n);
+    // Every local but a parameter starts zero: one set made in one pass.
+    // ruled out: a local index past u32; Wasm counts locals in u32.
+    let all: Vec<u32> = (f.params.len()..n)
+        .map(|l| u32::try_from(l).expect("locals"))
+        .collect();
     // `None`: not reached yet. A function without locals has only empty
     // sets but can still have removable releases.
     let mut facts: Vec<Option<Set>> = vec![None; starts.len()];
-    facts[0] = Some(entry);
+    facts[0] = Some(zeros.sets.of_sorted(&all));
     let mut pending = std::collections::BinaryHeap::from([std::cmp::Reverse(0)]);
     let mut queued = vec![false; starts.len()];
     queued[0] = true;
@@ -1174,22 +1244,22 @@ fn zero_fixpoint(
             continue;
         };
         let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        decide_block(f, start..end, (zeros, known), &mut gone, release_width);
+        zeros.enter(known);
+        decide_block(f, start..end, zeros, &mut gone, release_width);
     }
     gone
 }
 
 /// Marks in `gone` the releases and stores of `block` that its entry
-/// facts `known` prove redundant, carrying the facts through it
-/// ([`Zeros::leave`] makes its exit set).
+/// facts, entered in `zeros`, prove redundant, carrying the facts
+/// through it ([`Zeros::leave`] makes its exit set).
 fn decide_block(
     f: &Func,
     block: std::ops::Range<usize>,
-    (zeros, known): (&mut Zeros, Set),
+    zeros: &mut impl ZeroFacts,
     gone: &mut [bool],
     release_width: &dyn Fn(&Ins) -> Option<usize>,
 ) {
-    zeros.enter(known);
     for at in block {
         let ins = &f.body[at];
         if let Some(n) = release_width(ins) {
@@ -1493,11 +1563,8 @@ impl Live {
     /// where a persistent set pays a path of `log2 n` nodes per access.
     fn rows(&self, f: &Func) -> Option<Rows> {
         let len = f.body.len();
-        let words = (f.params.len() + f.locals.len()).div_ceil(64);
         let blocks = self.starts.len();
-        if blocks.checked_mul(words)? > 4 * len {
-            return None;
-        }
+        let words = row_words(blocks, f.params.len() + f.locals.len(), len)?;
         let (first, preds) = self.predecessors(len);
         let mut bits = vec![0u64; blocks * words];
         let mut queue: std::collections::VecDeque<usize> = (0..blocks).rev().collect();

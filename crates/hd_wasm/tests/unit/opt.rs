@@ -1539,6 +1539,20 @@ mod origin_tests {
         );
     }
 
+    /// Rule 11 on `f`, and on a copy with enough unused locals that its
+    /// facts take persistent sets, not dense rows: both delete the same
+    /// instructions, and liveness finds the same dead accesses.
+    fn zero_both(f: &mut Func) -> bool {
+        let mut wide = f.clone();
+        wide.locals.extend(vec![Val::I32; 320 * f.body.len()]);
+        let dead = Live::dead_accesses(f, None);
+        assert!(dead.is_none() || dead == Live::dead_accesses(&wide, None));
+        let changed = zero_releases(f, &mut None, &mut || {});
+        assert_eq!(zero_releases(&mut wide, &mut None, &mut || {}), changed);
+        assert_eq!(format!("{:?}", wide.body), format!("{:?}", f.body));
+        changed
+    }
+
     fn releases(f: &Func) -> usize {
         f.body
             .iter()
@@ -1576,7 +1590,7 @@ mod origin_tests {
             ],
         );
         let f = run(f, |f| {
-            zero_releases(f, &mut None, &mut || {});
+            zero_both(f);
         });
         assert_eq!(releases(&f), 2);
         assert_eq!(
@@ -1612,13 +1626,13 @@ mod origin_tests {
         };
         assert_eq!(
             releases(&run(branch(false), |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             0
         );
         assert_eq!(
             releases(&run(branch(true), |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             1
         );
@@ -1627,7 +1641,7 @@ mod origin_tests {
         exits.origins = Some(vec![Some(17); exits.body.len()]);
         assert_eq!(
             releases(&run(exits, |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             0
         );
@@ -1656,13 +1670,13 @@ mod origin_tests {
         };
         assert_eq!(
             releases(&run(loop_body(false), |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             1
         );
         assert_eq!(
             releases(&run(loop_body(true), |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             0
         );
@@ -1686,7 +1700,7 @@ mod origin_tests {
         table.labels.push(vec![0]);
         assert_eq!(
             releases(&run(table, |f| {
-                zero_releases(f, &mut None, &mut || {});
+                zero_both(f);
             })),
             1
         );
@@ -2505,7 +2519,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(zero_releases(f, &mut None, &mut || {}));
+                assert!(zero_both(f));
             },
         );
         assert!(matches!(
@@ -2539,7 +2553,7 @@ mod origin_tests {
                 ],
             ),
             |f| {
-                assert!(zero_releases(f, &mut None, &mut || {}));
+                assert!(zero_both(f));
             },
         );
         assert_eq!(releases(&f), 1);
@@ -2566,7 +2580,7 @@ mod origin_tests {
             ],
         );
         let f = run(f, |f| {
-            zero_releases(f, &mut None, &mut || {});
+            zero_both(f);
         });
         assert_eq!(spans(&f), [12, 13]);
     }
