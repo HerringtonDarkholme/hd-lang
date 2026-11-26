@@ -1,0 +1,29 @@
+# Secure bytes from the default host Random provider, without another host ABI.
+# Explicit provider overrides retain their own semantics, including test fakes.
+## Random bytes from the covering provider; the default host source is cryptographically secure.
+## See [std-crypto-rand.fill](../../../spec/std/crypto-rand.md#r-std-crypto-rand.fill).
+pub use std.random.{fill}
+
+tests:
+    use std.random.Random
+
+    struct Scripted:
+        counts: List[usize]
+
+    impl Random for Scripted:
+        fn next_u64(&mut self) -> u64:
+            panic("fill must not draw integers")
+
+        fn fill(&mut self, count: usize) -> List[u8]:
+            self.counts.push(count)
+            [for index in 0..count => u8(index)]
+
+    it("delegates exactly once, including zero and large requests"):
+        provider := box(Scripted { counts: [] })
+        $.with(Random=provider):
+            for count in [0, 12, 65537]:
+                bytes := fill(count)
+                assert_equal(bytes.len(), count, reason="provider count")
+                for index in 0..count:
+                    assert_equal(bytes[index], u8(index), reason="provider bytes")
+        assert_equal(provider.counts, [0, 12, 65537], reason="one fill per call")

@@ -3542,6 +3542,7 @@ std/crypto/hmac/digest-hmac.hd	runtime	accept	std/crypto.md#r-std-crypto.hmac.ve
 std/crypto-sha512/streaming.hd	runtime	accept	std/crypto-sha512.md#r-std-crypto-sha512.hash
 std/crypto-aes/vectors.hd	runtime	accept	std/crypto-aes.md#r-std-crypto-aes.algorithm
 std/crypto-cipher/gcm.hd	runtime	accept	std/crypto-cipher.md#r-std-crypto-cipher.gcm.seal
+std/crypto-rand/fill.hd	runtime	accept	std/crypto-rand.md#r-std-crypto-rand.fill
 std/crypto-cipher/ctr.hd	runtime	accept	std/crypto-cipher.md#r-std-crypto-cipher.ctr.chunks
 std/crypto-cipher/nonce-mismatch.hd	runtime	panic:explicit-panic	std/crypto-cipher.md#r-std-crypto-cipher.gcm.nonce-contract
 std/crypto-cipher/ctr-iv-mismatch.hd	runtime	panic:explicit-panic	std/crypto-cipher.md#r-std-crypto-cipher.ctr.iv
