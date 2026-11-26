@@ -20,8 +20,8 @@ thread_local! {
     static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
 }
 
-/// Verifies a std body a build took from the store
-/// (`Run::own_lazy`), while [`every_std_body_owned_form_round_trips`]
+/// Verifies a body a build took from the store
+/// (`Run::owned_bottom_up`), while [`every_std_body_owned_form_round_trips`]
 /// asks.
 pub(crate) fn verify_stored(run: &Run<'_>, p: &ProgramTables, body: &Body) {
     let Some(n) = VERIFIED.get() else {

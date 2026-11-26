@@ -1829,9 +1829,8 @@ struct Run<'a> {
     /// (`own.rs`); `None` in a dev build, which computes none.
     summaries: Option<own::Summaries>,
     /// Each generic instance's body after the passes
-    /// (`ProgramEnv::instance_body`), owned once: in release by the walk
-    /// that records its summary (`own::Run::owned_bottom_up`), in dev on
-    /// first use; `None` where the passes refused it.
+    /// (`ProgramEnv::instance_body`), owned once by the bottom-up walk
+    /// (`own::Run::owned_bottom_up`); `None` where the passes refused it.
     instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
     /// Each lifted generic local function's own template
     /// (`hd_tir::ir::function_template`), once per item and function.
@@ -10161,29 +10160,19 @@ impl Run<'_> {
     }
 
     /// Body `b` of item `def` after the ownership passes, the first time a
-    /// build asks: an earlier build's when the store holds a std body's
-    /// ([`Run::owned_std_key`]), so this one neither decodes it nor runs
-    /// the passes; else decoded and owned here, and a std body's stored.
+    /// build asks: the bottom-up walk's (`own::Run::owned_bottom_up`), which
+    /// owns it with its callees, or takes it from the store in dev. One the
+    /// walk leaves unowned, an intrinsic's placeholder or a body the passes
+    /// refuse, is decoded and owned here, and stored when owned.
     fn own_lazy<'p>(
         &self,
         p: &'p ProgramTables,
         def: DefId,
         b: &'p LazyBody,
     ) -> Option<&'p (Body, Hash128)> {
-        let key = self.owned_std_key(def, b);
-        let package_key = key
-            .is_none()
-            .then(|| self.package_owned_key(def, b))
-            .flatten();
-        let stored = match (key, package_key) {
-            (Some(key), _) => self.stored_owned(key),
-            (_, Some(key)) => self.stored_package_owned(p, key),
-            _ => None,
-        };
-        if let Some(stored) = stored {
-            #[cfg(feature = "testing")]
-            own::test_hooks::verify_stored(self, p, &stored.0);
-            return b.owned.get_or_init(|| Some(stored)).as_ref();
+        self.owned_bottom_up(p, (def, TyList::EMPTY));
+        if let Some(owned) = b.owned.get() {
+            return owned.as_ref();
         }
         let Some((raw, hash)) = self.decode(b) else {
             p.bodies
@@ -10191,15 +10180,14 @@ impl Run<'_> {
                 .store(true, std::sync::atomic::Ordering::Relaxed);
             return None;
         };
-        // Release: the callees first (`own::Run::owned_bottom_up`).
-        self.owned_bottom_up(p, (def, TyList::EMPTY));
+        let key = self
+            .owned_std_key(def, b)
+            .or_else(|| self.package_owned_key(def, b));
         b.owned
             .get_or_init(|| {
                 let (owned, reads) = own::reading(|| self.own_body(p, raw.clone(), *hash));
                 if let (Some(key), Some(owned)) = (key, &owned) {
-                    self.store_owned(key, owned);
-                } else if let (Some(key), Some(owned)) = (package_key, &owned) {
-                    self.store_package_owned(p, def, key, owned, reads);
+                    self.store_owned(p, def, key, owned, reads);
                 }
                 owned
             })

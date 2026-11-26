@@ -85,7 +85,7 @@ fn edit_owns_only_the_edit(k: usize) {
     assert_eq!(warm.wasm, fresh.wasm);
     assert_eq!(
         warm.counters.bodies_owned,
-        ["own/main/main", "own/m0/run"],
+        ["own/m0/run", "own/main/main"],
         "k = {k}"
     );
 }
@@ -150,7 +150,7 @@ fn an_edit_to_an_inlined_package_callee_owns_its_caller() {
     let warm = build(&store, &files("x + 2"));
     let fresh = build(&MemoryStore::default(), &files("x + 2"));
     assert_eq!(warm.wasm, fresh.wasm);
-    assert_eq!(warm.counters.bodies_owned, ["own/main/main", "own/m1/bump"]);
+    assert_eq!(warm.counters.bodies_owned, ["own/m1/bump", "own/main/main"]);
 }
 
 /// `m1.pick` is generic, and `main` and `m0.use_pick` call it at `i64`:

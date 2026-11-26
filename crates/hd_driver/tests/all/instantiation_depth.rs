@@ -334,3 +334,32 @@ fn declarations_over_a_doubling_type_visit_each_type_once() {
         "13 levels: {small}, 130 levels: {large}"
     );
 }
+
+/// The ownership walk owns a body's callees before collection reaches
+/// them, in dev and release: it enters no instance past the depth limit,
+/// so a cycle whose type grows stops at collection's report instead of
+/// growing without end.
+#[test]
+fn the_ownership_walk_stops_at_the_depth_limit_in_each_profile() {
+    let text = include_str!(
+        "../cases/instantiation-depth/growth-through-a-bound-stops-at-the-depth-limit.hd"
+    );
+    let release = hd_driver::Packages {
+        level: hd_driver::OptLevel::Optimized,
+        build_profile: hd_driver::BuildProfile::Release,
+        ..hd_driver::Packages::default()
+    };
+    for packages in [hd_driver::Packages::default(), release] {
+        let mut src = MemorySources::default();
+        src.insert("main.hd", text);
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &MemoryStore::default(),
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let out = hd_driver::build_packages(&host, "app", &packages, &whole_program());
+        assert_eq!(codes(&out), ["instantiation-too-deep"], "{}", out.render());
+    }
+}

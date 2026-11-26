@@ -95,11 +95,11 @@ pub struct Counters {
     /// How many TIR bodies were decoded: only the ones collection and
     /// emission reach (#49).
     pub bodies_decoded: usize,
-    /// The item bodies the ownership passes ran on, by path, rather than
-    /// reading their owned form from the store (#2028).
+    /// The item bodies the ownership passes ran on, by path, sorted,
+    /// rather than reading their owned form from the store (#2028).
     pub bodies_owned: Vec<String>,
     /// The generic instances the ownership passes ran on, by item path,
-    /// rather than reading their owned form from the store (#2106).
+    /// sorted, rather than reading their owned form from the store (#2106).
     pub instances_owned: Vec<String>,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
@@ -162,5 +162,7 @@ impl Counters {
         self.tir_decoded.sort_stable();
         self.tir_decoded.dedup();
         self.coherence_traits.sort_stable();
+        self.bodies_owned.sort_stable();
+        self.instances_owned.sort_stable();
     }
 }

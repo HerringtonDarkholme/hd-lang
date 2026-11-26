@@ -1126,13 +1126,14 @@ mod instantiation_chain_tests {
         }
     }
 
-    /// A release build owns one level of strongly connected components
-    /// at a time, and cleans up the linked functions and puts their
-    /// count calls behind tests, on the pool's threads (#2383): `bench/json-decode`, with recursive components
-    /// and generic instances, links to the same bytes on one thread and
-    /// on eight.
+    /// Dev and release builds own one level of strongly connected
+    /// components at a time, and a release build cleans up the linked
+    /// functions and puts their count calls behind tests, on the pool's
+    /// threads (#2383): `bench/json-decode`, with recursive components and
+    /// generic instances, links to the same bytes on one thread and on
+    /// eight.
     #[test]
-    fn release_ownership_bytes_match_at_one_and_eight_threads() {
+    fn ownership_bytes_match_at_one_and_eight_threads() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bench/json-decode");
         let mut sources = MemorySources::default();
         for file in ["main.hd", "types20.hd"] {
@@ -1141,30 +1142,33 @@ mod instantiation_chain_tests {
                 &std::fs::read_to_string(root.join(file)).expect("bench source"),
             );
         }
-        let packages = Packages {
+        let release = Packages {
             level: OptLevel::Optimized,
             build_profile: BuildProfile::Release,
             ..Packages::default()
         };
-        let wasm = |executor| {
-            let store = MemoryStore::default();
-            let host = Host {
-                render_tir: &[],
-                sources: &sources,
-                store: &store,
-                clock: &NoClock,
-                executor,
+        for packages in [Packages::default(), release] {
+            let wasm = |executor| {
+                let store = MemoryStore::default();
+                let host = Host {
+                    render_tir: &[],
+                    sources: &sources,
+                    store: &store,
+                    clock: &NoClock,
+                    executor,
+                };
+                let goal = Goal::Program {
+                    entry: "main".into(),
+                };
+                let out = build_packages(&host, "json_decode_bench", &packages, &goal);
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                out.wasm.expect("wasm")
             };
-            let goal = Goal::Program {
-                entry: "main".into(),
-            };
-            let out = build_packages(&host, "json_decode_bench", &packages, &goal);
-            assert!(!out.diags.has_errors(), "{}", out.render());
-            out.wasm.expect("wasm")
-        };
-        let one = wasm(Executor::Serial(SerialOrder::Priority));
-        assert_eq!(wasm(Executor::Pool(8)), one, "eight threads");
-        assert_eq!(wasm(Executor::Pool(1)), one, "one pool thread");
+            let one = wasm(Executor::Serial(SerialOrder::Priority));
+            let profile = packages.build_profile;
+            assert_eq!(wasm(Executor::Pool(8)), one, "{profile:?}, eight threads");
+            assert_eq!(wasm(Executor::Pool(1)), one, "{profile:?}, one pool thread");
+        }
     }
 
     /// A generic local function is lifted (`hd_tir::ir::lift`, #2180):

@@ -488,6 +488,14 @@ its passes read callees' summaries. After a body edit, the passes run on
 the edited bodies, the bodies that read them, and the instances of
 either.
 
+Dev and release run the passes from one driver, `Run::owned_bottom_up`:
+the first time collection asks for a body, the walk owns it and what it
+calls, callees' strongly connected components first, one level of
+components at a time on the build's threads. Release records each
+body's summary for its callers; dev records none, and takes each node
+the walk meets from the store when it is current, without inlining it,
+owning it or walking its callees.
+
 - **Why after decoding, not in `ModuleFinish`.** At decode the program's
   layout facts are at hand (whether a type has counted leaves), and the
   passes run only on the bodies a program reaches: 231 of json's 2,335
