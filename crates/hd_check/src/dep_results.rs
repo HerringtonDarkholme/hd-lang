@@ -4587,7 +4587,7 @@ impl Ck<'_, '_> {
     /// So are the slots of one slot of an implementation's type parameter:
     /// with `impl[T] IndexSet[usize, T] for Holder[T]`, `r[k] = v` stores
     /// `v` in `r`'s `T` (`ref.generic.store`, `expr.index.trait.write-ref`).
-    fn impl_trait_slots(
+    pub(crate) fn impl_trait_slots(
         &self,
         ls: &Layouts<'_>,
         imp: DefId,

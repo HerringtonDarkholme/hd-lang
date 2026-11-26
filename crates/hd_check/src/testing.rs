@@ -177,6 +177,22 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         self.ck.check_literal_marker(def, node);
     }
 
+    /// The implementation's trait-slot map and number of induced origin links.
+    #[must_use]
+    pub fn implementation_slots(
+        &self,
+        layouts: &Layouts<'_>,
+        implementation: DefId,
+        self_ty: Ty,
+        arguments: &[Ty],
+    ) -> (Vec<Vec<Option<u32>>>, usize) {
+        let mut links = Vec::new();
+        let slots =
+            self.ck
+                .impl_trait_slots(layouts, implementation, (self_ty, arguments), &mut links);
+        (slots, links.len())
+    }
+
     pub fn infer(&mut self) -> &mut InferTable {
         &mut self.ck.infer
     }

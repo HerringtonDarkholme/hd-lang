@@ -9,9 +9,11 @@ fn strict_returns_at_depth_1000_fit_a_small_stack() {
         .spawn(|| {
             with_checker(|ck| {
                 let pool = ck.pool();
-                let strict = ck.infer().fresh(pool, VarKind::General);
+                // Exercise facade entry points as well as optimized inline callers.
+                let strict = std::hint::black_box(hd_check::testing::Checker::infer)(ck)
+                    .fresh(pool, VarKind::General);
                 let other = ck.infer().fresh(pool, VarKind::General);
-                ck.strict_rets().push(strict);
+                std::hint::black_box(hd_check::testing::Checker::strict_rets)(ck).push(strict);
                 for depth in [100, 1_000] {
                     let mut chain = [strict, other];
                     for _ in 0..depth {

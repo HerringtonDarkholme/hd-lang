@@ -121,6 +121,7 @@ fn row_key_depth_at_1000_fits_a_small_stack() {
 
 #[test]
 fn an_empty_row_solution_keeps_the_initial_approximation() {
+    let row_changed = std::hint::black_box(row_changed);
     assert!(!row_changed(None, Some(RowId::EMPTY)));
     assert!(!row_changed(Some(RowId::EMPTY), None));
     assert!(row_changed(None, Some(RowId(1))));

@@ -269,3 +269,64 @@ mod projection_lifetime_tests {
             .unwrap();
     }
 }
+
+mod implementation_slot_tests {
+    use hd_base::DefId;
+    use hd_check::testing::{Checker, Layouts, with_checker_items};
+    use hd_resolve::{ImplKind, Item, ItemData};
+    use hd_types::{Ty, TyData};
+
+    #[test]
+    fn nonborrowing_opaque_metadata_does_not_invent_trait_lifetimes() {
+        with_checker_items(
+            |names| {
+                let implementation = names.item("app.main", "implementation");
+                let opaque = names.pool.intern_ty(&TyData::Opaque {
+                    owner: implementation,
+                    site: 0,
+                    args: hd_types::TyList::EMPTY,
+                    bound: Ty::I32,
+                    borrows: false,
+                });
+                vec![Item::new(
+                    implementation,
+                    names.syms.intern("implementation"),
+                    false,
+                    ItemData::Impl {
+                        trait_: names.item("app.main", "Trait"),
+                        trait_args: names.pool.list(&[opaque]),
+                        trait_lifetimes: vec![],
+                        self_lifetimes: vec![],
+                        trait_slots: vec![],
+                        self_ty: Ty::I32,
+                        methods: vec![],
+                        assoc: vec![],
+                        assoc_lifetimes: vec![],
+                        by: None,
+                        kind: ImplKind::Written,
+                        fills_defaults: false,
+                        skips: vec![],
+                    },
+                )]
+            },
+            |ck| {
+                let pool = ck.pool();
+                let lifetimed = |_: DefId| false;
+                let layouts = Layouts::new(pool, ck.cx().names.known.suspend, &lifetimed);
+                let implementation = ck.cx().names.item("app.main", "implementation");
+                let implementation_slots = std::hint::black_box(Checker::implementation_slots);
+                for mutable in [false, true] {
+                    let reference = pool.intern_ty(&TyData::Ref {
+                        inner: Ty::I32,
+                        mutable,
+                        counted: false,
+                    });
+                    assert_eq!(
+                        implementation_slots(ck, &layouts, implementation, Ty::I32, &[reference]),
+                        (vec![vec![], vec![None]], 0),
+                    );
+                }
+            },
+        );
+    }
+}
