@@ -2999,10 +2999,13 @@ impl Env<'_> {
     ///
     /// # Errors
     /// [`Env::fold_and_inline`]'s.
-    pub(super) fn inlined_instance(
-        &self,
-        (def, args): Node,
-    ) -> StageResult<Option<(Body, Hash128)>> {
+    pub(super) fn inlined_instance(&self, node: Node) -> StageResult<Option<(Body, Hash128)>> {
+        // The inliner asks a referent's layout per call site: once per run instead.
+        hd_layout::cached_for_run(self.run.layout_key, || self.instance_uncached(node))
+    }
+
+    /// [`Env::inlined_instance`] without the run's layout cache in place.
+    fn instance_uncached(&self, (def, args): Node) -> StageResult<Option<(Body, Hash128)>> {
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with
         // none has no instance body here (its source body is a
@@ -3753,7 +3756,10 @@ impl Run<'_> {
         lock(&self.counters).bodies_owned.push(path);
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = env.fold_and_inline(&mut body, TyList::EMPTY, hash)?;
+            // As in `Env::inlined_instance`: each layout once per run.
+            let hash = hd_layout::cached_for_run(self.layout_key, || {
+                env.fold_and_inline(&mut body, TyList::EMPTY, hash)
+            })?;
             env.own_inlined(body, hash, TyList::EMPTY)
         });
         match owned {
@@ -4108,9 +4114,7 @@ impl Run<'_> {
             let mut callees = |n: Node| {
                 // A refused body stays unowned: `owned_instance` reports it.
                 let span = super::phase("collect: inline");
-                // The inliner asks a referent's layout per call site: once per run instead.
-                let inlined_instance =
-                    hd_layout::cached_for_run(self.layout_key, || env.inlined_instance(n));
+                let inlined_instance = env.inlined_instance(n);
                 drop(span);
                 let out = if let Ok(Some((body, hash))) = inlined_instance {
                     let out = env.summarized_callees(&body);
