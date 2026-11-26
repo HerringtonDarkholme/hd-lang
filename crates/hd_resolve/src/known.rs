@@ -222,6 +222,7 @@ pub struct KnownItems {
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
+    pub exact_size_iterator: DefId,
     pub from: DefId,
     pub error: DefId,
     // std.ops: cleanup protocols and the auto-registration marker
@@ -567,6 +568,7 @@ impl KnownItems {
             ],
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
+            exact_size_iterator: item("std.iter", "ExactSizeIterator"),
             from: item("std.convert", "From"),
             error: item("std.error", "Error"),
             suspend,

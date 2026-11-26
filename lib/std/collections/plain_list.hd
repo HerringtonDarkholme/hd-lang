@@ -10,6 +10,7 @@
 # copies it on a cold path otherwise, as Swift's `ContiguousArray`. Every
 # empty list shares the static empty block (count 0), so `len` and
 # indexing never test for null and the first push takes the cold path.
+use std.iter.{ExactSizeIterator, Iterable}
 use std.meta.inline
 use std.ops.{FromListLiteral, Index, IndexMut, IndexSet}
 use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, is_unique, needs_drop, panic_with, size_of, tail_of}
@@ -260,3 +261,32 @@ impl[T, 'a] Iterator[T] for PlainListIter[T, 'a]:
         v := *self.at.as_ref()
         self.at = self.at.offset(1)
         .Some(v)
+
+## What `for x in list` and a spread into a list literal iterate: a
+## cursor that holds the list, so its block stays alive while the
+## cursor yields its values by copy.
+pub struct PlainListItems[T]:
+    list: PlainList[T]
+    at: usize
+    end: usize
+
+impl[T] Iterable[T] for PlainList[T]:
+    type IntoIter = PlainListItems[T]
+    @inline(.Always)
+    fn iter(self) -> PlainListItems[T]:
+        n := self.len()
+        PlainListItems { list: self, at: 0, end: n }
+
+impl[T] Iterator[T] for PlainListItems[T]:
+    @inline(.Always)
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        v := *self.list.elems().offset(self.at).as_ref()
+        self.at += 1
+        .Some(v)
+
+impl[T] ExactSizeIterator[T] for PlainListItems[T]:
+    @inline(.Always)
+    fn len(&self) -> usize:
+        self.end - self.at

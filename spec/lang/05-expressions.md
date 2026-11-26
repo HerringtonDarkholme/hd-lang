@@ -615,19 +615,21 @@ scores := {"Ada": 10, "Grace": 12}
 3. r[expr.list.type] Otherwise a list literal produces `List[T]`, where every element is assignable to `T`.
 4. r[expr.list.spread] A list element ending in `...` is a spread.
 5. r[expr.list.spread.once] A spread's operand is evaluated once, in element order.
-6. r[expr.list.spread.type] A spread's operand must have a list type `List[U]`. Error: `type-mismatch`.
+6. r[expr.list.spread.type] In a literal that produces a `List`, a spread's operand must have a list type `List[U]`. Error: `type-mismatch`.
 7. r[expr.list.spread.insert] The spread's elements are inserted at its position, in order.
 8. r[expr.list.spread.position] A literal may contain several spreads in any position, so `[0, xs...]` and `[xs..., ys...]` are valid.
 9. r[expr.list.spread.expected] With an expected `List[T]`, `U` must be assignable to `T`.
 10. r[expr.list.spread.inferred] Without an expected `List[T]`, a spread contributes `U` to the least common type of the elements.
 11. r[expr.list.spread.convert] Each element a spread inserts converts to the literal's element type exactly as an element written at its position would. So `[xs...]` with `xs: List[*Sq]` and an expected `List[*dyn Shape]` converts each `*Sq` to `*dyn Shape`.
+12. r[expr.list.spread.iterable] In a literal that builds through `FromListLiteral`, a spread's operand is any source a `for` loop takes. An iterator, or a `&mut` reference to one, is its own cursor; any other operand's `Iterable::iter` gives the cursor, called once when the operand is evaluated. Each item the cursor yields is pushed. An operand that is neither is an error. Error: `unsatisfied-trait-bound`.
+13. r[expr.list.spread.count] In such a literal, a spread whose cursor implements `std.iter.ExactSizeIterator` adds its `len` to `n`, read when the operand is evaluated. Any other spread adds nothing, and its pushes may grow the value.
 
 ```text
 fn numbers(count: i32) -> List[i32]:
     [0, count...]  # error: type-mismatch
 ```
 
-In rule 2, `n` is the number of written elements plus each spread's length, so the pushes never grow the value. All elements and spread operands are evaluated before `with_capacity` runs.
+In rule 2, `n` is the number of written elements plus each spread's count (rule 13), so the pushes never grow the value when every spread is counted. All elements and spread operands are evaluated before `with_capacity` runs.
 
 ```hd
 use std.collections.PlainList
