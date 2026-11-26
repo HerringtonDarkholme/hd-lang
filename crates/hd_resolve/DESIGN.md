@@ -64,21 +64,21 @@ deleted file is never served from the cache (Gleam #4320).
 graph, on every module's skim (`hd_driver`'s `module_graph`). Each `use`
 line names a module: the module of a grouped path, the module a single
 path names, or the module holding the declaration it names. The graph has
-two edge sets over modules:
+module dependencies, interface prerequisites, and cycle-policy edges:
 
-1. **Dependency edges** go to every module a use names, `pub use` lines,
-   the prelude's rows, the test runtime and a REPL session's modules
-   included. They order initialization (`module.init.use-graph`) and form
-   the compile units. A facade's own `pub use` edge reaches the module that
-   declares a name it re-exports, and naming a module makes the
-   implementations it holds visible to the trait solver. Every module with
-   the whole prelude also depends on std's language layer, the top-level
-   std modules outside the core layer, the runtime and `std.testing`: the
-   compiler names their items, their implementations for built-in types
-   need no `use`, and their exports are the import hints' homes. The layer
-   is linked in a ring and every other module depends on its first module,
-   so this adds O(modules) edges.
-2. **Policy edges** are the written library uses of one package, a
+1. **Module dependencies** are the library uses in each skim, including
+   prelude and REPL prerequisites. They order initialization
+   (`module.init.use-graph`). A facade's own `pub use` of a child namespace
+   publishes it without adding an initialization edge; an item re-export
+   reaches the module that declares the item.
+2. **Interface prerequisites** include the real-use closure of fixed prelude,
+   compiler-known item modules, and built-in inherent homes. The driver
+   adds this closure to checking and its keys without source-cycle edges.
+   A written package-namespace import shares child library interfaces at
+   the package root, independently of initialization dependencies.
+   Import advice uses an explicit immutable public-name index rather than
+   the checked interface closure.
+3. **Policy edges** are the written library uses of one package, a
    `pub use` making none
    ([`module.cycle.edge`](../../spec/lang/10-modules.md#r-module.cycle.edge)).
    Each strongly connected group of them is checked against "one sibling

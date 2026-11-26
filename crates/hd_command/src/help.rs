@@ -78,6 +78,7 @@ const COMMANDS: &[Command] = &[
         usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
         about: &[
             "Run a module that hd build wrote. Package host providers also need the app manifest above the module.",
+            "The module records its optimization level; older modules use dev. --release is not accepted for this form.",
         ],
         flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },

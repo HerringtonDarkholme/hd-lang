@@ -972,3 +972,82 @@ pub fn main!() -> void $ Console + Net:
     );
     assert_eq!(out.status.code(), Some(0));
 }
+
+/// Read the configuration selected by the CLI, rather than measuring runtime.
+#[test]
+fn prebuilt_modules_use_their_recorded_cranelift_level() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = work("prebuilt-profile");
+    std::fs::create_dir_all(dir.join("src"))?;
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/hd.toml"),
+    )?;
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/src/main.hd"),
+    )?;
+    let check = |module: &Path, expected: &str| -> Result<(), Box<dyn std::error::Error>> {
+        let trace = module.with_extension("trace.json");
+        let mut command = hd(&dir);
+        command.env("HD_TRACE", &trace);
+        let out = run(
+            command,
+            &["--engine=wasmtime", &module.to_string_lossy()],
+            "",
+        );
+        assert!(out.status.success(), "{}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "module profile\n");
+        let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+        let events = trace["traceEvents"]
+            .as_array()
+            .ok_or("trace events are missing")?;
+        assert!(
+            events
+                .iter()
+                .any(|event| event["name"].as_str() == Some(expected)),
+            "{trace}"
+        );
+        Ok(())
+    };
+    for (flags, folder, expected) in [
+        (
+            vec!["build", "--engine=node"],
+            "debug",
+            "wasmtime OptLevel::None",
+        ),
+        (
+            vec!["build", "--engine=node", "--release"],
+            "release",
+            "wasmtime OptLevel::Speed",
+        ),
+    ] {
+        let out = run(hd(&dir), &flags, "");
+        assert!(out.status.success(), "{}", text(&out.stderr));
+        check(
+            &dir.join("build").join(folder).join("profile.wasm"),
+            expected,
+        )?;
+    }
+    let renamed = dir.join("renamed.wasm");
+    std::fs::copy(dir.join("build/release/profile.wasm"), &renamed)?;
+    check(&renamed, "wasmtime OptLevel::Speed")?;
+    // An unknown custom name is equivalent to an older module without hd.build.
+    // Keep all byte offsets and payloads unchanged, including debug metadata.
+    let mut legacy = std::fs::read(dir.join("build/release/profile.wasm"))?;
+    let mut offset = None;
+    for payload in wasmparser::Parser::new(0).parse_all(&legacy) {
+        if let wasmparser::Payload::CustomSection(section) = payload?
+            && section.name() == hd_host_abi::schema::BUILD_SECTION
+        {
+            offset = usize::try_from(section.data_offset())?.checked_sub(section.name().len());
+            break;
+        }
+    }
+    *legacy
+        .get_mut(offset.ok_or("built module has no build section")?)
+        .ok_or("invalid section offset")? = b'x';
+    let path = dir.join("legacy.wasm");
+    std::fs::write(&path, legacy)?;
+    check(&path, "wasmtime OptLevel::None")?;
+    Ok(())
+}

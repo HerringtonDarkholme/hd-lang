@@ -306,7 +306,7 @@ release does, so the compiler needs no spec decision. The full table:
 | `module.test.code`, `cli.check.default`, `cli.check.tests` | test code compiles only in test builds (`hd test`); `hd check` skips it unless `--tests` | same: release builds compile executables/library, no test code |
 | `cli.profile.default` / `release` / `release.file` | `hd FILE/run/build/test`, REPL: debug (checked) | `--release` on `hd FILE/run/build`: wrapping profile |
 | `cli.profile.test` / `test.release` | `hd test`: always checked; `--release` keeps checks, selects pipeline only | n/a (test stays checked) |
-| `cli.profile.release.commands` | — | only `hd FILE/run/build/test` take `--release` |
+| `cli.profile.release.source-commands` | — | only `hd FILE.hd/run/build/test` take `--release` |
 | `cli.profile.pipeline.*` | dev pipeline (fast builds) | optimized pipeline; unobservable except speed, memory, stack/heap depth, backtraces |
 | `cli.build.output` | `build/debug/` | `build/release/` |
 | `types.generic.instantiation-depth` / `cli.build.depth-error` | `instantiation-too-deep`: limit is implementation-defined, same in every build | same in every build |

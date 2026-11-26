@@ -1,9 +1,11 @@
-//! Owned signatures for package host adapters. The custom section contains
-//! data, never executable JavaScript. Its encoding is toolchain ABI v2.
+//! Package host contracts contain data, never executable JavaScript, in
+//! toolchain ABI v2. Separate build metadata records the optimization level.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const SECTION: &str = "hd.capabilities";
+/// Build metadata: version 1, then 0 for dev or 1 for optimized.
+pub const BUILD_SECTION: &str = "hd.build";
 pub const VERSION: u32 = 2;
 const MAX_DEPTH: usize = 32;
 
@@ -608,14 +610,21 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Read only the package contract; the engine still validates the Wasm.
-/// Multiple contract sections are rejected rather than choosing one.
-pub fn from_wasm(wasm: &[u8]) -> Result<Option<Contract>, &'static str> {
+/// The package contract and compilation level, read in one section walk.
+pub struct ModuleMetadata {
+    pub contract: Option<Contract>,
+    pub opt_level: hd_base::OptLevel,
+}
+
+/// Read metadata without decoding code bodies; the engine validates the Wasm.
+/// Cost: one pass over section headers and custom names, borrowing payloads.
+pub fn module_metadata(wasm: &[u8]) -> Result<ModuleMetadata, &'static str> {
     if wasm.get(..8) != Some(b"\0asm\x01\0\0\0") {
         return Err("not a core Wasm module");
     }
     let mut r = Reader { bytes: wasm, at: 8 };
     let mut contract = None;
+    let mut opt_level = None;
     while r.at < wasm.len() {
         let kind = r.byte()?;
         let size = r.len()?;
@@ -624,15 +633,32 @@ pub fn from_wasm(wasm: &[u8]) -> Result<Option<Contract>, &'static str> {
             continue;
         }
         let mut section = Reader { bytes, at: 0 };
-        if section.string()? != SECTION {
-            continue;
+        let name = section.string()?;
+        if name == SECTION {
+            if contract.is_some() {
+                return Err("duplicate package host contract section");
+            }
+            contract = Some(Contract::decode(&bytes[section.at..])?);
+        } else if name == BUILD_SECTION {
+            if opt_level.is_some() {
+                return Err("duplicate build profile section");
+            }
+            opt_level = Some(match &bytes[section.at..] {
+                [1, 0] => hd_base::OptLevel::Dev,
+                [1, 1] => hd_base::OptLevel::Optimized,
+                _ => return Err("invalid build profile section; rebuild the module"),
+            });
         }
-        if contract.is_some() {
-            return Err("duplicate package host contract section");
-        }
-        contract = Some(Contract::decode(&bytes[section.at..])?);
     }
-    Ok(contract)
+    Ok(ModuleMetadata {
+        contract,
+        opt_level: opt_level.unwrap_or_default(),
+    })
+}
+
+/// Read the package contract, preserving the existing metadata validation.
+pub fn from_wasm(wasm: &[u8]) -> Result<Option<Contract>, &'static str> {
+    module_metadata(wasm).map(|metadata| metadata.contract)
 }
 
 #[cfg(test)]
@@ -1066,5 +1092,34 @@ pub(crate) mod tests {
         assert_eq!(from_wasm(&wasm).unwrap(), Some(c));
         wasm.extend_from_slice(&section.0);
         assert!(from_wasm(&wasm).is_err());
+    }
+    #[test]
+    fn wasm_build_profile_defaults_validates_and_rejects_duplicates() -> Result<(), &'static str> {
+        use hd_base::OptLevel;
+        let header = b"\0asm\x01\0\0\0";
+        assert_eq!(module_metadata(header)?.opt_level, OptLevel::Dev);
+        let encoded = |data: &[u8]| {
+            let mut payload = Writer(Vec::new());
+            payload.string(BUILD_SECTION);
+            payload.0.extend_from_slice(data);
+            let mut section = Writer(vec![0]);
+            section.len(payload.0.len());
+            section.0.extend(payload.0);
+            let mut wasm = header.to_vec();
+            wasm.extend_from_slice(&section.0);
+            (wasm, section.0)
+        };
+        for (data, level) in [([1, 0], OptLevel::Dev), ([1, 1], OptLevel::Optimized)] {
+            let (mut wasm, section) = encoded(&data);
+            let metadata = module_metadata(&wasm)?;
+            assert_eq!(metadata.opt_level, level);
+            assert!(metadata.contract.is_none());
+            wasm.extend_from_slice(&section);
+            assert!(module_metadata(&wasm).is_err(), "duplicate build level");
+        }
+        for data in [&[][..], &[1], &[2, 1], &[1, 2], &[1, 1, 0]] {
+            assert!(module_metadata(&encoded(data).0).is_err(), "{data:?}");
+        }
+        Ok(())
     }
 }
