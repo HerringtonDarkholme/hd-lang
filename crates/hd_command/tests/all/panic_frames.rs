@@ -41,7 +41,7 @@ fn hd(root: &Path, args: &[&str]) -> Output {
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),
         )
-        .env_remove("HD_JOBS")
+        .env("HD_JOBS", "2")
         .env_remove("HD_ENGINE")
         .current_dir(root)
         .args(args)
@@ -341,12 +341,15 @@ fn release_builds_keep_names_only_in_positions() -> Result<(), &'static str> {
     let debug = std::fs::read(root.join("build/debug/shop.wasm")).expect("debug wasm");
     assert_eq!(
         custom_sections(&debug)?,
-        ["hd.lines", "name", "hd.positions"]
+        ["hd.build", "hd.lines", "name", "hd.positions"]
     );
     let out = hd(&root, &["build", "--release"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
-    assert_eq!(custom_sections(&release)?, ["hd.lines", "hd.positions"]);
+    assert_eq!(
+        custom_sections(&release)?,
+        ["hd.build", "hd.lines", "hd.positions"]
+    );
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
     Ok(())
 }
