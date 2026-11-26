@@ -75,4 +75,7 @@ tokio = { version = "=1.53.2", default-features = false, features = ["io-util", 
 workspace = true
 
 [dev-dependencies]
+# Inspect only the engine-version section in the native compatibility test.
+object = { version = "=0.40.0", default-features = false, features = ["read_core", "elf", "std"] }
+
 hd_testkit = { path = "../hd_testkit" }

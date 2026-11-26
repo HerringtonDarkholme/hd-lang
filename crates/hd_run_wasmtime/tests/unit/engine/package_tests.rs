@@ -275,6 +275,7 @@ fn without_a_registry_a_required_trait_is_refused_before_the_guest_starts() {
 }
 
 #[test]
+#[allow(unsafe_code)]
 fn a_registered_provider_is_called_and_its_result_reaches_the_guest() {
     // Both keys (`native-two-keys`): the manifest consents and the
     // embedder registers. `read`'s result length goes straight to `echo`,
@@ -293,30 +294,45 @@ fn a_registered_provider_is_called_and_its_result_reaches_the_guest() {
         &[I::Call(0), I::Call(1)],
         false,
     );
-    let calls = Rc::default();
-    let recorder = Recorder {
-        calls: Rc::clone(&calls),
-        reply: vec![0x2a, 7, 9],
-        failure: None,
-    };
-    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-    let module = engine.load(&wasm, &MemoryStore::default()).unwrap();
-    let mut instance = engine
-        .instantiate_with_bindings(
-            &module,
-            &setup_with(
-                &[
-                    (SELECTOR, GrantValue::All),
-                    ("dep.sdk.client.Client", GrantValue::All),
-                ],
-                &[],
-            ),
-            HostIo::process(),
-            bindings(&contract, &[SERVER], recorder),
-        )
-        .unwrap();
-    assert_eq!(instance.init(), Outcome::Exit(0));
-    assert_eq!(*calls.borrow(), [(0, vec![]), (1, vec![0x2a, 7, 9])]);
+    let directory = hd_testkit::Scratch::new(env!("CARGO_TARGET_TMPDIR"), "native-provider-image");
+    for native in [false, true] {
+        let calls = Rc::default();
+        let recorder = Recorder {
+            calls: Rc::clone(&calls),
+            reply: vec![0x2a, 7, 9],
+            failure: None,
+        };
+        let (engine, module) = if native {
+            let image = hd_run_wasmtime::precompile(&wasm, 2).expect("precompile provider module");
+            let image = hd_run::artifact::encode(image, &wasm, hd_base::Hash128(0))
+                .expect("native metadata");
+            let path = directory.join("provider.cwasm");
+            std::fs::write(&path, image).expect("native artifact");
+            let image = hd_run::artifact::Native::open(&path).expect("open own artifact");
+            // SAFETY: this test just precompiled the image and never modifies it.
+            unsafe { hd_run_wasmtime::load_native(&image) }.expect("load native artifact")
+        } else {
+            let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+            let module = engine.load(&wasm, &MemoryStore::default()).unwrap();
+            (engine, module)
+        };
+        let mut instance = engine
+            .instantiate_with_bindings(
+                &module,
+                &setup_with(
+                    &[
+                        (SELECTOR, GrantValue::All),
+                        ("dep.sdk.client.Client", GrantValue::All),
+                    ],
+                    &[],
+                ),
+                HostIo::process(),
+                bindings(&contract, &[SERVER], recorder),
+            )
+            .unwrap();
+        assert_eq!(instance.init(), Outcome::Exit(0));
+        assert_eq!(*calls.borrow(), [(0, vec![]), (1, vec![0x2a, 7, 9])]);
+    }
 }
 
 #[test]

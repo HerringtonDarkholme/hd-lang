@@ -343,8 +343,15 @@ pub(crate) fn compile_module(
     jobs: usize,
 ) -> wasmtime::Result<wasmtime::Module> {
     let _trace = hd_base::trace::span("phase", || format!("wasmtime compile jobs={}", jobs.max(1)));
+    with_compiler_pool(jobs, || wasmtime::Module::new(engine, wasm))
+}
+
+pub(crate) fn with_compiler_pool<T: Send>(
+    jobs: usize,
+    compile: impl FnOnce() -> wasmtime::Result<T> + Send,
+) -> wasmtime::Result<T> {
     if jobs <= 1 {
-        return wasmtime::Module::new(engine, wasm);
+        return compile();
     }
     let session = SESSION.with_borrow(Clone::clone);
     rayon::ThreadPoolBuilder::new()
@@ -355,7 +362,7 @@ pub(crate) fn compile_module(
                 let _scope = SessionScope::enter(session.clone());
                 thread.run();
             },
-            |pool| pool.install(|| wasmtime::Module::new(engine, wasm)),
+            |pool| pool.install(compile),
         )
         .map_err(wasmtime::Error::new)?
 }

@@ -118,8 +118,8 @@ hd notes.hd
 
 ### Prebuilt Modules
 
-`hd FILE.wasm` runs a Wasm module that `hd build` wrote, without its
-source. FILE's extension picks the mode:
+`hd FILE.wasm` runs a portable Wasm module, and `hd FILE.cwasm` runs a native
+release artifact, without its source. FILE's extension picks the mode:
 
 ```sh
 hd build                                  # writes build/debug/greeter.wasm
@@ -127,7 +127,7 @@ hd build/debug/greeter.wasm -- a b        # runs it with the arguments a and b
 hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 101
 ```
 
-1. r[cli.wasm.run] When FILE's name ends in `.wasm`, `hd FILE` instantiates FILE as a module that [`hd build`](#r-cli.build.output) wrote, and runs it.
+1. r[cli.wasm.run] When FILE's name ends in `.wasm`, `hd FILE` instantiates FILE as a module that [`hd build`](#r-cli.build.output.artifact) wrote, and runs it.
 2. r[cli.wasm.mode] Only the extension picks the mode: `hd FILE` for a FILE whose name ends in `.hd` runs a single-file program, by [`cli.file.run`](#r-cli.file.run).
 3. r[cli.wasm.host] The module runs under the [default profile](#host-capabilities), in the working directory of the `hd` command.
 4. r[cli.wasm.host.imports] `hd` binds each trait of the default profile that the module's import list names.
@@ -143,6 +143,15 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 14. r[cli.wasm.build-level] `hd build` records its optimization level in the module, and `hd FILE.wasm` uses that level.
 15. r[cli.wasm.legacy-level] A module without a recorded optimization level runs with the dev pipeline.
 16. r[cli.wasm.release-flag] `hd FILE.wasm` rejects `--release`, because the module determines its optimization level.
+17. r[cli.native.run] When FILE ends in `.cwasm`, `hd FILE` loads and runs the native artifact without translating its Wasm program.
+18. r[cli.native.engine] A `.cwasm` artifact requires Wasmtime; selecting Node is an error suggesting `--format wasm` for portable output.
+19. r[cli.native.host] Native artifacts use the same host imports, capability checks, arguments and exit-status protocol as prebuilt Wasm modules.
+20. r[cli.native.standalone] A native artifact contains its host and source-position metadata and requires no original source checkout to run.
+21. r[cli.native.compatibility] An unloadable native artifact, including a Wasmtime-version or CPU-target mismatch, fails with a rebuild error suggesting `hd build --release` or portable `--format wasm` output.
+22. r[cli.native.release-flag] `hd FILE.cwasm` rejects `--release`, because the native artifact already determines its release behavior.
+
+> **Why.** Native output pays compilation cost at build or installation time.
+> Portable Wasm remains available for other engines and machines.
 
 > **Why.** Builtin-only modules need no package source or manifest.
 > A package provider needs the app's manifest consent and its SDK's provider map.
@@ -604,13 +613,18 @@ hd test src/billing.hd    # the tests of module billing
 6. r[cli.check.tests.doc] `hd check --tests` also checks the package's [doc tests](../lang/10-modules.md#doc-tests), except compile-fail ones, which only `hd test` judges.
 7. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
 8. r[cli.build.directory] The **build directory** is the directory `build` in the package directory, where `hd` writes its build and cache output.
-9. r[cli.build.output] A whole-package `hd build` writes each executable NAME to `build/debug/NAME.wasm`, or to `build/release/NAME.wasm` with `--release`.
-10. r[cli.build.output.file] `hd build FILE` writes FILE's module to `build/debug/files/STEM.wasm`, or to `build/release/files/STEM.wasm` with `--release`. STEM is FILE's name without its `.hd` extension.
-11. r[cli.build.library-only] A whole-package `hd build` of a package with no executable, such as a library-only package, checks the package and writes no `.wasm` file.
+9. r[cli.build.output.artifact] A whole-package `hd build` writes each executable NAME to `build/PROFILE/NAME.EXT`, using the selected profile directory and artifact extension.
+10. r[cli.build.output.file-artifact] `hd build FILE` writes FILE's module to `build/PROFILE/files/STEM.EXT`, where STEM is FILE's name without `.hd`.
+11. r[cli.build.library-only.no-artifact] A whole-package `hd build` of a package with no executable checks the package and writes no executable artifact.
 12. r[cli.build.library-only.cache] It still writes the package's interface and its entries in the [compiled cache](#compiled-cache), so a dependent's next command reuses them.
-13. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: the [instantiation limit](../lang/04-type-system.md#r-types.generic.instantiation-depth.error)'s `instantiation-too-deep`.
-14. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report the instantiation limit. It does report a [generic call cycle](../lang/04-type-system.md#r-types.generic.polymorphic-recursion) that grows. A package that `hd check` accepts may still fail `hd build`.
-15. r[cli.build.facts-at-run-time] Checking or building a program evaluates no fact. A fact's panic is the runtime panic `fact-evaluation-failed` of the running program that reads it.
+13. r[cli.build.artifact.profile-directory] PROFILE is `release` with `--release`, and `debug` otherwise.
+14. r[cli.build.artifact.native] A release build for Wasmtime uses the extension `.cwasm`, unless `--format wasm` requests portable output.
+15. r[cli.build.artifact.portable] A dev build, a Node build, or a build with `--format wasm` uses `.wasm`.
+16. r[cli.build.artifact.native-pipeline] Native release output uses Cranelift's speed optimization and inlining, within the command's compiler-thread budget.
+17. r[cli.run.native-release] A release `hd run` using Wasmtime reuses the corresponding native build artifact when its sources, manifest and compiler settings are unchanged.
+18. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: the [instantiation limit](../lang/04-type-system.md#r-types.generic.instantiation-depth.error)'s `instantiation-too-deep`.
+19. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report the instantiation limit. It does report a [generic call cycle](../lang/04-type-system.md#r-types.generic.polymorphic-recursion) that grows. A package that `hd check` accepts may still fail `hd build`.
+20. r[cli.build.facts-at-run-time] Checking or building a program evaluates no fact. A fact's panic is the runtime panic `fact-evaluation-failed` of the running program that reads it.
 
 ```sh
 hd check     # 0: checking compiles no instantiation
@@ -993,12 +1007,12 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 
 1. r[cli.engine.define] An **engine** is the runtime that executes a program's compiled module.
 2. r[cli.engine.offered] An implementation offers one or more engines. Which engines exist, and what they are called, is implementation-defined.
-3. r[cli.engine.flag] `hd FILE`, `hd FILE.wasm`, `hd run`, `hd build`, and `hd test` take `--engine NAME`, where NAME names an engine.
+3. r[cli.engine.flag.commands] `hd FILE`, `hd FILE.wasm`, `hd FILE.cwasm`, `hd run`, `hd build`, `hd install`, and `hd test` take `--engine NAME`, where NAME names an engine.
 4. r[cli.engine.select] A command that takes `--engine` uses the engine that the flag names. Without the flag, it uses the engine that the environment variable `HD_ENGINE` names. Without both, it uses the default engine.
 5. r[cli.engine.env-empty] An empty `HD_ENGINE` counts as unset.
 6. r[cli.engine.default.shipped] The released `hd` binary defaults to Wasmtime, running programs and tests in process.
 7. r[cli.engine.default.development] Developer and test builds of `hd` default to Node.
-8. r[cli.engine.build] `hd build --engine NAME` builds the module for that engine. A module that `hd build` wrote runs on every engine, whichever engine it was built for.
+8. r[cli.engine.build.target] `hd build --engine NAME` builds for that engine; portable `.wasm` output runs on every engine, while `.cwasm` requires Wasmtime.
 9. r[cli.engine.same-behavior] A program's output, exit status, panic categories, and panic sites are the same on every engine, as [`cli.profile.pipeline.unobservable`](#r-cli.profile.pipeline.unobservable) says of pipelines.
 10. r[cli.engine.differences] Between engines, only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
 11. r[cli.engine.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). That includes an engine that this build lacks.
@@ -1056,7 +1070,7 @@ hd uninstall tool --root ./my-hd
 2. r[cli.install.resolve] SOURCE follows the path, repository and version-query forms of [dependency targets](#targets), without requiring a library.
 3. r[cli.install.executables] Installation builds every [executable](#executables) of the selected package.
 4. r[cli.install.no-executable] A source without a package manifest or without executables is an error.
-5. r[cli.install.release-wasm] Each installed executable is release Wasm with a launcher through the current `hd` runtime.
+5. r[cli.install.release-artifact] Each installed executable uses the release artifact format selected by its engine and `--format wasm`, with a launcher through the current `hd` runtime.
 6. r[cli.install.no-execution] Installation runs no guest entry, test, package provider or installation hook.
 7. r[cli.install.root] The installation root is `--root DIR`, else `HD_INSTALL_ROOT`, else `.hd` in the user's home directory.
 8. r[cli.install.layout] Launchers live under `ROOT/bin`, and managed artifacts and installation records under `ROOT/installed`.
@@ -1849,7 +1863,7 @@ hd --repl --engine wasmtime session.in
 3. r[cli.repl.script.echo] Before the session runs a line it has read, it writes the prompt, one space, and the line to standard output, then LF. The prompt is `hd>` for the first line of an input and `...` for each line that continues it. An empty line shows its prompt alone. Standard output is then the session's transcript.
 4. r[cli.repl.script.output] Everything else the session writes goes where a terminal session sends it, by [`cli.repl.value.stream`](#r-cli.repl.value.stream) and [`cli.dbg.repl`](#r-cli.dbg.repl), after the echo of the line that started the input.
 5. r[cli.repl.script.exit] The command exits 0 when the session ends, whether or not an input panicked or was rejected. A FILE that cannot be read, or a session scope that cannot load, is [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-6. r[cli.repl.script.engine] `hd --repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag`](#r-cli.engine.flag), and [`cli.engine.select`](#r-cli.engine.select) picks the engine, except that with neither `--engine` nor `HD_ENGINE` the session runs on the engine of the terminal REPL. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
+6. r[cli.repl.script.engine] `hd --repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag.commands`](#r-cli.engine.flag.commands), and [`cli.engine.select`](#r-cli.engine.select) picks the engine, except that with neither `--engine` nor `HD_ENGINE` the session runs on the engine of the terminal REPL. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
 
 > **Note.** A script is how a [conformance CLI case](../conformance/README.md#session-cases)
 > tests the session rules, since a case runs `hd` with a closed standard
@@ -2345,7 +2359,7 @@ hd run --engine node
 10. r[cli.host.package.missing] A missing provider causes a startup refusal naming the package, version and trait.
 11. r[cli.host.package.duplicate] Registering multiple providers for one nominal capability is an error.
 12. r[cli.host.package.generated] JS host glue is generated from checked host trait signatures, including value conversion and suspension plumbing.
-13. r[cli.host.package.companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside `NAME.wasm`.
+13. r[cli.host.package.artifact-companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside its executable artifact.
 14. r[cli.host.package.no-companion] A build requiring no package host binding emits no companion glue file.
 15. r[cli.host.package.completion-forms] A suspending provider method may return a ready value, a Promise, or a pollable operation.
 16. r[cli.host.package.block-on-promise] A synchronous `block_on` whose drive waits on a Promise a package provider returned suspends the guest stack with JavaScript Promise Integration (JSPI) until the Promise settles, then resumes it. A host without JSPI fails that call with a message naming the trait and the method. Panic: `host-contract`. Waits on ready values, pollable operations and timers never need JSPI.
@@ -2410,10 +2424,10 @@ A native package provider is Rust code that an application embedding Wasmtime re
 hd build --engine wasmtime
 ```
 
-1. r[cli.host.package.native-companion] `hd build --engine wasmtime` of a module requiring package host bindings also writes generated `NAME.host.rs` beside `NAME.wasm`.
+1. r[cli.host.package.native-artifact-companion] `hd build --engine wasmtime` requiring package host bindings also writes generated `NAME.host.rs` beside its executable artifact.
 2. r[cli.host.package.native-generated] The Rust companion holds one provider trait per required host interface, its value codecs, and a provider registry, generated from the module's checked package host contract.
 3. r[cli.host.package.native-deterministic] Building the same module twice writes byte-identical Rust companion text.
-4. r[cli.host.package.native-wasm-identity] Writing the Rust companion leaves `NAME.wasm` byte-identical to the module a JavaScript-engine build writes.
+4. r[cli.host.package.native-portable-identity] Writing the Rust companion does not alter the portable Wasm module.
 5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
 6. r[cli.host.package.native-no-discovery] An implementation never discovers or loads a dynamic library for a package host trait.
 7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that a native provider needs a Rust program that embeds the Wasmtime host.

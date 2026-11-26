@@ -1,5 +1,5 @@
 //! `hd build --engine wasmtime` writes the Rust companion `NAME.host.rs`
-//! beside `NAME.wasm` (`cli.host.package.native-companion`): the same text
+//! beside `NAME.wasm` (`cli.host.package.native-artifact-companion`): the same text
 //! on every build (`native-deterministic`), and a `.wasm` byte-identical to
 //! the Node build's (`native-wasm-identity`). A build that needs no
 //! companion leaves none behind.
@@ -19,7 +19,7 @@ fn build(root: &Path, args: &[&str]) {
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),
         )
-        .env_remove("HD_JOBS")
+        .env("HD_JOBS", "2")
         .env_remove("HD_ENGINE")
         .env_remove("HD_WAT")
         .current_dir(root)
@@ -52,9 +52,13 @@ fn package(name: &str, manifest: &str, main: &str) -> Scratch {
 /// dev and release profiles.
 const FORMS: [(&[&str], &str, &str); 4] = [
     (&[], "debug", "probe"),
-    (&["--release"], "release", "probe"),
+    (&["--release", "--format", "wasm"], "release", "probe"),
     (&["src/main.hd"], "debug/files", "main"),
-    (&["--release", "src/main.hd"], "release/files", "main"),
+    (
+        &["--release", "--format", "wasm", "src/main.hd"],
+        "release/files",
+        "main",
+    ),
 ];
 
 #[test]
@@ -124,13 +128,17 @@ fn a_package_host_trait_without_node_names_the_node_engine() {
             )
             .env("PATH", &empty)
             .env("HD_ENGINE", "wasmtime")
-            .env_remove("HD_JOBS")
+            .env("HD_JOBS", "2")
             .current_dir(root)
             .args(args)
             .output()
             .expect("run hd")
     };
-    for args in [&["run"][..], &["build/debug/probe.wasm"]] {
+    for args in [
+        &["run"][..],
+        &["run", "--release"],
+        &["build/debug/probe.wasm"],
+    ] {
         let out = hd(&root, args);
         let err = String::from_utf8_lossy(&out.stderr);
         assert_eq!(out.status.code(), Some(101), "{args:?}: {err}");
@@ -293,4 +301,19 @@ fn the_companion_of_a_wasmtime_build_answers_its_guest() {
         String::from_utf8(stdout.0.lock().expect("output").clone()).expect("utf-8"),
         "7\n8\n"
     );
+}
+
+#[test]
+fn a_native_release_keeps_and_repairs_its_package_companions() {
+    let root = package("native-release-companion", MANIFEST, MAIN);
+    build(&root, &["--engine", "wasmtime", "--release"]);
+    let dir = root.join("build/release");
+    assert!(dir.join("probe.cwasm").is_file());
+    assert!(!dir.join("probe.wasm").exists());
+    assert!(dir.join("probe.host.mjs").is_file());
+    let rs = dir.join("probe.host.rs");
+    let expected = std::fs::read(&rs).expect("Rust companion");
+    std::fs::remove_file(&rs).expect("remove companion");
+    build(&root, &["--engine", "wasmtime", "--release"]);
+    assert_eq!(std::fs::read(&rs).expect("repaired companion"), expected);
 }

@@ -308,7 +308,7 @@ release does, so the compiler needs no spec decision. The full table:
 | `cli.profile.test` / `test.release` | `hd test`: always checked; `--release` keeps checks, selects pipeline only | n/a (test stays checked) |
 | `cli.profile.release.source-commands` | — | only `hd FILE.hd/run/build/test` take `--release` |
 | `cli.profile.pipeline.*` | dev pipeline (fast builds) | optimized pipeline; unobservable except speed, memory, stack/heap depth, backtraces |
-| `cli.build.output` | `build/debug/` | `build/release/` |
+| `cli.build.output.artifact` | `build/debug/` | `build/release/` |
 | `types.generic.instantiation-depth` / `cli.build.depth-error` | `instantiation-too-deep`: limit is implementation-defined, same in every build | same in every build |
 
 ## 20. Command Flows Completed

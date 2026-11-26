@@ -711,6 +711,7 @@ dependencies = [
  "libc",
  "mimalloc",
  "nix",
+ "object",
  "process-wrap",
  "rustix",
  "rustyline",
@@ -890,6 +891,7 @@ dependencies = [
  "hd_cache",
  "hd_host_abi",
  "signal-hook",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

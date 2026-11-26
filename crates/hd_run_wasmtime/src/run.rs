@@ -204,17 +204,73 @@ fn run_profile_with(
     read: Option<&str>,
     cancel: Option<(&HostInterrupt, Duration)>,
 ) -> Result<Ran, String> {
+    run_image(
+        config,
+        profile,
+        hd_run::artifact::Image::Wasm(wasm),
+        setup,
+        io,
+        read,
+        cancel,
+    )
+}
+
+/// Runs an explicitly selected native image through the ordinary host,
+/// cancellation and frame-reporting path, without Wasm translation.
+///
+/// # Safety
+/// The image must be produced by a compatible native compiler and must
+/// remain unchanged while its code is mapped.
+#[allow(unsafe_code)]
+pub unsafe fn run_native(
+    native: &hd_run::artifact::Native,
+    setup: &HostSetup,
+    io: HostIo,
+    cancel: Option<(&HostInterrupt, Duration)>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        EngineConfig::pipeline(hd_base::OptLevel::Optimized),
+        RuntimeProfile::Default,
+        hd_run::artifact::Image::Native(native),
+        setup,
+        io,
+        None,
+        cancel,
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
+}
+
+#[allow(unsafe_code)]
+fn run_image(
+    config: EngineConfig,
+    profile: RuntimeProfile,
+    image: hd_run::artifact::Image<'_>,
+    setup: &HostSetup,
+    io: HostIo,
+    read: Option<&str>,
+    cancel: Option<(&HostInterrupt, Duration)>,
+) -> Result<Ran, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("hd-wasmtime".into())
             .stack_size(thread_stack(&config))
             .spawn_scoped(scope, move || {
-                let engine = WasmtimeEngine::new_with_profile(config, profile)?;
-                let module = engine
-                    .load(wasm, &hd_cache::MemoryStore::default())
-                    .map_err(|e| match e {
-                        LoadError::NotHd(m) | LoadError::Engine(m) => m,
-                    })?;
+                let (engine, module) = match image {
+                    hd_run::artifact::Image::Wasm(wasm) => {
+                        let engine = WasmtimeEngine::new_with_profile(config, profile)?;
+                        let module = engine
+                            .load(wasm, &hd_cache::MemoryStore::default())
+                            .map_err(|e| match e {
+                                LoadError::NotHd(m) | LoadError::Engine(m) => m,
+                            })?;
+                        (engine, module)
+                    }
+                    hd_run::artifact::Image::Native(native) => {
+                        // SAFETY: Native reaches this private function only
+                        // through run_native, whose caller guarantees the image.
+                        unsafe { crate::precompiled::load(native)? }
+                    }
+                };
                 let started = match cancel {
                     Some((interrupt, bound)) => {
                         engine.instantiate_cancellable(&module, setup, io, interrupt, bound)

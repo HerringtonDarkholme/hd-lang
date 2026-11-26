@@ -154,11 +154,13 @@ The outputs land in `build/debug/` and `build/release/`:
 
 ```sh
 build/debug/orders.wasm
-build/release/orders.wasm
+build/release/orders.cwasm   # Wasmtime; Node and --format wasm produce .wasm
 ```
 
-Pass `--release` when building; the `.wasm` records its optimization level for later runs.
-Older modules without this metadata use dev engine optimization.
+Release Wasmtime builds and installs produce native `.cwasm` artifacts that start without translating Wasm.
+Use `--format wasm` for portable output; dev and Node builds also use `.wasm`.
+Portable modules record their optimization level; older modules without that metadata use dev engine optimization.
+Run a native artifact with `hd FILE.cwasm`; `hd run --release` reuses it while its inputs are unchanged.
 
 Read next: [Building And Checking](../../spec/cli/command-line.md#building-and-checking).
 

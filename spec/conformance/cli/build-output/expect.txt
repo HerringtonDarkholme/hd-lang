@@ -7,9 +7,9 @@ no-file: build/debug/shop.wasm
 run: hd build --jobs 2
 file: build/debug/shop.wasm
 no-file: build/release
-run: hd build --release
+run: hd build --release --format wasm
 file: build/release/shop.wasm
-run: hd build --release src/main.hd
+run: hd build --release --format wasm src/main.hd
 file: build/release/files/main.wasm
 # The removed `-o` form is a command-line error that writes nothing.
 run: hd build src/main.hd -o x.wasm

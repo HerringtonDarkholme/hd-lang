@@ -387,3 +387,67 @@ fn shared_payloads_survive_other_removals_and_launchers_are_owned() {
     ok(&list);
     assert!(!String::from_utf8_lossy(&list.stdout).contains("side-tool"));
 }
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn native_install_uses_a_cwasm_payload_and_needs_no_checkout() {
+    let c = Case::new("install-native");
+    let out = c.hd(&[
+        "install",
+        c.app.to_str().unwrap(),
+        "--root",
+        c.root.to_str().unwrap(),
+        "--engine",
+        "wasmtime",
+    ]);
+    ok(&out);
+    let record: Value = serde_json::from_slice(&std::fs::read(c.registry()).unwrap()).unwrap();
+    let record = &record["commands"]["install-control"];
+    assert_eq!(record["format"], "cwasm");
+    let generation = record["generation"].as_str().unwrap();
+    let payload = c
+        .root
+        .join("installed")
+        .join(generation)
+        .join("install-control.cwasm");
+    assert!(payload.is_file());
+    std::fs::remove_dir_all(&c.app).unwrap();
+    let out = c.invoke_on("wasmtime", "install-control", &["native"], b"input\n");
+    assert_eq!(out.status.code(), Some(7), "{out:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        expected("v1", &["native"], "input\n")
+    );
+    assert!(out.stderr.is_empty(), "{out:?}");
+}
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn a_native_install_can_request_portable_wasm() {
+    let c = Case::new("install-portable");
+    let out = c.hd(&[
+        "install",
+        c.app.to_str().unwrap(),
+        "--root",
+        c.root.to_str().unwrap(),
+        "--engine=wasmtime",
+        "--format=wasm",
+    ]);
+    ok(&out);
+    let registry: Value = serde_json::from_slice(&std::fs::read(c.registry()).unwrap()).unwrap();
+    let record = &registry["commands"]["install-control"];
+    assert_eq!(record["format"], "wasm");
+    let generation = record["generation"].as_str().unwrap();
+    let payload = c
+        .root
+        .join("installed")
+        .join(generation)
+        .join("install-control.wasm");
+    assert!(payload.is_file());
+    let out = c.invoke_on("wasmtime", "install-control", &[], b"portable\n");
+    assert_eq!(out.status.code(), Some(7), "{out:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        expected("v1", &[], "portable\n")
+    );
+}

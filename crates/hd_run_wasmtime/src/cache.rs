@@ -19,10 +19,10 @@
 //! merge independent capacity contracts. (The suite runs one process-wide
 //! `TestEngine`, so its repeats still compile once.)
 //!
-//! The caches hold modules in process only: wasmtime's serialized modules
-//! are `unsafe` to deserialize, so no module outlives its process. Their
-//! machine code does, function by function, when the code cache
-//! (`code_cache.rs`) was installed as the engine was made.
+//! These dev/test caches hold modules in process only. Their machine code
+//! persists function by function when `code_cache.rs` is installed. Native
+//! release artifacts use the separate `precompiled.rs` boundary and bypass
+//! both caches.
 
 use hd_base::HashMap;
 use std::collections::VecDeque;

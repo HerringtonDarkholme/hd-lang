@@ -83,6 +83,17 @@ const COMMANDS: &[Command] = &[
         flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
+        name: "FILE.cwasm",
+        summary: "run a native release artifact that hd build wrote",
+        usage: "hd [--engine wasmtime] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.cwasm [-- ARGS]",
+        about: &[
+            "Run a native release artifact with Wasmtime, without translating Wasm.",
+            "Rebuild incompatible artifacts with hd build --release; use --format wasm for portable output.",
+            "--release is not accepted for an already built artifact.",
+        ],
+        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+    },
+    Command {
         name: "--repl",
         summary: "run a REPL session whose inputs are the lines of FILE",
         usage: "hd --repl [--engine NAME] FILE",
@@ -96,15 +107,26 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "build",
         summary: "build the package's executables, or the module of one FILE in the package",
-        usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",
+        usage: "hd build [--release] [--engine NAME] [--format wasm] [-p NAME] [FILE]",
         about: &[
             "Build each executable NAME of the package to build/debug/NAME.wasm, or to",
             "build/release/ with --release. With FILE, a file of the package, build its module",
             "to build/debug/files/STEM.wasm, or to build/release/files/ with --release.",
-            "A package with no executable is checked, and no .wasm file is written.",
+            "Release Wasmtime builds use .cwasm; --format wasm requests portable output.",
+            "Dev and Node builds use .wasm. A package without an executable is only checked.",
             "Outside a package, hd build is an error.",
         ],
-        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS],
+        flags: &[
+            RELEASE,
+            ENGINE,
+            PACKAGE,
+            FORMAT,
+            JOBS,
+            (
+                "--format wasm",
+                "write portable Wasm, including for release Wasmtime builds",
+            ),
+        ],
     },
     Command {
         name: "run",
@@ -295,13 +317,19 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "install",
         summary: "install a package's executables as commands on PATH",
-        usage: "hd install [--root DIR] [--deny CAP]... SOURCE | hd install [--root DIR] --list",
+        usage: "hd install [--root DIR] [--engine NAME] [--format wasm] [--deny CAP]... SOURCE | hd install [--root DIR] --list",
         about: &[
-            "Build every executable as release Wasm and install a launcher using hd from PATH.",
+            "Build each executable for release and install a launcher using hd from PATH.",
+            "Wasmtime uses .cwasm; Node or --format wasm uses portable .wasm.",
             "SOURCE uses hd add's path, git and version-query syntax; repeating it updates the same source.",
             "Use ~/.hd/bin, or --root then HD_INSTALL_ROOT. Print PATH guidance without editing shell files.",
         ],
         flags: &[
+            ENGINE,
+            (
+                "--format wasm",
+                "install portable Wasm instead of a native artifact",
+            ),
             ("--root DIR", "override the installation root"),
             (
                 "--deny CAP",

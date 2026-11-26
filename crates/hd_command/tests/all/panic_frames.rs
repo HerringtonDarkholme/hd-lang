@@ -556,3 +556,39 @@ fn a_stored_build_prints_the_frames_of_its_panics() {
     assert_eq!(runs[1], runs[0]);
     assert_eq!(runs[2], runs[0]);
 }
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn a_native_release_reports_an_inlined_trap() {
+    let root = package(
+        "native-release-frames",
+        include_str!("programs/panic_frames/a_copy_inside_a_copy_reports_each_frame.hd"),
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let out = hd(&root, &["build", "--engine", "wasmtime", "--release"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let out = hd(&root, &["--engine", "wasmtime", "build/release/shop.cwasm"]);
+    assert_eq!(out.status.code(), Some(3));
+    let error = text(&out.stderr);
+    assert!(error.contains("integer-division-by-zero"), "{error}");
+    // #2385 accepts Wasmtime's omission of native-inlined frames. The
+    // trap category/status still survives inlining and serialization.
+}
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn a_native_release_keeps_noninlined_frames_without_sources() {
+    let root = package(
+        "native-release-recursive-frames",
+        include_str!("programs/panic_frames/native_recursive.hd"),
+    );
+    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
+    let out = hd(&root, &["build", "--engine", "wasmtime", "--release"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    std::fs::rename(root.join("src"), root.join("hidden-sources")).expect("hide sources");
+    let out = hd(&root, &["--engine", "wasmtime", "build/release/shop.cwasm"]);
+    assert_eq!(out.status.code(), Some(3));
+    let error = text(&out.stderr);
+    assert!(error.contains("integer-division-by-zero"), "{error}");
+    assert!(error.contains("src/main.hd:4 shop.main.depth"), "{error}");
+}

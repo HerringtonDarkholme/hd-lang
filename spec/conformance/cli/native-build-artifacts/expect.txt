@@ -1,0 +1,42 @@
+# The native release artifact runs without translating its source module.
+run: hd build --engine wasmtime --release
+file: build/release/profile.cwasm
+no-file: build/release/profile.wasm
+run: hd --engine wasmtime build/release/profile.cwasm
+stdout: module profile
+run: hd run --engine wasmtime --release
+stdout: module profile
+# Explicit portable output preserves the recorded release profile.
+run: hd build --engine wasmtime --release --format wasm
+file: build/release/profile.wasm
+run: hd --engine node build/release/profile.wasm
+stdout: module profile
+# Dev and Node outputs remain portable modules.
+run: hd build --engine wasmtime
+file: build/debug/profile.wasm
+no-file: build/debug/profile.cwasm
+run: hd build --engine node --release
+file: build/release/profile.wasm
+run: hd --engine wasmtime build/release/profile.wasm
+stdout: module profile
+# The selected source-file output uses the same native/portable choice.
+run: hd build --engine wasmtime --release src/main.hd
+file: build/release/files/main.cwasm
+no-file: build/release/files/main.wasm
+run: hd --engine wasmtime build/release/files/main.cwasm
+stdout: module profile
+run: hd build --engine wasmtime --release --format=wasm src/main.hd
+file: build/release/files/main.wasm
+run: hd --engine node build/release/profile.cwasm
+exit: 101
+stderr: error: a .cwasm module requires wasmtime; build `--format wasm` for a portable module
+run: hd --release --engine wasmtime build/release/profile.cwasm
+exit: 101
+stderr: error: --release does not apply to FILE.cwasm; its optimization level is recorded in the module
+run: hd --engine wasmtime broken.cwasm
+exit: 101
+stderr: error: broken.cwasm: not an hd native artifact; rebuild with `hd build --release`, or build `--format wasm` for a portable module
+run: hd install . --root native-store --engine wasmtime
+file: native-store/installed/registry.json
+run: hd install . --root portable-store --engine wasmtime --format wasm
+file: portable-store/installed/registry.json

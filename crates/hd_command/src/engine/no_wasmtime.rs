@@ -61,7 +61,7 @@ impl Session {
 
 pub(crate) fn run_program(
     _level: hd_driver::OptLevel,
-    _wasm: &[u8],
+    _image: hd_run::artifact::Image<'_>,
     _host: &HostSetup,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     missing()
@@ -70,4 +70,11 @@ pub(crate) fn run_program(
 /// No guest runs, so a worker thread keeps the default stack.
 pub(crate) fn worker_stack(_level: hd_driver::OptLevel) -> usize {
     0
+}
+
+pub(crate) fn native_key() -> Result<hd_base::Hash128, String> {
+    missing()
+}
+pub(crate) fn precompile(_wasm: &[u8]) -> Result<Vec<u8>, String> {
+    missing()
 }

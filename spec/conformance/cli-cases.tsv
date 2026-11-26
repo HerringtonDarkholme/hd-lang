@@ -10,7 +10,7 @@ exit-package-file	cli.package.file,cli.exit.success,cli.file.in-package,cli.cap.
 exit-usage-error	cli.exit.hd-failure,cli.jobs
 backend-selection-removed	cli.codegen.single,cli.codegen.no-option
 console-pending	cli.host.default-profile.granted,cli.host.default-profile.input-closed
-command-help	cli.command.help,cli.command.help.command,cli.command.positional.operands,cli.command.positional.package-directory,cli.engine.flag,cli.check.fix.no-command
+command-help	cli.command.help,cli.command.help.command,cli.command.positional.operands,cli.command.positional.package-directory,cli.engine.flag.commands,cli.check.fix.no-command
 exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.run.file,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root
 fs-entry-modified	cli.host.default-profile.granted
@@ -74,7 +74,7 @@ lint-site-allow	cli.lint.site-allow,cli.lint.site-precedence
 lint-site-allow-reachability	cli.lint.site-allow-reachability,cli.lint.unknown-name,cli.lint.status-error
 lint-unsigned-comparisons	cli.lint.stable-messages,cli.lint.default,cli.lint.ordinary-errors
 manifest-unknown-key	cli.manifest.unknown-key.error,cli.exit.hd-failure
-build-output	cli.build.directory,cli.build.output,cli.build.output.file,cli.profile.release,cli.exit.hd-failure,cli.jobs
+build-output	cli.build.directory,cli.build.output.artifact,cli.build.output.file-artifact,cli.profile.release,cli.exit.hd-failure,cli.jobs
 cfg-selection	cli.profile.cfg-selection
 dep-path-local	cli.dep.path,cli.dep.fetch,cli.dep.offline,cli.json.lines.build,cli.dep.reached,cli.dep.no-prompt
 dep-workspace-fetch	cli.dep.workspace-fetch,cli.dep.workspace-member-only,cli.exit.hd-failure,cli.mode.workspace,cli.mode.workspace-file,cli.mode.member,cli.workspace.members
@@ -88,7 +88,7 @@ test-snapshot-file	cli.exit.test-failure,cli.exit.success
 test-timeout	cli.exit.test-failure,cli.exit.success
 dbg-values	cli.dbg.run
 dbg-uses	cli.dbg.run
-clean-build	cli.clean.build,cli.clean.build.none,cli.clean.exit,cli.build.output,cli.clean.no-question
+clean-build	cli.clean.build,cli.clean.build.none,cli.clean.exit,cli.build.output.artifact,cli.clean.no-question
 clean-outside-package	cli.clean.build.package-only,cli.clean.exit
 clean-workspace	cli.clean.build.workspace
 dep-dev-invalid-add	cli.dep.add.dev,cli.dep.add.check,cli.dep.add.other-table,cli.dep.remove,cli.dep.edit.empty-table,cli.dep.unchanged-on-error,cli.dep.key.name-flag
@@ -125,11 +125,11 @@ policy-untimed-clock-denied	cli.cap.value.false,cli.cap.order.deny,cli.cap.flag.
 cap-flag-overrides-table	cli.cap.order.flag,cli.cap.order.table,cli.cap.flag,cli.cap.scope.path,cli.cap.scope.path.relative,cli.cap.partial.refuse,cli.cap.table,cli.cap.table.keys.with-package-host,cli.cap.value.list,cli.cap.flag.value,cli.cap.flag.commands,cli.cap.no-prompt,cli.cap.source.hd-run.entry,cli.cap.scope.path.resolved
 cap-partial-deny	cli.cap.value.list,cli.cap.partial.refuse,cli.cap.scope.path,cli.cap.order.default,cli.cap.table,cli.cap.table.keys.with-package-host,cli.cap.value.unscoped,cli.cap.no-prompt,cli.cap.source.hd-run.entry,cli.cap.scope.write-not-read,cli.cap.partial.not-os
 cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.cap.source.flags-only,cli.cap.order.default,cli.host.default-profile,cli.host.default-profile.other.with-package-host,cli.host.default-profile.granted,cli.cap.flag.value,cli.cap.flag.commands,cli.cap.no-prompt,cli.cap.scope.env,cli.cap.env.names
-wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output,cli.run.file,cli.args.separator,cli.args.pass,cli.args.extra-word
+wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output.artifact,cli.run.file,cli.args.separator,cli.args.pass,cli.args.extra-word
 wasm-cap-flags-only	cli.wasm.grant.builtin-only,cli.wasm.total-deny,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.total.any-module
 toolchain-too-old	cli.manifest.toolchain-keys,cli.diagnostic.file
 wasm-invalid	cli.wasm.invalid,cli.wasm.not-hd,cli.wasm.not-hd.detect,cli.exit.hd-failure
-build-library-only	cli.build.library-only,cli.build.directory,cli.profile.release,cli.run.default.one,cli.exit.hd-failure
+build-library-only	cli.build.library-only.no-artifact,cli.build.directory,cli.profile.release,cli.run.default.one,cli.exit.hd-failure
 build-instantiation-too-deep	cli.build.depth-error,cli.check.no-depth-error,cli.json.lines.build,cli.diagnostic.file,cli.exit.hd-failure
 json-check-modules-checked	cli.json.summary.modules-checked,cli.json.summary.command-result
 json-diagnostic-fixes	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.exe.main-unlisted,cli.exit.hd-failure
@@ -171,7 +171,7 @@ dep-version-pseudo	cli.dep.pseudo,cli.dep.pseudo.unknown,cli.dep.query.exact,cli
 dep-version-pseudo-release	cli.dep.pseudo,cli.dep.reached,cli.dep.fetch
 dep-version-bare-path-release	cli.dep.invalid,cli.dep.unchanged-on-error
 dep-add-clash-remote	cli.dep.key.clash,cli.dep.key.name-flag,cli.dep.key.inferred,cli.dep.unchanged-on-error,cli.json.commands
-engine-unknown	cli.engine.flag,cli.engine.unknown,cli.engine.unknown.no-run,cli.exit.hd-failure
+engine-unknown	cli.engine.flag.commands,cli.engine.unknown,cli.engine.unknown.no-run,cli.exit.hd-failure
 panic-location	cli.file.run,cli.exit.program,cli.engine.same-behavior
 panic-location-of-a-runtime-check	cli.file.run,cli.exit.program,cli.engine.same-behavior
 panic-run-location	cli.exit.program,cli.engine.same-behavior
@@ -301,10 +301,10 @@ host-binding-denied	cli.cap.package.path,cli.cap.package.boolean,cli.cap.package
 host-binding-event-handle	cli.host.package.generated,cli.host.package.completion-forms,cli.host.package.contract
 host-binding-missing	cli.cap.table.required-package,cli.cap.table.required-flags,cli.cap.table.required-entry-message,cli.host.package.missing,cli.host.package.consent-preflight,cli.host.package.no-fallback
 host-binding-missing-file	cli.host.package.provider-containment
-host-binding-node	cli.host.package.entry,cli.host.package.provider-hosts,cli.host.package.manifest-consent,cli.host.package.no-flag-consent,cli.host.package.generated,cli.host.package.companion,cli.host.package.completion-forms
+host-binding-node	cli.host.package.entry,cli.host.package.provider-hosts,cli.host.package.manifest-consent,cli.host.package.no-flag-consent,cli.host.package.generated,cli.host.package.artifact-companion,cli.host.package.completion-forms
 host-binding-wasmtime-refused	cli.host.package.native-provider-missing,cli.host.package.native-cli,cli.host.package.native-cli-explicit,cli.host.package.no-fallback,cli.host.package.provider-hosts,cli.cap.order.deny
 host-binding-default-node	cli.host.package.native-cli-node,cli.host.package.native-cli-startup,cli.host.package.no-fallback,cli.engine.select,cli.cap.order.deny
-host-binding-native-companion	cli.host.package.native-companion,cli.host.package.companion
+host-binding-native-companion	cli.host.package.native-artifact-companion,cli.host.package.artifact-companion
 host-binding-outside-package	cli.host.package.provider-containment,cli.host.declaration.provider-relative
 host-binding-private-values	cli.host.package.value-conversion,cli.host.package.plain-provider,cli.host.package.generated-wrapper,cli.host.package.prebuilt-manifest
 host-binding-fieldless-struct	cli.host.package.value-conversion
@@ -369,7 +369,7 @@ syntax-error-other-items	cli.file.run,cli.exit.hd-failure,cli.json.diagnostic.fi
 syntax-error-nameless-item	cli.exit.hd-failure,cli.json.diagnostic.fields
 if-value-without-else-one-error	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
 panic-multiline-call	cli.test.report.frame
-engine-default	cli.engine.default.shipped,cli.engine.default.development,cli.engine.select,cli.file.run,cli.build.output
+engine-default	cli.engine.default.shipped,cli.engine.default.development,cli.engine.select,cli.file.run,cli.build.output.artifact
 ranked-fixits	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.ranked,cli.json.fix.guess,cli.check.fix.safe
 build-too-large-global-position	cli.json.lines.build,cli.json.diagnostic,cli.json.diagnostic.fields
 check-tests-and-all	cli.check.default,cli.check.tests,cli.check.all,cli.exit.hd-failure
@@ -382,9 +382,9 @@ module-cycle-test-code-no-edge	cli.package.whole,cli.check.tests
 task-shared-module-private	cli.task.shared
 task-shared-module	cli.task.shared,cli.task.root-file,cli.task.no-path,cli.task.shared-copy,cli.task.shared-unused.lint
 task-super-above-root	cli.task.super,cli.task.above-root,cli.exit.hd-failure
-task-shared-not-shipped	cli.task.not-shipped,cli.build.output
-exe-other-module	cli.exe.table,cli.exe.other-module,cli.build.output
-program-leaves-test-code-out	cli.run.default.one,cli.run.name,cli.build.output
+task-shared-not-shipped	cli.task.not-shipped,cli.build.output.artifact
+exe-other-module	cli.exe.table,cli.exe.other-module,cli.build.output.artifact
+program-leaves-test-code-out	cli.run.default.one,cli.run.name,cli.build.output.artifact
 workspace-run-name	cli.workspace.run-name,cli.workspace.run-ambiguous,cli.workspace.run-missing,cli.workspace.run-bare,cli.workspace.select.anywhere,cli.workspace.select.repeat,cli.workspace.select.unknown
 workspace-root-members	cli.workspace.members,cli.workspace.run-name,cli.workspace.run-bare,cli.workspace.select.anywhere,cli.workspace.select.repeat,cli.workspace.select.unknown
 cap-required-fixed-together	cli.cap.table.required-builtins,cli.check.fix.whole-package
@@ -402,3 +402,4 @@ name-dot-key	cli.name.dot.key,cli.name.dot.diagnostic,cli.dep.invalid,cli.dep.ke
 new-dot	cli.name.dot.new,cli.name.dot.diagnostic,cli.exit.hd-failure
 fmt-let-else	cli.fmt.meaning,cli.fmt.idempotent
 wasm-build-profile	cli.wasm.build-level,cli.wasm.legacy-level,cli.wasm.release-flag
+native-build-artifacts	cli.build.output.artifact,cli.build.output.file-artifact,cli.build.artifact.profile-directory,cli.build.artifact.native,cli.build.artifact.portable,cli.build.artifact.native-pipeline,cli.run.native-release,cli.native.run,cli.native.engine,cli.native.host,cli.native.standalone,cli.native.compatibility,cli.native.release-flag,cli.install.release-artifact

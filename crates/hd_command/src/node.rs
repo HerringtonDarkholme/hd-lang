@@ -1534,6 +1534,7 @@ mod tests {
             assert!(!reporter.diags(&crate::report::from_output(&out, None)));
             let built = crate::Compiled {
                 wasm: out.wasm.ok_or("compiled fixture")?,
+                native: None,
                 frames: None,
                 stored: None,
             };
