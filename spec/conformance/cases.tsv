@@ -3540,6 +3540,11 @@ std/crypto/streaming/digest-sha256-stream.hd	runtime	accept	std/crypto.md#r-std-
 std/crypto/streaming/sha256-handle-shared.hd	runtime	accept	std/crypto.md#r-std-crypto.sha256.new-ref
 std/crypto/hmac/digest-hmac.hd	runtime	accept	std/crypto.md#r-std-crypto.hmac.vectors
 std/crypto-sha512/streaming.hd	runtime	accept	std/crypto-sha512.md#r-std-crypto-sha512.hash
+std/crypto-aes/vectors.hd	runtime	accept	std/crypto-aes.md#r-std-crypto-aes.algorithm
+std/crypto-aes/encrypt-15.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
+std/crypto-aes/encrypt-17.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
+std/crypto-aes/decrypt-15.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
+std/crypto-aes/decrypt-17.hd	runtime	panic:explicit-panic	std/crypto-aes.md#r-std-crypto-aes.block-length
 std/json/parsing/json-adversarial-inputs.hd	runtime	accept	std/json.md#r-std-json.parse.strict
 std/json/typed-json/json-enum-tagging.hd	runtime	accept	std/json.md#tagged-enum-forms
 std/json/typed-json/json-model-round-trips.hd	runtime	accept	std/json.md#r-std-json.decode.direct.v2
