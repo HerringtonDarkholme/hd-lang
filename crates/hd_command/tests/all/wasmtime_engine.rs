@@ -147,7 +147,15 @@ fn single_module_compilers_obey_the_job_budget() {
         assert_eq!(
             out.status.code(),
             Some(1),
-            "the fixture tests checked overflow"
+            "the fixture tests checked overflow: {}{}",
+            text(&out.stdout),
+            text(&out.stderr)
+        );
+        assert!(
+            text(&out.stdout).contains("integer-overflow"),
+            "{}{}",
+            text(&out.stdout),
+            text(&out.stderr)
         );
         assert_compile_jobs(&trace, jobs);
     }
@@ -161,7 +169,8 @@ fn assert_compile_jobs(trace: &Path, jobs: &str) {
         events
             .iter()
             .any(|event| event["name"] == format!("wasmtime compile jobs={jobs}")),
-        "{json}"
+        "trace {}: {json}",
+        trace.display()
     );
 }
 

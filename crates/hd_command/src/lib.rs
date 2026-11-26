@@ -390,7 +390,7 @@ pub(crate) fn open_disk_store() -> DiskStore {
 /// collects only when no other process is collecting and the last
 /// collection is an interval old. The command does not wait for it, and
 /// a failed start leaves the collection to a later command. It writes
-/// no work report: `HD_WORK` names the command's own (#1969).
+/// no work report or trace: their paths belong to the command (#1969).
 fn spawn_collection(_root: &std::path::Path) {
     if let Ok(exe) = std::env::current_exe() {
         // cost: one process per collection interval, not waited for.
@@ -399,6 +399,7 @@ fn spawn_collection(_root: &std::path::Path) {
             .args(["cache", "gc"])
             .env("HD_CACHE_GC", "auto")
             .env_remove("HD_WORK")
+            .env_remove("HD_TRACE")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
