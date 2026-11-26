@@ -1248,6 +1248,36 @@ impl OwnCx for Env<'_> {
     }
 
     fn copies(&self, ty: Ty) -> Tri {
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.copies.get(&ty).copied()) {
+            return known;
+        }
+        let answer = self.copies_in_run(ty);
+        thread_facts(run, |f| f.copies.insert(ty, answer));
+        answer
+    }
+}
+
+impl Env<'_> {
+    /// Whether a value of `t` holds a `std.rt.Drop` value
+    /// ([`hd_layout::holds_drop_in`]), over the run's memo: the growing
+    /// types of many bodies (`W^i` in the instance for level `i` of a
+    /// generic nest) cost each new type once, not its depth (#1912).
+    pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.drops.get(&t).copied()) {
+            return known;
+        }
+        let answer = {
+            let mut memo = lock(&self.run.drop_types);
+            hd_layout::holds_drop_in(&self.run.pool, self, t, &mut memo)
+        };
+        thread_facts(run, |f| f.drops.insert(t, answer));
+        answer
+    }
+
+    /// [`OwnCx::copies`] from the run's memo, under its lock.
+    fn copies_in_run(&self, ty: Ty) -> Tri {
         let mut query = lock(&self.run.copy_types);
         let CopyFacts { memo, normal } = &mut *query;
         let mut answered = Vec::new();
@@ -1292,17 +1322,6 @@ impl OwnCx for Env<'_> {
             }
             Some(_) => Tri::No,
         }
-    }
-}
-
-impl Env<'_> {
-    /// Whether a value of `t` holds a `std.rt.Drop` value
-    /// ([`hd_layout::holds_drop_in`]), over the run's memo: the growing
-    /// types of many bodies (`W^i` in the instance for level `i` of a
-    /// generic nest) cost each new type once, not its depth (#1912).
-    pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
-        let mut memo = lock(&self.run.drop_types);
-        hd_layout::holds_drop_in(&self.run.pool, self, t, &mut memo)
     }
 }
 
@@ -3422,11 +3441,15 @@ impl Env<'_> {
     /// signature, decides Copy/Drop eligibility.
     pub(super) fn return_loan_layout(&self, item: DefId, args: TyList) -> Option<u8> {
         let node = self.node(item, args);
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.return_layouts.get(&node).copied()) {
+            return known;
+        }
         let cell = lock(&self.run.own_return_layouts)
             .entry(node)
             .or_default()
             .clone();
-        *cell.get_or_init(|| {
+        let answer = *cell.get_or_init(|| {
             let parameter = self.return_loan_shape(item)?;
             if parameter >= 64 {
                 return None;
@@ -3442,7 +3465,9 @@ impl Env<'_> {
                 && self.copies(ty) == Tri::Yes
                 && self.holds_drop(ty) == Tri::No)
                 .then_some(parameter)
-        })
+        });
+        thread_facts(run, |f| f.return_layouts.insert(node, answer));
+        answer
     }
 
     pub(super) fn lent_mask(&self, node: Node) -> u64 {
@@ -3593,14 +3618,44 @@ thread_local! {
     /// [`Run::owned_bottom_up`] then stays on it, so no other component's
     /// job runs inside this one.
     static OWNING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// This thread's copies of the run's type facts it has read
-    /// (`Run::own_types`), and the run they are of (`Run::layout_key`):
-    /// a warm read takes no lock, so the threads that own components
-    /// do not queue on the run's table. A type's facts never change once
-    /// made, but its layout facts are added later, so a copy without
-    /// them asks the table again. Cost: one entry per type a thread reads.
-    static TYPE_FACTS: RefCell<(u64, HashMap<Ty, TypeFacts>)> =
-        RefCell::new((0, HashMap::default()));
+    /// This thread's copies of the run's read-mostly answers it has read
+    /// ([`ThreadFacts`]).
+    static THREAD_FACTS: RefCell<ThreadFacts> = RefCell::new(ThreadFacts::default());
+}
+
+/// One thread's copies of answers the run memoizes behind a mutex, and
+/// the run they are of (`Run::layout_key`): a warm read takes no lock, so
+/// the threads that own components do not queue on the run's tables
+/// (#2383). Each answer is fixed for the run once made, so a copy reads
+/// what the table would. Cost: one entry per type or instance a thread
+/// reads, in each map.
+#[derive(Default)]
+struct ThreadFacts {
+    run: u64,
+    /// `Run::own_types`. A type's facts never change once made, but its
+    /// layout facts are added later, so a copy without them asks the
+    /// table again.
+    types: HashMap<Ty, TypeFacts>,
+    /// `Run::drop_types` ([`Env::holds_drop_value`]).
+    drops: HashMap<Ty, bool>,
+    /// `Run::copy_types` (`OwnCx::copies`).
+    copies: HashMap<Ty, Tri>,
+    /// `Run::own_return_layouts` ([`Env::return_loan_layout`]).
+    return_layouts: HashMap<Node, Option<u8>>,
+}
+
+/// Runs `f` over this thread's copies of run `run`'s facts, emptied
+/// first when they are another run's.
+fn thread_facts<R>(run: u64, f: impl FnOnce(&mut ThreadFacts) -> R) -> R {
+    THREAD_FACTS.with_borrow_mut(|facts| {
+        if facts.run != run {
+            *facts = ThreadFacts {
+                run,
+                ..ThreadFacts::default()
+            };
+        }
+        f(facts)
+    })
 }
 
 /// One strongly connected component [`Run::owned_bottom_up`] owns: its
@@ -3610,18 +3665,12 @@ type Component = std::sync::Mutex<Option<(Vec<Node>, bool, HashMap<Node, (Body, 
 
 /// Type `t`'s facts, when this thread has read them in run `run`.
 fn known_facts(run: u64, t: Ty) -> Option<TypeFacts> {
-    TYPE_FACTS.with_borrow(|(of, facts)| (*of == run).then(|| facts.get(&t).copied()).flatten())
+    thread_facts(run, |f| f.types.get(&t).copied())
 }
 
 /// Keeps a copy of type `t`'s facts in run `run` for this thread.
 fn keep_facts(run: u64, t: Ty, entry: TypeFacts) {
-    TYPE_FACTS.with_borrow_mut(|(of, facts)| {
-        if *of != run {
-            *of = run;
-            facts.clear();
-        }
-        facts.insert(t, entry);
-    });
+    thread_facts(run, |f| f.types.insert(t, entry));
 }
 
 /// Member `node`'s borrows while its recursive component is owned here.
