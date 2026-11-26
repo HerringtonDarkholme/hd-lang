@@ -779,6 +779,8 @@ struct SkimOut {
     /// Its library uses as the module graph reads them: the written ones,
     /// then the implicit ones (`hd_project::UseRef`).
     refs: Vec<hd_project::UseRef>,
+    /// Structural use-root failures, already found while forming edges.
+    root_errors: Vec<(u32, hd_project::UseRootError)>,
 }
 
 /// A module's own items after `ModulePrep` (a check miss).
@@ -1246,7 +1248,7 @@ fn skim_module(
 ) -> SkimOut {
     let module = &table.modules[m].path;
     let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-    let mut refs = written_refs(&file, &roots);
+    let (mut refs, root_errors) = written_refs(&file, &roots);
     let mut uses: Vec<String> = refs.iter().map(|r| r.path.clone()).collect();
     // A `tests:` block's uses, of this package or another, such as a dev
     // dependency (`module.test.dev-dependency.in-tests`): the block is
@@ -1302,6 +1304,7 @@ fn skim_module(
         uses,
         test_uses,
         refs,
+        root_errors,
     }
 }
 
@@ -1334,24 +1337,32 @@ fn namespace_ref(path: &str) -> hd_project::UseRef {
 /// A file's written library uses as the module graph reads them, their
 /// roots replaced by the module paths they name. A path whose root names
 /// nothing makes no edge; resolution reports it.
-fn written_refs(file: &skims::FileSkim, roots: &hd_project::UseRoots) -> Vec<hd_project::UseRef> {
+fn written_refs(
+    file: &skims::FileSkim,
+    roots: &hd_project::UseRoots,
+) -> (
+    Vec<hd_project::UseRef>,
+    Vec<(u32, hd_project::UseRootError)>,
+) {
     let mut out = Vec::new();
+    let mut errors = Vec::new();
     for (line, (path, shape)) in (0u32..).zip(file.use_paths.iter().zip(&file.use_shapes)) {
         if path.is_empty() {
             continue;
         }
         let segs: Vec<&str> = path.split('.').collect();
-        if let Ok(abs) = roots.absolute(&segs) {
-            out.push(hd_project::UseRef {
+        match roots.absolute(&segs) {
+            Ok(abs) => out.push(hd_project::UseRef {
                 path: abs.join("."),
                 grouped: shape.grouped,
                 public: shape.public,
                 names: shape.names.clone(),
                 line: Some(line),
-            });
+            }),
+            Err(error) => errors.push((line, error)),
         }
     }
-    out
+    (out, errors)
 }
 
 /// The roots a program's exports poll.
@@ -3717,6 +3728,7 @@ pub fn use_closure(
         let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
         let file = files.get(&table, m, || read_text(sources, &table.sources[m].1));
         let uses: Vec<String> = written_refs(&file, &roots)
+            .0
             .into_iter()
             .map(|r| r.path)
             .collect();
@@ -4356,7 +4368,57 @@ impl Run<'_> {
         // or a test case (`RT_SOURCE`), and the runtime that emitted code
         // calls, whatever the program uses.
         let mut starts: Vec<UnitId> = Vec::new();
+        let program = matches!(self.goal, Goal::Program { .. } | Goal::Scenario { .. });
         for (m, module) in self.table.modules.iter().enumerate() {
+            // Declarations are skimmed even outside body reach. Retain
+            // structural root and missing-module errors without parsing interfaces.
+            // A built unit's HeaderCheck reports these itself.
+            if program && module.package == 0 && !self.builds(module.unit) {
+                let skim = self.skim_of(m);
+                for &(line, error) in &skim.root_errors {
+                    let path: Vec<_> = skim.file.use_paths[line as usize].split('.').collect();
+                    let (code, message) = hd_resolve::lower::use_root_diagnostic(error, &path);
+                    let (lo, hi) = skim.file.use_lines[line as usize];
+                    lock(&self.diags).error(
+                        code,
+                        Span {
+                            file: FileId::from_raw(u32_of(m)),
+                            lo,
+                            hi,
+                        },
+                        &message,
+                    );
+                }
+                for use_ref in &skim.refs {
+                    let Some(line) = use_ref.line else { continue };
+                    if self.table.module(&use_ref.path).is_some() {
+                        continue;
+                    }
+                    let missing = if use_ref.grouped {
+                        use_ref.path.as_str()
+                    } else if let Some((parent, _)) = use_ref.path.rsplit_once('.') {
+                        if self.table.module(parent).is_some() {
+                            continue;
+                        }
+                        parent
+                    } else {
+                        continue;
+                    };
+                    let written = &skim.file.use_paths[line as usize];
+                    let message =
+                        hd_resolve::lower::missing_module_diagnostic(missing, written, false, "");
+                    let (lo, hi) = skim.file.use_lines[line as usize];
+                    lock(&self.diags).error(
+                        Code::UnknownModule,
+                        Span {
+                            file: FileId::from_raw(u32_of(m)),
+                            lo,
+                            hi,
+                        },
+                        &message,
+                    );
+                }
+            }
             if module.package == 0 && self.builds_module(m) {
                 starts.extend(self.module_units(m));
             }

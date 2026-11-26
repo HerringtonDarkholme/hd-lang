@@ -1,0 +1,20 @@
+# @dump: diagnostics stdout
+# @main: src/main.hd
+use dep.markers as pkg
+@pkg.marks.num_suffix
+fn kb(count: i32) -> i32:
+    count
+
+pub fn main() -> void $ Console:
+    _ := 250kb
+    println("main")
+
+# @dependency: markers
+# @file: src/lib.hd
+pub use self.{marks}
+# @file: src/marks.hd
+pub use std.ops.{num_suffix, str_prefix}
+
+# @file: src/unreached.hd
+use std.testing.assert_equal
+assert_equal(1, 2, reason="an unused namespace child must not initialize")
