@@ -280,6 +280,8 @@ fn a_move_through_a_reference_is_not_a_local_emptying() {
         NodeIdx::NONE,
     );
     let root = b.close_block(root, Some(moved), Ty::I32, NodeIdx::NONE);
+    // ruled out: this is a generic single-parameter read and matching block;
+    // Move is assigned only after finish verifies that generic shape.
     let mut body = b.finish(root, &[]).expect("reference-read shape");
     body.phase = Phase::Elaborated;
     body.data[moved.0 as usize][1] = ReadMode::Move as u32;
