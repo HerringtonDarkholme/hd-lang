@@ -3,67 +3,62 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $depth (param $node i32) (result i32) (local $t0 i32)
+  (func $depth (param $node i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     match node.next:
-    local.get $node
-    i32.load $heap
-    local.set $node
     block
-      block
-    ;; 10 |         .None => 1
-        local.get $node
-        i32.eqz
-        br_if 0
-    ;; 11 |         .Some(next) => 1 + depth(next)
-        local.get $node
-        if
-          local.get $node
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $node
-            call $rt:retain_known
-          end
-        end
-    ;; 10 |         .None => 1
-        br 1
-    ;; 9 |     match node.next:
-        unreachable
-      end
-      i32.const 1
-      return
-    end
-    ;; 11 |         .Some(next) => 1 + depth(next)
-    local.get $node
-    call $depth
-    local.tee $t0
-    i32.const 2147483646
-    i32.gt_s
-    if
-      call $rt:panic
-      unreachable
-    end
-    i32.const 1
-    local.get $t0
-    i32.add
-    ;; 9 |     match node.next:
-    local.get $node
-    if
       local.get $node
-      i32.const 8
-      i32.sub
       i32.load $heap
-      global.get $tracing
-      i32.or
-      if
+      local.set $node
+      block
+        block
+          block
+    ;; 10 |         .None => 1
+            local.get $node
+            i32.eqz
+            if
+              br 1
+            else
+    ;; 11 |         .Some(next) => 1 + depth(next)
+              local.get $node
+              call $rt:retain_known
+    ;; 10 |         .None => 1
+              br 2
+            end
+    ;; 9 |     match node.next:
+            unreachable
+          end
+          i32.const 1
+          local.set $t0
+          br 1
+        end
+    ;; 11 |         .Some(next) => 1 + depth(next)
+        local.get $node
+        local.set $t0
+        local.get $t0
+        call $depth
+        local.set $t1
+        i32.const 0
+        local.set $t0
+        local.get $t1
+        i32.const 2147483646
+        i32.gt_s
+        if
+          call $rt:panic
+          unreachable
+        end
+        i32.const 1
+        local.get $t1
+        i32.add
+        local.set $t0
+    ;; 9 |     match node.next:
         local.get $node
         call $rt:release_ref
+        i32.const 0
+        local.set $node
+        br 0
       end
     end
-    local.set $node
-    local.get $node
+    local.get $t0
   )
 )

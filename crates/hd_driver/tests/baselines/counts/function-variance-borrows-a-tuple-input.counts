@@ -26,12 +26,15 @@ fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> i32:
     call((value, +3))
 > app/main/invoke
 >   release (*i32, i32) [0] (last use)
+>   release *i32 (last use)
 >   release fn((*i32, i32)) -> i32 (last use)
 
 fn escaped(value: *i32) -> Suspend[i32]:
     let adapted: fn!((*i32, i32)) -> i32 = read_cold
 > app/main/escaped
 >   release (*i32, i32) [0] (last use)
+>   release fn((*i32, i32)) -> Suspend[i32] (last use)
+>   release *i32 (last use)
     let call: fn((*i32, i32)) -> Suspend[i32] = adapted
     call((value, +3))
 

@@ -16,6 +16,8 @@ fn same[T](a: &T, b: &T) -> bool:
 @cold
 fn keep(value: string) -> string:
     value
+> std/rt_tests.stage_case/keep
+>   release string (last use)
 
 @cold
 fn copied(value: string) -> (string, string):
@@ -37,6 +39,7 @@ fn nested() -> (fn(string) -> string):
     fn(value: string) -> string:
 > std/rt_tests.stage_case/nested
 >   retain string (stored)
+>   release counted reference (last use)
 >   release counted reference (last use)
         _ := same(&value, &value)
         value

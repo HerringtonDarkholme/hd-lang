@@ -6,62 +6,61 @@
   (import "fixture" "rt:bytes_index_set'2" (func $rt:bytes_index_set'2 (param i32 i32 i32) (result i32)))
   (func $escaped (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 7 |     bytes_index_set(text, start, 0x0000_0014_FFFF_FFFF, 0x8000_0000_1000_0000, 0, 0)
-    local.get $text.0
-    local.get $text.1
-    local.get $start
-    call $rt:bytes_index_set'1
-    local.get $text.0
-    if
+    block
+      local.get $text.0
+      local.get $text.1
+      local.get $start
+      call $rt:bytes_index_set'1
+      local.set $text.1
       local.get $text.0
       call $rt:release_ref
     end
+    local.get $text.1
   )
   (func $comma (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 10 |     bytes_index_set(text, start, 0x0000_1000_0000_0000, 0, 0, 0)
-    local.get $text.0
-    local.get $text.1
-    local.get $start
-    call $rt:bytes_index_set'2
-    local.get $text.0
-    if
+    block
+      local.get $text.0
+      local.get $text.1
+      local.get $start
+      call $rt:bytes_index_set'2
+      local.set $text.1
       local.get $text.0
       call $rt:release_ref
     end
+    local.get $text.1
   )
 )
 == @build: std checked
 (module
   (import "fixture" "rt:bytes_index_set'1" (func $rt:bytes_index_set'1 (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:bytes_index_set'2" (func $rt:bytes_index_set'2 (param i32 i32 i32) (result i32)))
   (func $escaped (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 7 |     bytes_index_set(text, start, 0x0000_0014_FFFF_FFFF, 0x8000_0000_1000_0000, 0, 0)
-    local.get $text.0
-    local.get $text.1
-    local.get $start
-    call $rt:bytes_index_set'1
-    local.get $text.0
-    if
+    block
+      local.get $text.0
+      local.get $text.1
+      local.get $start
+      call $rt:bytes_index_set'1
+      local.set $text.1
       local.get $text.0
       call $rt:release_ref
-    else
-      call $skipped_test
     end
+    local.get $text.1
   )
   (func $comma (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 10 |     bytes_index_set(text, start, 0x0000_1000_0000_0000, 0, 0, 0)
-    local.get $text.0
-    local.get $text.1
-    local.get $start
-    call $rt:bytes_index_set'2
-    local.get $text.0
-    if
+    block
+      local.get $text.0
+      local.get $text.1
+      local.get $start
+      call $rt:bytes_index_set'2
+      local.set $text.1
       local.get $text.0
       call $rt:release_ref
-    else
-      call $skipped_test
     end
+    local.get $text.1
   )
 )
 == @build: std release checked

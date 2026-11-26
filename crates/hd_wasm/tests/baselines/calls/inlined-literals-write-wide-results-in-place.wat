@@ -4,16 +4,18 @@
   (import "fixture" "heap" (memory $heap 17))
   (func $mk5 (param $t0 i32)
     ;; 60 | fn mk5() -> T5: T5 { inner: mk4(), v: +5, s: "s" }
-    local.get $t0
-    call $mk4
-    local.get $t0
-    i32.const 5
-    i32.store $heap offset=132
-    local.get $t0
-    i32.const 16 ;; &"s"
-    i32.store $heap offset=124
-    local.get $t0
-    i32.const 1
-    i32.store $heap offset=128
+    block
+      local.get $t0
+      call $mk4
+      local.get $t0
+      i32.const 5
+      i32.store $heap offset=132
+      local.get $t0
+      i32.const 16 ;; &"s"
+      i32.store $heap offset=124
+      local.get $t0
+      i32.const 1
+      i32.store $heap offset=128
+    end
   )
 )

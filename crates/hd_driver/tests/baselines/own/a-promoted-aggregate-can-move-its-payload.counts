@@ -21,11 +21,16 @@ fn make_choice(text: string, other: string, kind: usize) -> Choice:
 > app/main/make_choice
 >   release string (last use)
 >   release string (last use)
+>   release string (last use)
+>   release string (last use)
 
 fn choose(text: string, other: string, kind: usize) -> string:
     value := make_choice(text, other, kind)
 > app/main/choose
 >   release app.main.Choice (last use)
+>   release string (last use)
+>   release string (last use)
+>   release string (last use)
     fallback := "none"
     match value:
         .One(text) => text
@@ -42,13 +47,16 @@ fn option_len(items: List[string]) -> usize:
     first(items).unwrap_or("").len()
 > app/main/option_len
 >   release string (last use)
+>   release string (last use)
+>   release List[string] (last use)
 
 fn loop_read(text: string, n: usize) -> usize:
     value := Choice.Pair(text, "other" + "word")
+> app/main/loop_read
+>   release string (last use)
     let i = 0
     let total = 0
     while i < n:
-> app/main/loop_read
 >   release app.main.Choice (last use)
         total += match value:
             .One(text) => text.len()
@@ -76,7 +84,9 @@ fn snapshot(source: *mut Names, alias: *mut Names) -> string:
 >   release *mut app.main.Names (last use)
 >   release app.main.Choice (last use)
 >   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
     alias.left = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     match value:
         .One(text) => text
@@ -97,6 +107,7 @@ fn nested_counted(text: string) -> string:
 >   retain string (stored)
 >   retain string (stored)
 >   retain string (stored)
+>   release string (last use)
     let (_, (_, (_, (_, z)))) = x
 >   retain string (stored)
 >   release (string, (string, (string, (string, string)))) [0.0, 1.0.0, 1.1.0.0, 1.1.1.0.0, 1.1.1.1.0] (last use)
@@ -141,11 +152,16 @@ fn make_choice(text: string, other: string, kind: usize) -> Choice:
 > app/main/make_choice
 >   release string (last use)
 >   release string (last use)
+>   release string (last use)
+>   release string (last use)
 
 fn choose(text: string, other: string, kind: usize) -> string:
     value := make_choice(text, other, kind)
 > app/main/choose
 >   release app.main.Choice (last use)
+>   release string (last use)
+>   release string (last use)
+>   release string (last use)
     fallback := "none"
     match value:
         .One(text) => text
@@ -162,13 +178,16 @@ fn option_len(items: List[string]) -> usize:
     first(items).unwrap_or("").len()
 > app/main/option_len
 >   release string (last use)
+>   release string (last use)
+>   release List[string] (last use)
 
 fn loop_read(text: string, n: usize) -> usize:
     value := Choice.Pair(text, "other" + "word")
+> app/main/loop_read
+>   release string (last use)
     let i = 0
     let total = 0
     while i < n:
-> app/main/loop_read
 >   release app.main.Choice (last use)
         total += match value:
             .One(text) => text.len()
@@ -196,7 +215,9 @@ fn snapshot(source: *mut Names, alias: *mut Names) -> string:
 >   release *mut app.main.Names (last use)
 >   release app.main.Choice (last use)
 >   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
     alias.left = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     match value:
         .One(text) => text
@@ -217,6 +238,7 @@ fn nested_counted(text: string) -> string:
 >   retain string (stored)
 >   retain string (stored)
 >   retain string (stored)
+>   release string (last use)
     let (_, (_, (_, (_, z)))) = x
 >   retain string (stored)
 >   release (string, (string, (string, (string, string)))) [0.0, 1.0.0, 1.1.0.0, 1.1.1.0.0, 1.1.1.1.0] (last use)

@@ -4,41 +4,28 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $length (param $parts i32) (param $early i32) (result i32)
     ;; 4 |     if early:
-    local.get $early
-    if
-    ;; 5 |         return parts.len()
-      local.get $parts
-      i32.load $heap offset=4
-    ;; 4 |     if early:
-      local.get $parts
+    block
+      local.get $early
       if
+    ;; 5 |         return parts.len()
         local.get $parts
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $parts
-          call $rt:release_ref
-        end
-      end
-    ;; 5 |         return parts.len()
-      return
+        i32.load $heap offset=4
+        local.set $early
     ;; 4 |     if early:
-    end
-    ;; 6 |     parts.len()
-    local.get $parts
-    i32.load $heap offset=4
-    ;; 4 |     if early:
-    local.get $parts
-    if
-      local.get $parts
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
         local.get $parts
         call $rt:release_ref
+    ;; 5 |         return parts.len()
+        br 1
+    ;; 4 |     if early:
       end
+    ;; 6 |     parts.len()
+      local.get $parts
+      i32.load $heap offset=4
+      local.set $early
+    ;; 4 |     if early:
+      local.get $parts
+      call $rt:release_ref
     end
+    local.get $early
   )
 )

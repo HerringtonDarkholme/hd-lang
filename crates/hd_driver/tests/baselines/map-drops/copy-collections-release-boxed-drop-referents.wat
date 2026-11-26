@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $rt:drop_elems (param $t0 i32) (local $t1 i32)
+  (func $rt:drop_elems (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; (no span)
     local.get $t0
     i32.load $heap offset=4
@@ -20,6 +20,8 @@
         br_if 1
         local.get $t0
         i32.load $heap
+        local.set $t2
+        local.get $t2
         call $rt:release_ref'1
         local.get $t0
         i32.const 4
@@ -33,7 +35,7 @@
       end
     end
   )
-  (func $rt:drop_entries (param $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
+  (func $rt:drop_entries (param $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t5 i32) (local $t6 i32)
     ;; (no span)
     local.get $t0
     i32.load $heap offset=12
@@ -41,6 +43,8 @@
     local.get $t0
     i32.load $heap offset=4
     local.set $t2
+    i32.const 0
+    local.set $t3
     block
       loop
         local.get $t3
@@ -52,11 +56,13 @@
         i32.const 10
         i32.mul
         i32.add
+        i32.const 32
+        i32.add
         local.get $t3
         i32.const 4
         i32.mul
         i32.add
-        i32.load $heap offset=32
+        i32.load $heap
         i32.const 0
         i32.ge_s
         if
@@ -71,11 +77,20 @@
           i32.const 16
           i32.mul
           i32.add
-          local.tee $t4
+          local.set $t4
+          local.get $t4
+          i32.load $heap offset=8
+          local.set $t5
+          local.get $t4
           i32.load $heap
+          local.set $t5
+          local.get $t4
+          i32.load $heap offset=4
+          local.set $t6
           local.get $t4
           i32.load $heap offset=12
           local.set $t4
+          local.get $t5
           call $rt:release_ref'2
           local.get $t4
           call $rt:release_ref'1

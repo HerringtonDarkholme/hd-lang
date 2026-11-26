@@ -3,25 +3,37 @@
 (module
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $arm (param $provider.0 i32) (param $provider.1 i32) (result i32)
+  (func $arm (param $provider.0 i32) (param $provider.1 i32) (result i32) (local $t0 i32)
     ;; 8 |     provider.wait(.Terminate)
+    block
+      i32.const 1
+      local.set $t0
+      local.get $provider.0
+      local.get $t0
+      local.get $provider.1
+      i32.load $heap
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $provider.0
+    end
     local.get $provider.0
-    i32.const 1
-    local.get $provider.1
-    i32.load $heap
-    call_indirect $table0 (param i32 i32) (result i32)
   )
 )
 == @build: checked
 (module
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $arm (param $provider.0 i32) (param $provider.1 i32) (result i32)
+  (func $arm (param $provider.0 i32) (param $provider.1 i32) (result i32) (local $t0 i32)
     ;; 8 |     provider.wait(.Terminate)
+    block
+      i32.const 1
+      local.set $t0
+      local.get $provider.0
+      local.get $t0
+      local.get $provider.1
+      i32.load $heap
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $provider.0
+    end
     local.get $provider.0
-    i32.const 1
-    local.get $provider.1
-    i32.load $heap
-    call_indirect $table0 (param i32 i32) (result i32)
   )
 )

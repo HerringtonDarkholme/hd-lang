@@ -10,109 +10,160 @@
   (import "fixture" "retain_value[std.encoding.json.JsonObject]" (func $"retain_value[std.encoding.json.JsonObject]" (param i32 i32)))
   (import "fixture" "impl JsonObject.get" (func $"impl JsonObject.get" (param i32 i32 i32) (result i32 i32 i32 i64 f64 i32)))
   (import "fixture" "release_value[std.encoding.json.JsonObject]" (func $"release_value[std.encoding.json.JsonObject]" (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $$test0 (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 f64) (local $t0 i32) (local $value i32)
+  (func $$test0 (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 f64) (local $t0 i32) (local $value i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i64) (local $t10 f64)
     ;; ...
+    block
+      ;; ...
     ;; 20 |         assert(read("[1]").get("a").is_none())
-    i32.const 294 ;; &"[1]"
-    i32.const 3
-    call $read
-    local.set $t0
-    local.set $t1
-    local.set $t2
-    local.set $t3
-    local.set $t4
-    local.set $t5
-    ;; ...
-    local.get $t5
-    i32.store $heap
-    local.get $value
-    local.get $t4
-    i32.store8 $heap offset=8
-    local.get $value
-    local.get $t3
-    i32.store $heap offset=8
-    local.get $value
-    local.get $t2
-    i64.store $heap offset=8
-    local.get $value
-    local.get $t1
-    f64.store $heap offset=8
-    local.get $value
-    local.get $t0
-    i32.store $heap offset=12
-    local.get $value
-    i32.const 297 ;; &"a"
-    i32.const 1
-    call $"impl Json.get"
-    local.set $t0
-    local.set $t1
-    local.set $t2
-    local.set $t3
-    local.set $t4
-    local.set $t5
-    local.get $value
-    if
+      i32.const 294 ;; &"[1]"
+      i32.const 3
+      call $read
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      ;; ...
       local.get $value
-      i32.load $heap
+      local.get $t5
+      i32.store $heap
       local.get $value
-      i32.load8_u $heap offset=8
+      local.get $t4
+      i32.store8 $heap offset=8
       local.get $value
-      i32.load $heap offset=8
+      local.get $t3
+      i32.store $heap offset=8
       local.get $value
-      i64.load $heap offset=8
+      local.get $t2
+      i64.store $heap offset=8
       local.get $value
-      f64.load $heap offset=8
+      local.get $t1
+      f64.store $heap offset=8
       local.get $value
-      i32.load $heap offset=12
-      call $"release_value[std.encoding.json.Json]"
+      local.get $t0
+      i32.store $heap offset=12
+      local.get $value
+      local.set $t0
+      local.get $t0
+      i32.const 297 ;; &"a"
+      i32.const 1
+      call $"impl Json.get"
+      local.set $t3
+      local.set $t1
+      local.set $t2
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      i32.const 0
+      local.set $t0
+      local.get $value
+      if
+        local.get $value
+        i32.load $heap
+        local.set $t0
+        local.get $value
+        i32.load8_u $heap offset=8
+        local.set $t7
+        local.get $value
+        i32.load $heap offset=8
+        local.set $t8
+        local.get $value
+        i64.load $heap offset=8
+        local.set $t9
+        local.get $value
+        f64.load $heap offset=8
+        local.set $t10
+        local.get $value
+        i32.load $heap offset=12
+        local.set $value
+        local.get $t0
+        local.get $t7
+        local.get $t8
+        local.get $t9
+        local.get $t10
+        local.get $value
+        call $"release_value[std.encoding.json.Json]"
+      end
+      i32.const 0
+      local.set $value
+      ;; ...
+      local.get $t0
+      local.get $t6
+      i32.store $heap
+      local.get $t0
+      local.get $t5
+      i32.store8 $heap offset=8
+      local.get $t0
+      local.get $t4
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $t2
+      i64.store $heap offset=8
+      local.get $t0
+      local.get $t1
+      f64.store $heap offset=8
+      local.get $t0
+      local.get $t3
+      i32.store $heap offset=12
+      local.get $t0
+      local.set $t3
+      local.get $t3
+      call $"impl[T < ?Copy] T?.is_none[std.encoding.json.Json]"
+      local.set $t4
+      i32.const 0
+      local.set $t3
+      local.get $t0
+      if
+        local.get $t0
+        i32.load $heap
+        local.set $t3
+        local.get $t0
+        i32.load8_u $heap offset=8
+        local.set $t5
+        local.get $t0
+        i32.load $heap offset=8
+        local.set $value
+        local.get $t0
+        i64.load $heap offset=8
+        local.set $t2
+        local.get $t0
+        f64.load $heap offset=8
+        local.set $t1
+        local.get $t0
+        i32.load $heap offset=12
+        local.set $t0
+        local.get $t3
+        local.get $t5
+        local.get $value
+        local.get $t2
+        local.get $t1
+        local.get $t0
+        call $"release_value[std.encoding.json.Json?]"
+      end
+      i32.const 0
+      local.set $t0
+      block
+        block
+          i32.const 16 ;; &"heap-exhausted"
+          i32.const 0
+          local.set $t0
+          local.set $t3
+          br 0
+        end
+      end
+      local.get $t4
+      local.get $t3
+      local.get $t0
+      call $assert
     end
-    ;; ...
-    local.get $t5
-    i32.store $heap
-    local.get $value
-    local.get $t4
-    i32.store8 $heap offset=8
-    local.get $value
-    local.get $t3
-    i32.store $heap offset=8
-    local.get $value
-    local.get $t2
-    i64.store $heap offset=8
-    local.get $value
-    local.get $t1
-    f64.store $heap offset=8
-    local.get $value
-    local.get $t0
-    i32.store $heap offset=12
-    local.get $value
-    call $"impl[T < ?Copy] T?.is_none[std.encoding.json.Json]"
-    local.set $t0
-    local.get $value
-    if
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load8_u $heap offset=8
-      local.get $value
-      i32.load $heap offset=8
-      local.get $value
-      i64.load $heap offset=8
-      local.get $value
-      f64.load $heap offset=8
-      local.get $value
-      i32.load $heap offset=12
-      call $"release_value[std.encoding.json.Json?]"
-    end
-    local.get $t0
-    i32.const 16 ;; &"heap-exhausted"
-    i32.const 0
-    call $assert
     ;; ...
   )
-  (func $"impl Json.get" (param $t2 i32) (param $t5 i32) (param $t6 i32) (result i32 i32 i32 i64 f64 i32) (local $t1 i32) (local $t0 i32) (local $t9 i32) (local $t4 i32) (local $t8 i64) (local $t7 f64) (local $t3 i32)
+  (func $"impl Json.get" (param $t4 i32) (param $t5 i32) (param $t6 i32) (result i32 i32 i32 i64 f64 i32) (local $t10 i32) (local $t9 i32) (local $t8 i64) (local $t7 f64) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -128,73 +179,118 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $t1
-    i32.const 0
-    i32.store $heap
-    local.get $t1
-    i32.const 0
-    i32.store $heap offset=4
     block
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t1
+      local.get $t1
+      local.get $t2
+      i32.store $heap
+      local.get $t1
+      local.get $t3
+      i32.store $heap offset=4
       block
         block
-          local.get $t2
-          i32.load $heap
-          i32.const 8
-          i32.eq
-          i32.eqz
-          br_if 1
-          local.get $t2
-          i32.load $heap offset=8
-          local.get $t2
-          i32.load $heap offset=12
+          block
+            local.get $t4
+            i32.load $heap
+            local.set $t2
+            local.get $t2
+            i32.const 8
+            i32.eq
+            if
+              local.get $t4
+              i32.load $heap offset=8
+              local.get $t4
+              i32.load $heap offset=12
+              local.set $t4
+              local.set $t2
+              local.get $t2
+              local.get $t4
+              call $"retain_value[std.encoding.json.JsonObject]"
+              local.get $t1
+              local.get $t2
+              i32.store $heap
+              local.get $t1
+              local.get $t4
+              i32.store $heap offset=4
+              br 1
+            else
+              br 2
+            end
+            unreachable
+          end
+          local.get $t1
+          local.set $t4
+          local.get $t5
+          local.get $t6
+          local.set $t2
           local.set $t3
-          local.tee $t4
-          local.get $t3
-          call $"retain_value[std.encoding.json.JsonObject]"
-          local.get $t1
+          i32.const 0
+          local.set $t5
+          i32.const 0
+          local.set $t6
           local.get $t4
-          i32.store $heap
-          local.get $t1
           local.get $t3
-          i32.store $heap offset=4
-          br 0
-          unreachable
+          local.get $t2
+          call $"impl JsonObject.get"
+          local.set $t2
+          local.set $t7
+          local.set $t8
+          local.set $t3
+          local.set $t9
+          local.set $t10
+          i32.const 0
+          local.set $t4
+          br 1
         end
-        local.get $t1
-        local.get $t5
-        local.get $t6
-        call $"impl JsonObject.get"
-        local.set $t3
+        i32.const 9
+        i32.const 0
+        i32.const 0
+        i64.const 0
+        f64.const 0x0p+0
+        i32.const 0
+        local.set $t2
         local.set $t7
         local.set $t8
-        local.set $t4
+        local.set $t3
         local.set $t9
-        local.set $t2
-        br 1
+        local.set $t10
+        br 0
       end
-      i32.const 9
-      local.set $t2
-    end
-    local.get $t1
-    if
       local.get $t1
-      i32.load $heap
-      local.get $t1
-      i32.load $heap offset=4
-      call $"release_value[std.encoding.json.JsonObject]"
+      if
+        local.get $t1
+        i32.load $heap
+        local.set $t6
+        local.get $t1
+        i32.load $heap offset=4
+        local.set $t1
+        local.get $t6
+        local.get $t1
+        call $"release_value[std.encoding.json.JsonObject]"
+      end
+      i32.const 0
+      local.set $t1
+      local.get $t5
+      call $rt:release_ref
+      i32.const 0
+      local.set $t5
+      i32.const 0
+      local.set $t6
+      local.get $t5
+      call $rt:release_ref
     end
-    local.get $t2
+    local.get $t10
     local.get $t9
-    local.get $t4
+    local.get $t3
     local.get $t8
     local.get $t7
-    local.get $t3
+    local.get $t2
     local.get $t0
     i32.const 16
     i32.add

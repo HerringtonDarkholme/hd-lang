@@ -3,15 +3,19 @@
 (module
   (import "fixture" "take.value" (func $take.value))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 11 |     println(take())
     call $take.value
     call $take
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 12 |     println(take(()))
     call $take
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -25,15 +29,19 @@
 (module
   (import "fixture" "take.value" (func $take.value))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 11 |     println(take())
     call $take.value
     call $take
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 12 |     println(take(()))
     call $take
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"

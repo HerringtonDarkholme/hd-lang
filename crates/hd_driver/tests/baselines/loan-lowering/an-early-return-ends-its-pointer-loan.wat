@@ -10,20 +10,134 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $maybe_change (param $alias i32) (param $change i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |     if change:
-    local.get $change
-    if
+    block
+      local.get $change
+      if
     ;; 19 |         alias.items.push("alias")
+        local.get $alias
+        i32.const 4
+        i32.sub
+        local.set $change
+        local.get $change
+        i32.load $heap
+        i32.const 4128768
+        i32.and
+        if
+          call $rt:panic'1
+          unreachable
+        end
+        local.get $alias
+        i32.load $heap
+        local.set $change
+        local.get $change
+        call $rt:list_unique
+        local.set $change
+        local.get $alias
+        local.get $change
+        i32.store $heap
+        local.get $change
+        i32.load $heap offset=4
+        local.set $t0
+        local.get $t0
+        local.get $change
+        i32.load $heap
+        i32.eq
+        if
+          local.get $change
+          i32.const 4
+          call_indirect $table0 (param i32) (result i32)
+          local.set $change
+          local.get $alias
+          local.get $change
+          i32.store $heap
+        end
+        local.get $change
+        local.get $t0
+        i32.const 8
+        i32.mul
+        i32.add
+        local.set $t1
+        local.get $t1
+        i32.const 113 ;; &"alias"
+        i32.store $heap offset=16
+        local.get $t1
+        i32.const 5
+        i32.store $heap offset=20
+        local.get $change
+        local.get $t0
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 18 |     if change:
+      end
       local.get $alias
+      call $rt:release_ref
+    end
+  )
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $p i32) (local $t1 i32) (local $t2 i32)
+    ;; 30 |     p := box(Slots { items: ["held"] })
+    block
+      i32.const 1
+      local.set $t0
+      local.get $t0
+      call $rt:list_buf
+      local.set $p
+      local.get $p
+      local.get $t0
+      i32.store $heap offset=4
+      local.get $p
+      local.set $t0
+      local.get $t0
+      i32.const 118 ;; &"held"
+      i32.store $heap offset=16
+      local.get $t0
+      i32.const 4
+      i32.store $heap offset=20
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t0
+      i32.const 4
+      i32.const 1
+      call $rt:new/class-1
+      local.set $t0
+      local.get $t0
+      local.get $p
+      i32.store $heap
+      local.get $t0
+      local.set $p
+      i32.const 0
+      local.set $t0
+    ;; 31 |     println(read(p, p, true))
+      local.get $p
+      call $rt:retain_known
+      local.get $p
+      call $rt:retain_known
+      local.get $p
+      local.get $p
+      i32.const 1
+      call $read
+      local.set $t0
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    ;; 32 |     p.items.push("after")
+      local.get $p
       i32.const 4
       i32.sub
+      local.set $t0
+      local.get $t0
       i32.load $heap
       i32.const 4128768
       i32.and
@@ -31,406 +145,339 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $alias
+      local.get $p
       i32.load $heap
+      local.set $t0
+      local.get $t0
       call $rt:list_unique
-      local.set $change
-      local.get $alias
-      local.get $change
+      local.set $t0
+      local.get $p
+      local.get $t0
       i32.store $heap
-      local.get $change
+      local.get $t0
       i32.load $heap offset=4
-      local.tee $t0
-      local.get $change
+      local.set $t1
+      local.get $t1
+      local.get $t0
       i32.load $heap
       i32.eq
       if
-        local.get $change
+        local.get $t0
         i32.const 4
         call_indirect $table0 (param i32) (result i32)
-        local.set $change
-        local.get $alias
-        local.get $change
+        local.set $t0
+        local.get $p
+        local.get $t0
         i32.store $heap
       end
-      local.get $change
       local.get $t0
+      local.get $t1
       i32.const 8
       i32.mul
       i32.add
-      local.tee $t1
-      i32.const 113 ;; &"alias"
+      local.set $t2
+      local.get $t2
+      i32.const 122 ;; &"after"
       i32.store $heap offset=16
-      local.get $t1
+      local.get $t2
       i32.const 5
       i32.store $heap offset=20
-      local.get $change
       local.get $t0
+      local.get $t1
       i32.const 1
       i32.add
       i32.store $heap offset=4
-    ;; 18 |     if change:
-    end
-    local.get $alias
-    if
-      local.get $alias
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $alias
-        call $rt:release_ref
-      end
-    end
-  )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 30 |     p := box(Slots { items: ["held"] })
-    i32.const 1
-    call $rt:list_buf
-    local.tee $t0
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $t0
-    i32.const 118 ;; &"held"
-    i32.store $heap offset=16
-    local.get $t0
-    i32.const 4
-    i32.store $heap offset=20
-    i32.const 4
-    i32.const 1
-    call $rt:new/class-1
-    local.tee $t1
-    local.get $t0
-    i32.store $heap
-    local.get $t1
-    ;; 31 |     println(read(p, p, true))
-    local.tee $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:retain_known
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:retain_known
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 1
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
-    ;; 32 |     p.items.push("after")
-    local.get $t1
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $t1
-    i32.load $heap
-    call $rt:list_unique
-    local.set $t0
-    local.get $t1
-    local.get $t0
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=4
-    local.tee $t2
-    local.get $t0
-    i32.load $heap
-    i32.eq
-    if
-      local.get $t0
-      i32.const 4
-      call_indirect $table0 (param i32) (result i32)
-      local.set $t0
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-    end
-    local.get $t0
-    local.get $t2
-    i32.const 8
-    i32.mul
-    i32.add
-    local.tee $t3
-    i32.const 122 ;; &"after"
-    i32.store $heap offset=16
-    local.get $t3
-    i32.const 5
-    i32.store $heap offset=20
-    local.get $t0
-    local.get $t2
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
     ;; 33 |     println(read(p, p, false))
-    local.get $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:retain_known
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t1
-        call $rt:retain_known
-      end
-    end
-    local.get $t1
-    local.get $t1
-    i32.const 0
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
-    ;; 34 |     p.items.push("again")
-    local.get $t1
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $t1
-    i32.load $heap
-    call $rt:list_unique
-    local.set $t0
-    local.get $t1
-    local.get $t0
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=4
-    local.tee $t2
-    local.get $t0
-    i32.load $heap
-    i32.eq
-    if
-      local.get $t0
-      i32.const 4
-      call_indirect $table0 (param i32) (result i32)
+      local.get $p
+      call $rt:retain_known
+      local.get $p
+      call $rt:retain_known
+      local.get $p
+      local.get $p
+      i32.const 0
+      call $read
       local.set $t0
+      local.set $t1
       local.get $t1
       local.get $t0
-      i32.store $heap
-    end
-    local.get $t0
-    local.get $t2
-    i32.const 8
-    i32.mul
-    i32.add
-    local.tee $t3
-    i32.const 127 ;; &"again"
-    i32.store $heap offset=16
-    local.get $t3
-    i32.const 5
-    i32.store $heap offset=20
-    local.get $t0
-    local.get $t2
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
-    ;; 35 |     println(p.items.len())
-    local.get $t1
-    i32.load $heap
-    i32.load $heap offset=4
-    local.get $t1
-    if
-      local.get $t1
-      i32.const 8
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    ;; 34 |     p.items.push("again")
+      local.get $p
+      i32.const 4
       i32.sub
+      local.set $t0
+      local.get $t0
       i32.load $heap
+      i32.const 4128768
+      i32.and
       if
-        local.get $t1
-        call $rt:release_ref
+        call $rt:panic'1
+        unreachable
       end
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[usize]"
-  )
-  (func $read (param $p i32) (param $alias i32) (param $early i32) (result i32 i32) (local $t0 i32) (local $value i32)
-    ;; 23 |     value := p.first()
-    local.get $p
-    i32.const 4
-    i32.sub
-    local.tee $t0
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t0
-    i32.load $heap
-    local.tee $value
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
+      local.get $p
+      i32.load $heap
+      local.set $t0
       local.get $t0
-      call $rt:loan_share
-    else
+      call $rt:list_unique
+      local.set $t0
+      local.get $p
       local.get $t0
-      local.get $value
-      i32.const 65536
-      i32.add
       i32.store $heap
-    end
-    local.get $p
-    call $"impl Slots.first"
-    local.set $value
-    ;; 24 |     maybe_change(alias, false)
-    local.get $alias
-    i32.const 0
-    call $maybe_change
-    ;; 25 |     if early:
-    local.get $early
-    if
-    ;; 26 |         return *value
-      local.get $value
-      i32.load $heap
-      local.get $value
-      i32.load $heap offset=4
-      local.set $alias
-      local.tee $early
-      if
-        local.get $early
-        call $retain
-      end
       local.get $t0
+      i32.load $heap offset=4
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      i32.eq
       if
         local.get $t0
+        i32.const 4
+        call_indirect $table0 (param i32) (result i32)
+        local.set $t0
+        local.get $p
+        local.get $t0
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t1
+      i32.const 8
+      i32.mul
+      i32.add
+      local.set $t2
+      local.get $t2
+      i32.const 127 ;; &"again"
+      i32.store $heap offset=16
+      local.get $t2
+      i32.const 5
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $t1
+      i32.const 1
+      i32.add
+      i32.store $heap offset=4
+    ;; 35 |     println(p.items.len())
+      local.get $p
+      i32.load $heap
+      local.set $t0
+      local.get $t0
+      i32.load $heap offset=4
+      local.set $t0
+      local.get $p
+      call $rt:release_ref
+      i32.const 0
+      local.set $p
+      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[usize]"
+    ;; 30 |     p := box(Slots { items: ["held"] })
+    end
+  )
+  (func $read (param $p i32) (param $alias i32) (param $early i32) (result i32 i32) (local $t1 i32) (local $value i32) (local $t0 i32) (local $t2 i32)
+    ;; 23 |     value := p.first()
+    block
+      local.get $p
+      i32.const 4
+      i32.sub
+      local.set $value
+      local.get $value
+      i32.load $heap
+      i32.const 2097152
+      i32.and
+      local.get $t0
+      i32.const 2097152
+      i32.and
+      i32.ne
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t1
+      if
+        local.get $t1
         i32.load $heap
-        local.tee $value
+        local.set $t2
+        local.get $t2
         i32.const 2031616
         i32.and
         i32.const 2031616
         i32.eq
         if
-          local.get $t0
+          local.get $t1
           call $rt:loan_unshare
         else
-          local.get $t0
-          local.get $value
+          local.get $t1
+          local.get $t2
           i32.const 65536
           i32.sub
           i32.store $heap
         end
-      end
-    ;; 25 |     if early:
-      local.get $p
-      if
-        local.get $p
-        i32.const 8
+        local.get $t0
+        i32.const 65536
         i32.sub
-        i32.load $heap
-        if
-          local.get $p
-          call $rt:release_ref
-        end
+        local.set $t0
       end
-    ;; 26 |         return *value
-      local.get $early
-      local.get $alias
-      return
-    ;; 25 |     if early:
-    end
-    ;; 27 |     *value
-    local.get $value
-    i32.load $heap
-    local.get $value
-    i32.load $heap offset=4
-    local.set $alias
-    local.tee $early
-    if
-      local.get $early
-      call $retain
-    end
-    local.get $t0
-    if
-      local.get $t0
+      local.get $value
+      local.set $t1
+      local.get $t1
       i32.load $heap
-      local.tee $value
+      local.set $value
+      local.get $value
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t0
-        call $rt:loan_unshare
+        local.get $t1
+        call $rt:loan_share
       else
-        local.get $t0
+        local.get $t1
         local.get $value
         i32.const 65536
-        i32.sub
+        i32.add
         i32.store $heap
       end
-    end
-    ;; 23 |     value := p.first()
-    local.get $p
-    if
+      local.get $t0
+      i32.const 65536
+      i32.add
+      local.set $t0
       local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
+      call $"impl Slots.first"
+      local.set $value
+    ;; 24 |     maybe_change(alias, false)
+      local.get $alias
+      local.set $t2
+      i32.const 0
+      local.set $alias
+      local.get $t2
+      i32.const 0
+      call $maybe_change
+    ;; 25 |     if early:
+      local.get $early
       if
+    ;; 26 |         return *value
+        local.get $value
+        i32.load $heap
+        local.set $early
+        local.get $value
+        i32.load $heap offset=4
+        local.set $t2
+        local.get $early
+        call $retain
+        local.get $t1
+        if
+          local.get $t1
+          i32.load $heap
+          local.set $value
+          local.get $value
+          i32.const 2031616
+          i32.and
+          i32.const 2031616
+          i32.eq
+          if
+            local.get $t1
+            call $rt:loan_unshare
+          else
+            local.get $t1
+            local.get $value
+            i32.const 65536
+            i32.sub
+            i32.store $heap
+          end
+          local.get $t0
+          i32.const 65536
+          i32.sub
+          local.set $t0
+          i32.const 0
+          local.set $t1
+        end
+    ;; 25 |     if early:
+        local.get $alias
+        call $rt:release_ref
         local.get $p
         call $rt:release_ref
+    ;; 26 |         return *value
+        br 1
+    ;; 25 |     if early:
       end
+    ;; 27 |     *value
+      local.get $value
+      i32.load $heap
+      local.set $early
+      local.get $value
+      i32.load $heap offset=4
+      local.set $t2
+      local.get $early
+      call $retain
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        local.set $value
+        local.get $value
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t1
+          call $rt:loan_unshare
+        else
+          local.get $t1
+          local.get $value
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+        local.get $t0
+        i32.const 65536
+        i32.sub
+        local.set $t0
+        i32.const 0
+        local.set $t1
+      end
+    ;; 23 |     value := p.first()
+      i32.const 0
+      local.set $value
+      local.get $alias
+      call $rt:release_ref
+      local.get $p
+      call $rt:release_ref
     end
     local.get $early
-    local.get $alias
+    local.get $t2
   )
-  (func $"impl Slots.first" (param $self i32) (result i32)
+  (func $"impl Slots.first" (param $self i32) (result i32) (local $t0 i32)
     ;; 11 |         &self.items[0]
-    local.get $self
-    i32.load $heap
-    local.set $self
-    i32.const 0
-    local.get $self
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic'3
-      unreachable
+    block
+      local.get $self
+      i32.load $heap
+      local.set $self
+      i32.const 0
+      local.set $t0
+      local.get $t0
+      local.get $self
+      i32.load $heap offset=4
+      i32.ge_u
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $self
+      local.get $t0
+      i32.const 8
+      i32.mul
+      i32.add
+      local.set $self
+      local.get $self
+      i32.const 16
+      i32.add
+      local.set $self
     end
     local.get $self
-    i32.const 16
-    i32.add
   )
 )
 == @build: release

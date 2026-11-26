@@ -26,7 +26,8 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $a
+    local.set $a
+    local.get $a
     local.get $b
     i32.store $heap
     local.get $t0
@@ -35,23 +36,42 @@
     local.get $t0
     i32.const 24
     i32.add
-    local.tee $b
+    local.set $b
+    local.get $b
     local.get $t1
     i32.store $heap
-    local.get $a
-    i32.load $heap
-    local.get $b
-    i32.load $heap
-    i32.eq
+    block
+      local.get $a
+      i32.load $heap
+      local.set $a
+      local.get $b
+      i32.load $heap
+      local.set $b
+      local.get $a
+      local.get $b
+      i32.eq
+      local.set $t1
+      i32.const 0
+      local.set $b
+      i32.const 0
+      local.set $a
+      i32.const 0
+      local.set $a
+      i32.const 0
+      local.set $b
+    end
+    local.get $t1
     local.get $t0
     i32.const 32
     i32.add
     global.set $stack
   )
-  (func $check (result i32)
+  (func $check (result i32) (local $t0 i32)
     ;; 11 |     same(+3, +4)
     i32.const 3
     i32.const 4
     call $"same[i32]"
+    local.set $t0
+    local.get $t0
   )
 )

@@ -12,120 +12,176 @@
   (import "fixture" "rt:new/class-7" (func $rt:new/class-7 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 41 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
-    local.get $provider0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32 i32)
-    drop
-    local.tee $provider0
-    if
+    block
+      local.get $provider0
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $provider0
+      local.set $provider0
       local.get $provider0
       call $rt:release_ref
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0
     end
   )
-  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t10 i32) (local $t9 i64) (local $t12 i32) (local $t11 i64) (local $t14 i32) (local $t13 i64) (local $t16 i32) (local $t15 i64) (local $t17 i32)
+    block
     ;; (no span)
-    local.get $t0
-    local.get $t0
-    if
       local.get $t0
-      call $rt:release_ref
-    end
-    local.tee $t1
-    if
       local.get $t1
+      local.set $t2
+      local.set $t3
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $t1
+      local.get $t3
+      local.get $t2
+      local.set $t1
+      local.set $t4
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      local.get $t4
       call $retain
-    end
-    local.get $t0
-    if
-      local.get $t0
+      local.get $t4
+      local.get $t1
+      local.set $t2
+      local.set $t3
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      local.get $t3
+      local.get $t2
+      local.set $t1
+      local.set $t4
+      local.get $t4
       call $retain
-    end
-    local.get $t0
-    if
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      call $HostSettings.dns_servers
+      local.set $t2
+      block
+        block
+          i32.const 64 ;; &empty-buffer
+          local.set $t3
+          br 0
+        end
+      end
+      call $HostSettings.tls_identity
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      call $HostSettings.connect_timeout
+      local.set $t9
+      local.set $t10
+      call $HostSettings.tls_handshake_timeout
+      local.set $t11
+      local.set $t12
+      call $HostSettings.response_header_timeout
+      local.set $t13
+      local.set $t14
+      call $HostSettings.body_read_timeout
+      local.set $t15
+      local.set $t16
+      i32.const 96
+      i32.const -2147483645
+      call $rt:new/class-7
+      local.set $t17
+      local.get $t17
+      local.get $t4
+      i32.store $heap offset=88
+      local.get $t17
+      local.get $t1
+      i32.store $heap offset=92
+      local.get $t17
+      local.get $t2
+      i32.store $heap offset=84
+      local.get $t17
+      local.get $t3
+      i32.store $heap offset=80
+      local.get $t17
+      local.get $t8
+      i32.store $heap offset=64
+      local.get $t17
+      local.get $t7
+      i32.store $heap offset=68
+      local.get $t17
+      local.get $t6
+      i32.store $heap offset=72
+      local.get $t17
+      local.get $t5
+      i32.store $heap offset=76
+      local.get $t17
+      local.get $t10
+      i32.store $heap
+      local.get $t17
+      local.get $t9
+      i64.store $heap offset=8
+      local.get $t17
+      local.get $t12
+      i32.store $heap offset=16
+      local.get $t17
+      local.get $t11
+      i64.store $heap offset=24
+      local.get $t17
+      local.get $t14
+      i32.store $heap offset=32
+      local.get $t17
+      local.get $t13
+      i64.store $heap offset=40
+      local.get $t17
+      local.get $t16
+      i32.store $heap offset=48
+      local.get $t17
+      local.get $t15
+      i64.store $heap offset=56
+      local.get $t17
+      local.set $t1
+      i32.const 0
+      local.set $t17
+      local.get $t1
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      i32.const 2048 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
       local.get $t0
       call $rt:release_ref
     end
-    call $HostSettings.dns_servers
-    local.set $t1
-    call $HostSettings.tls_identity
-    local.set $t2
-    local.set $t3
-    local.set $t4
-    local.set $t5
-    call $HostSettings.connect_timeout
-    local.set $t6
-    local.set $t7
-    call $HostSettings.tls_handshake_timeout
-    local.set $t8
-    local.set $t9
-    call $HostSettings.response_header_timeout
-    local.set $t10
-    local.set $t11
-    call $HostSettings.body_read_timeout
-    local.set $t12
-    local.set $t13
-    i32.const 96
-    i32.const -2147483645
-    call $rt:new/class-7
-    local.tee $t14
-    local.get $t0
-    i32.store $heap offset=88
-    local.get $t14
-    local.get $t15
-    i32.store $heap offset=92
-    local.get $t14
-    local.get $t1
-    i32.store $heap offset=84
-    local.get $t14
-    i32.const 64 ;; &empty-buffer
-    i32.store $heap offset=80
-    local.get $t14
-    local.get $t5
-    i32.store $heap offset=64
-    local.get $t14
-    local.get $t4
-    i32.store $heap offset=68
-    local.get $t14
     local.get $t3
-    i32.store $heap offset=72
-    local.get $t14
-    local.get $t2
-    i32.store $heap offset=76
-    local.get $t14
-    local.get $t7
-    i32.store $heap
-    local.get $t14
-    local.get $t6
-    i64.store $heap offset=8
-    local.get $t14
-    local.get $t9
-    i32.store $heap offset=16
-    local.get $t14
-    local.get $t8
-    i64.store $heap offset=24
-    local.get $t14
-    local.get $t11
-    i32.store $heap offset=32
-    local.get $t14
-    local.get $t10
-    i64.store $heap offset=40
-    local.get $t14
-    local.get $t13
-    i32.store $heap offset=48
-    local.get $t14
-    local.get $t12
-    i64.store $heap offset=56
-    local.get $t14
-    i32.const 2048 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    local.get $t1
   )
 )
 == @build: checked program
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "HostSettings.dns_servers" (func $HostSettings.dns_servers (result i32)))
   (import "fixture" "HostSettings.tls_identity" (func $HostSettings.tls_identity (result i32 i32 i32 i32)))
@@ -136,124 +192,171 @@
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 41 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
-    local.get $provider0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32 i32)
-    drop
-    local.tee $provider0
-    if
+    block
+      local.get $provider0
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $provider0
+      local.set $provider0
       local.get $provider0
       call $rt:release_ref
-    else
-      call $skipped_test
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0
     end
   )
-  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t10 i32) (local $t9 i64) (local $t12 i32) (local $t11 i64) (local $t14 i32) (local $t13 i64) (local $t16 i32) (local $t15 i64) (local $t17 i32)
+    block
     ;; (no span)
-    local.get $t0
-    local.get $t0
-    if
       local.get $t0
-      call $rt:release_ref
-    else
-      call $skipped_test
-    end
-    local.tee $t1
-    if
       local.get $t1
+      local.set $t2
+      local.set $t3
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $t1
+      local.get $t3
+      local.get $t2
+      local.set $t1
+      local.set $t4
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      local.get $t4
       call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t0
-    if
-      local.get $t0
+      local.get $t4
+      local.get $t1
+      local.set $t2
+      local.set $t3
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      local.get $t3
+      local.get $t2
+      local.set $t1
+      local.set $t4
+      local.get $t4
       call $retain
-    else
-      call $skipped_test
-    end
-    local.get $t0
-    if
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      call $HostSettings.dns_servers
+      local.set $t2
+      block
+        block
+          i32.const 64 ;; &empty-buffer
+          local.set $t3
+          br 0
+        end
+      end
+      call $HostSettings.tls_identity
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      call $HostSettings.connect_timeout
+      local.set $t9
+      local.set $t10
+      call $HostSettings.tls_handshake_timeout
+      local.set $t11
+      local.set $t12
+      call $HostSettings.response_header_timeout
+      local.set $t13
+      local.set $t14
+      call $HostSettings.body_read_timeout
+      local.set $t15
+      local.set $t16
+      i32.const 96
+      i32.const -2147483645
+      call $rt:new
+      local.set $t17
+      local.get $t17
+      local.get $t4
+      i32.store $heap offset=88
+      local.get $t17
+      local.get $t1
+      i32.store $heap offset=92
+      local.get $t17
+      local.get $t2
+      i32.store $heap offset=84
+      local.get $t17
+      local.get $t3
+      i32.store $heap offset=80
+      local.get $t17
+      local.get $t8
+      i32.store $heap offset=64
+      local.get $t17
+      local.get $t7
+      i32.store $heap offset=68
+      local.get $t17
+      local.get $t6
+      i32.store $heap offset=72
+      local.get $t17
+      local.get $t5
+      i32.store $heap offset=76
+      local.get $t17
+      local.get $t10
+      i32.store $heap
+      local.get $t17
+      local.get $t9
+      i64.store $heap offset=8
+      local.get $t17
+      local.get $t12
+      i32.store $heap offset=16
+      local.get $t17
+      local.get $t11
+      i64.store $heap offset=24
+      local.get $t17
+      local.get $t14
+      i32.store $heap offset=32
+      local.get $t17
+      local.get $t13
+      i64.store $heap offset=40
+      local.get $t17
+      local.get $t16
+      i32.store $heap offset=48
+      local.get $t17
+      local.get $t15
+      i64.store $heap offset=56
+      local.get $t17
+      local.set $t1
+      i32.const 0
+      local.set $t17
+      local.get $t1
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      i32.const 2392 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
       local.get $t0
       call $rt:release_ref
-    else
-      call $skipped_test
     end
-    call $HostSettings.dns_servers
-    local.set $t1
-    call $HostSettings.tls_identity
-    local.set $t2
-    local.set $t3
-    local.set $t4
-    local.set $t5
-    call $HostSettings.connect_timeout
-    local.set $t6
-    local.set $t7
-    call $HostSettings.tls_handshake_timeout
-    local.set $t8
-    local.set $t9
-    call $HostSettings.response_header_timeout
-    local.set $t10
-    local.set $t11
-    call $HostSettings.body_read_timeout
-    local.set $t12
-    local.set $t13
-    i32.const 96
-    i32.const -2147483645
-    call $rt:new
-    local.tee $t14
-    local.get $t0
-    i32.store $heap offset=88
-    local.get $t14
-    local.get $t15
-    i32.store $heap offset=92
-    local.get $t14
-    local.get $t1
-    i32.store $heap offset=84
-    local.get $t14
-    i32.const 64 ;; &empty-buffer
-    i32.store $heap offset=80
-    local.get $t14
-    local.get $t5
-    i32.store $heap offset=64
-    local.get $t14
-    local.get $t4
-    i32.store $heap offset=68
-    local.get $t14
     local.get $t3
-    i32.store $heap offset=72
-    local.get $t14
-    local.get $t2
-    i32.store $heap offset=76
-    local.get $t14
-    local.get $t7
-    i32.store $heap
-    local.get $t14
-    local.get $t6
-    i64.store $heap offset=8
-    local.get $t14
-    local.get $t9
-    i32.store $heap offset=16
-    local.get $t14
-    local.get $t8
-    i64.store $heap offset=24
-    local.get $t14
-    local.get $t11
-    i32.store $heap offset=32
-    local.get $t14
-    local.get $t10
-    i64.store $heap offset=40
-    local.get $t14
-    local.get $t13
-    i32.store $heap offset=48
-    local.get $t14
-    local.get $t12
-    i64.store $heap offset=56
-    local.get $t14
-    i32.const 2392 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    local.get $t1
   )
 )
 == @build: release program

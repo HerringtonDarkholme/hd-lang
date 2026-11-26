@@ -5,38 +5,49 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "release_value[std.rt_tests.stage_case.Bag]" (func $"release_value[std.rt_tests.stage_case.Bag]" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"impl Bag.item_mut" (param $self i32) (param $i i32) (result i32)
+  (func $"impl Bag.item_mut" (param $self i32) (param $i i32) (result i32) (local $t0 i32)
     ;; 17 |         &mut self.items[i]
-    local.get $self
-    local.get $self
-    i32.load $heap offset=8
-    call $rt:list_unique
-    i32.store $heap offset=8
-    local.get $self
-    i32.load $heap offset=8
-    local.set $self
-    local.get $i
-    local.get $self
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic'1
-      unreachable
+    block
+      local.get $self
+      i32.load $heap offset=8
+      local.set $t0
+      local.get $t0
+      call $rt:list_unique
+      local.set $t0
+      local.get $self
+      local.get $t0
+      i32.store $heap offset=8
+      local.get $self
+      i32.load $heap offset=8
+      local.set $self
+      local.get $i
+      local.get $self
+      i32.load $heap offset=4
+      i32.ge_u
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      local.get $self
+      local.get $i
+      i32.const 4
+      i32.mul
+      i32.add
+      local.set $self
+      local.get $self
+      i32.const 16
+      i32.add
+      local.set $self
     end
     local.get $self
-    local.get $i
-    i32.const 4
-    i32.mul
-    i32.add
-    i32.const 16
-    i32.add
   )
-  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $t1 i32) (local $b i32) (local $t0 i32) (local $t2 i64)
+  (func $change_then_read (param $name.0 i32) (param $name.1 i32) (result i32) (local $i i32) (local $self i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i64) (local $t4 i64)
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
     global.get $stack
     global.get $stack_limit
@@ -52,102 +63,174 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    i32.const 1
-    call $rt:list_buf
-    local.tee $t1
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $t1
-    i32.const 1
-    i32.store $heap offset=16
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $b
-    local.get $name.0
-    i32.store $heap
-    local.get $b
-    local.get $name.1
-    i32.store $heap offset=4
-    local.get $b
-    local.get $t1
-    i32.store $heap offset=8
-    ;; 21 |     b.item_mut(0).qty = +7
-    local.get $b
-    local.get $b
-    i32.load $heap offset=8
-    call $rt:list_unique
-    i32.store $heap offset=8
-    local.get $b
-    i32.load $heap offset=8
-    local.set $name.0
-    i32.const 0
-    local.get $name.0
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $name.0
-    i32.const 7
-    i32.store $heap offset=16
-    ;; 22 |     kept := b.label
-    local.get $b
-    i32.load $heap
-    local.get $b
-    i32.load $heap offset=4
-    local.set $name.0
-    drop
-    ;; 23 |     kept.len() + b.items.len()
-    local.get $b
-    i32.load $heap offset=8
-    local.set $name.1
-    local.get $b
-    i32.const 0
-    i32.store $heap offset=8
-    local.get $b
-    if
-      local.get $b
-      i32.load $heap
-      local.get $b
-      i32.load $heap offset=4
-      local.get $b
-      i32.load $heap offset=8
-      call $"release_value[std.rt_tests.stage_case.Bag]"
-    end
-    local.get $name.1
-    i32.load $heap offset=4
-    local.set $t1
-    local.get $name.1
-    if
+    block
+      local.get $name.0
       local.get $name.1
+      local.set $self
+      local.set $i
+      i32.const 0
+      local.set $name.0
+      i32.const 0
+      local.set $name.1
+      i32.const 1
+      local.set $name.1
+      i32.const 1
+      local.set $t1
+      local.get $t1
+      call $rt:list_buf
+      local.set $t2
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $t2
+      local.set $t1
+      local.get $t1
+      local.get $name.1
+      i32.store $heap offset=16
+      local.get $t1
+      i32.const 4
+      i32.add
+      local.set $t1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
       i32.const 8
-      i32.sub
+      i32.add
+      local.set $name.1
+      local.get $name.1
+      local.get $i
+      i32.store $heap
+      local.get $name.1
+      local.get $self
+      i32.store $heap offset=4
+      local.get $name.1
+      local.get $t2
+      i32.store $heap offset=8
+    ;; 21 |     b.item_mut(0).qty = +7
+      local.get $name.1
+      local.set $self
+      i32.const 0
+      local.set $i
+      block
+        block
+          local.get $self
+          i32.load $heap offset=8
+          local.set $t1
+          local.get $t1
+          call $rt:list_unique
+          local.set $t1
+          local.get $self
+          local.get $t1
+          i32.store $heap offset=8
+          local.get $self
+          i32.load $heap offset=8
+          local.set $self
+          local.get $i
+          local.get $self
+          i32.load $heap offset=4
+          i32.ge_u
+          if
+            call $rt:panic'1
+            unreachable
+          end
+          local.get $self
+          local.get $i
+          i32.const 4
+          i32.mul
+          i32.add
+          local.set $self
+          local.get $self
+          i32.const 16
+          i32.add
+          local.set $self
+          br 0
+        end
+      end
+      i32.const 7
+      local.set $i
+      local.get $self
       i32.load $heap
+      local.set $t1
+      local.get $self
+      local.get $i
+      i32.store $heap
+      i32.const 0
+      local.set $self
+      i32.const 0
+      local.set $self
+    ;; 22 |     kept := b.label
+      local.get $name.1
+      i32.load $heap
+      local.set $self
+      local.get $name.1
+      i32.load $heap offset=4
+      local.set $i
+      local.get $name.1
+      i32.load $heap offset=8
+      local.set $t1
+    ;; 23 |     kept.len() + b.items.len()
+      block
+        block
+          br 0
+        end
+      end
+      local.get $name.1
+      i32.load $heap offset=8
+      local.set $self
+      local.get $name.1
+      i32.const 0
+      i32.store $heap offset=8
+      local.get $name.1
       if
         local.get $name.1
-        call $rt:release_ref
+        i32.load $heap
+        local.set $t1
+        local.get $name.1
+        i32.load $heap offset=4
+        local.set $t2
+        local.get $name.1
+        i32.load $heap offset=8
+        local.set $name.1
+        local.get $t1
+        local.get $t2
+        local.get $name.1
+        call $"release_value[std.rt_tests.stage_case.Bag]"
       end
-    end
-    local.get $name.0
-    i64.extend_i32_u
-    local.get $t1
-    i64.extend_i32_u
-    i64.add
-    local.tee $t2
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'3
-      unreachable
-    end
-    local.get $t2
-    i32.wrap_i64
+      i32.const 0
+      local.set $name.1
+      local.get $self
+      i32.load $heap offset=4
+      local.set $name.1
+      local.get $self
+      call $rt:release_ref'1
+      i32.const 0
+      local.set $self
+      local.get $i
+      i64.extend_i32_u
+      local.set $t3
+      local.get $name.1
+      i64.extend_i32_u
+      local.set $t4
+      local.get $t3
+      local.get $t4
+      i64.add
+      local.set $t3
+      local.get $t3
+      i64.const 4294967295
+      i64.gt_u
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $t3
+      i32.wrap_i64
+      local.set $name.1
     ;; 20 |     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
+      local.get $name.0
+      call $rt:release_ref'2
+    end
+    local.get $name.1
     local.get $t0
     i32.const 24
     i32.add

@@ -16,3 +16,4 @@ fn store(target: &mut Record, replacement: Record) -> void:
     *target = replacement
 > app/main/store
 >   release counted reference (overwritten)
+>   release app.main.Record [label.0, tags] (last use)

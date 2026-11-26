@@ -4,66 +4,88 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "println[bool]" (func $"println[bool]" (param i32 i32 i32)))
   (import "fixture" "println[i64]" (func $"println[i64]" (param i64 i32 i32)))
-  (func $promoted (param $value f32) (result i64)
+  (func $promoted (param $value f32) (result i64) (local $t0 f64) (local $t1 i64)
     ;; 20 |     i64(f64(value))
     local.get $value
     f64.promote_f32
+    local.set $t0
+    local.get $t0
     i64.trunc_sat_f64_s
+    local.set $t1
+    local.get $t1
   )
-  (func $different (param $value f32) (result i32)
+  (func $different (param $value f32) (result i32) (local $t0 i32)
     ;; 14 |     value != 1.0
     local.get $value
     f32.const 0x1p+0
     f32.ne
+    local.set $t0
+    local.get $t0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i64)
     ;; 26 |     println(pick(-0.1))
     f32.const -0x1.99999ap-4
     call $pick
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 27 |     println(same(1.00000001))
     f32.const 0x1p+0
     call $same
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[bool]"
     ;; 28 |     println(different(1.00000001))
     f32.const 0x1p+0
     call $different
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[bool]"
     ;; 29 |     println(greater(1.00000001))
     f32.const 0x1p+0
     call $greater
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[bool]"
     ;; 30 |     println(promoted(16777217.0))
     f32.const 0x1p+24
     call $promoted
+    local.set $t1
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i64]"
     ;; 31 |     println(truncated(1.99999999))
     f32.const 0x1p+1
     call $truncated
+    local.set $t1
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i64]"
   )
-  (func $same (param $value f32) (result i32)
+  (func $same (param $value f32) (result i32) (local $t0 i32)
     ;; 11 |     value == 1.0
     local.get $value
     f32.const 0x1p+0
     f32.eq
+    local.set $t0
+    local.get $t0
   )
-  (func $truncated (param $value f32) (result i64)
+  (func $truncated (param $value f32) (result i64) (local $t0 i64)
     ;; 23 |     i64(value)
     local.get $value
     i64.trunc_sat_f32_s
+    local.set $t0
+    local.get $t0
   )
   (func $pick (param $value f32) (result i32) (local $t0 i32)
     ;; 6 |     match value:
@@ -74,25 +96,33 @@
           local.get $value
           f32.const -0x1.99999ap-4
           f32.eq
-          i32.eqz
-          br_if 1
-          br 0
+          local.set $t0
+          local.get $t0
+          if
+            br 1
+          else
+            br 2
+          end
     ;; 6 |     match value:
           unreachable
         end
         i32.const 7
-        return
+        local.set $t0
+        br 1
       end
       i32.const 9
-      return
+      local.set $t0
+      br 0
     end
     local.get $t0
   )
-  (func $greater (param $value f32) (result i32)
+  (func $greater (param $value f32) (result i32) (local $t0 i32)
     ;; 17 |     value > 1.0
     local.get $value
     f32.const 0x1p+0
     f32.gt
+    local.set $t0
+    local.get $t0
   )
 )
 == @build: release

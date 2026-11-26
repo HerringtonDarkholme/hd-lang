@@ -2,128 +2,138 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Outer.slot" (param $self i32) (result i32)
     ;; 14 |         self.next
-    local.get $self
-    i32.load $heap
-    local.tee $self
-    if
+    block
       local.get $self
-      i32.const 8
-      i32.sub
       i32.load $heap
-      if
-        local.get $self
-        call $rt:retain_known
-      end
+      local.set $self
+      local.get $self
+      call $rt:retain_known
     end
     local.get $self
   )
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t2 i32) (local $t0 i32) (local $r i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 17 |     r := &mut p.slot().value
-    local.get $p
-    call $"impl Outer.slot"
-    local.tee $t0
-    i32.const 4
-    i32.sub
-    local.tee $t1
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t1
-    local.get $t1
-    i32.load $heap
-    i32.const 2097152
-    i32.add
-    i32.store $heap
-    local.get $t0
-    ;; 18 |     alias.value = "b"
-    local.get $alias
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $alias
-    i32.load $heap
-    local.get $alias
-    i32.const 65 ;; &"b"
-    i32.store $heap
-    local.get $alias
-    i32.const 1
-    i32.store $heap offset=4
-    local.tee $t2
-    if
+    block
+      local.get $p
+      call $"impl Outer.slot"
+      local.set $t0
+      local.get $t0
+      i32.const 4
+      i32.sub
+      local.set $r
+      local.get $r
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      local.get $t1
+      i32.ne
+      if
+        call $rt:panic
+        unreachable
+      end
       local.get $t2
-      call $rt:release_ref'1
-    end
-    ;; 19 |     *r
-    local.tee $t2
-    i32.load $heap
-    local.get $t2
-    i32.load $heap offset=4
-    local.set $t2
-    local.tee $t3
-    if
-      local.get $t3
-      call $retain
-    end
-    local.get $t1
-    if
-      local.get $t1
-      local.get $t1
+      if
+        local.get $t2
+        local.get $t2
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 2097152
+        i32.sub
+        local.set $t1
+      end
+      local.get $r
+      local.set $t2
+      local.get $t2
+      local.get $t2
       i32.load $heap
       i32.const 2097152
-      i32.sub
+      i32.add
       i32.store $heap
-    end
-    ;; 17 |     r := &mut p.slot().value
-    local.get $t0
-    if
+      local.get $t1
+      i32.const 2097152
+      i32.add
+      local.set $t1
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-    end
-    local.get $p
-    if
-      local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref'2
-      end
-    end
-    local.get $alias
-    if
+      local.set $r
+    ;; 18 |     alias.value = "b"
       local.get $alias
-      i32.const 8
+      i32.const 4
       i32.sub
+      local.set $t3
+      local.get $t3
       i32.load $heap
+      i32.const 4128768
+      i32.and
       if
-        local.get $alias
-        call $rt:release_ref'2
+        call $rt:panic
+        unreachable
       end
+      i32.const 65 ;; &"b"
+      i32.const 1
+      local.set $t3
+      local.set $t4
+      local.get $t4
+      call $retain
+      local.get $alias
+      i32.load $heap
+      local.set $t5
+      local.get $alias
+      i32.load $heap offset=4
+      local.set $t6
+      local.get $alias
+      local.get $t4
+      i32.store $heap
+      local.get $alias
+      local.get $t3
+      i32.store $heap offset=4
+      local.get $t5
+      call $rt:release_ref'1
+    ;; 19 |     *r
+      local.get $r
+      i32.load $heap
+      local.set $t3
+      local.get $r
+      i32.load $heap offset=4
+      local.set $t4
+      local.get $t3
+      call $retain
+      local.get $t2
+      if
+        local.get $t2
+        local.get $t2
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t1
+        i32.const 2097152
+        i32.sub
+        local.set $t1
+        i32.const 0
+        local.set $t2
+      end
+    ;; 17 |     r := &mut p.slot().value
+      i32.const 0
+      local.set $r
+      local.get $t0
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t0
+      local.get $p
+      call $rt:release_ref'2
+      local.get $alias
+      call $rt:release_ref'2
     end
     local.get $t3
-    local.get $t2
+    local.get $t4
   )
 )

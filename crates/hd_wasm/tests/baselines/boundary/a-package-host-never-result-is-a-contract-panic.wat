@@ -14,6 +14,14 @@
     ;; 14 |     $.use(Surface).stop()
       local.get $provider1
       local.get $provider1.vtable
+      local.set $provider0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider1
+      i32.const 0
+      local.set $provider1.vtable
+      local.get $provider0.vtable
+      local.get $provider0
       i32.load $heap
       call_indirect $table0 (param i32)
       unreachable

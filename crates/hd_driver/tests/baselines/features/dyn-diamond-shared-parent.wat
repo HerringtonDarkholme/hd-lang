@@ -5,24 +5,27 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $left (param $x.0 i32) (param $x.1 i32) (result i32)
     ;; 33 |     x.d()
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $x.0
+    end
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32) (local $t6 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
@@ -38,107 +41,214 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap offset=8
-    local.get $t0
-    i32.const 16
-    i32.add
-    local.tee $t1
-    i32.const 0
-    i32.store $heap
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    i32.const 300 ;; &vtable[]
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    i32.const 0
-    i32.const 0
-    call $rt:new/class-1
+    block
+      local.get $t0
+      i64.const 0
+      i64.store $heap offset=8
+      local.get $t0
+      i32.const 16
+      i32.add
+      local.set $t1
+      local.get $t1
+      i32.const 0
+      i32.store $heap
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t2
+      local.get $t2
+      i32.const 300 ;; &vtable[]
+      local.set $t3
+      local.set $boxed.0
+      i32.const 0
+      local.set $t2
+      local.get $boxed.0
+      local.get $t3
+      call $read
+      local.set $t4
+      i32.const 0
+      local.set $boxed.0
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
+      i32.const 0
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t2
     ;; 43 |     let boxed: *dyn Top = box(S {})
-    i32.const 300 ;; &vtable[]
-    local.set $boxed.1
-    local.tee $boxed.0
+      local.get $t2
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      local.get $t3
+      local.set $t2
+      i32.const 0
+      local.set $t3
+      local.get $t2
+      i32.const 300 ;; &vtable[]
+      local.set $t3
+      local.set $boxed.0
+      i32.const 0
+      local.set $t2
     ;; 44 |     println(read(boxed))
-    local.get $boxed.1
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
+      local.get $boxed.0
+      local.get $t3
+      local.set $t2
+      local.set $t4
+      local.get $t4
+      local.get $t2
+      call $read
+      local.set $mutable.0
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $mutable.0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 42 |     println(read(&S {}))
-    i32.const 0
-    i32.const 0
-    call $rt:new/class-1
+      i32.const 0
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t2
     ;; 45 |     let mutable: *mut dyn Top = box(S {})
-    local.tee $mutable.0
-    i32.const 300 ;; &vtable[]
+      local.get $t2
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      local.set $t2
+      i32.const 0
+      local.set $t4
+      local.get $t2
+      i32.const 300 ;; &vtable[]
+      local.set $t4
+      local.set $mutable.0
+      i32.const 0
+      local.set $t2
     ;; 46 |     println(read(mutable))
-    call $read
-    local.get $mutable.0
-    if
+      local.get $mutable.0
+      local.set $t2
+      local.get $t2
+      local.get $t4
+      call $read
+      local.set $t5
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t4
       local.get $mutable.0
       call $rt:release_ref'1
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 48 |     println(reader(boxed))
-    i32.const 0
-    local.get $boxed.0
-    local.get $boxed.1
-    i32.const 0
+      i32.const 0
+      local.set $mutable.0
+      i32.const 0
+      local.set $t4
+      local.get $t5
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 47 |     reader := read
-    i32.const 4
+      i32.const 4
+      i32.const 0
+      local.set $t2
+      local.set $t4
     ;; 48 |     println(reader(boxed))
-    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 49 |     callback := fn() -> i32: read(boxed)
-    i32.const 5
-    i32.const 12
-    i32.const -2147483647
-    call $rt:new/class-2
-    local.tee $mutable.0
-    local.get $boxed.0
-    i32.store $heap
-    local.get $mutable.0
-    local.get $boxed.1
-    i32.store $heap offset=4
-    local.get $mutable.0
-    local.get $t1
-    i32.store $heap offset=8
-    local.get $mutable.0
-    call $rt:retain_fields
-    ;; 50 |     println(callback())
-    local.set $t1
-    local.get $mutable.0
-    i32.const 0
-    local.get $t1
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.get $mutable.0
-    if
+      local.get $t4
+      local.get $t2
+      local.set $mutable.0
+      local.set $t5
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $boxed.0
+      local.get $t3
+      local.set $t2
+      local.set $t4
       local.get $mutable.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $mutable.0
-        call $rt:release_ref'2
-      end
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
+      local.get $t4
+      local.get $t2
+      i32.const 0
+      local.get $t5
+      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+      local.set $t6
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $mutable.0
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t5
+      i32.const 0
+      local.set $mutable.0
+      local.get $t6
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
+    ;; 49 |     callback := fn() -> i32: read(boxed)
+      i32.const 5
+      i32.const 12
+      i32.const -2147483647
+      call $rt:new/class-2
+      local.set $t2
+      local.get $t2
+      local.get $boxed.0
+      i32.store $heap
+      local.get $t2
+      local.get $t3
+      i32.store $heap offset=4
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t2
+      call $rt:retain_fields
+      i32.const 0
+      local.set $boxed.0
+      i32.const 0
+      local.set $t3
+      local.set $t1
+    ;; 50 |     println(callback())
+      local.get $t1
+      local.get $t2
+      local.set $t3
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t2
+      local.get $t3
+      i32.const 0
+      local.get $t4
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $t2
+      local.get $t3
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 42 |     println(read(&S {}))
+      local.get $boxed.0
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.const 24
     i32.add
@@ -146,103 +256,171 @@
   )
   (func $"impl Tail for S.t" (param $self i32) (result i32)
     ;; 28 |         2
-    i32.const 2
+    block
+      i32.const 2
+      local.set $self
+    end
+    local.get $self
   )
-  (func $read (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32) (local $t1 i64)
+  (func $read (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 39 |     x.d() + x.t() + left(x) + right(x)
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap offset=8
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.set $t0
-    i64.extend_i32_s
-    local.get $t0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap offset=8
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t1
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      local.set $t1
+      local.set $t4
+      local.get $t4
+      local.get $t1
+      call $left
+      local.set $t5
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t5
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap offset=4
+      local.set $x.0
+      local.set $x.1
+      local.get $x.1
+      local.get $x.0
+      call $right
+      local.set $t1
+      i32.const 0
+      local.set $x.1
+      i32.const 0
+      local.set $x.0
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $x.0
     end
-    local.get $t1
-    i32.wrap_i64
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    call $left
-    local.set $t0
-    i64.extend_i32_s
-    local.get $t0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t1
-    i32.wrap_i64
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap offset=4
-    call $right
-    local.set $x.0
-    i64.extend_i32_s
-    local.get $x.0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t1
-    i32.wrap_i64
   )
   (func $"impl Base for S.d" (param $self i32) (result i32)
     ;; 20 |         1
-    i32.const 1
+    block
+      i32.const 1
+      local.set $self
+    end
+    local.get $self
   )
   (func $right (param $x.0 i32) (param $x.1 i32) (result i32)
     ;; 36 |     x.d()
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $x.0
+    end
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
   )
-  (func $main#1 (param $env i32) (param $ctx i32) (result i32)
+  (func $main#1 (param $env i32) (param $ctx i32) (result i32) (local $boxed.1 i32)
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $env
     i32.load $heap
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
-    call $read
+    local.set $boxed.1
+    local.get $env
+    i32.load $heap offset=8
+    local.set $env
+    block
+      local.get $ctx
+      local.get $boxed.1
+      call $read
+      local.set $env
+      i32.const 0
+      local.set $ctx
+      i32.const 0
+      local.set $boxed.1
+    end
+    local.get $env
   )
 )
 == @build: checked
@@ -251,24 +429,26 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $left (param $x.0 i32) (param $x.1 i32) (result i32)
     ;; 33 |     x.d()
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $x.0
+    end
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32) (local $t6 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
@@ -284,113 +464,214 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap offset=8
-    local.get $t0
-    i32.const 16
-    i32.add
-    local.tee $t1
-    i32.const 0
-    i32.store $heap
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    i32.const 644 ;; &vtable[]
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    i32.const 0
-    i32.const 0
-    call $rt:new
+    block
+      local.get $t0
+      i64.const 0
+      i64.store $heap offset=8
+      local.get $t0
+      i32.const 16
+      i32.add
+      local.set $t1
+      local.get $t1
+      i32.const 0
+      i32.store $heap
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t2
+      local.get $t2
+      i32.const 644 ;; &vtable[]
+      local.set $t3
+      local.set $boxed.0
+      i32.const 0
+      local.set $t2
+      local.get $boxed.0
+      local.get $t3
+      call $read
+      local.set $t4
+      i32.const 0
+      local.set $boxed.0
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
+      i32.const 0
+      i32.const 0
+      call $rt:new
+      local.set $t2
     ;; 43 |     let boxed: *dyn Top = box(S {})
-    i32.const 644 ;; &vtable[]
-    local.set $boxed.1
-    local.tee $boxed.0
+      local.get $t2
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      local.get $t3
+      local.set $t2
+      i32.const 0
+      local.set $t3
+      local.get $t2
+      i32.const 644 ;; &vtable[]
+      local.set $t3
+      local.set $boxed.0
+      i32.const 0
+      local.set $t2
     ;; 44 |     println(read(boxed))
-    local.get $boxed.1
-    call $read
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
+      local.get $boxed.0
+      local.get $t3
+      local.set $t2
+      local.set $t4
+      local.get $t4
+      local.get $t2
+      call $read
+      local.set $mutable.0
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $mutable.0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 42 |     println(read(&S {}))
-    i32.const 0
-    i32.const 0
-    call $rt:new
+      i32.const 0
+      i32.const 0
+      call $rt:new
+      local.set $t2
     ;; 45 |     let mutable: *mut dyn Top = box(S {})
-    local.tee $mutable.0
-    i32.const 644 ;; &vtable[]
+      local.get $t2
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      local.set $t2
+      i32.const 0
+      local.set $t4
+      local.get $t2
+      i32.const 644 ;; &vtable[]
+      local.set $t4
+      local.set $mutable.0
+      i32.const 0
+      local.set $t2
     ;; 46 |     println(read(mutable))
-    call $read
-    local.get $mutable.0
-    if
+      local.get $mutable.0
+      local.set $t2
+      local.get $t2
+      local.get $t4
+      call $read
+      local.set $t5
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t4
       local.get $mutable.0
       call $rt:release_ref'1
-    else
-      call $skipped_test
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 48 |     println(reader(boxed))
-    i32.const 0
-    local.get $boxed.0
-    local.get $boxed.1
-    i32.const 0
+      i32.const 0
+      local.set $mutable.0
+      i32.const 0
+      local.set $t4
+      local.get $t5
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 47 |     reader := read
-    i32.const 4
+      i32.const 4
+      i32.const 0
+      local.set $t2
+      local.set $t4
     ;; 48 |     println(reader(boxed))
-    call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 49 |     callback := fn() -> i32: read(boxed)
-    i32.const 5
-    i32.const 12
-    i32.const -2147483647
-    call $rt:new
-    local.tee $mutable.0
-    local.get $boxed.0
-    i32.store $heap
-    local.get $mutable.0
-    local.get $boxed.1
-    i32.store $heap offset=4
-    local.get $mutable.0
-    local.get $t1
-    i32.store $heap offset=8
-    local.get $mutable.0
-    call $rt:retain_fields
-    ;; 50 |     println(callback())
-    local.set $t1
-    local.get $mutable.0
-    i32.const 0
-    local.get $t1
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.get $mutable.0
-    if
+      local.get $t4
+      local.get $t2
+      local.set $mutable.0
+      local.set $t5
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $boxed.0
+      local.get $t3
+      local.set $t2
+      local.set $t4
       local.get $mutable.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $mutable.0
-        call $rt:release_ref'2
-      else
-        call $skipped_test
-      end
-    else
-      call $skipped_test
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
+      local.get $t4
+      local.get $t2
+      i32.const 0
+      local.get $t5
+      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+      local.set $t6
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t2
+      local.get $mutable.0
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t5
+      i32.const 0
+      local.set $mutable.0
+      local.get $t6
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
+    ;; 49 |     callback := fn() -> i32: read(boxed)
+      i32.const 5
+      i32.const 12
+      i32.const -2147483647
+      call $rt:new
+      local.set $t2
+      local.get $t2
+      local.get $boxed.0
+      i32.store $heap
+      local.get $t2
+      local.get $t3
+      i32.store $heap offset=4
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t2
+      call $rt:retain_fields
+      i32.const 0
+      local.set $boxed.0
+      i32.const 0
+      local.set $t3
+      local.set $t1
+    ;; 50 |     println(callback())
+      local.get $t1
+      local.get $t2
+      local.set $t3
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t2
+      local.get $t3
+      i32.const 0
+      local.get $t4
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $t2
+      local.get $t3
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[i32]"
     ;; 42 |     println(read(&S {}))
+      local.get $boxed.0
+      call $rt:release_ref'1
+    end
     local.get $t0
     i32.const 24
     i32.add
@@ -398,103 +679,171 @@
   )
   (func $"impl Tail for S.t" (param $self i32) (result i32)
     ;; 28 |         2
-    i32.const 2
+    block
+      i32.const 2
+      local.set $self
+    end
+    local.get $self
   )
-  (func $read (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32) (local $t1 i64)
+  (func $read (param $x.0 i32) (param $x.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 39 |     x.d() + x.t() + left(x) + right(x)
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap offset=8
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.set $t0
-    i64.extend_i32_s
-    local.get $t0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap offset=8
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $t1
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      local.set $t1
+      local.set $t4
+      local.get $t4
+      local.get $t1
+      call $left
+      local.set $t5
+      i32.const 0
+      local.set $t4
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t5
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $t0
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap offset=4
+      local.set $x.0
+      local.set $x.1
+      local.get $x.1
+      local.get $x.0
+      call $right
+      local.set $t1
+      i32.const 0
+      local.set $x.1
+      i32.const 0
+      local.set $x.0
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      i64.extend_i32_s
+      local.set $t3
+      local.get $t2
+      local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t2
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t2
+      i32.wrap_i64
+      local.set $x.0
     end
-    local.get $t1
-    i32.wrap_i64
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    call $left
-    local.set $t0
-    i64.extend_i32_s
-    local.get $t0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t1
-    i32.wrap_i64
-    local.get $x.0
-    local.get $x.1
-    i32.load $heap offset=4
-    call $right
-    local.set $x.0
-    i64.extend_i32_s
-    local.get $x.0
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t1
-    i32.wrap_i64
   )
   (func $"impl Base for S.d" (param $self i32) (result i32)
     ;; 20 |         1
-    i32.const 1
+    block
+      i32.const 1
+      local.set $self
+    end
+    local.get $self
   )
   (func $right (param $x.0 i32) (param $x.1 i32) (result i32)
     ;; 36 |     x.d()
+    block
+      local.get $x.0
+      local.get $x.1
+      i32.load $heap
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $x.0
+    end
     local.get $x.0
-    local.get $x.1
-    i32.load $heap
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
   )
-  (func $main#1 (param $env i32) (param $ctx i32) (result i32)
+  (func $main#1 (param $env i32) (param $ctx i32) (result i32) (local $boxed.1 i32)
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $env
     i32.load $heap
+    local.set $ctx
     local.get $env
     i32.load $heap offset=4
-    call $read
+    local.set $boxed.1
+    local.get $env
+    i32.load $heap offset=8
+    local.set $env
+    block
+      local.get $ctx
+      local.get $boxed.1
+      call $read
+      local.set $env
+      i32.const 0
+      local.set $ctx
+      i32.const 0
+      local.set $boxed.1
+    end
+    local.get $env
   )
 )
 == @build: release

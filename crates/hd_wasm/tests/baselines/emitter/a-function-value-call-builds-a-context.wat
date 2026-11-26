@@ -4,51 +4,36 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $notify (param $send.0 i32) (param $send.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 9 |     send("ada")
-    local.get $send.1
-    i32.const 16 ;; &"ada"
-    i32.const 3
-    i32.const 1
-    i32.const 0
-    call $rt:ctx_new
-    local.tee $t0
-    i64.const 1312385014722269772
-    i64.store $heap offset=16
-    local.get $t0
-    local.get $provider0
-    i32.store $heap offset=24
-    local.get $t0
-    local.get $provider0.vtable
-    i32.store $heap offset=28
-    local.get $provider0
-    if
+    block
+      local.get $send.1
+      i32.const 16 ;; &"ada"
+      i32.const 3
+      i32.const 1
+      i32.const 0
+      call $rt:ctx_new
+      local.set $t0
+      local.get $t0
+      i64.const 1312385014722269772
+      i64.store $heap offset=16
+      local.get $t0
+      local.get $provider0
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $provider0.vtable
+      i32.store $heap offset=28
       local.get $provider0
       call $retain
-    end
-    local.get $t0
-    local.get $send.0
-    call_indirect $table0 (param i32 i32 i32 i32)
-    local.get $t0
-    if
+      local.get $t0
+      local.get $send.0
+      call_indirect $table0 (param i32 i32 i32 i32)
       local.get $t0
       call $rt:release_ref'1
-    end
-    local.get $send.1
-    if
       local.get $send.1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $send.1
-        call $rt:release_ref'2
-      end
+      call $rt:release_ref'2
     end
   )
 )
