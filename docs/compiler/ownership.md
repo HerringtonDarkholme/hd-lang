@@ -41,7 +41,8 @@ and `crates/hd_tir/src/own/`. The language rules are spec chapter 13.
   elements through `std.rt.Drop`, which only std implements; no value of
   a non-copyable type is ever copied, and a verifier checks it in every
   build. The counted `List` and `Map` stay compiler built-ins (owner,
-  2026-11-12; #1219 and #1220 closed).
+  2026-11-12; #1219 and #1220 closed). Moving them into std over one
+  counted block was tried and parked (#2369, 2026-11-26).
 
 ## Ownership Per Instance
 
