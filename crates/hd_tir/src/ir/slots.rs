@@ -98,6 +98,20 @@ const LAYOUTS: [[Layout; 2]; Tag::ALL.len()] = {
     out
 };
 
+/// Whether [`slots`] can give an instruction of each tag a
+/// [`Word::Block`], by tag number: no override in [`slots`] makes one.
+pub(crate) const RUNS_BLOCKS: [bool; Tag::ALL.len()] = {
+    let mut out = [false; Tag::ALL.len()];
+    let mut k = 0;
+    while k < out.len() {
+        let [a, b] = LAYOUTS[k];
+        out[k] = matches!(a, L::One(Word::Block) | L::Each(Word::Block) | L::Cases)
+            || matches!(b, L::One(Word::Block) | L::Each(Word::Block) | L::Cases);
+        k += 1;
+    }
+    out
+};
+
 /// The layout of each data word of `tag`: its [`Op`]'s, but where the
 /// tag's role or record says more.
 const fn layout(tag: Tag) -> [Layout; 2] {
