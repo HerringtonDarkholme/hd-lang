@@ -203,10 +203,32 @@ fn invalid_interpolation_metadata(needed: &str) -> NotImplemented {
     )
 }
 
-/// A spread's cursor, in a local of its own, with its type; the cursor's
-/// item type; and its count, when the cursor has one
-/// (`expr.list.spread.count`).
-type SpreadCursor = ((hd_base::LocalId, Ty), Ty, Option<Ref>);
+/// What a spread drains (`expr.list.spread.iterable`), as a `for` loop
+/// over the same source would: an integer range's counting state, or a
+/// cursor in a local of its own with its type. With the item type and the
+/// count, when the source has one (`expr.list.spread.count`).
+type SpreadSource = (Result<RangeState, (hd_base::LocalId, Ty)>, Ty, Option<Ref>);
+
+/// How a counting loop binds each item: a `for` pattern, or a local the
+/// body reads (a spread's).
+#[derive(Clone, Copy)]
+enum Bind<'n> {
+    Pat(NodeRef<'n>),
+    Local(hd_base::LocalId),
+}
+
+/// A range loop's state before its loop ([`Ck::range_start`]): its
+/// source value, element type and locals, and whether it is a literal
+/// exclusive range.
+#[derive(Clone, Copy)]
+struct RangeState {
+    sr: Ref,
+    et: Ty,
+    cur: hd_base::LocalId,
+    end: hd_base::LocalId,
+    inc: hd_base::LocalId,
+    exclusive: bool,
+}
 
 impl Ck<'_, '_> {
     pub(crate) fn expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
@@ -3578,14 +3600,16 @@ impl Ck<'_, '_> {
     }
 
     /// A spread into a builder literal (`expr.list.spread.iterable`): its
-    /// operand, evaluated once, is its own cursor when it is an iterator,
-    /// as a `for` source is; otherwise `Iterable::iter` gives the cursor
-    /// (an integer range's as a `for` loop's, [`Self::range_iter`]). The
-    /// cursor goes in a local of its own, with its item type and its
-    /// count: the cursor's `ExactSizeIterator::len` when it has one
-    /// (`expr.list.spread.count`).
-    /// `None` when the operand or its `Iterable` bound already reported.
-    fn spread_cursor(&mut self, operand: NodeRef<'_>) -> StageResult<Option<SpreadCursor>> {
+    /// operand, evaluated once, drained as a `for` loop over it would be.
+    /// An iterator, or a `&mut` reference to one, is its own cursor, as a
+    /// `for` source is. An integer range is a `for` loop's counting state
+    /// ([`Self::range_start`]), so no cursor's `next` runs per item. Any
+    /// other operand's `Iterable::iter` gives the cursor, in a local of its
+    /// own. With the item type and the count: a range's own
+    /// ([`Self::range_count`]), or the cursor's `ExactSizeIterator::len`
+    /// when it has one (`expr.list.spread.count`). `None` when the operand
+    /// or its `Iterable` bound already reported.
+    fn spread_source(&mut self, operand: NodeRef<'_>) -> StageResult<Option<SpreadSource>> {
         let pool = self.pool();
         let at = operand.index();
         let known = self.cx.names.known;
@@ -3615,6 +3639,11 @@ impl Ck<'_, '_> {
                             .is_some_and(|&et| self.numeric(et) && self.integer_like(et)) =>
                 {
                     let et = pool.list_items(args)[0];
+                    if def == known.range {
+                        let state = self.range_start(r, et, at);
+                        let count = self.range_count(state, at);
+                        return Ok(Some((Ok(state), et, count)));
+                    }
                     let (c, ct) = self.range_iter((r, t), (def, et), operand);
                     (c, ct, et)
                 }
@@ -3652,7 +3681,41 @@ impl Ck<'_, '_> {
         } else {
             None
         };
-        Ok(Some(((cursor, ct), item, count)))
+        Ok(Some((Err((cursor, ct)), item, count)))
+    }
+
+    /// The loop that drains spread `source` (yielding `item`), each item
+    /// converted to `elem` as a written element would be
+    /// (`expr.list.spread.convert`) and handed to `sink`: a range's as a
+    /// `for` loop's over it, a cursor's by [`Self::cursor_each`].
+    fn drain(
+        &mut self,
+        source: Result<RangeState, (hd_base::LocalId, Ty)>,
+        (item, elem): (Ty, Ty),
+        operand: NodeRef<'_>,
+        sink: &mut dyn FnMut(&mut Self, Ref) -> StageResult<()>,
+    ) -> StageResult<()> {
+        let at = operand.index();
+        let state = match source {
+            Err(cursor) => return self.cursor_each(cursor, (item, elem), operand, sink),
+            Ok(state) => state,
+        };
+        let sym = self.cx.names.syms.intern("$item");
+        let x_l = self.b.local(item, sym, local_flags::ASSIGNED, at);
+        let mut body = |me: &mut Self| {
+            let x = me.b.get(x_l, item, at);
+            let x = me.coerce(
+                x,
+                item,
+                elem,
+                operand,
+                "list spread",
+                ExpectPosition::General,
+            );
+            sink(me, x)
+        };
+        self.range_loop(Bind::Local(x_l), state, (None, None), operand, &mut body)
+            .map(|_| ())
     }
 
     /// A reference to local `l` of type `t`, as `&l` or `&mut l` makes.
@@ -3750,7 +3813,7 @@ impl Ck<'_, '_> {
         (e, args): (Ty, Vec<Ty>),
         map: bool,
     ) -> StageResult<(Ref, Ty)> {
-        type Spread<'s> = (SpreadCursor, NodeRef<'s>);
+        type Spread<'s> = (SpreadSource, NodeRef<'s>);
         type Values<'s> = Vec<(Ref, Ty, NodeRef<'s>)>;
         let at = n.index();
         let us = Ty::prim(Prim::Usize);
@@ -3774,10 +3837,10 @@ impl Ck<'_, '_> {
                 parts.push(Ok(vec![(kr, args[0], ke), (vr, args[1], ve)]));
             } else if kid.kind() == SyntaxKind::SpreadExpr {
                 let [operand] = kid.parts();
-                let Some(cursor) = self.spread_cursor(operand)? else {
+                let Some(source) = self.spread_source(operand)? else {
                     return Ok((Ref(NONE), Ty::POISON));
                 };
-                parts.push(Err((cursor, operand)));
+                parts.push(Err((source, operand)));
                 continue;
             } else {
                 let (r, t) = self.stored_expr(kid, Some(elem), "in this list")?;
@@ -3808,8 +3871,8 @@ impl Ck<'_, '_> {
         for part in parts {
             match part {
                 Ok(values) => put(self, &values)?,
-                Err(((cursor, item, _), operand)) => {
-                    self.cursor_each(cursor, (item, elem), operand, &mut |me, x| {
+                Err(((source, item, _), operand)) => {
+                    self.drain(source, (item, elem), operand, &mut |me, x| {
                         put(me, &[(x, elem, operand)])
                     })?;
                 }
@@ -4502,7 +4565,8 @@ impl Ck<'_, '_> {
             // A float range is not iterable (`flow.for.range.float`), so it
             // goes through the general `Iterable` call below and fails there.
             if self.numeric(et) && self.integer_like(et) {
-                return self.range_loop(pat, (sr, et), (els, reserve), e, body);
+                let state = self.range_start(sr, et, e.index());
+                return self.range_loop(Bind::Pat(pat), state, (els, reserve), e, body);
             }
         }
         if let TyData::Adt(AdtId::Declared(def), args) = pool.get(st_i)
@@ -4776,14 +4840,16 @@ impl Ck<'_, '_> {
     /// bits: computed in `i64`, where no step overflows. A range of
     /// unsigned literals whose type is still open counts here, from its
     /// constants. A 64-bit element type, or another open one, gives none.
-    fn range_count(
-        &mut self,
-        (sr, cur_l, end_l, inc_l): (Ref, hd_base::LocalId, hd_base::LocalId, hd_base::LocalId),
-        et: Ty,
-        exclusive: bool,
-        at: hd_base::NodeIdx,
-    ) -> Option<Ref> {
+    fn range_count(&mut self, state: RangeState, at: hd_base::NodeIdx) -> Option<Ref> {
         use Prim as P;
+        let RangeState {
+            sr,
+            et,
+            cur: cur_l,
+            end: end_l,
+            inc: inc_l,
+            exclusive,
+        } = state;
         let pool = self.pool();
         let et_r = self.infer.resolve(pool, et);
         let narrow = matches!(
@@ -4846,22 +4912,10 @@ impl Ck<'_, '_> {
         Some(self.b.emit(Tag::If, some.0, rec, us, at))
     }
 
-    /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
-    /// "for over a range"): no iterator value. Each round tests
-    /// `cur < end | (inclusive & cur == end)`, binds the item, then
-    /// advances before the body runs, so `continue` needs no step of its
-    /// own. A literal exclusive range uses only the less-than test and
-    /// increments directly. Other ranges reuse that test when advancing.
-    /// At the inclusive end it adds nothing and clears `inclusive`, with
-    /// one branch per round.
-    fn range_loop(
-        &mut self,
-        pat: NodeRef<'_>,
-        (sr, et): (Ref, Ty),
-        (loop_else, reserve): LoopEnds,
-        e: NodeRef<'_>,
-        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
-    ) -> StageResult<(Ref, Ty)> {
+    /// The state of a counting loop over the integer range `sr` of
+    /// element `et`, before its loop ([`Self::range_loop`]): its start,
+    /// end and inclusiveness in locals of their own.
+    fn range_start(&mut self, sr: Ref, et: Ty, at: hd_base::NodeIdx) -> RangeState {
         use hd_tir::ir::local_flags::ASSIGNED;
         // A literal exclusive range cannot reach its end in the body.
         // Its one top-of-loop comparison proves that incrementing fits.
@@ -4876,21 +4930,55 @@ impl Ck<'_, '_> {
                 .filter(|r| *r != NONE && Ref(*r).as_inst().is_none())
                 .is_some_and(|r| b.consts[(r & !Ref::CONST_BIT) as usize].1 == 0)
         });
-        let result = loop_else.map(|(_, t)| t);
-        let at = e.index();
         let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
         let (cur_s, end_s, inc_s) = (sym(self, "$cur"), sym(self, "$end"), sym(self, "$incl"));
-        let cur_l = self.b.local(et, cur_s, ASSIGNED, at);
-        let end_l = self.b.local(et, end_s, ASSIGNED, at);
-        let inc_l = self.b.local(Ty::BOOL, inc_s, ASSIGNED, at);
+        let cur = self.b.local(et, cur_s, ASSIGNED, at);
+        let end = self.b.local(et, end_s, ASSIGNED, at);
+        let inc = self.b.local(Ty::BOOL, inc_s, ASSIGNED, at);
         let start = self.b.field(sr, 0, et, at);
-        self.set_local(cur_l, start, at);
-        let end = self.b.field(sr, 1, et, at);
-        self.set_local(end_l, end, at);
-        let inc = self.b.field(sr, 2, Ty::BOOL, at);
-        self.set_local(inc_l, inc, at);
+        self.set_local(cur, start, at);
+        let last = self.b.field(sr, 1, et, at);
+        self.set_local(end, last, at);
+        let incl = self.b.field(sr, 2, Ty::BOOL, at);
+        self.set_local(inc, incl, at);
+        RangeState {
+            sr,
+            et,
+            cur,
+            end,
+            inc,
+            exclusive,
+        }
+    }
+
+    /// A `for` over a numeric `Range` as a counting loop (lowering-catalog
+    /// "for over a range"): no iterator value. Each round tests
+    /// `cur < end | (inclusive & cur == end)`, binds the item, then
+    /// advances before the body runs, so `continue` needs no step of its
+    /// own. A literal exclusive range uses only the less-than test and
+    /// increments directly. Other ranges reuse that test when advancing.
+    /// At the inclusive end it adds nothing and clears `inclusive`, with
+    /// one branch per round.
+    fn range_loop(
+        &mut self,
+        bind: Bind<'_>,
+        state: RangeState,
+        (loop_else, reserve): LoopEnds,
+        e: NodeRef<'_>,
+        body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
+    ) -> StageResult<(Ref, Ty)> {
+        let RangeState {
+            et,
+            cur: cur_l,
+            end: end_l,
+            inc: inc_l,
+            exclusive,
+            ..
+        } = state;
+        let result = loop_else.map(|(_, t)| t);
+        let at = e.index();
         if let Some(acc) = reserve
-            && let Some(count) = self.range_count((sr, cur_l, end_l, inc_l), et, exclusive, at)
+            && let Some(count) = self.range_count(state, at)
         {
             self.reserve_room(acc, count, at);
         }
@@ -4919,10 +5007,15 @@ impl Ck<'_, '_> {
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
         let item = self.b.get(cur_l, et, at);
-        let mut binds = Vec::new();
-        self.declare_pattern(pat, et, &mut binds)?;
-        for (_, l) in &binds {
-            self.set_local(*l, item, at);
+        match bind {
+            Bind::Pat(pat) => {
+                let mut binds = Vec::new();
+                self.declare_pattern(pat, et, &mut binds)?;
+                for (_, l) in &binds {
+                    self.set_local(*l, item, at);
+                }
+            }
+            Bind::Local(l) => self.set_local(l, item, at),
         }
         let c = self.b.get(cur_l, et, at);
         // At the inclusive end `below` adds nothing and clears `inclusive`,

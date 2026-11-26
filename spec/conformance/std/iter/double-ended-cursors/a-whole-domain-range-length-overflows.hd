@@ -1,0 +1,11 @@
+# test: the length of a 32-bit range over its whole domain, one more than usize holds, panics with integer-overflow
+# Spec std/iter Double Ended Iterators: std-iter.double-ended.roots.
+use std.iter.ExactSizeIterator
+use std.num.Integer
+
+fn count() -> usize:
+    (u32::min_value()..=u32::max_value()).iter().len() # panic: integer-overflow
+
+tests:
+    it("overflows"):
+        _ := count()

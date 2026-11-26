@@ -721,6 +721,28 @@ impl ExactSizeIterator[u16] for RangeIter[u16]:
             return 0
         usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
 
+# A 32-bit or `usize` range's count fits `usize` but for the whole
+# domain's inclusive range, whose `len` is the checked add's
+# `integer-overflow` panic; a 64-bit range's may not fit, so it is not
+# exact (std-iter.double-ended.roots).
+impl ExactSizeIterator[i32] for RangeIter[i32]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
+impl ExactSizeIterator[u32] for RangeIter[u32]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
+impl ExactSizeIterator[usize] for RangeIter[usize]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
 # The function traits. In a type position, `Fn[I, O, $R]` and
 # `SuspendFn[I, O, $R]` are the constructors that `fn(...) -> O $ R` and
 # `fn!(...) -> O $ R` stand for. In a bound, `Fn[I, O, $R]` and

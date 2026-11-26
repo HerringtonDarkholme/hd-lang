@@ -6,13 +6,14 @@
   (import "fixture" "impl[T] PlainList[T].grown[i64]" (func $"impl[T] PlainList[T].grown[i64]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[i64]" (func $"impl[T] Iterator[T] for ListIter[T].next[i64]" (param i32) (result i32 i64)))
-  (import "fixture" "impl[T < Integer] Iterable[T] for Range[T].iter[i64]" (func $"impl[T < Integer] Iterable[T] for Range[T].iter[i64]" (param i64 i64 i32) (result i64 i64 i32 i32)))
-  (import "fixture" "impl[T < Integer] Iterator[T] for RangeIter[T].next[i64]" (func $"impl[T < Integer] Iterator[T] for RangeIter[T].next[i64]" (param i32) (result i32 i64)))
+  (import "fixture" "empty_block[std.collections.plain_list.ListHead[i32]]" (func $"empty_block[std.collections.plain_list.ListHead[i32]]" (result i32)))
+  (import "fixture" "impl[T] PlainList[T].alloc[i32]" (func $"impl[T] PlainList[T].alloc[i32]" (param i32 i32) (result i32)))
+  (import "fixture" "impl[T] PlainList[T].grown[i32]" (func $"impl[T] PlainList[T].grown[i32]" (param i32 i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $of_list (param $xs i32) (result i32) (local $self.at i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $value i64) (local $t3 i32)
-    ;; 20 |     [0, xs...]
+    ;; 23 |     [0, xs...]
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -196,7 +197,7 @@
     global.set $stack
   )
   (func $of_plain (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $capacity i32) (local $t2 i32) (local $t3 i32) (local $value i64) (local $t4 i32)
-    ;; 17 |     [0, xs...]
+    ;; 20 |     [0, xs...]
     local.get $xs
     i32.load $heap offset=4
     local.set $t0
@@ -336,48 +337,140 @@
     end
     local.get $t2
   )
-  (func $of_range (param $n i64) (result i32) (local $t3 i64) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $value i64) (local $t6 i32)
-    ;; 23 |     [0, (1..n)...]
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 32
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 32
-    i32.sub
+  (func $of_small (param $n i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i64) (local $capacity i32) (local $t3 i32) (local $t4 i32) (local $value i32) (local $t5 i32)
+    ;; 29 |     [0, (1..n)...]
+    i32.const 1
     local.tee $t0
-    global.set $stack
-    i64.const 1
+    i64.extend_i32_s
+    local.tee $t1
     local.get $n
-    i32.const 0
-    call $"impl[T < Integer] Iterable[T] for Range[T].iter[i64]"
-    local.set $t1
-    local.set $t2
-    local.set $n
-    local.set $t3
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
+    i64.extend_i32_s
+    local.tee $t2
+    i64.lt_s
+    if
+      local.get $t2
+      local.get $t1
+      i64.sub
+      i32.wrap_i64
+      local.set $capacity
+    end
+    i32.const 1
+    local.get $capacity
     i32.add
-    local.tee $t4
+    local.tee $capacity
+    i32.eqz
+    if (result i32)
+      call $"empty_block[std.collections.plain_list.ListHead[i32]]"
+    else
+      local.get $capacity
+      i32.const 0
+      call $"impl[T] PlainList[T].alloc[i32]"
+    end
+    local.set $t3
+    i32.const 0
+    local.get $capacity
+    i32.eq
+    if
+      local.get $t3
+      i32.const 1
+      i32.const 0
+      call $"impl[T] PlainList[T].grown[i32]"
+      local.get $t3
+      if
+        local.get $t3
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t3
+          call $rt:release_ref
+        end
+      end
+      local.tee $t3
+      i32.load $heap
+      local.set $capacity
+    end
     local.get $t3
-    i64.store $heap
+    i32.const 0
+    i32.store $heap offset=16
+    i32.const 1
+    local.set $t4
+    block
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+        local.set $value
+        local.get $t4
+        local.get $capacity
+        i32.eq
+        if
+          local.get $t4
+          if
+            local.get $t3
+            local.get $t4
+            i32.store $heap offset=4
+          end
+          local.get $t4
+          i32.const 1
+          i32.add
+          local.set $capacity
+          local.get $t4
+          i32.const 0
+          i32.ne
+          local.set $t5
+          local.get $t3
+          local.get $capacity
+          local.get $t5
+          call $"impl[T] PlainList[T].grown[i32]"
+          local.get $t3
+          if
+            local.get $t3
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $t3
+              call $rt:release_ref
+            end
+          end
+          local.tee $t3
+          i32.load $heap
+          local.set $capacity
+        end
+        local.get $t3
+        local.get $t4
+        i32.const 4
+        i32.mul
+        i32.add
+        local.get $value
+        i32.store $heap offset=16
+        local.get $t4
+        i32.const 1
+        i32.add
+        local.set $t4
+        br 0
+      end
+    end
     local.get $t4
-    local.get $n
-    i64.store $heap offset=8
-    local.get $t4
-    local.get $t2
-    i32.store8 $heap offset=16
-    local.get $t4
-    local.get $t1
-    i32.store8 $heap offset=17
+    if
+      local.get $t3
+      local.get $t4
+      i32.store $heap offset=4
+    end
+    local.get $t3
+  )
+  (func $of_range (param $n i64) (result i32) (local $t0 i64) (local $t2 i32) (local $t3 i32) (local $t1 i32) (local $value i64) (local $t4 i32)
+    ;; 26 |     [0, (1..n)...]
+    i64.const 1
+    local.set $t0
     i32.const 1
     i32.const 0
     call $"impl[T] PlainList[T].alloc[i64]"
@@ -387,87 +480,77 @@
     local.get $value
     i64.store $heap offset=16
     i32.const 1
-    local.set $t5
+    local.set $t3
     block
       loop
-        local.get $t4
-        call $"impl[T < Integer] Iterator[T] for RangeIter[T].next[i64]"
-        local.set $n
-        local.set $t6
-        block
-          block
-            block
-              local.get $t6
-              i32.eqz
-              br_if 1
-              br 0
-              unreachable
-            end
-            local.get $t5
-            local.get $t1
-            i32.eq
-            if
-              local.get $t5
-              if
-                local.get $t2
-                local.get $t5
-                i32.store $heap offset=4
-              end
-              local.get $t5
-              i32.const 1
-              i32.add
-              local.set $t1
-              local.get $t5
-              i32.const 0
-              i32.ne
-              local.set $t6
-              local.get $t2
-              local.get $t1
-              local.get $t6
-              call $"impl[T] PlainList[T].grown[i64]"
-              local.get $t2
-              if
-                local.get $t2
-                i32.const 8
-                i32.sub
-                i32.load $heap
-                if
-                  local.get $t2
-                  call $rt:release_ref
-                end
-              end
-              local.tee $t2
-              i32.load $heap
-              local.set $t1
-            end
+        local.get $t0
+        local.get $n
+        i64.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i64.const 1
+        i64.add
+        local.set $t0
+        local.set $value
+        local.get $t3
+        local.get $t1
+        i32.eq
+        if
+          local.get $t3
+          if
             local.get $t2
-            local.get $t5
-            i32.const 8
-            i32.mul
-            i32.add
-            local.get $n
-            i64.store $heap offset=16
-            local.get $t5
-            i32.const 1
-            i32.add
-            local.set $t5
-            br 1
+            local.get $t3
+            i32.store $heap offset=4
           end
-          br 2
+          local.get $t3
+          i32.const 1
+          i32.add
+          local.set $t1
+          local.get $t3
+          i32.const 0
+          i32.ne
+          local.set $t4
+          local.get $t2
+          local.get $t1
+          local.get $t4
+          call $"impl[T] PlainList[T].grown[i64]"
+          local.get $t2
+          if
+            local.get $t2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $t2
+              call $rt:release_ref
+            end
+          end
+          local.tee $t2
+          i32.load $heap
+          local.set $t1
         end
+        local.get $t2
+        local.get $t3
+        i32.const 8
+        i32.mul
+        i32.add
+        local.get $value
+        i64.store $heap offset=16
+        local.get $t3
+        i32.const 1
+        i32.add
+        local.set $t3
         br 0
       end
     end
-    local.get $t5
+    local.get $t3
     if
       local.get $t2
-      local.get $t5
+      local.get $t3
       i32.store $heap offset=4
     end
     local.get $t2
-    local.get $t0
-    i32.const 32
-    i32.add
-    global.set $stack
   )
 )

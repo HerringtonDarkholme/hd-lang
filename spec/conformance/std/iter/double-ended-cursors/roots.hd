@@ -45,6 +45,11 @@ tests:
         assert_equal((u8::min_value()..=u8::max_value()).iter().len(), 256)
         assert_equal((i16::min_value()..=i16::max_value()).iter().len(), 65536)
         assert_equal((u16::min_value()..=u16::max_value()).iter().len(), 65536)
+        let low: i32 = -3
+        assert_equal((low..4).iter().len(), 7)
+        assert_equal((u32::max_value() - 2..=u32::max_value()).iter().len(), 3)
+        let ten: usize = 10
+        assert_equal((ten - 10..ten).iter().len(), 10)
         assert_equal(
             (u8::min_value()..=u8::min_value()).iter().rev().next(),
             .Some(u8::min_value()),

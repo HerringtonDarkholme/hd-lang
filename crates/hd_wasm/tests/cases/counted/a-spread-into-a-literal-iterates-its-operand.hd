@@ -1,16 +1,19 @@
 # @dump: wat
 # @build: v8 release
 # A spread into a `PlainList` literal (#2369, `expr.list.spread.iterable`)
-# drains its operand's cursor: `Iterable::iter`, then `next` until
-# `.None`, each item pushed. A `PlainList` or `List` cursor is exact-size,
-# so its `len` joins the literal's capacity and no push grows; a range's
-# cursor is not, so its pushes may grow. No builtin `ListLen` or element
-# place is named for a std list operand: `of_plain`'s loop is a bound
-# test, a value load and the push.
-# expected: `of_list` and `of_range` inline their cursor's `next` as
-# `of_plain` does (issue: a builtin list's and a range's cursor `next` stay
-# calls in a spread). `ListIter.next` and `RangeIter.next` are not
-# inlined, so each item is a call and the list cursor lives on the stack.
+# drains its operand as a `for` loop over it would. A `PlainList` or
+# `List` cursor is exact-size, so its `len` joins the literal's capacity
+# and no push grows. An integer range is a `for` loop's counting loop, with
+# no cursor and no `next` call; an `i32` range's count joins the capacity,
+# an `i64` range's pushes may grow (std-iter.double-ended.roots). No
+# builtin `ListLen` or element place is named for a std list operand:
+# `of_plain`'s loop is a bound test, a value load and the push.
+# expected: `of_list` inlines its cursor's `next` as `of_plain` does
+# (issue: a builtin list's cursor `next` stays a call in a spread).
+# `ListIter.next` takes `&mut self` and returns a value, which the
+# inliner copies into no loop (docs/compiler/tir-v2.md), so each item is
+# a call and the cursor lives on the stack. At the switch (#2369 step 3)
+# `List` is the std list, whose cursor inlines.
 use std.collections.PlainList
 
 fn of_plain(xs: PlainList[i64]) -> PlainList[i64]:
@@ -20,4 +23,7 @@ fn of_list(xs: List[i64]) -> PlainList[i64]:
     [0, xs...]
 
 fn of_range(n: i64) -> PlainList[i64]:
+    [0, (1..n)...]
+
+fn of_small(n: i32) -> PlainList[i32]:
     [0, (1..n)...]

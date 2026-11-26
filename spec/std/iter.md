@@ -440,7 +440,7 @@ fn reversed(text: string) -> string:
 | `UniqListIter`, `UniqListIntoIter`, `UniqListDrain`, `ListDrain` | yes |
 | `ListViewIter`, `SpanIter`, `DequeIter` | yes |
 | `Chars`, `CharIndices` | no |
-| `RangeIter[T]` for every integer type | only `i8`, `u8`, `i16`, `u16` |
+| `RangeIter[T]` for every integer type | only `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `usize`; the whole-domain inclusive range's `len` panics with `integer-overflow` |
 
 9. r[std-iter.double-ended.range] Range reversal preserves inclusive bounds, handles empty and full-domain ranges, and never steps past a type's minimum or maximum.
 10. r[std-iter.double-ended.text] Text reversal yields Unicode scalars rather than bytes, and `CharIndices` retains offsets in the original string.
