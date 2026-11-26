@@ -218,6 +218,9 @@ pub(crate) fn run_program(
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     let _code = code_cache();
     let config = hd_run_wasmtime::EngineConfig::pipeline(level);
+    let _configured = hd_base::trace::span("engine", || {
+        format!("wasmtime OptLevel::{:?}", config.cranelift_opt)
+    });
     let io = hd_run_wasmtime::HostIo::process();
     let Some(ms) = host.limits.cleanup_ms else {
         return hd_run_wasmtime::run_traced(config, wasm, host, io);

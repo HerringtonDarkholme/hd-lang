@@ -157,6 +157,9 @@ build/debug/orders.wasm
 build/release/orders.wasm
 ```
 
+Pass `--release` when building; the `.wasm` records its optimization level for later runs.
+Older modules without this metadata use dev engine optimization.
+
 Read next: [Building And Checking](../../spec/cli/command-line.md#building-and-checking).
 
 ## Lint Accepted Code

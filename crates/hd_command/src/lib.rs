@@ -508,7 +508,7 @@ pub(crate) fn executor_of(threads: usize) -> Executor {
 }
 
 /// The build profile `--release` selects (`cli.profile.default`,
-/// `cli.profile.release`, `cli.profile.release.file`).
+/// `cli.profile.release`, `cli.profile.release.hd-file`).
 fn profile_of(release: bool) -> BuildProfile {
     if release {
         BuildProfile::Release
@@ -1092,7 +1092,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             continue;
         }
 
-        // `cli.profile.release.file`: the release profile, and wasmtime's
+        // `cli.profile.release.hd-file`: the release profile, and wasmtime's
         // optimized pipeline (`cli.profile.pipeline.release`).
         if args[i] == "--release" {
             w.release = true;
@@ -1192,6 +1192,11 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stderr(w.json);
+    if w.release {
+        return rep.fail(
+            "--release does not apply to FILE.wasm; its optimization level is recorded in the module",
+        );
+    }
     let Some(file) = &w.file else {
         return usage();
     };
@@ -1218,10 +1223,12 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` has no entry export `{missing}`: {rebuild}"
         ));
     }
-    let contract = match hd_host_abi::schema::from_wasm(&wasm) {
-        Ok(c) => c.filter(|c| !c.interfaces.is_empty()),
-        Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
+    let metadata = match hd_host_abi::schema::module_metadata(&wasm) {
+        Ok(metadata) => metadata,
+        Err(e) => return rep.fail(&format!("`{shown}` has invalid module metadata: {e}")),
     };
+    let level = metadata.opt_level;
+    let contract = metadata.contract.filter(|c| !c.interfaces.is_empty());
     // One index of the contract's imports, probed once per import.
     let described = contract.as_ref().map(hd_host_abi::schema::Imports::new);
     let ordinary: Vec<_> = imports
@@ -1275,7 +1282,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         ),
         provider_program.as_ref(),
         &w.program_args,
-        (w.engine, level_of(w.release), w.limits),
+        (w.engine, level, w.limits),
         &mut rep,
     )
 }

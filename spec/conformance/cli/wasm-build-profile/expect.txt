@@ -1,0 +1,14 @@
+# cli.wasm.build-level: an artifact carries the level that built it.
+run: hd build --engine node
+file: build/debug/profile.wasm
+run: hd --engine node build/debug/profile.wasm
+stdout: module profile
+run: hd build --engine node --release
+file: build/release/profile.wasm
+run: hd --engine node build/release/profile.wasm
+stdout: module profile
+run: hd --release --engine node build/release/profile.wasm
+exit: 101
+stderr: error: --release does not apply to FILE.wasm; its optimization level is recorded in the module
+run: hd --engine node build/release/profile.wasm -- --release
+stdout: module profile
