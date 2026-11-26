@@ -19,6 +19,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 ### Application and host
 
+- [Native FFI](FFI.md): proposal for #2388: std declares C functions with `@foreign`, each call a Wasm import the host binds to a flat C library; `std.terminal` (#2382) is the first user, over a seven-function `hd_term` linked into `hd`.
 - [Streaming Design](STREAMING_DESIGN.md): historical proposal for HTTP bodies,
   process pipes and shared reader/writer helpers. Implemented file and stdin
   reads use [`std.io.Read`](../../spec/std/io.md); the proposal's names are placeholders.
