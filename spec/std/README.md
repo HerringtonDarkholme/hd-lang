@@ -239,6 +239,7 @@ file of its own.
 | [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64`; `to_fixed` |
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with private error wrappers |
 | [`encoding.md`](encoding.md) | `std.encoding`, `std.encoding.hex`, `std.encoding.base64` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, the enum `Base64` with `encode` and `decode`, and `DecodeError` |
+| [`crypto-rand.md`](crypto-rand.md) | `std.crypto.rand` | `std-crypto-rand` | Secure bytes from the default random provider |
 | [`crypto-cipher.md`](crypto-cipher.md) | `std.crypto.cipher` | `std-crypto-cipher` | Generic GCM and CTR encryption modes |
 | [`crypto-aes.md`](crypto-aes.md) | `std.crypto.aes` | `std-crypto-aes` | AES-128, AES-192 and AES-256 block encryption and decryption |
 | [`crypto-sha512.md`](crypto-sha512.md) | `std.crypto.sha512` | `std-crypto-sha512` | Streaming SHA-512 and HMAC-SHA512 |

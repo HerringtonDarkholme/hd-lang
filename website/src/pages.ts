@@ -54,6 +54,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["crypto-sha512", "SHA-512"],
   ["crypto-aes", "AES"],
   ["crypto-cipher", "Cipher modes"],
+  ["crypto-rand", "Secure random bytes"],
   ["encoding", "Encoding"],
   ["error", "Error"],
   ["format", "Format"],

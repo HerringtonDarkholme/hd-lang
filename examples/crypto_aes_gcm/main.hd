@@ -1,12 +1,13 @@
 use std.crypto.aes.Aes
 use std.crypto.cipher.Gcm
+use std.crypto.rand.fill
+use std.random.Random
 use std.testing.{assert, assert_equal}
 
-pub fn main() -> void $ Console:
+pub fn main() -> void $ Console + Random:
     key := Aes::new([for index in 0..32 => u8(index)]).unwrap()
     mode := Gcm::[Aes].new(key).unwrap()
-    # A fixed nonce is appropriate only for this one-message example.
-    nonce := [for index in 0..12 => u8(index)]
+    nonce := fill(12)
     plain := [u8(104), 100, 32, 71, 67, 77]
     associated := [u8(1), 2, 3]
     sealed := mode.seal(nonce, plain, associated)
