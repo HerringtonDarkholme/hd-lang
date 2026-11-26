@@ -1,0 +1,18 @@
+# @dump: own wat
+# expected: the synthetic provider projection local has an empty interned name, never the first unrelated symbol.
+use std.meta.cold
+
+trait Base:
+    fn base(&self) -> usize
+
+trait Named < Base:
+    fn name(&self) -> usize
+
+@cold
+fn needs_base(value: usize) -> usize $ Base:
+    value + $.use(Base).base()
+
+@cold
+# subject
+fn projected(value: usize) -> usize $ Named:
+    needs_base(value)
