@@ -3000,6 +3000,7 @@ impl Env<'_> {
     /// # Errors
     /// [`Env::fold_and_inline`]'s.
     pub(super) fn inlined_instance(&self, node: Node) -> StageResult<Option<(Body, Hash128)>> {
+        let _span = super::phase("collect: inline");
         // The inliner asks a referent's layout per call site: once per run instead.
         hd_layout::cached_for_run(self.run.layout_key, || self.instance_uncached(node))
     }
@@ -3230,6 +3231,7 @@ impl Env<'_> {
         hash: Hash128,
         args: TyList,
     ) -> StageResult<(Body, Hash128)> {
+        let _span = super::phase("collect: own passes");
         let node = (body.item, args);
         self.mark_instance(&mut body, args);
         if self.return_loan_layout(body.item, args).is_some() {
@@ -3758,6 +3760,7 @@ impl Run<'_> {
             let mut body = body;
             // As in `Env::inlined_instance`: each layout once per run.
             let hash = hd_layout::cached_for_run(self.layout_key, || {
+                let _span = super::phase("collect: inline");
                 env.fold_and_inline(&mut body, TyList::EMPTY, hash)
             })?;
             env.own_inlined(body, hash, TyList::EMPTY)
@@ -4113,9 +4116,7 @@ impl Run<'_> {
             let edges = RefCell::new(HashMap::<Node, Vec<Node>>::default());
             let mut callees = |n: Node| {
                 // A refused body stays unowned: `owned_instance` reports it.
-                let span = super::phase("collect: inline");
                 let inlined_instance = env.inlined_instance(n);
-                drop(span);
                 let out = if let Ok(Some((body, hash))) = inlined_instance {
                     let out = env.summarized_callees(&body);
                     inlined.borrow_mut().insert(n, (body, hash));
@@ -4267,11 +4268,9 @@ impl Run<'_> {
             ASSUME.set(borrows);
         }
         for &m in &members {
-            let span = super::phase("collect: own passes");
             let owned = bodies
                 .remove(&m)
                 .and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
-            drop(span);
             if m.1 != TyList::EMPTY {
                 let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
                 lock(&self.instances).insert(m, owned);
