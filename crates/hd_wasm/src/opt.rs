@@ -133,8 +133,7 @@ pub fn constants(
     let mut keys: hd_base::HashSet<Hash128> = inits.iter().copied().collect();
     let mut named = inits.len();
     for (id, _) in funcs.iter().enumerate().filter(|(_, f)| f.is_some()) {
-        // ruled out: every symbol id was made from a u32 (`Symbols::intern`).
-        match symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
+        match &*symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
             Sym::Helper(Helper::EntryInit { inits: ks }) => {
                 named += ks.len();
                 keys.extend(ks.iter().map(|k| k.0));
@@ -153,7 +152,7 @@ pub fn constants(
     crate::work::init_probes(named);
     let init_of = |id: SymId| {
         crate::work::init_probes(1);
-        matches!(symbols.get(id), Sym::Inst(key) if keys.contains(key))
+        matches!(&*symbols.get(id), Sym::Inst(key) if keys.contains(key))
     };
     // A value held across the old storage's release reaches its global
     // through a temporary. Expose those constants before looking for the
@@ -956,7 +955,7 @@ pub fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         let Ins::Call(id, _) = ins else {
             return None;
         };
-        match symbols.get(*id) {
+        match &*symbols.get(*id) {
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
             Sym::Shim(_, false, width, false) => usize::try_from(*width).ok(),
             _ => None,
@@ -3098,7 +3097,7 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::Glue(_) | Ins::VTable(_) => (0, 1),
         Ins::Descriptor(..) => (0, 1),
         Ins::GlobalSet(_) => (1, 0),
-        Ins::Call(id, _) => match symbols.get(*id) {
+        Ins::Call(id, _) => match &*symbols.get(*id) {
             Sym::Import(im) => (im.params.len(), im.results.len()),
             _ => (*arity.get(id.idx())?)?,
         },
@@ -3922,7 +3921,7 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
             return None;
         };
         let (operands, results) = (*arity.get(id.idx())?)?;
-        match (f.symbols.get(*id), operands, results) {
+        match (&*f.symbols.get(*id), operands, results) {
             (Sym::Inst(k), n, 0) if *k == retain => Some((n, n)),
             (
                 Sym::Helper(
@@ -4174,8 +4173,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 || f.raw.is_some()
                 || !f.results.is_empty()
                 || !matches!(
-                    // ruled out: every symbol id was made from a u32 (`Symbols::intern`).
-                    symbols.get(SymId(u32::try_from(k).expect("symbols"))),
+                    &*symbols.get(SymId(u32::try_from(k).expect("symbols"))),
                     Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
                 )
             {
@@ -4357,7 +4355,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
     if !f.body.iter().any(|i| {
-        matches!(i, Ins::Call(id, _) if matches!(f.symbol(*id), Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown)))
+        matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id), Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown)))
     }) {
         return false;
     }
@@ -4385,7 +4383,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
         f.at = ins.call_anchor();
         let known = match ins {
-            Ins::Call(id, _) => match f.symbol(id) {
+            Ins::Call(id, _) => match &*f.symbol(id) {
                 Sym::Helper(Helper::RetainKnown) => Some(true),
                 Sym::Helper(Helper::ReleaseKnown) => Some(false),
                 _ => None,

@@ -8,8 +8,7 @@
 use crate::op::{LabelListId, Op as Instruction};
 use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 use hd_base::{Hash128, NotImplemented, Stage, StageResult};
 use hd_types::Ty;
@@ -192,106 +191,96 @@ pub struct SigId(pub u32);
 pub struct GlobalId(pub u32);
 
 /// One shared name/signature arena for a module and its function builders.
-/// Its tables only grow and their entries never move, so a read takes no
-/// lock, and the link cleans functions up on several threads (#2383).
+/// Interning takes its lock. Once the link freezes it ([`Symbols::freeze`]),
+/// a read of an entry made before then takes no lock, so the link cleans
+/// functions up on several threads (#2383); a later entry is read under
+/// the lock.
 #[derive(Clone, Debug, Default)]
-pub struct Symbols(Arc<SymbolData>);
+pub struct Symbols(Arc<Shared>);
 #[derive(Debug, Default)]
+struct Shared {
+    live: RwLock<SymbolData>,
+    /// The tables as they stood when the link froze them.
+    frozen: OnceLock<SymbolData>,
+}
+#[derive(Clone, Debug, Default)]
 struct SymbolData {
-    globals: Table<Global>,
-    names: Table<Sym>,
-    signatures: Table<(Vec<Val>, Vec<Val>)>,
-    /// Each table's ids by entry: every append takes this lock, so each
-    /// table has one writer at a time.
-    ids: Mutex<SymbolIds>,
-}
-#[derive(Debug, Default)]
-struct SymbolIds {
-    globals: hd_base::HashMap<Global, GlobalId>,
-    names: hd_base::HashMap<Sym, SymId>,
-    signatures: hd_base::HashMap<(Vec<Val>, Vec<Val>), SigId>,
+    globals: Vec<Global>,
+    global_ids: hd_base::HashMap<Global, GlobalId>,
+    names: Vec<Sym>,
+    ids: hd_base::HashMap<Sym, SymId>,
+    signatures: Vec<(Vec<Val>, Vec<Val>)>,
+    signature_ids: hd_base::HashMap<(Vec<Val>, Vec<Val>), SigId>,
 }
 
-/// Segments of an append-only [`Table`]: segment `k` holds `64 << k`
-/// entries, so 26 hold every `u32` id.
-const SEGMENTS: usize = 26;
-
-/// An append-only table whose entries stay where they are put: a read is
-/// two acquire loads and no lock, and an append (by one writer at a time)
-/// fills the next slot, allocating segment `k` once, at entry
-/// `64 * (2^k - 1)`. Cost: at most twice the entries' slots, each one
-/// word more than its entry.
-struct Table<T> {
-    segments: [OnceLock<Box<[OnceLock<T>]>>; SEGMENTS],
-    len: AtomicUsize,
+/// An entry of [`Symbols`]: in the frozen tables, or read under the lock.
+pub struct Entry<'a, T> {
+    at: At<'a, T>,
 }
-
-impl<T> Default for Table<T> {
-    fn default() -> Self {
-        Self {
-            segments: std::array::from_fn(|_| OnceLock::new()),
-            len: AtomicUsize::new(0),
+enum At<'a, T> {
+    Frozen(&'a T),
+    Live(
+        std::sync::RwLockReadGuard<'a, SymbolData>,
+        for<'d> fn(&'d SymbolData) -> &'d [T],
+        usize,
+    ),
+}
+impl<T> std::ops::Deref for Entry<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        match &self.at {
+            At::Frozen(entry) => entry,
+            At::Live(data, of, i) => &of(data)[*i],
         }
-    }
-}
-
-impl<T> std::fmt::Debug for Table<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Table").field("len", &self.len()).finish()
-    }
-}
-
-impl<T> Table<T> {
-    /// Entry `i`'s segment and its place there.
-    fn locate(i: usize) -> (usize, usize) {
-        let k = (i / 64 + 1).ilog2() as usize;
-        (k, i - 64 * ((1 << k) - 1))
-    }
-
-    fn len(&self) -> usize {
-        self.len.load(Ordering::Acquire)
-    }
-
-    fn get(&self, i: usize) -> &T {
-        let (k, at) = Self::locate(i);
-        let entry = self.segments[k].get().and_then(|segment| segment[at].get());
-        // ruled out: ids come from appends, which fill their slot first.
-        entry.expect("an appended entry")
-    }
-
-    /// Appends `value` and gives its index; the caller holds the ids lock.
-    fn push(&self, value: T) -> usize {
-        let i = self.len.load(Ordering::Relaxed);
-        let (k, at) = Self::locate(i);
-        let segment =
-            self.segments[k].get_or_init(|| (0..64 << k).map(|_| OnceLock::new()).collect());
-        let _ = segment[at].set(value);
-        self.len.store(i + 1, Ordering::Release);
-        i
     }
 }
 
 impl Symbols {
-    fn ids(&self) -> std::sync::MutexGuard<'_, SymbolIds> {
+    /// The live tables to read: reads nest, as a lookup inside another's
+    /// match does.
+    fn live(&self) -> std::sync::RwLockReadGuard<'_, SymbolData> {
         self.0
-            .ids
-            .lock()
+            .live
+            .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    fn live_mut(&self) -> std::sync::RwLockWriteGuard<'_, SymbolData> {
+        self.0
+            .live
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    /// Entry `i` of the table `of` picks: the frozen one's when it was made
+    /// before the freeze, else the live one's under the lock.
+    fn entry<T>(&self, i: usize, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
+        let frozen = self.0.frozen.get().and_then(|f| of(f).get(i));
+        Entry {
+            at: match frozen {
+                Some(entry) => At::Frozen(entry),
+                None => At::Live(self.live(), of, i),
+            },
+        }
+    }
+    /// Copies the tables as they stand, so reads of their entries take no
+    /// lock. Cost: one copy of the tables, once per module.
+    pub fn freeze(&self) {
+        let data = self.live().clone();
+        let _ = self.0.frozen.set(data);
     }
     #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
-        let mut ids = self.ids();
-        if let Some(&id) = ids.globals.get(&global) {
+        let mut data = self.live_mut();
+        if let Some(&id) = data.global_ids.get(&global) {
             return id;
         }
-        // ruled out: a Wasm module numbers its globals with u32 indices.
-        let id = GlobalId(u32::try_from(self.0.globals.push(global)).expect("globals"));
-        ids.globals.insert(global, id);
+        let id = GlobalId(u32::try_from(data.globals.len()).expect("globals"));
+        data.globals.push(global);
+        data.global_ids.insert(global, id);
         id
     }
     #[must_use]
     pub fn global(&self, id: GlobalId) -> Global {
-        *self.0.globals.get(id.0 as usize)
+        *self.entry(id.0 as usize, |d| &d.globals)
     }
     #[must_use]
     #[cfg_attr(
@@ -302,51 +291,53 @@ impl Symbols {
         )
     )]
     pub fn len(&self) -> usize {
-        self.0.names.len()
+        self.live().names.len()
     }
     #[must_use]
     pub fn intern(&self, symbol: Sym) -> SymId {
-        let mut ids = self.ids();
-        if let Some(&id) = ids.names.get(&symbol) {
+        let mut data = self.live_mut();
+        if let Some(&id) = data.ids.get(&symbol) {
             return id;
         }
-        // ruled out: a Wasm module numbers its functions with u32 indices.
-        let id = SymId(u32::try_from(self.0.names.push(symbol.clone())).expect("symbols"));
-        ids.names.insert(symbol, id);
+        let id = SymId(u32::try_from(data.names.len()).expect("symbols"));
+        data.names.push(symbol.clone());
+        data.ids.insert(symbol, id);
         id
     }
     #[must_use]
-    pub fn get(&self, id: SymId) -> &Sym {
-        self.0.names.get(id.idx())
+    pub fn get(&self, id: SymId) -> Entry<'_, Sym> {
+        self.entry(id.idx(), |d| &d.names)
     }
     #[must_use]
     pub fn cmp(&self, a: SymId, b: SymId) -> std::cmp::Ordering {
-        self.get(a).cmp(self.get(b))
+        let data = self.live();
+        data.names[a.idx()].cmp(&data.names[b.idx()])
     }
     #[must_use]
     pub fn intern_signature(&self, params: Vec<Val>, results: Vec<Val>) -> SigId {
-        let mut ids = self.ids();
+        let mut data = self.live_mut();
         let signature = (params, results);
-        if let Some(&id) = ids.signatures.get(&signature) {
+        if let Some(&id) = data.signature_ids.get(&signature) {
             return id;
         }
-        // ruled out: a Wasm module numbers its types with u32 indices.
-        let id =
-            SigId(u32::try_from(self.0.signatures.push(signature.clone())).expect("signatures"));
-        ids.signatures.insert(signature, id);
+        let id = SigId(u32::try_from(data.signatures.len()).expect("signatures"));
+        data.signatures.push(signature.clone());
+        data.signature_ids.insert(signature, id);
         id
     }
     #[must_use]
-    pub fn signature(&self, id: SigId) -> &(Vec<Val>, Vec<Val>) {
-        self.0.signatures.get(id.0 as usize)
+    pub fn signature(&self, id: SigId) -> Entry<'_, (Vec<Val>, Vec<Val>)> {
+        self.entry(id.0 as usize, |d| &d.signatures)
     }
 
     /// Actual emitted signatures take precedence after wide lowering. A
     /// newly referenced helper still has its declared logical signature.
     #[must_use]
     pub fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
-        (0..self.len())
-            .map(|index| (index, self.0.names.get(index)))
+        self.live()
+            .names
+            .iter()
+            .enumerate()
             .map(|(index, symbol)| {
                 functions
                     .get(index)
@@ -753,11 +744,11 @@ impl Func {
         self.symbols.intern_global(global)
     }
     #[must_use]
-    pub fn symbol(&self, id: SymId) -> &Sym {
+    pub fn symbol(&self, id: SymId) -> Entry<'_, Sym> {
         self.symbols.get(id)
     }
     #[must_use]
-    pub fn signature(&self, id: SigId) -> &(Vec<Val>, Vec<Val>) {
+    pub fn signature(&self, id: SigId) -> Entry<'_, (Vec<Val>, Vec<Val>)> {
         self.symbols.signature(id)
     }
     pub fn table_slot(&mut self, s: Sym) {
@@ -985,13 +976,13 @@ impl Func {
         if cfg!(not(target_arch = "wasm32"))
             && self.names_counts
             && let Ins::Call(s, _) = &ins
-            && crate::views::helper_count_action(self.symbols.get(*s)).is_some()
+            && crate::views::helper_count_action(&self.symbols.get(*s)).is_some()
         {
             self.assert_named();
         }
         let action = if self.origins.is_some() {
             match &ins {
-                Ins::Call(s, _) => crate::views::helper_count_action(self.symbols.get(*s)),
+                Ins::Call(s, _) => crate::views::helper_count_action(&self.symbols.get(*s)),
                 _ => None,
             }
         } else {
@@ -1628,7 +1619,7 @@ impl Module {
         for (k, f) in self.funcs.iter().enumerate() {
             let id = SymId(u32::try_from(k).expect("symbols"));
             if f.is_some()
-                && matches!(self.symbols.get(id), Sym::Inst(h) | Sym::Part(h, _) if keys.contains(h))
+                && matches!(&*self.symbols.get(id), Sym::Inst(h) | Sym::Part(h, _) if keys.contains(h))
             {
                 self.retained.push(id);
             }
@@ -1640,7 +1631,7 @@ impl Module {
     fn keep(&mut self, mut wanted: impl FnMut(SymId, &Sym) -> bool) {
         for (k, f) in self.funcs.iter_mut().enumerate() {
             let id = SymId(u32::try_from(k).expect("symbols"));
-            if f.is_some() && !wanted(id, self.symbols.get(id)) {
+            if f.is_some() && !wanted(id, &self.symbols.get(id)) {
                 *f = None;
             }
         }
@@ -1806,11 +1797,11 @@ impl Module {
                 .copied(),
         );
         while let Some(s) = work.pop() {
-            if matches!(self.symbols.get(s), Sym::Import(_)) || !seen.insert(s) {
+            if matches!(&*self.symbols.get(s), Sym::Import(_)) || !seen.insert(s) {
                 continue;
             }
             if self.funcs.get(s.idx()).is_none_or(Option::is_none) {
-                let helper = match self.symbols.get(s) {
+                let helper = match &*self.symbols.get(s) {
                     Sym::Helper(h) => Some(h.clone()),
                     _ => None,
                 };
@@ -1934,7 +1925,7 @@ impl Module {
             };
             let call = k + 1;
             let nothing = match f.body.get(call) {
-                Some(Ins::Call(callee, _)) => match self.symbols.get(*callee) {
+                Some(Ins::Call(callee, _)) => match &*self.symbols.get(*callee) {
                     // Every address count tests null: a release of null
                     // releases nothing.
                     Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)
@@ -1981,7 +1972,10 @@ impl Module {
             .collect();
         while let Some(mut id) = work.pop() {
             // `hd.poll` wraps its `EntryPoll`, a helper of its own.
-            while let Sym::Helper(h) = Sym::clone(self.symbols.get(id)) {
+            loop {
+                // A copy: the loop interns, which waits for every read to end.
+                let symbol = Sym::clone(&self.symbols.get(id));
+                let Sym::Helper(h) = symbol else { break };
                 let inits: Option<Vec<Hash128>> = match &h {
                     Helper::EntryInit { inits } => Some(inits.iter().map(|k| k.0).collect()),
                     // The walk names no init; its unit dispatch does.
@@ -2085,7 +2079,7 @@ impl Module {
         self.cancellable = session
             || seen.iter().any(|s| {
                 matches!(
-                    self.symbols.get(s),
+                    &*self.symbols.get(s),
                     Sym::Helper(
                         crate::rt::Helper::CancellationRoot
                             | crate::rt::Helper::EntryCancel { .. }
@@ -2113,21 +2107,21 @@ impl Module {
         self.fixed_allocations = session
             || seen.iter().any(|s| {
                 matches!(
-                    self.symbols.get(s),
+                    &*self.symbols.get(s),
                     Sym::Helper(crate::rt::Helper::NewFixed { .. })
                 )
             });
         self.wakers = session
             || seen.iter().any(|s| {
                 matches!(
-                    self.symbols.get(s),
+                    &*self.symbols.get(s),
                     Sym::Helper(crate::rt::Helper::WakerNew)
                 )
             });
         self.idle = session
             || seen.iter().any(|s| {
                 matches!(
-                    self.symbols.get(s),
+                    &*self.symbols.get(s),
                     Sym::Helper(crate::rt::Helper::IdleHook)
                 )
             });
@@ -2211,7 +2205,7 @@ impl Module {
                     continue;
                 }
                 let helper = match ins {
-                    Ins::Call(id, _) => match self.symbols.get(id) {
+                    Ins::Call(id, _) => match &*self.symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
                         Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
@@ -2236,7 +2230,7 @@ impl Module {
             // function and delete the init. Keep its literal dependencies.
             // ruled out: every function was registered under a u32 SymId.
             let id = crate::emit::required(u32::try_from(id).ok(), "function symbol fits u32");
-            if matches!(self.symbols.get(SymId(id)), Sym::Inst(key) if init_keys.contains(key)) {
+            if matches!(&*self.symbols.get(SymId(id)), Sym::Inst(key) if init_keys.contains(key)) {
                 self.data_roots.extend_from_slice(&f.data_refs);
             }
         }
@@ -2276,6 +2270,7 @@ impl Module {
         }
         // Each function's cleanup reads only itself, the arities and the
         // symbols, so the functions run on the task's threads (#2383).
+        self.symbols.freeze();
         hd_sched::par_each_mut(&mut self.funcs, |_, f| {
             if let Some(f) = f {
                 crate::opt::fold_constant_branches(f);
@@ -2294,7 +2289,7 @@ impl Module {
                 .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
                     function.as_ref()?;
                     let id = SymId(u32::try_from(id).expect("symbols"));
-                    matches!(self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
+                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
                 }))
                 .chain(
                     self.vtables
@@ -2351,7 +2346,7 @@ impl Module {
                 let id = SymId(u32::try_from(k).expect("symbols"));
                 if let Some(f) = slot.as_mut()
                     && !matches!(
-                        self.symbols.get(id),
+                        &*self.symbols.get(id),
                         Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
                     )
                     && crate::count_tests::lower(f, counts)
@@ -2460,7 +2455,7 @@ impl Module {
         // Keep the resolved import, not just the symbol whose kind proved it.
         // Each body edge checks one bit; only distinct imports are cloned.
         let mut import = |id| {
-            if let Sym::Import(im) = self.symbols.get(id)
+            if let Sym::Import(im) = &*self.symbols.get(id)
                 && import_ids.insert(id)
             {
                 imports.push(im.clone());
@@ -2535,7 +2530,7 @@ impl Module {
                 let f = f.as_ref()?;
                 // ruled out: these positions index interned u32 symbols.
                 let id = SymId(u32::try_from(k).expect("symbols"));
-                matches!(self.symbols.get(id), Sym::Helper(_)).then_some((id, f))
+                matches!(&*self.symbols.get(id), Sym::Helper(_)).then_some((id, f))
             })
             .collect();
         helpers.sort_stable_by(|(a, _), (b, _)| self.symbols.cmp(*a, *b));
@@ -2805,8 +2800,8 @@ impl Module {
             // A release helper delegates its caller's already-counted operation.
             // Explicit internal ownership sites and other actions stay visible.
             let release_wrapper = self.track_origins
-                && matches!(self.symbols.get(*s), Sym::Helper(_))
-                && crate::views::helper_count_action(self.symbols.get(*s))
+                && matches!(&*self.symbols.get(*s), Sym::Helper(_))
+                && crate::views::helper_count_action(&self.symbols.get(*s))
                     == Some(crate::views::CountAction::Release);
             let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
                 let k = taken.entry(f.name.as_str()).or_default();
@@ -2845,13 +2840,15 @@ impl Module {
                     let origin = f.origins.as_ref().and_then(|o| o[position]);
                     let note = origin.and_then(|o| f.count_origin(o));
                     let action = match i {
-                        Ins::Call(s, _) => crate::views::count_action(
-                            self.symbols.get(*s),
-                            &self.runtime,
-                        )
-                        .or_else(|| {
-                            crate::views::count_action(self.symbols.get(*s), &original_runtime)
-                        }),
+                        Ins::Call(s, _) => {
+                            crate::views::count_action(&self.symbols.get(*s), &self.runtime)
+                                .or_else(|| {
+                                    crate::views::count_action(
+                                        &self.symbols.get(*s),
+                                        &original_runtime,
+                                    )
+                                })
+                        }
                         // A Wasmtime count fast path expands into a header
                         // store plus a slow-path call. They are one source
                         // operation and share the same count-site token.

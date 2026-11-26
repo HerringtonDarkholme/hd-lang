@@ -212,7 +212,7 @@ mod discarded_tests {
                 let body = hd_wasm::testing::rt::helper(&helper, &mut module);
                 for instruction in &body.body {
                     if let Ins::Call(symbol, _) = instruction
-                        && let Sym::Helper(callee) = body.symbols.get(*symbol)
+                        && let Sym::Helper(callee) = &*body.symbols.get(*symbol)
                     {
                         pending.push(callee.clone());
                     }

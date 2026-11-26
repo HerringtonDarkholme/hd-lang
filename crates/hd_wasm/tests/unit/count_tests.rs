@@ -60,7 +60,7 @@ mod tests {
                 usize::from(tee)
             );
             assert!(f.body.iter().any(|i| matches!(i, Ins::Call(id, Some(17))
-                if matches!(f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
+                if matches!(&*f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
             assert!(
                 f.body
                     .iter()

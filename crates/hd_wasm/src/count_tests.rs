@@ -59,7 +59,7 @@ fn kind(f: &Func, ins: &Ins, c: Counts) -> Option<Kind> {
     let Ins::Call(id, _) = ins else {
         return None;
     };
-    match f.symbol(*id) {
+    match &*f.symbol(*id) {
         Sym::Helper(Helper::RetainKnown) if !c.known_inlined => Some(Kind::KnownRetain),
         Sym::Helper(Helper::ReleaseKnown) if !c.known_inlined => Some(Kind::KnownRelease),
         Sym::Helper(Helper::ReleaseRef) => Some(Kind::Other),
