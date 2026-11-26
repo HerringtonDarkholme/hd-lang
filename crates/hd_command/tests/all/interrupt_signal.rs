@@ -6,13 +6,13 @@
 
 use std::io::{BufRead as _, BufReader, Read as _};
 use std::os::unix::process::CommandExt as _;
-use std::process::{Child, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use hd_testkit::Scratch;
 use nix::sys::signal::{Signal, kill};
-use nix::unistd::Pid;
+use nix::unistd::{Pid, getpgid, getpgrp};
 
 /// The entry waits on a timer that never ends, and its dispose waits
 /// 300 ms: a cancel that waits for the dispose ends `cancelled`, and one
@@ -110,10 +110,56 @@ fn cancels(engine: &str, signal: Signal) {
     );
 }
 
+/// A sibling in the test binary's group observes an escaped group kill.
+/// It has its own deadline and is reaped even when an assertion fails.
+struct GroupSibling(Child);
+
+impl GroupSibling {
+    fn start() -> Self {
+        // Outlast Run's two-minute start and one-minute finish deadlines.
+        let child = Command::new("sleep")
+            .arg("300")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start process-group sibling");
+        let sibling = Self(child);
+        let pid = Pid::from_raw(i32::try_from(sibling.0.id()).expect("sibling pid"));
+        assert_eq!(getpgid(Some(pid)).expect("sibling group"), getpgrp());
+        sibling
+    }
+
+    fn assert_running(&mut self) {
+        assert_eq!(
+            self.0.try_wait().expect("poll sibling"),
+            None,
+            "cancellation signalled a sibling in the test binary's process group"
+        );
+    }
+}
+
+impl Drop for GroupSibling {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 /// A second signal after the cancel abandons the dispose at once, long
-/// before the 30 s bound.
+/// before the 30 s bound, without signalling the harness's process group.
 fn second_abandons(engine: &str) {
+    let mut sibling = GroupSibling::start();
     let run = Run::start(engine, &format!("{engine}-second"), "30s");
+    let pid = Pid::from_raw(i32::try_from(run.child.id()).expect("hd pid"));
+    let group = getpgid(Some(pid)).expect("hd process group");
+    assert_eq!(group, pid, "hd must lead its own process group");
+    assert_ne!(
+        group,
+        getpgrp(),
+        "hd must not share the test binary's group"
+    );
+    sibling.assert_running();
     run.send(Signal::SIGINT);
     // The first signal has cancelled the entry and the dispose waits.
     std::thread::sleep(Duration::from_millis(100));
@@ -126,6 +172,7 @@ fn second_abandons(engine: &str) {
     );
     assert_eq!(code, Some(130), "{engine}");
     assert!(elapsed < Duration::from_secs(20), "{engine}: {elapsed:?}");
+    sibling.assert_running();
 }
 
 #[test]

@@ -80,3 +80,19 @@ test(
     assert.match(output, /next binary/);
   },
 );
+
+test(
+  "CI runner records an external signal before early kill-after escalation",
+  { skip: process.platform === "win32" },
+  () => {
+    // This disposable child's direct parent is timeout, in its own group.
+    // USR1 is ignored by the child, so timeout's ten-second escalation fires
+    // before the thirty-second command deadline, reproducing #2371's shape.
+    const { status, output } = run('trap "" USR1; kill -USR1 "$PPID"; sleep 15', "30");
+    assert.equal(status, 1, output);
+    assert.match(output, /sending signal (?:SIG)?USR1 to command/);
+    assert.match(output, /crates\/hd_command all was killed by signal 9/);
+    assert.doesNotMatch(output, /ran over/);
+    assert.match(output, /next binary/);
+  },
+);

@@ -66,7 +66,8 @@ while IFS=$'\t' read -r -u 3 dir name exe; do
   echo "     Running $dir $name ($exe)"
   TIMEFORMAT="     Took %R s wall, %U s user, %S s system: $dir $name"
   resources=
-  measured=(timeout --kill-after=10 "${CI_TEST_LIMIT:-600}" "$root/$exe" "$@")
+  # Verbose records the first forwarded signal before kill-after can escalate.
+  measured=(timeout --verbose --kill-after=10 "${CI_TEST_LIMIT:-600}" "$root/$exe" "$@")
   if [ "$dir/$name" = crates/hd_command/all ] && [ "$system" = Linux ]; then
     report_dir="$root/target/ci-resources/hd_command-all"
     if mkdir -p "$report_dir" && : > "$report_dir/time.txt"; then
