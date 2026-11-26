@@ -16,6 +16,8 @@ use crate::{cache, limits};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EngineConfig {
     pub cranelift_opt: OptLevel,
+    /// Compiler workers for one module; fixture pools leave this at one.
+    pub compilation_jobs: usize,
     /// `Config::max_wasm_stack`: the profile's stack limit.
     pub max_wasm_stack: usize,
 }
@@ -40,6 +42,7 @@ impl EngineConfig {
                 hd_base::OptLevel::Dev => OptLevel::None,
                 hd_base::OptLevel::Optimized => OptLevel::Speed,
             },
+            compilation_jobs: 1,
             max_wasm_stack: 4 << 20,
         }
     }
@@ -255,10 +258,9 @@ pub fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
         // No fiber runs Wasm (no async support); wasmtime still checks
         // the Wasm stack against this size.
         .async_stack_size(config.max_wasm_stack)
-        // Single-threaded compilation: the `parallel-compilation` cargo
-        // feature (rayon) is off, so every module compiles on one thread.
-        // Fixture modules are kilobytes; pool spin-up costs more than it
-        // saves, and the suite compiles about a thousand of them.
+        // Single-program callers opt in within their job budget; fixture
+        // pools already parallelize across modules and stay serial here.
+        .parallel_compilation(config.compilation_jobs > 1)
         .cranelift_opt_level(match config.cranelift_opt {
             OptLevel::None => wasmtime::OptLevel::None,
             OptLevel::Speed => wasmtime::OptLevel::Speed,

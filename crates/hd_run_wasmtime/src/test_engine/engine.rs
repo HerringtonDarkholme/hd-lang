@@ -107,7 +107,7 @@ impl TestEngine {
         let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
         crate::runtime::epochs::register(&engine)?;
         Ok(Self(Arc::new(Inner {
-            cache: crate::cache::ModuleCache::new(&engine, code),
+            cache: crate::cache::ModuleCache::new(&engine, code, config.compilation_jobs),
             config,
             engine,
         })))

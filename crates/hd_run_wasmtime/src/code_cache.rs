@@ -18,11 +18,10 @@
 //!   flags, the tunables, the Wasm features and wasmtime's version).
 //!   Inside a pack, Cranelift's key finds each function: a hash of its
 //!   CLIF with the target and flags. A module that changed misses whole.
-//! - **The open pack.** Compilation runs on the thread that asks for it
-//!   (the `parallel-compilation` feature is off), so the pack of the
-//!   module being compiled sits in a thread local while
-//!   `wasmtime::Module::new` runs. A function compiled on another thread
-//!   would only miss.
+//! - **The open pack.** Scoped compiler workers inherit one shared session
+//!   for the module being compiled. Separate compiles keep separate
+//!   sessions, including when they share an engine. A mutex protects only
+//!   a function lookup or insertion, never translation or compilation.
 //! - **Stable keys.** Cranelift's key also covers state that a reused
 //!   compiler context keeps from the function before; see
 //!   [`configure_with`] for how the engines keep it out.
@@ -249,32 +248,46 @@ pub(crate) fn compile(
     engine: &wasmtime::Engine,
     salt: Hash128,
     wasm: &[u8],
+    jobs: usize,
 ) -> wasmtime::Result<wasmtime::Module> {
     match installed() {
-        Some(packs) => compile_with(&*packs, engine, salt, wasm).0,
-        None => wasmtime::Module::new(engine, wasm),
+        Some(packs) => compile_with_jobs(&*packs, engine, salt, wasm, jobs).0,
+        None => compile_module(engine, wasm, jobs),
     }
 }
 
 /// [`compile`] over `packs`, with this compile's counts.
+#[cfg(feature = "testing")]
 pub fn compile_with(
     packs: &dyn Packs,
     engine: &wasmtime::Engine,
     salt: Hash128,
     wasm: &[u8],
 ) -> (wasmtime::Result<wasmtime::Module>, CodeCacheStats) {
+    compile_with_jobs(packs, engine, salt, wasm, 1)
+}
+
+/// [`compile_with`] with a caller's compiler-worker budget.
+pub fn compile_with_jobs(
+    packs: &dyn Packs,
+    engine: &wasmtime::Engine,
+    salt: Hash128,
+    wasm: &[u8],
+    jobs: usize,
+) -> (wasmtime::Result<wasmtime::Module>, CodeCacheStats) {
     let key = pack_key(salt, wasm);
     let functions = packs
         .read(&key)
         .and_then(|bytes| decode(&bytes, key))
         .unwrap_or_default();
-    SESSION.set(Some(Session {
+    let session = Arc::new(Mutex::new(Session {
         functions,
         dirty: false,
         stats: CodeCacheStats::default(),
     }));
-    let compiled = wasmtime::Module::new(engine, wasm);
-    let session = SESSION.take().unwrap_or_default();
+    let _scope = SessionScope::enter(Some(Arc::clone(&session)));
+    let compiled = compile_module(engine, wasm, jobs);
+    let session = session.lock().unwrap_or_else(PoisonError::into_inner);
     HITS.fetch_add(session.stats.hits, Ordering::Relaxed);
     COMPILED.fetch_add(session.stats.compiled, Ordering::Relaxed);
     if compiled.is_ok() && session.dirty {
@@ -292,7 +305,7 @@ pub struct Function {
     pub idle: u8,
 }
 
-/// The pack of the module this thread is compiling.
+/// The pack of one module, shared only by that compile's workers.
 #[derive(Default)]
 struct Session {
     functions: HashMap<Box<[u8]>, Function>,
@@ -302,7 +315,49 @@ struct Session {
 }
 
 thread_local! {
-    static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
+    static SESSION: RefCell<Option<Arc<Mutex<Session>>>> = const { RefCell::new(None) };
+}
+
+/// Restores the caller's session even if compilation unwinds.
+struct SessionScope(Option<Arc<Mutex<Session>>>);
+
+impl SessionScope {
+    fn enter(session: Option<Arc<Mutex<Session>>>) -> Self {
+        Self(SESSION.replace(session))
+    }
+}
+
+impl Drop for SessionScope {
+    fn drop(&mut self) {
+        SESSION.set(self.0.take());
+    }
+}
+
+/// Runs only after the in-process module cache misses. The serial path
+/// never creates a Rayon pool. Wasmtime uses the current scoped pool,
+/// whose workers inherit the same pack through Rayon's scoped-TLS pattern
+/// (`ThreadPoolBuilder::build_scoped`), rather than the global pool.
+pub(crate) fn compile_module(
+    engine: &wasmtime::Engine,
+    wasm: &[u8],
+    jobs: usize,
+) -> wasmtime::Result<wasmtime::Module> {
+    let _trace = hd_base::trace::span("phase", || format!("wasmtime compile jobs={}", jobs.max(1)));
+    if jobs <= 1 {
+        return wasmtime::Module::new(engine, wasm);
+    }
+    let session = SESSION.with_borrow(Clone::clone);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(jobs)
+        .thread_name(|i| format!("hd-cranelift-{i}"))
+        .build_scoped(
+            |thread| {
+                let _scope = SessionScope::enter(session.clone());
+                thread.run();
+            },
+            |pool| pool.install(|| wasmtime::Module::new(engine, wasm)),
+        )
+        .map_err(wasmtime::Error::new)?
 }
 
 /// Cranelift's view of the pack: the function store wasmtime calls while
@@ -312,20 +367,27 @@ struct Functions;
 
 impl wasmtime::CacheStore for Functions {
     fn get(&self, key: &[u8]) -> Option<Cow<'_, [u8]>> {
-        SESSION.with_borrow_mut(|session| {
-            let session = session.as_mut()?;
-            let function = session.functions.get_mut(key)?;
-            function.used = true;
+        SESSION.with_borrow(|session| {
+            let mut session = session
+                .as_ref()?
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let code = {
+                let function = session.functions.get_mut(key)?;
+                function.used = true;
+                function.code.to_vec()
+            };
             session.stats.hits += 1;
-            Some(Cow::Owned(function.code.to_vec()))
+            Some(Cow::Owned(code))
         })
     }
 
     fn insert(&self, key: &[u8], value: Vec<u8>) -> bool {
-        SESSION.with_borrow_mut(|session| {
-            let Some(session) = session.as_mut() else {
+        SESSION.with_borrow(|session| {
+            let Some(session) = session.as_ref() else {
                 return false;
             };
+            let mut session = session.lock().unwrap_or_else(PoisonError::into_inner);
             session.stats.compiled += 1;
             session.dirty = true;
             session.functions.insert(
