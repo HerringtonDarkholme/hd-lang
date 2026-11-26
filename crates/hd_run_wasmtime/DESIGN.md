@@ -549,11 +549,13 @@ pub enum Outcome { Exit(u8), Panic(PanicReport), Internal(String) }
   (`hd_run_wasmtime/src/host/`). Planned, not built: an embedder supplying
   its own providers for its own capability traits, with their ABI
   descriptions at run time instead of from the static table (#51).
-- wasmtime compiled modules are cached in process only, keyed by their
-  bytes; wasmtime's serialized modules are `unsafe` to deserialize, so
-  there is no cross-run module cache (`cache.rs`). Their machine code is
-  kept across runs function by function, in `clpack` entries
-  (`code_cache.rs`, docs/compiler/engines-and-test-runner.md §18.2).
+- Portable-Wasm compiled modules are cached in process, keyed by their
+  bytes (`cache.rs`); their machine code persists function by function in
+  `clpack` entries (`code_cache.rs`). Wasmtime release builds separately
+  publish reusable `.cwasm` native artifacts. Their loader maps the open
+  image through `Module::deserialize_open_file`, confining the unsafe
+  contract to that artifact boundary. See
+  [compile caches](../../docs/compiler/engines-and-test-runner.md#182-compile-caches).
 
 ### 17.10 The Generated JS Glue
 
