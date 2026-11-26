@@ -2,7 +2,7 @@
 //! Lexical scopes are walked once with an undoable key index: no search of the
 //! ambient runtime context, and no walk through enclosing scopes per call.
 
-use hd_base::{DefId, HashMap, NotImplemented, PathId, Range32, Stage, StageResult, Symbol};
+use hd_base::{DefId, HashMap, NotImplemented, PathId, Range32, Stage, StageResult};
 use hd_resolve::ItemData;
 use hd_tir::ir::{
     Body, Callee, Coercion, NONE, Providers, ReadMode, Ref, Tag, Topology, place, u32_of,
@@ -452,7 +452,7 @@ fn project(
     let reference = push(Tag::Coerce, [provider, as_ref], source);
     let local = u32_of(b.local_ty.len());
     b.local_ty.push(source);
-    b.local_name.push(Symbol::from_raw(0));
+    b.local_name.push(cx.names.syms.intern(""));
     b.local_syn.push(b.syn[call]);
     b.local_flags.push(0);
     push(Tag::Store, [place::BARE_LOCAL | local, reference], Ty::VOID);
