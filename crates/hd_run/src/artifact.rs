@@ -31,18 +31,10 @@ impl Native {
             };
             options.access_mode(FILE_GENERIC_READ | FILE_GENERIC_EXECUTE);
         }
-        let file = options.open(path).map_err(|e| e.to_string())?;
-        Self::from_file(file)
-    }
-
-    pub fn from_file(mut file: File) -> Result<Self, String> {
-        let size = file.metadata().map_err(|e| e.to_string())?.len();
-        let tail_size = u64::try_from(TAIL).map_err(|e| e.to_string())?;
-        if size < tail_size {
-            return Err("not an hd native artifact".into());
-        }
-        file.seek(SeekFrom::Start(size - tail_size))
-            .map_err(|e| e.to_string())?;
+        let mut file = options.open(path).map_err(|e| e.to_string())?;
+        let end = file
+            .seek(SeekFrom::End(-32))
+            .map_err(|_| "not an hd native artifact")?;
         let mut tail = [0; TAIL];
         file.read_exact(&mut tail).map_err(|e| e.to_string())?;
         if tail.get(24..) != Some(MAGIC.as_slice()) {
@@ -56,7 +48,7 @@ impl Native {
                 .try_into()
                 .map_err(|_| "invalid native metadata size")?,
         );
-        let start = (size - tail_size)
+        let start = end
             .checked_sub(len)
             .ok_or("native metadata extends before the image")?;
         if start == 0 {

@@ -212,17 +212,8 @@ fn registry(root: &Path) -> Result<Value, String> {
 }
 
 fn save(root: &Path, value: &Value) -> Result<(), String> {
-    let pending = root.join(format!("installed/.registry.{}.tmp", std::process::id()));
-    fs::write(
-        &pending,
-        serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?,
-    )
-    .map_err(io)?;
-    let result = fs::rename(&pending, root.join("installed/registry.json")).map_err(io);
-    if result.is_err() {
-        let _ = fs::remove_file(pending);
-    }
-    result
+    let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
+    crate::publish(&root.join("installed/registry.json"), &bytes)
 }
 
 fn bin(root: &Path, name: &str) -> PathBuf {
@@ -774,7 +765,7 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
     crate::execute(
         &Compiled {
             wasm,
-            native: native.map(std::sync::Arc::new),
+            native,
             frames: None,
             stored: None,
         },
