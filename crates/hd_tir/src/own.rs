@@ -319,6 +319,20 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
+    /// Whether a call of `callee` answers whether its one argument, a
+    /// counted block, has no other holder (`std.rt.is_unique`), reading
+    /// nothing else: the test of a make-unique diamond ([`hoist`]).
+    fn tests_unique(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
+    /// Whether a call of `callee` returns the address of its first
+    /// argument's tail, the bytes past a counted block's header
+    /// (`std.rt.tail_of`): a write through it never writes a header word.
+    fn counted_tail(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// The level ([`hoist::result_level`]) of the block a call of `callee`
     /// returns that no other holder has: `std.rt.alloc_counted`'s new
     /// block, or a body whose every result is one (#2369). 0 when unknown.
@@ -1197,6 +1211,26 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     known::place_arm_drops(b, &scratch.known, edits);
     splice::apply(b, topo, edits)?;
     edits.remap(&mut scratch.known.empty_stores);
+    // Make-unique diamonds move under their loops' entry tests (#2369).
+    if !(scratch.hoist.dmoves.is_empty() && scratch.hoist.dgone.is_empty()) {
+        let h = &mut scratch.hoist;
+        for m in &mut h.dmoves {
+            m.iff = edits.map(m.iff);
+            m.first = edits.map(m.first);
+            m.lp = edits.map(m.lp);
+        }
+        for g in &mut h.dgone {
+            *g = (edits.map(g.0), edits.map(g.1));
+        }
+        scratch.topo.build(b);
+        let mut new_of = Vec::new();
+        if hoist::place_diamonds(b, &scratch.topo, &h.dmoves, &h.dgone, &mut new_of)? {
+            scratch.known.empty_stores.retain_mut(|x| {
+                *x = new_of[*x as usize];
+                *x != NONE
+            });
+        }
+    }
     if self_store::applies(b) {
         scratch.topo.build(b);
         scratch.splice.clear();

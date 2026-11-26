@@ -128,6 +128,14 @@ impl Tables {
         });
     }
 
+    /// Instruction `x`'s number after the last apply (`NONE`: deleted).
+    pub(crate) fn map(&self, x: u32) -> u32 {
+        self.new_of
+            .get(x as usize)
+            .copied()
+            .unwrap_or(if self.new_of.is_empty() { x } else { NONE })
+    }
+
     pub(crate) fn clear(&mut self) {
         self.edits.clear();
         self.rewrites.clear();

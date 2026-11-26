@@ -95,12 +95,15 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::splice;
-use super::{Operand, OwnCx, Role, fill, operands};
+use super::{CallMemory, Operand, OwnCx, Role, fill, operands};
+
+mod diamond;
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root,
     Tag, Topology, VARIANT, Word, is_suspension, local_flags, place, ref_word, slots, sub_flags,
     u32_of, unique_word,
 };
+pub(crate) use diamond::{Move, place as place_diamonds};
 
 /// The longest chain of reads a place is resolved through.
 const DEPTH: usize = 8;
@@ -327,6 +330,20 @@ pub(crate) struct Tables {
     steps: Vec<u32>,
     raw: Vec<u32>,
     ops: Vec<Operand>,
+    /// Per local: the local it names and whether through a reference
+    /// ([`diamond::aliases`]); per instruction, a link of such a name.
+    alias: Vec<(u32, bool)>,
+    plumb: Vec<bool>,
+    /// Per instruction: the make-unique diamond `If` it is part of.
+    diamond: Vec<u32>,
+    /// The loop's diamonds of its candidates: (candidate, `If`, first
+    /// instruction, in the iteration block).
+    dhits: Vec<(u32, u32, u32, bool)>,
+    /// The block place a tail store writes below ([`tail_place`]).
+    tsteps: Vec<u32>,
+    /// The diamonds to move and to delete after the splice.
+    pub(crate) dmoves: Vec<Move>,
+    pub(crate) dgone: Vec<(u32, u32)>,
 }
 
 impl Tables {
@@ -514,8 +531,20 @@ impl Tables {
     /// Whether a read's value is kept by a use (rule 2's copy): stored,
     /// passed owned or as an argument, a block's value, coerced, or
     /// copied by an intrinsic.
-    fn kept(&self, b: &Body, r: u32) -> bool {
-        self.uses(r).iter().any(|&(u, role)| keeps(b, u, role))
+    fn kept(&self, b: &Body, cx: &dyn OwnCx, r: u32) -> bool {
+        self.uses(r).iter().any(|&(u, role)| {
+            let ui = u as usize;
+            // A coercion that keeps the value is that value again; a call
+            // that only reads storage (`tail_of`) keeps none of it.
+            if b.same_value_coercion(ui) && u > r {
+                self.kept(b, cx, u)
+            } else {
+                keeps(b, u, role)
+                    && !(b.tags[ui] == Tag::Call
+                        && Callee::from_words(b.record(b.data[ui][0]))
+                            .is_some_and(|c| cx.call_reads_storage_only(&c)))
+            }
+        })
     }
 }
 
@@ -562,6 +591,8 @@ pub(crate) fn run(
 ) {
     b.stable_lists.clear();
     t.relies = 0;
+    t.dmoves.clear();
+    t.dgone.clear();
     let n = b.len();
     let fresh = fresh_buffers(b, cx);
     let element_checks = super::ElementChecks::new(b);
@@ -897,16 +928,87 @@ pub fn result_level(b: &Body, cx: &dyn OwnCx) -> u8 {
     let mut level = match b.data[root as usize][1] {
         NONE if b.ty[root as usize] == Ty::NEVER => UNIQUE,
         NONE => return 0,
-        tail => made_level(b, tail, cx, &mut once),
+        tail => made_level(b, bound_value(b, cx, tail), cx, &mut once),
     };
     if level == 0 || !b.tags.contains(&Tag::Return) {
         return level;
     }
     let topo = Topology::new(b);
     for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Return && topo.sub[i] == 0) {
-        level = level.min(made_level(b, b.data[i][0], cx, &mut once));
+        level = level.min(made_level(
+            b,
+            bound_value(b, cx, b.data[i][0]),
+            cx,
+            &mut once,
+        ));
     }
     level
+}
+
+/// The value a result read of a local binding is, `fresh := alloc(..)`
+/// then `fresh`: the one value stored into all of the local, when no
+/// reference or capture reaches the local and every other read of it is
+/// a scalar part or an argument of a call that only reads storage
+/// (`OwnCx::call_reads_storage_only`: `tail_of`), so nothing else holds
+/// what it holds. Else `v` itself. One scan of the body, once per callee.
+fn bound_value(b: &Body, cx: &dyn OwnCx, v: u32) -> u32 {
+    let Some(l) = Ref(v).as_inst().and_then(|i| b.local_read(i.0 as usize)) else {
+        return v;
+    };
+    let li = l.idx();
+    if b.local_flags[li]
+        & (local_flags::PARAM | local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
+        != 0
+        || b.cap_local.contains(&l)
+    {
+        return v;
+    }
+    let mut stored = NONE;
+    let (mut ops, mut reads) = (Vec::new(), Vec::new());
+    for i in 0..b.len() {
+        if !matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::Drop) {
+            continue;
+        }
+        let p = b.view(b.data[i][0]);
+        if p.local() != Some(u32_of(li)) {
+            continue;
+        }
+        match b.tags[i] {
+            Tag::Store if p.whole() && stored == NONE => stored = b.data[i][1],
+            Tag::Read if u32_of(i) == v => {}
+            Tag::Read if !p.whole() && !cx.counted(b.ty[i]) => {}
+            Tag::Read if p.whole() => reads.push(u32_of(i)),
+            _ => return v,
+        }
+    }
+    // Each other whole read, through coercions that keep its value, only
+    // an argument of a storage-only call.
+    let mut mark = vec![false; b.len()];
+    for r in reads {
+        mark[r as usize] = true;
+    }
+    for u in 0..b.len() {
+        operands(b, u, &mut ops);
+        if !ops
+            .iter()
+            .any(|o| mark.get(o.value as usize) == Some(&true))
+        {
+            continue;
+        }
+        if b.same_value_coercion(u) {
+            mark[u] = true;
+        } else if !(b.tags[u] == Tag::Call
+            && Callee::from_words(b.record(b.data[u][0]))
+                .is_some_and(|c| cx.call_reads_storage_only(&c)))
+        {
+            return v;
+        }
+    }
+    if Ref(stored).as_inst().is_some() {
+        stored
+    } else {
+        v
+    }
 }
 
 /// Each value's count of uses as an operand, counted at the first ask.
@@ -1232,12 +1334,22 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = ops;
+    diamond::aliases(b, t);
+    fill(&mut t.diamond, n, NONE);
+    for x in 0..u32_of(n) {
+        if b.tags[x as usize] == Tag::If
+            && !t.pending.dead[x as usize]
+            && let Some((first, _)) = diamond::shape(b, cx, t, x)
+        {
+            t.diamond[first as usize..=x as usize].fill(x);
+        }
+    }
     // Per local: references, fresh stores, reads that keep the value, and
-    // borrows of its own place.
+    // borrows of its own place. An alias's links are neither.
     t.borrows.clear();
     let (mut steps, mut raw) = (std::mem::take(&mut t.steps), std::mem::take(&mut t.raw));
     for i in 0..n {
-        if t.pending.dead[i] {
+        if t.pending.dead[i] || t.plumb[i] {
             continue;
         }
         let [a, w] = b.data[i];
@@ -1258,7 +1370,6 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::Store => {
                 let p = b.view(a);
                 if let Some(l) = p.local().filter(|_| p.whole()) {
-                    t.stores[l as usize] += 1;
                     // Through coercions that keep the value.
                     let mut v = w;
                     while Ref(v).as_inst().is_some() && b.same_value_coercion(v as usize) {
@@ -1298,17 +1409,17 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     }
                 }
             }
-            Tag::Read if w != ReadMode::Move as u32 => {
+            // A diamond's read is no holder past it ([`diamond`]).
+            Tag::Read if w != ReadMode::Move as u32 && t.diamond[i] == NONE => {
                 let (l, _) = resolve(b, a, &mut steps, &mut raw);
+                let l = diamond::unalias(&t.alias, l, &mut steps);
                 if l == NONE || steps.contains(&ELEM) {
                     continue;
                 }
                 // A kept value with no count, collection or reference
                 // (a `usize` field) neither shares a buffer nor reaches
                 // the local's storage: it lets nothing escape.
-                if t.uses(u32_of(i)).iter().any(|&(u, role)| keeps(b, u, role))
-                    && shares(cx, b.ty[i])
-                {
+                if t.kept(b, cx, u32_of(i)) && shares(cx, b.ty[i]) {
                     t.escapes[l as usize] = true;
                     // Past a second dereference the place may be any
                     // place of the local again.
@@ -1420,7 +1531,7 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
     if !cx.counted(ty) || b.data[header as usize][1] == ReadMode::Move as u32 {
         return None;
     }
-    let (l, _) = resolve(b, word, &mut t.steps, &mut t.raw);
+    let (l, _) = t.place(b, word);
     if l == NONE || !hoistable(&t.steps) {
         return None;
     }
@@ -1448,6 +1559,7 @@ fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> 
     if (PlaceView { to, ..p }).push_steps(b, &mut t.steps).1 {
         return None;
     }
+    let l = t.unalias(l);
     if !hoistable(&t.steps) {
         return None;
     }
@@ -1522,6 +1634,7 @@ fn hoist_loop(
     t.cands.clear();
     t.csteps.clear();
     t.hits.clear();
+    t.dhits.clear();
     // Rule 1: the `IsUnique`s of the iteration block, behind a pure
     // prefix; a loop with no entry test runs its body block whenever it
     // is entered.
@@ -1555,6 +1668,10 @@ fn hoist_loop(
                 if let Some(arm) = unconditional_arm(b, i) {
                     blocks.push((arm, eager));
                 }
+            } else if b.tags[i] == Tag::Scope {
+                // An inlined body's block runs where the scope stands, to
+                // its first exit.
+                blocks.push((b.data[i][0], eager));
             } else if b.tags[i] == Tag::IsUnique && !t.gone[i] {
                 let word = b.data[i][0];
                 let local = match unique_header(b, word) {
@@ -1567,6 +1684,17 @@ fn hoist_loop(
                 {
                     t.cands[c].eager |= eager && hoist;
                 }
+            } else if t.diamond[i] == x
+                && let Some((first, local)) = diamond::shape(b, cx, t, x)
+                && !(t.reached_in_loop(local)
+                    || t.captured[local as usize]
+                    || t.kept_through(local))
+                && let Some(c) = candidate(t, local, true)
+            {
+                // The first in the iteration block moves (rule 1).
+                let moved = !t.dhits.iter().any(|h| h.0 == u32_of(c));
+                t.cands[c].eager |= eager && moved;
+                t.dhits.push((u32_of(c), x, first, moved));
             }
             eager &= !t.leaves[i];
         }
@@ -1621,13 +1749,38 @@ fn hoist_loop(
         }
     }
     elem_locals(b, t, lo, l);
-    // Rules 2 and 3 over the loop's instructions.
+    // The loop's other diamonds of a moving one's place go with it.
+    for x in lo..l {
+        if t.diamond[x as usize] != x || t.dhits.iter().any(|h| h.1 == x) {
+            continue;
+        }
+        if let Some((first, local)) = diamond::shape(b, cx, t, x)
+            && let Some(k) = (0..t.cands.len()).find(|&k| {
+                let c = t.cands[k];
+                c.local == local && t.cand_steps(&c) == &t.steps[..]
+            })
+            && t.dhits.iter().any(|h| h.0 as usize == k)
+        {
+            t.dhits.push((u32_of(k), x, first, false));
+        }
+    }
+    // Rules 2 and 3 over the loop's instructions; a diamond's own are
+    // exempt for its place.
+    let all = t.cands.len();
     for x in lo..l {
         let i = x as usize;
         if t.pending.dead[i] {
             continue;
         }
-        check(b, cx, t, x, l, 0..t.cands.len());
+        let d = t.diamond[i];
+        match t.dhits.iter().find(|h| d != NONE && h.1 == d) {
+            Some(h) => {
+                let k = h.0 as usize;
+                check(b, cx, t, x, l, 0..k);
+                check(b, cx, t, x, l, k + 1..all);
+            }
+            None => check(b, cx, t, x, l, 0..all),
+        }
     }
     let at = (topo.blk[l as usize], topo.pos[l as usize]);
     let mut rowed = false;
@@ -1678,7 +1831,25 @@ fn hoist_loop(
                 break 'hoist (None, false);
             }
             let word = place_word(b, t, &c);
-            if c.hoist {
+            let ku = u32_of(k);
+            if t.dhits.iter().any(|h| h.0 == ku) {
+                // A diamond moves only where it runs first ([`diamond`]).
+                if c.eager {
+                    for &(kk, iff, first, moved) in &t.dhits {
+                        if kk != ku {
+                        } else if moved {
+                            t.dmoves.push(Move {
+                                iff,
+                                first,
+                                lp: l,
+                                word,
+                            });
+                        } else {
+                            t.dgone.push((iff, first));
+                        }
+                    }
+                }
+            } else if c.hoist {
                 edits.insert(
                     at.0,
                     at.1,
@@ -2035,6 +2206,7 @@ fn elem_locals(b: &Body, t: &mut Tables, lo: u32, l: u32) {
         let cand = (v != NONE && Ref(v).as_inst().is_some() && b.tags[v as usize] == Tag::Ref)
             .then(|| {
                 let (rl, _) = resolve(b, b.data[v as usize][0], &mut steps, &mut raw);
+                let rl = diamond::unalias(&t.alias, rl, &mut steps);
                 t.cands.iter().position(|c| {
                     let cs = t.cand_steps(c);
                     rl == c.local
@@ -2068,10 +2240,85 @@ fn elem_locals(b: &Body, t: &mut Tables, lo: u32, l: u32) {
     t.raw = raw;
 }
 
+/// The block place whose tail a store's place `word` writes into, below
+/// that place as a builtin list's element is: a dereference of an address
+/// derived from a tail address (`OwnCx::counted_tail`) of a read of the
+/// place, through address arithmetic (`CallMemory::Derive`), a pointer's
+/// `as_mut`, a pointer struct and its address field, scopes and
+/// coercions. A tail lies past its block's header, so such a store
+/// writes an element, never the header the place holds. Its local, its
+/// steps into `steps`; `NONE` for any other store. At most `DEPTH` links
+/// on the way, each O(1).
+fn tail_place(
+    b: &Body,
+    cx: &dyn OwnCx,
+    alias: &[(u32, bool)],
+    word: u32,
+    steps: &mut Vec<u32>,
+) -> u32 {
+    let p = b.view(word);
+    let Some(mut v) = p.value() else {
+        return NONE;
+    };
+    if p.steps(b).next() != Some(Proj::Deref) || p.steps(b).skip(1).any(|s| s == Proj::Deref) {
+        return NONE;
+    }
+    let mut tailed = false;
+    let mut raw = Vec::new();
+    for _ in 0..2 * DEPTH {
+        let Some(i) = Ref(v).as_inst().map(|i| i.0 as usize) else {
+            return NONE;
+        };
+        let [a, w] = b.data[i];
+        v = match b.tags[i] {
+            Tag::Scope => match b.wrapper_value(i) {
+                Some(x) => x,
+                None => return NONE,
+            },
+            Tag::Coerce if b.same_value_coercion(i) => a,
+            Tag::NewStruct => match *b.record(w) {
+                [x] => x,
+                _ => return NONE,
+            },
+            Tag::Call => {
+                let Some(c) = Callee::from_words(b.record(a)) else {
+                    return NONE;
+                };
+                let derives =
+                    cx.plain_result(&c) || matches!(cx.call_memory(&c), CallMemory::Derive(0));
+                match b.call_args(i).first() {
+                    Some(&x) if derives => {
+                        tailed |= cx.counted_tail(&c);
+                        x
+                    }
+                    _ => return NONE,
+                }
+            }
+            Tag::Read if tailed && cx.counted(b.ty[i]) => {
+                let (l, _) = resolve(b, a, steps, &mut raw);
+                return diamond::unalias(alias, l, steps);
+            }
+            // The address field of a pointer struct.
+            Tag::Read if !tailed || b.view(a).value().is_some() => {
+                let q = b.view(a);
+                match q.value() {
+                    Some(x) if q.steps(b).all(|s| matches!(s, Proj::Field(_))) => x,
+                    _ => return NONE,
+                }
+            }
+            _ => return NONE,
+        };
+    }
+    NONE
+}
+
 /// Checks instruction `x` of loop `lp` against every candidate (rules 2
 /// and 3).
 fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<usize>) {
     let (tag, [a, w]) = (b.tags[x as usize], b.data[x as usize]);
+    if t.plumb[x as usize] {
+        return;
+    }
     if is_suspension(tag) {
         for c in &mut t.cands[ks] {
             c.ok = false;
@@ -2096,9 +2343,19 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<us
     match tag {
         Tag::Read | Tag::Store | Tag::Drop | Tag::Ref | Tag::IsUnique => {
             let (l, temp) = resolve(b, a, &mut steps, &mut raw);
+            let l = diamond::unalias(&t.alias, l, &mut steps);
             let memory = raw.iter().any(|&s| s == ELEM || s == DEREF);
+            // A store into the tail of the block a place holds.
+            let tail = if tag == Tag::Store && l == NONE {
+                tail_place(b, cx, &t.alias, a, &mut t.tsteps)
+            } else {
+                NONE
+            };
             for k in ks {
                 let c = t.cands[k];
+                if tail != NONE && tail == c.local && t.tsteps[..] == *t.cand_steps(&c) {
+                    continue;
+                }
                 let mine = l == c.local;
                 // Through an element reference local: into the buffer.
                 let through = steps.first() == Some(&DEREF) && t.elems.contains(&(l, u32_of(k)));
@@ -2119,7 +2376,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<us
                     // list may reach, such a copy of any collection through
                     // memory.
                     Tag::Read => {
-                        !t.kept(b, x)
+                        !t.kept(b, cx, x)
                             || (!covers
                                 && (mine
                                     || !c.external
@@ -2169,7 +2426,8 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<us
             let coll = b.record(w).first().copied().unwrap_or(NONE);
             let (l, _) = match Ref(coll).as_inst() {
                 Some(h) if b.tags[h.0 as usize] == Tag::Read => {
-                    resolve(b, b.data[h.0 as usize][0], &mut steps, &mut raw)
+                    let (l, temp) = resolve(b, b.data[h.0 as usize][0], &mut steps, &mut raw);
+                    (diamond::unalias(&t.alias, l, &mut steps), temp)
                 }
                 _ => {
                     steps.clear();
