@@ -1,7 +1,8 @@
 # Releasing a package
 
 Status: design proposal, 2026-10-23; domain: CLI/tooling; not accepted.
-Tracked by [#1820](https://github.com/HerringtonDarkholme/hd-lang/issues/1820) (owner, 2026-11-13: keep `hd release` as a direction).
+Parked direction retained by the owner on 2026-11-13; [#1820](https://github.com/HerringtonDarkholme/hd-lang/issues/1820) is closed.
+Work resumes when the owner starts release tooling.
 This revises [#28](https://github.com/HerringtonDarkholme/hd-lang/issues/28)
 under its [owner review](https://github.com/HerringtonDarkholme/hd-lang/issues/28#issuecomment-6372612840).
 It proposes tooling over [package versions](../../spec/lang/10-modules.md#versions)

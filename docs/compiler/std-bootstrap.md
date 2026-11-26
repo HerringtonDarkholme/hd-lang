@@ -23,9 +23,13 @@ source-backed std interfaces.
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` | `cmp.hd`; `Eq` is declared in `core/mod.hd` and re-exported; primitive impls use intrinsic methods |
 | `std.hash` | `Hash`, `Hasher` | declared in `core/mod.hd`, re-exported by `hash.hd` |
 | `std.iter` | `Iterator`, `Iterable` | `iter.hd` |
-| `std.console` | `Console`, `ConsoleError`, `println` | `console.hd`; `println` is hd over `Console` and `block_on` |
+| `std.console` | `Console`, `ConsoleError`, `println` | `console.hd`; `println` calls `Console.write_sync` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` | `hd_resolve::seed` |
 | `std.testing` | `it`, test code only | `hd_resolve::seed` |
+
+Built-in inherent methods use the fixed homes in `hd_resolve::known::BUILTIN_HOMES`.
+Numeric primitives use `std.num`, and `char` and `string` use `std.text`.
+`List` and `Map` use their collection children; `Option` and `Result` use their own modules, while `bool` stays in `std.core`.
 
 ### Compiler-Supplied Names Outside The Prelude
 
