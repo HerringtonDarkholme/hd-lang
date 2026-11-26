@@ -1,0 +1,9 @@
+# test: during a &mut element reference's call, another argument may not read the list, another element included
+# Spec 13 Call-Scoped Access: ref.elem.access.mut, ref.elem.conflict.
+fn add_all(target: &mut i32, other: i32) -> void:
+    *target += other
+
+fn scores() -> List[i32]:
+    let mut scores = [+1, 2]
+    add_all(&mut scores[0], scores[1]) # diagnostic: conflicting-access
+    scores

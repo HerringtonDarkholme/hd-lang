@@ -1,0 +1,9 @@
+# test: a store to an element of the list in the body of a for p in &xs loop conflicts: the loop borrows the whole list
+# Spec 06 Element Reference Loops: flow.for.ref.conflict; Spec 13: ref.elem.access.length.
+fn total() -> i32:
+    let mut xs = [+1, 2, 3]
+    let mut seen = +0
+    for x in &xs:
+        xs[2] = 7 # diagnostic: conflicting-access
+        seen += *x
+    seen

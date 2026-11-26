@@ -1,0 +1,11 @@
+# test: the body of a borrowing loop may not replace an element of its list, a pointer included
+struct P:
+    name: string
+
+fn names() -> string:
+    let mut ps = [box(P { name: "a${1}" })]
+    let mut out = ""
+    for p in &ps:
+        out += p.name
+        ps[0] = box(P { name: "b${2}" }) # diagnostic: conflicting-access
+    out

@@ -372,7 +372,7 @@ fn raised(prices: List[i32]) -> List[i32]:
 1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
 3. r[flow.for.ref.access] The loop is one access to `xs`, as an element reference holds ([`ref.elem.access.live`](13-values-and-references.md#r-ref.elem.access.live)). It begins when the loop begins and ends when the loop ends or is left.
-4. r[flow.for.ref.conflict] Here `xs` counts as unaliased when it is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), and when it is what a `&mut` parameter or `:=` binding refers to, since [`ref.excl.mut`](13-values-and-references.md#r-ref.excl.mut) makes that reachable through it alone. Then the body may store to the elements of `xs`, but an expression in it that may change `xs`, as the table under [`ref.elem.conflict`](13-values-and-references.md#r-ref.elem.conflict) lists, or that replaces it, is an error. In `for p in &mut xs` so is any other use of `xs`, as [`ref.elem.access.mut`](13-values-and-references.md#r-ref.elem.access.mut) says, and any other reference into it. Error: `conflicting-access`.
+4. r[flow.for.ref.conflict] The loop borrows `xs` whole, as its element references do ([`ref.elem.access.live-length`](13-values-and-references.md#r-ref.elem.access.live-length)): in `for p in &xs` the body may read `xs` but not change it or any element of it, and in `for p in &mut xs` it may not use `xs` at all but through the loop binding. Error: `conflicting-access`.
 5. r[flow.for.ref.binding.local] The loop binding is an element reference to its slot for one step. It is a local reference value, so the body may bind, assign, read and write through it, and pass it or use it as a dependent source; every local-reference and dependent-result rule applies.
 6. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
 7. r[flow.for.ref.map.entries] `for (k, v) in &mut m`, where `m` is a map, binds `k: &K` and `v: &mut V` to its entry slots.
@@ -391,7 +391,7 @@ fn invalid(prices: Map[string, i32]) -> void:
         *x = 0
     let mut scores = [+1, 2]
     for score in &mut scores:
-        *score += scores[0]  # reads and element writes are allowed
+        *score += 1          # the loop binding is the way in
         scores.push(*score)  # error: conflicting-access
     let mut kept: List[*i32] = []
     for score in &scores:

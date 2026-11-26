@@ -10,12 +10,9 @@
 //! the block structure: an instruction runs after the earlier ones of its
 //! block's statements, and a loop's body runs again, so a read earlier in
 //! a loop follows a write later in it when the binding outlives one
-//! iteration. An element reference is a loan of its whole collection
-//! (`ref.elem.access.length`, `ref.elem.access.mut`): a `&` one conflicts
-//! with a change of the collection or of a place holding it, and with a
-//! `&mut` into it; a `&mut` one also with any use of the collection or of
-//! a place holding it, and with any reference into it. Reads and stores
-//! of its elements stay apart.
+//! iteration. An element reference borrows its whole collection
+//! (`ref.elem.access`): `&xs[i]` is a `&` of `xs` and `&mut xs[i]` a
+//! `&mut` of it, as `Index.index` and `IndexMut.index_mut` take them.
 
 use hd_base::{HashMap, NodeIdx, SliceSort as _};
 use hd_tir::ir::{
@@ -56,71 +53,22 @@ pub(super) fn path_of(b: &Body, word: u32) -> Option<Path> {
     }
 }
 
-/// Follow a local reference's single structural source. A loop binding
-/// refers to its element slot; it is not an independently counted copy of
-/// that slot's pointer. Keep following only local references, never `*T`.
-fn source_path(s: &Inputs<'_>, mut path: Path) -> Path {
-    let b = s.b;
-    for _ in 0..b.local_ty.len() {
-        let (l, steps) = &path;
-        if steps.first() != Some(&Proj::Deref)
-            || b.local_flags[*l as usize] & local_flags::PARAM != 0
-            || super::local_ref(s.pool, b.local_ty[*l as usize]).is_none_or(|(counted, _)| counted)
-        {
-            break;
-        }
-        let mut stores = (0..b.tags.len()).filter(|&i| {
-            b.stored_local(i)
-                .is_some_and(|(local, whole)| whole && local.raw() == *l)
-        });
-        let Some(store) = stores.next() else { break };
-        if stores.next().is_some() {
-            break;
-        }
-        let Some(mut v) = Ref(b.data[store][1]).as_inst().map(|v| v.0 as usize) else {
-            break;
-        };
-        while b.same_value_coercion(v) {
-            v = b.data[v][0] as usize;
-        }
-        let Some(tag) = b.tags.get(v) else { break };
-        let skip = match tag {
-            Tag::Ref => 1,
-            Tag::Read if super::local_ref(s.pool, b.ty[v]).is_some_and(|(counted, _)| !counted) => {
-                0
-            }
-            _ => break,
-        };
-        let Some((root, mut source)) = path_of(b, b.data[v][0]) else {
-            break;
-        };
-        source.extend_from_slice(&steps[skip..]);
-        path = (root, source);
-    }
-    path
-}
-
-/// What a site loan excludes (`ref.excl.shared`, `ref.excl.mut`,
-/// `ref.elem.access.length`, `ref.elem.access.mut`).
+/// What a site loan excludes (`ref.excl.shared`, `ref.excl.mut`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Shared,
     Excl,
-    /// An element reference, `&mut` when set: a loan of its whole
-    /// collection ([`Gen::elem_conflict`]).
-    Elem(bool),
 }
 
 /// A site loan of `call_conflicts`: its id, its `Ref`, the place a call's
-/// result holds after that call, and its place.
-type SiteLoan = (u32, u32, Option<(usize, Path)>, Path);
+/// result holds after that call, its place, and whether it is `&mut`.
+type SiteLoan = (u32, u32, Option<(usize, Path)>, Path, bool);
 
 /// What `Gen::call_conflicts` reads of the whole body, built once per
 /// body (#2134): each value's first user, and the writes, moves and uses
 /// of places, each sorted by where it happens, so the accesses between an
 /// argument and its call are one binary search and the window itself.
 struct CallTables {
-    firsts: Vec<u32>,
     /// `Gen::writes`, by where each write happens.
     writes: Vec<(u32, Path, u32)>,
     /// `Gen::moves`, by instruction.
@@ -187,51 +135,6 @@ fn window<T>(xs: &[T], key: impl Fn(&T) -> u32, lo: u32, hi: u32) -> &[T] {
     &xs[a..b]
 }
 
-/// The element and site loans one argument holds, as indexes into
-/// `call_conflicts`' lists, each ascending.
-#[derive(Clone, Default)]
-struct Held {
-    elems: Vec<u32>,
-    sites: Vec<u32>,
-}
-
-/// A loan's place in `call_conflicts`' element or site list.
-#[derive(Clone, Copy)]
-enum Slot {
-    Other,
-    Elem(u32),
-    Site(u32),
-}
-
-/// Call `c`, its argument `v` with the loans it holds, and every
-/// argument of the call with theirs (`Gen::elem_arg_conflict`).
-type ArgLoans<'x> = (usize, (u32, &'x Held), (&'x [u32], &'x [&'x Held]));
-
-/// The sorted union of `lists`, for a value whose regions reach several
-/// components.
-fn merge_held<'x>(lists: impl Iterator<Item = &'x Held>) -> Held {
-    let mut out = Held::default();
-    for h in lists {
-        out.elems.extend_from_slice(&h.elems);
-        out.sites.extend_from_slice(&h.sites);
-    }
-    for v in [&mut out.elems, &mut out.sites] {
-        v.sort_stable();
-        v.dedup();
-    }
-    out
-}
-
-/// What an access that conflicts with an element reference does, for its
-/// message: a `Reference` into the collection is `&mut` when set.
-#[derive(Clone, Copy)]
-enum ElemWhat {
-    Resize,
-    Replace,
-    Reference(bool),
-    Use,
-}
-
 /// How an instruction accesses a place a loan may cover.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Access {
@@ -243,58 +146,7 @@ enum Access {
     Use,
 }
 
-/// Whether an element path then reads through a counted pointer. That
-/// pointer slot keeps the pointee alive: replacing it must keep the loan
-/// of the root, even though the referent is outside the collection buffer.
-fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usize) -> bool {
-    let mut ty = s.b.local_ty[root as usize];
-    let mut variant = None;
-    for (at, step) in path.iter().enumerate() {
-        ty = match *step {
-            Proj::Elem(_) => {
-                let Some((def, args)) = s.pool.adt(ty) else {
-                    return false;
-                };
-                let known = &s.cx.names.known;
-                let slot = if def == known.list {
-                    0
-                } else if def == known.map {
-                    1
-                } else {
-                    return false;
-                };
-                let Some(&inner) = s.pool.list_items(args).get(slot) else {
-                    return false;
-                };
-                inner
-            }
-            Proj::Deref => {
-                let TyData::Ref { counted, inner, .. } = s.pool.get(ty) else {
-                    return false;
-                };
-                if at > element {
-                    // A copied local reference has its independent source;
-                    // later pointer fields do not borrow the element slot.
-                    return counted;
-                }
-                inner
-            }
-            Proj::Variant(k) => {
-                variant = Some(k);
-                ty
-            }
-            Proj::Field(j) => {
-                let Some((inner, _)) = s.ls.field_slots(s.cx, ty, variant.take(), j) else {
-                    return false;
-                };
-                inner
-            }
-        };
-    }
-    false
-}
-
-/// The path before resolving a borrowed slot's local reference source.
+/// The place loan `i` takes, as `loan_path` reads it.
 fn raw_loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
     let (b, i) = (s.b, i as usize);
     let excl = is_mut(s.pool, b.ty[i]);
@@ -328,48 +180,73 @@ fn raw_loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
 
 /// The place loan `i` covers and its kind: a `Ref`'s place, or what a
 /// `&mut` binding refers to where a call reads it as `&` or as `&mut`
-/// (`ref.excl.call`). An element reference covers the collection its last
-/// element step indexes, when only fields follow that step; any other path with an
-/// element through a counted pointer still borrows the slot that holds it.
+/// (`ref.excl.call`). An element reference covers the collection its
+/// first element step indexes (`ref.elem.access`).
 fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
-    let b = s.b;
-    let excl = is_mut(s.pool, b.ty[i as usize]);
-    let original = raw_loan_path(s, i)?;
-    let resolved = source_path(s, original.clone());
-    // An element access alone permits slot stores. Its dependent read
-    // through a counted pointer is a separate loan protecting that slot.
-    let (l, mut path) = if resolved
-        .1
-        .iter()
-        .rposition(|p| matches!(p, Proj::Elem(_)))
-        .is_some_and(|k| counted_after_element(s, resolved.0, &resolved.1, k))
-    {
-        resolved
-    } else {
-        original
-    };
-    let Some(k) = path.iter().rposition(|s| matches!(s, Proj::Elem(_))) else {
-        return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
-    };
-    if counted_after_element(s, l, &path, k) {
-        return Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }));
+    let excl = is_mut(s.pool, s.b.ty[i as usize]);
+    let (l, mut path) = raw_loan_path(s, i)?;
+    if let Some(k) = path.iter().position(|p| matches!(p, Proj::Elem(_))) {
+        if through_local_ref(s, l, &path, k) {
+            return None;
+        }
+        path.truncate(k);
     }
-    if b.tags[i as usize] != Tag::Ref || !path[k + 1..].iter().all(|s| matches!(s, Proj::Field(_)))
-    {
-        return None;
+    Some(((l, path), if excl { Kind::Excl } else { Kind::Shared }))
+}
+
+/// Whether `path` from local `root` reads through a local reference held
+/// in its element at step `element`: the reference's own source, which
+/// its region carries, is what the loan keeps, as Rust's loan through a
+/// `&` stops at that dereference. A counted pointer there keeps the
+/// collection's loan, since replacing the slot would release its object.
+fn through_local_ref(s: &Inputs<'_>, root: u32, path: &[Proj], element: usize) -> bool {
+    let mut ty = s.b.local_ty[root as usize];
+    let mut variant = None;
+    for (at, step) in path.iter().enumerate() {
+        ty = match *step {
+            Proj::Elem(_) => {
+                let Some((def, args)) = s.pool.adt(ty) else {
+                    return false;
+                };
+                let known = &s.cx.names.known;
+                let slot = usize::from(def == known.map);
+                if def != known.list && def != known.map {
+                    return false;
+                }
+                let Some(&inner) = s.pool.list_items(args).get(slot) else {
+                    return false;
+                };
+                inner
+            }
+            Proj::Deref => {
+                let TyData::Ref { counted, inner, .. } = s.pool.get(ty) else {
+                    return false;
+                };
+                if at > element {
+                    return !counted;
+                }
+                inner
+            }
+            Proj::Variant(k) => {
+                variant = Some(k);
+                ty
+            }
+            Proj::Field(j) => {
+                let Some((inner, _)) = s.ls.field_slots(s.cx, ty, variant.take(), j) else {
+                    return false;
+                };
+                inner
+            }
+        };
     }
-    path.truncate(k);
-    Some(((l, path), Kind::Elem(excl)))
+    false
 }
 
 /// The place a call's result holds for loan `i`, a site of `loan_path`:
 /// the call that takes `i` and the place extended by the steps the
 /// callee's result paths name for that argument (`ref.result.path.caller`).
 /// While the call runs, `i` still covers its whole place.
-fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(usize, Path)> {
-    if matches!(kind, Kind::Elem(_)) {
-        return None;
-    }
+fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path) -> Option<(usize, Path)> {
     s.calls.iter().find_map(|(&c, sig)| {
         let (_, steps) = sig.paths.iter().find(|x| x.0 == i)?;
         let mut path = path.clone();
@@ -473,47 +350,6 @@ fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
         && b.decode_place(b.data[v as usize][0]).is_some_and(|p| {
             matches!(p.root, PlaceRoot::Local(l) if l.raw() == root) && p.proj.is_empty()
         })
-}
-
-/// Whether two key values are one key: one constant, or reads of one
-/// `:=` binding, which nothing reassigns.
-fn same_key(b: &Body, x: u32, y: u32) -> bool {
-    let strip = |mut v: u32| {
-        while (v as usize) < b.tags.len()
-            && b.tags[v as usize] == Tag::Coerce
-            && b.row_adaptation(v as usize).is_none()
-        {
-            v = b.data[v as usize][0];
-        }
-        v
-    };
-    let (x, y) = (strip(x), strip(y));
-    let short = |v: u32| {
-        let at = b.data.get(v as usize)?[0];
-        let p = b
-            .decode_place(at)
-            .filter(|_| b.tags[v as usize] == Tag::Read)?;
-        match p.root {
-            PlaceRoot::Local(l) if p.proj.is_empty() => {
-                (b.local_flags[l.idx()] & local_flags::SHORT != 0).then_some(l)
-            }
-            _ => None,
-        }
-    };
-    // A constant, with a string's text in place of its number.
-    let value = |v: u32| {
-        let (t, bits) = *b.consts.get((v & !Ref::CONST_BIT) as usize)?;
-        let text = (t == Ty::STRING).then(|| b.strings.get(usize::try_from(bits).ok()?));
-        Some(match text {
-            Some(s) => (t, 0, Some(s?)),
-            None => (t, bits, None),
-        })
-    };
-    match (Ref(x).as_inst(), Ref(y).as_inst()) {
-        (None, None) => value(x).is_some() && value(x) == value(y),
-        (Some(_), Some(_)) => short(x).is_some_and(|l| short(y) == Some(l)),
-        _ => false,
-    }
 }
 
 /// Whether two paths of one local overlap: no step of the one is a field
@@ -754,27 +590,14 @@ impl Gen<'_, '_> {
         // with its stores of a value that does not, and an element
         // reference loop's loop.
         let mut sites = Vec::new();
-        let mut rooted = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
             let Origin::Site(i) = *o else { continue };
-            let Some((mut place, mut kind)) = loan_path(self.s, i) else {
+            let Some((mut place, kind)) = loan_path(self.s, i) else {
                 continue;
             };
-            // A frozen loan lets no store reach its place, an element's
-            // included (`ref.frozen.write`): it is a shared loan of the
-            // element's own place.
-            if let Kind::Elem(false) = kind
-                && (self.s.frozen.iter()).any(|&h| has(&self.local(h).0, w(loan)))
-                && let Some(own) = raw_loan_path(self.s, i)
-            {
-                (place, kind) = (own, Kind::Shared);
-            }
-            if !matches!(kind, Kind::Elem(_))
-                && raw_loan_path(self.s, i).is_some_and(|original| original != place)
-            {
-                rooted.push(i);
-            }
-            if let Some((_, p)) = held_path(self.s, i, &place, kind) {
+            let elem = (raw_loan_path(self.s, i))
+                .is_some_and(|(_, p)| p.iter().any(|s| matches!(s, Proj::Elem(_))));
+            if let Some((_, p)) = held_path(self.s, i, &place) {
                 place = p;
             }
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
@@ -790,9 +613,7 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            let lp = matches!(kind, Kind::Elem(_))
-                .then(|| order.ref_loop(i))
-                .flatten();
+            let lp = elem.then(|| order.ref_loop(i)).flatten();
             sites.push((i, place, kind, holders, lp));
         }
         if sites.iter().all(|s| s.3.is_empty() && s.4.is_none()) {
@@ -819,30 +640,17 @@ impl Gen<'_, '_> {
         let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
         let nests = |(a, b): (u32, u32), (c, d): (u32, u32)| a <= c && d <= b || c <= a && b <= d;
         for (wi, place, at, access) in moves.chain(writes).chain(touches) {
-            let resolved = (!rooted.is_empty()).then(|| source_path(self.s, place.clone()));
             let node = b.syn[wi as usize];
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
             'site: for (i, (r, sp), kind, holders, lp) in &sites {
-                // A rooted loan's source resolves through the binding that
-                // holds it; `resolved` is computed whenever any loan is rooted.
-                let (root, path) = match &resolved {
-                    Some(source) if rooted.contains(i) => source,
-                    _ => &place,
-                };
+                let (root, path) = &place;
                 let root = *root;
                 if *r != root
                     || !overlap(sp, path)
                     || *i == wi
-                    || access == Access::Use && !matches!(kind, Kind::Excl | Kind::Elem(true))
-                {
-                    continue;
-                }
-                if let Kind::Elem(excl) = *kind
-                    && (!self.elem_conflict(excl, access, wi, path.len(), sp.len(), *i)
-                        || access == Access::Use
-                            && self.map_element_operand(wi, &users, path.len() == sp.len()))
+                    || access == Access::Use && *kind != Kind::Excl
                 {
                     continue;
                 }
@@ -859,15 +667,10 @@ impl Gen<'_, '_> {
                     let held = (self.bound.iter())
                         .any(|x| x.0 == h && (x.2.0..x.2.1).contains(&node.raw()));
                     if held || reads[h as usize].iter().any(|&u| live(u)) {
-                        let inner = matches!(kind, Kind::Elem(_))
-                            && sp.iter().any(|s| matches!(s, Proj::Field(_)));
                         let msg = if access == Access::Move {
-                            self.move_message(root, h, *kind, inner)
-                        } else if let Kind::Elem(excl) = *kind {
-                            let what = self.elem_what(excl, access, wi, path.len() <= sp.len());
-                            self.elem_message(root, Some(h), what, inner)
+                            self.move_message(root, h)
                         } else {
-                            self.conflict_message(root, h, *kind, inner)
+                            self.conflict_message(root, Some(h), *kind)
                         };
                         out.push((node, msg));
                         break 'site;
@@ -876,15 +679,12 @@ impl Gen<'_, '_> {
                 // A loop over element references is one access for the
                 // whole loop (`flow.for.ref.access`), whatever its binding
                 // still reads, a wildcard's included.
-                if let (Kind::Elem(excl), Some(l)) = (*kind, *lp)
+                if let Some(l) = *lp
                     && access != Access::Move
                     && order.chain(at).contains(&l)
                 {
-                    let inner = sp.iter().any(|s| matches!(s, Proj::Field(_)));
-                    let what = self.elem_what(excl, access, wi, path.len() <= sp.len());
-                    let h = holders.first().map(|x| x.0);
-                    let msg = self.elem_message(root, h, what, inner);
-                    let msg = match msg.split_once(" and is used later; ") {
+                    let msg = self.conflict_message(root, None, *kind);
+                    let msg = match msg.split_once(" while ") {
                         Some((head, _)) => {
                             format!("{head} in a loop over its elements; do it after the loop")
                         }
@@ -917,9 +717,9 @@ impl Gen<'_, '_> {
     /// arguments and receiver. One that holds a loan of an overlapping
     /// place conflicts, and so does a use of one after a written `&mut`.
     /// `ref.excl.args.shared`: a `&` a call takes against a write or a
-    /// move of an overlapping place in a later argument. `ref.elem.conflict`: an
-    /// element reference argument or a built-in call's element receiver
-    /// against a length change of its collection. A call that holds an
+    /// move of an overlapping place in a later argument. An element
+    /// reference is a loan of its collection, so `swap(&mut xs[0],
+    /// &mut xs[1])` conflicts as two `&mut xs` do. A call that holds an
     /// error of `found` already gets no other.
     pub(super) fn call_conflicts(
         &self,
@@ -928,35 +728,27 @@ impl Gen<'_, '_> {
     ) -> Vec<(NodeIdx, String)> {
         let b = self.s.b;
         let range = |n: NodeIdx| super::super::range(self.s.cx.src.parse.tree.node(n));
-        // Each site loan: its id, its `Ref`, its place, and whether it is
-        // an element reference's.
-        let (elems, sites): (Vec<_>, Vec<_>) = (self.loans.iter().enumerate())
+        // Each site loan: its id, its `Ref`, the place a call's result
+        // holds after that call, its place, and whether it is `&mut`.
+        let sites: Vec<SiteLoan> = (self.loans.iter().enumerate())
             .filter_map(|(loan, o)| match *o {
-                Origin::Site(i) => loan_path(self.s, i).map(|(p, k)| (w(loan), i, p, k)),
+                Origin::Site(i) => {
+                    let site = loan_path(self.s, i);
+                    site.map(|(p, k)| (w(loan), i, held_path(self.s, i, &p), p, k == Kind::Excl))
+                }
                 _ => None,
             })
-            .partition(|x| matches!(x.3, Kind::Elem(_)));
-        let elems: Vec<(u32, u32, Path, bool)> = (elems.into_iter())
-            .map(|x| (x.0, x.1, x.2, x.3 == Kind::Elem(true)))
             .collect();
-        // A site a call's result holds covers only its result path after
-        // that call.
-        let sites: Vec<SiteLoan> = (sites.into_iter())
-            .map(|(loan, i, p, k)| (loan, i, held_path(self.s, i, &p, k), p))
-            .collect();
-        // Each loan's place in `elems` or `sites`, so an argument's loans
-        // are read from its regions' values, never by a scan of every
-        // loan per argument.
-        let mut slot = vec![Slot::Other; self.loans.len()];
-        for (k, e) in elems.iter().enumerate() {
-            slot[e.0 as usize] = Slot::Elem(w(k));
-        }
+        // Each loan's index in `sites`, so an argument's loans are read
+        // from its regions' values, never by a scan of every loan per
+        // argument.
+        let mut slot = vec![None; self.loans.len()];
         for (k, x) in sites.iter().enumerate() {
-            slot[x.0 as usize] = Slot::Site(w(k));
+            slot[x.0 as usize] = Some(w(k));
         }
         // Per solved component an argument reaches, the loans its value
         // holds: `lists[by_comp[c]]`.
-        let (mut by_comp, mut lists): (HashMap<u32, u32>, Vec<Held>) = Default::default();
+        let (mut by_comp, mut lists): (HashMap<u32, u32>, Vec<Vec<u32>>) = Default::default();
         let mut tables: Option<CallTables> = None;
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         let tables_of = || {
@@ -964,7 +756,6 @@ impl Gen<'_, '_> {
             let mut writes = self.writes(&firsts);
             writes.sort_stable_by_key(|x| x.2);
             CallTables {
-                firsts,
                 writes,
                 moves: self.moves(),
                 touches: self.accesses(),
@@ -1000,10 +791,6 @@ impl Gen<'_, '_> {
                     args.push(v);
                 }
             });
-            // An element reference falls under `ref.elem.conflict`.
-            let elem = |j: u32, _: &Path| {
-                loan_path(self.s, j).is_some_and(|(_, kind)| matches!(kind, Kind::Elem(_)))
-            };
             if args.is_empty() {
                 continue;
             }
@@ -1013,31 +800,28 @@ impl Gen<'_, '_> {
             let comps: Vec<Vec<u32>> = (args.iter())
                 .map(|&u| self.held_lists(sol, u, &slot, (&mut by_comp, &mut lists)))
                 .collect();
-            let merged: Vec<Held> = (comps.iter())
-                .map(|ks| match ks.as_slice() {
-                    [_] => Held::default(),
-                    _ => merge_held(ks.iter().map(|&k| &lists[k as usize])),
-                })
+            let union = |ks: &[u32]| {
+                let mut m: Vec<u32> = (ks.iter())
+                    .flat_map(|&k| lists[k as usize].iter().copied())
+                    .collect();
+                m.sort_stable();
+                m.dedup();
+                m
+            };
+            let merged: Vec<Vec<u32>> = (comps.iter())
+                .map(|ks| if ks.len() == 1 { Vec::new() } else { union(ks) })
                 .collect();
-            let held: Vec<&Held> = (comps.iter().zip(&merged))
+            let held: Vec<&[u32]> = (comps.iter().zip(&merged))
                 .map(|(ks, m)| match ks.as_slice() {
-                    [k] => &lists[*k as usize],
-                    _ => m,
+                    [k] => lists[*k as usize].as_slice(),
+                    _ => m.as_slice(),
                 })
                 .collect();
-            for (a, &v) in args.iter().enumerate() {
-                let arg = (c, (v, held[a]), (&args[..], &held[..]));
-                if let Some(e) = self.elem_arg_conflict(arg, &elems, &sites, t) {
-                    if !out.iter().any(|x| x.0 == e.0) {
-                        out.push(e);
-                    }
-                    break;
-                }
-                // An element reference falls under `ref.elem.conflict`.
+            for &v in &args {
                 let ((root, path), excl) = match loan_path(self.s, v) {
                     Some((p, Kind::Shared)) => (p, false),
                     Some((p, Kind::Excl)) => (p, true),
-                    _ => continue,
+                    None => continue,
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
@@ -1048,7 +832,7 @@ impl Gen<'_, '_> {
                 if !excl {
                     let mut later: Vec<(u32, u32)> = window(&t.writes, |x| x.2, v, cw)
                         .iter()
-                        .filter(|(i, q, _)| !elem(*i, q) && hit(q))
+                        .filter(|(_, q, _)| hit(q))
                         .map(|x| (x.0, x.2))
                         .collect();
                     later.sort_stable_by_key(|x| x.0);
@@ -1061,13 +845,21 @@ impl Gen<'_, '_> {
                         moving = true;
                     }
                 }
-                for (u, h) in args.iter().zip(&held).filter(|x| excl && *x.0 != v) {
-                    if h.sites.iter().any(|&k| {
-                        let (_, i, after, q) = &sites[k as usize];
+                // Another argument that holds a loan of an overlapping
+                // place, when either loan is `&mut`, as a tuple holding
+                // `&mut xs[0]` beside a written `&xs` does.
+                let mut beside_mut = false;
+                // A written `&` (a counted pointer passed on is its own
+                // owner, not a reference to its place).
+                let written = b.tags[v as usize] == Tag::Ref;
+                for (u, h) in args.iter().zip(&held).filter(|x| *x.0 != v) {
+                    if h.iter().any(|&k| {
+                        let (_, i, after, q, k_excl) = &sites[k as usize];
                         let q = after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1);
-                        *i != v && hit(q)
+                        *i != v && (excl || *k_excl && written) && hit(q)
                     }) {
-                        hits.push(*u);
+                        hits.push(if excl { *u } else { v });
+                        beside_mut |= !excl;
                     }
                 }
                 // A pointer argument accesses its whole pointee for the
@@ -1084,7 +876,7 @@ impl Gen<'_, '_> {
                     hits.extend(
                         window(&t.touches, |x| x.0, v, cw)
                             .iter()
-                            .filter(|(j, q)| !elem(*j, q) && hit(q))
+                            .filter(|(_, q)| hit(q))
                             .map(|x| x.0),
                     );
                 }
@@ -1102,6 +894,8 @@ impl Gen<'_, '_> {
                     };
                     out.push((node, if excl {
                         format!("this uses {place} while the same call takes `&mut` of it; copy what this argument needs into a local before the call")
+                    } else if beside_mut && hits.first() == Some(&v) {
+                        format!("this refers to {place} while another argument of the same call takes `&mut` of it; copy what this argument needs into a local before the call")
                     } else if moving {
                         format!("this moves {place} while the same call takes `&` of it; move it after the call")
                     } else {
@@ -1112,184 +906,6 @@ impl Gen<'_, '_> {
             }
         }
         out
-    }
-
-    /// The lists of the element and site loans value `u` holds, one per
-    /// solved component its regions reach, as indexes into `lists`. A
-    /// component's list is made once, from its value's loans and `slot`,
-    /// each loan's place in `call_conflicts`' element or site list, so its
-    /// loans are read once per body.
-    fn held_lists(
-        &self,
-        sol: &Solution,
-        u: u32,
-        slot: &[Slot],
-        (by_comp, lists): (&mut HashMap<u32, u32>, &mut Vec<Held>),
-    ) -> Vec<u32> {
-        let mut out: Vec<u32> = (self.val(u).map(|x| x.0).unwrap_or_default().into_iter())
-            .map(|g| {
-                *by_comp.entry(sol.component(g)).or_insert_with(|| {
-                    let mut h = Held::default();
-                    crate::work::scan_work(1);
-                    for l in sol.loans(g) {
-                        match slot[l as usize] {
-                            Slot::Elem(k) => h.elems.push(k),
-                            Slot::Site(k) => h.sites.push(k),
-                            Slot::Other => {}
-                        }
-                    }
-                    lists.push(h);
-                    w(lists.len() - 1)
-                })
-            })
-            .collect();
-        out.sort_stable();
-        out.dedup();
-        out
-    }
-
-    /// `ref.elem.conflict`, `ref.elem.access.mut`: argument `v` of call
-    /// `c`, whose arguments are `args`, holds an element reference of
-    /// `elems`. It conflicts with a move of its collection or of a place
-    /// holding it in a later argument, a change of one in a later argument
-    /// or by the call ([`Self::elem_conflict`]), and a `&mut` into the
-    /// collection in any argument. A `&mut` element reference also
-    /// conflicts with any reference into the collection in another
-    /// argument, and with a use of the collection or of a place holding it
-    /// in a later one.
-    fn elem_arg_conflict(
-        &self,
-        (c, (v, held_v), (args, held)): ArgLoans<'_>,
-        elems: &[(u32, u32, Path, bool)],
-        sites: &[SiteLoan],
-        t: &CallTables,
-    ) -> Option<(NodeIdx, String)> {
-        let b = self.s.b;
-        let cw = w(c);
-        let name = |r: u32, sp: &[Proj]| {
-            let n = self.s.cx.names.text(b.local_name[r as usize]);
-            let place = if n.starts_with('$') {
-                "a temporary".to_owned()
-            } else {
-                format!("`{n}`")
-            };
-            let inner = sp.iter().any(|s| matches!(s, Proj::Field(_)));
-            (place, inner)
-        };
-        let node_of = |xs: &[u32]| {
-            xs.iter()
-                .map(|&x| b.syn[x as usize])
-                .find(|&n| n != NodeIdx::NONE)
-        };
-        for &k in &held_v.elems {
-            let (loan, i, (root, sp), excl) = &elems[k as usize];
-            let (mut place, inner) = name(*root, sp);
-            let what = if inner {
-                "an element of a collection in it"
-            } else {
-                "an element of it"
-            };
-            for (mi, (r, q)) in window(&t.moves, |x| x.0, v, cw) {
-                let node = b.syn[*mi as usize];
-                if r == root && q.len() <= sp.len() && overlap(sp, q) && node != NodeIdx::NONE {
-                    return Some((
-                        node,
-                        format!(
-                            "this moves {place} while another argument of the same call refers to {what}; move it after the call"
-                        ),
-                    ));
-                }
-            }
-            if inner {
-                place = format!("a collection in {place}");
-            }
-            // The first such write the body lists: a write at the call
-            // itself counts too.
-            let mut first: Option<(NodeIdx, String)> = None;
-            let mut first_at = u32::MAX;
-            for &(wi, (r, ref q), at) in window(&t.writes, |x| x.2, v, cw + 1) {
-                if wi >= first_at || at == cw && wi == v || r != *root || !overlap(sp, q) {
-                    continue;
-                }
-                let whole = q.len() <= sp.len();
-                let into = !whole && b.tags[wi as usize] == Tag::Ref;
-                if !(into
-                    || whole && self.elem_conflict(false, Access::Write, wi, q.len(), sp.len(), *i))
-                {
-                    continue;
-                }
-                let Some(node) = node_of(&[wi, at]) else {
-                    continue;
-                };
-                let msg = if into {
-                    format!(
-                        "this takes `&mut` of an element of {place} while another argument of the same call refers to an element of it; pass the indexes instead, or take one reference outside the call"
-                    )
-                } else {
-                    format!(
-                        "this may change {place} while another argument of the same call refers to an element of it; pass the element's index instead, or make the change outside the call"
-                    )
-                };
-                (first, first_at) = (Some((node, msg)), wi);
-            }
-            if first.is_some() {
-                return first;
-            }
-            if !excl {
-                continue;
-            }
-            // A `&mut` element reference: another reference into the
-            // collection, or a later use of it or of a place holding it.
-            let into = |u: u32, h: &Held| {
-                if b.tags[u as usize] == Tag::Ref
-                    && let Some((r, q)) = path_of(b, b.data[u as usize][0])
-                {
-                    return r == *root && overlap(sp, &q);
-                }
-                let other_elem = h.elems.iter().any(|&k2| {
-                    let (l2, _, (r, q), _) = &elems[k2 as usize];
-                    l2 != loan && r == root && overlap(sp, q)
-                });
-                let other_site = h.sites.iter().any(|&k2| {
-                    let (_, _, after, q) = &sites[k2 as usize];
-                    let q = after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1);
-                    q.0 == *root && overlap(sp, &q.1)
-                });
-                other_elem || other_site
-            };
-            if let Some(node) = node_of(
-                &(args.iter().zip(held))
-                    .filter(|&(&u, h)| u != v && into(u, h))
-                    .map(|x| *x.0)
-                    .collect::<Vec<_>>(),
-            ) {
-                return Some((
-                    node,
-                    format!(
-                        "this refers to {place} while another argument of the same call refers to an element of it as `&mut`; pass the indexes instead, or copy what this argument needs into a local before the call"
-                    ),
-                ));
-            }
-            let later: Vec<u32> = window(&t.touches, |x| x.0, v, cw)
-                .iter()
-                .filter(|(j, (r, q))| {
-                    r == root
-                        && q.len() <= sp.len()
-                        && overlap(sp, q)
-                        && !self.map_element_operand(*j, &t.firsts, q.len() == sp.len())
-                })
-                .map(|x| x.0)
-                .collect();
-            if let Some(node) = node_of(&later) {
-                return Some((
-                    node,
-                    format!(
-                        "this uses {place} while another argument of the same call refers to an element of it as `&mut`; copy what this argument needs into a local before the call"
-                    ),
-                ));
-            }
-        }
-        None
     }
 
     /// `ref.elem.access.live`, `fn.method.eval-order`: the element
@@ -1308,12 +924,7 @@ impl Gen<'_, '_> {
         sp.truncate(sp.iter().rposition(|s| matches!(s, Proj::Elem(_)))?);
         let (wi, at) = window(&t.writes, |x| x.2, recv, w(c))
             .iter()
-            .filter(|(wi, (r, q), _)| {
-                *r == root
-                    && q.len() <= sp.len()
-                    && overlap(&sp, q)
-                    && self.elem_conflict(false, Access::Write, *wi, q.len(), sp.len(), recv)
-            })
+            .filter(|(_, (r, q), _)| *r == root && q.len() <= sp.len() && overlap(&sp, q))
             .map(|x| (x.0, x.2))
             .min()?;
         let node = [wi, at]
@@ -1334,157 +945,51 @@ impl Gen<'_, '_> {
         ))
     }
 
-    /// Whether access `wi` of a place `len` steps long conflicts with the
-    /// element reference `site` of a collection `sp` steps long, `&mut`
-    /// when `excl`, whose place it overlaps. A move of the collection or
-    /// of a place holding it conflicts, and so does a change of one but a
-    /// map store of the key the reference refers to, which writes that
-    /// element (`ref.elem.access.length`); a `&mut` into the collection
-    /// conflicts too. For a `&mut` reference, so does any use of the
-    /// collection or of a place holding it, and any reference into it
-    /// (`ref.elem.access.mut`). Reads and stores of its elements do not.
-    fn elem_conflict(
+    /// The lists of the site loans value `u` holds, one per solved
+    /// component its regions reach, as indexes into `lists`. A
+    /// component's list is made once, from its value's loans and `slot`,
+    /// each loan's index in `call_conflicts`' site list, so its loans are
+    /// read once per body.
+    fn held_lists(
         &self,
-        excl: bool,
-        access: Access,
-        wi: u32,
-        len: usize,
-        sp: usize,
-        site: u32,
-    ) -> bool {
-        let whole = len <= sp;
-        let reference = self.s.b.tags[wi as usize] == Tag::Ref;
-        match access {
-            Access::Move => whole,
-            Access::Write if whole => !self.writes_entry(wi, len == sp, site),
-            Access::Write => reference,
-            Access::Use => excl && (whole || reference),
-        }
+        sol: &Solution,
+        u: u32,
+        slot: &[Option<u32>],
+        (by_comp, lists): (&mut HashMap<u32, u32>, &mut Vec<Vec<u32>>),
+    ) -> Vec<u32> {
+        let mut out: Vec<u32> = (self.val(u).map(|x| x.0).unwrap_or_default().into_iter())
+            .map(|g| {
+                *by_comp.entry(sol.component(g)).or_insert_with(|| {
+                    crate::work::scan_work(1);
+                    lists.push(sol.loans(g).filter_map(|l| slot[l as usize]).collect());
+                    w(lists.len() - 1)
+                })
+            })
+            .collect();
+        out.sort_stable();
+        out.dedup();
+        out
     }
 
-    /// Whether read `wi` is the map operand of an access of one of its
-    /// elements (a lookup, an entry's number, or a store), `own` when the
-    /// map is the collection an element reference indexes: that access
-    /// reads or writes an element, not the map (`ref.elem.access.mut`).
-    fn map_element_operand(&self, wi: u32, users: &[u32], own: bool) -> bool {
-        let b = self.s.b;
-        let u = users.get(wi as usize).copied().unwrap_or(NONE) as usize;
-        own && b.tags[wi as usize] == Tag::Read
-            && b.tags.get(u) == Some(&Tag::Intrinsic)
-            && matches!(
-                IntrinsicOp::from_u32(b.data[u][0]),
-                Some(IntrinsicOp::MapGet | IntrinsicOp::MapEntry | IntrinsicOp::MapSet)
-            )
-    }
-
-    /// What an access that [`Self::elem_conflict`] found does, for its
-    /// message.
-    fn elem_what(&self, excl: bool, access: Access, wi: u32, whole: bool) -> ElemWhat {
-        let tag = self.s.b.tags[wi as usize];
-        match (access, whole, tag) {
-            (_, false, _) => ElemWhat::Reference(excl),
-            (Access::Write, true, Tag::Store) => ElemWhat::Replace,
-            (Access::Write, true, _) => ElemWhat::Resize,
-            _ => ElemWhat::Use,
-        }
-    }
-
-    /// The message of an element reference's conflict on local `root`,
-    /// held by local `holder` if any, `inner` when the collection is a
-    /// part of it.
-    fn elem_message(&self, root: u32, holder: Option<u32>, what: ElemWhat, inner: bool) -> String {
-        let (b, names) = (self.s.b, &self.s.cx.names);
-        let name = |l: u32| {
-            let n = names.text(b.local_name[l as usize]);
-            (!n.starts_with('$')).then(|| format!("`{n}`"))
-        };
-        let mut place = name(root).unwrap_or_else(|| "a temporary".to_owned());
-        if inner {
-            place = format!("a collection in {place}");
-        }
-        let (h, after) = match holder.and_then(name) {
-            Some(h) => (h.clone(), format!("{h}'s last use")),
-            None => ("a reference".to_owned(), "that use".to_owned()),
-        };
-        let mutable = if matches!(what, ElemWhat::Use | ElemWhat::Reference(true)) {
-            " as `&mut`"
-        } else {
-            ""
-        };
-        let does = match what {
-            ElemWhat::Resize => format!("may change the length of {place}"),
-            ElemWhat::Replace => format!("replaces {place}"),
-            ElemWhat::Reference(_) => format!("takes a reference into {place}"),
-            ElemWhat::Use => format!("uses {place}"),
-        };
-        format!(
-            "this {does} while {h} refers to an element of it{mutable} and is used later; do it after {after}"
-        )
-    }
-
-    /// Whether write `i`, `own` when it writes the collection element
-    /// reference `site` indexes, writes only that element: a map store of
-    /// the key `site` refers to.
-    fn writes_entry(&self, i: u32, own: bool, site: u32) -> bool {
-        let b = self.s.b;
-        let [op, rec] = b.data[i as usize];
-        match (b.tags[i as usize], IntrinsicOp::from_u32(op)) {
-            (Tag::Intrinsic, Some(IntrinsicOp::MapSet)) if own => {
-                let entry = b.decode_place(b.data[site as usize][0]).and_then(|p| {
-                    p.proj.iter().rev().find_map(|s| match s {
-                        Proj::Elem(e) => Some(e.as_inst().map(|e| e.0 as usize)),
-                        _ => None,
-                    })?
-                });
-                let key = entry
-                    .filter(|&e| b.tags.get(e) == Some(&Tag::Intrinsic))
-                    .filter(|&e| IntrinsicOp::from_u32(b.data[e][0]) == Some(IntrinsicOp::MapEntry))
-                    .and_then(|e| b.record(b.data[e][1]).get(1).copied());
-                matches!((key, b.record(rec).get(1)), (Some(k), Some(&s)) if same_key(b, k, s))
-            }
-            _ => false,
-        }
-    }
-
-    /// The message of a move of local `root` or a part of it while a
-    /// loan of it is live (`ref.excl.move`), `inner` when an element
-    /// reference's collection is a part of it.
-    fn move_message(&self, root: u32, holder: u32, kind: Kind, inner: bool) -> String {
-        let (b, names) = (self.s.b, &self.s.cx.names);
-        let name = |l: u32| {
-            let n = names.text(b.local_name[l as usize]);
-            (!n.starts_with('$')).then(|| format!("`{n}`"))
-        };
-        let place = name(root).unwrap_or_else(|| "a temporary".to_owned());
-        let what = match (kind, inner) {
-            (Kind::Elem(_), true) => "an element of a collection in it",
-            (Kind::Elem(_), false) => "an element of it",
-            _ => "it",
-        };
-        match name(holder) {
+    /// The message of a move of local `root` or a part of it while
+    /// `holder` holds a loan of it (`ref.excl.move`).
+    fn move_message(&self, root: u32, holder: u32) -> String {
+        let place = self.name(root).unwrap_or_else(|| "a temporary".to_owned());
+        match self.name(holder) {
             Some(h) => format!(
-                "this moves {place} while {h} refers to {what} and is used later; move it after {h}'s last use"
+                "this moves {place} while {h} refers to it and is used later; move it after {h}'s last use"
             ),
             None => format!(
-                "this moves {place} while a reference to {what} is used later; move it after that use"
+                "this moves {place} while a reference to it is used later; move it after that use"
             ),
         }
     }
 
-    /// The message of a conflict on local `root`, `inner` when the
-    /// collection is a part of it.
-    fn conflict_message(&self, root: u32, holder: u32, kind: Kind, inner: bool) -> String {
-        let (b, names) = (self.s.b, &self.s.cx.names);
-        let name = |l: u32| {
-            let n = names.text(b.local_name[l as usize]);
-            (!n.starts_with('$')).then(|| format!("`{n}`"))
-        };
-        let mut place = name(root).unwrap_or_else(|| "a temporary".to_owned());
-        if inner {
-            place = format!("a collection in {place}");
-        }
-        match (name(holder), kind) {
-            (_, Kind::Elem(_)) => self.elem_message(root, Some(holder), ElemWhat::Resize, inner),
+    /// The message of a conflict on local `root` with a loan `holder`
+    /// holds, if a named binding does.
+    fn conflict_message(&self, root: u32, holder: Option<u32>, kind: Kind) -> String {
+        let place = self.name(root).unwrap_or_else(|| "a temporary".to_owned());
+        match (holder.and_then(|h| self.name(h)), kind) {
             (Some(h), Kind::Excl) => format!(
                 "this uses {place} while {h} refers to it as `&mut` and is used later; use {place} after {h}'s last use, or through {h}"
             ),
@@ -1498,6 +1003,12 @@ impl Gen<'_, '_> {
                 "this changes {place} while a reference to it is used later; make the change after that use"
             ),
         }
+    }
+
+    /// Local `l`'s name in backquotes, none for a compiler temporary.
+    fn name(&self, l: u32) -> Option<String> {
+        let n = self.s.cx.names.text(self.s.b.local_name[l as usize]);
+        (!n.starts_with('$')).then(|| format!("`{n}`"))
     }
 }
 

@@ -807,7 +807,7 @@ fn demo(players: List[Player]) -> i32:
 1. r[ref.frozen.definition] A local reference that a crossing closure captures is a frozen loan of the place it refers to.
 2. r[ref.frozen.lifetime] A frozen loan is live until the lifetime that its crossing parameter's marker bound names ends, whatever its last use.
 3. r[ref.frozen.no-lifetime] A crossing closure for a parameter whose marker bound names no lifetime captures no local reference. Error: `local-reference-escapes`.
-4. r[ref.frozen.write] While a frozen loan is live, a write to its place or to an overlapping place is an error. A store to an element counts, unlike [`ref.elem.access.live-length`](#r-ref.elem.access.live-length). Error: `conflicting-access`.
+4. r[ref.frozen.write] While a frozen loan is live, a write to its place or to an overlapping place is an error. A store to an element counts, as for an element reference ([`ref.elem.access.length`](#r-ref.elem.access.length)). Error: `conflicting-access`.
 5. r[ref.frozen.alias] Where the place is reached through a counted reference, the frozen loan holds that object's run-time loan as a shared loan until the lifetime ends. A write through an alias then panics. Panic: `borrow-conflict`.
 6. r[ref.frozen.alias.lender] That run-time loan stays with the thread that lent the reference: it begins and ends there, never on the thread that runs the closure.
 
@@ -1907,8 +1907,9 @@ fn invalid() -> void:
 
 ### Call-Scoped Access
 
-An element reference is a local reference value. Its collection's length
-holds still until the reference's last use.
+An element reference is a local reference value. It borrows its whole
+collection until its last use, as Rust's `&v[i]` borrows `v`: `&xs[i]` is
+a `&` of `xs` and `&mut xs[i]` a `&mut` of it.
 
 ```text
 fn bump(score: &mut i32) -> void:
@@ -1923,23 +1924,20 @@ fn demo() -> void:
     record(&mut scores, &mut scores[0])  # error: conflicting-access
     best := &mut scores[1]
     scores.push(3)                       # error: conflicting-access
-    n := scores.len()                    # error: conflicting-access
-    scores[0] = 5                        # valid: a store to another element
+    scores[0] = 5                        # error: conflicting-access
     *best += 1
     scores.push(4)                       # valid: after best's last use
 ```
 
 1. r[ref.elem.local-value] An element reference is a local reference value. It may be bound, assigned, passed, and used as the source or result of a dependent call, subject to every rule of [Local References](#local-references) and [Dependent Results](#dependent-results).
 2. r[ref.elem.access.live] The reference's **access** to its collection begins when the reference is taken and ends after its last use.
-3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection, or a place that holds it, other than by a store to one of its elements. Reads of the collection, and stores to its elements, the referenced one included, stay valid.
-4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change of its collection or of a place that holds it is an error, and so is a `&mut` of another element of it. Error: `conflicting-access`.
+3. r[ref.elem.access.live-length] While an access lasts, the reference borrows its whole collection: a `&` element reference is a `&` of the collection and a `&mut` one a `&mut` of it, and [`ref.excl.shared`](#r-ref.excl.shared) and [`ref.excl.mut`](#r-ref.excl.mut) apply to the collection.
+4. r[ref.elem.access.length] While a binding that holds a `&` element reference is live, a change of its collection, of any element of it, or of a place that holds it is an error, and so is a `&mut` into it. Reads of the collection stay valid. Error: `conflicting-access`.
    - The collection is a place that [`ref.excl.place`](#r-ref.excl.place) covers, so it may be reached through a `&mut` parameter.
-   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
-   - A map's `remove` is one, and so is a map store of a key other than the referenced one.
-   - Two keys are one key when both are one constant or reads of one `:=` binding.
-5. r[ref.elem.access.mut] While a binding that holds a `&mut` element reference is live, any use of its collection or of a place that holds it is an error: a copy, a `&` of it, a `len()` or another method call. So is any other reference into the collection, `&` or `&mut`, at any index. A read of another element or a store to one stays valid. Error: `conflicting-access`.
+   - Such a change is a store to an element, a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
+5. r[ref.elem.access.mut] While a binding that holds a `&mut` element reference is live, any use of its collection or of a place that holds it is an error: a copy, a `&` of it, a `len()`, another method call, and a read of or a store to any element. Error: `conflicting-access`.
 6. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference.
-7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection, or a later argument that moves it ([`ref.excl.move`](#r-ref.excl.move)), is an error. For a `&mut` element reference, so is another argument that refers into the collection, and a later argument that uses it ([`ref.elem.access.mut`](#r-ref.elem.access.mut)). Error: `conflicting-access`.
+7. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection or an element of it, or a later argument that moves it ([`ref.excl.move`](#r-ref.excl.move)), is an error. For a `&mut` element reference, so is another argument that refers into the collection, as in `swap(&mut xs[0], &mut xs[1])`, and a later argument that uses it ([`ref.elem.access.mut`](#r-ref.elem.access.mut)). Error: `conflicting-access`.
    - The collection may also be a place that [`ref.excl.place`](#r-ref.excl.place) covers, so one reached through a `&mut` parameter, as in `change(list, &mut list[2])`.
    - An argument that holds an element reference is an access, whether the call takes the reference or a binding holds it, as in `grow(&mut xs, first)` after `first := &xs[0]`.
 8. r[ref.elem.access.alias] Where a `*T` or a variable a closure shares reaches the collection, the element reference holds that object as [Conflicts Through Aliases](#conflicts-through-aliases) says, so a change through another path panics. Panic: `borrow-conflict`.
@@ -1952,11 +1950,13 @@ following to the collection, or to a place that holds it:
 | r[ref.elem.conflict.reference] Reference | takes `&mut` of it | `record(&mut scores, &mut scores[0])` |
 | r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove(1))` |
 
-> **Why.** This is Swift's Law of Exclusivity, and for a `&mut` element
-> reference Rust's borrow rules. A conflict is caught at compile time
-> where every path to the collection is in view, and by a pointer loan
-> where a pointer or a shared variable may reach it. Stores to other
-> elements cannot move the referenced slot, so they stay legal.
+> **Why.** These are Rust's borrow rules for `&v[i]` and `&mut v[i]`: an
+> element reference is what `Index.index` and `IndexMut.index_mut` give,
+> and each takes the collection. One rule covers the built-in index and a
+> library one. A conflict is caught at compile time where every path to
+> the collection is in view, and by a pointer loan where a pointer or a
+> shared variable may reach it. To change two elements at once, pass the
+> indexes, as `swap(i, j)` does.
 
 See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
 [Collection Values](04-type-system.md#collection-values),

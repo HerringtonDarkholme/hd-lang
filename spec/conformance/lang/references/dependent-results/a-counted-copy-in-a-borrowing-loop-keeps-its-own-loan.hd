@@ -8,9 +8,10 @@ fn name_of(p: &P) -> &string:
 
 pub fn main() -> void $ Console:
     let mut ps = [box(P { name: "a${1}" })]
+    let mut owner = box(P { name: "x" })
     for p in &ps:
-        owner := *p
-        d := name_of(owner)
-        ps[0] = box(P { name: "b${2}" })
-        junk := "cccccc${3}"
-        println("${*d} $junk")
+        owner = *p
+    ps[0] = box(P { name: "b${2}" })
+    d := name_of(owner)
+    junk := "cccccc${3}"
+    println("${*d} $junk")

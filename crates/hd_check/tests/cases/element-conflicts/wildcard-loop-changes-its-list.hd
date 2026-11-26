@@ -1,8 +1,8 @@
 # @dump: diagnostics
 # A loop over element references is one access to its collection
 # (`flow.for.ref.access`), whatever its binding: a wildcard binding holds no
-# reference, and a length change in the body still conflicts. A change of
-# another list, or a store to an element, does not.
+# reference, and a change of the list in the body still conflicts, a store
+# to an element included. A change of another list does not.
 fn shared() -> void:
     let mut xs = [1, 2]
     for _ in &xs:

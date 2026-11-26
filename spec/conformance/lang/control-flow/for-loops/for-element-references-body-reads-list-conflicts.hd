@@ -1,0 +1,7 @@
+# test: the body of for p in &mut xs may not read xs: the loop borrows the whole list
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn raised() -> List[i32]:
+    let mut scores = [+1, 2, 3]
+    for score in &mut scores:
+        *score += scores[0] # diagnostic: conflicting-access
+    scores

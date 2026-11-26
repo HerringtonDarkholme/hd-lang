@@ -2473,9 +2473,6 @@ struct Inputs<'a> {
     /// Per instruction, whether it may take a run-time loan
     /// ([`runtime_sites`]).
     runtime: Vec<bool>,
-    /// The locals a crossing closure captures: a reference one holds is a
-    /// frozen loan, whose element stores conflict too (`ref.frozen.write`).
-    frozen: Vec<u32>,
 }
 
 impl Inputs<'_> {
@@ -5091,7 +5088,6 @@ impl Ck<'_, '_> {
             markers: &markers,
             lent,
             runtime,
-            frozen: self.frozen_locals(),
         };
         let slots = own
             .as_ref()

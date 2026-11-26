@@ -2247,23 +2247,6 @@ impl Ck<'_, '_> {
         true
     }
 
-    /// The locals the body's crossing closures capture
-    /// (`ref.frozen.definition`).
-    pub(crate) fn frozen_locals(&self) -> Vec<u32> {
-        let body = self.b.body();
-        let mut out = Vec::new();
-        for &(i, _) in &self.crossing_closures {
-            if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
-                for c in start..start.saturating_add(len) {
-                    if let Some(l) = body.cap_local.get(c as usize) {
-                        out.push(l.raw());
-                    }
-                }
-            }
-        }
-        out
-    }
-
     /// Marks each open closure that local `l`, declared at scope depth
     /// `depth`, crosses as one that changes a capture
     /// (`fn.trait.read-only`).

@@ -5162,7 +5162,7 @@ lang/references/dependent-results/conflicts-through-aliases/element-reference-ex
 lang/control-flow/for-loops/for-element-references-through-mut-parameter-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 lang/control-flow/for-loops/for-element-references-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/06-control-flow.md#r-flow.for.ref.access
 lang/references/element-references/for-element-references-shared-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.elem.access.alias
-lang/references/element-references/for-element-references-shared-store-seen.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.live-length
+lang/references/element-references/for-element-references-shared-store-conflicts.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
 lang/control-flow/for-loops/for-element-references-recursive-calls.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.access
 std/collections/uniqlist/uniq-list-element-alias-push-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
 std/collections/uniqmap/uniq-map-value-alias-insert-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-insert
@@ -5197,7 +5197,7 @@ lang/references/element-references/map-value-element-reference.hd	runtime	accept
 lang/functions/methods-and-receivers/map-value-receiver-auto-address.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.collection-element
 lang/references/element-references/element-reference-access-ends-with-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.live
 lang/references/element-references/element-reference-bound-and-returned.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.local-value
-lang/references/element-references/element-access-other-elements.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.mut
+lang/references/element-references/element-access-other-element-read-conflicts.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.mut
 lang/references/element-references/element-reference-mut-collection-length-read.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.mut
 lang/references/element-references/element-reference-replaced-under-shared.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
 lang/references/element-references/element-reference-copy-argument.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict
@@ -5227,7 +5227,7 @@ lang/control-flow/for-loops/for-cursor-item-outlives-local.hd	type	reject:local-
 lang/control-flow/for-loops/for-mut-cursor-item-outlives-local.hd	type	reject:local-reference-outlives-local	lang/06-control-flow.md#r-flow.for.iterator.item-origins
 lang/control-flow/for-loops/for-element-references-field-reference.hd	type	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
 lang/control-flow/for-loops/for-element-references-push-conflict.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
-lang/control-flow/for-loops/for-element-references-body-reads-list.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.conflict
+lang/control-flow/for-loops/for-element-references-body-reads-list-conflicts.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.conflict
 lang/references/dependent-results/conflicts-through-aliases/map-element-reference-insert-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 lang/references/dependent-results/conflicts-through-aliases/map-get-or-insert-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/references/dependent-results/conflicts-through-aliases/map-element-place-pinned-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
@@ -6179,7 +6179,7 @@ lang/references/element-references/element-binding-map-store-while-live.hd	type	
 lang/references/element-references/element-binding-map-remove-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
 lang/references/element-references/element-binding-call-takes-list-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
 lang/references/element-references/element-argument-result-push-while-live.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.length
-lang/references/element-references/element-binding-length-kept.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.access.length
+lang/references/element-references/element-binding-store-other-element-conflicts.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.access.mut
 lang/references/element-references/element-argument-beside-mut-parameter-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
 lang/references/element-references/element-argument-shared-beside-mut-parameter-list.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
 lang/references/element-references/element-argument-beside-mut-parameter-map.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.elem.conflict.reference
@@ -6531,7 +6531,7 @@ lang/control-flow/for-loops/a-direct-pointer-loan-in-a-borrowing-loop-keeps-its-
 lang/control-flow/for-loops/a-pointer-loan-through-a-copied-loop-reference-keeps-its-slot.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.binding.local
 lang/control-flow/for-loops/a-dependent-pointer-loan-blocks-a-store-through-its-loop-binding.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.binding.local
 lang/references/dependent-results/a-counted-copy-in-a-borrowing-loop-keeps-its-own-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.dep.call.pointer
-lang/control-flow/for-loops/a-borrowing-loop-can-replace-a-pointer-after-its-dependent-loan-ends.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.binding.local
+lang/control-flow/for-loops/a-borrowing-loop-cannot-replace-a-pointer-in-its-list.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.for.ref.binding.local
 lang/traits/dynamic-trait-values/indirect-trait-widening-keeps-its-loaded-payload.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.widen
 lang/functions/parameters/unowned-parameter-cleanup-survives-every-return.hd	runtime	accept	lang/07-functions.md#r-fn.param.value-copy
 lang/annotations/typed-derivation/facts/cached-facts-own-each-returned-copy.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.lazy
