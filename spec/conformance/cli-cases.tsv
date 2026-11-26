@@ -400,3 +400,4 @@ name-dot-manifest	cli.name.dot,cli.name.dot.manifest,cli.name.dot.diagnostic,cli
 name-dot-dependency	cli.name.dot,cli.name.dot.manifest,cli.name.dot.diagnostic,cli.dep.reached,cli.exit.hd-failure
 name-dot-key	cli.name.dot.key,cli.name.dot.diagnostic,cli.dep.invalid,cli.dep.key.name-flag,cli.exit.hd-failure
 new-dot	cli.name.dot.new,cli.name.dot.diagnostic,cli.exit.hd-failure
+fmt-let-else	cli.fmt.meaning,cli.fmt.idempotent
