@@ -249,14 +249,15 @@ impl Conversion {
         r: Ref,
         plan: ConversionPlan,
         node: NodeRef<'_>,
-    ) -> Ref {
+    ) -> StageResult<Ref> {
         let ConversionPlan { layers, leaf } = plan;
         let at = node.index();
         if layers.is_empty() {
             hd_types::work::type_node();
-            return Self::apply_leaf(ck, r, leaf, node);
+            return Ok(Self::apply_leaf(ck, r, leaf, node));
         }
         let mut converted = r;
+        let mut failed = None;
         hd_base::stack::all(ConvertWork::Enter(r, layers.into_iter()), |work, stack| {
             converted = match work {
                 ConvertWork::Enter(input, mut layers) => {
@@ -303,7 +304,13 @@ impl Conversion {
                             } else {
                                 let element = ck.resolved(element);
                                 let (value, frame) =
-                                    Self::start_list(ck, input, (f, t), element, node);
+                                    match Self::start_list(ck, input, (f, t), element, node) {
+                                        Ok(started) => started,
+                                        Err(e) => {
+                                            failed = Some(e);
+                                            return false;
+                                        }
+                                    };
                                 stack.push(ConvertWork::List(frame));
                                 stack.push(ConvertWork::Enter(value, layers));
                                 value
@@ -333,7 +340,7 @@ impl Conversion {
             };
             true
         });
-        converted
+        failed.map_or(Ok(converted), Err)
     }
 
     fn apply_leaf(ck: &mut Ck<'_, '_>, r: Ref, leaf: ConversionLeaf, node: NodeRef<'_>) -> Ref {
@@ -395,7 +402,7 @@ impl Conversion {
         (list_from, list_to): (Ty, Ty),
         from: Ty,
         node: NodeRef<'_>,
-    ) -> (Ref, ListConversion) {
+    ) -> StageResult<(Ref, ListConversion)> {
         let at = node.index();
         let usize_ty = Ty::prim(Prim::Usize);
         let out_ty = list_to;
@@ -411,30 +418,22 @@ impl Conversion {
         let i_l = ck.b.local(usize_ty, i_s, local_flags::ASSIGNED, at);
         let n_l = ck.b.local(usize_ty, n_s, local_flags::ASSIGNED, at);
         ck.set_local(src_l, r, at);
-        let empty = ck.b.refs_record(&[]);
-        let fresh = ck.b.emit(Tag::NewList, NONE, empty, out_ty, at);
+        let to = ck.list_item(out_ty).unwrap_or(Ty::POISON);
+        let fresh = ck.build_list(&[], (to, out_ty), node)?;
         ck.set_local(out_l, fresh, at);
         let zero = ck.b.const_value(usize_ty, 0);
         ck.set_local(i_l, zero, at);
-        let s = ck.b.get(src_l, list_from, at);
-        let rec = ck.b.refs_record(&[s]);
-        let len = ck.b.emit(
-            Tag::Intrinsic,
-            IntrinsicOp::ListLen as u32,
-            rec,
-            usize_ty,
-            at,
-        );
+        let len = ck.local_list_len(src_l, list_from, node)?;
         ck.set_local(n_l, len, at);
         let lp = ck.b.open_loop();
         let lb = ck.b.open_block();
         let (i, n) = (ck.b.get(i_l, usize_ty, at), ck.b.get(n_l, usize_ty, at));
         let below = ck.b.prim(PrimOp::Lt as u32, &[i, n], Ty::BOOL, at);
         let tb = ck.b.open_block();
-        let s = ck.b.get(src_l, list_from, at);
         let i = ck.b.get(i_l, usize_ty, at);
-        let item = ck.b.element(s, i, from, at);
-        (
+        let item = ck.local_list_get(src_l, list_from, i, node)?;
+        let _ = from;
+        Ok((
             item,
             ListConversion {
                 out: out_l,
@@ -445,7 +444,7 @@ impl Conversion {
                 condition: below,
                 ty: list_to,
             },
-        )
+        ))
     }
 
     fn finish_list(ck: &mut Ck<'_, '_>, c: Ref, frame: ListConversion, node: NodeRef<'_>) -> Ref {

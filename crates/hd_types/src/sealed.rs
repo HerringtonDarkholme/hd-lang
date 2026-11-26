@@ -740,22 +740,23 @@ fn copy_parts(
             TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
                 stack.extend(pool.list_items(args).iter().rev().map(|&m| Step::Enter(m)));
             }
+            // A list or map holds its type arguments by value for a marker
+            // (`module.marker.structural`), whatever its fields, and a
+            // counted buffer (`module.marker.sync.leaf`).
+            TyData::Adt(AdtId::Declared(def), args)
+                if walk != Walk::Copy
+                    && (def == decls.sealed().list || def == decls.sealed().map) =>
+            {
+                if walk == Walk::Sync {
+                    return fails(memo, walk, root);
+                }
+                stack.extend(pool.list_items(args).iter().rev().map(|&a| Step::Enter(a)));
+            }
             TyData::Adt(AdtId::Declared(def), args) => match decls.copy_decl(def) {
                 CopyDecl::NotCopy(_) if walk == Walk::Copy => return fails(memo, walk, root),
-                // A collection holds its type arguments by value for a
-                // marker (`module.marker.structural`); a suspension and
-                // any other built-in crosses nowhere.
+                // A suspension and any other built-in crosses nowhere.
                 CopyDecl::Copies if walk != Walk::Copy => {
-                    let s = decls.sealed();
-                    // A list or map holds a counted buffer
-                    // (`module.marker.sync.leaf`).
-                    if walk == Walk::Sync && (def == s.list || def == s.map) {
-                        return fails(memo, walk, root);
-                    }
-                    if def == s.list || def == s.map {
-                        let items = pool.list_items(args);
-                        stack.extend(items.iter().rev().map(|&a| Step::Enter(a)));
-                    } else if decls.type_decl(def) == TypeDecl::Builtin {
+                    if decls.type_decl(def) == TypeDecl::Builtin {
                         return fails(memo, walk, root);
                     }
                 }

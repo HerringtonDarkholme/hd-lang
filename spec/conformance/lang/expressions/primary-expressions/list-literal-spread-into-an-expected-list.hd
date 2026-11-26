@@ -4,7 +4,6 @@
 # expect-stdout: b
 # expect-stdout: 7
 # expect-stdout: 0 1 2 9 1 2
-use std.collections.PlainList
 
 fn noted(tag: string, xs: List[i64]) -> List[i64] $ Console:
     println(tag)
@@ -12,6 +11,6 @@ fn noted(tag: string, xs: List[i64]) -> List[i64] $ Console:
 
 pub fn main() -> void $ Console:
     ys := [1, 2]
-    let zs: PlainList[i64] = [0, noted("a", ys)..., 9, noted("b", ys)...]
+    let zs: List[i64] = [0, noted("a", ys)..., 9, noted("b", ys)...]
     println(zs.len() + 1)
     println("${zs[0]} ${zs[1]} ${zs[2]} ${zs[3]} ${zs[4]} ${zs[5]}")

@@ -1,6 +1,5 @@
 # test: a spread into a built list literal whose operand is neither an iterator nor iterable is an error
 # Spec 05 List Literals: expr.list.spread.iterable.
-use std.collections.PlainList
 
-fn numbers(count: i64) -> PlainList[i64]:
+fn numbers(count: i64) -> List[i64]:
     [0, count...] # diagnostic: unsatisfied-trait-bound

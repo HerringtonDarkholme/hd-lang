@@ -8,7 +8,6 @@
 # them compiles none of their code.
 
 pub use std.collections.uniq_list.{UniqList, UniqListIter, UniqListDrain, UniqListIntoIter}
-pub use std.collections.plain_list.{PlainList, PlainListIter}
 pub use std.collections.plain_map.{PlainMap, PlainMapIter}
 pub use std.collections.uniq_map.{
     UniqMap,

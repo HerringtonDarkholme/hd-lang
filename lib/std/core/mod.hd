@@ -3,10 +3,13 @@ use std.ops.Tuple
 use std.meta.inline
 use std.rt.{FoldHasher, hash_integer, hash_string}
 use std.meta.{Structure, UnionType, Walker, Variant, Field}
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Iterable, Iterator, Rev}
+use std.ops.{FromListLiteral, Index, IndexMut, IndexSet}
+use std.rt.{Drop, Ptr, address_of, align_of, alloc_counted, copy_bytes, empty_block, is_unique, make_unique, needs_drop, panic_with, size_of, tail_of}
 
 # std.core: the language's core declarations
 # (spec/lang/10-modules.md#core-layer). The compiler supplies the
-# primitives, `List`, `Map`, `Option`, `Result`, the `Any` traits, `panic`
+# primitives, `Map`, `Option`, `Result`, the `Any` traits, `panic`
 # and `box` (hd_resolve::seed). The traits below are the ones those
 # declarations name: `List[T < Copy]` and `Map[K < Eq & Hash, V]`.
 # `std.ops`, `std.cmp` and `std.hash` re-export them. Other dependencies
@@ -497,3 +500,362 @@ impl[T < ?Copy & Tuple] Hash for T by Structure:
     fn hash[H < Hasher](&self, state: &mut H) -> void:
         let mut w = HashWalker::[T, H] { state: state }
         _ := Structure::walk(self, &mut w)
+
+# `List[T]`, a copy-on-write list over one counted block (#2369). The list
+# is one `*ListHead[T]`: one word, one hop. The block holds the capacity,
+# the length, a word naming `T` and a spare word, then the `T`s from
+# payload offset 16 (crates/hd_wasm/DESIGN.md §23.7), the layout the host
+# ABI and the runtime's own lists use. A copy of a list is a retain of its
+# block; a change first tests that the block is unique and copies it on a
+# cold path otherwise, as Swift's `ContiguousArray`. Every empty list
+# shares the static empty block (count 0), so `len` and indexing never
+# test for null and the first push takes the cold path. The other list
+# methods are std.collections.list's.
+## A list block's header.
+struct ListHead[T]:
+    cap: usize
+    len: usize
+    # Never read: its type names `T`, so the cycle analysis and markers
+    # read the tail's values as the header's parts, as `Buffer[T]`'s field.
+    elems: Ptr[T]
+    spare: usize
+
+impl[T] !Copy for ListHead[T]
+
+# The values' offset from the payload: `tail_of`'s, at `T`'s alignment.
+@inline(.Always)
+fn elem_offset[T]() -> usize:
+    a := align_of::[T]()
+    ((8 + size_of::[ListHead[T]]() + a - 1) & ~(a - 1)) - 8
+
+impl[T] Drop for ListHead[T]:
+    # The block's last release: its live values go with it, once. The
+    # collector's trace runs this glue too, and so visits each value once.
+    fn drop(&mut self) -> void:
+        if needs_drop::[T]():
+            e := Ptr::[T] { address: address_of(self) + elem_offset::[T]() }
+            n := self.len
+            let mut i: usize = 0
+            while i < n:
+                _ := e.offset(i).read()
+                i += 1
+
+# A bounds test's cold arm, out of line: a test site is one call with no
+# arguments, as the builtin list's `rt:panic`, rather than four message
+# words and an index pushed at every site (lane 297 issue 2).
+@inline(.Never)
+fn out_of_bounds() -> never:
+    panic_never("index-out-of-bounds", "list index out of bounds")
+
+# `std.rt.panic_with` at its `never` type, as `std.rt.alloc` declares it.
+@intrinsic("panic")
+fn panic_never(category: string, message: string) -> never:
+    panic("intrinsic")
+
+## A copy-on-write list over one counted block.
+pub struct List[T]:
+    block: *ListHead[T]
+
+impl[T] List[T]:
+    # An empty list; it allocates nothing.
+    fn new() -> List[T]:
+        List::[T] { block: empty_block::[ListHead[T]]() }
+
+    ## Returns an empty list with room for at least `capacity` elements.
+    ## See [std-collections.list.with-capacity](../../../spec/std/collections.md#r-std-collections.list.with-capacity).
+    pub fn with_capacity(capacity: usize) -> List[T]:
+        if capacity == 0:
+            return List::[T].new()
+        List::[T] { block: List::[T].alloc(capacity, 0) }
+
+    # A new block with room for at least `want` values and length `len`:
+    # one call, as the builtin list's `rt:list_buf`, so a caller carries
+    # no size check of its own.
+    @inline(.Never)
+    fn alloc(want: usize, len: usize) -> *ListHead[T]:
+        size := size_of::[T]()
+        if want > 0xfffe0000 / (if size == 0: 1 else: size):
+            panic_with("heap-exhausted", "a list does not fit the heap")
+        head := ListHead::[T] { cap: want, len: len, elems: Ptr::[T] { address: 0 }, spare: 0 }
+        alloc_counted::[ListHead[T]](head, want * size, align_of::[T]())
+
+    @inline(.Always)
+    fn head(&self) -> Ptr[ListHead[T]]:
+        List::[T].head_of(self.block)
+
+    # The header of `block`, to write through.
+    @inline(.Always)
+    fn head_of(block: *ListHead[T]) -> Ptr[ListHead[T]]:
+        Ptr::[ListHead[T]] { address: tail_of(block, 1).address - size_of::[ListHead[T]]() }
+
+    @inline(.Always)
+    fn elems(&self) -> Ptr[T]:
+        Ptr::[T] { address: tail_of(self.block, align_of::[T]()).address }
+
+    # Reads go through the `*ListHead[T]` itself: a field load the loop
+    # passes see (#2368); writes go through `head()`, to a unique block.
+    @inline(.Always)
+    pub fn len(&self) -> usize:
+        self.block.len
+
+    @inline(.Always)
+    fn capacity(&self) -> usize:
+        self.block.cap
+
+    ## True exactly when the list has no elements.
+    ## See [std-collections.access.is-empty](../../../spec/std/collections.md#r-std-collections.access.is-empty).
+    @inline(.Always)
+    pub fn is_empty(&self) -> bool:
+        self.len() == 0
+
+    # The checked read beside `items[i]` (r-std-collections.access.get-copy).
+    ## Returns `.Some` of a copy of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## See [std-collections.access.get-copy](../../../spec/std/collections.md#r-std-collections.access.get-copy).
+    @inline(.Always)
+    pub fn get(&self, index: usize) -> T?:
+        if index >= self.len(): .None else: .Some(*self.elems().offset(index).as_ref())
+
+    # `push` is the built-in list push over the block (#2369): the
+    # checker reads `xs.push(v)` as `ListPush`, whose uniqueness test the
+    # ownership passes hoist out of a loop, and the backend grows the block
+    # as it grows a list's buffer, the same layout.
+
+    # Replaces the value at `index`; a shared block is copied first.
+    @inline(.Always)
+    fn set(&mut self, index: usize, value: T) -> void:
+        if index >= self.len():
+            out_of_bounds()
+        make_unique(self)
+        at := self.elems().offset(index)
+        if needs_drop::[T]():
+            _ := at.read()
+        at.write(value)
+
+    ## Removes and returns the last item, or `.None` for an empty list.
+    ## See [module.method.list-pop](../../../spec/lang/10-modules.md#r-module.method.list-pop).
+    pub fn pop(&mut self) -> T?:
+        n := self.len()
+        if n == 0:
+            return .None
+        make_unique(self)
+        self.head().as_mut().len = n - 1
+        .Some(self.elems().offset(n - 1).read())
+
+    ## Puts `value` at `index` and moves the later items up one place; `index == len()` appends.
+    ## See [module.method.list-insert](../../../spec/lang/10-modules.md#r-module.method.list-insert).
+    pub fn insert(&mut self, index: usize, value: T) -> void:
+        n := self.len()
+        if index > n:
+            panic_with("index-out-of-bounds", "list insert index ${index} out of bounds for length ${n}")
+        if !is_unique(self.block) || n == self.capacity():
+            self.block = List::[T].grown(self.block, n + 1, is_unique(self.block))
+        e := self.elems()
+        size := size_of::[T]()
+        copy_bytes(e.offset(index + 1).address, e.offset(index).address, (n - index) * size)
+        e.offset(index).write(value)
+        self.head().as_mut().len = n + 1
+
+    ## Removes and returns the item at `index`, moving the later items down one place.
+    ## See [module.method.list-remove-indexed](../../../spec/lang/10-modules.md#r-module.method.list-remove-indexed).
+    pub fn remove(&mut self, index: usize) -> T:
+        n := self.len()
+        if index >= n:
+            panic_with("index-out-of-bounds", "list remove index ${index} out of bounds for length ${n}")
+        make_unique(self)
+        e := self.elems()
+        out := e.offset(index).read()
+        copy_bytes(e.offset(index).address, e.offset(index + 1).address, (n - index - 1) * size_of::[T]())
+        self.head().as_mut().len = n - 1
+        out
+
+    ## Removes elements after `len`; a greater length has no effect.
+    ## See [std-collections.list.truncate](../../../spec/std/collections.md#r-std-collections.list.truncate).
+    pub fn truncate(&mut self, len: usize) -> void:
+        n := self.len()
+        if len >= n:
+            return
+        make_unique(self)
+        # The length first: a value's drop sees the list already short.
+        self.head().as_mut().len = len
+        if needs_drop::[T]():
+            e := self.elems()
+            let mut i = len
+            while i < n:
+                _ := e.offset(i).read()
+                i += 1
+
+    ## Reserves room for `additional` elements without changing the length.
+    ## See [std-collections.list.reserve](../../../spec/std/collections.md#r-std-collections.list.reserve).
+    pub fn reserve(&mut self, additional: usize) -> void:
+        need := self.len() + additional
+        if !is_unique(self.block) || need > self.capacity():
+            self.block = List::[T].grown(self.block, need, is_unique(self.block))
+
+    ## Removes every item, so `len()` is 0 after it.
+    ## See [module.method.list-clear](../../../spec/lang/10-modules.md#r-module.method.list-clear).
+    pub fn clear(&mut self) -> void:
+        self.truncate(0)
+
+    # Appends `other`'s items as they were at the call, so
+    # `items.extend(items)` doubles the list (r-std-collections.access.extend.self).
+    ## Appends each element of `other` to the list, in order, as `push` does.
+    ## See [std-collections.access.extend](../../../spec/std/collections.md#r-std-collections.access.extend).
+    pub fn extend(&mut self, other: List[T]) -> void:
+        m := other.len()
+        if m == 0:
+            return
+        n := self.len()
+        self.reserve(m)
+        to := self.elems().offset(n)
+        from := other.elems()
+        if needs_drop::[T]():
+            # Each value takes its own count: `other` keeps its own.
+            let mut i: usize = 0
+            while i < m:
+                to.offset(i).write(*from.offset(i).as_ref())
+                i += 1
+        else:
+            copy_bytes(to.address, from.address, m * size_of::[T]())
+        self.head().as_mut().len = n + m
+
+    # A unique block with room for `need` values in place of `old`, which
+    # the caller replaces with it: a unique `old` (`unique`, tested by the
+    # caller before this call's copy of it) grows geometrically (the most
+    # of need and twice the capacity plus 4) and its values move; a shared
+    # one is copied at the most of need and the length. The block goes in
+    # and out by value, so a caller's loop never lends its list to this
+    # cold call and keeps the block in a local.
+    @inline(.Never)
+    fn grown(old: *ListHead[T], need: usize, unique: bool) -> *ListHead[T]:
+        n := old.len
+        cap := old.cap
+        let mut want = n
+        if want < need:
+            want = need
+        if unique && want < cap * 2 + 4:
+            # The builtin's growth: with the block's 24 bytes before the
+            # values, 8-byte values fill a block of a power of two less 8.
+            want = cap * 2 + 4
+        fresh := List::[T].alloc(want, n)
+        to := Ptr::[T] { address: tail_of(fresh, align_of::[T]()).address }
+        from := Ptr::[T] { address: tail_of(old, align_of::[T]()).address }
+        if unique || !needs_drop::[T]():
+            copy_bytes(to.address, from.address, n * size_of::[T]())
+        else:
+            # Each value of a shared block takes its own count.
+            let mut i: usize = 0
+            while i < n:
+                to.offset(i).write(*from.offset(i).as_ref())
+                i += 1
+        if unique:
+            # The values moved: the old block's last release drops none.
+            List::[T].head_of(old).as_mut().len = 0
+        fresh
+
+## A list literal's builder: the block, with its length and capacity in
+## fields rather than only in the block, so once inlined they are locals.
+## A literal of N values is then one allocation, N stores and one length
+## store, as the builtin list's: each push's room test compares two known
+## numbers and folds. A push past the capacity (a spread with no count)
+## grows the block on the cold path. The block's own length is written
+## when it grows and when the list is built, so a builder dropped before
+## `build` leaks its values instead of dropping them twice.
+pub struct ListBuilder[T]:
+    block: *ListHead[T]
+    len: usize
+    cap: usize
+
+impl[T] FromListLiteral[T] for List[T]:
+    type Builder = ListBuilder[T]
+
+    @inline(.Always)
+    fn builder(capacity: usize) -> ListBuilder[T]:
+        block := if capacity == 0: empty_block::[ListHead[T]]() else: List::[T].alloc(capacity, 0)
+        ListBuilder { block: block, len: 0, cap: capacity }
+
+    @inline(.Always)
+    fn push(builder: &mut ListBuilder[T], value: T) -> void:
+        n := builder.len
+        if n == builder.cap:
+            # A static empty block (capacity 0) is copied, a full one grown.
+            if n != 0:
+                List::[T].head_of(builder.block).as_mut().len = n
+            builder.block = List::[T].grown(builder.block, n + 1, n != 0)
+            builder.cap = builder.block.cap
+        Ptr::[T] { address: tail_of(builder.block, align_of::[T]()).address }.offset(n).write(value)
+        builder.len = n + 1
+
+    @inline(.Always)
+    fn build(builder: ListBuilder[T]) -> List[T]:
+        if builder.len != 0:
+            List::[T].head_of(builder.block).as_mut().len = builder.len
+        List::[T] { block: builder.block }
+
+impl[T] Index[usize] for List[T]:
+    type Out = T
+    @inline(.Always)
+    fn index(&self, key: usize) -> &T:
+        if key >= self.len():
+            out_of_bounds()
+        self.elems().offset(key).as_ref()
+
+# `&mut xs[i]`, a field write and a compound assignment through `xs[i]`:
+# the element's loan borrows the whole list (the receiver is `&mut self`),
+# as Rust's `Vec`, so no push or other change can move the block under it.
+impl[T] IndexMut[usize] for List[T]:
+    @inline(.Always)
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        if key >= self.len():
+            out_of_bounds()
+        make_unique(self)
+        self.elems().offset(key).as_mut()
+
+# `xs[i] = v`: `set`, which drops the value it replaces.
+impl[T] IndexSet[usize, T] for List[T]:
+    @inline(.Always)
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.set(key, value)
+
+## The cursor of a list's `iter`: its elements in order. It holds the
+## list, so its block stays alive while it yields the values by copy.
+## See [std-iter.cursor.list](../../../spec/std/iter.md#r-std-iter.cursor.list).
+pub struct ListIter[T]:
+    list: List[T]
+    at: usize
+    end: usize
+
+impl[T] Iterable[T] for List[T]:
+    type IntoIter = ListIter[T]
+    @inline(.Always)
+    fn iter(self) -> ListIter[T]:
+        n := self.len()
+        ListIter { list: self, at: 0, end: n }
+
+impl[T] Iterator[T] for ListIter[T]:
+    @inline(.Always)
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        v := *self.list.elems().offset(self.at).as_ref()
+        self.at += 1
+        .Some(v)
+
+impl[T] ExactSizeIterator[T] for ListIter[T]:
+    @inline(.Always)
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T] DoubleEndedIterator[T] for ListIter[T]:
+    @inline(.Always)
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(*self.list.elems().offset(self.end).as_ref())
+
+impl[T] ListIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+

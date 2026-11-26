@@ -1,5 +1,5 @@
 use std.meta.inline
-use std.collections.list.{before, list_reserve}
+use std.collections.list.before
 use std.ops.FnMut
 use std.iter.MapEntries
 
@@ -81,7 +81,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.entries](../../../spec/std/collections.md#r-std-collections.map.entries).
     pub fn entries(&self) -> List[(K, V)]:
         let mut found: List[(K, V)] = []
-        list_reserve(&mut found, self.len())
+        found.reserve(self.len())
         for (key, value) in self:
             found.push((*key, *value))
         found

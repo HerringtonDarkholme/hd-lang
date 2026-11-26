@@ -337,8 +337,7 @@ pub fn texts_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
         }
         texts.push(text);
     }
-    let rec = g.b.refs_record(&texts);
-    let mut list = g.b.emit(Tag::NewList, hd_tir::ir::NONE, rec, texts_ty, SYN);
+    let mut list = g.new_list(Ty::STRING, &texts);
     if let Some(rest_type) = rest {
         let (def, args) = pool.adt_parts(rest_type);
         // ruled out: types.tuple.rest.list fixes the rest to List[T].

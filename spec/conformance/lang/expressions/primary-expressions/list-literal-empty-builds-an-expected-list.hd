@@ -1,11 +1,10 @@
-# test: an empty list literal with an expected PlainList builds an empty one, which a push grows
+# test: an empty list literal with an expected List builds an empty one, which a push grows
 # Spec 05 List Literals: expr.list.type.trait.
 # expect-stdout: 0
 # expect-stdout: 1
-use std.collections.PlainList
 
 pub fn main() -> void $ Console:
-    let mut xs: PlainList[string] = []
+    let mut xs: List[string] = []
     println(xs.len())
     xs.push("a")
     println(xs.len())

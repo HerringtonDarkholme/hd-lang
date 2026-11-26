@@ -613,7 +613,11 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            let lp = elem.then(|| order.ref_loop(i)).flatten();
+            let lp = if elem {
+                order.ref_loop(i)
+            } else {
+                order.list_loop(i)
+            };
             sites.push((i, place, kind, holders, lp));
         }
         if sites.iter().all(|s| s.3.is_empty() && s.4.is_none()) {
@@ -817,6 +821,48 @@ impl Gen<'_, '_> {
                     _ => m.as_slice(),
                 })
                 .collect();
+            // Two arguments whose values hold loans of overlapping places,
+            // either `&mut`, as `&mut xs[0]` and `&mut xs[1]` through
+            // `IndexMut` each hold a `&mut` of `xs` (`ref.elem.access.mut`).
+            let place = |k: u32| {
+                let (_, i, after, q, excl) = &sites[k as usize];
+                (
+                    *i,
+                    after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1),
+                    *excl,
+                )
+            };
+            let mut held_hit = None;
+            'pairs: for (a, ha) in held.iter().enumerate() {
+                for (bk, hb) in held.iter().enumerate().skip(a + 1) {
+                    for &ka in *ha {
+                        let (ia, pa, ea) = place(ka);
+                        for &kb in *hb {
+                            let (ib, pb, eb) = place(kb);
+                            if ka != kb
+                                && ia != ib
+                                && (ea || eb)
+                                && pa.0 == pb.0
+                                && overlap(&pa.1, &pb.1)
+                            {
+                                held_hit = Some((args[bk], pa.0));
+                                break 'pairs;
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some((u, root)) = held_hit
+                && b.syn[u as usize] != NodeIdx::NONE
+                && !out.iter().any(|x| x.0 == b.syn[u as usize])
+            {
+                let n = self.s.cx.names.text(b.local_name[root as usize]);
+                out.push((
+                    b.syn[u as usize],
+                    format!("this uses `{n}` while the same call takes `&mut` of it; copy what this argument needs into a local before the call"),
+                ));
+                continue;
+            }
             for &v in &args {
                 let ((root, path), excl) = match loan_path(self.s, v) {
                     Some((p, Kind::Shared)) => (p, false),
@@ -1038,6 +1084,20 @@ impl Order<'_, '_, '_> {
     /// A loop whose written source expression made reference `i`.
     /// Its exclusive source loan covers every iteration's whole body.
     fn source_loop(&self, i: u32) -> Option<u32> {
+        self.loop_of_source(i, self.cx.s.cx.names.known.map)
+    }
+
+    /// The loop of `for p in &xs` or `for p in &mut xs` over a list
+    /// whose receiver `&xs` (`&mut xs`) is reference `i`: its element
+    /// references, through `Index` (`IndexMut`), borrow the whole list,
+    /// one access for the whole loop (`flow.for.ref.access`).
+    fn list_loop(&self, i: u32) -> Option<u32> {
+        self.loop_of_source(i, self.cx.s.cx.names.known.list)
+    }
+
+    /// A `for` loop whose source, `&e` or `&mut e`, made reference `i`
+    /// to a `def` value, at the source or at `e`.
+    fn loop_of_source(&self, i: u32, def: hd_base::DefId) -> Option<u32> {
         let b = self.b;
         let at = b.syn[i as usize];
         if at == NodeIdx::NONE || b.tags[i as usize] != Tag::Ref {
@@ -1047,8 +1107,7 @@ impl Order<'_, '_, '_> {
         let TyData::Ref { inner, .. } = pool.get(b.ty[i as usize]) else {
             return None;
         };
-        if !matches!(pool.get(inner), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.s.cx.names.known.map)
-        {
+        if !matches!(pool.get(inner), TyData::Adt(AdtId::Declared(d), _) if d == def) {
             return None;
         }
         let tree = &self.cx.s.cx.src.parse.tree;
@@ -1061,7 +1120,10 @@ impl Order<'_, '_, '_> {
                 return None;
             }
             let source = crate::elem_refs::strip_parens(node.children().nth(1)?);
-            (source.index() == at).then_some(w(l))
+            let operand = (source.kind() == SyntaxKind::RefExpr)
+                .then(|| source.children().next())
+                .flatten();
+            (source.index() == at || operand.is_some_and(|o| o.index() == at)).then_some(w(l))
         })
     }
 

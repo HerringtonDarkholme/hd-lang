@@ -117,7 +117,7 @@ fn checked_conversions_can_become_identity_after_inference() {
                 let name = ck.cx().names.syms.intern("input");
                 let local = ck.b().local(from, name, local_flags::PARAM, node.index());
                 let input = ck.b().get(local, from, node.index());
-                let output = ck.apply_newtype_plan(input, plan);
+                let output = ck.apply_newtype_plan(input, plan).unwrap();
                 assert_eq!(output, input);
                 ck.b().close_block(root, Some(output), to, node.index());
                 assert_eq!(ck.b().body().tags.len(), 2);
@@ -152,7 +152,7 @@ fn applying_newtype_conversions_at_depth_1000_fits_a_small_stack() {
                             let input = ck.b().get(local, from, node.index());
                             let plan = conv.can(ck, from, to).unwrap();
                             let (out, work) = hd_types::work::count_type_nodes(|| {
-                                ck.apply_newtype_plan(input, plan)
+                                ck.apply_newtype_plan(input, plan).unwrap()
                             });
                             assert_eq!(work, u64::try_from(depth + 1).unwrap());
                             ck.b().close_block(root, Some(out), to, node.index());

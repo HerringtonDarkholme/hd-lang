@@ -1,4 +1,3 @@
-use std.collections.list.list_reserve
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.ops.Index
 use std.rt.{panic_with}
@@ -25,7 +24,7 @@ impl[T] ListView[T]:
     ## See [std-collections.view.to-list-value](../../../spec/std/collections.md#r-std-collections.view.to-list-value).
     pub fn to_list(&self) -> List[T]:
         let mut copy: List[T] = []
-        list_reserve(&mut copy, self.len())
+        copy.reserve(self.len())
         let index = self.start
         while index < self.end:
             copy.push(self.items[index])

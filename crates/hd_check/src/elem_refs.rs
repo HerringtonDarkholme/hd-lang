@@ -14,7 +14,7 @@
 
 use hd_base::{NodeIdx, StageResult};
 use hd_syntax::{NodeRef, SyntaxKind};
-use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, TirSink};
+use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::{Prim, Ty};
 
 use crate::body::Ck;
@@ -52,14 +52,10 @@ impl Ck<'_, '_> {
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
-        let Some((get @ (Indexed::List | Indexed::Map), kt, vt)) = builtin else {
+        let Some((Indexed::Map, kt, vt)) = builtin else {
             return self.trait_index_place(base, key, e, mutable, Some((br, bt)));
         };
         let (kr, ktt) = self.index_key_value(key, builtin)?;
-        if get == Indexed::List && self.is_range_ty(ktt) {
-            self.index_reference((br, bt), (kr, ktt), (key, e), mutable)?;
-            return Ok(None);
-        }
         let kr = self.index_key((kr, ktt), key, kt);
         let ct = self.resolved(self.infer.resolve(self.pool(), bt));
         // Insertion pins the collection before the reference.
@@ -146,19 +142,14 @@ impl Ck<'_, '_> {
             ]),
             None,
         );
-        self.collection_loop(
-            pat,
-            (source, source_ty, item, true),
-            (loop_else, None),
-            e,
-            body,
-        )
+        self.collection_loop(pat, (source, source_ty, item), loop_else, e, body)
     }
 
     /// `for p in &xs` and `for p in &mut xs` over a list (`flow.for.ref`):
-    /// a counted loop over the list's slots that binds an element
-    /// reference per step. `None` when
-    /// the operand is no list or map, whose loop is the ordinary one.
+    /// `n := xs.len(); for i in 0..n: p := &xs[i]` (`&mut xs[i]`), the
+    /// element reference through `Index` (`IndexMut`), whose loan borrows
+    /// the whole list (`ref.elem.access.whole`). `None` when the operand
+    /// is no list or map, whose loop is the ordinary one.
     pub(crate) fn ref_loop(
         &mut self,
         pat: NodeRef<'_>,
@@ -174,44 +165,54 @@ impl Ck<'_, '_> {
         let mutable = src
             .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
             .is_some();
-        // The operand is evaluated once; a value of another type is
-        // evaluated again by the ordinary loop, so this one is undone.
+        // The operand's type picks the loop; it is evaluated again below.
         let cp = self.checkpoint();
         let (lr, lt) = self.expr(operand, None)?;
         // A reference to a list is read through (`flow.for.ref.through`).
-        let (lr, lt) = self.deref_index_base(lr, lt, operand.index());
-        let builtin = self.index_kind(lt);
-        let vt = match builtin {
-            Some((Indexed::List, _, vt)) => vt,
-            Some((Indexed::Map, ..)) => {
-                self.rollback(cp);
-                return self
-                    .map_ref_loop(pat, (src, operand, mutable), loop_else, e, body)
-                    .map(Some);
-            }
-            _ => {
-                self.rollback(cp);
-                return Ok(None);
-            }
+        let (_, mut lt) = self.deref_index_base(lr, lt, operand.index());
+        while let Some((inner, _)) = self.ref_of(lt) {
+            lt = inner;
+        }
+        let lt = self.resolved(self.infer.resolve(self.pool(), lt));
+        let map = matches!(self.index_kind(lt), Some((Indexed::Map, ..)));
+        let list = (self.pool().adt(lt)).is_some_and(|(d, _)| d == self.cx.names.known.list);
+        self.rollback(cp);
+        if map {
+            return self
+                .map_ref_loop(pat, (src, operand, mutable), loop_else, e, body)
+                .map(Some);
+        }
+        if !list {
+            return Ok(None);
+        }
+        let receiver = if mutable {
+            self.store_receiver(operand, "index_mut")?
+        } else if self
+            .peek_place_ty(operand)
+            .is_some_and(|t| self.ref_of(t).is_none())
+        {
+            Some(self.address_of_place(operand, "index", false, vec![])?)
+        } else {
+            let (r, t) = self.expr(operand, None)?;
+            Some(self.index_receiver(r, t, operand))
         };
-        self.commit(cp);
+        let Some((lr, lt)) = receiver.filter(|(_, t)| *t != Ty::POISON) else {
+            let p = self
+                .b
+                .emit(Tag::Poison, NONE, NONE, Ty::POISON, src.index());
+            return Ok(Some((p, Ty::VOID)));
+        };
         let at = e.index();
         let us = Ty::prim(Prim::Usize);
-        let lt = self.resolved(self.infer.resolve(self.pool(), lt));
         let result = loop_else.map(|(_, t)| t);
-        // Each step's reference pins the list (insertion's rule 6), from
-        // the step's start to its end, where the reference's binding is
-        // dropped: the loop holds no pin of its own.
         let len_l = self
             .b
             .local(us, self.cx.names.syms.intern("$len"), ASSIGNED, at);
         let pos_l = self
             .b
             .local(us, self.cx.names.syms.intern("$pos"), ASSIGNED, at);
-        let rec = self.b.refs_record(&[lr]);
-        let n = self
-            .b
-            .emit(Tag::Intrinsic, IntrinsicOp::ListLen as u32, rec, us, at);
+        let args = crate::call::Args::empty();
+        let (n, _) = self.method_on(lr, lt, "len", &args, (operand, false), Some(us))?;
         self.set_local(len_l, n, at);
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
@@ -232,21 +233,8 @@ impl Ck<'_, '_> {
             .b
             .prim(hd_tir::ir::PrimOp::Add as u32, &[p, one], us, at);
         self.set_local(pos_l, next, at);
-        let place = Place {
-            root: Root::Elem(lr, index, lt),
-            path: vec![],
-            ty: vt,
-        };
-        let ok = !mutable || self.place_writable(&place, src);
-        let inner = self.resolved(self.infer.resolve(self.pool(), vt));
-        // An element reference loop's binding is local, as `&e` is
-        // (`ref.expr.kind.always-local`).
-        let rt = self.ref_ty(inner, mutable, false);
-        let item = if ok {
-            self.make_ref(&place, mutable, rt, src)
-        } else {
-            self.b.emit(Tag::Poison, NONE, NONE, rt, src.index())
-        };
+        let (item, rt) = self.index_reference((lr, lt), (index, us), (src, e), mutable)?;
+        let rt = self.resolved(self.infer.resolve(self.pool(), rt));
         let mut binds = Vec::new();
         let before = self.diags.len();
         self.declare_pattern(pat, rt, &mut binds)?;

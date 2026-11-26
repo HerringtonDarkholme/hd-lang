@@ -286,7 +286,7 @@ impl Forwarder {
                     return Ok(Forwarded::Position(self.position_message(&ck, t)));
                 };
                 let v = ck.b.get(l, t, at);
-                refs.push(Conversion::apply(&mut ck, v, plan, node));
+                refs.push(Conversion::apply(&mut ck, v, plan, node)?);
             }
             let Some(plan) = conv.can(&ck, ret, sig_ret) else {
                 return Ok(Forwarded::Position(self.position_message(&ck, sig_ret)));
@@ -313,7 +313,7 @@ impl Forwarder {
             ExpectPosition::General,
         );
         let (r, ret) = match result_conversion {
-            Some(plan) => (Conversion::apply(&mut ck, r, plan, node), sig_ret),
+            Some(plan) => (Conversion::apply(&mut ck, r, plan, node)?, sig_ret),
             None => (r, ret),
         };
         let root = ck.b.close_block(blk, Some(r), ret, at);

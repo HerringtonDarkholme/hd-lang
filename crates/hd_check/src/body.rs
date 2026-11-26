@@ -4939,6 +4939,9 @@ impl Ck<'_, '_> {
                         self.no_index_set(pt, lhs);
                         return Ok(());
                     }
+                    // The key first: the receiver's loan starts at the
+                    // store, as Rust's two-phase borrow of `v[v.len() - 1]`.
+                    let k = self.expr(key, None)?;
                     if let Some(recv) = self.store_receiver(
                         base,
                         if compound.is_some() {
@@ -4947,7 +4950,7 @@ impl Ck<'_, '_> {
                             "index_set"
                         },
                     )? {
-                        self.index_set(recv, (base, key), rhs, compound, (lhs, s))?;
+                        self.index_set(recv, (k, key), rhs, compound, (lhs, s))?;
                     }
                     return Ok(());
                 }
@@ -4965,7 +4968,8 @@ impl Ck<'_, '_> {
                 let builtin = self.index_kind(bt);
                 let Some((op_get, kt, vt)) = builtin else {
                     // No place: a `&mut` reference stores through what it
-                    // refers to.
+                    // refers to, its loan starting after the key.
+                    let k = self.expr(key, None)?;
                     if let Some(recv) = self.stored_through(
                         br,
                         bt,
@@ -4976,7 +4980,7 @@ impl Ck<'_, '_> {
                         },
                         base,
                     ) {
-                        self.index_set(recv, (base, key), rhs, compound, (lhs, s))?;
+                        self.index_set(recv, (k, key), rhs, compound, (lhs, s))?;
                     }
                     return Ok(());
                 };
@@ -5003,25 +5007,14 @@ impl Ck<'_, '_> {
                         self.compound(k, cur, vt, rhs, s)?
                     }
                 };
-                // A list element is a place of the list's buffer:
-                // `Store [%xs [%i]] v` (`docs/compiler/tir-v2.md`, "Element
-                // reads and writes"); a map value is no place.
-                if op_get == Indexed::List {
-                    let word = self.b.place(&hd_tir::ir::Place {
-                        root: hd_tir::ir::PlaceRoot::Value(br),
-                        proj: vec![hd_tir::ir::Proj::Elem(kr)],
-                    });
-                    self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
-                } else {
-                    let rec = self.b.refs_record(&[br, kr, v]);
-                    self.b.emit(
-                        Tag::Intrinsic,
-                        IntrinsicOp::MapSet as u32,
-                        rec,
-                        Ty::VOID,
-                        s.index(),
-                    );
-                }
+                let rec = self.b.refs_record(&[br, kr, v]);
+                self.b.emit(
+                    Tag::Intrinsic,
+                    IntrinsicOp::MapSet as u32,
+                    rec,
+                    Ty::VOID,
+                    s.index(),
+                );
             }
             SyntaxKind::CallExpr => self.call_place(lhs, rhs, compound, s)?,
             // `grammar.stmt.assign-place`: any other left side is no place.
@@ -5058,12 +5051,11 @@ impl Ck<'_, '_> {
     fn index_set(
         &mut self,
         (br, bt): (Ref, Ty),
-        (_base, key): (NodeRef<'_>, NodeRef<'_>),
+        ((kr, kt), key): ((Ref, Ty), NodeRef<'_>),
         rhs: NodeRef<'_>,
         compound: Option<TokenKind>,
         (lhs, s): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<()> {
-        let (kr, kt) = self.expr(key, None)?;
         if let Some(k) = compound {
             let (reference, rt) = self.index_reference((br, bt), (kr, kt), (key, lhs), true)?;
             if self.ref_of(rt).is_none() {
@@ -5075,6 +5067,7 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         let set = self.cx.names.known.index_set;
+        let (kr, kt) = self.list_key(bt, (kr, kt), key);
         self.tuple_key_choice(set, bt, kt)?;
         if !self.op_fits(set, bt, Some(kt))? {
             self.no_index_set(bt, lhs);
@@ -5086,7 +5079,22 @@ impl Ck<'_, '_> {
         {
             return Ok(());
         }
-        let (vr, vt) = self.stored_expr(rhs, None, "through this index")?;
+        // The value is checked against the implementation's value type
+        // when the receiver and key fix it, as a built-in element is.
+        let pool = self.pool();
+        let value = self.infer.fresh(pool, VarKind::General);
+        let want = self
+            .probe_trait(set, bt, &[kt, value])?
+            .map(|args| args[1])
+            .filter(|v| !matches!(pool.get(self.infer.shallow(pool, *v)), TyData::Infer(_)));
+        let (vr, vt) = self.stored_expr(rhs, want, "through this index")?;
+        let (vr, vt) = match want {
+            Some(w) => (
+                self.coerce(vr, vt, w, rhs, "element", ExpectPosition::General),
+                w,
+            ),
+            None => (vr, vt),
+        };
         self.trait_call_args(set, "index_set", br, bt, &[(kr, kt, key), (vr, vt, rhs)], s)?;
         Ok(())
     }

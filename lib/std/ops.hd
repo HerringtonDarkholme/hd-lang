@@ -249,19 +249,6 @@ impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for ScopeGuard[F, $ 
 # Each body is the built-in indexing of its type, with its checks and
 # panics: `Map`'s `index` returns `V` and panics on a missing key
 # (spec/lang/05-expressions.md#r-expr.index.map.read-value).
-impl[T] Index[usize] for List[T]:
-    type Out = T
-    fn index(&self, key: usize) -> &T:
-        &self[key]
-
-impl[T] IndexMut[usize] for List[T]:
-    fn index_mut(&mut self, key: usize) -> &mut T:
-        &mut self[key]
-
-impl[T] IndexSet[usize, T] for List[T]:
-    fn index_set(&mut self, key: usize, value: T) -> void:
-        self[key] = value
-
 impl[K < Eq & Hash, V] Index[K] for Map[K, V]:
     type Out = V
     fn index(&self, key: K) -> &V:

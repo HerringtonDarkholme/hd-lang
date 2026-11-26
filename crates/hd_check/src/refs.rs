@@ -874,25 +874,20 @@ impl Ck<'_, '_> {
         }
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
-        if !matches!(builtin, Some((Indexed::List | Indexed::Map, ..))) {
+        if !matches!(builtin, Some((Indexed::Map, ..))) {
             return self.trait_index_place(base, key, e, true, Some((br, bt)));
         }
         let (kr, kt) = self.index_key_value(key, builtin)?;
-        match builtin {
-            Some((get @ (Indexed::List | Indexed::Map), bkt, vt))
-                if get == Indexed::Map || !self.is_range_ty(kt) =>
-            {
-                let kr = self.index_key((kr, kt), key, bkt);
-                Ok(Some(Operand::Place(Place {
-                    root: Root::Slot(br, kr, bt, e.index()),
-                    path: vec![],
-                    ty: vt,
-                })))
-            }
-            _ => {
-                let (v, vt) = self.index_of_value((br, bt), builtin, (kr, kt), (key, e))?;
-                Ok(Some(Operand::Value(v, vt)))
-            }
+        if let Some((Indexed::Map, bkt, vt)) = builtin {
+            let kr = self.index_key((kr, kt), key, bkt);
+            Ok(Some(Operand::Place(Place {
+                root: Root::Slot(br, kr, bt, e.index()),
+                path: vec![],
+                ty: vt,
+            })))
+        } else {
+            let (v, vt) = self.index_of_value((br, bt), builtin, (kr, kt), (key, e))?;
+            Ok(Some(Operand::Value(v, vt)))
         }
     }
 

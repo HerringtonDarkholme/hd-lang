@@ -2,9 +2,8 @@
 # Spec 05 List Literals: expr.list.type.trait.
 # expect-stdout: 3 0 2
 # expect-stdout: 5
-use std.collections.PlainList
 
-fn grid() -> PlainList[PlainList[i64]]:
+fn grid() -> List[List[i64]]:
     [[1, 2, 3], [], [4, 1]]
 
 pub fn main() -> void $ Console:

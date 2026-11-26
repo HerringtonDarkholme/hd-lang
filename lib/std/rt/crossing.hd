@@ -6,11 +6,12 @@
 # `std.rt.unique` on it, whose body per type calls these walks. A runtime
 # module, so only std may use it (spec/lang/10-modules.md#r-module.rt.std-only).
 # Cost: a test of each buffer's count, and a copy of each shared one.
-use std.core.{Copy, Eq, Hash}
+use std.core.{Copy, Eq, Hash, List}
 use std.rt.alloc.block_of
 use std.rt.bytes.bytes_len
 use std.rt.memory.{Ptr, copy, load_u32, new_string, string_bytes}
 use std.rt.unique
+use std.rt.counted.make_unique
 
 # A string's bytes in a block another holder counts are copied to a new
 # string; a literal's, in static data, have no count to change.
@@ -31,7 +32,7 @@ fn own_list[T](items: &mut List[T]) -> void:
     if size == 0:
         *items = []
     else:
-        list_truncate(items, size)
+        make_unique(items)
 
 fn unique_list[T](items: &mut List[T]) -> void:
     own_list(items)
@@ -54,12 +55,6 @@ fn unique_map[K < Eq & Hash, V](entries: &mut Map[K, V]) -> void:
     for (key, value) in &mut entries:
         unique(Ptr::[K] { address: address_of(key) }.as_mut())
         unique(value)
-
-# Shrinks `items` to its first `len` elements, after it takes its buffer
-# as its own.
-@intrinsic("list_truncate")
-fn list_truncate[T](items: &mut List[T], len: usize) -> void:
-    panic("intrinsic")
 
 @intrinsic("mem_ref_address")
 fn address_of[T < ?Copy](target: &T) -> usize:

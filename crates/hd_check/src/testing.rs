@@ -287,7 +287,7 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
     }
 
     /// Emits `plan` on the value `input`.
-    pub fn apply_newtype_plan(&mut self, input: Ref, plan: NewtypePlan) -> Ref {
+    pub fn apply_newtype_plan(&mut self, input: Ref, plan: NewtypePlan) -> StageResult<Ref> {
         let root = self.root();
         crate::newtype::Conversion::apply(self.ck, input, plan.0, root)
     }
@@ -304,13 +304,10 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         body: &mut dyn FnMut() -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
         let root = self.root();
-        self.ck.collection_loop(
-            root,
-            (Ref(NONE), Ty::POISON, item, true),
-            (None, None),
-            root,
-            &mut |_| body(),
-        )
+        self.ck
+            .collection_loop(root, (Ref(NONE), Ty::POISON, item), None, root, &mut |_| {
+                body()
+            })
     }
 
     pub fn range_comparison(&mut self, lo: Option<Ref>, hi: Option<Ref>) -> StageResult<Ref> {

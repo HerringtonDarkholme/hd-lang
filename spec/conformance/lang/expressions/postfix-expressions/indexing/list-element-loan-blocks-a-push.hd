@@ -1,0 +1,7 @@
+# test: a reference to a List element borrows the whole list, so a push while it is used later conflicts
+# Spec 05 Index Traits: expr.index.trait.borrow-place (an element loan lends the receiver, Rust Vec's rule).
+
+fn first_after_push(xs: &mut List[i64]) -> i64:
+    r := &xs[0]
+    xs.push(4) # diagnostic: conflicting-access
+    *r

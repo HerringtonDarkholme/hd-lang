@@ -1,6 +1,5 @@
 use std.meta.inline
 pub use std.rt.{collection_capacity_sum}
-use std.collections.list.list_reserve
 use std.collections.sort.{DriftOrder, drift_sort}
 use std.format.DebugWriter
 use std.ops.FnMut
@@ -489,7 +488,7 @@ impl[T < Copy] UniqList[T]:
     ## See [std-collections.uniq-list.conversion](../../../spec/std/collections.md#r-std-collections.uniq-list.conversion).
     pub fn to_list(&self) -> List[T]:
         let mut out: List[T] = []
-        list_reserve(&mut out, self.len())
+        out.reserve(self.len())
         let index: usize = 0
         while index < self.len():
             out.push(*self.buffer.at(index).as_ref())
@@ -752,7 +751,7 @@ impl[T] List[T]:
         let mut sorted = UniqList::[T].from_list(*self)
         sorted.sort_by(compare)
         let mut out: List[T] = []
-        list_reserve(&mut out, sorted.len())
+        out.reserve(sorted.len())
         let index: usize = 0
         size := sorted.len
         sorted.len = 0
@@ -771,7 +770,7 @@ impl[T < Ord] List[T]:
         let mut sorted = UniqList::[T].from_list(*self)
         sorted.sort()
         let mut out: List[T] = []
-        list_reserve(&mut out, sorted.len())
+        out.reserve(sorted.len())
         let index: usize = 0
         size := sorted.len
         sorted.len = 0

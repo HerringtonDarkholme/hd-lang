@@ -105,9 +105,6 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             };
             // A collection's items copy (`ref.copy.collections`).
             let copy = bound(names.known.copy);
-            let mut list_gens = gens(names, &["T"]);
-            list_gens[0].bounds = vec![copy];
-            item("List", list_gens, ItemData::Builtin);
             // `Map[K < Eq & Hash, V]` (types.map-key.declared-bound).
             let mut map_gens = gens(names, &["K", "V"]);
             map_gens[0].bound = Some(names.known.eq);

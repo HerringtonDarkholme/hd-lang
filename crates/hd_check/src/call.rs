@@ -2905,14 +2905,17 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
         let shape = pool.get(self.resolved(lt));
-        if matches!(shape, TyData::Adt(AdtId::Declared(def), _) if def == list) {
-            let rec = self.b.refs_record(&refs);
-            return Ok(self.b.emit(Tag::NewList, NONE, rec, lt, n.index()));
+        if let TyData::Adt(AdtId::Declared(def), args) = shape
+            && def == list
+        {
+            let elem = pool.list_items(args)[0];
+            let values: Vec<(Ref, Option<NodeRef<'_>>)> = refs.iter().map(|&r| (r, None)).collect();
+            return self.build_list(&values, (elem, lt), n);
         }
         if matches!(shape, TyData::Adt(AdtId::Product { rest: true }, _)) {
             let stripped = self.resolved(lt);
             let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
-            return Ok(self.rest_tuple_value(stripped, &refs, None, n));
+            return self.rest_tuple_value(stripped, &refs, None, n);
         }
         let tys: Vec<Ty> = items.iter().map(|i| i.1).collect();
         let tt = pool.product(pool.list(&tys), None);
@@ -3002,7 +3005,7 @@ impl Ck<'_, '_> {
                 let tail = self.coerce(r, t, rest, e, "argument", ExpectPosition::General);
                 let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
                 let tuple = self.resolved(lt);
-                slots[nfixed] = Some(self.rest_tuple_value(tuple, &refs, Some(tail), e));
+                slots[nfixed] = Some(self.rest_tuple_value(tuple, &refs, Some(tail), e)?);
                 return Ok(());
             }
             if slots[nfixed].is_some() {
@@ -4467,6 +4470,23 @@ impl Ck<'_, '_> {
             self.method_targs = method_targs;
             return self.method_on(recv, rt, &name, args, (n, bang), want);
         }
+        // The built-in `push` of a list element of a list changes the
+        // element in place, through `IndexMut` (`types.coll.writable.call`).
+        if name == "push"
+            && base.kind() == SyntaxKind::IndexExpr
+            && let [container, key] = base.parts()
+            && let Some(ct) = self.peek_place_ty(container)
+            && self.list_item(ct).and_then(|e| self.list_item(e)).is_some()
+        {
+            let Some(crate::refs::Operand::Place(p)) =
+                self.trait_index_place(container, key, base, true, None)?
+            else {
+                return Ok(self.poison_value(n));
+            };
+            let (recv, rt) = self.read_place(&p, base);
+            self.method_targs = method_targs;
+            return self.method_on(recv, rt, &name, args, (n, bang), want);
+        }
         let (mut recv, mut rt) = self.expr(base, None)?;
         // `ref.read.auto`: through outer reference levels, as Rust's
         // auto-deref, down to the last reference or to one whose referent
@@ -5317,10 +5337,9 @@ impl Ck<'_, '_> {
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
         let known = self.cx.names.known;
+        // A list's only built-in method is `push`, over its block; its
+        // others are std code (#2369).
         let which = if def == known.list {
-            1
-        } else if def == known.plain_list && def.get().is_some() {
-            // Only `push`: its other methods are std code (#2369).
             if name != "push" {
                 return None;
             }
@@ -5331,7 +5350,6 @@ impl Ck<'_, '_> {
             0
         };
         match (which, name) {
-            (1, "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
             (1, "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
             (2, "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
             (2, "get") => Some((IntrinsicOp::MapGet, vec![a[0]], self.optional(a[1]))),
@@ -6350,6 +6368,22 @@ impl Ck<'_, '_> {
         args: &[(Ref, Ty, NodeRef<'_>)],
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty, TyList)> {
+        self.trait_call_at(trait_, &[], name, recv, rt, args, n)
+    }
+
+    /// [`Self::trait_call_inferred`] with the trait's leading arguments
+    /// `known` given, as a builder literal's element type is.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn trait_call_at(
+        &mut self,
+        trait_: DefId,
+        known: &[Ty],
+        name: &str,
+        recv: Option<Ref>,
+        rt: Ty,
+        args: &[(Ref, Ty, NodeRef<'_>)],
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty, TyList)> {
         let pool = self.pool();
         let method = self.cx.names.member(trait_, PathKind::Member, name);
         let Some(sig) = self.sig_of(method) else {
@@ -6359,7 +6393,12 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(pool, rt);
         let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
         let mut targs: Vec<Ty> = (0..n_trait)
-            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .map(|k| {
+                known
+                    .get(k)
+                    .copied()
+                    .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
+            })
             .collect();
         // An operator's right operand fixes `Rhs` when the impl is generic.
         if let (Some(_), Some(first), Some((_, at, _))) =

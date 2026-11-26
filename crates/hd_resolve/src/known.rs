@@ -57,6 +57,12 @@ pub struct KnownItems {
     pub list: DefId,
     /// `List.is_empty`, whose result is known for a generated empty facts list.
     pub list_is_empty: DefId,
+    /// `ListBuilder` and `List`'s `FromListLiteral` methods, which build
+    /// a generated list as a literal does (#2369).
+    pub list_builder: DefId,
+    pub list_builder_new: DefId,
+    pub list_builder_push: DefId,
+    pub list_build: DefId,
     pub map: DefId,
     // std.ops
     pub ops_module: PathId,
@@ -256,9 +262,6 @@ pub struct KnownItems {
     /// `std.rt.memory.Ptr`, an address that may point into what a
     /// reference reaches (`module.rt.ptr.as-ref`).
     pub ptr: DefId,
-    /// `std.collections.PlainList`, whose `push` is the built-in
-    /// `ListPush` over its block (#2369: the block is a list buffer).
-    pub plain_list: DefId,
     /// `std.rt.Drop`, whose implementation a value's release glue calls
     /// before releasing its fields (`module.rt.drop.glue`).
     pub drop_trait: DefId,
@@ -438,11 +441,26 @@ impl KnownItems {
             option: item(CORE_MODULE, "Option"),
             result: item(CORE_MODULE, "Result"),
             list: item(CORE_MODULE, "List"),
-            list_is_empty: inherent_method(LIST_MODULE, "impl[T] List[T]", "is_empty"),
+            list_is_empty: inherent_method(CORE_MODULE, "impl[T] List[T]", "is_empty"),
+            list_builder: item(CORE_MODULE, "ListBuilder"),
+            list_builder_new: inherent_method(
+                CORE_MODULE,
+                "impl[T] FromListLiteral[T] for List[T]",
+                "builder",
+            ),
+            list_builder_push: inherent_method(
+                CORE_MODULE,
+                "impl[T] FromListLiteral[T] for List[T]",
+                "push",
+            ),
+            list_build: inherent_method(
+                CORE_MODULE,
+                "impl[T] FromListLiteral[T] for List[T]",
+                "build",
+            ),
             map: item(CORE_MODULE, "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
-            plain_list: item("std.collections.plain_list", "PlainList"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             room: item("std.rt.memory", "room"),

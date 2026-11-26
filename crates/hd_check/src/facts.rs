@@ -243,10 +243,9 @@ fn fact_list_steps(
         diags,
     );
     let blk = ck.b.open_block();
+    // Each fact, or a whole list of facts with the node it came from,
+    // which the list of facts spreads in place.
     let mut refs = Vec::new();
-    // The positions of `refs` that hold a whole list of facts, which the
-    // list of facts spreads in place.
-    let mut spreads = Vec::new();
     for source in sources {
         let (values, single) = match *source {
             FactSource::Value(e) => (vec![e], true),
@@ -258,8 +257,7 @@ fn fact_list_steps(
             FactSource::List(e) => {
                 ck.move_to(cx.src.span(e).lo);
                 if let Some(r) = ck.fact_list(e, Code::InvalidMemberLine, items_ty)? {
-                    spreads.push(u32::try_from(refs.len()).unwrap_or(0));
-                    refs.push(r);
+                    refs.push((r, Some(e)));
                 }
                 continue;
             }
@@ -271,8 +269,7 @@ fn fact_list_steps(
                 let call =
                     ck.b.emit(Tag::DefaultCall, a, earlier, facts_ty, at.index());
                 let items = ck.b.field(call, 0, items_ty, at.index());
-                spreads.push(u32::try_from(refs.len()).unwrap_or(0));
-                refs.push(items);
+                refs.push((items, Some(at)));
                 continue;
             }
         };
@@ -284,8 +281,7 @@ fn fact_list_steps(
                 let [operand] = e.parts();
                 ck.move_to(cx.src.span(operand).lo);
                 if let Some(r) = ck.fact_list(operand, Code::TypeMismatch, items_ty)? {
-                    spreads.push(u32::try_from(refs.len()).unwrap_or(0));
-                    refs.push(r);
+                    refs.push((r, Some(operand)));
                 }
                 continue;
             }
@@ -300,14 +296,9 @@ fn fact_list_steps(
                 // value (`annot.metadata.reference-storage`).
                 if let Some((r, t)) = ck.typed_fact(fact, e, target, single, optional_payload)? {
                     let (r, t) = ck.new_object_ref(r, t, false, e);
-                    refs.push(ck.build_dyn_ref(
-                        r,
-                        t,
-                        trait_value,
-                        false,
-                        Coercion::RefToTraitValue,
-                        e,
-                    ));
+                    let r =
+                        ck.build_dyn_ref(r, t, trait_value, false, Coercion::RefToTraitValue, e);
+                    refs.push((r, None));
                 }
                 continue;
             }
@@ -317,16 +308,12 @@ fn fact_list_steps(
                 ck.expr(e, None)?
             };
             let (r, t) = ck.new_object_ref(r, t, false, e);
-            refs.push(ck.build_dyn_ref(r, t, trait_value, false, Coercion::RefToTraitValue, e));
+            let r = ck.build_dyn_ref(r, t, trait_value, false, Coercion::RefToTraitValue, e);
+            refs.push((r, None));
         }
     }
-    let rec = ck.b.refs_record(&refs);
-    let marks = if spreads.is_empty() {
-        NONE
-    } else {
-        ck.b.words_record(&spreads)
-    };
-    let list = ck.b.emit(Tag::NewList, marks, rec, items_ty, at.index());
+    let elem = ck.list_item(items_ty).unwrap_or(Ty::POISON);
+    let list = ck.build_list(&refs, (elem, items_ty), at)?;
     let rec = ck.b.refs_record(&[list]);
     let value = ck.b.emit(Tag::NewStruct, NONE, rec, facts_ty, at.index());
     let root = ck.b.close_block(blk, Some(value), facts_ty, at.index());
@@ -1533,8 +1520,8 @@ impl Ck<'_, '_> {
             .and_then(Item::fn_attrs)
             .is_some_and(|a| a.has_facts)
         {
-            let rec = self.b.refs_record(&[]);
-            let list = self.b.emit(Tag::NewList, NONE, rec, items_ty, n.index());
+            let elem = self.list_item(items_ty).unwrap_or(Ty::POISON);
+            let list = self.build_list(&[], (elem, items_ty), n)?;
             let rec = self.b.refs_record(&[list]);
             let value = self.b.emit(Tag::NewStruct, NONE, rec, facts_ty, n.index());
             return Ok((value, facts_ty));

@@ -290,11 +290,11 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let list_of = |me: &mut Self, items: &[Ref], el: Ty| {
             let lt = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[el])));
-            let rec = me.b.refs_record(items);
-            me.b.emit(Tag::NewList, NONE, rec, lt, n.index())
+            let items: Vec<(Ref, Option<NodeRef<'_>>)> = items.iter().map(|&r| (r, None)).collect();
+            me.build_list(&items, (el, lt), n)
         };
-        let raw_parts = list_of(self, &pieces, Ty::STRING);
-        let vals = list_of(self, &values, elem);
+        let raw_parts = list_of(self, &pieces, Ty::STRING)?;
+        let vals = list_of(self, &values, elem)?;
         let tt = pool.intern_ty(&TyData::Adt(AdtId::Declared(template), pool.list(&[elem])));
         let rec = self.b.refs_record(&[raw_parts, vals]);
         Ok((self.b.emit(Tag::NewStruct, NONE, rec, tt, n.index()), tt))

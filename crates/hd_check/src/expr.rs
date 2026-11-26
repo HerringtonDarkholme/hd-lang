@@ -37,8 +37,6 @@ enum PowerBase {
 /// What a built-in index reads ([`Ck::index_kind`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Indexed {
-    /// A list's element: a place of the list's buffer, `[%xs [%i]]`.
-    List,
     /// A map's value: a place of its entry, `[%m [%e]]` at the number
     /// `MapEntry` finds.
     Map,
@@ -2859,7 +2857,6 @@ impl Ck<'_, '_> {
         let argv = pool.list_items(types);
         let known = self.cx.names.known;
         match def {
-            d if d == known.list => Some((Indexed::List, Ty::prim(Prim::Usize), *argv.first()?)),
             d if d == known.map => Some((Indexed::Map, *argv.first()?, *argv.get(1)?)),
             _ => None,
         }
@@ -2877,7 +2874,7 @@ impl Ck<'_, '_> {
         at: hd_base::NodeIdx,
     ) -> Ref {
         let op = match get {
-            Indexed::List | Indexed::Map => {
+            Indexed::Map => {
                 let index = self.elem_index(base, key, self.b.ty_of(base), at);
                 return self.b.element(base, index, vt, at);
             }
@@ -2964,6 +2961,7 @@ impl Ck<'_, '_> {
         } else {
             self.index_receiver(br, bt, n)
         };
+        let (kr, kt) = self.list_key(bt, (kr, kt), key);
         self.tuple_key_choice(index, bt, kt)?;
         if !self.op_fits(index, bt, Some(kt))? {
             let name = if mutable { "IndexMut" } else { "Index" };
@@ -3000,7 +2998,7 @@ impl Ck<'_, '_> {
         while let Some((inner, _)) = self.ref_of(t) {
             t = inner;
         }
-        !matches!(self.index_kind(t), Some((Indexed::List | Indexed::Map, ..)))
+        !matches!(self.index_kind(t), Some((Indexed::Map, ..)))
     }
 
     /// A trait-indexed element, borrowing the receiver instead of copying
@@ -3013,6 +3011,13 @@ impl Ck<'_, '_> {
         mutable: bool,
         evaluated: Option<(Ref, Ty)>,
     ) -> StageResult<Option<crate::refs::Operand>> {
+        // A `&mut` receiver's loan starts after the key, as Rust's
+        // two-phase borrow of `&mut v[v.len() - 1]`.
+        let early = if mutable {
+            Some(self.index_key_value(key, None)?)
+        } else {
+            None
+        };
         let receiver = match evaluated {
             Some((r, t)) if mutable => self.stored_through(r, t, "index_mut", base),
             Some((r, t)) => Some(self.index_receiver(r, t, base)),
@@ -3035,7 +3040,10 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let builtin = self.index_kind(bt);
-        let (kr, kt) = self.index_key_value(key, builtin)?;
+        let (kr, kt) = match early {
+            Some(k) => k,
+            None => self.index_key_value(key, builtin)?,
+        };
         // A borrowed string byte accepts the same unsigned offsets as a
         // built-in byte read; its ordinary Index impl takes usize.
         let (kr, kt) = match builtin {
@@ -3149,6 +3157,27 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::If, over.0, rec, usize_t, at)
     }
 
+    /// A list's key of any unsigned type, as its `usize` index: a `u64`
+    /// beyond the index range reads as out of bounds
+    /// (`expr.index.list.unsigned`). Any other key is unchanged.
+    pub(crate) fn list_key(&mut self, bt: Ty, (kr, kt): (Ref, Ty), key: NodeRef<'_>) -> (Ref, Ty) {
+        let pool = self.pool();
+        let mut t = self.resolved(bt);
+        while let Some((inner, _)) = self.ref_of(t) {
+            t = self.resolved(inner);
+        }
+        let usize_t = Ty::prim(Prim::Usize);
+        let unsigned = matches!(pool.get(self.resolved(kt)), TyData::Prim(p) if p.is_unsigned() && p != Prim::Usize);
+        if !unsigned
+            || pool
+                .adt(t)
+                .is_none_or(|(d, _)| d != self.cx.names.known.list)
+        {
+            return (kr, kt);
+        }
+        (self.index_key((kr, kt), key, usize_t), usize_t)
+    }
+
     /// A tuple expression (`expr.tuple.comma`). Against an expected tuple
     /// type with a rest element, its elements fill the fixed elements and
     /// the rest are collected into the rest list, or a final spread
@@ -3247,7 +3276,7 @@ impl Ck<'_, '_> {
             (Some((r, _, _)), None) => Some(*r),
             (None, _) => None,
         };
-        let r = self.rest_tuple_value(tt, &refs, tail, n);
+        let r = self.rest_tuple_value(tt, &refs, tail, n)?;
         Ok((r, tt))
     }
 
@@ -3286,10 +3315,10 @@ impl Ck<'_, '_> {
         items: &[Ref],
         tail: Option<Ref>,
         at: NodeRef<'_>,
-    ) -> Ref {
+    ) -> StageResult<Ref> {
         let pool = self.pool();
         let Some((elems, Some(list_ty))) = pool.product_parts(tt) else {
-            return Ref(NONE);
+            return Ok(Ref(NONE));
         };
         let fixed = elems.len();
         if items.len() < fixed || (tail.is_some() && items.len() != fixed) {
@@ -3300,14 +3329,20 @@ impl Ck<'_, '_> {
                 items.len()
             );
             self.err(Code::TypeMismatch, at, &msg);
-            return Ref(NONE);
+            return Ok(Ref(NONE));
         }
-        let rest = tail.unwrap_or_else(|| {
-            let rec = self.b.refs_record(&items[fixed..]);
-            self.b.emit(Tag::NewList, NONE, rec, list_ty, at.index())
-        });
+        let rest = if let Some(tail) = tail {
+            tail
+        } else {
+            let Some(elem) = self.list_item(list_ty) else {
+                return Ok(Ref(NONE));
+            };
+            let values: Vec<(Ref, Option<NodeRef<'_>>)> =
+                items[fixed..].iter().map(|&r| (r, None)).collect();
+            self.build_list(&values, (elem, list_ty), at)?
+        };
         let rec = self.b.refs_record(&items[..fixed]);
-        self.b.emit(Tag::NewTuple, rest.0, rec, tt, at.index())
+        Ok(self.b.emit(Tag::NewTuple, rest.0, rec, tt, at.index()))
     }
 
     fn list_expr(
@@ -3336,8 +3371,7 @@ impl Ck<'_, '_> {
         let result = self.join_site(elem, |this, elem| {
             this.row_argument_vars(list, &[elem], n);
             let mut refs = Vec::new();
-            let mut spreads = Vec::new();
-            for (k, e) in kids.iter().enumerate() {
+            for e in kids {
                 if e.kind() == SyntaxKind::SpreadExpr {
                     let [operand] = e.parts();
                     let list_ty =
@@ -3355,60 +3389,18 @@ impl Ck<'_, '_> {
                         }
                         return Ok((Ref(NONE), Ty::POISON));
                     };
-                    // `expr.list.spread.expected`, `expr.list.spread.inferred`.
-                    // Each element converts; a conversion with no run-time
-                    // meaning leaves the list as it is.
+                    // `expr.list.spread.expected`, `expr.list.spread.inferred`:
+                    // each element converts as the spread drains
+                    // (`expr.list.spread.convert`).
                     if this.joins.is_site(elem) {
                         this.join_spread(item, elem, operand, "list spread");
-                    } else {
-                        let cp = this.b.checkpoint();
-                        let before = this.diags.len();
-                        let c = this.coerce(
-                            r,
-                            item,
-                            elem,
-                            operand,
-                            "list spread",
-                            ExpectPosition::General,
-                        );
-                        if c != r {
-                            let body = this.b.body_mut();
-                            let kind = c
-                                .as_inst()
-                                .filter(|i| body.tags[i.0 as usize] == Tag::Coerce)
-                                .and_then(|i| {
-                                    body.record(body.data[i.0 as usize][1]).first().copied()
-                                });
-                            let static_kinds =
-                                [Coercion::Weaken, Coercion::Variance, Coercion::RowSubsume];
-                            this.b.rollback(cp);
-                            // A conversion with run-time meaning converts
-                            // each element as a written one would
-                            // (`expr.list.spread.convert`): the spread
-                            // inserts a converted copy. One that failed
-                            // was reported.
-                            if this.diags.len() == before
-                                && !kind
-                                    .is_some_and(|k| static_kinds.iter().any(|s| *s as u32 == k))
-                            {
-                                let copy = this.convert_spread((r, t), (item, elem), operand);
-                                // `[xs...]` alone is the copy itself.
-                                if kids.len() == 1 {
-                                    let t = this.b.ty_of(copy);
-                                    return Ok((copy, t));
-                                }
-                                spreads.push(u32::try_from(k).unwrap_or(0));
-                                refs.push(copy);
-                                continue;
-                            }
-                        }
                     }
-                    spreads.push(u32::try_from(k).unwrap_or(0));
-                    refs.push(r);
+                    refs.push((r, Some(operand)));
                     continue;
                 }
                 let (r, t) = this.stored_expr(*e, Some(elem), "in this list")?;
-                refs.push(this.coerce(r, t, elem, *e, "list element", ExpectPosition::General));
+                let r = this.coerce(r, t, elem, *e, "list element", ExpectPosition::General);
+                refs.push((r, None));
             }
             // An expected element type was checked where it is written.
             if inferred {
@@ -3418,122 +3410,19 @@ impl Ck<'_, '_> {
             if inferred {
                 // The join closes before assembly, so every spread converts
                 // to the final element type, even one widened by a later value.
-                // Each operand was evaluated once to its captured list value.
-                pending = Some((refs, spreads, elem));
+                pending = Some((refs, elem));
                 return Ok((Ref(NONE), t));
             }
-            let rec = this.b.refs_record(&refs);
-            let marks = if spreads.is_empty() {
-                NONE
-            } else {
-                this.b.words_record(&spreads)
-            };
-            Ok((this.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
+            let r = this.build_list(&refs, (elem, t), n)?;
+            Ok((r, t))
         })?;
-        let Some((mut refs, spreads, elem)) = pending else {
+        let Some((refs, elem)) = pending else {
             return Ok(result);
         };
-        let target = self.infer.resolve(pool, elem);
-        for &index in &spreads {
-            let index = index as usize;
-            let r = refs[index];
-            let t = self.b.ty_of(r);
-            let Some(item) = self.list_item(self.infer.resolve(pool, t)) else {
-                continue;
-            };
-            // Optional injection is the join's representation-changing
-            // conversion. Static variance conversions keep the list as is.
-            if self.option_layers(self.resolved(item)) < self.option_layers(target) {
-                let [operand] = kids[index].parts();
-                refs[index] = self.convert_spread((r, t), (item, target), operand);
-            }
-        }
-        let rec = self.b.refs_record(&refs);
-        let marks = if spreads.is_empty() {
-            NONE
-        } else {
-            self.b.words_record(&spreads)
-        };
+        let elem = self.infer.resolve(pool, elem);
         let t = result.1;
-        Ok((self.b.emit(Tag::NewList, marks, rec, t, n.index()), t))
-    }
-
-    /// The elements of the list `r` (`List[item]`, or a reference to
-    /// one) converted to `elem`, as a new list for a spread to insert
-    /// (`expr.list.spread.convert`): one counted loop, the element type's
-    /// coercion per element, into a list reserved to the source's length.
-    fn convert_spread(
-        &mut self,
-        (r, t): (Ref, Ty),
-        (item, elem): (Ty, Ty),
-        operand: NodeRef<'_>,
-    ) -> Ref {
-        use hd_tir::ir::local_flags::ASSIGNED;
-        let pool = self.pool();
-        let at = operand.index();
-        let us = Ty::prim(Prim::Usize);
-        let list = self.cx.names.known.list;
-        let list_t = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
-        let acc_t = list_t;
-        let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
-        let src_l = self.b.local(t, sym(self, "$coll"), ASSIGNED, at);
-        self.set_local(src_l, r, at);
-        let source = |me: &mut Self| {
-            let v = me.b.get(src_l, t, at);
-            if me.ref_of(t).is_some() {
-                me.emit_deref(v, t, at).0
-            } else {
-                v
-            }
-        };
-        let intr = |me: &mut Self, op: IntrinsicOp, args: &[Ref], ty: Ty| {
-            let rec = me.b.refs_record(args);
-            me.b.emit(Tag::Intrinsic, op as u32, rec, ty, at)
-        };
-        let len_l = self.b.local(us, sym(self, "$len"), ASSIGNED, at);
-        let pos_l = self.b.local(us, sym(self, "$pos"), ASSIGNED, at);
-        let out_l = self.b.local(acc_t, sym(self, "$acc"), ASSIGNED, at);
-        let c = source(self);
-        let n = intr(self, IntrinsicOp::ListLen, &[c], us);
-        self.set_local(len_l, n, at);
-        let empty = self.b.refs_record(&[]);
-        let fresh = self.b.emit(Tag::NewList, NONE, empty, acc_t, at);
-        self.set_local(out_l, fresh, at);
-        let count = self.b.get(len_l, us, at);
-        self.reserve_room((out_l, acc_t), count, at);
-        let zero = self.b.const_value(us, 0);
-        self.set_local(pos_l, zero, at);
-        let lp = self.b.open_loop();
-        let lb = self.b.open_block();
-        let (p, d) = (self.b.get(pos_l, us, at), self.b.get(len_l, us, at));
-        let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
-        // The round: read, advance, convert and push.
-        let tb = self.b.open_block();
-        let (c, p) = (source(self), self.b.get(pos_l, us, at));
-        let x = self.b.element(c, p, item, at);
-        let one = self.b.const_value(us, 1);
-        let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
-        self.set_local(pos_l, next, at);
-        let x = self.coerce(
-            x,
-            item,
-            elem,
-            operand,
-            "list spread",
-            ExpectPosition::General,
-        );
-        let acc = self.b.get(out_l, acc_t, at);
-        intr(self, IntrinsicOp::ListPush, &[acc, x], Ty::VOID);
-        let then = self.b.close_block(tb, None, Ty::VOID, at);
-        let eb = self.b.open_block();
-        self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, at);
-        let els = self.b.close_block(eb, None, Ty::VOID, at);
-        let rec = self.b.refs_record(&[then, els]);
-        self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
-        let lbody = self.b.close_block(lb, None, Ty::VOID, at);
-        self.b.close_loop(lp, lbody, Ty::VOID, at);
-        let v = self.b.get(out_l, acc_t, at);
-        self.retype(v, list_t, at)
+        let r = self.build_list(&refs, (elem, t), n)?;
+        Ok((r, t))
     }
 
     /// The type a list literal (`map`: a map literal) builds through
@@ -3573,7 +3462,7 @@ impl Ck<'_, '_> {
     /// probe that reports nothing, so a caller without the impl keeps its
     /// default. A holding answer fixes what it learned; a failing one
     /// leaves inference as it was.
-    fn probe_trait(
+    pub(crate) fn probe_trait(
         &mut self,
         trait_: hd_base::DefId,
         self_ty: Ty,
@@ -3610,10 +3499,19 @@ impl Ck<'_, '_> {
     /// when it has one (`expr.list.spread.count`). `None` when the operand
     /// or its `Iterable` bound already reported.
     fn spread_source(&mut self, operand: NodeRef<'_>) -> StageResult<Option<SpreadSource>> {
+        let (r, t) = self.expr(operand, None)?;
+        self.spread_of((r, t), operand)
+    }
+
+    /// [`Self::spread_source`] of the evaluated operand `r` of type `t`.
+    fn spread_of(
+        &mut self,
+        (r, t): (Ref, Ty),
+        operand: NodeRef<'_>,
+    ) -> StageResult<Option<SpreadSource>> {
         let pool = self.pool();
         let at = operand.index();
         let known = self.cx.names.known;
-        let (r, t) = self.expr(operand, None)?;
         // A `&mut` reference to an iterator is a cursor that advances its
         // referent, as a `for` loop's source is.
         let (referent, writable) = self.ref_of(t).unwrap_or((t, true));
@@ -3719,7 +3617,7 @@ impl Ck<'_, '_> {
     }
 
     /// A reference to local `l` of type `t`, as `&l` or `&mut l` makes.
-    fn local_place_ref(
+    pub(crate) fn local_place_ref(
         &mut self,
         l: hd_base::LocalId,
         t: Ty,
@@ -3815,8 +3713,6 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         type Spread<'s> = (SpreadSource, NodeRef<'s>);
         type Values<'s> = Vec<(Ref, Ty, NodeRef<'s>)>;
-        let at = n.index();
-        let us = Ty::prim(Prim::Usize);
         let known = self.cx.names.known;
         let (trait_, method) = if map {
             (known.from_map_literal, "insert")
@@ -3849,6 +3745,33 @@ impl Ck<'_, '_> {
             }
             count += 1;
         }
+        self.fill_builder((trait_, method), (e, elem), (parts, count), n)
+    }
+
+    /// `E::builder(n)` into a local, `n` the `count` written values and
+    /// each counted spread; every value of `parts` in order by
+    /// `E::method(&mut b, ..)`, a spread's one at a time, converted to
+    /// `elem`; then `E::build(b)`, the literal's value of type `e`.
+    #[allow(clippy::type_complexity)]
+    fn fill_builder(
+        &mut self,
+        (trait_, method): (hd_base::DefId, &str),
+        (e, elem): (Ty, Ty),
+        (parts, count): (
+            Vec<Result<Vec<(Ref, Ty, NodeRef<'_>)>, (SpreadSource, NodeRef<'_>)>>,
+            u64,
+        ),
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
+        let at = n.index();
+        let us = Ty::prim(Prim::Usize);
+        // A list literal's trait argument is its element type; a map's
+        // two are inferred from its entries.
+        let known: Vec<Ty> = if trait_ == self.cx.names.known.from_list_literal {
+            vec![elem]
+        } else {
+            Vec::new()
+        };
         let mut total = self.b.const_value(us, count);
         for part in &parts {
             if let Err(((_, _, Some(len)), _)) = part {
@@ -3856,7 +3779,7 @@ impl Ck<'_, '_> {
             }
         }
         let (made, bt, _) =
-            self.trait_call_inferred(trait_, "builder", None, e, &[(total, us, n)], n)?;
+            self.trait_call_at(trait_, &known, "builder", None, e, &[(total, us, n)], n)?;
         let sym = self.cx.names.syms.intern("$literal");
         let local = self.b.local(bt, sym, local_flags::ASSIGNED, at);
         self.set_local(local, made, at);
@@ -3865,7 +3788,7 @@ impl Ck<'_, '_> {
             let recv = me.local_place_ref(local, bt, true, n);
             let mut all = vec![(recv, me.b.ty_of(recv), n)];
             all.extend_from_slice(values);
-            me.trait_call_inferred(trait_, method, None, e, &all, n)?;
+            me.trait_call_at(trait_, &known, method, None, e, &all, n)?;
             Ok(())
         };
         for part in parts {
@@ -3879,8 +3802,47 @@ impl Ck<'_, '_> {
             }
         }
         let built = self.b.get(local, bt, at);
-        let (r, _, _) = self.trait_call_inferred(trait_, "build", None, e, &[(built, bt, n)], n)?;
+        let (r, _, _) =
+            self.trait_call_at(trait_, &known, "build", None, e, &[(built, bt, n)], n)?;
         Ok((r, e))
+    }
+
+    /// A `List[elem]` (type `list_t`) built through its `FromListLiteral`
+    /// from evaluated values: each `(r, None)` a value of type `elem`, each
+    /// `(r, Some(operand))` a spread of `r`, an iterable whose items
+    /// convert to `elem` (`expr.list.spread.convert`). The one way the
+    /// checker makes a list (#2369).
+    pub(crate) fn build_list(
+        &mut self,
+        values: &[(Ref, Option<NodeRef<'_>>)],
+        (elem, list_t): (Ty, Ty),
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let mut parts = Vec::with_capacity(values.len());
+        let mut count = 0u64;
+        for &(r, spread) in values {
+            match spread {
+                None => {
+                    parts.push(Ok(vec![(r, elem, n)]));
+                    count += 1;
+                }
+                Some(operand) => {
+                    let t = self.b.ty_of(r);
+                    let Some(source) = self.spread_of((r, t), operand)? else {
+                        return Ok(Ref(NONE));
+                    };
+                    parts.push(Err((source, operand)));
+                }
+            }
+        }
+        let known = self.cx.names.known;
+        let (r, _) = self.fill_builder(
+            (known.from_list_literal, "push"),
+            (list_t, elem),
+            (parts, count),
+            n,
+        )?;
+        Ok(r)
     }
 
     fn map_expr(
@@ -4570,20 +4532,14 @@ impl Ck<'_, '_> {
             }
         }
         if let TyData::Adt(AdtId::Declared(def), args) = pool.get(st_i)
-            && (def == self.cx.names.known.list || def == self.cx.names.known.map)
+            && def == self.cx.names.known.map
+            && let [k, v] = pool.list_items(args)
         {
-            let items = pool.list_items(args);
-            let map = def == self.cx.names.known.map;
-            // A list has its one argument and a map its two (`ctor`).
-            let item = match items {
-                [k, v] => pool.product(
-                    pool.list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
-                    None,
-                ),
-                _ => items.first().copied().unwrap_or(Ty::POISON),
-            };
-            let reserve = reserve.filter(|_| !map);
-            return self.collection_loop(pat, (sr, st, item, map), (els, reserve), e, body);
+            let item = pool.product(
+                pool.list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
+                None,
+            );
+            return self.collection_loop(pat, (sr, st, item), els, e, body);
         }
         let (referent, writable) = self.ref_of(st_i).unwrap_or((st_i, false));
         let mut direct = self.iterator_item(referent)?;
@@ -4816,23 +4772,64 @@ impl Ck<'_, '_> {
         Ok(args.map(|a| a[0]))
     }
 
-    /// `ListReserve` of the list in local `acc`: room for `count` more
+    /// `reserve` of the list in local `acc`: room for `count` more
     /// elements.
     fn reserve_room(
         &mut self,
         (acc, at_ty): (hd_base::LocalId, Ty),
         count: Ref,
-        at: hd_base::NodeIdx,
-    ) {
-        let a = self.b.get(acc, at_ty, at);
-        let rec = self.b.refs_record(&[a, count]);
-        self.b.emit(
-            Tag::Intrinsic,
-            IntrinsicOp::ListReserve as u32,
-            rec,
-            Ty::VOID,
-            at,
-        );
+        n: NodeRef<'_>,
+    ) -> StageResult<()> {
+        let recv = self.local_place_ref(acc, at_ty, true, n);
+        self.list_method("reserve", &[recv, count], (at_ty, Ty::VOID), n)?;
+        Ok(())
+    }
+
+    /// `len()` of the list in local `l` of type `list_t`.
+    pub(crate) fn local_list_len(
+        &mut self,
+        l: hd_base::LocalId,
+        list_t: Ty,
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let recv = self.local_place_ref(l, list_t, false, n);
+        self.list_method("len", &[recv], (list_t, Ty::prim(Prim::Usize)), n)
+    }
+
+    /// `xs[index]` of the list `xs` in local `l` of type `list_t`, a
+    /// copy read through its `Index`.
+    pub(crate) fn local_list_get(
+        &mut self,
+        l: hd_base::LocalId,
+        list_t: Ty,
+        index: Ref,
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let recv = self.local_place_ref(l, list_t, false, n);
+        let us = Ty::prim(Prim::Usize);
+        let (r, rt) = self.index_reference((recv, list_t), (index, us), (n, n), false)?;
+        Ok(self.emit_deref(r, rt, n.index()).0)
+    }
+
+    /// A call of the inherent `List` method `name` on a list of type
+    /// `list_t`, of result type `ret`, with the evaluated arguments `args`
+    /// (the receiver first).
+    pub(crate) fn list_method(
+        &mut self,
+        name: &str,
+        args: &[Ref],
+        (list_t, ret): (Ty, Ty),
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
+        let (method, _, targs) = self.interpolation_inherent(list_t, name)?;
+        self.note_call(method);
+        let c = hd_tir::ir::Callee::Item {
+            def: method,
+            targs: self.pool().list(&targs),
+        };
+        Ok(self
+            .b
+            .call(&c, args, hd_tir::ir::Providers::None, ret, n.index()))
     }
 
     /// The number of rounds of a range loop over `cur..end` (`..=` when
@@ -4980,7 +4977,7 @@ impl Ck<'_, '_> {
         if let Some(acc) = reserve
             && let Some(count) = self.range_count(state, at)
         {
-            self.reserve_room(acc, count, at);
+            self.reserve_room(acc, count, e)?;
         }
         let lt = PrimOp::Lt as u32;
         let lp = self.b.open_loop();
@@ -5072,17 +5069,13 @@ impl Ck<'_, '_> {
     pub(crate) fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
-        (sr, st, item_ty, map): (Ref, Ty, Ty, bool),
-        (loop_else, reserve): LoopEnds,
+        (sr, st, item_ty): (Ref, Ty, Ty),
+        loop_else: Option<(hd_base::NodeIdx, Ty)>,
         e: NodeRef<'_>,
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
         use hd_tir::ir::local_flags::ASSIGNED;
-        let map_entry = if map {
-            Some(self.map_loop_entry(item_ty)?)
-        } else {
-            None
-        };
+        let map_entry = self.map_loop_entry(item_ty)?;
         let result = loop_else.map(|(_, t)| t);
         let at = e.index();
         let us = Ty::prim(Prim::Usize);
@@ -5114,39 +5107,23 @@ impl Ck<'_, '_> {
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
         let c = collection(self);
-        let len_op = if map {
-            IntrinsicOp::MapLen
-        } else {
-            IntrinsicOp::ListLen
-        };
-        let n = intr(self, len_op, &[c], us);
+        let n = intr(self, IntrinsicOp::MapLen, &[c], us);
         self.set_local(len_l, n, at);
-        if let Some(acc) = reserve {
-            let count = self.b.get(len_l, us, at);
-            self.reserve_room(acc, count, at);
-        }
-        // A map's loop visits the slots written when it began; a list's,
-        // its captured length.
-        let end = if map {
-            let c = collection(self);
-            intr(self, IntrinsicOp::MapSlots, &[c], us)
-        } else {
-            self.b.get(len_l, us, at)
-        };
+        // The loop visits the slots written when it began.
+        let c = collection(self);
+        let end = intr(self, IntrinsicOp::MapSlots, &[c], us);
         self.set_local(end_l, end, at);
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
-        if map {
-            let (c, p, d) = (
-                collection(self),
-                self.b.get(pos_l, us, at),
-                self.b.get(end_l, us, at),
-            );
-            let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
-            self.set_local(pos_l, next, at);
-        }
+        let (c, p, d) = (
+            collection(self),
+            self.b.get(pos_l, us, at),
+            self.b.get(end_l, us, at),
+        );
+        let next = intr(self, IntrinsicOp::MapSlotNext, &[c, p, d], us);
+        self.set_local(pos_l, next, at);
         let (p, d) = (self.b.get(pos_l, us, at), self.b.get(end_l, us, at));
         let go = self.b.prim(PrimOp::Lt as u32, &[p, d], Ty::BOOL, at);
         // The round: read, advance, then bind and run the body.
@@ -5154,14 +5131,15 @@ impl Ck<'_, '_> {
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
         let (c, p) = (collection(self), self.b.get(pos_l, us, at));
-        // A map's live entry, or a list's element place `[%c [%p]]`.
-        let item = if let Some(op) = map_entry {
-            let record = self.b.refs_record(&[c, p]);
-            self.b
-                .emit(Tag::Intrinsic, op as u32, record, item_ty, pat.index())
-        } else {
-            self.b.element(c, p, item_ty, at)
-        };
+        // The map's live entry.
+        let record = self.b.refs_record(&[c, p]);
+        let item = self.b.emit(
+            Tag::Intrinsic,
+            map_entry as u32,
+            record,
+            item_ty,
+            pat.index(),
+        );
         let p = self.b.get(pos_l, us, at);
         let one = self.b.const_value(us, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);
@@ -5361,9 +5339,12 @@ impl Ck<'_, '_> {
         let acc = self
             .b
             .local(mt, acc_sym, hd_tir::ir::local_flags::ASSIGNED, n.index());
-        let empty = self.b.refs_record(&[]);
-        let tag = if is_map { Tag::NewMap } else { Tag::NewList };
-        let fresh = self.b.emit(tag, NONE, empty, mt, n.index());
+        let fresh = if is_map {
+            let empty = self.b.refs_record(&[]);
+            self.b.emit(Tag::NewMap, NONE, empty, mt, n.index())
+        } else {
+            self.build_list(&[], (args[0], mt), n)?
+        };
         self.set_local(acc, fresh, n.index());
         // A list comprehension of one `for` and no `if` pushes one element
         // per round: a source whose length is known before the loop, a

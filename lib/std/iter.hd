@@ -1,4 +1,5 @@
 use std.collections.UniqList
+pub use std.core.{ListIter}
 use std.rt.{ByteBuffer, char_width, write_char_sized}
 
 # std.iter: user-defined cursors and lazy, named adapter values.
@@ -610,21 +611,6 @@ pub trait Iterable[T < ?Copy] < ?Copy:
 fn map_steps[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?:
     panic("intrinsic")
 
-## The cursor of a list's `iter`: its elements in order.
-## See [std-iter.cursor.list](../../spec/std/iter.md#r-std-iter.cursor.list).
-pub struct ListIter[T]:
-    items: List[T]
-    at: usize
-    end: usize
-
-impl[T] Iterator[T] for ListIter[T]:
-    fn next(&mut self) -> T?:
-        if self.at >= self.end:
-            return .None
-        item := self.items[self.at]
-        self.at = self.at + 1
-        .Some(item)
-
 ## The cursor of a map's `iter`: its `(key, value)` entries in iteration order.
 ## See [std-iter.cursor.map](../../spec/std/iter.md#r-std-iter.cursor.map).
 pub struct MapEntries[K < Eq & Hash, V]:
@@ -639,21 +625,10 @@ impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
             item._1
         )
 
-impl[T] Iterable[T] for List[T]:
-    type IntoIter = ListIter[T]
-    fn iter(self) -> ListIter[T]:
-        ListIter { items: self, at: 0, end: self.len() }
-
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
-
-impl[T] List[T]:
-    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
-    ## See [std-iter.list.enumerate.borrow](../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
-    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
-        self.iter().enumerate()
 
 ## A cursor whose front and back share the same remaining sequence.
 pub trait DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]:
@@ -684,17 +659,6 @@ impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] Exact
 ] for Rev[I, T]:
     fn len(&self) -> usize:
         self.source.len()
-
-impl[T] DoubleEndedIterator[T] for ListIter[T]:
-    fn next_back(&mut self) -> T?:
-        if self.at >= self.end:
-            return .None
-        self.end -= 1
-        .Some(self.items[self.end])
-
-impl[T] ExactSizeIterator[T] for ListIter[T]:
-    fn len(&self) -> usize:
-        self.end - self.at
 
 impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy] DoubleEndedIterator[T] for ByRef[I]:
     fn next_back(&mut self) -> T?:
@@ -899,12 +863,6 @@ impl[
             if front_item.is_none():
                 self.part = .None
             return front_item
-
-impl[T] ListIter[T]:
-    ## Reverses the remaining sequence without advancing or buffering it.
-    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
-    pub fn rev(self) -> Rev[Self, T]:
-        Rev { source: self }
 
 impl[I < ?Copy] ByRef[I]:
     ## Reverses the remaining sequence without advancing or buffering it.

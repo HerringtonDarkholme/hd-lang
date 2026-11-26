@@ -853,12 +853,8 @@ impl<'a, 'n> Gen<'a, 'n> {
             let key = self.new_data(key_def, &[s], &[("info", info), ("hd_type", any)]);
             keys.push(self.static_ref(key, key_t));
         }
-        let rec = self.b.refs_record(&infos);
-        let lt = self.adt(self.names.known.list, &[member_t]);
-        let infos = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
-        let rec = self.b.refs_record(&keys);
-        let kt = self.adt(self.names.known.list, &[key_t]);
-        let keys = self.b.emit(Tag::NewList, NONE, rec, kt, SYN);
+        let infos = self.new_list(member_t, &infos);
+        let keys = self.new_list(key_t, &keys);
         let def = self.std("MembersRecord");
         let record = self.new_data(def, &[s], &[("infos", infos), ("hd_keys", keys)]);
         Ok(self.static_ref(record, self.members_ty()))
@@ -886,9 +882,8 @@ impl<'a, 'n> Gen<'a, 'n> {
         for v in vars {
             handles.push(self.variant_handle(v));
         }
-        let ty = self.adt(self.names.known.list, &[self.variant_ty()]);
-        let rec = self.b.refs_record(&handles);
-        self.b.emit(Tag::NewList, NONE, rec, ty, SYN)
+        let elem = self.variant_ty();
+        self.new_list(elem, &handles)
     }
 
     fn std(&self, name: &str) -> DefId {
@@ -1048,8 +1043,53 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     /// An empty list of type `t` (a `List[...]`).
     fn empty_list(&mut self, t: Ty) -> Ref {
-        let rec = self.b.refs_record(&[]);
-        self.b.emit(Tag::NewList, NONE, rec, t, SYN)
+        let elem = self.names.pool.list_items(self.names.pool.adt_parts(t).1)[0];
+        self.new_list(elem, &[])
+    }
+
+    /// A `List[elem]` of `values`, built as a list literal is: its
+    /// `FromListLiteral` builder for their count, a `push` of each, then
+    /// `build` (#2369).
+    pub(crate) fn new_list(&mut self, elem: Ty, values: &[Ref]) -> Ref {
+        let pool = self.names.pool;
+        let known = &self.names.known;
+        let lt = self.adt(known.list, &[elem]);
+        let bt = self.adt(known.list_builder, &[elem]);
+        let targs = pool.list(&[elem]);
+        let callee = |def| Callee::Item { def, targs };
+        let us = Ty::prim(Prim::Usize);
+        let count = self.b.const_value(us, values.len() as u64);
+        let made = self.b.call(
+            &callee(known.list_builder_new),
+            &[count],
+            Providers::None,
+            bt,
+            SYN,
+        );
+        let sym = self.names.syms.intern("$literal");
+        let l = self
+            .b
+            .local(bt, sym, hd_tir::ir::local_flags::ASSIGNED, SYN);
+        self.b.set(l, made, SYN);
+        let rt = pool.intern_ty(&TyData::Ref {
+            inner: bt,
+            mutable: true,
+            counted: false,
+        });
+        for &v in values {
+            let word = self.b.place(&hd_tir::ir::Place::local(l));
+            let r = self.b.emit(Tag::Ref, word, 1, rt, SYN);
+            let push = callee(known.list_builder_push);
+            self.b.call(&push, &[r, v], Providers::None, Ty::VOID, SYN);
+        }
+        let built = self.b.get(l, bt, SYN);
+        self.b.call(
+            &callee(known.list_build),
+            &[built],
+            Providers::None,
+            lt,
+            SYN,
+        )
     }
 
     /// `Facts { items: [] }`.
@@ -1128,8 +1168,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             let rec = self.b.refs_record(&[name, value]);
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
-        let rec = self.b.refs_record(&pairs);
-        self.b.emit(Tag::NewList, NONE, rec, lt, SYN)
+        self.new_list(pair_t, &pairs)
     }
 
     fn self_ref(&mut self, k: u32) -> Ref {

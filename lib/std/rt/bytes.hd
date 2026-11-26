@@ -5,7 +5,7 @@
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
-use std.core.{Copy}
+use std.core.{Copy, List}
 pub use std.core.{bytes_len, bytes_mismatch, char_scalar}
 use std.rt.hint.inline
 use std.rt.memory.{
@@ -48,9 +48,9 @@ pub fn concat_all(parts: List[string]) -> string:
         total += bytes_len(*part)
     result := new_string(total)
     let address = string_bytes(result).address
-    for part in parts:
-        size := bytes_len(part)
-        copy(address, string_bytes(part).address, size)
+    for part in &parts:
+        size := bytes_len(*part)
+        copy(address, string_bytes(*part).address, size)
         address += size
     result
 
