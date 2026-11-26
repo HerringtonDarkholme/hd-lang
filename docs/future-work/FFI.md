@@ -50,10 +50,7 @@ impl Terminal for NativeTerminal:
 
 ## Open Questions
 
-1. Where does a library author get the C header? **Recommend: `hd build`
-   in the declaring package writes `native/include/<package>.h`.**
-2. Does a cancel run the abort slot even after C completed but before hd
-   took the result? **Recommend yes: it makes terminal reads lossless.**
+None. The owner's answers are under [Decisions](#decisions).
 
 ## Problems It Solves
 
@@ -90,7 +87,9 @@ A pointer lives for the call, as any local loan
 ([pointer loans](../compiler/ownership.md#pointer-loans-model-a)); a `!`
 method takes scalars, because the instance runs on while C works.
 
-**The C side.** `hd` generates a header from the trait. Its table holds
+**The C side.** `hd build` in the declaring package writes
+`native/include/<package>.h` from the trait, byte for byte the same each
+time. Its table holds
 `abi_version`, the 16-byte `contract_hash`, `create`, `destroy`, then the
 methods in source order, each `!` method followed by its abort slot. The
 token carries the host's completion table, so `hd_complete_*` are inline
@@ -116,8 +115,9 @@ shared memory's never does, and only the calling instance grows its own.
 
 **Completions.** As for a native provider's pending call:
 `hd_complete_*` may run on any thread and wakes the reactor, the first
-completion wins, a cancel runs the abort slot at most once, and a later
-completion is ignored. A token lives until completed or aborted. Bytes
+completion wins, and a later one is ignored. A cancel before the guest
+takes the result runs the abort slot at most once, even after C
+completed, and its `completed` flag says the result was discarded. A token lives until completed or aborted. Bytes
 are copied at once, then into a new `List[u8]` on the instance's thread.
 
 **Engines.** Wasmtime binds `c`; Node and the web load `js`, with
@@ -165,7 +165,7 @@ measurements.
 | 2 | Go `x/term` `makeRaw` (`term_unix.go`, v0.48.0) | per-OS ioctl constants (`TCGETS`, `TIOCGETA`) | same: they live in `hd_term` |
 | 3 | Windows: no `/dev/tty`, no termios | a termios API would not port | `CONIN$` and `SetConsoleMode` behind the same table |
 | 4 | `race!(term.read!(), sleep!(16ms))` at 60 frames a second | 60 cancels a second | each cancel runs `read_abort`; one reader thread serves every token, so no thread piles up |
-| 5 | abort and completion race, see below | bytes could be lost | **found**: lossless only if abort also runs after an accepted completion (question 2) |
+| 5 | abort and completion race, see below | bytes could be lost | **found**: lossless because abort also runs after an accepted completion (decision 13) |
 | 6 | an instance traps while raw | `atexit` would not run in an embedder | `destroy` runs at close, trap or not, and restores the mode |
 | 7 | `SIGKILL` while raw | nothing runs | left raw, as with crossterm |
 | 8 | a library completes a token after `read_abort` returned | use after free of the token | forbidden: a token's life ends at completion or abort; a concurrent completion is ignored |
@@ -187,7 +187,7 @@ Case 5, the abort and completion race. `hd_term`'s reader thread reads
 into its own buffer and completes a token under the same lock that
 `read_abort` takes:
 
-| Order | Without the question 2 rule | With it |
+| Order | Without decision 13 | With it |
 | --- | --- | --- |
 | abort, then the reader sees the token aborted | bytes stay buffered for the next `read!` | same |
 | completion accepted, then cancel before hd takes it | the host drops the bytes: lost | abort runs; `hd_term` puts its copy back at the front |
@@ -428,11 +428,12 @@ CLI tier, Package Host Declarations and a new C Providers section:
 6. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
 7. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
 8. r[cli.host.c.complete] The first completion of a token decides the call's result, and the host ignores later ones.
-9. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot at most once.
+9. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot at most once, also after the library completed it; `completed` is then true.
 10. r[cli.host.c.token] A library uses a token until it completes it or the token's abort slot returns.
 11. r[cli.host.c.bytes] `hd_complete_bytes` copies the bytes before it returns, and the guest receives them as a new `List[u8]`.
 12. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
 13. r[cli.host.terminal] The default profile binds `Terminal` to std's provider over `TermHost`, and `Terminal` is a boolean capability key.
+14. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
 
 The four revised rules are in [Appendix D](#appendix-d-today-in-hd).
 The `std-terminal.*` rules are #2382's.
@@ -450,7 +451,8 @@ typedef struct hd_TermHost {
     int32_t (*enable_raw)(void *self);
     int32_t (*disable_raw)(void *self);
     void (*read)(void *self, hd_token token);     /* returns at once */
-    void (*read_abort)(void *self, hd_token token);
+    void (*read_abort)(void *self, hd_token token,
+                       bool completed);       /* true: a completed result was discarded */
 } hd_TermHost;
 
 const hd_TermHost *hd_term_TermHost(void);        /* the one entry symbol */
@@ -592,3 +594,12 @@ Owner, 2026-11-26, on the first draft's questions:
 11. **`TermHost` visibility:** "just make TermHost public". It is a
     public `@host` trait in std, so `module.host.package.marker` is
     unchanged and nothing hides it.
+
+Owner, 2026-11-26, on the rewrite's questions:
+
+12. **C header:** `hd build` in the declaring package writes
+    `native/include/<package>.h`; a changed trait changes the contract
+    hash, so a stale library is refused at startup.
+13. **Abort after completion:** a cancel runs the abort slot whenever the
+    guest did not take the result, even after C completed, with
+    `completed` true; `hd_term` returns those bytes on the next `read!`.
