@@ -1977,14 +1977,41 @@ mod tests {
     /// 0..n` with `n` loaded from `*xs .0` before it, whose body loads
     /// `*xs .0` and `*xs .1` and guards `i >= *xs .0` with a panic.
     fn read_only_loops(k: usize) -> Body {
+        read_only_loops_with_base(k, false, false)
+    }
+
+    fn read_only_loops_with_base(k: usize, identity: bool, conditional: bool) -> Body {
         let mut b = build();
         let root = b.open_block();
-        let xs = local(&mut b, REF_LIST);
+        let xs = if conditional {
+            let xs = b.local(REF_LIST, Symbol::NONE, 0, AT);
+            let flag = local(&mut b, Ty::BOOL);
+            let condition = b.get(flag, Ty::BOOL, AT);
+            let mut branches = Vec::new();
+            for _ in 0..2 {
+                let source = local(&mut b, REF_LIST);
+                let branch = b.open_block();
+                let source = b.get(source, REF_LIST, AT);
+                b.set(xs, source, AT);
+                branches.push(b.close_block(branch, None, Ty::VOID, AT));
+            }
+            let arms = b.refs_record(&branches);
+            b.emit(Tag::If, condition.0, arms, Ty::VOID, AT);
+            xs
+        } else {
+            local(&mut b, REF_LIST)
+        };
+        let converted = if identity {
+            let source = b.get(xs, REF_LIST, AT);
+            Some(b.coerce(Coercion::Identity, NONE, source, REF_LIST, AT))
+        } else {
+            None
+        };
         let zero = b.const_value(usize_ty(), 0);
         let one = b.const_value(usize_ty(), 1);
         let load = |b: &mut TirBuilder, field: u32| {
             let word = b.place(&Place {
-                root: PlaceRoot::Local(xs),
+                root: converted.map_or(PlaceRoot::Local(xs), PlaceRoot::Value),
                 proj: vec![Proj::Deref, Proj::Field(field)],
             });
             b.emit(Tag::Read, word, ReadMode::Copy as u32, usize_ty(), AT)
@@ -2056,5 +2083,48 @@ mod tests {
         }
         // Twice the loops, at most twice the work: no loop rescans another.
         assert!(work[1] <= 2 * work[0], "{work:?}");
+    }
+    #[test]
+    fn read_only_loop_follows_identity_reference_conversions() {
+        let mut body = read_only_loops_with_base(1, true, false);
+        let before = body.len();
+        run(&mut body, &Facts, true).expect("identity reference loads hoist");
+        assert_eq!(body.len(), before + 4);
+    }
+
+    #[test]
+    fn branch_defined_references_stay_inside_the_loop() {
+        let mut body = read_only_loops_with_base(1, false, true);
+        let before = body.len();
+        run(&mut body, &Facts, true).expect("branch-defined base is retained");
+        assert_eq!(
+            body.len(),
+            before,
+            "neither branch's definition dominates the loop"
+        );
+    }
+
+    #[test]
+    fn a_malformed_comparison_is_not_a_decided_bounds_guard() {
+        let mut body = read_only_loops(1);
+        let comparison = body
+            .tags
+            .iter()
+            .enumerate()
+            .find_map(|(i, tag)| {
+                (*tag == Tag::Prim && body.data[i][0] == PrimOp::Ge as u32).then_some(i)
+            })
+            .expect("bounds comparison");
+        let first = body.record(body.data[comparison][1])[0];
+        body.data[comparison][1] = body.push_record(&[first]);
+        run(&mut body, &Facts, true).expect("malformed guard stays conservative");
+        assert!(
+            body.tags
+                .iter()
+                .enumerate()
+                .any(|(i, tag)| *tag == Tag::Prim
+                    && body.data[i][0] == PrimOp::Ge as u32
+                    && body.record(body.data[i][1]).len() == 1)
+        );
     }
 }

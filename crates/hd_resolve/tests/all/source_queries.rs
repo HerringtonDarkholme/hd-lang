@@ -624,3 +624,21 @@ fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
         "tenfold unrelated exports must not increase a warm lookup's work"
     );
 }
+
+#[test]
+fn unknown_use_root_diagnostics_keep_empty_and_written_paths() {
+    for (path, root) in [
+        (Vec::<&str>::new(), ""),
+        (vec!["missing", "name"], "missing"),
+    ] {
+        let (code, message) =
+            hd_resolve::lower::use_root_diagnostic(hd_project::UseRootError::UnknownRoot, &path);
+        assert_eq!(code, hd_diag::Code::UnknownModule);
+        assert_eq!(
+            message,
+            format!(
+                "`{root}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`"
+            )
+        );
+    }
+}

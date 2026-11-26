@@ -199,7 +199,8 @@ fn bounds_scans_wake_only_for_the_missing_clause_and_survive_rollback() {
                             .push(base, unrelated, TyList::EMPTY, Vec::new(), false);
                         assert_eq!(query(ck), (false, 0));
                     }
-                    let wrong = ck.env().len();
+                    // Exercise the facade entry as well as optimized inline callers.
+                    let wrong = std::hint::black_box(Checker::env)(ck).len();
                     let wrong_index = u32::try_from(wrong).unwrap();
                     ck.env()
                         .push(base, trait_, p.list(&[Ty::I32]), Vec::new(), false);
