@@ -6,7 +6,7 @@
 //! build owns bodies in, callees first.
 
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;
@@ -641,21 +641,24 @@ impl dyn InlineEnv + '_ {
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
-        let loops = hd_tir::ir::Topology::new(body).loop_of;
+        // The caller's analyses, each built on first use in this round, as
+        // LLVM's analysis manager does: a body with no known call builds
+        // none, and the copy-in reuses this round's topology.
+        let topo = OnceCell::new();
         let literals = if self.memo().is_some() {
             hd_tir::inline::literal_arguments(body)
         } else {
             Vec::new()
         };
-        let writer_origins = if self.memo().is_some() {
-            writer_origins(body)
-        } else {
-            Vec::new()
+        let release = self.memo().is_some();
+        let (origins, uses) = (OnceCell::new(), OnceCell::new());
+        let writer_origins = || {
+            let made = origins.get_or_init(|| release.then(|| writer_origins(body)));
+            made.as_deref().unwrap_or_default()
         };
-        let writer_uses = if self.memo().is_some() {
-            writer_uses(body)
-        } else {
-            Vec::new()
+        let writer_uses = || {
+            let made = uses.get_or_init(|| release.then(|| writer_uses(body)));
+            made.as_deref().unwrap_or_default()
         };
         let mut caller_effects = None;
         let sets =
@@ -666,7 +669,6 @@ impl dyn InlineEnv + '_ {
             let mut counts = stack.work.get();
             counts.rows += 1;
             stack.work.set(counts);
-            let in_loop = loops[c] != hd_tir::ir::NONE;
             let lifted = (sets.as_ref()).and_then(|sets| self.lifted_call(body, sets, c, args));
             let Some((def, targs)) = hd_tir::inline::known_call(body, c)
                 .and_then(|callee| match callee {
@@ -677,6 +679,8 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            let in_loop =
+                topo.get_or_init(|| hd_tir::ir::Topology::new(body)).loop_of[c] != hd_tir::ir::NONE;
             let key = Key::new(def, targs, lifted.is_some());
             let hint = self.hint(key);
             if loops_only && !in_loop && (key.lifted || !self.declares_local_reference(def)) {
@@ -733,7 +737,7 @@ impl dyn InlineEnv + '_ {
             }
             let writer_refs = self
                 .scalar_writer_refs(&copy)
-                .filter(|&mask| writer_arguments(body, c, mask, &writer_origins));
+                .filter(|&mask| writer_arguments(body, c, mask, writer_origins()));
             if loops_only && !in_loop && writer_refs.is_none() {
                 continue;
             }
@@ -773,7 +777,7 @@ impl dyn InlineEnv + '_ {
                         caller_effects.get_or_insert_with(|| hd_tir::own::WriteEffects::new(body));
                     hd_tir::own::promote::inline_args(effects, c, counted, writes, &may_write)
                 } else if writer_refs.is_some() {
-                    fresh_writer_args(body, c, &writer_uses)
+                    fresh_writer_args(body, c, writer_uses())
                 } else {
                     0
                 };
@@ -797,7 +801,7 @@ impl dyn InlineEnv + '_ {
                         0
                     } else if let Some(mask) = writer_refs {
                         let values =
-                            self.writer_values(&copy, body, c, mask, &writer_origins) & args;
+                            self.writer_values(&copy, body, c, mask, writer_origins()) & args;
                         by_ref = mask & !values;
                         // A writer does not prevent an independent scalar
                         // reader from keeping the call's by-value ABI.
@@ -844,7 +848,8 @@ impl dyn InlineEnv + '_ {
         }
         // All of the body's copies in one rebuild; a lifted function's
         // instantiation that only its copied calls used goes.
-        let copied = hd_tir::inline::inline_bound_calls(body, sites).unwrap_or_default();
+        let subs = topo.into_inner().map(|t| t.sub);
+        let copied = hd_tir::inline::inline_bound_calls(body, subs, sites).unwrap_or_default();
         // A body the removal refuses is malformed: the instance verifier
         // rejects it.
         if lifted_sites && copied.contains(&true) {

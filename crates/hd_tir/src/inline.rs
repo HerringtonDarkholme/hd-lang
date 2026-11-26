@@ -285,17 +285,20 @@ impl Ready {
 pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
     inline_bound_calls(
         b,
+        None,
         sites.into_iter().map(|site| (site, Vec::new())).collect(),
     )
 }
 
 /// [`inline_calls`] with each site's environment: the copy's captured
-/// locals, sorted, and the caller's locals each stands for.
+/// locals, sorted, and the caller's locals each stands for, and the
+/// caller's [`crate::ir::Topology::sub`] when the caller has it.
 ///
 /// # Errors
 /// As [`inline_calls`].
 pub fn inline_bound_calls(
     b: &mut Body,
+    subs: Option<Vec<u32>>,
     sites: Vec<(Site, Vec<(u32, u32)>)>,
 ) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
@@ -311,7 +314,7 @@ pub fn inline_bound_calls(
             }
         }
     }
-    let subs = b.inst_subs();
+    let subs = subs.unwrap_or_else(|| b.inst_subs());
     let (mut ready, mut by_value_reads) = (Vec::new(), Vec::new());
     for (s, (site, environment)) in sites.into_iter().enumerate() {
         let (c, by_value) = (site.call, site.by_value);

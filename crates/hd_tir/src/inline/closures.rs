@@ -864,7 +864,7 @@ pub fn inline_local_closures(
         }
     }
     sites.sort_stable_by_key(|(site, _)| std::cmp::Reverse(site.call));
-    let copied = inline_bound_calls(body, sites)?;
+    let copied = inline_bound_calls(body, None, sites)?;
     if !copied.contains(&true) {
         return Ok(false);
     }
