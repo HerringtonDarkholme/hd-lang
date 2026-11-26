@@ -1,0 +1,819 @@
+# GHASH field arithmetic from BearSSL's ghash_ctmul: fixed carryless
+# products with holes for carries, then Karatsuba and polynomial reduction.
+# https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/hash/ghash_ctmul.c
+# 
+# Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# 
+
+use std.crypto.aes.Aes
+
+type Field = (u32, u32, u32, u32)
+
+## An immutable block cipher writing into caller-provided storage.
+## See [std-crypto-cipher.block](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.block).
+pub trait Block < ?Copy:
+    fn block_size(&self) -> usize
+    fn encrypt_block(&self, bytes: &mut List[u8], offset: usize) -> void
+
+impl Block for Aes:
+    fn block_size(&self) -> usize:
+        Aes::block_size(self)
+
+    fn encrypt_block(&self, bytes: &mut List[u8], offset: usize) -> void:
+        self.encrypt_block_into(bytes, offset)
+
+## A rejected GCM configuration, or a message that did not authenticate.
+## See [std-crypto-cipher.error](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.error).
+@derive(Debug, Eq)
+@error
+pub enum CipherError:
+    @error("GCM requires a 16-byte block cipher; got $size")
+    InvalidBlockSize(size: usize)
+    @error("GCM nonce size must be positive; got $size")
+    InvalidNonceSize(size: usize)
+    @error("GCM tag size must be between 12 and 16 bytes; got $size")
+    InvalidTagSize(size: usize)
+    @error("GCM authentication failed")
+    AuthenticationFailed
+
+## Galois/Counter Mode with a fixed nonce size and authentication tag size.
+## See [std-crypto-cipher.gcm](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm).
+pub struct Gcm[B < ?Copy & Block]:
+    block: B
+    hash: Field
+    nonce_length: usize
+    tag_length: usize
+
+impl[B < ?Copy & Block] Gcm[B]:
+    ## Uses 12-byte nonces and 16-byte tags, as Go's NewGCM does.
+    ## See [std-crypto-cipher.gcm.new](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.new).
+    pub fn new(block: B) -> Result[Gcm[B], CipherError]:
+        Gcm::[B].configured(block, 12, 16)
+
+    ## Uses the given positive nonce size and 16-byte tags.
+    ## See [std-crypto-cipher.gcm.nonce](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.nonce).
+    pub fn with_nonce_size(block: B, size: usize) -> Result[Gcm[B], CipherError]:
+        Gcm::[B].configured(block, size, 16)
+
+    ## Uses 12-byte nonces and tags between 12 and 16 bytes.
+    ## See [std-crypto-cipher.gcm.tag](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.tag).
+    pub fn with_tag_size(block: B, size: usize) -> Result[Gcm[B], CipherError]:
+        Gcm::[B].configured(block, 12, size)
+
+    fn configured(block: B, nonce_length: usize, tag_length: usize) -> Result[Gcm[B], CipherError]:
+        size := block.block_size()
+        if size != 16:
+            return .Err(.InvalidBlockSize(size))
+        if nonce_length == 0:
+            return .Err(.InvalidNonceSize(nonce_length))
+        if tag_length < 12 || tag_length > 16:
+            return .Err(.InvalidTagSize(tag_length))
+        let mut zero: List[u8] = [for _ in 0..16 => u8(0)]
+        block.encrypt_block(&mut zero, 0)
+        .Ok(
+            Gcm {
+                block: block,
+                hash: field_words(&zero),
+                nonce_length: nonce_length,
+                tag_length: tag_length,
+            },
+        )
+
+    ## The nonce size selected at construction.
+    ## See [std-crypto-cipher.gcm.nonce-size](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.nonce-size).
+    pub fn nonce_size(&self) -> usize:
+        self.nonce_length
+
+    ## The number of authentication bytes appended by seal.
+    ## See [std-crypto-cipher.gcm.overhead](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.overhead).
+    pub fn overhead(&self) -> usize:
+        self.tag_length
+
+    ## Encrypts plaintext and appends its authentication tag.
+    ## See [std-crypto-cipher.gcm.seal](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.seal).
+    pub fn seal(&self, nonce: List[u8], plaintext: List[u8], associated: List[u8]) -> List[u8]:
+        self.check_nonce(nonce.len())
+        # SP 800-38D 5.2.1.1: at most 2^39-256 plaintext bits.
+        if u64(plaintext.len()) > (1u64 << 36) - 32:
+            panic("GCM message is too long")
+        length := match plaintext.len().checked_add(self.tag_length):
+            .Some(length) => length
+            .None => panic("GCM message is too long")
+        let mut counter = initial_counter(self.hash, &nonce)
+        let mut mask: List[u8] = [for _ in 0..16 => u8(0)]
+        copy_block(&counter, &mut mask, 16)
+        self.block.encrypt_block(&mut mask, 0)
+        increment(&mut counter, 4)
+        let mut out: List[u8] = [for _ in 0..length => u8(0)]
+        counter_crypt(&self.block, &mut counter, &plaintext, plaintext.len(), &mut out)
+        tag := authentication(self.hash, &associated, &out, plaintext.len())
+        for byte in 0..self.tag_length:
+            out[plaintext.len() + byte] = field_byte(tag, byte) ^ mask[byte]
+        out
+
+    ## Authenticates before allocating or decrypting any plaintext.
+    ## See [std-crypto-cipher.gcm.open](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.gcm.open).
+    pub fn open(
+        &self,
+        nonce: List[u8],
+        sealed: List[u8],
+        associated: List[u8],
+    ) -> Result[List[u8], CipherError]:
+        self.check_nonce(nonce.len())
+        if sealed.len() < self.tag_length:
+            return .Err(.AuthenticationFailed)
+        end := sealed.len() - self.tag_length
+        if u64(end) > (1u64 << 36) - 32:
+            return .Err(.AuthenticationFailed)
+        let mut counter = initial_counter(self.hash, &nonce)
+        let mut mask: List[u8] = [for _ in 0..16 => u8(0)]
+        copy_block(&counter, &mut mask, 16)
+        self.block.encrypt_block(&mut mask, 0)
+        tag := authentication(self.hash, &associated, &sealed, end)
+        let difference: u8 = 0
+        for byte in 0..self.tag_length:
+            difference = difference | (field_byte(tag, byte) ^ mask[byte] ^ sealed[end + byte])
+        # Only the public authentication result branches after every tag
+        # byte was compared; failed messages never allocate plaintext.
+        if difference != 0:
+            return .Err(.AuthenticationFailed)
+        increment(&mut counter, 4)
+        let mut out: List[u8] = [for _ in 0..end => u8(0)]
+        counter_crypt(&self.block, &mut counter, &sealed, end, &mut out)
+        .Ok(out)
+
+    fn check_nonce(&self, length: usize) -> void:
+        if length != self.nonce_length:
+            panic("GCM nonce has the wrong length")
+
+## Counter mode, retaining unused keystream bytes across calls.
+## See [std-crypto-cipher.ctr](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.ctr).
+pub struct Ctr[B < ?Copy & Block]:
+    block: B
+    counter: List[u8]
+    mask: List[u8]
+    used: usize
+    width: usize
+
+impl[B < ?Copy & Block] Ctr[B]:
+    ## Starts with the given full-width big-endian counter.
+    ## See [std-crypto-cipher.ctr.new](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.ctr.new).
+    pub fn new(block: B, iv: List[u8]) -> *mut Ctr[B]:
+        width := block.block_size()
+        if width == 0 || iv.len() != width:
+            panic("CTR IV must have the cipher's positive block size")
+        # Fresh private buffers: no value alias survives into the hot loop.
+        let mut counter: List[u8] = List::[u8].with_capacity(width)
+        for byte in iv:
+            counter.push(byte)
+        box(
+            Ctr {
+                block: block,
+                counter: counter,
+                mask: [for _ in 0..width => u8(0)],
+                used: width,
+                width: width,
+            },
+        )
+
+    ## XORs the next keystream bytes with input and advances the stream.
+    ## See [std-crypto-cipher.ctr.xor](../../../spec/std/crypto-cipher.md#r-std-crypto-cipher.ctr.xor).
+    pub fn xor_key_stream(*mut self, bytes: List[u8]) -> List[u8]:
+        let mut out: List[u8] = [for _ in 0..bytes.len() => u8(0)]
+        let used = self.used
+        for byte in 0..bytes.len():
+            if used == self.width:
+                copy_block(&self.counter, &mut self.mask, self.width)
+                self.block.encrypt_block(&mut self.mask, 0)
+                increment(&mut self.counter, self.width)
+                used = 0
+            out[byte] = bytes[byte] ^ self.mask[used]
+            used += 1
+        self.used = used
+        out
+
+fn copy_block(source: &List[u8], target: &mut List[u8], width: usize) -> void:
+    for byte in 0..width:
+        target[byte] = source[byte]
+
+# Increment the complete public-sized suffix, without early exit on a carry.
+fn increment(counter: &mut List[u8], width: usize) -> void:
+    let carry: u16 = 1
+    for byte in 0..width:
+        at := counter.len() - 1 - byte
+        total := u16(counter[at]).wrapping_add(carry)
+        counter[at] = u8(total)
+        carry = total >> 8
+
+fn initial_counter(h: Field, nonce: &List[u8]) -> List[u8]:
+    if nonce.len() == 12:
+        let mut counter: List[u8] = [for _ in 0..16 => u8(0)]
+        for byte in 0..12:
+            counter[byte] = nonce[byte]
+        counter[15] = 1
+        return counter
+    field_bytes(finish_lengths(h, absorb(h, (0, 0, 0, 0), nonce, nonce.len()), 0, nonce.len()))
+
+fn counter_crypt[B < ?Copy & Block](
+    cipher: &B,
+    counter: &mut List[u8],
+    bytes: &List[u8],
+    end: usize,
+    out: &mut List[u8],
+) -> void:
+    # One keystream buffer per call, never one allocation per block.
+    let mut mask: List[u8] = [for _ in 0..16 => u8(0)]
+    let at: usize = 0
+    while at < end:
+        copy_block(counter, &mut mask, 16)
+        cipher.encrypt_block(&mut mask, 0)
+        count := if end - at < 16: end - at else: 16
+        for byte in 0..count:
+            out[at + byte] = bytes[at + byte] ^ mask[byte]
+        increment(counter, 4)
+        at += count
+
+fn authentication(h: Field, associated: &List[u8], ciphertext: &List[u8], end: usize) -> Field:
+    first := absorb(h, (0, 0, 0, 0), associated, associated.len())
+    finish_lengths(h, absorb(h, first, ciphertext, end), associated.len(), end)
+
+fn finish_lengths(h: Field, state: Field, first: usize, second: usize) -> Field:
+    left := u64(first) << 3
+    right := u64(second) << 3
+    field_multiply(
+        (
+            state._0 ^ u32(right),
+            state._1 ^ u32(right >> 32),
+            state._2 ^ u32(left),
+            state._3 ^ u32(left >> 32),
+        ),
+        h,
+    )
+
+# Each block is decoded straight into four scalars, with public final padding.
+fn absorb(h: Field, state: Field, bytes: &List[u8], end: usize) -> Field:
+    let result = state
+    let at: usize = 0
+    while at < end:
+        count := if end - at < 16: end - at else: 16
+        words := (
+            result._0 ^ prefix_word(bytes, at, count, 12),
+            result._1 ^ prefix_word(bytes, at, count, 8),
+            result._2 ^ prefix_word(bytes, at, count, 4),
+            result._3 ^ prefix_word(bytes, at, count, 0),
+        )
+        result = field_multiply(words, h)
+        at += count
+    result
+
+fn prefix_word(bytes: &List[u8], start: usize, count: usize, offset: usize) -> u32:
+    if offset >= count:
+        return 0
+    word(bytes, start + offset, if count - offset < 4: count - offset else: 4)
+
+fn word(bytes: &List[u8], at: usize, count: usize) -> u32:
+    let value: u32 = 0
+    for byte in 0..4:
+        part := if byte < count: bytes[at + byte] else: u8(0)
+        value = (value << 8) | u32(part)
+    value
+
+fn field_words(bytes: &List[u8]) -> Field:
+    (word(bytes, 12, 4), word(bytes, 8, 4), word(bytes, 4, 4), word(bytes, 0, 4))
+
+fn field_byte(state: Field, byte: usize) -> u8:
+    value := if byte < 4:
+        state._3
+    else if byte < 8:
+        state._2
+    else if byte < 12:
+        state._1
+    else:
+        state._0
+    u8(value >> u32(24 - 8 * (byte % 4)))
+
+fn field_bytes(state: Field) -> List[u8]:
+    [for byte in 0..16 => field_byte(state, byte)]
+
+# Carryless 32x32 -> 64. Every fourth bit is data; the three holes hold
+# carries, so masking recovers the polynomial product without a table.
+fn carryless(x: u32, y: u32) -> (u32, u32):
+    x0 := u64(x & 0x11111111)
+    x1 := u64(x & 0x22222222)
+    x2 := u64(x & 0x44444444)
+    x3 := u64(x & 0x88888888)
+    y0 := u64(y & 0x11111111)
+    y1 := u64(y & 0x22222222)
+    y2 := u64(y & 0x44444444)
+    y3 := u64(y & 0x88888888)
+    z0 := x0.wrapping_mul(y0) ^ x1.wrapping_mul(y3) ^ x2.wrapping_mul(y2) ^ x3.wrapping_mul(y1)
+    z1 := x0.wrapping_mul(y1) ^ x1.wrapping_mul(y0) ^ x2.wrapping_mul(y3) ^ x3.wrapping_mul(y2)
+    z2 := x0.wrapping_mul(y2) ^ x1.wrapping_mul(y1) ^ x2.wrapping_mul(y0) ^ x3.wrapping_mul(y3)
+    z3 := x0.wrapping_mul(y3) ^ x1.wrapping_mul(y2) ^ x2.wrapping_mul(y1) ^ x3.wrapping_mul(y0)
+    z := (
+        (z0 & 0x1111111111111111)
+        | (z1 & 0x2222222222222222)
+        | (z2 & 0x4444444444444444)
+        | (z3 & 0x8888888888888888)
+    )
+    (u32(z), u32(z >> 32))
+
+# Nine fixed carryless products, all in scalar locals; no per-block lists.
+fn field_multiply(x: Field, h: Field) -> Field:
+    p0 := carryless(x._0, h._0)
+    p1 := carryless(x._1, h._1)
+    p2 := carryless(x._0 ^ x._1, h._0 ^ h._1)
+    p3 := carryless(x._2, h._2)
+    p4 := carryless(x._3, h._3)
+    p5 := carryless(x._2 ^ x._3, h._2 ^ h._3)
+    p6 := carryless(x._0 ^ x._2, h._0 ^ h._2)
+    p7 := carryless(x._1 ^ x._3, h._1 ^ h._3)
+    p8 := carryless(x._0 ^ x._2 ^ x._1 ^ x._3, h._0 ^ h._2 ^ h._1 ^ h._3)
+    c0 := p0._0
+    c1 := p0._1 ^ p2._0 ^ p0._0 ^ p1._0
+    let c2 = p1._0 ^ p2._1 ^ p0._1 ^ p1._1
+    let c3 = p1._1
+    let d0 = p3._0
+    let d1 = p3._1 ^ p5._0 ^ p3._0 ^ p4._0
+    d2 := p4._0 ^ p5._1 ^ p3._1 ^ p4._1
+    d3 := p4._1
+    e0 := p6._0 ^ c0 ^ d0
+    e1 := p6._1 ^ p8._0 ^ p6._0 ^ p7._0 ^ c1 ^ d1
+    e2 := p7._0 ^ p8._1 ^ p6._1 ^ p7._1 ^ c2 ^ d2
+    e3 := p7._1 ^ c3 ^ d3
+    c2 = c2 ^ e0
+    c3 = c3 ^ e1
+    d0 = d0 ^ e2
+    d1 = d1 ^ e3
+    z0 := c0 << 1
+    z1 := (c1 << 1) | (c0 >> 31)
+    z2 := (c2 << 1) | (c1 >> 31)
+    let z3 = (c3 << 1) | (c2 >> 31)
+    let z4 = (d0 << 1) | (c3 >> 31)
+    let z5 = (d1 << 1) | (d0 >> 31)
+    let z6 = (d2 << 1) | (d1 >> 31)
+    let z7 = (d3 << 1) | (d2 >> 31)
+    z4 = z4 ^ z0 ^ (z0 >> 1) ^ (z0 >> 2) ^ (z0 >> 7)
+    z3 = z3 ^ (z0 << 31) ^ (z0 << 30) ^ (z0 << 25)
+    z5 = z5 ^ z1 ^ (z1 >> 1) ^ (z1 >> 2) ^ (z1 >> 7)
+    z4 = z4 ^ (z1 << 31) ^ (z1 << 30) ^ (z1 << 25)
+    z6 = z6 ^ z2 ^ (z2 >> 1) ^ (z2 >> 2) ^ (z2 >> 7)
+    z5 = z5 ^ (z2 << 31) ^ (z2 << 30) ^ (z2 << 25)
+    z7 = z7 ^ z3 ^ (z3 >> 1) ^ (z3 >> 2) ^ (z3 >> 7)
+    z6 = z6 ^ (z3 << 31) ^ (z3 << 30) ^ (z3 << 25)
+    (z4, z5, z6, z7)
+
+tests:
+    use std.crypto.aes.Aes
+    use std.encoding.hex.{hex_decode, hex_encode}
+
+    fn vector(text: string) -> List[u8]:
+        match hex_decode(text):
+            .Ok(bytes) => bytes
+            .Err(error) => panic("invalid published vector: $error")
+
+    # Independent SP 800-38D algorithm 1, bit by bit, for test comparison.
+    fn reference(x: List[u32], h: List[u32]) -> List[u32]:
+        let mut result: List[u32] = [0, 0, 0, 0]
+        let mut v = h
+        for bit in 0..128:
+            mask := u32(0).wrapping_sub((x[3 - bit / 32] >> u32(31 - bit % 32)) & 1)
+            for index in 0..4:
+                result[index] = result[index] ^ (v[index] & mask)
+            reduction := u32(0).wrapping_sub(v[0] & 1) & 0xe1000000
+            for index in 0..3:
+                v[index] = (v[index] >> 1) | (v[index + 1] << 31)
+            v[3] = (v[3] >> 1) ^ reduction
+        result
+
+    it("NIST GCM first ciphertext block times H"):
+        x := field_words(&vector("0388dace60b6a392f328c2b971b2fe78"))
+        h := field_words(&vector("66e94bd4ef8a2c3b884cfa59ca342b2e"))
+        assert_equal(
+            hex_encode(field_bytes(field_multiply(x, h))),
+            "5e2ec746917062882c85b0685353deb7",
+            reason="GCM field product",
+        )
+
+    it("carryless multiplication agrees with algorithm 1 on dense and basis inputs"):
+        for sample in 0..64:
+            x := [for word in 0..4 => u32(sample + 17 * word).wrapping_mul(0x9e3779b9) ^ 0xffffffff]
+            h := [for word in 0..4 => u32(sample + 19 * word + 1).wrapping_mul(0x85ebca6b)]
+            assert_equal(
+                as_list(field_multiply(as_field(x), as_field(h))),
+                reference(x, h),
+                reason="dense field product",
+            )
+        h := [u32(0xffffffff), u32(0x80000001), u32(0xaaaaaaaa), u32(0x55555555)]
+        for bit in 0..128:
+            let mut x: List[u32] = [0, 0, 0, 0]
+            x[bit / 32] = u32(1) << u32(bit % 32)
+            assert_equal(
+                as_list(field_multiply(as_field(x), as_field(h))),
+                reference(x, h),
+                reason="basis field product",
+            )
+
+    fn as_field(words: List[u32]) -> Field:
+        (words[0], words[1], words[2], words[3])
+
+    fn as_list(state: Field) -> List[u32]:
+        [state._0, state._1, state._2, state._3]
+
+    fn aes(key: List[u8]) -> Aes:
+        match Aes::new(key):
+            .Ok(cipher) => cipher
+            .Err(error) => panic("valid vector key rejected: $error")
+
+    fn mode(cipher: Aes, nonce_size: usize, tag_size: usize) -> Gcm[Aes]:
+        match Gcm::[Aes].configured(cipher, nonce_size, tag_size):
+            .Ok(value) => value
+            .Err(error) => panic("valid vector mode rejected: $error")
+
+    it("NIST AES-GCM examples 1 to 6 for every AES key size"):
+        for (key, nonce, associated, plain, expected, tag_size) in [
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "",
+                "",
+                "3247184b3c4f69a44dbcd22887bbb418",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091473f59854d5c2af327cd64a62cf35abd2ba6fab4",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "",
+                "5f91d77123ef5eb9997913849b8dc1e9",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091473f598564c0232904af398a5b67c10b53a5024d",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091f07c2528eea2fca1211f905e1b6a881b",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091f07c2528eea2fca1211f905e",
+                12,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "",
+                "",
+                "c835aa88aebbc94f5a02e179fdcfc3e4",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda2710acade2569924a7c8587336bfb118024db8674a14",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "",
+                "02cc773bc919f4e1c5e9c54313bface0",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda2710acade2563b9153b4e7318a5f3bbeac108f8a8edb",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda271093ea28c659e269902a80acd208e7fc80",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda271093ea28c659e269902a80acd2",
+                12,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "",
+                "",
+                "fd2caa16a5832e76aa132c1453eeda7e",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662898015adb094dac5d93471bdec1a502270e3cc6c",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "",
+                "de34b6dcd4cee2fdbec3cea01af1ee44",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf43b1cd7f598ece23881b00e3ed0306887b0c785e27e8ad3f8223207104725dd4",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+                "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662898015adc06d76f31930fef37acae23ed465ae62",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662e097195f4532da895fb917a5a55c6aa0",
+                16,
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "cafebabefacedbaddecaf888",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d585",
+                "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+                "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662e097195f4532da895fb917a5",
+                12,
+            ),
+        ]:
+            cipher := mode(aes(vector(key)), 12, tag_size)
+            nonce := vector(nonce)
+            associated := vector(associated)
+            plaintext := vector(plain)
+            sealed := cipher.seal(nonce, plaintext, associated)
+            assert_equal(hex_encode(sealed), expected, reason="NIST ciphertext and tag")
+            assert(cipher.open(nonce, sealed, associated) == .Ok(plaintext), reason="NIST open")
+
+    it("general GCM nonce path follows Go's 1-byte and 128-byte vectors"):
+        for (key, nonce, plaintext, associated, expected) in [
+            ("1672c3537afa82004c6b8a46f6f0d026", "05", "", "", "8e2ad721f9455f74d8b53d3141f27e8e"),
+            (
+                "9a4fea86a621a91ab371e492457796c0",
+                "75",
+                "ca6131faf0ff210e4e693d6c31c109fc5b6f54224eb120f37de31dc59ec669b6",
+                "4f6e2585c161f05a9ae1f2f894e9f0ab52b45d0f",
+                "5698c0a384241d30004290aac56bb3ece6fe8eacc5c4be98954deb9c3ff6aebf5d50e1af100509e1fba2a5e8a0af9670",
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c",
+                "75",
+                "ca6131faf0ff210e4e693d6c31c109fc5b6f54224eb120f37de31dc59ec669b6",
+                "4f6e2585c161f05a9ae1f2f894e9f0ab52b45d0f",
+                "2709b357ec8334a074dbd5c4c352b216cfd1c8bd66343c5d43bfc6bd3b2b6cd0e3a82315d56ea5e4961c9ef3bc7e4042",
+            ),
+            (
+                "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+                "75",
+                "ca6131faf0ff210e4e693d6c31c109fc5b6f54224eb120f37de31dc59ec669b6",
+                "4f6e2585c161f05a9ae1f2f894e9f0ab52b45d0f",
+                "d73bebe722c5e312fe910ba71d5a6a063a4297203f819103dfa885a8076d095545a999affde3dbac2b5be6be39195ed0",
+            ),
+            (
+                "d0f1f4defa1e8c08b4b26d576392027c",
+                "42b4f01eb9f5a1ea5b1eb73b0fb0baed54f387ecaa0393c7d7dffc6af50146ecc021abf7eb9038d4303d91f8d741a11743166c0860208bcc02c6258fd9511a2fa626f96d60b72fcff773af4e88e7a923506e4916ecbd814651e9f445adef4ad6a6b6c7290cc13b956130eef5b837c939fcac0cbbcc9656cd75b13823ee5acdac",
+                "",
+                "",
+                "7ab49b57ddf5f62c427950111c5c4f0d",
+            ),
+            (
+                "4a0c00a3d284dea9d4bf8b8dde86685e",
+                "f8cbe82588e784bcacbe092cd9089b51e01527297f635bf294b3aa787d91057ef23869789698ac960707857f163ecb242135a228ad93964f5dc4a4d7f88fd7b3b07dd0a5b37f9768fb05a523639f108c34c661498a56879e501a2321c8a4a94d7e1b89db255ac1f685e185263368e99735ebe62a7f2931b47282be8eb165e4d7",
+                "6d4bf87640a6a48a50d28797b7",
+                "8d8c7ffc55086d539b5a8f0d1232654c",
+                "0d803ec309482f35b8e6226f2b56303239298e06b281c2d51aaba3c125",
+            ),
+        ]:
+            nonce := vector(nonce)
+            cipher := mode(aes(vector(key)), nonce.len(), 16)
+            plain := vector(plaintext)
+            associated := vector(associated)
+            actual := cipher.seal(nonce, plain, associated)
+            assert_equal(hex_encode(actual), expected, reason="general nonce")
+            assert(
+                cipher.open(nonce, actual, associated) == .Ok(plain),
+                reason="general nonce open",
+            )
+
+    struct Counted[B < ?Copy & Block]:
+        base: B
+        calls: *mut usize
+
+    impl[B < ?Copy & Block] Block for Counted[B]:
+        fn block_size(&self) -> usize:
+            self.base.block_size()
+
+        fn encrypt_block(&self, bytes: &mut List[u8], offset: usize) -> void:
+            *self.calls += 1
+            self.base.encrypt_block(bytes, offset)
+
+    it("GCM rejects every changed ciphertext or tag byte before decrypting"):
+        calls := box(usize(0))
+        base := Counted { base: aes([for _ in 0..16 => u8(0)]), calls: calls }
+        cipher := match Gcm::[Counted[Aes]].new(base):
+            .Ok(value) => value
+            .Err(error) => panic("valid mode rejected: $error")
+        nonce := [for _ in 0..12 => u8(0)]
+        plain := [for byte in 0..33 => u8(byte)]
+        associated := [for byte in 0..17 => u8(byte)]
+        sealed := cipher.seal(nonce, plain, associated)
+        for at in 0..sealed.len():
+            let mut bad = sealed
+            bad[at] = bad[at] ^ 1
+            *calls = 0
+            assert(
+                cipher.open(nonce, bad, associated) == .Err(.AuthenticationFailed),
+                reason="changed byte",
+            )
+            assert_equal(*calls, 1, reason="only tag-mask encryption, no plaintext decryption")
+        *calls = 0
+        assert(
+            cipher.open(nonce, [], associated) == .Err(.AuthenticationFailed),
+            reason="short sealed message",
+        )
+        assert_equal(*calls, 0, reason="public length check before cryptography")
+        let mut bad_nonce = nonce
+        bad_nonce[0] = 1
+        assert(
+            cipher.open(bad_nonce, sealed, associated) == .Err(.AuthenticationFailed),
+            reason="nonce mismatch",
+        )
+        let mut bad_associated = associated
+        bad_associated[0] = bad_associated[0] ^ 1
+        assert(
+            cipher.open(nonce, sealed, bad_associated) == .Err(.AuthenticationFailed),
+            reason="AAD mismatch",
+        )
+
+    it("SP 800-38A AES-CTR vectors and every stream split"):
+        for (key, iv, plain, expected) in [
+            (
+                "2b7e151628aed2a6abf7158809cf4f3c",
+                "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+                "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710",
+                "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff5ae4df3edbd5d35e5b4f09020db03eab1e031dda2fbe03d1792170a0f3009cee",
+            ),
+            (
+                "8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b",
+                "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+                "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710",
+                "1abc932417521ca24f2b0459fe7e6e0b090339ec0aa6faefd5ccc2c6f4ce8e941e36b26bd1ebc670d1bd1d665620abf74f78a7f6d29809585a97daec58c6b050",
+            ),
+            (
+                "603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4",
+                "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+                "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710",
+                "601ec313775789a5b7a7f504bbf3d228f443e3ca4d62b59aca84e990cacaf5c52b0930daa23de94ce87017ba2d84988ddfc9c58db67aada613c2dd08457941a6",
+            ),
+        ]:
+            cipher := aes(vector(key))
+            iv := vector(iv)
+            plain := vector(plain)
+            expected := vector(expected)
+            assert_equal(
+                Ctr::[Aes].new(cipher, iv).xor_key_stream(plain),
+                expected,
+                reason="NIST CTR",
+            )
+            assert_equal(
+                Ctr::[Aes].new(cipher, iv).xor_key_stream(expected),
+                plain,
+                reason="CTR reverse",
+            )
+            for split in 0..(plain.len() + 1):
+                stream := Ctr::[Aes].new(cipher, iv)
+                assert_equal(stream.xor_key_stream([]), [], reason="empty before")
+                let mut actual = stream.xor_key_stream(plain.slice(0, split))
+                assert_equal(stream.xor_key_stream([]), [], reason="empty between")
+                actual.extend(stream.xor_key_stream(plain.slice(split, plain.len())))
+                assert_equal(actual, expected, reason="split stream")
+            stream := Ctr::[Aes].new(cipher, iv)
+            let mut actual: List[u8] = []
+            for byte in plain:
+                actual.extend(stream.xor_key_stream([byte]))
+            assert_equal(actual, expected, reason="single-byte stream")
+
+    use std.collections.UniqList
+
+    struct ToyBlock:
+        width: usize
+        key: UniqList[u8]
+
+    fn toy(width: usize) -> ToyBlock:
+        let mut key = UniqList::[u8].new()
+        key.push(0x5a)
+        ToyBlock { width: width, key: key }
+
+    impl Block for ToyBlock:
+        fn block_size(&self) -> usize:
+            self.width
+
+        fn encrypt_block(&self, bytes: &mut List[u8], offset: usize) -> void:
+            for byte in 0..self.width:
+                bytes[offset + byte] = bytes[offset + byte] ^ self.key[0]
+
+    it("modes accept non-copy block ciphers and CTR wraps the full counter"):
+        iv := [for _ in 0..8 => u8(0xff)]
+        stream := Ctr::[ToyBlock].new(toy(8), iv)
+        actual := stream.xor_key_stream([for _ in 0..24 => u8(0)])
+        let mut expected: List[u8] = [for _ in 0..8 => u8(0xa5)]
+        expected.extend([for _ in 0..15 => u8(0x5a)])
+        expected.push(0x5b)
+        assert_equal(actual, expected, reason="all eight counter bytes wrap")
+        assert_equal(iv, [for _ in 0..8 => u8(0xff)], reason="IV value unchanged")
+        match Gcm::[ToyBlock].new(toy(16)):
+            .Err(error) => panic("valid non-copy block rejected: $error")
+            .Ok(cipher) =>
+                nonce := [for _ in 0..12 => u8(0)]
+                plain := [for byte in 0..33 => u8(byte)]
+                associated := [1, 2, 3]
+                sealed := cipher.seal(nonce, plain, associated)
+                assert(cipher.open(nonce, sealed, associated) == .Ok(plain), reason="non-copy GCM")
+
+    it("GCM validates configuration and supports every Go tag size"):
+        zero := [for _ in 0..16 => u8(0)]
+        nonce := [for _ in 0..12 => u8(0)]
+        plain := [for byte in 0..33 => u8(byte)]
+        full := mode(aes(zero), 12, 16).seal(nonce, plain, [])
+        for size in 12..17:
+            match Gcm::[Aes].with_tag_size(aes(zero), size):
+                .Err(error) => panic("valid tag size rejected: $error")
+                .Ok(cipher) =>
+                    assert_equal(cipher.nonce_size(), 12, reason="default nonce size")
+                    assert_equal(cipher.overhead(), size, reason="configured tag size")
+                    sealed := cipher.seal(nonce, plain, [])
+                    assert_equal(sealed, full.slice(0, plain.len() + size), reason="tag truncation")
+                    assert(cipher.open(nonce, sealed, []) == .Ok(plain), reason="custom tag open")
+        for size in [0, 4, 8, 11, 17]:
+            match Gcm::[Aes].with_tag_size(aes(zero), size):
+                .Err(error) =>
+                    assert_equal(error, CipherError::InvalidTagSize(size), reason="tag error")
+                .Ok(_) => panic("invalid tag size accepted")
+        match Gcm::[Aes].with_nonce_size(aes(zero), 0):
+            .Err(error) =>
+                assert_equal(error, CipherError::InvalidNonceSize(0), reason="zero nonce")
+            .Ok(_) => panic("empty nonce accepted")
+        match Gcm::[ToyBlock].new(toy(8)):
+            .Err(error) =>
+                assert_equal(error, CipherError::InvalidBlockSize(8), reason="GCM block width")
+            .Ok(_) => panic("GCM accepted a non-128-bit block")

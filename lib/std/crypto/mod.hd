@@ -2,7 +2,7 @@
 # `Digest` is the shared hash result; child modules implement the primitives.
 use std.encoding.hex.hex_encode
 
-pub use std.crypto.{sha256, sha512, aes}
+pub use std.crypto.{sha256, sha512, aes, cipher}
 
 # A hash result: the bytes of a digest (r-std-crypto.digest-value).
 ## The result of a hash, as bytes. Compare digests with `==`, which takes the same time wherever they differ.

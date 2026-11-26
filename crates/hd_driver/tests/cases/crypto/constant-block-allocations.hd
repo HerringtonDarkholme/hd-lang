@@ -1,0 +1,46 @@
+# @dump: stdout
+# @build: std checked release
+# AES and mode block loops allocate no storage proportional to block count.
+use std.crypto.aes.Aes
+use std.crypto.cipher.{Gcm, Ctr}
+use std.rt.checked.allocated
+
+fn gcm_allocations(blocks: usize) -> (usize, usize, u8):
+    key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+    mode := Gcm::[Aes].new(key).unwrap()
+    nonce := [for _ in 0..12 => u8(0)]
+    input := [for _ in 0..blocks * 16 => u8(7)]
+    before_seal := allocated()
+    sealed := mode.seal(nonce, input, [])
+    seals := allocated() - before_seal
+    before_open := allocated()
+    opened := mode.open(nonce, sealed, []).unwrap()
+    opens := allocated() - before_open
+    (seals, opens, opened[opened.len() - 1])
+
+fn ctr_allocations(blocks: usize) -> (usize, u8):
+    key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+    mode := Ctr::[Aes].new(key, [for _ in 0..16 => u8(0)])
+    input := [for _ in 0..blocks * 16 => u8(7)]
+    before := allocated()
+    output := mode.xor_key_stream(input)
+    (allocated() - before, output[0])
+
+pub fn main() -> void $ Console:
+    key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+    let mut block = [for _ in 0..20 => u8(0)]
+    before := allocated()
+    for _ in 0..1000:
+        key.encrypt_block_into(&mut block, 2)
+    delta := allocated() - before
+    println("AES allocations: $delta")
+    println("AES output: ${block[2]}")
+    small := gcm_allocations(10)
+    large := gcm_allocations(1000)
+    println("GCM seal flat: ${small._0 == large._0}")
+    println("GCM open flat: ${small._1 == large._1}")
+    println("GCM plaintext: ${small._2 == 7 && large._2 == 7}")
+    short := ctr_allocations(10)
+    long := ctr_allocations(1000)
+    println("CTR flat: ${short._0 == long._0}")
+    println("CTR output: ${short._1 == long._1}")

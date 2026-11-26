@@ -1,0 +1,18 @@
+# test: AES encrypts only the selected block, preserving value aliases
+use std.crypto.aes.Aes
+use std.encoding.hex.hex_decode
+
+tests:
+    it("offset and aliases"):
+        key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+        let mut buffer = [for _ in 0..20 => u8(0)]
+        saved := buffer
+        key.encrypt_block_into(&mut buffer, 2)
+        assert_equal(
+            buffer.slice(2, 18),
+            hex_decode("66e94bd4ef8a2c3b884cfa59ca342b2e").unwrap(),
+            reason="AES block",
+        )
+        assert_equal(buffer.slice(0, 2), [u8(0), 0], reason="prefix")
+        assert_equal(buffer.slice(18, 20), [u8(0), 0], reason="suffix")
+        assert_equal(saved, [for _ in 0..20 => u8(0)], reason="value alias")
