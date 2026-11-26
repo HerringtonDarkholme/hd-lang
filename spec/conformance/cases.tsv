@@ -7412,6 +7412,11 @@ lang/types/numeric-conversions/num-parameter-literal-fits-integer-widths.hd	type
 lang/types/numeric-conversions/numeric-parameter-literals-fit-the-entire-bound.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
 lang/types/numeric-conversions/fractional-parameter-casts-use-the-value-rules.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
 lang/types/numeric-conversions/suffixed-parameter-casts-use-the-value-rules.hd	runtime	accept	lang/04-type-system.md#r-types.cast.family
+std/text/scalar-conversion/valid-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/surrogate.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/above-maximum.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/maximum-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/emoji-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

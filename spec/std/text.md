@@ -152,6 +152,7 @@ fn uppercase(c: char) -> bool:
 4. r[std-text.char.to-digit.ascii-only] Every other `char` gives `.None`, so `'٣'.to_digit(10)` is `.None`, though `'٣'.is_alphanumeric()` is `true`.
 5. r[std-text.char.to-digit.radix] A `radix` below 2 or above 36 panics. Panic: `explicit-panic`.
 6. r[std-text.char.uppercase.cost] `is_uppercase` allocates nothing, uses constant temporary state, and takes at most logarithmic time in the Unicode property range count.
+7. r[std-text.char.try-from-u32] `char` implements `std.convert.TryFrom[u32]`, returning `.Ok` for Unicode scalar values and `.Err(std.convert.CharTryFromError {})` for surrogates or values above U+10FFFF.
 
 > **Why.** The names and results are Rust's, so agents and readers
 > already know them. `to_digit` reads ASCII only, so a number parser

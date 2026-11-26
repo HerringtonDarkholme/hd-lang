@@ -1,0 +1,9 @@
+# test: char conversion accepts exactly the Unicode scalar values
+# Spec std/text Character Classification: std-text.char.try-from-u32.
+use std.convert.{TryFrom, CharTryFromError}
+
+tests:
+    use std.testing.assert_equal
+
+    it("the issue's four-byte scalar is representable"):
+        assert_equal(char::try_from(0x1F600), .Ok('😀'), reason="grinning face")

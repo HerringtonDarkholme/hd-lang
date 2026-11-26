@@ -1,5 +1,6 @@
 use std.num.{Integer, TryFromIntError}
 use std.meta.inline
+use std.rt.{char_from_scalar}
 
 # std.convert: the conversion trait `From`
 # (spec/lang/09-traits.md#conversion-trait). It is not a prelude name
@@ -16,6 +17,21 @@ pub trait From[T]:
 pub trait TryFrom[T]:
     type Error
     fn try_from(value: T) -> Result[Self, Self::Error]
+
+## A scalar conversion failed because the number is not a Unicode scalar value.
+## See [std-text.char.try-from-u32](../../spec/std/text.md#r-std-text.char.try-from-u32).
+@derive(Debug, Eq)
+@error("converted integer out of range for char")
+pub struct CharTryFromError: pass
+
+impl TryFrom[u32] for char:
+    type Error = CharTryFromError
+
+    @inline(.Always)
+    fn try_from(value: u32) -> Result[char, CharTryFromError]:
+        match char_from_scalar(value):
+            .Some(character) => .Ok(character)
+            .None => .Err(CharTryFromError {})
 
 # Numeric families specialize these ordinary range guards for each integer pair.
 impl[S < Integer, T < Integer] TryFrom[S] for T:

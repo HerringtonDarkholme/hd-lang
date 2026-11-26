@@ -1,0 +1,12 @@
+# test: char conversion accepts exactly the Unicode scalar values
+# Spec std/text Character Classification: std-text.char.try-from-u32.
+use std.convert.{TryFrom, CharTryFromError}
+
+tests:
+    use std.testing.assert_equal
+
+    it("surrogates are not scalar values"):
+        assert_equal(char::try_from(0xD800), .Err(CharTryFromError {}), reason="first surrogate")
+        assert_equal(char::try_from(0xDBFF), .Err(CharTryFromError {}), reason="high surrogate")
+        assert_equal(char::try_from(0xDC00), .Err(CharTryFromError {}), reason="low surrogate")
+        assert_equal(char::try_from(0xDFFF), .Err(CharTryFromError {}), reason="last surrogate")
