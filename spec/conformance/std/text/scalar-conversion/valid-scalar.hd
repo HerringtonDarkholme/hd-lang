@@ -1,0 +1,18 @@
+# test: char conversion accepts exactly the Unicode scalar values
+# Spec std/text Character Classification: std-text.char.try-from-u32.
+use std.convert.{TryFrom, CharTryFromError}
+
+fn convert[T < TryFrom[u32]](value: u32) -> Result[T, T::Error]:
+    T::try_from(value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("scalar boundaries and noncharacters are representable"):
+        assert_equal(char::try_from(0), .Ok('\0'), reason="NUL")
+        assert_equal(char::try_from(0x61), .Ok('a'), reason="ASCII")
+        assert_equal(char::try_from(0xD7FF), .Ok('\u{D7FF}'), reason="before surrogates")
+        assert_equal(char::try_from(0xE000), .Ok('\u{E000}'), reason="after surrogates")
+        assert_equal(char::try_from(0xFDD0), .Ok('\u{FDD0}'), reason="noncharacter")
+        assert_equal(char::try_from(0xFFFF), .Ok('\u{FFFF}'), reason="noncharacter boundary")
+        assert_equal(convert::[char](0xE9), .Ok('é'), reason="generic conversion")

@@ -7430,6 +7430,11 @@ lang/traits/trait-implementations/implementation-ownership/builtin-home-list.hd	
 lang/traits/trait-implementations/implementation-ownership/builtin-home-map.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.inherent.home
 lang/traits/trait-implementations/implementation-ownership/builtin-home-option.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.inherent.home
 lang/traits/trait-implementations/implementation-ownership/builtin-home-result.hd	type	reject:nonlocal-impl	lang/09-traits.md#r-trait.own.module.inherent.home
+std/text/scalar-conversion/valid-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/surrogate.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/above-maximum.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/maximum-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/scalar-conversion/emoji-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

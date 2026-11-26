@@ -1,0 +1,10 @@
+# test: char conversion accepts exactly the Unicode scalar values
+# Spec std/text Character Classification: std-text.char.try-from-u32.
+use std.convert.{TryFrom, CharTryFromError}
+
+tests:
+    use std.testing.assert_equal
+
+    it("out of range values return the shared error"):
+        assert_equal(char::try_from(0x110000), .Err(CharTryFromError {}), reason="above Unicode")
+        assert_equal(char::try_from(0xFFFFFFFF), .Err(CharTryFromError {}), reason="largest u32")
