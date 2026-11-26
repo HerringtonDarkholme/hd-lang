@@ -3,114 +3,52 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_fresh" (func $rt:release_fresh (param i32)))
-  (import "fixture" "top_values" (global $top_values (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local (result f64) (local $t0 f64) (local $t1 f64) (local $t2 f64) (local $t3 i32) (local $values i32)
+  (func $local (result f64) (local $values i32) (local $t0 i32)
     ;; 10 |     values := [1.5, 2.5, 3.5]
-    block
-      f64.const 0x1.8p+0
-      local.set $t0
-      f64.const 0x1.4p+1
-      local.set $t1
-      f64.const 0x1.cp+1
-      local.set $t2
-      i32.const 3
-      local.set $t3
-      local.get $t3
-      call $rt:list_buf
-      local.set $values
-      local.get $values
-      local.get $t3
-      i32.store $heap offset=4
-      local.get $values
-      local.set $t3
-      local.get $t3
-      local.get $t0
-      f64.store $heap offset=16
-      local.get $t3
-      i32.const 8
-      i32.add
-      local.set $t3
-      local.get $t3
-      local.get $t1
-      f64.store $heap offset=16
-      local.get $t3
-      i32.const 8
-      i32.add
-      local.set $t3
-      local.get $t3
-      local.get $t2
-      f64.store $heap offset=16
-      local.get $t3
-      i32.const 8
-      i32.add
-      local.set $t3
+    i32.const 3
+    call $rt:list_buf
+    local.tee $values
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $values
+    f64.const 0x1.8p+0
+    f64.store $heap offset=16
+    local.get $values
+    i32.const 8
+    i32.add
+    local.tee $t0
+    f64.const 0x1.4p+1
+    f64.store $heap offset=16
+    local.get $t0
+    f64.const 0x1.cp+1
+    f64.store $heap offset=24
     ;; 11 |     values[2]
-      i32.const 2
-      local.set $t3
-      local.get $t3
-      local.get $values
-      i32.load $heap offset=4
-      i32.ge_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $values
-      local.get $t3
-      i32.const 8
-      i32.mul
-      i32.add
-      local.set $t3
-      local.get $t3
-      f64.load $heap offset=16
-      local.set $t0
-    ;; 10 |     values := [1.5, 2.5, 3.5]
-      local.get $values
-      call $rt:release_fresh
-      i32.const 0
-      local.set $values
-    end
-    local.get $t0
-  )
-  (func $init.init (local $t0 f64) (local $t1 i32)
-    block
-    ;; 4 | let top_values = [1.5, 2.5, 3.5]
-      f64.const 0x1.8p+0
-      local.set $t0
-      f64.const 0x1.4p+1
-      local.set $t0
-      f64.const 0x1.cp+1
-      local.set $t0
-      i32.const 80 ;; &scalar-list-buffer
-      local.set $t1
-      local.get $t1
-      global.set $top_values
-    end
-  )
-  (func $top (result f64) (local $t0 i32) (local $t1 i32) (local $t2 f64)
-    ;; 7 |     top_values[1]
-    global.get $top_values
-    local.set $t0
-    i32.const 1
-    local.set $t1
-    local.get $t1
-    local.get $t0
+    i32.const 2
+    local.get $values
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t0
-    local.get $t1
-    i32.const 8
-    i32.mul
-    i32.add
-    local.set $t0
-    local.get $t0
-    f64.load $heap offset=16
-    local.set $t2
-    local.get $t2
+    local.get $values
+    f64.load $heap offset=32
+    ;; 10 |     values := [1.5, 2.5, 3.5]
+    local.get $values
+    call $rt:release_fresh
+  )
+  (func $top (result f64)
+    ;; 7 |     top_values[1]
+    i32.const 1
+    i32.const 80
+    i32.load $heap offset=4
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    i32.const 80
+    f64.load $heap offset=24
   )
 )

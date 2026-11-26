@@ -2,138 +2,58 @@
 == @build: dev
 (module
   (import "fixture" "heap" (memory $heap 1))
-  (func $"recorded[*Score]" (param $value.0 i32) (param $value.1 i32) (result i32) (local $erased.0 i32) (local $t0 i32)
-    block
+  (func $"recorded[*Score]" (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
+    ;; ...
     ;; 18 |     let erased: *dyn Inspectable = box(value)
-      local.get $value.0
-      local.get $value.1
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $value.0
-      i32.const 0
-      local.set $value.1
-      ;; ...
-      local.get $value.1
-      local.get $erased.0
-      i32.store $heap
-      local.get $value.1
-      local.get $t0
-      i32.store $heap offset=4
-      local.get $value.1
-      local.set $t0
-      i32.const 0
-      local.set $value.1
-      local.get $t0
-      local.set $value.1
-      i32.const 0
-      local.set $t0
-      local.get $value.1
-      i32.const 364 ;; &vtable[rt:type_id]
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $value.1
-      ;; ...
-    end
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 364 ;; &vtable[rt:type_id]
+    ;; ...
+    local.get $t0
     ;; ...
   )
-  (func $"recorded[*Item]" (param $value i32) (result i32) (local $t0 i32) (local $t1 i32) (local $erased.0 i32)
-    block
+  (func $"recorded[*Item]" (param $value i32) (result i32) (local $t0 i32)
+    ;; ...
     ;; 18 |     let erased: *dyn Inspectable = box(value)
-      local.get $value
-      local.set $t0
-      i32.const 0
-      local.set $value
-      ;; ...
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-      local.get $t1
-      local.set $t0
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
-      i32.const 368 ;; &vtable[rt:type_id]
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $t1
-      ;; ...
-    end
+    local.get $value
+    i32.store $heap
+    local.get $t0
+    i32.const 368 ;; &vtable[rt:type_id]
+    ;; ...
+    local.get $t0
     ;; ...
   )
 )
 == @build: checked
 (module
   (import "fixture" "heap" (memory $heap 17))
-  (func $"recorded[*Score]" (param $value.0 i32) (param $value.1 i32) (result i32) (local $erased.0 i32) (local $t0 i32)
-    block
+  (func $"recorded[*Score]" (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
+    ;; ...
     ;; 18 |     let erased: *dyn Inspectable = box(value)
-      local.get $value.0
-      local.get $value.1
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $value.0
-      i32.const 0
-      local.set $value.1
-      ;; ...
-      local.get $value.1
-      local.get $erased.0
-      i32.store $heap
-      local.get $value.1
-      local.get $t0
-      i32.store $heap offset=4
-      local.get $value.1
-      local.set $t0
-      i32.const 0
-      local.set $value.1
-      local.get $t0
-      local.set $value.1
-      i32.const 0
-      local.set $t0
-      local.get $value.1
-      i32.const 740 ;; &vtable[rt:type_id]
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $value.1
-      ;; ...
-    end
+    local.get $value.0
+    i32.store $heap
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=4
+    local.get $t0
+    i32.const 740 ;; &vtable[rt:type_id]
+    ;; ...
+    local.get $t0
     ;; ...
   )
-  (func $"recorded[*Item]" (param $value i32) (result i32) (local $t0 i32) (local $t1 i32) (local $erased.0 i32)
-    block
+  (func $"recorded[*Item]" (param $value i32) (result i32) (local $t0 i32)
+    ;; ...
     ;; 18 |     let erased: *dyn Inspectable = box(value)
-      local.get $value
-      local.set $t0
-      i32.const 0
-      local.set $value
-      ;; ...
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-      local.get $t1
-      local.set $t0
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
-      i32.const 744 ;; &vtable[rt:type_id]
-      local.set $t0
-      local.set $erased.0
-      i32.const 0
-      local.set $t1
-      ;; ...
-    end
+    local.get $value
+    i32.store $heap
+    local.get $t0
+    i32.const 744 ;; &vtable[rt:type_id]
+    ;; ...
+    local.get $t0
     ;; ...
   )
 )

@@ -226,7 +226,6 @@ mod dense_symbol_tests {
     #[test]
     fn final_reachability_removes_a_call_folded_out_of_the_body() {
         let mut m = Module::default();
-        m.optimized = true;
         let dead = Sym::Inst(Hash128(1));
         let root = Sym::Inst(Hash128(2));
         let f = m.func("dead_after_fold", vec![], vec![]);

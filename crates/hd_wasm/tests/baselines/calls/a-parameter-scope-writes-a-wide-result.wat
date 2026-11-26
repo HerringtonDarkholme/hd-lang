@@ -25,15 +25,10 @@
     local.get $t1
     i32.const 68
     memory.copy $heap $heap
-    block
-      block
-        local.get $t2
-        local.get $t0
-        i32.const 68
-        memory.copy $heap $heap
-        br 0
-      end
-    end
+    local.get $t2
+    local.get $t0
+    i32.const 68
+    memory.copy $heap $heap
     local.get $t0
     i32.const 72
     i32.add

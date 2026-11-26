@@ -778,7 +778,6 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs()
 -> Result<(), Box<dyn std::error::Error>> {
     for session in [false, true] {
         let mut m = Module::default();
-        m.optimized = true;
         let init = Hash128(1388);
         let field = hd_wasm::testing::module::Global::Storage(Hash128(1389), 0, Val::I32);
         let length = hd_wasm::testing::module::Global::Storage(Hash128(1389), 1, Val::I32);

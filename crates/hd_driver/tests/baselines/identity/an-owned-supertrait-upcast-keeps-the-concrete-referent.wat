@@ -5,129 +5,68 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make (result i32 i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $original.0 i32) (local $t2 i32)
+  (func $make (result i32 i32) (local $t0 i32)
     ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
-    block
-      i32.const 3
-      local.set $t0
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.set $t1
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-      local.get $t1
-      local.set $t0
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
-      i32.const 432 ;; &vtable[rt:dyn_slot]
-      local.set $t0
-      local.set $original.0
-      i32.const 0
-      local.set $t1
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $t0
+    i32.const 3
+    i32.store $heap
+    local.get $t0
     ;; 14 |     original
-      local.get $original.0
-      local.get $t0
-      local.set $t1
-      local.set $t2
-      i32.const 0
-      local.set $original.0
-      i32.const 0
-      local.set $t0
-      local.get $t2
-      local.set $t0
+    if
       local.get $t0
       call $retain
-      local.get $t0
-      local.get $t1
-      i32.load $heap offset=8
-      local.set $original.0
-      local.set $t3
-      i32.const 0
-      local.set $t0
-      i32.const 0
-      local.set $t1
-    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
-      local.get $t2
-      call $rt:release_ref
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
     end
-    local.get $t3
-    local.get $original.0
+    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
+    local.get $t0
+    i32.const 432 ;; &vtable[rt:dyn_slot]
+    ;; 14 |     original
+    i32.load $heap offset=8
+    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
   )
 )
 == @build: checked
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $make (result i32 i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $original.0 i32) (local $t2 i32)
+  (func $make (result i32 i32) (local $t0 i32)
     ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
-    block
-      i32.const 3
-      local.set $t0
-      i32.const 4
-      i32.const 0
-      call $rt:new
-      local.set $t1
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-      local.get $t1
-      local.set $t0
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
-      i32.const 808 ;; &vtable[rt:dyn_slot]
-      local.set $t0
-      local.set $original.0
-      i32.const 0
-      local.set $t1
+    i32.const 4
+    i32.const 0
+    call $rt:new
+    local.tee $t0
+    i32.const 3
+    i32.store $heap
+    local.get $t0
     ;; 14 |     original
-      local.get $original.0
-      local.get $t0
-      local.set $t1
-      local.set $t2
-      i32.const 0
-      local.set $original.0
-      i32.const 0
-      local.set $t0
-      local.get $t2
-      local.set $t0
+    if
       local.get $t0
       call $retain
-      local.get $t0
-      local.get $t1
-      i32.load $heap offset=8
-      local.set $original.0
-      local.set $t3
-      i32.const 0
-      local.set $t0
-      i32.const 0
-      local.set $t1
-    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
-      local.get $t2
-      call $rt:release_ref
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
+    else
+      call $skipped_test
     end
-    local.get $t3
-    local.get $original.0
+    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
+    local.get $t0
+    i32.const 808 ;; &vtable[rt:dyn_slot]
+    ;; 14 |     original
+    i32.load $heap offset=8
+    ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    else
+      call $skipped_test
+    end
   )
 )

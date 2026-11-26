@@ -3,47 +3,27 @@
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $cell (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $cell (result i32) (local $t0 i32)
     ;; 12 |     box(Cell { value: "a" })
-    block
-      i32.const 16 ;; &"a"
-      i32.const 1
-      local.set $t0
-      local.set $t1
-      i32.const 8
-      i32.const 1
-      call $rt:new/class-1'1
-      local.set $t2
-      local.get $t2
-      local.get $t1
-      i32.store $heap
-      local.get $t2
-      local.get $t0
-      i32.store $heap offset=4
-      local.get $t2
-      local.set $t0
-      i32.const 0
-      local.set $t2
-    end
+    i32.const 8
+    i32.const 1
+    call $rt:new/class-1'1
+    local.tee $t0
+    i32.const 16 ;; &"a"
+    i32.store $heap
+    local.get $t0
+    i32.const 1
+    i32.store $heap offset=4
     local.get $t0
   )
-  (func $node (result i32) (local $t0 i32) (local $t1 i32)
+  (func $node (result i32) (local $t0 i32)
     ;; 15 |     box(Node { next: .None })
-    block
-      i32.const 0
-      local.set $t0
-      i32.const 4
-      i32.const -2147483646
-      call $rt:new/class-1'2
-      local.set $t1
-      local.get $t1
-      local.get $t0
-      i32.store $heap
-      local.get $t1
-      local.set $t0
-      i32.const 0
-      local.set $t1
-    end
+    i32.const 4
+    i32.const -2147483646
+    call $rt:new/class-1'2
+    local.tee $t0
+    i32.const 0
+    i32.store $heap
     local.get $t0
   )
 )

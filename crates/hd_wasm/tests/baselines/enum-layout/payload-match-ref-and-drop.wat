@@ -5,298 +5,210 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $drop_res (param $r.0 i32) (param $r.1 i32) (param $r.2 i32)
     ;; 40 |     ()
-    block
-      local.get $r.0
-      local.get $r.1
-      local.get $r.2
-      call $"release_value[Result[string, LoadErr]]"
-    end
+    local.get $r.0
+    local.get $r.1
+    local.get $r.2
+    call $"release_value[Result[string, LoadErr]]"
   )
-  (func $area (param $s i32) (result f64) (local $a i32) (local $r f64) (local $h f64) (local $b i32) (local $t0 i64) (local $t1 i64)
+  (func $area (param $s i32) (result f64) (local $r f64) (local $a i32) (local $h f64) (local $b i32) (local $t0 i64)
     ;; 18 |     match s:
     block
       block
         block
           block
+    ;; 19 |         .Circle(r) => 3.0 * r * r
+            local.get $s
+            i32.load $heap
+            local.set $a
             block
               block
-    ;; 19 |         .Circle(r) => 3.0 * r * r
-                local.get $s
-                i32.load $heap
-                local.set $a
                 block
                   block
-                    block
-                      block
-                        local.get $a
-                        br_table 0 1 2 7
-                      end
-                      local.get $s
-                      f64.load $heap offset=8
-                      local.set $r
-                      br 3
-                    end
-    ;; 20 |         .Rect(w, h) => w * h
-                    local.get $s
-                    f64.load $heap offset=8
-                    local.set $r
-                    local.get $s
-                    f64.load $heap offset=16
-                    local.set $h
-    ;; 19 |         .Circle(r) => 3.0 * r * r
-                    br 3
+                    local.get $a
+                    br_table 0 1 2 7
                   end
-    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
                   local.get $s
-                  i32.load $heap offset=4
-                  local.set $a
-                  local.get $s
-                  i32.load $heap offset=8
-                  local.set $b
-                  local.get $s
-                  i32.load $heap offset=12
-                  local.set $s
-    ;; 19 |         .Circle(r) => 3.0 * r * r
+                  f64.load $heap offset=8
+                  local.set $r
                   br 3
                 end
-    ;; 18 |     match s:
-                unreachable
-              end
+    ;; 20 |         .Rect(w, h) => w * h
+                local.get $s
+                f64.load $heap offset=8
+                local.set $r
+                local.get $s
+                f64.load $heap offset=16
+                local.set $h
     ;; 19 |         .Circle(r) => 3.0 * r * r
-              f64.const 0x1.8p+1
-              local.get $r
-              f64.mul
-              local.set $h
-              local.get $h
-              local.get $r
-              f64.mul
-              local.set $h
-    ;; 18 |     match s:
+                br 3
+              end
+    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
+              local.get $s
+              i32.load $heap offset=4
+              local.set $a
+              local.get $s
+              i32.load $heap offset=8
+              local.set $b
+              local.get $s
+              i32.load $heap offset=12
+              local.set $s
+    ;; 19 |         .Circle(r) => 3.0 * r * r
               br 3
             end
-    ;; 20 |         .Rect(w, h) => w * h
-            local.get $r
-            local.get $h
-            f64.mul
-            local.set $h
     ;; 18 |     match s:
-            br 2
-          end
-    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
-          local.get $a
-          i64.extend_i32_s
-          local.set $t0
-          local.get $b
-          i64.extend_i32_s
-          local.set $t1
-          local.get $t0
-          local.get $t1
-          i64.add
-          local.set $t0
-          local.get $t0
-          i64.const 2147483647
-          i64.gt_s
-          local.get $t0
-          i64.const -2147483648
-          i64.lt_s
-          i32.or
-          if
-            call $rt:panic
             unreachable
           end
-          local.get $t0
-          i32.wrap_i64
-          local.set $a
-          local.get $a
-          i64.extend_i32_s
-          local.set $t0
-          local.get $s
-          i64.extend_i32_s
-          local.set $t1
-          local.get $t0
-          local.get $t1
-          i64.add
-          local.set $t0
-          local.get $t0
-          i64.const 2147483647
-          i64.gt_s
-          local.get $t0
-          i64.const -2147483648
-          i64.lt_s
-          i32.or
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.wrap_i64
-          local.set $s
-          local.get $s
-          f64.convert_i32_s
-          local.set $h
+    ;; 19 |         .Circle(r) => 3.0 * r * r
+          f64.const 0x1.8p+1
+          local.get $r
+          f64.mul
+          local.get $r
+          f64.mul
     ;; 18 |     match s:
-          br 1
+          return
         end
-        f64.const 0x0p+0
-        local.set $h
-        br 0
+    ;; 20 |         .Rect(w, h) => w * h
+        local.get $r
+        local.get $h
+        f64.mul
+    ;; 18 |     match s:
+        return
       end
+    ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
+      local.get $a
+      i64.extend_i32_s
+      local.get $b
+      i64.extend_i32_s
+      i64.add
+      local.tee $t0
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t0
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.wrap_i64
+      i64.extend_i32_s
+      local.get $s
+      i64.extend_i32_s
+      i64.add
+      local.tee $t0
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t0
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.wrap_i64
+      f64.convert_i32_s
+    ;; 18 |     match s:
+      return
     end
-    local.get $h
+    local.get $r
   )
   (func $is_some (param $v i32) (result i32)
     ;; 43 |     match v:
     block
       block
-        block
-          block
     ;; 44 |         .Some(_) => true
-            local.get $v
-            br_if 0
-            br 1
+        local.get $v
+        br_if 0
+        br 1
     ;; 43 |     match v:
-            unreachable
-          end
-          i32.const 1
-          local.set $v
-          br 1
-        end
-        i32.const 0
-        local.set $v
-        br 0
+        unreachable
       end
+      i32.const 1
+      return
     end
-    local.get $v
+    i32.const 0
   )
-  (func $code_of (param $r i32) (result i32) (local $e.code i32) (local $e.msg.0 i32)
+  (func $code_of (param $r i32) (result i32) (local $e.code i32)
     ;; 35 |     match r:
     block
       block
         block
-          block
     ;; 36 |         .Ok(_) => 0
-            local.get $r
-            i32.load $heap
-            local.set $e.msg.0
-            local.get $e.msg.0
-            i32.eqz
-            if
-              br 1
-            else
+          local.get $r
+          i32.load $heap
+          i32.eqz
+          br_if 0
     ;; 37 |         .Err(e) => e.code
-              local.get $r
-              i32.load $heap offset=8
-              local.get $r
-              i32.load $heap
-              local.get $r
-              i32.load $heap offset=4
-              local.set $r
-              local.set $e.msg.0
-              local.set $e.code
-    ;; 36 |         .Ok(_) => 0
-              br 2
-            end
-    ;; 35 |     match r:
-            unreachable
-          end
-          i32.const 0
+          local.get $r
+          i32.load $heap offset=8
           local.set $e.code
+    ;; 36 |         .Ok(_) => 0
           br 1
+    ;; 35 |     match r:
+          unreachable
         end
-        br 0
+        br 1
       end
     end
     local.get $e.code
   )
-  (func $width (param $s i32) (result f64) (local $w f64) (local $t0 i32)
+  (func $width (param $s i32) (result f64) (local $w f64)
     ;; 25 |     match s:
     block
       block
-        block
-          block
     ;; 26 |         .Rect(w, _) => w
-            local.get $s
-            i32.load $heap
-            local.set $t0
-            local.get $t0
-            i32.const 1
-            i32.eq
-            if
-              local.get $s
-              f64.load $heap offset=8
-              local.set $w
-              br 1
-            else
-              br 2
-            end
-    ;; 25 |     match s:
-            unreachable
-          end
-          br 1
-        end
-        f64.const 0x0p+0
+        local.get $s
+        i32.load $heap
+        i32.const 1
+        i32.eq
+        i32.eqz
+        br_if 1
+        local.get $s
+        f64.load $heap offset=8
         local.set $w
         br 0
+    ;; 25 |     match s:
+        unreachable
       end
+    ;; 26 |         .Rect(w, _) => w
+      local.get $w
+    ;; 25 |     match s:
+      return
     end
     local.get $w
   )
-  (func $bump (param $s i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32) (local $t5 f64)
+  (func $bump (param $s i32)
     ;; 30 |     match s:
     block
       block
-        block
-          block
     ;; 31 |         .Tri(a, _, _) => a += 1
-            local.get $s
-            i32.load $heap
-            local.set $t0
-            local.get $s
-            i32.load $heap offset=4
-            local.set $t1
-            local.get $s
-            i32.load $heap offset=8
-            local.set $t2
-            local.get $s
-            f64.load $heap offset=8
-            local.set $t3
-            local.get $s
-            i32.load $heap offset=12
-            local.set $t4
-            local.get $s
-            f64.load $heap offset=16
-            local.set $t5
-            local.get $t0
-            i32.const 2
-            i32.eq
-            if
-              local.get $s
-              i32.load $heap offset=4
-              local.set $s
-              br 1
-            else
-              br 2
-            end
-    ;; 30 |     match s:
-            unreachable
-          end
-    ;; 31 |         .Tri(a, _, _) => a += 1
-          local.get $s
-          i32.const 2147483646
-          i32.gt_s
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $s
-          i32.const 1
-          i32.add
-          local.set $s
-    ;; 30 |     match s:
-          br 1
-        end
+        local.get $s
+        i32.load $heap
+        i32.const 2
+        i32.eq
+        i32.eqz
+        br_if 1
+        local.get $s
+        i32.load $heap offset=4
+        local.set $s
         br 0
+    ;; 30 |     match s:
+        unreachable
       end
+    ;; 31 |         .Tri(a, _, _) => a += 1
+      local.get $s
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic
+        unreachable
+      end
+    ;; 30 |     match s:
+      return
     end
   )
 )

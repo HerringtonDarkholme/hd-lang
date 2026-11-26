@@ -4,17 +4,14 @@
   (import "fixture" "heap" (memory $heap 17))
   (func $constant_scope (param $x i32) (param $t0 i32)
     ;; 48 |         q: constant(),
-    block
-      block
-        local.get $t0
-        i32.const 73
-        i32.store $heap offset=64
-        br 0
-      end
-    end
+    local.get $t0
+    i32.const 73
+    i32.store $heap offset=64
     ;; 31 |     Wide {
     local.get $t0
+    ;; 32 |         a: x,
     local.get $x
+    ;; 31 |     Wide {
     i32.store $heap
     local.get $t0
     i32.const 2

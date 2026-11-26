@@ -28,7 +28,7 @@
         local.get $provider0.vtable
         call $"println[i32]"
     ;; 9 |     match choose(true):
-        br 1
+        return
       end
     ;; 11 |         ._1(value) => println(value)
       local.get $value
@@ -36,24 +36,21 @@
       local.get $provider0.vtable
       call $"println[u32]"
     ;; 9 |     match choose(true):
-      br 0
+      return
     end
   )
-  (func $choose (param $flag i32) (result i32 i32) (local $t0 i32)
+  (func $choose (param $flag i32) (result i32 i32)
     ;; 6 |     if flag: ._0(+7) else: ._1(9u32)
     local.get $flag
-    if
+    if (result i32)
       i32.const 0
       i32.const 7
       local.set $flag
-      local.set $t0
     else
       i32.const 1
       i32.const 9
       local.set $flag
-      local.set $t0
     end
-    local.get $t0
     local.get $flag
   )
 )

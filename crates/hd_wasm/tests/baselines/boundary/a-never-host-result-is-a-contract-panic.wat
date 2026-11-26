@@ -4,19 +4,11 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 13 |     $.use(Vault).stop()
     block
       local.get $provider0
       local.get $provider0.vtable
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $provider0
-      i32.const 0
-      local.set $provider0.vtable
-      local.get $t1
-      local.get $t0
       i32.load $heap
       call_indirect $table0 (param i32)
       unreachable

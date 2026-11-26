@@ -2,20 +2,12 @@
 (module
   (import "fixture" "identity[Body]" (func $"identity[Body]" (param f64 f64) (result f64 f64)))
   (import "fixture" "identity[f64]" (func $"identity[f64]" (param f64) (result f64)))
-  (func $moved (param $x f64) (result f64) (local $t0 f64)
+  (func $moved (param $x f64) (result f64)
     ;; 9 |     identity(identity(Body { x: x, vx: 1.0 }).x)
     local.get $x
     f64.const 0x1p+0
-    local.set $x
-    local.set $t0
-    local.get $t0
-    local.get $x
     call $"identity[Body]"
-    local.set $x
-    local.set $x
-    local.get $x
+    drop
     call $"identity[f64]"
-    local.set $x
-    local.get $x
   )
 )

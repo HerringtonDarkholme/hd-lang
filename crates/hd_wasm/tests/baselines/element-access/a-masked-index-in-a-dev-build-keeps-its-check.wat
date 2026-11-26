@@ -3,239 +3,168 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ranged (param $xs i32) (result i32) (local $sum i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t4 i64)
-    ;; 14 |     let sum = +0
-    block
-      i32.const 0
-      local.set $sum
+  (func $ranged (param $xs i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i64)
     ;; 15 |     n := xs.len()
-      local.get $xs
-      i32.load $heap
-      local.set $t0
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t0
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
     ;; 16 |     for i in 0..n:
-      i32.const 0
-      local.get $t0
-      i32.const 0
-      local.set $t0
-      local.set $t1
-      local.set $t2
+    local.set $t0
+    local.get $xs
+    i32.load $heap
+    local.set $xs
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const -2
+        i32.gt_u
+        if
+          call $rt:panic'1
+          unreachable
+        end
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 17 |         sum += xs[i]
+        local.get $xs
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        local.set $i
+        local.get $sum
+        i64.extend_i32_s
+        local.get $i
+        i64.extend_i32_s
+        i64.add
+        local.tee $t2
+        i64.const 2147483647
+        i64.gt_s
+        local.get $t2
+        i64.const -2147483648
+        i64.lt_s
+        i32.or
+        if
+          call $rt:panic'1
+          unreachable
+        end
+        local.get $t2
+        i32.wrap_i64
+        local.set $sum
+    ;; 16 |     for i in 0..n:
+        br 0
+      end
+    end
+    ;; 18 |     sum
+    local.get $sum
+  )
+  (func $list_arm (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i64)
+    ;; 8 |     if xs.len() > 0:
+    local.get $xs
+    i32.load $heap
+    i32.load $heap offset=4
+    if
+    ;; 9 |         for i in 0..n:
       local.get $xs
       i32.load $heap
-      local.set $xs
-      local.get $xs
+      local.tee $xs
       i32.load $heap offset=4
       local.set $t0
       block
         loop
-          local.get $t2
           local.get $t1
+          local.get $n
           i32.lt_u
-          local.set $t0
-          local.get $t0
+          i32.eqz
+          br_if 1
+          local.get $t1
+          local.set $i
+          local.get $t1
+          i32.const -2
+          i32.gt_u
           if
-            local.get $t2
-            local.set $t0
-            local.get $t2
-            i32.const -2
-            i32.gt_u
-            if
-              call $rt:panic'1
-              unreachable
-            end
-            local.get $t2
-            i32.const 1
-            i32.add
-            local.set $t2
-    ;; 17 |         sum += xs[i]
-            local.get $xs
-            local.get $t0
-            i32.const 4
-            i32.mul
-            i32.add
-            local.set $t0
-            local.get $t0
-            i32.load $heap offset=16
-            local.set $t0
-            local.get $sum
-            i64.extend_i32_s
-            local.set $t3
-            local.get $t0
-            i64.extend_i32_s
-            local.set $t4
-            local.get $t3
-            local.get $t4
-            i64.add
-            local.set $t3
-            local.get $t3
-            i64.const 2147483647
-            i64.gt_s
-            local.get $t3
-            i64.const -2147483648
-            i64.lt_s
-            i32.or
-            if
-              call $rt:panic'1
-              unreachable
-            end
-            local.get $t3
-            i32.wrap_i64
-            local.set $sum
-    ;; 16 |     for i in 0..n:
-          else
-            br 2
+            call $rt:panic'1
+            unreachable
           end
+          local.get $t1
+          i32.const 1
+          i32.add
+          local.set $t1
+    ;; 10 |             sum += xs[(head + i) & (xs.len() - 1)]
+          local.get $head
+          i64.extend_i32_u
+          local.get $i
+          i64.extend_i32_u
+          i64.add
+          local.tee $t2
+          i64.const 4294967295
+          i64.gt_u
+          if
+            call $rt:panic'1
+            unreachable
+          end
+          local.get $t2
+          i32.wrap_i64
+          local.get $t0
+          i32.const 1
+          i32.lt_u
+          if
+            call $rt:panic'1
+            unreachable
+          end
+          local.get $t0
+          i32.const 1
+          i32.sub
+          i32.and
+          local.tee $i
+          local.get $t0
+          i32.ge_u
+          if
+            call $rt:panic'2
+            unreachable
+          end
+          local.get $xs
+          local.get $i
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load $heap offset=16
+          local.set $i
+          local.get $sum
+          i64.extend_i32_s
+          local.get $i
+          i64.extend_i32_s
+          i64.add
+          local.tee $t2
+          i64.const 2147483647
+          i64.gt_s
+          local.get $t2
+          i64.const -2147483648
+          i64.lt_s
+          i32.or
+          if
+            call $rt:panic'1
+            unreachable
+          end
+          local.get $t2
+          i32.wrap_i64
+          local.set $sum
+    ;; 9 |         for i in 0..n:
           br 0
         end
       end
-    ;; 14 |     let sum = +0
-    end
-    local.get $sum
-  )
-  (func $list_arm (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
-    ;; 7 |     let sum = +0
-    block
-      i32.const 0
-      local.set $sum
     ;; 8 |     if xs.len() > 0:
-      local.get $xs
-      i32.load $heap
-      local.set $t0
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t0
-      local.get $t0
-      i32.const 0
-      i32.gt_u
-      local.set $t0
-      local.get $t0
-      if
-    ;; 9 |         for i in 0..n:
-        i32.const 0
-        local.get $n
-        i32.const 0
-        local.set $n
-        local.set $t0
-        local.set $t1
-        local.get $xs
-        i32.load $heap
-        local.set $n
-        local.get $n
-        i32.load $heap offset=4
-        local.set $t2
-        block
-          loop
-            local.get $t1
-            local.get $t0
-            i32.lt_u
-            local.set $i
-            local.get $i
-            if
-              local.get $t1
-              local.set $i
-              local.get $t1
-              i32.const -2
-              i32.gt_u
-              if
-                call $rt:panic'1
-                unreachable
-              end
-              local.get $t1
-              i32.const 1
-              i32.add
-              local.set $t1
-    ;; 10 |             sum += xs[(head + i) & (xs.len() - 1)]
-              local.get $head
-              i64.extend_i32_u
-              local.set $t3
-              local.get $i
-              i64.extend_i32_u
-              local.set $t4
-              local.get $t3
-              local.get $t4
-              i64.add
-              local.set $t3
-              local.get $t3
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'1
-                unreachable
-              end
-              local.get $t3
-              i32.wrap_i64
-              local.set $i
-              local.get $xs
-              i32.load $heap
-              local.set $t5
-              local.get $t2
-              i32.const 1
-              i32.lt_u
-              if
-                call $rt:panic'1
-                unreachable
-              end
-              local.get $t2
-              i32.const 1
-              i32.sub
-              local.set $t5
-              local.get $i
-              local.get $t5
-              i32.and
-              local.set $i
-              local.get $i
-              local.get $t2
-              i32.ge_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $n
-              local.get $i
-              i32.const 4
-              i32.mul
-              i32.add
-              local.set $i
-              local.get $i
-              i32.load $heap offset=16
-              local.set $i
-              local.get $sum
-              i64.extend_i32_s
-              local.set $t3
-              local.get $i
-              i64.extend_i32_s
-              local.set $t4
-              local.get $t3
-              local.get $t4
-              i64.add
-              local.set $t3
-              local.get $t3
-              i64.const 2147483647
-              i64.gt_s
-              local.get $t3
-              i64.const -2147483648
-              i64.lt_s
-              i32.or
-              if
-                call $rt:panic'1
-                unreachable
-              end
-              local.get $t3
-              i32.wrap_i64
-              local.set $sum
-    ;; 9 |         for i in 0..n:
-            else
-              br 2
-            end
-            br 0
-          end
-        end
-    ;; 8 |     if xs.len() > 0:
-      end
-    ;; 7 |     let sum = +0
     end
+    ;; 11 |     sum
     local.get $sum
   )
 )

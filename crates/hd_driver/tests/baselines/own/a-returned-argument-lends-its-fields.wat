@@ -6,45 +6,38 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
+  (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 25 |     announce(value).text.len()
-    block
-      local.get $value
-      local.set $t0
-      i32.const 0
-      local.set $value
-      local.get $t0
-      local.get $provider0
+    local.get $value
+    local.get $provider0
+    local.get $provider0.vtable
+    call $announce
+    local.tee $value
+    local.tee $provider0
+    i32.load $heap
+    local.get $provider0
+    i32.load $heap offset=4
+    local.set $provider0
+    local.tee $provider0.vtable
+    if
       local.get $provider0.vtable
-      call $announce
-      local.set $provider0
-      local.get $provider0
-      i32.load $heap
-      local.get $provider0
-      i32.load $heap offset=4
-      local.set $provider0.vtable
-      local.set $t0
-      local.get $t0
       call $retain
-      local.get $provider0
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $provider0
-      block
-        block
-          local.get $provider0.vtable
-          local.set $provider0
-          br 0
-        end
-      end
-      local.get $t0
-      call $rt:release_ref'2
-      i32.const 0
-      local.set $t0
-      i32.const 0
-      local.set $provider0.vtable
+    end
+    local.get $value
+    if
       local.get $value
-      call $rt:release_ref'1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $value
+        call $rt:release_ref'1
+      end
+    end
+    local.get $provider0.vtable
+    if
+      local.get $provider0.vtable
+      call $rt:release_ref'2
     end
     local.get $provider0
   )
@@ -53,48 +46,50 @@
 (module
   (import "fixture" "announce" (func $announce (param i32 i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
+  (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 25 |     announce(value).text.len()
-    block
-      local.get $value
-      local.set $t0
-      i32.const 0
-      local.set $value
-      local.get $t0
-      local.get $provider0
+    local.get $value
+    local.get $provider0
+    local.get $provider0.vtable
+    call $announce
+    local.tee $value
+    local.tee $provider0
+    i32.load $heap
+    local.get $provider0
+    i32.load $heap offset=4
+    local.set $provider0
+    local.tee $provider0.vtable
+    if
       local.get $provider0.vtable
-      call $announce
-      local.set $provider0
-      local.get $provider0
-      i32.load $heap
-      local.get $provider0
-      i32.load $heap offset=4
-      local.set $provider0.vtable
-      local.set $t0
-      local.get $t0
       call $retain
-      local.get $provider0
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $provider0
-      block
-        block
-          local.get $provider0.vtable
-          local.set $provider0
-          br 0
-        end
-      end
-      local.get $t0
-      call $rt:release_ref'2
-      i32.const 0
-      local.set $t0
-      i32.const 0
-      local.set $provider0.vtable
+    else
+      call $skipped_test
+    end
+    local.get $value
+    if
       local.get $value
-      call $rt:release_ref'1
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $value
+        call $rt:release_ref'1
+      else
+        call $skipped_test
+      end
+    else
+      call $skipped_test
+    end
+    local.get $provider0.vtable
+    if
+      local.get $provider0.vtable
+      call $rt:release_ref'2
+    else
+      call $skipped_test
     end
     local.get $provider0
   )

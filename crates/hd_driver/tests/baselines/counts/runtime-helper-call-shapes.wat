@@ -5,41 +5,31 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $read (param $value i32) (result i32)
     ;; 8 |     *value
-    block
-      local.get $value
-      i32.load $heap
-      local.set $value
-    end
     local.get $value
+    i32.load $heap
   )
-  (func $main_like (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $main_like (param $value i32) (result i32) (local $t0 i32)
     ;; 11 |     let saved = box(value)
-    block
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
-      local.set $t0
-      local.get $t0
-      local.get $value
-      i32.store $heap
-      local.get $t0
-      local.set $value
-      i32.const 0
-      local.set $t0
+    i32.const 4
+    i32.const 0
+    call $rt:new/class-1
+    local.tee $t0
+    local.get $value
+    i32.store $heap
+    local.get $t0
     ;; 12 |     read(saved)
-      local.get $value
-      local.set $t0
-      local.get $t0
-      call $read
-      local.set $t1
+    call $read
     ;; 11 |     let saved = box(value)
-      i32.const 0
-      local.set $t0
-      local.get $value
-      call $rt:release_ref
-      i32.const 0
-      local.set $value
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
     end
-    local.get $t1
   )
 )

@@ -2,187 +2,95 @@
 == @build: dev
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new/class-1
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 11
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new/class-1
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 11
+    local.get $t0
   )
-  (func $"adapt[u32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[u32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new/class-1
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 16
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new/class-1
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 16
+    local.get $t0
   )
-  (func $"adapt[string]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[string]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new/class-1
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 17
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new/class-1
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 17
+    local.get $t0
   )
 )
 == @build: checked
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 11
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 11
+    local.get $t0
   )
-  (func $"adapt[u32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[u32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 16
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 16
+    local.get $t0
   )
-  (func $"adapt[string]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[string]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
-    block
-      local.get $callback.0
-      local.get $callback.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      i32.const 8
-      i32.const -2147483647
-      call $rt:new
-      local.set $callback.0
-      local.get $callback.0
-      local.get $t1
-      i32.store $heap
-      local.get $callback.0
-      local.get $t0
-      i32.store $heap offset=4
-      i32.const 17
-      local.set $t0
-      local.get $callback.1
-      call $rt:release_ref
-    end
-    local.get $t0
+    i32.const 8
+    i32.const -2147483647
+    call $rt:new
+    local.tee $t0
     local.get $callback.0
+    i32.store $heap
+    local.get $t0
+    local.get $callback.1
+    i32.store $heap offset=4
+    i32.const 17
+    local.get $t0
   )
 )
 == @build: release

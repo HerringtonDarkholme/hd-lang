@@ -28,8 +28,7 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.set $left
-    local.get $left
+    local.tee $left
     local.get $right
     i32.store $heap
     local.get $left
@@ -41,76 +40,37 @@
     local.get $t0
     i32.const 24
     i32.add
-    local.set $right
-    local.get $right
+    local.tee $right
     local.get $t2
     i32.store $heap
     local.get $right
     local.get $t3
     i32.store $heap offset=4
-    block
+    local.get $left
+    local.get $right
+    call $"impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]"
+    local.set $t1
+    local.get $left
+    if
       local.get $left
-      local.set $t1
-      local.get $right
-      local.set $t2
-      local.get $t1
-      local.get $t2
-      call $"impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]"
-      local.set $t3
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
-      local.get $left
+      i32.load $heap
+      local.tee $t2
       if
-        local.get $left
-        i32.load $heap
-        local.set $t1
-        local.get $left
-        i32.load $heap offset=4
-        local.set $left
-        local.get $t1
-        call $rt:release_ref
-      end
-      i32.const 0
-      local.set $left
-      local.get $right
-      if
-        local.get $right
-        i32.load $heap
-        local.set $t1
-        local.get $right
-        i32.load $heap offset=4
-        local.set $right
-        local.get $t1
-        call $rt:release_ref
-      end
-      i32.const 0
-      local.set $right
-      local.get $left
-      if
-        local.get $left
-        i32.load $heap
-        local.set $t1
-        local.get $left
-        i32.load $heap offset=4
-        local.set $t2
-        local.get $t1
-        call $rt:release_ref
-      end
-      local.get $right
-      if
-        local.get $right
-        i32.load $heap
-        local.set $t1
-        local.get $right
-        i32.load $heap offset=4
-        local.set $right
-        local.get $t1
+        local.get $t2
         call $rt:release_ref
       end
     end
-    local.get $t3
+    local.get $right
+    if
+      local.get $right
+      i32.load $heap
+      local.tee $right
+      if
+        local.get $right
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
     local.get $t0
     i32.const 32
     i32.add

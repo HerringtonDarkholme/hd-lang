@@ -25,10 +25,6 @@ fn moved(x: S1) -> S0:
 > app/main/moved
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 
 fn copied(x: &S1) -> S0:
     return x._0
@@ -77,10 +73,6 @@ type S1 = (S0, S0)
 fn moved(x: S1) -> S0:
     return x._0
 > app/main/moved
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 

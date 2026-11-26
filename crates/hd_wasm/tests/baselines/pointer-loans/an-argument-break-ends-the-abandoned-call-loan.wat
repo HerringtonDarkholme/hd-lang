@@ -13,220 +13,203 @@
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (local $t4 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $probe (param $p i32) (param $alias i32) (local $t3 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32)
     ;; 26 |     for round in 0..2:
+    i32.const 2
+    local.set $t0
     block
-      i32.const 0
-      i32.const 2
-      i32.const 0
-      local.set $t0
-      local.set $t1
-      local.set $t2
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          local.set $t0
-          local.get $t0
-          if
-            local.get $t2
-            i32.const -2
-            i32.gt_u
-            if
-              call $rt:panic'1
-              unreachable
-            end
-            local.get $t2
-            i32.const 1
-            i32.add
-            local.set $t2
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        i32.const -2
+        i32.gt_u
+        if
+          call $rt:panic'1
+          unreachable
+        end
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
     ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
-            local.get $p
-            i32.const 4
+        local.get $p
+        i32.const 4
+        i32.sub
+        local.set $t2
+        local.get $t3
+        if
+          local.get $t3
+          i32.load $heap
+          local.tee $t4
+          i32.const 2031616
+          i32.and
+          i32.const 2031616
+          i32.eq
+          if
+            local.get $t3
+            call $rt:loan_unshare
+          else
+            local.get $t3
+            local.get $t4
+            i32.const 65536
             i32.sub
-            local.set $t0
-            local.get $p
-            local.set $t3
-            local.get $t4
-            if
-              local.get $t4
-              i32.load $heap
-              local.set $t5
-              local.get $t5
-              i32.const 2031616
-              i32.and
-              i32.const 2031616
-              i32.eq
-              if
-                local.get $t4
-                call $rt:loan_unshare
-              else
-                local.get $t4
-                local.get $t5
-                i32.const 65536
-                i32.sub
-                i32.store $heap
-              end
-              local.get $t6
-              i32.const 65536
-              i32.sub
-              local.set $t6
-            end
-            local.get $t0
-            local.set $t4
-            local.get $t4
+            i32.store $heap
+          end
+          local.get $t5
+          i32.const 65536
+          i32.sub
+          local.set $t5
+        end
+        local.get $t2
+        local.tee $t3
+        i32.load $heap
+        local.tee $t2
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t3
+          call $rt:loan_share
+        else
+          local.get $t3
+          local.get $t2
+          i32.const 65536
+          i32.add
+          i32.store $heap
+        end
+        local.get $t5
+        i32.const 65536
+        i32.add
+        local.set $t5
+        local.get $p
+        i32.const 0
+        call $"impl Slots.at"
+        local.set $t2
+        local.get $p
+        i32.load $heap
+        i32.load $heap offset=4
+        i32.const 1
+        i32.eq
+        if
+          local.get $t3
+          if
+            local.get $t3
             i32.load $heap
-            local.set $t0
-            local.get $t0
+            local.tee $t1
             i32.const 2031616
             i32.and
             i32.const 2031616
             i32.eq
             if
-              local.get $t4
-              call $rt:loan_share
-            else
-              local.get $t4
-              local.get $t0
-              i32.const 65536
-              i32.add
-              i32.store $heap
-            end
-            local.get $t6
-            i32.const 65536
-            i32.add
-            local.set $t6
-            local.get $t3
-            i32.const 0
-            call $"impl Slots.at"
-            local.set $t0
-            i32.const 0
-            local.set $t3
-            local.get $p
-            i32.load $heap
-            local.set $t3
-            local.get $t3
-            i32.load $heap offset=4
-            local.set $t3
-            local.get $t3
-            i32.const 1
-            i32.eq
-            local.set $t3
-            local.get $t3
-            if
-              local.get $t4
-              if
-                local.get $t4
-                i32.load $heap
-                local.set $t1
-                local.get $t1
-                i32.const 2031616
-                i32.and
-                i32.const 2031616
-                i32.eq
-                if
-                  local.get $t4
-                  call $rt:loan_unshare
-                else
-                  local.get $t4
-                  local.get $t1
-                  i32.const 65536
-                  i32.sub
-                  i32.store $heap
-                end
-                local.get $t6
-                i32.const 65536
-                i32.sub
-                local.set $t6
-                i32.const 0
-                local.set $t4
-              end
-              i32.const 0
-              local.set $t0
-              br 3
-            else
-              local.get $alias
-              call $rt:retain_known
-              local.get $alias
-              call $later
-              local.set $t3
-            end
-            local.get $t0
-            local.get $t3
-            call $observe
-            local.set $t0
-            local.set $t0
-            local.get $t4
-            if
-              local.get $t4
-              i32.load $heap
-              local.set $t3
               local.get $t3
-              i32.const 2031616
-              i32.and
-              i32.const 2031616
-              i32.eq
-              if
-                local.get $t4
-                call $rt:loan_unshare
-              else
-                local.get $t4
-                local.get $t3
-                i32.const 65536
-                i32.sub
-                i32.store $heap
-              end
-              local.get $t6
+              call $rt:loan_unshare
+            else
+              local.get $t3
+              local.get $t1
               i32.const 65536
               i32.sub
-              local.set $t6
-              i32.const 0
-              local.set $t4
+              i32.store $heap
             end
-    ;; 26 |     for round in 0..2:
-            local.get $t0
-            call $rt:release_ref'1
-            i32.const 0
-            local.set $t0
-            i32.const 0
-            local.set $t0
-            i32.const 0
-            local.set $t0
-          else
-            br 2
           end
-          br 0
+          br 2
+        else
+          local.get $alias
+          if
+            local.get $alias
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $alias
+              call $rt:retain_known
+            end
+          end
+          local.get $alias
+          call $later
+          local.set $t4
         end
-      end
-    ;; 28 |     alias.items.push("after the loop")
-      local.get $alias
-      i32.const 4
-      i32.sub
-      local.set $t4
-      local.get $t4
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      local.get $t7
-      i32.ne
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $alias
-      local.set $t4
-      local.get $t4
-      i32.const 143 ;; &"after the loop"
-      i32.const 14
-      call $"impl Slots.push"
+        local.get $t2
+        local.get $t4
+        call $observe
+        drop
+        local.set $t2
+        local.get $t3
+        if
+          local.get $t3
+          i32.load $heap
+          local.tee $t4
+          i32.const 2031616
+          i32.and
+          i32.const 2031616
+          i32.eq
+          if
+            local.get $t3
+            call $rt:loan_unshare
+          else
+            local.get $t3
+            local.get $t4
+            i32.const 65536
+            i32.sub
+            i32.store $heap
+          end
+          local.get $t5
+          i32.const 65536
+          i32.sub
+          local.set $t5
+          i32.const 0
+          local.set $t3
+        end
     ;; 26 |     for round in 0..2:
-      i32.const 0
-      local.set $t4
+        local.get $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
+        br 0
+      end
+    end
+    ;; 28 |     alias.items.push("after the loop")
+    local.get $alias
+    i32.const 4
+    i32.sub
+    i32.load $heap
+    i32.const 4128768
+    i32.and
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $alias
+    i32.const 143 ;; &"after the loop"
+    i32.const 14
+    call $"impl Slots.push"
+    ;; 26 |     for round in 0..2:
+    local.get $p
+    if
       local.get $p
-      call $rt:release_ref'2
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref'2
+      end
+    end
+    local.get $alias
+    if
       local.get $alias
-      call $rt:release_ref'2
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $alias
+        call $rt:release_ref'2
+      end
     end
   )
 )

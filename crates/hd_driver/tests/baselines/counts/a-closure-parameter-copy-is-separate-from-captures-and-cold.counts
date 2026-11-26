@@ -6,22 +6,14 @@
 fn plain(captured: string) -> (fn(string) -> (string, string)):
     fn(value: string) -> (string, string): (captured, value)
 > app/main/plain
->   release string (last use)
-> app/main/plain
 >   retain string (stored)
 >   retain string (stored)
->   release string (last use)
->   release string (last use)
 
 fn cold_capture(captured: string) -> (fn!(string) -> (string, string)):
     fn!(value: string) -> (string, string): (captured, value)
 > app/main/cold_capture
->   release string (last use)
-> app/main/cold_capture
 >   retain string (stored)
 >   retain string (stored)
->   release string (last use)
->   release string (last use)
 > app/main/cold_capture
 >   release (string, string) [0.0, 1.0] (cancelled)
 > app/main/cold_capture

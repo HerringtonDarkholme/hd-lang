@@ -5,10 +5,8 @@ fn first(text: string) -> (string, string):
     (text, text)
 > app/main/first
 >   retain string (stored)
->   release string (last use)
 
 fn second(text: string) -> (string, string):
     (text, text)
 > app/main/second
 >   retain string (stored)
->   release string (last use)

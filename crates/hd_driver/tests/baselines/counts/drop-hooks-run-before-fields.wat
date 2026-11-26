@@ -3,10 +3,8 @@
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (func $release (param $item.name.0 i32) (param $item.name.1 i32)
     ;; 18 |     pass
-    block
-      local.get $item.name.0
-      local.get $item.name.1
-      call $rt:release_spilled
-    end
+    local.get $item.name.0
+    local.get $item.name.1
+    call $rt:release_spilled
   )
 )

@@ -2,118 +2,86 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "impl Held.text" (func $"impl Held.text" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (local $t2 i32) (local $replace.1 i32) (local $source i32) (local $replace.0 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
-    block
-      ;; ...
+  (func $main (local $replace.1 i32) (local $source i32) (local $replace.0 i32) (local $t0 i32) (local $t1 i32)
+    ;; ...
     ;; 20 |     _ := source.text(replace)
-      local.get $source
-      i32.const 4
+    local.get $source
+    i32.const 4
+    i32.sub
+    local.get $source
+    i32.load $heap
+    local.tee $t0
+    if
+      local.get $t0
+      i32.const 8
       i32.sub
-      local.set $t0
-      local.get $source
       i32.load $heap
-      local.set $t1
-      local.get $t1
-      call $rt:retain_known
-      local.get $source
-      call $rt:release_ref
-      i32.const 0
-      local.set $source
-      local.get $t2
       if
-        local.get $t2
-        i32.load $heap
-        local.set $t3
-        local.get $t3
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t2
-          call $rt:loan_unshare
-        else
-          local.get $t2
-          local.get $t3
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        local.get $t4
-        i32.const 65536
-        i32.sub
-        local.set $t4
+        local.get $t0
+        call $rt:retain_known
       end
-      local.get $t0
-      local.set $t2
-      local.get $t2
+    end
+    local.get $source
+    if
+      local.get $source
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.set $t0
-      local.get $t0
+      global.get $tracing
+      i32.or
+      if
+        local.get $source
+        call $rt:release_ref
+      end
+    end
+    local.tee $source
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $source
+      call $rt:loan_share
+    else
+      local.get $source
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $t0
+    local.get $replace.0
+    local.get $replace.1
+    call $"impl Held.text"
+    drop
+    local.set $replace.1
+    local.get $source
+    if
+      local.get $source
+      i32.load $heap
+      local.tee $replace.0
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t2
-        call $rt:loan_share
+        local.get $source
+        call $rt:loan_unshare
       else
-        local.get $t2
-        local.get $t0
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-      local.get $t4
-      i32.const 65536
-      i32.add
-      local.set $t4
-      local.get $replace.0
-      local.get $replace.1
-      local.set $t0
-      local.set $t3
-      i32.const 0
-      local.set $replace.0
-      i32.const 0
-      local.set $replace.1
-      local.get $t1
-      local.get $t3
-      local.get $t0
-      call $"impl Held.text"
-      local.set $replace.1
-      local.set $replace.1
-      local.get $t2
-      if
-        local.get $t2
-        i32.load $heap
-        local.set $replace.0
+        local.get $source
         local.get $replace.0
-        i32.const 2031616
-        i32.and
-        i32.const 2031616
-        i32.eq
-        if
-          local.get $t2
-          call $rt:loan_unshare
-        else
-          local.get $t2
-          local.get $replace.0
-          i32.const 65536
-          i32.sub
-          i32.store $heap
-        end
-        local.get $t4
         i32.const 65536
         i32.sub
-        local.set $t4
-        i32.const 0
-        local.set $t2
+        i32.store $heap
       end
-      ;; ...
     end
+    ;; ...
   )
 )

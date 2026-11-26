@@ -15,7 +15,5 @@
     local.get $x
     i64.const 3
     i64.mul
-    local.set $x
-    local.get $x
   )
 )

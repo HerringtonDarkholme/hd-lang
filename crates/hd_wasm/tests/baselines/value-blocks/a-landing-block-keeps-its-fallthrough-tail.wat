@@ -3,72 +3,26 @@
 (module
   (func $landing_nested_nonzero (param $n i32) (result i32)
     block
-      block
-        block
-          block
-            block
-              block
     ;; (no span)
-                local.get $n
-                i32.const 0
-                i32.eq
-                local.set $n
-                local.get $n
-                if
-                  i32.const 5
-                  local.set $n
-                  br 3
-                else
-                  br 1
-                end
-              end
-            end
-            block
-              i32.const 7
-              local.set $n
-            end
-          end
-        end
-        br 0
-      end
+      local.get $n
+      br_if 0
+      i32.const 5
+      return
     end
-    local.get $n
+    i32.const 7
   )
 )
 == @build: checked
 (module
   (func $landing_nested_nonzero (param $n i32) (result i32)
     block
-      block
-        block
-          block
-            block
-              block
     ;; (no span)
-                local.get $n
-                i32.const 0
-                i32.eq
-                local.set $n
-                local.get $n
-                if
-                  i32.const 5
-                  local.set $n
-                  br 3
-                else
-                  br 1
-                end
-              end
-            end
-            block
-              i32.const 7
-              local.set $n
-            end
-          end
-        end
-        br 0
-      end
+      local.get $n
+      br_if 0
+      i32.const 5
+      return
     end
-    local.get $n
+    i32.const 7
   )
 )
 == @build: release

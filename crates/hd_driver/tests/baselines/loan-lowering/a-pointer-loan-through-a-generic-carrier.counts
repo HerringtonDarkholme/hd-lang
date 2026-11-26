@@ -35,7 +35,6 @@ fn carried(p: *mut Slots, alias: *mut Slots) -> string:
     held := keep(Carrier { value: p.first() })
 > app/main/carried
 >   release *mut app.main.Slots (last use)
->   release *mut app.main.Slots (last use)
     maybe_change(alias, false)
     *held.value
 >   retain string (stored)

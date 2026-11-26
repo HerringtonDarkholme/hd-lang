@@ -3,12 +3,8 @@
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (func $consume (param $t0 i32) (result i32)
     ;; 46 | fn consume(h: Holder) -> i32: 1
-    block
-      local.get $t0
-      call $rt:drop
-      i32.const 1
-      local.set $t0
-    end
     local.get $t0
+    call $rt:drop
+    i32.const 1
   )
 )

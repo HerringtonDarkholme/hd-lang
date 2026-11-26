@@ -14,7 +14,6 @@ fn read(value: (&i32)?) -> i32:
 fn call() -> i32:
     let owner: *i32 = box(+7)
 > app/main/call
->   release fn(&i32?) -> i32 (last use)
 >   release *i32 (last use)
     let callback: fn((&i32)?) -> i32 = read
     callback(.Some(owner))

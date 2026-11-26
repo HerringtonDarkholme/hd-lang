@@ -3,78 +3,52 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 17))
-  (func $make (param $counter i32) (param $n i32) (param $t2 i32) (local $t0 i32) (local $t1 i32)
-    block
+  (func $make (param $counter i32) (param $n i32) (param $t1 i32) (local $t0 i32)
     ;; 32 |         f0: scalar(counter),
-      block
-        block
-          local.get $counter
-          i32.load $heap
-          local.set $t0
-          local.get $t0
-          i32.const 2147483646
-          i32.gt_s
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
-          local.get $counter
-          i32.load $heap
-          local.set $t1
-          local.get $counter
-          local.get $t0
-          i32.store $heap
-          local.get $t2
-          i32.const 12345
-          i32.store $heap
-          br 0
-        end
-      end
-      ;; ...
+    local.get $counter
+    i32.load $heap
+    local.tee $t0
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $counter
+    local.get $t0
+    i32.const 1
+    i32.add
+    i32.store $heap
+    local.get $t1
+    i32.const 12345
+    i32.store $heap
+    ;; ...
   )
 )
 == @build: checked
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 17))
-  (func $make (param $counter i32) (param $n i32) (param $t2 i32) (local $t0 i32) (local $t1 i32)
-    block
+  (func $make (param $counter i32) (param $n i32) (param $t1 i32) (local $t0 i32)
     ;; 32 |         f0: scalar(counter),
-      block
-        block
-          local.get $counter
-          i32.load $heap
-          local.set $t0
-          local.get $t0
-          i32.const 2147483646
-          i32.gt_s
-          if
-            call $rt:panic
-            unreachable
-          end
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
-          local.get $counter
-          i32.load $heap
-          local.set $t1
-          local.get $counter
-          local.get $t0
-          i32.store $heap
-          local.get $t2
-          i32.const 12345
-          i32.store $heap
-          br 0
-        end
-      end
-      ;; ...
+    local.get $counter
+    i32.load $heap
+    local.tee $t0
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic
+      unreachable
     end
+    local.get $counter
+    local.get $t0
+    i32.const 1
+    i32.add
+    i32.store $heap
+    local.get $t1
+    i32.const 12345
+    i32.store $heap
+    ;; ...
   )
 )
 == @build: release

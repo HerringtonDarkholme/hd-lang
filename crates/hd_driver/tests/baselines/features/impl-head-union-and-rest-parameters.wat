@@ -8,35 +8,27 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $"impl[T] Size for (i32, List[T] ...).size[string]" (param $t0 i32) (result i32)
     ;; 19 |         1 + self._1.len()
-    block
-      local.get $t0
-      i32.load $heap
-      local.set $t0
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t0
-      local.get $t0
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      i32.const 1
-      local.get $t0
-      i32.add
-      local.set $t0
-    end
     local.get $t0
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $t0
+    i32.const -2
+    i32.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    i32.const 1
+    local.get $t0
+    i32.add
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $union.0 i32) (local $union.1 i32) (local $offset'1 i32) (local $offset'2 i32) (local $rest i32) (local $t0 i32) (local $value'1 i64) (local $value'2 i64) (local $t1 i64) (local $t2 i64) (local $result.0 i32) (local $offset'3 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $wrapped i32) (local $rest i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t6 i32) (local $t5 i32)
     ;; 22 |     let union: i32 | string = ._1("a")
     global.get $stack
     global.get $stack_limit
@@ -52,272 +44,166 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      i32.const 113 ;; &"a"
-      i32.const 1
-      local.set $union.1
-      local.set $union.0
     ;; 23 |     let rest: (i32, List[string]...) = (+1, "a", "b")
-      i32.const 2
-      local.set $offset'1
-      local.get $offset'1
-      call $rt:list_buf
-      local.set $offset'2
-      local.get $offset'2
-      local.get $offset'1
-      i32.store $heap offset=4
-      local.get $offset'2
-      local.set $offset'1
-      local.get $offset'1
-      i32.const 113 ;; &"a"
-      i32.store $heap offset=16
-      local.get $offset'1
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $offset'1
-      i32.const 8
-      i32.add
-      local.set $offset'1
-      local.get $offset'1
-      i32.const 114 ;; &"b"
-      i32.store $heap offset=16
-      local.get $offset'1
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $offset'1
-      i32.const 8
-      i32.add
-      local.set $offset'1
-      i32.const 1
-      local.set $offset'1
+    i32.const 2
+    call $rt:list_buf
+    local.tee $wrapped
+    i32.const 2
+    i32.store $heap offset=4
+    local.get $wrapped
+    local.tee $rest
+    i32.const 113 ;; &"a"
+    i32.store $heap offset=16
+    local.get $rest
+    i32.const 1
+    i32.store $heap offset=20
+    local.get $rest
+    i32.const 8
+    i32.add
+    local.tee $rest
+    i32.const 114 ;; &"b"
+    i32.store $heap offset=16
+    local.get $rest
+    i32.const 1
+    i32.store $heap offset=20
     ;; 22 |     let union: i32 | string = ._1("a")
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $rest
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $rest
     ;; 23 |     let rest: (i32, List[string]...) = (+1, "a", "b")
-      local.get $rest
-      local.get $offset'1
-      i32.store $heap offset=4
-      local.get $rest
-      local.get $offset'2
-      i32.store $heap
-    ;; 24 |     wrapped := Wrap { value: union }
-      local.get $union.0
-      local.get $union.1
-      local.set $offset'1
-      local.set $offset'2
-      i32.const 0
-      local.set $union.0
-      i32.const 0
-      local.set $union.1
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $rest
+    local.get $wrapped
+    i32.store $heap
     ;; 22 |     let union: i32 | string = ._1("a")
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.set $union.1
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $wrapped
+    i32.const 113 ;; &"a"
     ;; 24 |     wrapped := Wrap { value: union }
-      local.get $union.1
-      local.get $offset'2
-      i32.store $heap
-      local.get $union.1
-      local.get $offset'1
-      i32.store $heap offset=4
+    i32.store $heap
+    local.get $wrapped
+    ;; 22 |     let union: i32 | string = ._1("a")
+    i32.const 1
+    ;; 24 |     wrapped := Wrap { value: union }
+    i32.store $heap offset=4
     ;; 25 |     println("${wrapped.size()} ${rest.size()}")
-      local.get $union.1
-      local.set $union.0
-      local.get $union.0
-      call $"impl[A, B] Size for Wrap[A | B].size[i32, string]"
-      local.set $offset'1
-      i32.const 0
-      local.set $union.0
-      local.get $union.1
+    local.get $wrapped
+    call $"impl[A, B] Size for Wrap[A | B].size[i32, string]"
+    local.set $t1
+    local.get $wrapped
+    if
+      local.get $wrapped
+      i32.load $heap
+      local.tee $wrapped
       if
-        local.get $union.1
-        i32.load $heap
-        local.set $union.0
-        local.get $union.1
-        i32.load $heap offset=4
-        local.set $union.1
-        local.get $union.0
+        local.get $wrapped
         call $rt:release_ref'1
       end
-      i32.const 0
-      local.set $union.1
-      local.get $offset'1
-      i64.extend_i32_u
-      local.set $value'1
-      block
-        block
-          local.get $value'1
-          call $unsigned_width
-          local.set $union.1
-          br 0
-        end
-      end
-      local.get $rest
-      local.set $union.0
-      local.get $union.0
-      call $"impl[T] Size for (i32, List[T] ...).size[string]"
-      local.set $offset'1
-      i32.const 0
-      local.set $union.0
-      local.get $rest
-      if
-        local.get $rest
-        i32.load $heap offset=4
-        local.set $union.0
-        local.get $rest
-        i32.load $heap
-        local.set $rest
-        local.get $rest
-        call $rt:release_ref'2
-      end
-      i32.const 0
-      local.set $rest
-      local.get $offset'1
-      i64.extend_i32_u
-      local.set $value'2
-      block
-        block
-          local.get $value'2
-          call $unsigned_width
-          local.set $union.0
-          br 0
-        end
-      end
-      i32.const 0
-      local.get $union.1
-      i32.add
-      local.set $offset'1
-      local.get $offset'1
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $offset'1
-      i32.const 1
-      i32.add
-      local.set $offset'2
-      local.get $offset'2
-      i64.extend_i32_u
-      local.set $t1
-      local.get $union.0
-      i64.extend_i32_u
-      local.set $t2
-      local.get $t1
-      local.get $t2
-      i64.add
-      local.set $t1
-      local.get $t1
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'1
-        unreachable
-      end
-      local.get $t1
-      i32.wrap_i64
-      local.set $rest
-      block
-        block
-          i32.const 16
-          local.set $result.0
-          local.get $rest
-          if
-            local.get $rest
-            call $rt:str
-            local.set $result.0
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'3
-      block
-        block
-          local.get $result.0
-          local.get $offset'3
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $offset'3
-          local.get $value'1
-          local.get $offset'3
-          local.get $union.1
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      i32.const 115 ;; &" "
-      i32.const 1
-      local.set $union.1
-      local.set $offset'3
-      block
-        block
-          local.get $result.0
-          i64.extend_i32_u
-          local.set $value'1
-          local.get $offset'1
-          i64.extend_i32_u
-          local.set $t1
-          local.get $value'1
-          local.get $t1
-          i64.add
-          local.set $value'1
-          local.get $value'1
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'1
-            unreachable
-          end
-          local.get $value'1
-          i32.wrap_i64
-          local.set $offset'1
-          local.get $offset'1
-          local.get $offset'3
-          local.get $union.1
-          call $rt:memory_copy/0/0
-          br 0
-        end
-      end
-      local.get $offset'3
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $offset'3
-      i32.const 0
-      local.set $union.1
-      block
-        block
-          local.get $result.0
-          local.get $offset'2
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $union.1
-          local.get $value'2
-          local.get $union.1
-          local.get $union.0
-          call $write_unsigned_sized
-          br 0
-        end
-      end
-      local.get $result.0
-      local.get $rest
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 22 |     let union: i32 | string = ._1("a")
     end
+    local.get $t1
+    i64.extend_i32_u
+    local.tee $t2
+    call $unsigned_width
+    local.set $wrapped
+    local.get $rest
+    call $"impl[T] Size for (i32, List[T] ...).size[string]"
+    local.set $t1
+    local.get $rest
+    if
+      local.get $rest
+      i32.load $heap
+      local.tee $rest
+      if
+        local.get $rest
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $rest
+          call $rt:release_ref'2
+        end
+      end
+    end
+    local.get $t1
+    i64.extend_i32_u
+    local.tee $t3
+    call $unsigned_width
+    local.set $rest
+    local.get $wrapped
+    local.tee $t1
+    i32.const -2
+    i32.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t1
+    i32.const 1
+    i32.add
+    local.tee $t1
+    i64.extend_i32_u
+    local.get $rest
+    i64.extend_i32_u
+    i64.add
+    local.tee $t4
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t4
+    i32.wrap_i64
+    local.tee $t5
+    i32.const 16
+    local.set $t6
+    if
+      local.get $t5
+      call $rt:str
+      local.set $t6
+    end
+    local.get $t2
+    local.get $t6
+    local.get $wrapped
+    call $write_unsigned_sized
+    local.get $t6
+    i64.extend_i32_u
+    local.get $wrapped
+    i64.extend_i32_u
+    i64.add
+    local.tee $t2
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t2
+    i32.wrap_i64
+    i32.const 32
+    i32.store8 $heap
+    local.get $t3
+    local.get $t6
+    local.get $t1
+    i32.add
+    local.get $rest
+    call $write_unsigned_sized
+    local.get $t6
+    local.get $t5
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t0
     i32.const 32
     i32.add
@@ -325,10 +211,6 @@
   )
   (func $"impl[A, B] Size for Wrap[A | B].size[i32, string]" (param $t0 i32) (result i32)
     ;; 15 |         2
-    block
-      i32.const 2
-      local.set $t0
-    end
-    local.get $t0
+    i32.const 2
   )
 )

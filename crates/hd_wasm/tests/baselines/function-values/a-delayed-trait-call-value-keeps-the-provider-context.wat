@@ -12,83 +12,74 @@
     local.get $ctx
     i64.const 6502919983801278103
     call $rt:ctx_find
-    local.set $env
-    local.get $env
+    local.tee $env
     i32.load $heap offset=24
     local.set $ctx
     local.get $env
     i32.load $heap offset=28
     local.set $env
-    block
-      local.get $t0
-      i32.load $heap
-      local.set $t1
-      local.get $t0
-      i32.load $heap offset=4
-      local.set $t0
-      local.get $t0
-      local.get $t2
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.set $t0
-      local.get $t0
-      i64.const 6502919983801278103
-      i64.store $heap offset=16
-      local.get $t0
-      local.get $ctx
-      i32.store $heap offset=24
-      local.get $t0
-      local.get $env
-      i32.store $heap offset=28
-      local.get $ctx
-      call $retain
-      local.get $t0
-      local.get $t1
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $env
-      local.get $t0
-      call $rt:release_ref
-    end
+    local.get $t0
+    i32.load $heap
+    local.set $t1
+    local.get $t0
+    i32.load $heap offset=4
+    local.get $t2
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $t0
+    i64.const 6502919983801278103
+    i64.store $heap offset=16
+    local.get $t0
+    local.get $ctx
+    i32.store $heap offset=24
+    local.get $t0
     local.get $env
-  )
-  (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 15 |     invoke(Fn::call, logged, +15)
-    block
-      i32.const 3
-      i32.const 0
-      local.set $t0
-      local.set $t1
-      i32.const 4
-      i32.const 0
-      local.set $t2
-      local.set $t3
-      local.get $t1
-      local.get $t0
-      local.get $t3
-      local.get $t2
-      i32.const 15
-      i32.const 1
-      i32.const 0
-      call $rt:ctx_new
-      local.set $t0
-      local.get $t0
-      i64.const 6502919983801278103
-      i64.store $heap offset=16
-      local.get $t0
-      local.get $provider0
-      i32.store $heap offset=24
-      local.get $t0
-      local.get $provider0.vtable
-      i32.store $heap offset=28
-      local.get $provider0
+    i32.store $heap offset=28
+    local.get $ctx
+    if
+      local.get $ctx
       call $retain
-      local.get $t0
-      call $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]"
-      local.set $provider0
+    end
+    local.get $t0
+    local.get $t1
+    call_indirect $table0 (param i32 i32 i32) (result i32)
+    local.get $t0
+    if
       local.get $t0
       call $rt:release_ref
     end
+  )
+  (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
+    ;; 15 |     invoke(Fn::call, logged, +15)
+    i32.const 3
+    i32.const 0
+    i32.const 4
+    i32.const 0
+    i32.const 15
+    i32.const 1
+    i32.const 0
+    call $rt:ctx_new
+    local.tee $t0
+    i64.const 6502919983801278103
+    i64.store $heap offset=16
+    local.get $t0
     local.get $provider0
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $provider0.vtable
+    i32.store $heap offset=28
+    local.get $provider0
+    if
+      local.get $provider0
+      call $retain
+    end
+    local.get $t0
+    call $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]"
+    local.get $t0
+    if
+      local.get $t0
+      call $rt:release_ref
+    end
   )
 )

@@ -2,163 +2,138 @@
 == @build: dev
 (module
   (import "fixture" "impl Slots.get_ref" (func $"impl Slots.get_ref" (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $message.0 i32) (local $message.1 i32) (local $t0 i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
+    local.get $p
+    call $"impl Slots.get_ref"
+    i32.const 124 ;; &"slot"
+    i32.const 4
+    local.set $message.1
+    local.set $message.0
+    local.set $value
     block
-      local.get $p
-      call $"impl Slots.get_ref"
-      local.set $self
-      i32.const 124 ;; &"slot"
-      i32.const 4
-      local.set $message.1
-      local.set $message.0
       block
         block
-          block
-            block
-              block
-                local.get $self
-                if
-                  br 1
-                else
-                  br 2
-                end
-                unreachable
-              end
-              br 1
-            end
-            local.get $message.0
-            local.get $message.1
-            i32.const 2
-            call_indirect $table0 (param i32 i32)
-            unreachable
-            br 0
-          end
-          local.get $self
-          local.set $t0
+          local.get $value
+          i32.eqz
+          br_if 1
           br 0
+          unreachable
         end
+        br 1
       end
       local.get $message.0
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $message.0
-      i32.const 0
-      local.set $message.1
-      i32.const 0
-      local.set $self
-      local.get $t0
-      call $read
-      local.set $self
-      local.set $message.1
-      i32.const 0
-      local.set $t0
-    ;; 31 |     alias.push()
-      local.get $alias
-      call $"impl Slots.push"
-    ;; 32 |     seen
       local.get $message.1
-      local.get $self
-      local.set $message.0
-      local.set $t0
-    ;; 30 |     seen := read(p.get_ref().expect("slot"))
-      i32.const 0
-      local.set $message.1
-      i32.const 0
-      local.set $self
-      local.get $p
-      call $rt:release_ref'2
-      local.get $alias
-      call $rt:release_ref'2
+      i32.const 2
+      call_indirect $table0 (param i32 i32)
+      unreachable
     end
-    local.get $t0
-    local.get $message.0
+    local.get $value
+    call $read
+    ;; 31 |     alias.push()
+    local.get $alias
+    call $"impl Slots.push"
+    ;; 30 |     seen := read(p.get_ref().expect("slot"))
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      end
+    end
+    local.get $alias
+    if
+      local.get $alias
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $alias
+        call $rt:release_ref
+      end
+    end
   )
 )
 == @build: checked
 (module
   (import "fixture" "impl Slots.get_ref" (func $"impl Slots.get_ref" (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $message.0 i32) (local $message.1 i32) (local $t0 i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
+    local.get $p
+    call $"impl Slots.get_ref"
+    i32.const 130 ;; &"slot"
+    i32.const 4
+    local.set $message.1
+    local.set $message.0
+    local.set $value
     block
-      local.get $p
-      call $"impl Slots.get_ref"
-      local.set $self
-      i32.const 130 ;; &"slot"
-      i32.const 4
-      local.set $message.1
-      local.set $message.0
       block
         block
-          block
-            block
-              block
-                local.get $self
-                if
-                  br 1
-                else
-                  br 2
-                end
-                unreachable
-              end
-              br 1
-            end
-            local.get $message.0
-            local.get $message.1
-            i32.const 2
-            call_indirect $table0 (param i32 i32)
-            unreachable
-            br 0
-          end
-          local.get $self
-          local.set $t0
+          local.get $value
+          i32.eqz
+          br_if 1
           br 0
+          unreachable
         end
+        br 1
       end
       local.get $message.0
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $message.0
-      i32.const 0
-      local.set $message.1
-      i32.const 0
-      local.set $self
-      local.get $t0
-      call $read
-      local.set $self
-      local.set $message.1
-      i32.const 0
-      local.set $t0
-    ;; 31 |     alias.push()
-      local.get $alias
-      call $"impl Slots.push"
-    ;; 32 |     seen
       local.get $message.1
-      local.get $self
-      local.set $message.0
-      local.set $t0
-    ;; 30 |     seen := read(p.get_ref().expect("slot"))
-      i32.const 0
-      local.set $message.1
-      i32.const 0
-      local.set $self
-      local.get $p
-      call $rt:release_ref'2
-      local.get $alias
-      call $rt:release_ref'2
+      i32.const 2
+      call_indirect $table0 (param i32 i32)
+      unreachable
     end
-    local.get $t0
-    local.get $message.0
+    local.get $value
+    call $read
+    ;; 31 |     alias.push()
+    local.get $alias
+    call $"impl Slots.push"
+    ;; 30 |     seen := read(p.get_ref().expect("slot"))
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
+      else
+        call $skipped_test
+      end
+    else
+      call $skipped_test
+    end
+    local.get $alias
+    if
+      local.get $alias
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $alias
+        call $rt:release_ref
+      else
+        call $skipped_test
+      end
+    else
+      call $skipped_test
+    end
   )
 )
 == @build: release

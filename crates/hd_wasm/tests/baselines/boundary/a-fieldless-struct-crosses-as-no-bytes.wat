@@ -7,34 +7,18 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 23 |     _ := $.use(Vault).keep(Token { before: +1, alone: Empty {}, pick: Pick.One(Empty {}, +7) })
-    block
-      local.get $provider0
-      local.get $provider0.vtable
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $provider0
-      i32.const 0
-      local.set $provider0.vtable
-      i32.const 1
-      i32.const 7
-      local.set $provider0
-      local.set $provider0.vtable
-      i32.const 1
-      local.set $t2
-      local.get $t1
-      local.get $t2
-      local.get $provider0.vtable
-      local.get $provider0
-      local.get $t0
-      i32.load $heap
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
-      local.set $provider0
-      local.set $provider0
-      local.set $provider0
-    end
+    local.get $provider0
+    i32.const 1
+    i32.const 1
+    i32.const 7
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
+    drop
+    drop
+    drop
   )
   (func $rt:hd:Vault/keep (param $t4 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32 i32) (local $t0 i32)
     ;; (no span)
@@ -43,8 +27,6 @@
     local.get $t2
     local.get $t3
     call $rt:enc'1
-    local.set $t0
-    local.get $t0
     call $hd:Vault/keep
     drop
     i32.const 0
@@ -65,21 +47,15 @@
     i64.shr_s
     i64.xor
     call $rt:leb_put
-    local.set $t2
-    local.get $t2
   )
   (func $rt:enc'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32)
     ;; (no span)
     local.get $t0
     local.get $t1
     call $rt:enc'2
-    local.set $t0
-    local.get $t0
     local.get $t2
     local.get $t3
     call $rt:enc'3
-    local.set $t0
-    local.get $t0
   )
   (func $rt:enc'3 (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32)
     ;; (no span)
@@ -104,8 +80,7 @@
     local.get $t0
     call $rt:leb_get
     local.set $t0
-    local.set $t1
-    local.get $t1
+    local.tee $t1
     i64.const 1
     i64.shr_u
     i64.const 0
@@ -114,8 +89,7 @@
     i64.and
     i64.sub
     i64.xor
-    local.set $t1
-    local.get $t1
+    local.tee $t1
     i64.const 32
     i64.shl
     i64.const 32
@@ -130,21 +104,11 @@
     i32.wrap_i64
     local.get $t0
   )
-  (func $rt:dec'1 (param $t0 i32) (result i32 i32 i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $rt:dec'1 (param $t0 i32) (result i32 i32 i32 i32)
     ;; (no span)
     local.get $t0
     call $rt:dec'2
-    local.set $t0
-    local.set $t1
-    local.get $t0
     call $rt:dec'3
-    local.set $t0
-    local.set $t2
-    local.set $t3
-    local.get $t1
-    local.get $t3
-    local.get $t2
-    local.get $t0
   )
   (func $rt:dec'3 (param $t0 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32)
     ;; (no span)
@@ -152,8 +116,7 @@
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.set $t1
-    local.get $t1
+    local.tee $t1
     i32.const 2
     i32.ge_u
     if

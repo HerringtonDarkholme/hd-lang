@@ -5,13 +5,8 @@ std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
 app/main/tick#adapter
 std/rt.cycle/push#0
-std/rt.alloc/local_page#0
 std/rt.cycle/scan#0
-std/rt.alloc/drain#0
-std/rt.alloc/owns#0
 std/rt.alloc/init_classes#0
-std/rt.alloc/registry#0
-std/rt.alloc/owner#0
 std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 app/main/tick#0
@@ -20,7 +15,6 @@ std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 app/main/run#0 [{open row}]
 app/main/twice#0 [{open row}]
-std/rt.alloc/release_known#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/rt.bytes/write_signed_sized#0
@@ -32,33 +26,25 @@ std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
 app/main/impl Clock for Fixed.now#0
-std/rt.alloc/adopted#0
 std/rt.alloc/unlink#0
 std/rt.alloc/retain#0
-std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 app/main/quiet#adapter
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/rt.entry/host_provider#0 [Console]
-std/rt.alloc/retain_known#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
-std/rt.thread/init.init#0
-std/rt.alloc/joined#0
-std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
 std/rt.alloc/init.init#0
-std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.cycle/drop_root#0
 std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
 app/main/shout#adapter
-std/time/init.init#0
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
@@ -91,10 +77,8 @@ rt:alloc_class/1
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:release_ref#0
+rt:release_ref
 rt:release_drain
-rt:retain_known
-rt:release_ref#1
 rt:list_buf
 rt:drop_elems
 rt:ctx_find

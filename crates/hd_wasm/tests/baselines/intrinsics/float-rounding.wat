@@ -4,86 +4,62 @@
     ;; 5 |     value.abs()
     local.get $value
     f32.abs
-    local.set $value
-    local.get $value
   )
   (func $f64_ceil (param $value f64) (result f64)
     ;; 32 |     value.ceil()
     local.get $value
     f64.ceil
-    local.set $value
-    local.get $value
   )
   (func $f32_ceil (param $value f32) (result f32)
     ;; 14 |     value.ceil()
     local.get $value
     f32.ceil
-    local.set $value
-    local.get $value
   )
   (func $f32_copysign (param $value f32) (param $sign f32) (result f32)
     ;; 20 |     value.copysign(sign)
     local.get $value
     local.get $sign
     f32.copysign
-    local.set $value
-    local.get $value
   )
   (func $f32_floor (param $value f32) (result f32)
     ;; 11 |     value.floor()
     local.get $value
     f32.floor
-    local.set $value
-    local.get $value
   )
   (func $f64_trunc (param $value f64) (result f64)
     ;; 26 |     value.trunc()
     local.get $value
     f64.trunc
-    local.set $value
-    local.get $value
   )
   (func $f32_round_ties_even (param $value f32) (result f32)
     ;; 17 |     value.round_ties_even()
     local.get $value
     f32.nearest
-    local.set $value
-    local.get $value
   )
   (func $f64_copysign (param $value f64) (param $sign f64) (result f64)
     ;; 38 |     value.copysign(sign)
     local.get $value
     local.get $sign
     f64.copysign
-    local.set $value
-    local.get $value
   )
   (func $f64_floor (param $value f64) (result f64)
     ;; 29 |     value.floor()
     local.get $value
     f64.floor
-    local.set $value
-    local.get $value
   )
   (func $f64_round_ties_even (param $value f64) (result f64)
     ;; 35 |     value.round_ties_even()
     local.get $value
     f64.nearest
-    local.set $value
-    local.get $value
   )
   (func $f64_abs (param $value f64) (result f64)
     ;; 23 |     value.abs()
     local.get $value
     f64.abs
-    local.set $value
-    local.get $value
   )
   (func $f32_trunc (param $value f32) (result f32)
     ;; 8 |     value.trunc()
     local.get $value
     f32.trunc
-    local.set $value
-    local.get $value
   )
 )

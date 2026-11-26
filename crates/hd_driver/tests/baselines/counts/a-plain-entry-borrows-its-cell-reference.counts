@@ -12,7 +12,6 @@ impl Update[string] for Sink:
         self.text = value
 > app/main/impl Update[string] for Sink.update
 >   release counted reference (overwritten)
->   release string (last use)
 
 fn helper!() -> string:
     let mut sink = Sink { text: "" }

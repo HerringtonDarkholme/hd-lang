@@ -3,13 +3,11 @@
 (module
   (import "fixture" "println[u32]" (func $"println[u32]" (param i32 i32 i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 20 |     println(add(4294967295u32, 1u32))
     i32.const -1
     i32.const 1
     call $"add[u32]"
-    local.set $t0
-    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[u32]"
@@ -17,8 +15,6 @@
     i32.const 2147483647
     i32.const 1
     call $"add[i32]"
-    local.set $t0
-    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -28,29 +24,23 @@
     local.get $left
     local.get $right
     i32.add
-    local.set $left
-    local.get $left
   )
   (func $"add[i32]" (param $left i32) (param $right i32) (result i32)
     ;; 17 |     left.plus(right)
     local.get $left
     local.get $right
     i32.add
-    local.set $left
-    local.get $left
   )
 )
 == @build: std checked
 (module
   (import "fixture" "println[u32]" (func $"println[u32]" (param i32 i32 i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 20 |     println(add(4294967295u32, 1u32))
     i32.const -1
     i32.const 1
     call $"add[u32]"
-    local.set $t0
-    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[u32]"
@@ -58,8 +48,6 @@
     i32.const 2147483647
     i32.const 1
     call $"add[i32]"
-    local.set $t0
-    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -69,16 +57,12 @@
     local.get $left
     local.get $right
     i32.add
-    local.set $left
-    local.get $left
   )
   (func $"add[i32]" (param $left i32) (param $right i32) (result i32)
     ;; 17 |     left.plus(right)
     local.get $left
     local.get $right
     i32.add
-    local.set $left
-    local.get $left
   )
 )
 == @build: std release

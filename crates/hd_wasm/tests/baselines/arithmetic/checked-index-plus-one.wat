@@ -13,7 +13,5 @@
     local.get $j
     i32.const 1
     i32.add
-    local.set $j
-    local.get $j
   )
 )

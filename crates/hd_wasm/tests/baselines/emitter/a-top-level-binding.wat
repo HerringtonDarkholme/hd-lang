@@ -5,8 +5,7 @@
   (func $count (local $t0 i32)
     ;; 9 |     calls = calls + 1
     global.get $calls
-    local.set $t0
-    local.get $t0
+    local.tee $t0
     i32.const 2147483646
     i32.gt_s
     if
@@ -16,8 +15,6 @@
     local.get $t0
     i32.const 1
     i32.add
-    local.set $t0
-    local.get $t0
     global.set $calls
   )
 )

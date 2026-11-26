@@ -9,62 +9,43 @@
   (import "fixture" "rt:dec'2" (func $rt:dec'2 (param i32) (result i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $h.0 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $h.0 i32)
     ;; 21 |     let h: &mut dyn Handle = $.use(Vault).open()
-    block
-      local.get $provider0
-      local.get $provider0.vtable
-      local.set $h.0
-      local.set $t0
-      i32.const 0
-      local.set $provider0
-      i32.const 0
-      local.set $provider0.vtable
-      local.get $t0
-      local.get $h.0
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32 i32)
-      local.set $provider0
-      local.set $provider0.vtable
-      local.get $provider0.vtable
-      local.set $h.0
+    local.get $provider0
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $provider0
+    local.tee $provider0.vtable
+    local.tee $h.0
     ;; 22 |     _ := h.read()
-      local.get $h.0
-      local.get $provider0
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      local.set $t0
+    local.get $provider0
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    drop
     ;; 23 |     _ := h.close()
+    local.get $h.0
+    if
       local.get $h.0
-      local.get $provider0
-      local.set $t0
-      local.set $t1
-      local.get $t1
       call $retain
-      i32.const 0
-      local.set $h.0
-      i32.const 0
-      local.set $provider0
-      local.get $t1
-      local.get $t0
-      i32.load $heap offset=4
-      i32.load $heap
-      i32.load $heap
-      call_indirect $table0 (param i32) (result i32)
-      local.set $t0
+    end
+    local.get $h.0
+    local.get $provider0
+    i32.load $heap offset=4
+    i32.load $heap
+    i32.load $heap
+    call_indirect $table0 (param i32) (result i32)
+    drop
     ;; 21 |     let h: &mut dyn Handle = $.use(Vault).open()
-      local.get $t1
+    local.get $h.0
+    if
+      local.get $h.0
       call $rt:release_ref
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $t0
+    end
+    local.get $provider0.vtable
+    if
       local.get $provider0.vtable
       call $rt:release_ref
-      i32.const 0
-      local.set $provider0.vtable
-      i32.const 0
-      local.set $provider0
     end
   )
   (func $rt:hd:Handle/close (param $t1 i32) (param $t0 i32) (result i32)

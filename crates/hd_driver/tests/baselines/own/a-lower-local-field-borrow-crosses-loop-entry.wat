@@ -12,148 +12,115 @@
     block
       block
         block
-          block
     ;; 10 |         "first" => pass
-            local.get $other.label.0
-            local.get $other.label.1
-            i32.const 65 ;; &"first"
-            i32.const 5
-            call $rt:str_eq
-            local.set $t0
-            local.get $t0
-            if
-              br 1
-            else
-              br 2
-            end
+          local.get $other.label.0
+          local.get $other.label.1
+          i32.const 65 ;; &"first"
+          i32.const 5
+          call $rt:str_eq
+          i32.eqz
+          br_if 1
+          br 0
     ;; 9 |     match other.label:
-            unreachable
-          end
-          br 1
+          unreachable
         end
-        br 0
+        br 1
       end
+    end
     ;; 12 |     match bag.label:
+    block
       block
         block
-          block
     ;; 13 |         "keep" =>
-            local.get $bag.label.0
-            local.get $bag.label.1
-            i32.const 70 ;; &"keep"
-            i32.const 4
-            call $rt:str_eq
-            local.set $t0
-            local.get $t0
-            if
-              br 1
-            else
-              br 2
-            end
+          local.get $bag.label.0
+          local.get $bag.label.1
+          i32.const 70 ;; &"keep"
+          i32.const 4
+          call $rt:str_eq
+          i32.eqz
+          br_if 1
+          br 0
     ;; 12 |     match bag.label:
-            unreachable
-          end
-    ;; 14 |             for _ in 0..n:
-          i32.const 0
-          local.get $n
-          i32.const 0
-          local.set $n
-          local.set $t0
-          local.set $t1
-          block
-            loop
-              local.get $t1
-              local.get $t0
-              i32.lt_u
-              local.set $n
-              local.get $n
-              if
-                local.get $t1
-                i32.const -2
-                i32.gt_u
-                if
-                  call $rt:panic
-                  unreachable
-                end
-                local.get $t1
-                i32.const 1
-                i32.add
-                local.set $t1
-    ;; 15 |                 bag.items.push(1)
-                local.get $bag.items
-                call $rt:list_unique
-                local.set $bag.items
-                local.get $bag.items
-                i32.load $heap offset=4
-                local.set $n
-                local.get $n
-                local.get $bag.items
-                i32.load $heap
-                i32.eq
-                if
-                  local.get $bag.items
-                  i32.const 1
-                  call_indirect $table0 (param i32) (result i32)
-                  local.set $bag.items
-                end
-                local.get $bag.items
-                local.get $n
-                i32.const 4
-                i32.mul
-                i32.add
-                local.set $t2
-                local.get $t2
-                i32.const 1
-                i32.store $heap offset=16
-                local.get $bag.items
-                local.get $n
-                i32.const 1
-                i32.add
-                i32.store $heap offset=4
-    ;; 14 |             for _ in 0..n:
-              else
-                br 2
-              end
-              br 0
-            end
-          end
-    ;; 12 |     match bag.label:
-          br 1
+          unreachable
         end
-        br 0
+    ;; 14 |             for _ in 0..n:
+        block
+          loop
+            local.get $t0
+            local.get $n
+            i32.lt_u
+            i32.eqz
+            br_if 1
+            local.get $t0
+            i32.const -2
+            i32.gt_u
+            if
+              call $rt:panic
+              unreachable
+            end
+            local.get $t0
+            i32.const 1
+            i32.add
+            local.set $t0
+    ;; 15 |                 bag.items.push(1)
+            local.get $bag.items
+            call $rt:list_unique
+            local.tee $bag.items
+            local.tee $t1
+            i32.load $heap offset=4
+            local.tee $t2
+            local.get $t1
+            i32.load $heap
+            i32.eq
+            if
+              local.get $t1
+              i32.const 1
+              call_indirect $table0 (param i32) (result i32)
+              local.tee $t1
+              local.set $bag.items
+            end
+            local.get $t1
+            local.get $t2
+            i32.const 4
+            i32.mul
+            i32.add
+            i32.const 1
+            i32.store $heap offset=16
+            local.get $t1
+            local.get $t2
+            i32.const 1
+            i32.add
+            i32.store $heap offset=4
+    ;; 14 |             for _ in 0..n:
+            br 0
+          end
+        end
+    ;; 12 |     match bag.label:
+        br 1
       end
-    ;; 17 |     bag.items.len()
-      local.get $bag.items
-      local.set $n
-      i32.const 0
-      local.set $bag.items
-      local.get $bag.label.0
-      local.get $bag.label.1
-      local.get $bag.items
-      call $"release_value[Bag]"
-      i32.const 0
-      local.set $bag.label.0
-      i32.const 0
-      local.set $bag.label.1
-      i32.const 0
-      local.set $bag.items
-      local.get $n
-      i32.load $heap offset=4
-      local.set $t0
-    ;; 9 |     match other.label:
-      local.get $n
-      call $rt:release_ref
-      i32.const 0
-      local.set $n
-      local.get $bag.label.0
-      local.get $bag.label.1
-      local.get $bag.items
-      call $"release_value[Bag]"
-      local.get $other.label.0
-      local.get $other.label.1
-      local.get $other.items
-      call $"release_value[Bag]"
     end
-    local.get $t0
+    ;; 17 |     bag.items.len()
+    local.get $bag.items
+    local.get $bag.label.0
+    local.get $bag.label.1
+    i32.const 0
+    call $"release_value[Bag]"
+    i32.load $heap offset=4
+    local.get $bag.items
+    ;; 9 |     match other.label:
+    if
+      local.get $bag.items
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $bag.items
+        call $rt:release_ref
+      end
+    end
+    local.get $other.label.0
+    local.get $other.label.1
+    local.get $other.items
+    call $"release_value[Bag]"
   )
 )

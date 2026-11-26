@@ -7,14 +7,12 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:drop'1" (func $rt:drop'1 (param i32)))
-  (import "fixture" "rt:drop'2" (func $rt:drop'2 (param i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $early (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $self.0 i32) (local $self.1 i32) (local $t2 i64) (local $t3 i64)
+  (func $early (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $self.0 i32) (local $t2 i64)
     ;; 48 |     if x > 3:
     global.get $stack
     global.get $stack_limit
@@ -34,59 +32,31 @@
       local.get $x
       i32.const 3
       i32.gt_s
-      local.set $t1
-      local.get $t1
-      if
-    ;; 49 |         return 0
-        i32.const 0
-        local.set $t1
-        br 1
-    ;; 48 |     if x > 3:
-      end
+      br_if 0
     ;; 50 |     let t = mk(x)
       local.get $x
       local.get $t0
       call $mk
-      i32.const 1
-      local.set $t1
-      i32.const 1
-      local.set $t1
     ;; 51 |     t.f1 + i32(t.name.len())
       local.get $t0
       i32.load $heap offset=12
-      local.set $x
+      local.set $t1
       local.get $t0
       i32.load $heap
       local.get $t0
       i32.load $heap offset=4
-      local.set $self.1
-      local.set $self.0
-      i32.const 0
-      local.set $t1
-      block
-        block
-          local.get $self.1
-          local.set $t1
-          br 0
-        end
+      local.set $x
+      local.tee $self.0
+      if
+        local.get $self.0
+        call $rt:release_ref
       end
-      local.get $self.0
-      call $rt:release_ref
-      i32.const 0
-      local.set $self.0
-      i32.const 0
-      local.set $self.1
-      local.get $x
-      i64.extend_i32_s
-      local.set $t2
       local.get $t1
       i64.extend_i32_s
-      local.set $t3
-      local.get $t2
-      local.get $t3
+      local.get $x
+      i64.extend_i32_s
       i64.add
-      local.set $t2
-      local.get $t2
+      local.tee $t2
       i64.const 2147483647
       i64.gt_s
       local.get $t2
@@ -99,8 +69,8 @@
       end
       local.get $t2
       i32.wrap_i64
-      local.set $t1
     ;; 48 |     if x > 3:
+      local.set $t1
     end
     local.get $t1
     local.get $t0
@@ -108,400 +78,216 @@
     i32.add
     global.set $stack
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width'1 i32) (local $value'1 i64) (local $value'2 i64) (local $width'2 i32) (local $value'3 i64) (local $width'3 i32) (local $t0 i64) (local $offset'1 i32) (local $t1 i64) (local $offset'2 i32) (local $offset'3 i32) (local $offset'4 i32) (local $size i32) (local $result.0 i32) (local $offset'5 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $value'1 i64) (local $t1 i32) (local $t2 i32) (local $value'2 i64) (local $t3 i32) (local $value'3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t7 i32)
     ;; 61 |     println("${moved(2)} ${early(1)} ${looped(3)}")
-    block
-      i32.const 2
-      call $moved
-      local.set $width'1
-      local.get $width'1
-      i64.extend_i32_s
-      local.set $value'1
-      block
-        block
-          block
-            block
-              local.get $value'1
-              call $signed_magnitude
-              local.set $value'2
-              local.get $value'2
-              call $unsigned_width
-              local.set $width'1
-              local.get $value'1
-              i64.const 0
-              i64.lt_s
-              local.set $width'2
-              local.get $width'2
-              if
-                i32.const 1
-                local.set $width'2
-              else
-                i32.const 0
-                local.set $width'2
-              end
-              local.get $width'1
-              i64.extend_i32_u
-              local.set $value'2
-              local.get $width'2
-              i64.extend_i32_u
-              local.set $value'3
-              local.get $value'2
-              local.get $value'3
-              i64.add
-              local.set $value'2
-              local.get $value'2
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $value'2
-              i32.wrap_i64
-              local.set $width'1
-              br 0
-            end
-          end
-          br 0
-        end
-      end
+    i32.const 2
+    call $moved
+    i64.extend_i32_s
+    local.tee $t0
+    local.tee $value'1
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $value'1
+    i64.const 0
+    i64.lt_s
+    if
       i32.const 1
-      call $early
-      local.set $width'2
-      local.get $width'2
-      i64.extend_i32_s
-      local.set $value'2
-      block
-        block
-          block
-            block
-              local.get $value'2
-              call $signed_magnitude
-              local.set $value'3
-              local.get $value'3
-              call $unsigned_width
-              local.set $width'2
-              local.get $value'2
-              i64.const 0
-              i64.lt_s
-              local.set $width'3
-              local.get $width'3
-              if
-                i32.const 1
-                local.set $width'3
-              else
-                i32.const 0
-                local.set $width'3
-              end
-              local.get $width'2
-              i64.extend_i32_u
-              local.set $value'3
-              local.get $width'3
-              i64.extend_i32_u
-              local.set $t0
-              local.get $value'3
-              local.get $t0
-              i64.add
-              local.set $value'3
-              local.get $value'3
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $value'3
-              i32.wrap_i64
-              local.set $width'2
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 3
-      call $looped
-      local.set $width'3
-      local.get $width'3
-      i64.extend_i32_s
-      local.set $value'3
-      block
-        block
-          block
-            block
-              local.get $value'3
-              call $signed_magnitude
-              local.set $t0
-              local.get $t0
-              call $unsigned_width
-              local.set $width'3
-              local.get $value'3
-              i64.const 0
-              i64.lt_s
-              local.set $offset'1
-              local.get $offset'1
-              if
-                i32.const 1
-                local.set $offset'1
-              else
-                i32.const 0
-                local.set $offset'1
-              end
-              local.get $width'3
-              i64.extend_i32_u
-              local.set $t0
-              local.get $offset'1
-              i64.extend_i32_u
-              local.set $t1
-              local.get $t0
-              local.get $t1
-              i64.add
-              local.set $t0
-              local.get $t0
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $t0
-              i32.wrap_i64
-              local.set $width'3
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.get $width'1
-      i32.add
-      local.set $offset'1
-      local.get $offset'1
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $offset'1
-      i32.const 1
-      i32.add
-      local.set $offset'2
-      local.get $offset'2
-      i64.extend_i32_u
-      local.set $t0
-      local.get $width'2
-      i64.extend_i32_u
-      local.set $t1
-      local.get $t0
-      local.get $t1
-      i64.add
-      local.set $t0
-      local.get $t0
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t0
-      i32.wrap_i64
-      local.set $offset'3
-      local.get $offset'3
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $offset'3
-      i32.const 1
-      i32.add
-      local.set $offset'4
-      local.get $offset'4
-      i64.extend_i32_u
-      local.set $t0
-      local.get $width'3
-      i64.extend_i32_u
-      local.set $t1
-      local.get $t0
-      local.get $t1
-      i64.add
-      local.set $t0
-      local.get $t0
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t0
-      i32.wrap_i64
-      local.set $size
-      block
-        block
-          i32.const 16
-          local.set $result.0
-          local.get $size
-          if
-            local.get $size
-            call $rt:str
-            local.set $result.0
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'5
-      block
-        block
-          local.get $result.0
-          local.get $offset'5
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $offset'5
-          local.get $value'1
-          local.get $offset'5
-          local.get $width'1
-          call $write_signed_sized
-          br 0
-        end
-      end
-      i32.const 113 ;; &" "
-      i32.const 1
-      local.set $width'1
-      local.set $offset'5
-      block
-        block
-          local.get $result.0
-          i64.extend_i32_u
-          local.set $value'1
-          local.get $offset'1
-          i64.extend_i32_u
-          local.set $t0
-          local.get $value'1
-          local.get $t0
-          i64.add
-          local.set $value'1
-          local.get $value'1
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $value'1
-          i32.wrap_i64
-          local.set $offset'1
-          local.get $offset'1
-          local.get $offset'5
-          local.get $width'1
-          call $rt:memory_copy/0/0
-          br 0
-        end
-      end
-      local.get $offset'5
-      call $rt:release_ref
-      i32.const 0
-      local.set $offset'5
-      i32.const 0
-      local.set $width'1
-      block
-        block
-          local.get $result.0
-          local.get $offset'2
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $width'1
-          local.get $value'2
-          local.get $width'1
-          local.get $width'2
-          call $write_signed_sized
-          br 0
-        end
-      end
-      i32.const 113 ;; &" "
-      i32.const 1
-      local.set $width'1
-      local.set $width'2
-      block
-        block
-          local.get $result.0
-          i64.extend_i32_u
-          local.set $value'1
-          local.get $offset'3
-          i64.extend_i32_u
-          local.set $value'2
-          local.get $value'1
-          local.get $value'2
-          i64.add
-          local.set $value'1
-          local.get $value'1
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $value'1
-          i32.wrap_i64
-          local.set $offset'1
-          local.get $offset'1
-          local.get $width'2
-          local.get $width'1
-          call $rt:memory_copy/0/0
-          br 0
-        end
-      end
-      local.get $width'2
-      call $rt:release_ref
-      i32.const 0
-      local.set $width'2
-      i32.const 0
-      local.set $width'1
-      block
-        block
-          local.get $result.0
-          local.get $offset'4
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $width'1
-          local.get $value'3
-          local.get $width'1
-          local.get $width'3
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $result.0
-      local.get $size
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    end
-  )
-  (func $keep (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
-    ;; 40 | fn keep(s: string) -> string: s
-    block
-      local.get $s.0
-      local.get $s.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $s.0
-      i32.const 0
-      local.set $s.1
-      local.get $s.0
-      call $rt:release_ref
+      local.set $t2
     end
     local.get $t1
+    i64.extend_i32_u
+    local.get $t2
+    i64.extend_i32_u
+    i64.add
+    local.tee $value'1
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value'1
+    i32.wrap_i64
+    local.set $t2
+    i32.const 1
+    call $early
+    i64.extend_i32_s
+    local.tee $value'1
+    local.tee $value'2
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $value'2
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t3
+    end
+    local.get $t1
+    i64.extend_i32_u
+    local.get $t3
+    i64.extend_i32_u
+    i64.add
+    local.tee $value'2
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value'2
+    i32.wrap_i64
+    local.set $t3
+    i32.const 3
+    call $looped
+    i64.extend_i32_s
+    local.tee $value'2
+    local.tee $value'3
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $value'3
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t4
+    end
+    local.get $t1
+    i64.extend_i32_u
+    local.get $t4
+    i64.extend_i32_u
+    i64.add
+    local.tee $value'3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value'3
+    i32.wrap_i64
+    local.set $t4
+    local.get $t2
+    local.tee $t1
+    i32.const -2
+    i32.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t1
+    i32.const 1
+    i32.add
+    local.tee $t1
+    i64.extend_i32_u
+    local.get $t3
+    i64.extend_i32_u
+    i64.add
+    local.tee $value'3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value'3
+    i32.wrap_i64
+    local.tee $t5
+    local.tee $t6
+    i32.const -2
+    i32.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t6
+    i32.const 1
+    i32.add
+    local.tee $t6
+    i64.extend_i32_u
+    local.get $t4
+    i64.extend_i32_u
+    i64.add
+    local.tee $value'3
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value'3
+    i32.wrap_i64
+    local.tee $t7
+    i32.const 16
+    local.set $t8
+    if
+      local.get $t7
+      call $rt:str
+      local.set $t8
+    end
     local.get $t0
+    local.get $t8
+    local.get $t2
+    call $write_signed_sized
+    local.get $t8
+    i64.extend_i32_u
+    local.get $t2
+    i64.extend_i32_u
+    i64.add
+    local.tee $t0
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+    i32.const 32
+    i32.store8 $heap
+    local.get $value'1
+    local.get $t8
+    local.get $t1
+    i32.add
+    local.get $t3
+    call $write_signed_sized
+    local.get $t8
+    i64.extend_i32_u
+    local.get $t5
+    i64.extend_i32_u
+    i64.add
+    local.tee $t0
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.wrap_i64
+    i32.const 32
+    i32.store8 $heap
+    local.get $value'2
+    local.get $t8
+    local.get $t6
+    i32.add
+    local.get $t4
+    call $write_signed_sized
+    local.get $t8
+    local.get $t7
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
   )
-  (func $mk_outer (param $t1 i32) (param $t2 i32) (local $x i32) (local $t0 i32) (local $offset'1 i32) (local $value i64) (local $t3 i64) (local $t4 i64) (local $size i32) (local $result.0 i32) (local $offset'2 i32) (local $text.0 i32) (local $text.1 i32)
+  (func $keep (param $s.0 i32) (param $s.1 i32) (result i32 i32)
+    ;; 40 | fn keep(s: string) -> string: s
+    local.get $s.0
+    local.get $s.1
+  )
+  (func $mk_outer (param $t1 i32) (param $t2 i32) (local $x i32) (local $t0 i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t6 i32) (local $t5 i32)
     ;; 38 | fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2, tag: "t${x}" }
     global.get $stack
     global.get $stack_limit
@@ -523,209 +309,117 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.set $x
-    local.get $x
+    local.tee $x
     local.get $t1
     i32.store $heap
-    block
-      local.get $x
-      i32.load $heap
-      local.set $t1
-      local.get $t1
-      local.get $t2
-      call $mk
-      local.get $x
-      i32.load $heap
-      local.set $t1
-      local.get $t1
-      i32.const -1073741824
-      i32.sub
-      i32.const 2147483647
-      i32.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t1
-      i32.const 2
-      i32.mul
-      local.set $t1
-      local.get $x
-      i32.load $heap
-      local.set $offset'1
-      i32.const 0
-      local.set $x
-      local.get $offset'1
-      i64.extend_i32_s
-      local.set $value
-      i32.const 0
-      local.set $x
-      block
-        block
-          block
-            block
-              local.get $value
-              call $signed_magnitude
-              local.set $t3
-              local.get $t3
-              call $unsigned_width
-              local.set $x
-              local.get $value
-              i64.const 0
-              i64.lt_s
-              local.set $offset'1
-              local.get $offset'1
-              if
-                i32.const 1
-                local.set $offset'1
-              else
-                i32.const 0
-                local.set $offset'1
-              end
-              local.get $x
-              i64.extend_i32_u
-              local.set $t3
-              local.get $offset'1
-              i64.extend_i32_u
-              local.set $t4
-              local.get $t3
-              local.get $t4
-              i64.add
-              local.set $t3
-              local.get $t3
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $t3
-              i32.wrap_i64
-              local.set $x
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'1
-      local.get $offset'1
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $offset'1
-      i32.const 1
-      i32.add
-      local.set $offset'1
-      local.get $offset'1
-      i64.extend_i32_u
-      local.set $t3
-      local.get $x
-      i64.extend_i32_u
-      local.set $t4
-      local.get $t3
-      local.get $t4
-      i64.add
-      local.set $t3
-      local.get $t3
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t3
-      i32.wrap_i64
-      local.set $size
-      block
-        block
-          i32.const 16
-          local.set $result.0
-          local.get $size
-          if
-            local.get $size
-            call $rt:str
-            local.set $result.0
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'2
-      i32.const 114 ;; &"t"
-      i32.const 1
-      local.set $text.1
-      local.set $text.0
-      block
-        block
-          local.get $result.0
-          i64.extend_i32_u
-          local.set $t3
-          local.get $offset'2
-          i64.extend_i32_u
-          local.set $t4
-          local.get $t3
-          local.get $t4
-          i64.add
-          local.set $t3
-          local.get $t3
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $t3
-          i32.wrap_i64
-          local.set $offset'2
-          local.get $offset'2
-          local.get $text.0
-          local.get $text.1
-          call $rt:memory_copy/0/0
-          br 0
-        end
-      end
-      local.get $text.0
-      call $rt:release_ref
-      i32.const 0
-      local.set $text.0
-      i32.const 0
-      local.set $text.1
-      block
-        block
-          local.get $result.0
-          local.get $offset'1
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $offset'1
-          local.get $value
-          local.get $offset'1
-          local.get $x
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t2
-      local.get $t1
-      i32.store $heap offset=84
-      local.get $t2
-      local.get $result.0
-      i32.store $heap offset=76
-      local.get $t2
-      local.get $size
-      i32.store $heap offset=80
+    local.get $x
+    i32.load $heap
+    local.get $t2
+    call $mk
+    local.get $x
+    i32.load $heap
+    local.tee $t1
+    i32.const -1073741824
+    i32.sub
+    i32.const 2147483647
+    i32.gt_u
+    if
+      call $rt:panic'2
+      unreachable
     end
+    local.get $t1
+    i32.const 2
+    i32.mul
+    local.set $t1
+    local.get $x
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t3
+    local.tee $value
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $x
+    local.get $value
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t4
+    end
+    local.get $x
+    i64.extend_i32_u
+    local.get $t4
+    i64.extend_i32_u
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    local.set $t4
+    i32.const 1
+    local.set $x
+    i64.const 1
+    local.get $t4
+    i64.extend_i32_u
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    local.tee $t5
+    i32.const 16
+    local.set $t6
+    if
+      local.get $t5
+      call $rt:str
+      local.set $t6
+    end
+    local.get $t6
+    i64.extend_i32_u
+    i64.const 0
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    i32.const 116
+    i32.store8 $heap
+    local.get $t3
+    local.get $t6
+    local.get $x
+    i32.add
+    local.get $t4
+    call $write_signed_sized
+    local.get $t2
+    local.get $t1
+    i32.store $heap offset=84
+    local.get $t2
+    local.get $t6
+    i32.store $heap offset=76
+    local.get $t2
+    local.get $t5
+    i32.store $heap offset=80
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
-  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64)
+  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     ;; 54 |     let acc = 0
     global.get $stack
     global.get $stack_limit
@@ -741,96 +435,69 @@
     i32.sub
     local.tee $t0
     global.set $stack
+    ;; 55 |     for k in 0..n:
     block
-      i32.const 0
-      local.set $acc
-    ;; 55 |     for k in 0..n:
-      i32.const 0
-      local.get $n
-      i32.const 0
-      local.set $n
-      local.set $t1
-      local.set $t2
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_s
-          local.set $n
-          local.get $n
-          if
-            local.get $t2
-            local.set $n
-            local.get $t2
-            i32.const 2147483646
-            i32.gt_s
-            if
-              call $rt:panic'2
-              unreachable
-            end
-            local.get $t2
-            i32.const 1
-            i32.add
-            local.set $t2
-    ;; 56 |         let t = mk(k)
-            local.get $n
-            local.get $t0
-            call $mk
-            i32.const 1
-            local.set $n
-    ;; 57 |         acc += t.f2
-            local.get $t0
-            i32.load $heap offset=16
-            local.set $t3
-    ;; 55 |     for k in 0..n:
-            local.get $n
-            if
-              local.get $t0
-              call $rt:drop'1
-            end
-    ;; 57 |         acc += t.f2
-            i32.const 0
-            local.set $n
-            local.get $acc
-            i64.extend_i32_s
-            local.set $t4
-            local.get $t3
-            i64.extend_i32_s
-            local.set $t5
-            local.get $t4
-            local.get $t5
-            i64.add
-            local.set $t4
-            local.get $t4
-            i64.const 2147483647
-            i64.gt_s
-            local.get $t4
-            i64.const -2147483648
-            i64.lt_s
-            i32.or
-            if
-              call $rt:panic'2
-              unreachable
-            end
-            local.get $t4
-            i32.wrap_i64
-            local.set $acc
-    ;; 55 |     for k in 0..n:
-          else
-            br 2
-          end
-          br 0
+      loop
+        local.get $t1
+        local.get $n
+        i32.lt_s
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.get $t1
+        i32.const 2147483646
+        i32.gt_s
+        if
+          call $rt:panic'2
+          unreachable
         end
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 56 |         let t = mk(k)
+        local.get $t0
+        call $mk
+    ;; 57 |         acc += t.f2
+        local.get $t0
+        i32.load $heap offset=16
+        local.set $t2
+    ;; 55 |     for k in 0..n:
+        local.get $t0
+        call $rt:drop
+    ;; 57 |         acc += t.f2
+        local.get $acc
+        i64.extend_i32_s
+        local.get $t2
+        i64.extend_i32_s
+        i64.add
+        local.tee $t3
+        i64.const 2147483647
+        i64.gt_s
+        local.get $t3
+        i64.const -2147483648
+        i64.lt_s
+        i32.or
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $t3
+        i32.wrap_i64
+        local.set $acc
+    ;; 55 |     for k in 0..n:
+        br 0
       end
-    ;; 54 |     let acc = 0
     end
+    ;; 58 |     acc
     local.get $acc
+    ;; 54 |     let acc = 0
     local.get $t0
     i32.const 80
     i32.add
     global.set $stack
   )
-  (func $mk (param $t1 i32) (param $t20 i32) (local $x i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $offset'1 i32) (local $value i64) (local $t18 i64) (local $t19 i64) (local $size i32) (local $result.0 i32) (local $offset'2 i32) (local $text.0 i32) (local $text.1 i32)
+  (func $mk (param $t1 i32) (param $t22 i32) (local $x i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t21 i32) (local $t20 i32)
     ;; 36 | fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "n${x}" }
     global.get $stack
     global.get $stack_limit
@@ -852,466 +519,357 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.set $x
-    local.get $x
+    local.tee $x
     local.get $t1
     i32.store $heap
-    block
-      local.get $x
-      i32.load $heap
-      local.set $t1
-      local.get $t1
-      i32.const 0
-      i32.add
-      local.set $t1
-      local.get $x
-      i32.load $heap
-      local.set $t2
-      local.get $t2
-      i32.const 2147483646
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t2
-      i32.const 1
-      i32.add
-      local.set $t2
-      local.get $x
-      i32.load $heap
-      local.set $t3
-      local.get $t3
-      i32.const 2147483645
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t3
-      i32.const 2
-      i32.add
-      local.set $t3
-      local.get $x
-      i32.load $heap
-      local.set $t4
-      local.get $t4
-      i32.const 2147483644
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t4
-      i32.const 3
-      i32.add
-      local.set $t4
-      local.get $x
-      i32.load $heap
-      local.set $t5
-      local.get $t5
-      i32.const 2147483643
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t5
-      i32.const 4
-      i32.add
-      local.set $t5
-      local.get $x
-      i32.load $heap
-      local.set $t6
-      local.get $t6
-      i32.const 2147483642
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t6
-      i32.const 5
-      i32.add
-      local.set $t6
-      local.get $x
-      i32.load $heap
-      local.set $t7
-      local.get $t7
-      i32.const 2147483641
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t7
-      i32.const 6
-      i32.add
-      local.set $t7
-      local.get $x
-      i32.load $heap
-      local.set $t8
-      local.get $t8
-      i32.const 2147483640
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t8
-      i32.const 7
-      i32.add
-      local.set $t8
-      local.get $x
-      i32.load $heap
-      local.set $t9
-      local.get $t9
-      i32.const 2147483639
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t9
-      i32.const 8
-      i32.add
-      local.set $t9
-      local.get $x
-      i32.load $heap
-      local.set $t10
-      local.get $t10
-      i32.const 2147483638
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t10
-      i32.const 9
-      i32.add
-      local.set $t10
-      local.get $x
-      i32.load $heap
-      local.set $t11
-      local.get $t11
-      i32.const 2147483637
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t11
-      i32.const 10
-      i32.add
-      local.set $t11
-      local.get $x
-      i32.load $heap
-      local.set $t12
-      local.get $t12
-      i32.const 2147483636
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t12
-      i32.const 11
-      i32.add
-      local.set $t12
-      local.get $x
-      i32.load $heap
-      local.set $t13
-      local.get $t13
-      i32.const 2147483635
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t13
-      i32.const 12
-      i32.add
-      local.set $t13
-      local.get $x
-      i32.load $heap
-      local.set $t14
-      local.get $t14
-      i32.const 2147483634
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t14
-      i32.const 13
-      i32.add
-      local.set $t14
-      local.get $x
-      i32.load $heap
-      local.set $t15
-      local.get $t15
-      i32.const 2147483633
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t15
-      i32.const 14
-      i32.add
-      local.set $t15
-      local.get $x
-      i32.load $heap
-      local.set $t16
-      local.get $t16
-      i32.const 2147483632
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t16
-      i32.const 15
-      i32.add
-      local.set $t16
-      local.get $x
-      i32.load $heap
-      local.set $t17
-      local.get $t17
-      i32.const 2147483631
-      i32.gt_s
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t17
-      i32.const 16
-      i32.add
-      local.set $t17
-      local.get $x
-      i32.load $heap
-      local.set $offset'1
-      i32.const 0
-      local.set $x
-      local.get $offset'1
-      i64.extend_i32_s
-      local.set $value
-      i32.const 0
-      local.set $x
-      block
-        block
-          block
-            block
-              local.get $value
-              call $signed_magnitude
-              local.set $t18
-              local.get $t18
-              call $unsigned_width
-              local.set $x
-              local.get $value
-              i64.const 0
-              i64.lt_s
-              local.set $offset'1
-              local.get $offset'1
-              if
-                i32.const 1
-                local.set $offset'1
-              else
-                i32.const 0
-                local.set $offset'1
-              end
-              local.get $x
-              i64.extend_i32_u
-              local.set $t18
-              local.get $offset'1
-              i64.extend_i32_u
-              local.set $t19
-              local.get $t18
-              local.get $t19
-              i64.add
-              local.set $t18
-              local.get $t18
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'2
-                unreachable
-              end
-              local.get $t18
-              i32.wrap_i64
-              local.set $x
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'1
-      local.get $offset'1
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $offset'1
-      i32.const 1
-      i32.add
-      local.set $offset'1
-      local.get $offset'1
-      i64.extend_i32_u
-      local.set $t18
-      local.get $x
-      i64.extend_i32_u
-      local.set $t19
-      local.get $t18
-      local.get $t19
-      i64.add
-      local.set $t18
-      local.get $t18
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t18
-      i32.wrap_i64
-      local.set $size
-      block
-        block
-          i32.const 16
-          local.set $result.0
-          local.get $size
-          if
-            local.get $size
-            call $rt:str
-            local.set $result.0
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset'2
-      i32.const 115 ;; &"n"
-      i32.const 1
-      local.set $text.1
-      local.set $text.0
-      block
-        block
-          local.get $result.0
-          i64.extend_i32_u
-          local.set $t18
-          local.get $offset'2
-          i64.extend_i32_u
-          local.set $t19
-          local.get $t18
-          local.get $t19
-          i64.add
-          local.set $t18
-          local.get $t18
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $t18
-          i32.wrap_i64
-          local.set $offset'2
-          local.get $offset'2
-          local.get $text.0
-          local.get $text.1
-          call $rt:memory_copy/0/0
-          br 0
-        end
-      end
-      local.get $text.0
-      call $rt:release_ref
-      i32.const 0
-      local.set $text.0
-      i32.const 0
-      local.set $text.1
-      block
-        block
-          local.get $result.0
-          local.get $offset'1
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $offset'1
-          local.get $value
-          local.get $offset'1
-          local.get $x
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $t20
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $t20
-      local.get $t2
-      i32.store $heap offset=12
-      local.get $t20
-      local.get $t3
-      i32.store $heap offset=16
-      local.get $t20
-      local.get $t4
-      i32.store $heap offset=20
-      local.get $t20
-      local.get $t5
-      i32.store $heap offset=24
-      local.get $t20
-      local.get $t6
-      i32.store $heap offset=28
-      local.get $t20
-      local.get $t7
-      i32.store $heap offset=32
-      local.get $t20
-      local.get $t8
-      i32.store $heap offset=36
-      local.get $t20
-      local.get $t9
-      i32.store $heap offset=40
-      local.get $t20
-      local.get $t10
-      i32.store $heap offset=44
-      local.get $t20
-      local.get $t11
-      i32.store $heap offset=48
-      local.get $t20
-      local.get $t12
-      i32.store $heap offset=52
-      local.get $t20
-      local.get $t13
-      i32.store $heap offset=56
-      local.get $t20
-      local.get $t14
-      i32.store $heap offset=60
-      local.get $t20
-      local.get $t15
-      i32.store $heap offset=64
-      local.get $t20
-      local.get $t16
-      i32.store $heap offset=68
-      local.get $t20
-      local.get $t17
-      i32.store $heap offset=72
-      local.get $t20
-      local.get $result.0
-      i32.store $heap
-      local.get $t20
-      local.get $size
-      i32.store $heap offset=4
+    local.get $x
+    i32.load $heap
+    local.set $t1
+    local.get $x
+    i32.load $heap
+    local.tee $t2
+    i32.const 2147483646
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
     end
+    local.get $t2
+    i32.const 1
+    i32.add
+    local.set $t2
+    local.get $x
+    i32.load $heap
+    local.tee $t3
+    i32.const 2147483645
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t3
+    i32.const 2
+    i32.add
+    local.set $t3
+    local.get $x
+    i32.load $heap
+    local.tee $t4
+    i32.const 2147483644
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t4
+    i32.const 3
+    i32.add
+    local.set $t4
+    local.get $x
+    i32.load $heap
+    local.tee $t5
+    i32.const 2147483643
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t5
+    i32.const 4
+    i32.add
+    local.set $t5
+    local.get $x
+    i32.load $heap
+    local.tee $t6
+    i32.const 2147483642
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t6
+    i32.const 5
+    i32.add
+    local.set $t6
+    local.get $x
+    i32.load $heap
+    local.tee $t7
+    i32.const 2147483641
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t7
+    i32.const 6
+    i32.add
+    local.set $t7
+    local.get $x
+    i32.load $heap
+    local.tee $t8
+    i32.const 2147483640
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t8
+    i32.const 7
+    i32.add
+    local.set $t8
+    local.get $x
+    i32.load $heap
+    local.tee $t9
+    i32.const 2147483639
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t9
+    i32.const 8
+    i32.add
+    local.set $t9
+    local.get $x
+    i32.load $heap
+    local.tee $t10
+    i32.const 2147483638
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t10
+    i32.const 9
+    i32.add
+    local.set $t10
+    local.get $x
+    i32.load $heap
+    local.tee $t11
+    i32.const 2147483637
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t11
+    i32.const 10
+    i32.add
+    local.set $t11
+    local.get $x
+    i32.load $heap
+    local.tee $t12
+    i32.const 2147483636
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t12
+    i32.const 11
+    i32.add
+    local.set $t12
+    local.get $x
+    i32.load $heap
+    local.tee $t13
+    i32.const 2147483635
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t13
+    i32.const 12
+    i32.add
+    local.set $t13
+    local.get $x
+    i32.load $heap
+    local.tee $t14
+    i32.const 2147483634
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t14
+    i32.const 13
+    i32.add
+    local.set $t14
+    local.get $x
+    i32.load $heap
+    local.tee $t15
+    i32.const 2147483633
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t15
+    i32.const 14
+    i32.add
+    local.set $t15
+    local.get $x
+    i32.load $heap
+    local.tee $t16
+    i32.const 2147483632
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t16
+    i32.const 15
+    i32.add
+    local.set $t16
+    local.get $x
+    i32.load $heap
+    local.tee $t17
+    i32.const 2147483631
+    i32.gt_s
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t17
+    i32.const 16
+    i32.add
+    local.set $t17
+    local.get $x
+    i32.load $heap
+    i64.extend_i32_s
+    local.tee $t18
+    local.tee $value
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $x
+    local.get $value
+    i64.const 0
+    i64.lt_s
+    if
+      i32.const 1
+      local.set $t19
+    end
+    local.get $x
+    i64.extend_i32_u
+    local.get $t19
+    i64.extend_i32_u
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    local.set $t19
+    i32.const 1
+    local.set $x
+    i64.const 1
+    local.get $t19
+    i64.extend_i32_u
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    local.tee $t20
+    i32.const 16
+    local.set $t21
+    if
+      local.get $t20
+      call $rt:str
+      local.set $t21
+    end
+    local.get $t21
+    i64.extend_i32_u
+    i64.const 0
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    i32.const 110
+    i32.store8 $heap
+    local.get $t18
+    local.get $t21
+    local.get $x
+    i32.add
+    local.get $t19
+    call $write_signed_sized
+    local.get $t22
+    local.get $t1
+    i32.store $heap offset=8
+    local.get $t22
+    local.get $t2
+    i32.store $heap offset=12
+    local.get $t22
+    local.get $t3
+    i32.store $heap offset=16
+    local.get $t22
+    local.get $t4
+    i32.store $heap offset=20
+    local.get $t22
+    local.get $t5
+    i32.store $heap offset=24
+    local.get $t22
+    local.get $t6
+    i32.store $heap offset=28
+    local.get $t22
+    local.get $t7
+    i32.store $heap offset=32
+    local.get $t22
+    local.get $t8
+    i32.store $heap offset=36
+    local.get $t22
+    local.get $t9
+    i32.store $heap offset=40
+    local.get $t22
+    local.get $t10
+    i32.store $heap offset=44
+    local.get $t22
+    local.get $t11
+    i32.store $heap offset=48
+    local.get $t22
+    local.get $t12
+    i32.store $heap offset=52
+    local.get $t22
+    local.get $t13
+    i32.store $heap offset=56
+    local.get $t22
+    local.get $t14
+    i32.store $heap offset=60
+    local.get $t22
+    local.get $t15
+    i32.store $heap offset=64
+    local.get $t22
+    local.get $t16
+    i32.store $heap offset=68
+    local.get $t22
+    local.get $t17
+    i32.store $heap offset=72
+    local.get $t22
+    local.get $t21
+    i32.store $heap
+    local.get $t22
+    local.get $t20
+    i32.store $heap offset=4
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
-  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $s.0 i32) (local $s.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64)
+  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t3 i64) (local $t2 i32)
     ;; 43 |     let t = mk_outer(x)
     global.get $stack
     global.get $stack_limit
@@ -1327,160 +885,54 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      local.get $x
-      local.get $t0
-      call $mk_outer
-      i32.const 1
-      local.set $x
-      i32.const 1
-      local.set $t1
+    local.get $x
+    local.get $t0
+    call $mk_outer
     ;; 44 |     let s = keep(t.tag)
-      local.get $t0
-      i32.load $heap offset=76
-      local.get $t0
-      i32.load $heap offset=80
-      local.set $s.1
-      local.set $s.0
-      i32.const 0
-      local.set $t1
-      local.get $s.0
-      local.get $s.1
-      call $keep
-      local.set $s.1
-      local.set $s.0
+    local.get $t0
+    i32.load $heap offset=76
+    local.get $t0
+    i32.load $heap offset=80
+    call $keep
+    local.set $x
+    local.set $s.0
     ;; 45 |     t.v + i32(s.len())
-      local.get $t0
-      i32.load $heap offset=84
-      local.set $t2
+    local.get $t0
+    i32.load $heap offset=84
+    local.set $t1
     ;; 43 |     let t = mk_outer(x)
-      local.get $x
-      if
-        local.get $t1
-        if
-          local.get $t0
-          call $rt:drop'2
-        else
-          local.get $t0
-          i32.load $heap offset=8
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=12
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=16
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=20
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=24
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=28
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=32
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=36
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=40
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=44
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=48
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=52
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=56
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=60
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=64
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=68
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=72
-          local.set $x
-          local.get $t0
-          i32.load $heap
-          local.set $x
-          local.get $t0
-          i32.load $heap offset=4
-          local.set $t3
-          local.get $x
-          call $rt:release_ref
-          local.get $t0
-          i32.load $heap offset=84
-          local.set $x
-          local.get $t1
-          if
-            local.get $t0
-            i32.load $heap offset=76
-            local.set $x
-            local.get $t0
-            i32.load $heap offset=80
-            local.set $t1
-            local.get $x
-            call $rt:release_ref
-          end
-        end
-      end
+    local.get $t0
+    i32.load $heap
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
     ;; 45 |     t.v + i32(s.len())
-      i32.const 0
-      local.set $x
-      i32.const 0
-      local.set $t1
-      block
-        block
-          local.get $s.1
-          local.set $x
-          br 0
-        end
-      end
+    local.get $s.0
+    if
       local.get $s.0
       call $rt:release_ref
-      i32.const 0
-      local.set $s.0
-      i32.const 0
-      local.set $s.1
-      local.get $t2
-      i64.extend_i32_s
-      local.set $t4
-      local.get $x
-      i64.extend_i32_s
-      local.set $t5
-      local.get $t4
-      local.get $t5
-      i64.add
-      local.set $t4
-      local.get $t4
-      i64.const 2147483647
-      i64.gt_s
-      local.get $t4
-      i64.const -2147483648
-      i64.lt_s
-      i32.or
-      if
-        call $rt:panic'2
-        unreachable
-      end
-      local.get $t4
-      i32.wrap_i64
-      local.set $x
-    ;; 43 |     let t = mk_outer(x)
     end
+    local.get $t1
+    i64.extend_i32_s
     local.get $x
+    i64.extend_i32_s
+    i64.add
+    local.tee $t3
+    i64.const 2147483647
+    i64.gt_s
+    local.get $t3
+    i64.const -2147483648
+    i64.lt_s
+    i32.or
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t3
+    i32.wrap_i64
+    ;; 43 |     let t = mk_outer(x)
     local.get $t0
     i32.const 88
     i32.add

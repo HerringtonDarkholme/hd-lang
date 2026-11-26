@@ -13,9 +13,7 @@ struct Note:
 fn change!(n: *mut Note) -> usize:
     n.text = "m"
 > std/rt_tests.stage_case/change
->   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
->   release *mut std.rt_tests.stage_case.Note (last use)
 >   release *mut std.rt_tests.stage_case.Note (last use)
 > std/rt_tests.stage_case/change
 >   release *mut std.rt_tests.stage_case.Note (cancelled)

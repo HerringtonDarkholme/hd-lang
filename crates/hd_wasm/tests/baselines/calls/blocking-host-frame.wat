@@ -4,15 +4,15 @@
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]" (func $"release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $synchronous (param $path.0 i32) (param $path.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i32) (local $t3 i32)
+  (func $synchronous (param $path.0 i32) (param $path.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
     global.get $stack
     global.get $stack_limit
@@ -28,169 +28,109 @@
     i32.sub
     local.tee $t0
     global.set $stack
+    call $rt:forbid_check
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.set $t1
+    local.get $provider0
+    local.get $path.0
+    local.get $path.1
+    local.get $t1
+    local.get $provider0.vtable
+    i32.load $heap offset=20
+    call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
+    local.set $path.0
+    local.set $path.1
+    local.set $provider0
+    local.tee $provider0.vtable
+    ;; 10 |     match block_on(call):
+    local.tee $t2
+    i32.eqz
+    local.set $t3
     block
-      local.get $provider0
-      local.get $provider0.vtable
-      local.set $t1
-      local.set $t2
-      i32.const 0
-      local.set $provider0
-      i32.const 0
-      local.set $provider0.vtable
-      local.get $path.0
-      local.get $path.1
-      local.set $provider0
-      local.set $provider0.vtable
-      i32.const 0
-      local.set $path.0
-      i32.const 0
-      local.set $path.1
-      call $rt:forbid_check
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $path.1
-      local.get $t2
-      local.get $provider0.vtable
-      local.get $provider0
-      local.get $path.1
-      local.get $t1
-      i32.load $heap offset=20
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
-      local.set $provider0
-      local.set $provider0.vtable
-      local.set $t1
-      local.set $t2
-    ;; 10 |     match block_on(call):
-      i32.const 0
-      local.set $t3
-      local.get $t2
-      i32.eqz
-      local.set $t4
-      block
-        loop
-          local.get $t4
-          br_if 1
+      loop
+        local.get $t3
+        br_if 1
+        global.get $rewake
+        if
           i32.const 0
-          if
-            local.get $t2
-            i32.load $heap offset=12
-            local.set $t5
-            local.get $t5
-            i32.const 24
-            i32.and
-            i32.const 8
-            i32.eq
-            br_if 2
-          end
-          global.get $rewake
-          if
-            i32.const 0
-            global.set $rewake
-          else
-            call $rt:idle_block
-            call $rt:wake_mark
-          end
-          i32.const 1
-          local.set $t3
-          local.get $t2
-          local.get $t2
-          i32.load $heap
-          call_indirect $table0 (param i32) (result i32 i32 i32 i32)
-          local.set $provider0
-          local.set $provider0.vtable
-          local.set $t1
-          local.set $t4
-          br 0
-        end
-      end
-      local.get $t3
-      global.get $rewake
-      i32.or
-      global.set $rewake
-      i32.const 0
-      if
-        local.get $t4
-        if
+          global.set $rewake
         else
-          local.get $t5
-          i32.const 32
-          i32.and
-          if
-            i32.const 10
-            i32.const 0
-            i32.const 0
-            local.set $provider0
-            local.set $provider0.vtable
-            local.set $t1
-          else
-            i32.const 9
-            i32.const 0
-            i32.const 0
-            local.set $provider0
-            local.set $provider0.vtable
-            local.set $t1
-          end
+          call $rt:idle_block
+          call $rt:wake_mark
         end
-      else
-      end
-      local.get $t2
-      local.get $path.1
-      i32.eq
-      if
+        i32.const 1
+        local.set $t4
         local.get $t2
-        i32.load $heap offset=20
-        local.tee $path.1
-        i32.const 0
-        i32.ge_s
-        if
-          local.get $t2
-          i32.const -1
-          i32.store $heap offset=20
-          local.get $t2
-          local.get $path.1
-          call_indirect $table0 (param i32)
-        end
-      end
-      local.get $t2
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $t2
-      block
-        block
-          block
-    ;; 11 |         .Completed(.Ok(_)) => true
-            local.get $t1
-            i32.const 8
-            i32.eq
-            br_if 0
-            br 1
-    ;; 10 |     match block_on(call):
-            unreachable
-          end
-          i32.const 1
-          local.set $path.1
-          br 1
-        end
-        i32.const 0
+        local.get $t2
+        i32.load $heap
+        call_indirect $table0 (param i32) (result i32 i32 i32 i32)
+        local.set $path.0
         local.set $path.1
+        local.set $provider0
+        local.set $t3
         br 0
       end
-    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
-      local.get $t1
-      local.get $provider0.vtable
-      local.get $provider0
-      call $"release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]"
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $provider0.vtable
-      i32.const 0
-      local.set $provider0
-      local.get $path.0
-      call $rt:release_ref'2
     end
+    local.get $t4
+    global.get $rewake
+    i32.or
+    global.set $rewake
+    local.get $t2
+    local.get $t1
+    i32.eq
+    if
+      local.get $t2
+      i32.load $heap offset=20
+      local.tee $t4
+      i32.const 0
+      i32.ge_s
+      if
+        local.get $t2
+        i32.const -1
+        i32.store $heap offset=20
+        local.get $t2
+        local.get $t4
+        call_indirect $table0 (param i32)
+      end
+    end
+    local.get $provider0.vtable
+    if
+      local.get $provider0.vtable
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $provider0.vtable
+        call $rt:release_ref
+      end
+    end
+    block
+      block
+        block
+    ;; 11 |         .Completed(.Ok(_)) => true
+          local.get $provider0
+          i32.const 8
+          i32.eq
+          br_if 0
+          br 1
+    ;; 10 |     match block_on(call):
+          unreachable
+        end
+        i32.const 1
+        local.set $t5
+        br 1
+      end
+    end
+    ;; 9 |     let call: Suspend[Result[string, FsError]] = $.use(FsRead).read_text(path)
+    local.get $provider0
     local.get $path.1
+    local.get $path.0
+    call $"release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]"
+    local.get $t5
     local.get $t0
     i32.const 56
     i32.add

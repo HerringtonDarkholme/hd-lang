@@ -4,13 +4,10 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $copy_nested (param $xs i32) (result i32)
     ;; 5 |     *xs
-    block
-      local.get $xs
-      i32.load $heap
-      local.set $xs
-      local.get $xs
-      call $rt:retain_coll
-    end
+    local.get $xs
+    i32.load $heap
+    local.tee $xs
+    call $rt:retain_coll
     local.get $xs
   )
 )

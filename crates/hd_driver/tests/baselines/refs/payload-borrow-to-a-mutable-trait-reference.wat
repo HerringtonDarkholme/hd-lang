@@ -8,47 +8,37 @@
     ;; 13 |     match slot:
     block
       block
-        block
-          block
     ;; 14 |         .Full(value) => value.bump()
-            local.get $slot
-            i32.load $heap offset=4
-            local.set $t0
-            local.get $t0
-            if
-              br 1
-            else
-              br 2
-            end
-    ;; 13 |     match slot:
-            unreachable
-          end
-    ;; 14 |         .Full(value) => value.bump()
-          local.get $slot
-          i32.load $heap
-          local.set $t0
-          local.get $slot
-          i32.load $heap offset=4
-          local.set $slot
-          local.get $t0
-          call $retain
-          local.get $t0
-          local.get $slot
-          i32.load $heap
-          call_indirect $table0 (param i32)
-    ;; 13 |     match slot:
-          local.get $t0
-          call $rt:release_ref
-          i32.const 0
-          local.set $t0
-          i32.const 0
-          local.set $slot
-          i32.const 0
-          local.set $slot
-          br 1
-        end
+        local.get $slot
+        i32.load $heap offset=4
+        i32.eqz
+        br_if 1
         br 0
+    ;; 13 |     match slot:
+        unreachable
       end
+    ;; 14 |         .Full(value) => value.bump()
+      local.get $slot
+      i32.load $heap
+      local.get $slot
+      i32.load $heap offset=4
+      local.set $slot
+      local.tee $t0
+      if
+        local.get $t0
+        call $retain
+      end
+      local.get $t0
+      local.get $slot
+      i32.load $heap
+      call_indirect $table0 (param i32)
+    ;; 13 |     match slot:
+      local.get $t0
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+      return
     end
   )
 )

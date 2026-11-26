@@ -6,7 +6,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $digest (param $value'2 i32) (result i64) (local $value'1 i32) (local $t0 i32) (local $h.low i64) (local $h.accumulator i64) (local $value'3 i64) (local $hasher i32) (local $h.high i64) (local $h.bits i32) (local $lx i64) (local $ll i64) (local $t1 i32) (local $lh i64)
+  (func $digest (param $value'2 i32) (result i64) (local $value'1 i32) (local $t0 i32) (local $value'3 i64) (local $high i64) (local $low i64) (local $accumulator i64) (local $ly i64) (local $total i32) (local $next i32) (local $lh i64) (local $ll i64)
     ;; 9 |     hash_of(value)
     global.get $stack
     global.get $stack_limit
@@ -22,827 +22,604 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $value'1
-      local.get $value'1
-      local.get $value'2
-      i32.store $heap
-      block
-        block
-          block
-            block
-              block
-                block
-                  i64.const 589684135938649225
-                  i64.const 0
-                  i64.const 0
-                  i32.const 0
-                  local.set $value'2
-                  local.set $value'3
-                  local.set $h.accumulator
-                  local.set $h.low
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
-          local.get $t0
-          i64.const 0
-          i64.store $heap offset=16
-          local.get $t0
-          i32.const 24
-          i32.add
-          local.set $hasher
-          local.get $hasher
-          local.get $h.low
-          i64.store $heap
-          local.get $hasher
-          local.get $h.accumulator
-          i64.store $heap offset=8
-          local.get $hasher
-          local.get $value'3
-          i64.store $heap offset=16
-          local.get $hasher
-          local.get $value'2
-          i32.store $heap offset=24
-          local.get $hasher
-          local.set $value'2
-          block
-            block
-              local.get $value'1
-              i32.load $heap
-              local.set $value'1
-              block
-                block
-                  block
-                    block
-                      local.get $value'1
-                      i64.extend_i32_u
-                      local.set $value'3
-                      i32.const 32
-                      local.set $value'1
-                      block
-                        block
-                          local.get $value'2
-                          i64.load $heap
-                          local.set $h.accumulator
-                          local.get $value'2
-                          i64.load $heap offset=8
-                          local.set $h.low
-                          local.get $value'2
-                          i64.load $heap offset=16
-                          local.set $h.high
-                          local.get $value'2
-                          i32.load $heap offset=24
-                          local.set $h.bits
-                          local.get $h.bits
-                          i64.extend_i32_u
-                          local.set $lx
-                          local.get $value'1
-                          i64.extend_i32_u
-                          local.set $ll
-                          local.get $lx
-                          local.get $ll
-                          i64.add
-                          local.set $lx
-                          local.get $lx
-                          i64.const 4294967295
-                          i64.gt_u
-                          if
-                            call $rt:panic'2
-                            unreachable
-                          end
-                          local.get $lx
-                          i32.wrap_i64
-                          local.set $value'1
-                          local.get $value'1
-                          i32.const 128
-                          i32.lt_u
-                          local.set $t1
-                          local.get $t1
-                          if
-                            local.get $h.bits
-                            i32.const 64
-                            i32.lt_u
-                            local.set $t1
-                            local.get $t1
-                            if
-                              local.get $value'3
-                              local.get $h.bits
-                              i32.const 64
-                              i32.ge_u
-                              if
-                                call $rt:panic'3
-                                unreachable
-                              end
-                              local.get $h.bits
-                              i64.extend_i32_u
-                              i64.shl
-                              local.set $lx
-                              local.get $h.low
-                              local.get $lx
-                              i64.or
-                              local.set $h.low
-                              local.get $value'1
-                              i32.const 64
-                              i32.gt_u
-                              local.set $t1
-                              local.get $t1
-                              if
-                                local.get $h.bits
-                                i32.const 64
-                                i32.gt_u
-                                if
-                                  call $rt:panic'2
-                                  unreachable
-                                end
-                                i32.const 64
-                                local.get $h.bits
-                                i32.sub
-                                local.set $h.bits
-                                local.get $value'3
-                                local.get $h.bits
-                                i32.const 64
-                                i32.ge_u
-                                if
-                                  call $rt:panic'3
-                                  unreachable
-                                end
-                                local.get $h.bits
-                                i64.extend_i32_u
-                                i64.shr_u
-                                local.set $value'3
-                                local.get $h.high
-                                local.get $value'3
-                                i64.or
-                                local.set $h.high
-                              end
-                            else
-                              local.get $h.bits
-                              i32.const 64
-                              i32.lt_u
-                              if
-                                call $rt:panic'2
-                                unreachable
-                              end
-                              local.get $h.bits
-                              i32.const 64
-                              i32.sub
-                              local.set $h.bits
-                              local.get $value'3
-                              local.get $h.bits
-                              i32.const 64
-                              i32.ge_u
-                              if
-                                call $rt:panic'3
-                                unreachable
-                              end
-                              local.get $h.bits
-                              i64.extend_i32_u
-                              i64.shl
-                              local.set $value'3
-                              local.get $h.high
-                              local.get $value'3
-                              i64.or
-                              local.set $h.high
-                            end
-                          else
-                            local.get $h.bits
-                            i32.const 64
-                            i32.lt_u
-                            if
-                              call $rt:panic'2
-                              unreachable
-                            end
-                            local.get $h.bits
-                            i32.const 64
-                            i32.sub
-                            local.set $t1
-                            local.get $value'3
-                            local.get $t1
-                            i32.const 64
-                            i32.ge_u
-                            if
-                              call $rt:panic'3
-                              unreachable
-                            end
-                            local.get $t1
-                            i64.extend_i32_u
-                            i64.shl
-                            local.set $lx
-                            local.get $h.high
-                            local.get $lx
-                            i64.or
-                            local.set $h.high
-                            local.get $h.low
-                            local.get $h.accumulator
-                            i64.xor
-                            local.set $h.accumulator
-                            block
-                              block
-                                i64.const -4563226453097033507
-                                local.set $h.low
-                                br 0
-                              end
-                            end
-                            local.get $h.high
-                            local.get $h.low
-                            i64.xor
-                            local.set $h.low
-                            block
-                              block
-                                i64.const 4294967295
-                                local.set $h.high
-                                local.get $h.accumulator
-                                local.get $h.high
-                                i64.and
-                                local.set $lx
-                                local.get $h.low
-                                local.get $h.high
-                                i64.and
-                                local.set $h.high
-                                local.get $h.accumulator
-                                i32.const 32
-                                local.set $t1
-                                local.get $t1
-                                i32.const 64
-                                i32.ge_u
-                                if
-                                  call $rt:panic'3
-                                  unreachable
-                                end
-                                local.get $t1
-                                i64.extend_i32_u
-                                i64.shr_u
-                                local.set $h.accumulator
-                                local.get $h.low
-                                i32.const 32
-                                local.set $t1
-                                local.get $t1
-                                i32.const 64
-                                i32.ge_u
-                                if
-                                  call $rt:panic'3
-                                  unreachable
-                                end
-                                local.get $t1
-                                i64.extend_i32_u
-                                i64.shr_u
-                                local.set $h.low
-                                local.get $lx
-                                local.get $h.high
-                                i64.mul
-                                local.set $ll
-                                local.get $lx
-                                local.get $h.high
-                                i64.or
-                                i64.const 32
-                                i64.shr_u
-                                i64.eqz
-                                if (result i32)
-                                  i32.const 0
-                                else
-                                  local.get $lx
-                                  i64.const 32
-                                  i64.shr_u
-                                  i64.eqz
-                                  local.set $t1
-                                  local.get $ll
-                                  local.get $h.high
-                                  local.get $lx
-                                  local.get $t1
-                                  select
-                                  i64.div_u
-                                  local.get $lx
-                                  local.get $h.high
-                                  local.get $t1
-                                  select
-                                  i64.ne
-                                end
-                                if
-                                  call $rt:panic'2
-                                  unreachable
-                                end
-                                local.get $lx
-                                local.get $h.low
-                                i64.mul
-                                local.set $lh
-                                local.get $lx
-                                local.get $h.low
-                                i64.or
-                                i64.const 32
-                                i64.shr_u
-                                i64.eqz
-                                if (result i32)
-                                  i32.const 0
-                                else
-                                  local.get $lx
-                                  i64.const 32
-                                  i64.shr_u
-                                  i64.eqz
-                                  local.set $t1
-                                  local.get $lh
-                                  local.get $h.low
-                                  local.get $lx
-                                  local.get $t1
-                                  select
-                                  i64.div_u
-                                  local.get $lx
-                                  local.get $h.low
-                                  local.get $t1
-                                  select
-                                  i64.ne
-                                end
-                                if
-                                  call $rt:panic'2
-                                  unreachable
-                                end
-                                local.get $h.accumulator
-                                local.get $h.high
-                                i64.mul
-                                local.set $lx
-                                local.get $h.accumulator
-                                local.get $h.high
-                                i64.or
-                                i64.const 32
-                                i64.shr_u
-                                i64.eqz
-                                if (result i32)
-                                  i32.const 0
-                                else
-                                  local.get $h.accumulator
-                                  i64.const 32
-                                  i64.shr_u
-                                  i64.eqz
-                                  local.set $t1
-                                  local.get $lx
-                                  local.get $h.high
-                                  local.get $h.accumulator
-                                  local.get $t1
-                                  select
-                                  i64.div_u
-                                  local.get $h.accumulator
-                                  local.get $h.high
-                                  local.get $t1
-                                  select
-                                  i64.ne
-                                end
-                                if
-                                  call $rt:panic'2
-                                  unreachable
-                                end
-                                local.get $h.accumulator
-                                local.get $h.low
-                                i64.mul
-                                local.set $h.high
-                                local.get $h.accumulator
-                                local.get $h.low
-                                i64.or
-                                i64.const 32
-                                i64.shr_u
-                                i64.eqz
-                                if (result i32)
-                                  i32.const 0
-                                else
-                                  local.get $h.accumulator
-                                  i64.const 32
-                                  i64.shr_u
-                                  i64.eqz
-                                  local.set $t1
-                                  local.get $h.high
-                                  local.get $h.low
-                                  local.get $h.accumulator
-                                  local.get $t1
-                                  select
-                                  i64.div_u
-                                  local.get $h.accumulator
-                                  local.get $h.low
-                                  local.get $t1
-                                  select
-                                  i64.ne
-                                end
-                                if
-                                  call $rt:panic'2
-                                  unreachable
-                                end
-                                local.get $lx
-                                local.get $lh
-                                i64.xor
-                                local.set $h.accumulator
-                                local.get $h.high
-                                local.get $ll
-                                i64.xor
-                                local.set $h.low
-                                local.get $h.accumulator
-                                i32.const 32
-                                local.set $t1
-                                local.get $t1
-                                i32.const 64
-                                i32.ge_u
-                                if
-                                  call $rt:panic'3
-                                  unreachable
-                                end
-                                local.get $t1
-                                i64.extend_i32_u
-                                i64.shr_u
-                                local.set $h.high
-                                local.get $h.accumulator
-                                i32.const 32
-                                local.set $t1
-                                local.get $t1
-                                i32.const 64
-                                i32.ge_u
-                                if
-                                  call $rt:panic'3
-                                  unreachable
-                                end
-                                local.get $t1
-                                i64.extend_i32_u
-                                i64.shl
-                                local.set $h.accumulator
-                                local.get $h.high
-                                local.get $h.accumulator
-                                i64.or
-                                local.set $h.accumulator
-                                local.get $h.low
-                                local.get $h.accumulator
-                                i64.xor
-                                local.set $h.accumulator
-                                br 0
-                              end
-                            end
-                            local.get $value'1
-                            i32.const 128
-                            i32.lt_u
-                            if
-                              call $rt:panic'2
-                              unreachable
-                            end
-                            local.get $value'1
-                            i32.const 128
-                            i32.sub
-                            local.set $value'1
-                            local.get $value'1
-                            i32.const 0
-                            i32.eq
-                            local.set $t1
-                            local.get $t1
-                            if
-                              i64.const 0
-                              local.set $h.low
-                            else
-                              local.get $h.bits
-                              i32.const 128
-                              i32.gt_u
-                              if
-                                call $rt:panic'2
-                                unreachable
-                              end
-                              i32.const 128
-                              local.get $h.bits
-                              i32.sub
-                              local.set $h.bits
-                              local.get $value'3
-                              local.get $h.bits
-                              i32.const 64
-                              i32.ge_u
-                              if
-                                call $rt:panic'3
-                                unreachable
-                              end
-                              local.get $h.bits
-                              i64.extend_i32_u
-                              i64.shr_u
-                              local.set $h.low
-                            end
-                            i64.const 0
-                            local.set $h.high
-                          end
-                          local.get $value'2
-                          i64.load $heap
-                          local.set $value'3
-                          local.get $value'2
-                          i64.load $heap offset=8
-                          local.set $value'3
-                          local.get $value'2
-                          i64.load $heap offset=16
-                          local.set $value'3
-                          local.get $value'2
-                          i32.load $heap offset=24
-                          local.set $h.bits
-                          local.get $value'2
-                          local.get $h.accumulator
-                          i64.store $heap
-                          local.get $value'2
-                          local.get $h.low
-                          i64.store $heap offset=8
-                          local.get $value'2
-                          local.get $h.high
-                          i64.store $heap offset=16
-                          local.get $value'2
-                          local.get $value'1
-                          i32.store $heap offset=24
-                          br 0
-                        end
-                      end
-                      br 0
-                    end
-                  end
-                  i32.const 0
-                  local.set $value'2
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
-          i32.const 0
-          local.set $value'2
-          i32.const 0
-          local.set $value'1
-          local.get $hasher
-          i64.load $heap
-          local.set $value'3
-          local.get $hasher
-          i64.load $heap offset=8
-          local.set $h.accumulator
-          local.get $hasher
-          i64.load $heap offset=16
-          local.set $h.low
-          local.get $hasher
-          i32.load $heap offset=24
-          local.set $value'1
-          block
-            block
-              block
-                block
-                  local.get $value'1
-                  i32.const 0
-                  i32.eq
-                  local.set $value'1
-                  local.get $value'1
-                  if
-                  else
-                    local.get $h.accumulator
-                    local.get $value'3
-                    i64.xor
-                    local.set $value'3
-                    block
-                      block
-                        i64.const -4563226453097033507
-                        local.set $h.accumulator
-                        br 0
-                      end
-                    end
-                    local.get $h.low
-                    local.get $h.accumulator
-                    i64.xor
-                    local.set $h.accumulator
-                    block
-                      block
-                        i64.const 4294967295
-                        local.set $h.low
-                        local.get $value'3
-                        local.get $h.low
-                        i64.and
-                        local.set $h.high
-                        local.get $h.accumulator
-                        local.get $h.low
-                        i64.and
-                        local.set $h.low
-                        local.get $value'3
-                        i32.const 32
-                        local.set $value'1
-                        local.get $value'1
-                        i32.const 64
-                        i32.ge_u
-                        if
-                          call $rt:panic'3
-                          unreachable
-                        end
-                        local.get $value'1
-                        i64.extend_i32_u
-                        i64.shr_u
-                        local.set $value'3
-                        local.get $h.accumulator
-                        i32.const 32
-                        local.set $value'1
-                        local.get $value'1
-                        i32.const 64
-                        i32.ge_u
-                        if
-                          call $rt:panic'3
-                          unreachable
-                        end
-                        local.get $value'1
-                        i64.extend_i32_u
-                        i64.shr_u
-                        local.set $h.accumulator
-                        local.get $h.high
-                        local.get $h.low
-                        i64.mul
-                        local.set $lx
-                        local.get $h.high
-                        local.get $h.low
-                        i64.or
-                        i64.const 32
-                        i64.shr_u
-                        i64.eqz
-                        if (result i32)
-                          i32.const 0
-                        else
-                          local.get $h.high
-                          i64.const 32
-                          i64.shr_u
-                          i64.eqz
-                          local.set $value'1
-                          local.get $lx
-                          local.get $h.low
-                          local.get $h.high
-                          local.get $value'1
-                          select
-                          i64.div_u
-                          local.get $h.high
-                          local.get $h.low
-                          local.get $value'1
-                          select
-                          i64.ne
-                        end
-                        if
-                          call $rt:panic'2
-                          unreachable
-                        end
-                        local.get $h.high
-                        local.get $h.accumulator
-                        i64.mul
-                        local.set $ll
-                        local.get $h.high
-                        local.get $h.accumulator
-                        i64.or
-                        i64.const 32
-                        i64.shr_u
-                        i64.eqz
-                        if (result i32)
-                          i32.const 0
-                        else
-                          local.get $h.high
-                          i64.const 32
-                          i64.shr_u
-                          i64.eqz
-                          local.set $value'1
-                          local.get $ll
-                          local.get $h.accumulator
-                          local.get $h.high
-                          local.get $value'1
-                          select
-                          i64.div_u
-                          local.get $h.high
-                          local.get $h.accumulator
-                          local.get $value'1
-                          select
-                          i64.ne
-                        end
-                        if
-                          call $rt:panic'2
-                          unreachable
-                        end
-                        local.get $value'3
-                        local.get $h.low
-                        i64.mul
-                        local.set $h.high
-                        local.get $value'3
-                        local.get $h.low
-                        i64.or
-                        i64.const 32
-                        i64.shr_u
-                        i64.eqz
-                        if (result i32)
-                          i32.const 0
-                        else
-                          local.get $value'3
-                          i64.const 32
-                          i64.shr_u
-                          i64.eqz
-                          local.set $value'1
-                          local.get $h.high
-                          local.get $h.low
-                          local.get $value'3
-                          local.get $value'1
-                          select
-                          i64.div_u
-                          local.get $value'3
-                          local.get $h.low
-                          local.get $value'1
-                          select
-                          i64.ne
-                        end
-                        if
-                          call $rt:panic'2
-                          unreachable
-                        end
-                        local.get $value'3
-                        local.get $h.accumulator
-                        i64.mul
-                        local.set $h.low
-                        local.get $value'3
-                        local.get $h.accumulator
-                        i64.or
-                        i64.const 32
-                        i64.shr_u
-                        i64.eqz
-                        if (result i32)
-                          i32.const 0
-                        else
-                          local.get $value'3
-                          i64.const 32
-                          i64.shr_u
-                          i64.eqz
-                          local.set $value'1
-                          local.get $h.low
-                          local.get $h.accumulator
-                          local.get $value'3
-                          local.get $value'1
-                          select
-                          i64.div_u
-                          local.get $value'3
-                          local.get $h.accumulator
-                          local.get $value'1
-                          select
-                          i64.ne
-                        end
-                        if
-                          call $rt:panic'2
-                          unreachable
-                        end
-                        local.get $h.high
-                        local.get $ll
-                        i64.xor
-                        local.set $value'3
-                        local.get $h.low
-                        local.get $lx
-                        i64.xor
-                        local.set $h.accumulator
-                        local.get $value'3
-                        i32.const 32
-                        local.set $value'1
-                        local.get $value'1
-                        i32.const 64
-                        i32.ge_u
-                        if
-                          call $rt:panic'3
-                          unreachable
-                        end
-                        local.get $value'1
-                        i64.extend_i32_u
-                        i64.shr_u
-                        local.set $h.low
-                        local.get $value'3
-                        i32.const 32
-                        local.set $value'1
-                        local.get $value'1
-                        i32.const 64
-                        i32.ge_u
-                        if
-                          call $rt:panic'3
-                          unreachable
-                        end
-                        local.get $value'1
-                        i64.extend_i32_u
-                        i64.shl
-                        local.set $value'3
-                        local.get $h.low
-                        local.get $value'3
-                        i64.or
-                        local.set $value'3
-                        local.get $h.accumulator
-                        local.get $value'3
-                        i64.xor
-                        local.set $value'3
-                        br 0
-                      end
-                    end
-                  end
-                  br 0
-                end
-              end
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $value'1
-    end
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $value'1
+    local.get $value'2
+    i32.store $heap
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.tee $value'2
+    i64.const 589684135938649225
+    i64.store $heap
+    local.get $value'2
     local.get $value'3
+    i64.store $heap offset=8
+    local.get $value'2
+    local.get $high
+    i64.store $heap offset=16
+    local.get $value'2
+    i32.const 0
+    i32.store $heap offset=24
+    local.get $value'1
+    i32.load $heap
+    i64.extend_i32_u
+    local.set $value'3
+    local.get $value'2
+    i64.load $heap
+    local.get $value'2
+    i64.load $heap offset=8
+    local.get $value'2
+    i64.load $heap offset=16
+    local.set $high
+    local.get $value'2
+    i32.load $heap offset=24
+    local.set $value'1
+    local.set $low
+    local.set $accumulator
+    local.get $value'1
+    i64.extend_i32_u
+    i64.const 32
+    i64.add
+    local.tee $ly
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $ly
+    i32.wrap_i64
+    local.tee $total
+    local.set $next
+    local.get $total
+    i32.const 128
+    i32.lt_u
+    if
+      local.get $value'1
+      i32.const 64
+      i32.lt_u
+      if
+        local.get $value'3
+        local.get $value'1
+        i32.const 64
+        i32.ge_u
+        if
+          call $rt:panic'3
+          unreachable
+        end
+        local.get $value'1
+        i64.extend_i32_u
+        i64.shl
+        local.set $ly
+        local.get $low
+        local.get $ly
+        i64.or
+        local.set $low
+        local.get $total
+        i32.const 64
+        i32.gt_u
+        if
+          local.get $value'1
+          i32.const 64
+          i32.gt_u
+          if
+            call $rt:panic'2
+            unreachable
+          end
+          local.get $value'3
+          i32.const 64
+          local.get $value'1
+          i32.sub
+          local.tee $value'1
+          i32.const 64
+          i32.ge_u
+          if
+            call $rt:panic'3
+            unreachable
+          end
+          local.get $value'1
+          i64.extend_i32_u
+          i64.shr_u
+          local.set $value'3
+          local.get $high
+          local.get $value'3
+          i64.or
+          local.set $high
+        end
+      else
+        local.get $value'1
+        i32.const 64
+        i32.lt_u
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $value'3
+        local.get $value'1
+        i32.const 64
+        i32.sub
+        local.tee $value'1
+        i32.const 64
+        i32.ge_u
+        if
+          call $rt:panic'3
+          unreachable
+        end
+        local.get $value'1
+        i64.extend_i32_u
+        i64.shl
+        local.set $value'3
+        local.get $high
+        local.get $value'3
+        i64.or
+        local.set $high
+      end
+    else
+      local.get $value'1
+      i32.const 64
+      i32.lt_u
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $value'3
+      local.get $value'1
+      i32.const 64
+      i32.sub
+      local.tee $next
+      i32.const 64
+      i32.ge_u
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $next
+      i64.extend_i32_u
+      i64.shl
+      local.set $ly
+      local.get $high
+      local.get $ly
+      i64.or
+      local.get $low
+      local.get $accumulator
+      i64.xor
+      local.set $accumulator
+      i64.const -4563226453097033507
+      i64.xor
+      local.set $low
+      local.get $accumulator
+      i64.const 4294967295
+      i64.and
+      local.tee $high
+      local.get $low
+      i64.const 4294967295
+      i64.and
+      local.set $ly
+      local.get $accumulator
+      i64.const 32
+      i64.shr_u
+      local.set $accumulator
+      local.get $low
+      i64.const 32
+      i64.shr_u
+      local.set $low
+      local.tee $lh
+      local.get $ly
+      i64.mul
+      local.set $ll
+      local.get $lh
+      local.get $ly
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $lh
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $next
+        local.get $ll
+        local.get $ly
+        local.get $lh
+        local.get $next
+        select
+        i64.div_u
+        local.get $lh
+        local.get $ly
+        local.get $next
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $high
+      local.get $low
+      i64.mul
+      local.set $lh
+      local.get $high
+      local.get $low
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $high
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $next
+        local.get $lh
+        local.get $low
+        local.get $high
+        local.get $next
+        select
+        i64.div_u
+        local.get $high
+        local.get $low
+        local.get $next
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $accumulator
+      local.get $ly
+      i64.mul
+      local.set $high
+      local.get $accumulator
+      local.get $ly
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $accumulator
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $next
+        local.get $high
+        local.get $ly
+        local.get $accumulator
+        local.get $next
+        select
+        i64.div_u
+        local.get $accumulator
+        local.get $ly
+        local.get $next
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $accumulator
+      local.get $low
+      i64.mul
+      local.set $ly
+      local.get $accumulator
+      local.get $low
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $accumulator
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $next
+        local.get $ly
+        local.get $low
+        local.get $accumulator
+        local.get $next
+        select
+        i64.div_u
+        local.get $accumulator
+        local.get $low
+        local.get $next
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $high
+      local.get $lh
+      i64.xor
+      local.tee $accumulator
+      local.get $ly
+      local.get $ll
+      i64.xor
+      local.set $low
+      i64.const 32
+      i64.shr_u
+      local.set $high
+      local.get $accumulator
+      i64.const 32
+      i64.shl
+      local.set $accumulator
+      local.get $low
+      local.get $high
+      local.get $accumulator
+      i64.or
+      i64.xor
+      local.set $accumulator
+      local.get $total
+      i32.const 128
+      i32.lt_u
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $total
+      i32.const 128
+      i32.sub
+      local.tee $next
+      i32.eqz
+      if (result i64)
+        i64.const 0
+      else
+        local.get $value'1
+        i32.const 128
+        i32.gt_u
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $value'3
+        i32.const 128
+        local.get $value'1
+        i32.sub
+        local.tee $value'1
+        i32.const 64
+        i32.ge_u
+        if
+          call $rt:panic'3
+          unreachable
+        end
+        local.get $value'1
+        i64.extend_i32_u
+        i64.shr_u
+      end
+      local.set $low
+      i64.const 0
+      local.set $high
+    end
+    local.get $value'2
+    local.get $accumulator
+    i64.store $heap
+    local.get $value'2
+    local.get $low
+    i64.store $heap offset=8
+    local.get $value'2
+    local.get $high
+    i64.store $heap offset=16
+    local.get $value'2
+    local.get $next
+    i32.store $heap offset=24
+    local.get $value'2
+    i64.load $heap
+    local.get $value'2
+    i64.load $heap offset=8
+    local.get $value'2
+    i64.load $heap offset=16
+    local.get $value'2
+    i32.load $heap offset=24
+    local.set $value'2
+    local.set $value'3
+    local.set $high
+    local.set $low
+    local.get $value'2
+    i32.eqz
+    if (result i64)
+      local.get $low
+    else
+      local.get $high
+      local.get $low
+      i64.xor
+      local.set $high
+      local.get $value'3
+      i64.const -4563226453097033507
+      i64.xor
+      local.set $value'3
+      local.get $high
+      i64.const 4294967295
+      i64.and
+      local.tee $low
+      local.get $value'3
+      i64.const 4294967295
+      i64.and
+      local.set $accumulator
+      local.get $high
+      i64.const 32
+      i64.shr_u
+      local.set $high
+      local.get $value'3
+      i64.const 32
+      i64.shr_u
+      local.set $value'3
+      local.tee $ly
+      local.get $accumulator
+      i64.mul
+      local.set $lh
+      local.get $ly
+      local.get $accumulator
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $ly
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $value'2
+        local.get $lh
+        local.get $accumulator
+        local.get $ly
+        local.get $value'2
+        select
+        i64.div_u
+        local.get $ly
+        local.get $accumulator
+        local.get $value'2
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $low
+      local.get $value'3
+      i64.mul
+      local.set $ly
+      local.get $low
+      local.get $value'3
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $low
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $value'2
+        local.get $ly
+        local.get $value'3
+        local.get $low
+        local.get $value'2
+        select
+        i64.div_u
+        local.get $low
+        local.get $value'3
+        local.get $value'2
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $high
+      local.get $accumulator
+      i64.mul
+      local.set $low
+      local.get $high
+      local.get $accumulator
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $high
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $value'2
+        local.get $low
+        local.get $accumulator
+        local.get $high
+        local.get $value'2
+        select
+        i64.div_u
+        local.get $high
+        local.get $accumulator
+        local.get $value'2
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $high
+      local.get $value'3
+      i64.mul
+      local.set $accumulator
+      local.get $high
+      local.get $value'3
+      i64.or
+      i64.const 32
+      i64.shr_u
+      i64.eqz
+      if (result i32)
+        i32.const 0
+      else
+        local.get $high
+        i64.const 32
+        i64.shr_u
+        i64.eqz
+        local.set $value'2
+        local.get $accumulator
+        local.get $value'3
+        local.get $high
+        local.get $value'2
+        select
+        i64.div_u
+        local.get $high
+        local.get $value'3
+        local.get $value'2
+        select
+        i64.ne
+      end
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $low
+      local.get $ly
+      i64.xor
+      local.tee $value'3
+      local.get $accumulator
+      local.get $lh
+      i64.xor
+      local.set $high
+      i64.const 32
+      i64.shr_u
+      local.set $low
+      local.get $value'3
+      i64.const 32
+      i64.shl
+      local.set $value'3
+      local.get $high
+      local.get $low
+      local.get $value'3
+      i64.or
+      i64.xor
+    end
     local.get $t0
     i32.const 56
     i32.add

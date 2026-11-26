@@ -4,14 +4,9 @@ std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
 std/rt.cycle/push#0
-std/rt.alloc/local_page#0
 app/main/discard#adapter
 std/rt.cycle/scan#0
-std/rt.alloc/drain#0
-std/rt.alloc/owns#0
 std/rt.alloc/init_classes#0
-std/rt.alloc/registry#0
-std/rt.alloc/owner#0
 std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.cycle/suspect#0
@@ -27,35 +22,27 @@ app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
-std/rt.alloc/adopted#0
 std/rt.alloc/unlink#0
 app/main/discard#adapter
 std/rt.alloc/retain#0
 app/main/widen#0 [&mut i32]
-std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 app/main/read#0
 std/rt.entry/host_provider#0 [Console]
-std/rt.alloc/retain_known#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
-std/rt.thread/init.init#0
 app/main/adapt_keys#0 [&i32]
-std/rt.alloc/joined#0
-std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.alloc/init.init#0
-std/rt.alloc/publish#0
 app/main/widen#0 [&i32]
 std/rt.cycle/collection_due#0
 app/main/discard#0 [&i32]
 std/rt.cycle/drop_root#0
 std/rt.cycle/mark#0
-std/time/init.init#0
 app/main/adapt_keys#0 [&mut i32]
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
@@ -90,7 +77,6 @@ rt:free_class_loaded
 rt:str
 rt:release_ref#0
 rt:release_drain
-rt:retain_known
 rt:release_ref#1
 rt:drop
 rt:list_buf
@@ -111,18 +97,13 @@ std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
 std/rt.cycle/push#0
-std/rt.alloc/local_page#0
 app/main/discard#adapter
 std/rt.checked/free#0
 std/rt.cycle/scan#0
-std/rt.alloc/drain#0
-std/rt.alloc/owns#0
 std/rt.alloc/init_classes#0
 std/rt.checked/no_op_counts#0
 std/rt.checked/free_acyclic#0
-std/rt.alloc/registry#0
 std/rt.checked/first_live#0
-std/rt.alloc/owner#0
 std/rt.cycle/drain#0
 std/rt.cycle/suspect#0
 std/rt.alloc/grown#0
@@ -141,11 +122,9 @@ std/rt.alloc/move_table#0
 std/rt.checked/audit#0
 std/rt.checked/skipped_test#0
 std/rt.checked/release_known#0
-std/rt.alloc/adopted#0
 std/rt.alloc/unlink#0
 app/main/discard#adapter
 app/main/widen#0 [&mut i32]
-std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 std/rt.checked/unique_checks#0
 std/rt.alloc/reclaim#0
@@ -156,10 +135,7 @@ std/rt.checked/released#0
 std/rt.alloc/alloc#0
 std/rt.checked/notify#0
 std/rt.alloc/extend#0
-std/rt.thread/init.init#0
 app/main/adapt_keys#0 [&i32]
-std/rt.alloc/joined#0
-std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
@@ -167,7 +143,6 @@ std/rt.checked/retain_known#0
 std/rt.checked/counted#0
 std/rt.checked/release#0
 std/rt.alloc/init.init#0
-std/rt.alloc/publish#0
 app/main/widen#0 [&i32]
 std/rt.cycle/collection_due#0
 std/rt.checked/freeable#0

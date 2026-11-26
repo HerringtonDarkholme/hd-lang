@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (func $classify (param $value i32) (result i32) (local $t0 i32)
+  (func $classify (param $value i32) (result i32)
     ;; 4 |     match value:
     block
       block
@@ -10,91 +10,67 @@
           block
     ;; 5 |         0 => 7
             local.get $value
-            i32.const 0
-            i32.eq
-            local.set $t0
-            local.get $t0
-            if
-              br 1
-            else
+            i32.eqz
+            br_if 0
     ;; 6 |         1 => 8
-              local.get $value
-              i32.const 1
-              i32.eq
-              local.set $value
-              local.get $value
-              if
-                br 3
-              else
-                br 4
-              end
-    ;; 5 |         0 => 7
-            end
+            local.get $value
+            i32.const 1
+            i32.eq
+            i32.eqz
+            br_if 2
+            br 1
     ;; 4 |     match value:
             unreachable
           end
           i32.const 7
-          local.set $value
-          br 2
+          return
         end
         i32.const 8
-        local.set $value
-        br 1
+        return
       end
       i32.const 9
-      local.set $value
-      br 0
+      return
     end
     local.get $value
   )
-  (func $text (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
+  (func $text (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 10 |     match value:
     block
       block
         block
           block
-            block
     ;; 11 |         "first" => 7
-              local.get $value.0
-              local.get $value.1
-              i32.const 65 ;; &"first"
-              i32.const 5
-              call $rt:str_eq
-              local.set $t0
-              local.get $t0
-              if
-                br 1
-              else
+            local.get $value.0
+            local.get $value.1
+            i32.const 65 ;; &"first"
+            i32.const 5
+            call $rt:str_eq
+            br_if 0
     ;; 12 |         "second" => 8
-                local.get $value.0
-                local.get $value.1
-                i32.const 70 ;; &"second"
-                i32.const 6
-                call $rt:str_eq
-                local.set $value.1
-                local.get $value.1
-                if
-                  br 3
-                else
-                  br 4
-                end
-    ;; 11 |         "first" => 7
-              end
+            local.get $value.0
+            local.get $value.1
+            i32.const 70 ;; &"second"
+            i32.const 6
+            call $rt:str_eq
+            i32.eqz
+            br_if 2
+            br 1
     ;; 10 |     match value:
-              unreachable
-            end
-            i32.const 7
-            local.set $value.1
-            br 2
+            unreachable
           end
-          i32.const 8
+          i32.const 7
           local.set $value.1
-          br 1
+          br 2
         end
-        i32.const 9
+        i32.const 8
         local.set $value.1
-        br 0
+        br 1
       end
+      i32.const 9
+      local.set $value.1
+    end
+    local.get $value.0
+    if
       local.get $value.0
       call $rt:release_ref
     end

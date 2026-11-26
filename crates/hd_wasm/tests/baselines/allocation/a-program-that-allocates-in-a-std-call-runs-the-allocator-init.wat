@@ -2,19 +2,6 @@
 (module
   (import "fixture" "impl string.repeat" (func $"impl string.repeat" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "std/rt.thread/init.init" (func $std/rt.thread/init.init))
-  (import "fixture" "std/time/init.init" (func $std/time/init.init))
-  (import "fixture" "std/rt.alloc/PAGE" (global $std/rt.alloc/PAGE (mut i32)))
-  (import "fixture" "std/rt.alloc/LISTS" (global $std/rt.alloc/LISTS (mut i32)))
-  (import "fixture" "std/rt.alloc/FREED" (global $std/rt.alloc/FREED (mut i32)))
-  (import "fixture" "std/rt.alloc/SIZES" (global $std/rt.alloc/SIZES (mut i32)))
-  (import "fixture" "std/rt.alloc/RECIPROCALS" (global $std/rt.alloc/RECIPROCALS (mut i32)))
-  (import "fixture" "std/rt.alloc/SMALL" (global $std/rt.alloc/SMALL (mut i32)))
-  (import "fixture" "std/rt.alloc/RUN" (global $std/rt.alloc/RUN (mut i32)))
-  (import "fixture" "std/rt.alloc/REST" (global $std/rt.alloc/REST (mut i32)))
-  (import "fixture" "std/rt.alloc/LOW" (global $std/rt.alloc/LOW (mut i32)))
-  (import "fixture" "std/rt.alloc/CYCLIC" (global $std/rt.alloc/CYCLIC (mut i32)))
-  (import "fixture" "std/rt.alloc/BUFFERED" (global $std/rt.alloc/BUFFERED (mut i32)))
   (import "fixture" "std/rt.alloc/table" (global $std/rt.alloc/table (mut i32)))
   (import "fixture" "std/rt.alloc/capacity" (global $std/rt.alloc/capacity (mut i32)))
   (import "fixture" "std/rt.alloc/known" (global $std/rt.alloc/known (mut i32)))
@@ -22,52 +9,19 @@
   (import "fixture" "std/rt.alloc/miss_size" (global $std/rt.alloc/miss_size (mut i32)))
   (import "fixture" "std/rt.alloc/miss_end" (global $std/rt.alloc/miss_end (mut i32)))
   (import "fixture" "std/rt.alloc/heap" (global $std/rt.alloc/heap (mut i32)))
-  (import "fixture" "std/rt.alloc/REGISTRY" (global $std/rt.alloc/REGISTRY (mut i32)))
-  (import "fixture" "std/rt.alloc/RECORD" (global $std/rt.alloc/RECORD (mut i32)))
-  (import "fixture" "std/rt.alloc/RECORDS" (global $std/rt.alloc/RECORDS (mut i32)))
-  (import "fixture" "std/rt.alloc/REMOTE" (global $std/rt.alloc/REMOTE (mut i32)))
-  (import "fixture" "std/rt.alloc/OWNERS" (global $std/rt.alloc/OWNERS (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 8 |     println("ab".repeat(3))
-    block
-      i32.const 113 ;; &"ab"
-      i32.const 2
-      i32.const 3
-      call $"impl string.repeat"
-      local.set $t0
-      local.set $t1
-      local.get $t1
-      local.get $t0
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    end
+    i32.const 113 ;; &"ab"
+    i32.const 2
+    i32.const 3
+    call $"impl string.repeat"
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
   )
-  (func $std/rt.alloc/init.init
+  (func $init.init
     ;; (no span)
-    i32.const 65536
-    global.set $std/rt.alloc/PAGE
-    i32.const 1024
-    global.set $std/rt.alloc/LISTS
-    i32.const 640
-    global.set $std/rt.alloc/FREED
-    i32.const 132
-    global.set $std/rt.alloc/SIZES
-    i32.const 264
-    global.set $std/rt.alloc/RECIPROCALS
-    i32.const 1073741824
-    global.set $std/rt.alloc/SMALL
-    i32.const -2147483648
-    global.set $std/rt.alloc/RUN
-    i32.const -1073741824
-    global.set $std/rt.alloc/REST
-    i32.const 1073741823
-    global.set $std/rt.alloc/LOW
-    i32.const -2147483648
-    global.set $std/rt.alloc/CYCLIC
-    i32.const 1073741824
-    global.set $std/rt.alloc/BUFFERED
     i32.const 0
     global.set $std/rt.alloc/table
     i32.const 0
@@ -82,16 +36,6 @@
     global.set $std/rt.alloc/miss_end
     i32.const 0
     global.set $std/rt.alloc/heap
-    i32.const 12
-    global.set $std/rt.alloc/REGISTRY
-    i32.const 32
-    global.set $std/rt.alloc/RECORD
-    i32.const 1024
-    global.set $std/rt.alloc/RECORDS
-    i32.const 8
-    global.set $std/rt.alloc/REMOTE
-    i32.const 32768
-    global.set $std/rt.alloc/OWNERS
   )
   (func $rt:entry_init
     ;; (no span)
@@ -99,25 +43,7 @@
     i32.const 1
     i32.add
     global.set $forbid
-    call $std/rt.alloc/init.init
-    global.get $forbid
-    i32.const -1
-    i32.add
-    global.set $forbid
-    global.get $forbid
-    i32.const 1
-    i32.add
-    global.set $forbid
-    call $std/rt.thread/init.init
-    global.get $forbid
-    i32.const -1
-    i32.add
-    global.set $forbid
-    global.get $forbid
-    i32.const 1
-    i32.add
-    global.set $forbid
-    call $std/time/init.init
+    call $init.init
     global.get $forbid
     i32.const -1
     i32.add

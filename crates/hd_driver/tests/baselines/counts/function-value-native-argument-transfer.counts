@@ -52,7 +52,6 @@ fn conditional_size(value: Conditional) -> usize:
     match value:
 > std/rt_tests.stage_case/conditional_size
 >   release std.rt_tests.stage_case.Resource [seen] (last use)
->   release std.rt_tests.stage_case.Conditional (last use)
         .Empty => 0
         .Live(resource) => size(resource)
 
@@ -61,8 +60,6 @@ fn read_conditional(callback: fn(Conditional) -> usize, value: Conditional) -> u
     callback(value)
 > std/rt_tests.stage_case/read_conditional
 >   release counted reference (last use)
->   release std.rt_tests.stage_case.Conditional (last use)
->   release std.rt_tests.stage_case.Conditional (last use)
 >   release fn(std.rt_tests.stage_case.Conditional) -> usize (last use)
 
 @inline(.Never)
@@ -70,8 +67,6 @@ fn read(callback: fn(Resource) -> usize, value: Resource) -> usize:
     callback(value)
 > std/rt_tests.stage_case/read
 >   release counted reference (last use)
->   release std.rt_tests.stage_case.Resource [seen] (last use)
->   release std.rt_tests.stage_case.Resource [seen] (last use)
 >   release fn(std.rt_tests.stage_case.Resource) -> usize (last use)
 
 @inline(.Never)
@@ -79,14 +74,10 @@ fn identity(callback: fn(Resource) -> Resource, value: Resource) -> Resource:
     callback(value)
 > std/rt_tests.stage_case/identity
 >   release counted reference (last use)
->   release std.rt_tests.stage_case.Resource [seen] (last use)
->   release std.rt_tests.stage_case.Resource [seen] (last use)
 >   release fn(std.rt_tests.stage_case.Resource) -> std.rt_tests.stage_case.Resource (last use)
 
 fn keep(value: Resource) -> Resource:
     value
-> std/rt_tests.stage_case/keep
->   release std.rt_tests.stage_case.Resource [seen] (last use)
 
 fn plain_controls() -> void:
     seen := box(+0)
@@ -98,7 +89,6 @@ fn plain_controls() -> void:
     inspect := fn(value: Resource) -> usize: value.owned.len()
 > std/rt_tests.stage_case/plain_controls
 >   retain counted reference (stored)
->   release counted reference (last use)
 >   release counted reference (last use)
     assert_equal(read(inspect, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   retain *mut i32 (stored)
@@ -150,7 +140,6 @@ fn empty_size(value: EmptyResource) -> usize:
 fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usize:
     callback(value)
 > std/rt_tests.stage_case/read_empty
->   release std.rt_tests.stage_case.EmptyResource (last use)
 >   release fn(std.rt_tests.stage_case.EmptyResource) -> usize (last use)
 
 @inline(.Never)
@@ -159,8 +148,6 @@ fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args
 > std/rt_tests.stage_case/read_spread
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release (std.rt_tests.stage_case.EmptyResource, std.rt_tests.stage_case.Resource, (), string, std.rt_tests.stage_case.EmptyResource) [1.seen, 3.0] (last use)
->   release (std.rt_tests.stage_case.EmptyResource, std.rt_tests.stage_case.Resource, (), string, std.rt_tests.stage_case.EmptyResource) [1.seen, 3.0] (last use)
 >   release fn(std.rt_tests.stage_case.EmptyResource, std.rt_tests.stage_case.Resource, (), string, std.rt_tests.stage_case.EmptyResource) -> usize (last use)
 
 fn mixed_size(
@@ -182,13 +169,11 @@ fn empty_controls() -> void:
     inspect := fn(value: EmptyResource) -> usize: 0
 > std/rt_tests.stage_case/empty_controls
 >   release std.rt_tests.stage_case.EmptyResource (last use)
->   release std.rt_tests.stage_case.EmptyResource (last use)
     assert_equal(read_empty(inspect, EmptyResource {}), 0)
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
     seen := box(+0)
     label := ["ke", "pt"].join("")
 > std/rt_tests.stage_case/empty_controls
->   retain string (stored)
 >   release List[string] (last use)
     let mut owned: UniqList[usize] = UniqList::new()
     owned.push(23)
@@ -230,9 +215,6 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
     let constructor = delayed_size
 > std/rt_tests.stage_case/prepared_native
 >   release counted reference (last use)
->   release std.rt_tests.stage_case.Resource [seen] (last use)
->   release fn!(std.rt_tests.stage_case.Resource) -> usize $ std.time.Clock (last use)
->   release *mut i32 (last use)
     if literal:
         constructor = fn!(value: Resource) -> usize $ Clock:
 > std/rt_tests.stage_case/prepared_native
@@ -245,7 +227,6 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 > std/rt_tests.stage_case/prepared_native
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   release fn!(std.rt_tests.stage_case.Resource) -> usize $ std.time.Clock (overwritten)
 > std/rt_tests.stage_case/prepared_native
 >   retain counted reference (stored)
             cold_starts += 1

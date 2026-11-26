@@ -59,9 +59,8 @@ fn pointer_len(input: *Names) -> usize:
 
 fn replaced(input: Names) -> usize:
     let mut source = input
-> app/main/replaced
->   release app.main.Names [first.0, second.0] (last use)
     holder := Wrapped { values: source, n: 1 }
+> app/main/replaced
 >   retain app.main.Names [first.0, second.0] (stored)
     source.second = "fresh"
 >   release string (overwritten)
@@ -76,9 +75,8 @@ fn replaced(input: Names) -> usize:
 
 fn replaced_optional(input: Names) -> usize:
     let mut source = input
-> app/main/replaced_optional
->   release app.main.Names [first.0, second.0] (last use)
     let value: Names? = source
+> app/main/replaced_optional
 >   retain app.main.Names [first.0, second.0] (conservative: copy read)
 >   retain app.main.Names [first.0, second.0] (conservative: Coerce)
 >   release app.main.Names [first.0, second.0] (last use)
@@ -99,9 +97,7 @@ fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
 > app/main/behind_pointer
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
->   release *mut app.main.Names (last use)
     alias.second = "fresh"
->   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     churn := p.first + "!"
 >   release *mut app.main.Names (last use)
@@ -280,9 +276,8 @@ fn pointer_len(input: *Names) -> usize:
 
 fn replaced(input: Names) -> usize:
     let mut source = input
-> app/main/replaced
->   release app.main.Names [first.0, second.0] (last use)
     holder := Wrapped { values: source, n: 1 }
+> app/main/replaced
 >   retain app.main.Names [first.0, second.0] (stored)
     source.second = "fresh"
 >   release string (overwritten)
@@ -297,9 +292,8 @@ fn replaced(input: Names) -> usize:
 
 fn replaced_optional(input: Names) -> usize:
     let mut source = input
-> app/main/replaced_optional
->   release app.main.Names [first.0, second.0] (last use)
     let value: Names? = source
+> app/main/replaced_optional
 >   retain app.main.Names [first.0, second.0] (conservative: copy read)
 >   retain app.main.Names [first.0, second.0] (conservative: Coerce)
 >   release app.main.Names [first.0, second.0] (last use)
@@ -320,9 +314,7 @@ fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
 > app/main/behind_pointer
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
->   release *mut app.main.Names (last use)
     alias.second = "fresh"
->   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     churn := p.first + "!"
 >   release *mut app.main.Names (last use)

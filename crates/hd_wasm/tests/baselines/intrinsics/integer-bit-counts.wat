@@ -4,8 +4,6 @@
     ;; 26 |     value.leading_zeros()
     local.get $value
     i32.clz
-    local.set $value
-    local.get $value
   )
   (func $u16_trailing_zeros (param $value i32) (result i32)
     ;; 20 |     value.trailing_zeros()
@@ -13,15 +11,11 @@
     i32.const 65536
     i32.or
     i32.ctz
-    local.set $value
-    local.get $value
   )
   (func $u16_count_ones (param $value i32) (result i32)
     ;; 14 |     value.count_ones()
     local.get $value
     i32.popcnt
-    local.set $value
-    local.get $value
   )
   (func $u16_leading_zeros (param $value i32) (result i32)
     ;; 17 |     value.leading_zeros()
@@ -29,23 +23,17 @@
     i32.clz
     i32.const 16
     i32.sub
-    local.set $value
-    local.get $value
   )
-  (func $u64_count_ones (param $value i64) (result i32) (local $t0 i32)
+  (func $u64_count_ones (param $value i64) (result i32)
     ;; 32 |     value.count_ones()
     local.get $value
     i64.popcnt
     i32.wrap_i64
-    local.set $t0
-    local.get $t0
   )
   (func $u32_count_ones (param $value i32) (result i32)
     ;; 23 |     value.count_ones()
     local.get $value
     i32.popcnt
-    local.set $value
-    local.get $value
   )
   (func $i8_leading_zeros (param $value i32) (result i32)
     ;; 8 |     value.leading_zeros()
@@ -55,16 +43,12 @@
     i32.clz
     i32.const 24
     i32.sub
-    local.set $value
-    local.get $value
   )
-  (func $u64_trailing_zeros (param $value i64) (result i32) (local $t0 i32)
+  (func $u64_trailing_zeros (param $value i64) (result i32)
     ;; 38 |     value.trailing_zeros()
     local.get $value
     i64.ctz
     i32.wrap_i64
-    local.set $t0
-    local.get $t0
   )
   (func $i8_count_ones (param $value i32) (result i32)
     ;; 5 |     value.count_ones()
@@ -72,23 +56,17 @@
     i32.const 255
     i32.and
     i32.popcnt
-    local.set $value
-    local.get $value
   )
-  (func $u64_leading_zeros (param $value i64) (result i32) (local $t0 i32)
+  (func $u64_leading_zeros (param $value i64) (result i32)
     ;; 35 |     value.leading_zeros()
     local.get $value
     i64.clz
     i32.wrap_i64
-    local.set $t0
-    local.get $t0
   )
   (func $u32_trailing_zeros (param $value i32) (result i32)
     ;; 29 |     value.trailing_zeros()
     local.get $value
     i32.ctz
-    local.set $value
-    local.get $value
   )
   (func $i8_trailing_zeros (param $value i32) (result i32)
     ;; 11 |     value.trailing_zeros()
@@ -96,7 +74,5 @@
     i32.const 256
     i32.or
     i32.ctz
-    local.set $value
-    local.get $value
   )
 )

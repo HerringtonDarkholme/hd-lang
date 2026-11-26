@@ -10,126 +10,71 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width i32) (local $value i64) (local $t0 i64) (local $size i32) (local $t1 i64) (local $result.0 i32) (local $offset i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 36 |     println("${copy(+1)}")
-    block
+    i32.const 1
+    call $copy
+    i64.extend_i32_s
+    local.tee $t0
+    local.tee $value
+    call $signed_magnitude
+    call $unsigned_width
+    local.set $t1
+    local.get $value
+    i64.const 0
+    i64.lt_s
+    if
       i32.const 1
-      call $copy
-      local.set $width
-      local.get $width
-      i64.extend_i32_s
-      local.set $value
-      block
-        block
-          block
-            block
-              local.get $value
-              call $signed_magnitude
-              local.set $t0
-              local.get $t0
-              call $unsigned_width
-              local.set $width
-              local.get $value
-              i64.const 0
-              i64.lt_s
-              local.set $size
-              local.get $size
-              if
-                i32.const 1
-                local.set $size
-              else
-                i32.const 0
-                local.set $size
-              end
-              local.get $width
-              i64.extend_i32_u
-              local.set $t0
-              local.get $size
-              i64.extend_i32_u
-              local.set $t1
-              local.get $t0
-              local.get $t1
-              i64.add
-              local.set $t0
-              local.get $t0
-              i64.const 4294967295
-              i64.gt_u
-              if
-                call $rt:panic'1
-                unreachable
-              end
-              local.get $t0
-              i32.wrap_i64
-              local.set $width
-              br 0
-            end
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.get $width
-      i32.add
-      local.set $size
-      block
-        block
-          i32.const 16
-          local.set $result.0
-          local.get $size
-          if
-            local.get $size
-            call $rt:str
-            local.set $result.0
-          end
-          br 0
-        end
-      end
-      i32.const 0
-      local.set $offset
-      block
-        block
-          local.get $result.0
-          local.get $offset
-          i32.const 1
-          i32.mul
-          i32.add
-          local.set $offset
-          local.get $value
-          local.get $offset
-          local.get $width
-          call $write_signed_sized
-          br 0
-        end
-      end
-      local.get $result.0
-      local.get $size
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
+      local.set $t2
     end
+    local.get $t1
+    i64.extend_i32_u
+    local.get $t2
+    i64.extend_i32_u
+    i64.add
+    local.tee $value
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $value
+    i32.wrap_i64
+    local.tee $t2
+    local.tee $t1
+    i32.const 16
+    local.set $t3
+    if
+      local.get $t1
+      call $rt:str
+      local.set $t3
+    end
+    local.get $t0
+    local.get $t3
+    local.get $t2
+    call $write_signed_sized
+    local.get $t3
+    local.get $t1
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
   )
-  (func $sum (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
+  (func $sum (param $t0 i32) (result i32) (local $t1 i64)
     ;; 28 | fn sum(t: Big) -> i32: t.a + t.q
     local.get $t0
     i32.load $heap
-    local.set $t1
     local.get $t0
     i32.load $heap offset=64
     local.set $t0
-    local.get $t1
     i64.extend_i32_s
-    local.set $t2
     local.get $t0
     i64.extend_i32_s
-    local.set $t3
-    local.get $t2
-    local.get $t3
     i64.add
-    local.set $t2
-    local.get $t2
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t2
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -137,10 +82,8 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.wrap_i64
-    local.set $t0
-    local.get $t0
   )
   (func $mk (param $x i32) (param $t0 i32)
     ;; 26 | fn mk(x: i32) -> Big: Big { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: x }
@@ -196,7 +139,7 @@
     local.get $x
     i32.store $heap offset=64
   )
-  (func $copy (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
+  (func $copy (param $x i32) (result i32) (local $t0 i32) (local $t1 i64)
     ;; 31 |     let a = mk(x)
     global.get $stack
     global.get $stack_limit
@@ -225,26 +168,19 @@
     ;; 33 |     sum(a) + sum(b) + b.c
     local.get $t0
     call $sum
-    local.set $x
     local.get $t0
     i32.const 72
     i32.add
     call $sum
-    local.set $t1
+    local.set $x
+    i64.extend_i32_s
     local.get $x
     i64.extend_i32_s
-    local.set $t2
-    local.get $t1
-    i64.extend_i32_s
-    local.set $t3
-    local.get $t2
-    local.get $t3
     i64.add
-    local.set $t2
-    local.get $t2
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t2
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -252,26 +188,19 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.wrap_i64
-    local.set $x
     local.get $t0
     i32.load $heap offset=80
-    local.set $t1
+    local.set $x
+    i64.extend_i32_s
     local.get $x
     i64.extend_i32_s
-    local.set $t2
-    local.get $t1
-    i64.extend_i32_s
-    local.set $t3
-    local.get $t2
-    local.get $t3
     i64.add
-    local.set $t2
-    local.get $t2
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t2
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -279,11 +208,9 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.wrap_i64
-    local.set $x
     ;; 31 |     let a = mk(x)
-    local.get $x
     local.get $t0
     i32.const 144
     i32.add

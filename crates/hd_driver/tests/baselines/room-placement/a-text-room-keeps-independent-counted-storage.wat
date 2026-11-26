@@ -12,7 +12,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $first i32) (local $t0 i32) (local $second i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $first i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $second i32)
     ;; 9 |     let mut first = TextRoom.new()
     global.get $stack
     global.get $stack_limit
@@ -28,151 +28,106 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      block
-        block
-          i32.const 16 ;; &"\n"
-          i32.const 0
-          i32.const 0
-          local.set $t1
-          local.set $t2
-          local.set $t3
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $first
-      local.get $first
-      local.get $t3
-      i32.store $heap
-      local.get $first
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $first
-      local.get $t1
-      i32.store $heap offset=8
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $first
+    i32.const 16 ;; &"\n"
+    i32.store $heap
+    local.get $first
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $first
+    i32.const 0
+    i32.store $heap offset=8
     ;; 10 |     first.append_text("value=")
-      local.get $first
-      local.set $t1
-      local.get $t1
-      i32.const 64 ;; &"value="
-      i32.const 6
-      call $"impl TextSink for TextRoom.append_text"
-      i32.const 0
-      local.set $t1
+    local.get $first
+    i32.const 64 ;; &"value="
+    i32.const 6
+    call $"impl TextSink for TextRoom.append_text"
     ;; 11 |     let mut second = first
+    local.get $first
+    i32.load $heap
+    local.get $first
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $first
+    i32.load $heap offset=8
+    local.set $t2
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    end
+    ;; 9 |     let mut first = TextRoom.new()
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=24
+    local.get $t0
+    i32.const 32
+    i32.add
+    local.tee $second
+    ;; 11 |     let mut second = first
+    local.get $t3
+    i32.store $heap
+    local.get $second
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $second
+    local.get $t2
+    i32.store $heap offset=8
+    ;; 12 |     first.append_signed(-7)
+    local.get $first
+    i64.const -7
+    call $"impl TextSink for TextRoom.append_signed"
+    ;; 13 |     second.append_unsigned(42)
+    local.get $second
+    i64.const 42
+    call $"impl TextSink for TextRoom.append_unsigned"
+    ;; 14 |     println(first.take_text())
+    local.get $first
+    call $"impl TextRoom.take_text"
+    local.set $t1
+    local.set $t2
+    local.get $first
+    if
       local.get $first
       i32.load $heap
-      local.set $t1
-      local.get $first
-      i32.load $heap offset=4
-      local.set $t2
-      local.get $first
-      i32.load $heap offset=8
-      local.set $t3
-      local.get $t1
-      call $retain
-    ;; 9 |     let mut first = TextRoom.new()
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=24
-      local.get $t0
-      i32.const 32
-      i32.add
-      local.set $second
-    ;; 11 |     let mut second = first
-      local.get $second
-      local.get $t1
-      i32.store $heap
-      local.get $second
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $second
-      local.get $t3
-      i32.store $heap offset=8
-    ;; 12 |     first.append_signed(-7)
-      local.get $first
-      local.set $t1
-      local.get $t1
-      i64.const -7
-      call $"impl TextSink for TextRoom.append_signed"
-      i32.const 0
-      local.set $t1
-    ;; 13 |     second.append_unsigned(42)
-      local.get $second
-      local.set $t1
-      local.get $t1
-      i64.const 42
-      call $"impl TextSink for TextRoom.append_unsigned"
-      i32.const 0
-      local.set $t1
-    ;; 14 |     println(first.take_text())
-      local.get $first
-      local.set $t1
-      local.get $t1
-      call $"impl TextRoom.take_text"
-      local.set $t2
-      local.set $t3
-      i32.const 0
-      local.set $t1
-      local.get $first
+      local.tee $first
       if
         local.get $first
-        i32.load $heap
-        local.set $t1
-        local.get $first
-        i32.load $heap offset=4
-        local.set $t4
-        local.get $first
-        i32.load $heap offset=8
-        local.set $first
-        local.get $t1
         call $rt:release_ref
       end
-      i32.const 0
-      local.set $first
-      local.get $t3
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 15 |     println(second.take_text())
-      local.get $second
-      local.set $t1
-      local.get $t1
-      call $"impl TextRoom.take_text"
-      local.set $t2
-      local.set $t3
-      i32.const 0
-      local.set $t1
-      local.get $second
-      if
-        local.get $second
-        i32.load $heap
-        local.set $t1
-        local.get $second
-        i32.load $heap offset=4
-        local.set $first
-        local.get $second
-        i32.load $heap offset=8
-        local.set $second
-        local.get $t1
-        call $rt:release_ref
-      end
-      i32.const 0
-      local.set $second
-      local.get $t3
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 9 |     let mut first = TextRoom.new()
     end
+    local.get $t2
+    local.get $t1
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 15 |     println(second.take_text())
+    local.get $second
+    call $"impl TextRoom.take_text"
+    local.set $first
+    local.set $t1
+    local.get $second
+    if
+      local.get $second
+      i32.load $heap
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
+    local.get $first
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 9 |     let mut first = TextRoom.new()
     local.get $t0
     i32.const 48
     i32.add
@@ -184,6 +139,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl TextSink for TextRoom.append_text" (func $"impl TextSink for TextRoom.append_text" (param i32 i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "impl TextSink for TextRoom.append_signed" (func $"impl TextSink for TextRoom.append_signed" (param i32 i64)))
   (import "fixture" "impl TextSink for TextRoom.append_unsigned" (func $"impl TextSink for TextRoom.append_unsigned" (param i32 i64)))
   (import "fixture" "impl TextRoom.take_text" (func $"impl TextRoom.take_text" (param i32) (result i32 i32)))
@@ -192,7 +148,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $first i32) (local $t0 i32) (local $second i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $first i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $second i32)
     ;; 9 |     let mut first = TextRoom.new()
     global.get $stack
     global.get $stack_limit
@@ -208,151 +164,112 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      block
-        block
-          i32.const 16 ;; &"\n"
-          i32.const 0
-          i32.const 0
-          local.set $t1
-          local.set $t2
-          local.set $t3
-          br 0
-        end
-      end
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.set $first
-      local.get $first
-      local.get $t3
-      i32.store $heap
-      local.get $first
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $first
-      local.get $t1
-      i32.store $heap offset=8
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $first
+    i32.const 16 ;; &"\n"
+    i32.store $heap
+    local.get $first
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $first
+    i32.const 0
+    i32.store $heap offset=8
     ;; 10 |     first.append_text("value=")
-      local.get $first
-      local.set $t1
-      local.get $t1
-      i32.const 64 ;; &"value="
-      i32.const 6
-      call $"impl TextSink for TextRoom.append_text"
-      i32.const 0
-      local.set $t1
+    local.get $first
+    i32.const 64 ;; &"value="
+    i32.const 6
+    call $"impl TextSink for TextRoom.append_text"
     ;; 11 |     let mut second = first
+    local.get $first
+    i32.load $heap
+    local.get $first
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $first
+    i32.load $heap offset=8
+    local.set $t2
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    else
+      call $skipped_test
+    end
+    ;; 9 |     let mut first = TextRoom.new()
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=24
+    local.get $t0
+    i32.const 32
+    i32.add
+    local.tee $second
+    ;; 11 |     let mut second = first
+    local.get $t3
+    i32.store $heap
+    local.get $second
+    local.get $t1
+    i32.store $heap offset=4
+    local.get $second
+    local.get $t2
+    i32.store $heap offset=8
+    ;; 12 |     first.append_signed(-7)
+    local.get $first
+    i64.const -7
+    call $"impl TextSink for TextRoom.append_signed"
+    ;; 13 |     second.append_unsigned(42)
+    local.get $second
+    i64.const 42
+    call $"impl TextSink for TextRoom.append_unsigned"
+    ;; 14 |     println(first.take_text())
+    local.get $first
+    call $"impl TextRoom.take_text"
+    local.set $t1
+    local.set $t2
+    local.get $first
+    if
       local.get $first
       i32.load $heap
-      local.set $t1
-      local.get $first
-      i32.load $heap offset=4
-      local.set $t2
-      local.get $first
-      i32.load $heap offset=8
-      local.set $t3
-      local.get $t1
-      call $retain
-    ;; 9 |     let mut first = TextRoom.new()
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=24
-      local.get $t0
-      i32.const 32
-      i32.add
-      local.set $second
-    ;; 11 |     let mut second = first
-      local.get $second
-      local.get $t1
-      i32.store $heap
-      local.get $second
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $second
-      local.get $t3
-      i32.store $heap offset=8
-    ;; 12 |     first.append_signed(-7)
-      local.get $first
-      local.set $t1
-      local.get $t1
-      i64.const -7
-      call $"impl TextSink for TextRoom.append_signed"
-      i32.const 0
-      local.set $t1
-    ;; 13 |     second.append_unsigned(42)
-      local.get $second
-      local.set $t1
-      local.get $t1
-      i64.const 42
-      call $"impl TextSink for TextRoom.append_unsigned"
-      i32.const 0
-      local.set $t1
-    ;; 14 |     println(first.take_text())
-      local.get $first
-      local.set $t1
-      local.get $t1
-      call $"impl TextRoom.take_text"
-      local.set $t2
-      local.set $t3
-      i32.const 0
-      local.set $t1
-      local.get $first
+      local.tee $first
       if
         local.get $first
-        i32.load $heap
-        local.set $t1
-        local.get $first
-        i32.load $heap offset=4
-        local.set $t4
-        local.get $first
-        i32.load $heap offset=8
-        local.set $first
-        local.get $t1
         call $rt:release_ref
+      else
+        call $skipped_test
       end
-      i32.const 0
-      local.set $first
-      local.get $t3
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 15 |     println(second.take_text())
-      local.get $second
-      local.set $t1
-      local.get $t1
-      call $"impl TextRoom.take_text"
-      local.set $t2
-      local.set $t3
-      i32.const 0
-      local.set $t1
-      local.get $second
-      if
-        local.get $second
-        i32.load $heap
-        local.set $t1
-        local.get $second
-        i32.load $heap offset=4
-        local.set $first
-        local.get $second
-        i32.load $heap offset=8
-        local.set $second
-        local.get $t1
-        call $rt:release_ref
-      end
-      i32.const 0
-      local.set $second
-      local.get $t3
-      local.get $t2
-      local.get $provider0
-      local.get $provider0.vtable
-      call $"println[string]"
-    ;; 9 |     let mut first = TextRoom.new()
     end
+    local.get $t2
+    local.get $t1
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 15 |     println(second.take_text())
+    local.get $second
+    call $"impl TextRoom.take_text"
+    local.set $first
+    local.set $t1
+    local.get $second
+    if
+      local.get $second
+      i32.load $heap
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      else
+        call $skipped_test
+      end
+    end
+    local.get $t1
+    local.get $first
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    ;; 9 |     let mut first = TextRoom.new()
     local.get $t0
     i32.const 48
     i32.add

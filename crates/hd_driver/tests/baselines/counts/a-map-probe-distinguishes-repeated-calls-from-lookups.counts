@@ -9,7 +9,6 @@ fn probes(items: &mut Map[string, i32], key: string) -> i32:
 >   release string (last use)
     second := *items.get_or_insert("other", +1)
 >   unique counted reference (may be shared)
->   retain string (stored)
     first + second
 
 fn lookup(items: Map[string, i32], key: string) -> i32?:

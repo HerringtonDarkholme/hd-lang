@@ -57,10 +57,6 @@ fn apply_default(callback: fn() -> i32 $ Named = original) -> i32 $ Named:
 
 fn generic_factory[T](callback: fn(T) -> i32 $ Base) -> (fn(T) -> i32 $ Named):
     callback
-> app/main/generic_factory
->   release fn(i32) -> i32 $ app.main.Base (last use)
-> app/main/generic_factory
->   release fn(string) -> i32 $ app.main.Base (last use)
 
 fn number(n: i32) -> i32 $ Base:
     original() + n
@@ -96,35 +92,23 @@ pub fn main() -> void $ Console:
     let assigned: fn() -> i32 $ Named = original
 > app/main/main
 >   release app.main.Named (last use)
->   release fn(app.main.Wide) -> app.main.Wide $ app.main.Named (last use)
 >   release fn(string) -> i32 $ app.main.Named (last use)
 >   release fn(i32) -> i32 $ app.main.Named (last use)
->   release app.main.Choice (last use)
->   release app.main.Wrapped (last use)
 >   release *mut fn() -> i32 $ app.main.Named (last use)
 >   release Map[string, fn() -> i32 $ app.main.Named] (last use)
->   release (fn() -> i32 $ app.main.Named, i32) [0.1] (last use)
->   release fn() -> i32 $ app.main.Named? (last use)
 >   release fn() -> i32 $ app.main.Named (last use)
 >   release fn() -> i32 $ app.main.Named (last use)
 >   release fn() -> i32 $ app.main.Base (last use)
->   release fn() -> i32 $ app.main.Named (last use)
 >   release List[fn() -> i32 $ app.main.Named] (last use)
->   release app.main.Holder [callback.1] (last use)
->   release fn() -> i32 $ app.main.Named (last use)
->   release string (last use)
     assigned = fn() -> i32 $ Base: original()
->   release fn() -> i32 $ app.main.Named (overwritten)
     holder := Holder { callback: original }
     let callbacks: List[fn() -> i32 $ Named] = [original, fn() -> i32 $ Base: original()]
     let branch: fn() -> i32 $ Named = if true: original else: fn() -> i32 $ Base: original()
     captured := "x"
     closure := fn() -> i32 $ Base: original() + i32(captured.len())
 >   retain counted reference (stored)
->   release string (last use)
 > app/main/main
 >   retain string (stored)
->   release string (last use)
 >   release string (last use)
     let converted: fn() -> i32 $ Named = closure
 >   retain fn() -> i32 $ app.main.Base (stored)
@@ -286,10 +270,6 @@ fn apply_default(callback: fn() -> i32 $ Named = original) -> i32 $ Named:
 
 fn generic_factory[T](callback: fn(T) -> i32 $ Base) -> (fn(T) -> i32 $ Named):
     callback
-> app/main/generic_factory
->   release fn(i32) -> i32 $ app.main.Base (last use)
-> app/main/generic_factory
->   release fn(string) -> i32 $ app.main.Base (last use)
 
 fn number(n: i32) -> i32 $ Base:
     original() + n
@@ -325,35 +305,23 @@ pub fn main() -> void $ Console:
     let assigned: fn() -> i32 $ Named = original
 > app/main/main
 >   release app.main.Named (last use)
->   release fn(app.main.Wide) -> app.main.Wide $ app.main.Named (last use)
 >   release fn(string) -> i32 $ app.main.Named (last use)
 >   release fn(i32) -> i32 $ app.main.Named (last use)
->   release app.main.Choice (last use)
->   release app.main.Wrapped (last use)
 >   release *mut fn() -> i32 $ app.main.Named (last use)
 >   release Map[string, fn() -> i32 $ app.main.Named] (last use)
->   release (fn() -> i32 $ app.main.Named, i32) [0.1] (last use)
->   release fn() -> i32 $ app.main.Named? (last use)
 >   release fn() -> i32 $ app.main.Named (last use)
 >   release fn() -> i32 $ app.main.Named (last use)
 >   release fn() -> i32 $ app.main.Base (last use)
->   release fn() -> i32 $ app.main.Named (last use)
 >   release List[fn() -> i32 $ app.main.Named] (last use)
->   release app.main.Holder [callback.1] (last use)
->   release fn() -> i32 $ app.main.Named (last use)
->   release string (last use)
     assigned = fn() -> i32 $ Base: original()
->   release fn() -> i32 $ app.main.Named (overwritten)
     holder := Holder { callback: original }
     let callbacks: List[fn() -> i32 $ Named] = [original, fn() -> i32 $ Base: original()]
     let branch: fn() -> i32 $ Named = if true: original else: fn() -> i32 $ Base: original()
     captured := "x"
     closure := fn() -> i32 $ Base: original() + i32(captured.len())
 >   retain counted reference (stored)
->   release string (last use)
 > app/main/main
 >   retain string (stored)
->   release string (last use)
 >   release string (last use)
     let converted: fn() -> i32 $ Named = closure
 >   retain fn() -> i32 $ app.main.Base (stored)

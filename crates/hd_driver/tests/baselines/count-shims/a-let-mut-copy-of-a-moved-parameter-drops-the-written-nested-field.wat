@@ -2,65 +2,26 @@
 (module
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (func $"impl Pair.take" (param $this.token i32) (param $this.n i32) (result i32) (local $t0 i32) (local $held.token i32) (local $held.n i32) (local $id i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
+  (func $"impl Pair.take" (param $this.token i32) (param $this.n i32) (result i32) (local $t0 i64)
     ;; 31 |         let mut held = this
-    block
-      i32.const 1
-      local.set $t0
-      local.get $this.token
-      local.get $this.n
-      local.set $held.n
-      local.set $held.token
-      i32.const 0
-      local.set $this.token
-      i32.const 0
-      local.set $this.n
-      i32.const 0
-      local.set $t0
-    ;; 32 |         id := held.token.id
-      local.get $held.token
-      local.set $id
+    local.get $this.token
     ;; 33 |         held.token.id = 0
-      i32.const 0
-      local.set $held.token
+    i32.const 0
     ;; 34 |         id + held.n
-      local.get $held.n
-      local.set $t1
-      local.get $held.token
-      local.get $held.n
-      call $rt:release_spilled
-      i32.const 0
-      local.set $held.token
-      i32.const 0
-      local.set $held.n
-      local.get $id
-      i64.extend_i32_u
-      local.set $t2
-      local.get $t1
-      i64.extend_i32_u
-      local.set $t3
-      local.get $t2
-      local.get $t3
-      i64.add
-      local.set $t2
-      local.get $t2
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t2
-      i32.wrap_i64
-      local.set $held.n
-    ;; 31 |         let mut held = this
-      local.get $t0
-      if
-        local.get $this.token
-        local.get $this.n
-        call $rt:release_spilled
-      end
+    local.get $this.n
+    call $rt:release_spilled
+    i64.extend_i32_u
+    local.get $this.n
+    i64.extend_i32_u
+    i64.add
+    local.tee $t0
+    i64.const 4294967295
+    i64.gt_u
+    if
+      call $rt:panic
+      unreachable
     end
-    local.get $held.n
+    local.get $t0
+    i32.wrap_i64
   )
 )

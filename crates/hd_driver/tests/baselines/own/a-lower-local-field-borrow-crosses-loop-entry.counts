@@ -11,7 +11,6 @@ fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
 > app/main/fill
 >   release List[i32] (last use)
 >   release app.main.Bag [label.0, items] (last use)
->   release app.main.Bag [label.0, items] (last use)
         "first" => pass
         _ => pass
     match bag.label:

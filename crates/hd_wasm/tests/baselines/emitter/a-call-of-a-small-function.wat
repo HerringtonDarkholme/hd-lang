@@ -6,7 +6,5 @@
     local.get $a
     local.get $a
     call $add
-    local.set $a
-    local.get $a
   )
 )

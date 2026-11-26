@@ -3,102 +3,61 @@
   (import "fixture" "release_value[Record]" (func $"release_value[Record]" (param i32 i32 i32 i64 f64)))
   (import "fixture" "retain_value[Record]" (func $"retain_value[Record]" (param i32 i32 i32 i64 f64)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $store (param $target i32) (param $replacement.label.0 i32) (param $replacement.label.1 i32) (param $replacement.tags i32) (param $replacement.id i64) (param $replacement.weight f64) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i64) (local $t0 f64) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i64) (local $t9 f64)
+  (func $store (param $target i32) (param $replacement.label.0 i32) (param $replacement.label.1 i32) (param $replacement.tags i32) (param $replacement.id i64) (param $replacement.weight f64)
     ;; 13 |     *target = replacement
-    block
-      local.get $replacement.label.0
-      local.get $replacement.label.1
-      local.get $replacement.tags
-      local.get $replacement.id
-      local.get $replacement.weight
-      local.set $t0
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.set $t4
-      i32.const 0
-      local.set $replacement.label.0
-      i32.const 0
-      local.set $replacement.label.1
-      i32.const 0
-      local.set $replacement.tags
-      i64.const 0
-      local.set $replacement.id
-      f64.const 0x0p+0
-      local.set $replacement.weight
-      local.get $target
-      i32.load $heap
-      local.set $t5
-      local.get $target
-      i32.load $heap offset=4
-      local.set $t6
-      local.get $target
-      i32.load $heap offset=24
-      local.set $t7
-      local.get $target
-      i64.load $heap offset=8
-      local.set $t8
-      local.get $target
-      f64.load $heap offset=16
-      local.set $t9
-      local.get $target
-      local.get $t4
-      i32.store $heap
-      local.get $target
-      local.get $t3
-      i32.store $heap offset=4
-      local.get $target
-      local.get $t2
-      i32.store $heap offset=24
-      local.get $target
-      local.get $t1
-      i64.store $heap offset=8
-      local.get $target
-      local.get $t0
-      f64.store $heap offset=16
-      local.get $t5
-      local.get $t6
-      local.get $t7
-      local.get $t8
-      local.get $t9
-      call $"release_value[Record]"
-      local.get $replacement.label.0
-      local.get $replacement.label.1
-      local.get $replacement.tags
-      local.get $replacement.id
-      local.get $replacement.weight
-      call $"release_value[Record]"
-    end
+    local.get $target
+    i32.load $heap
+    local.get $target
+    i32.load $heap offset=4
+    local.get $target
+    i32.load $heap offset=24
+    local.get $target
+    i64.load $heap offset=8
+    local.get $target
+    f64.load $heap offset=16
+    local.get $target
+    local.get $replacement.label.0
+    i32.store $heap
+    local.get $target
+    local.get $replacement.label.1
+    i32.store $heap offset=4
+    local.get $target
+    local.get $replacement.tags
+    i32.store $heap offset=24
+    local.get $target
+    local.get $replacement.id
+    i64.store $heap offset=8
+    local.get $target
+    local.get $replacement.weight
+    f64.store $heap offset=16
+    call $"release_value[Record]"
   )
-  (func $copy (param $source i32) (result i32 i32 i32 i64 f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 f64)
+  (func $copy (param $source i32) (result i32 i32 i32 i64 f64) (local $t3 i32) (local $t2 i32) (local $t1 i64) (local $t0 f64)
     ;; 10 |     *source
-    block
-      local.get $source
-      i32.load $heap
-      local.set $t0
-      local.get $source
-      i32.load $heap offset=4
-      local.set $t1
-      local.get $source
-      i32.load $heap offset=24
-      local.set $t2
-      local.get $source
-      i64.load $heap offset=8
-      local.set $t3
-      local.get $source
-      f64.load $heap offset=16
-      local.set $t4
-      local.get $t0
-      local.get $t1
-      local.get $t2
-      local.get $t3
-      local.get $t4
-      call $"retain_value[Record]"
-    end
-    local.get $t0
-    local.get $t1
+    local.get $source
+    i32.load $heap
+    local.get $source
+    i32.load $heap offset=4
+    local.get $source
+    i32.load $heap offset=24
+    local.get $source
+    i64.load $heap offset=8
+    local.get $source
+    f64.load $heap offset=16
+    local.set $t0
+    local.set $t1
+    local.set $source
+    local.set $t2
+    local.tee $t3
     local.get $t2
+    local.get $source
+    local.get $t1
+    local.get $t0
+    call $"retain_value[Record]"
     local.get $t3
-    local.get $t4
+    local.get $t2
+    local.get $source
+    local.get $t1
+    local.get $t0
   )
 )

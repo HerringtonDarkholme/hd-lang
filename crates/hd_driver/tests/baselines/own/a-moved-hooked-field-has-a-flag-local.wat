@@ -2,93 +2,45 @@
 (module
   (import "fixture" "rt:release_spilled'1" (func $rt:release_spilled'1 (param i32 i32)))
   (import "fixture" "rt:release_spilled'2" (func $rt:release_spilled'2 (param i32 i32 i32 i32)))
-  (func $split (param $pair.left.name.0 i32) (param $pair.left.name.1 i32) (param $pair.right.name.0 i32) (param $pair.right.name.1 i32) (param $early i32) (local $t0 i32) (local $t1 i32) (local $item.name.0 i32)
+  (func $split (param $pair.left.name.0 i32) (param $pair.left.name.1 i32) (param $pair.right.name.0 i32) (param $pair.right.name.1 i32) (param $early i32) (local $t0 i32) (local $t1 i32)
     ;; 36 |     if early:
-    block
-      i32.const 1
-      local.set $t0
-      i32.const 1
-      local.set $t1
-      local.get $early
-      if
+    i32.const 1
+    local.set $t0
+    i32.const 1
+    local.set $t1
+    local.get $early
+    if
     ;; 37 |         take(pair.left)
+      local.get $pair.left.name.0
+      local.get $pair.left.name.1
+      i32.const 0
+      local.set $pair.left.name.0
+      i32.const 0
+      local.set $pair.left.name.1
+      i32.const 0
+      local.set $t0
+      call $rt:release_spilled'1
+    ;; 36 |     if early:
+    end
+    local.get $t1
+    if
+      local.get $t0
+      if
         local.get $pair.left.name.0
         local.get $pair.left.name.1
-        local.set $early
-        local.set $item.name.0
-        i32.const 0
-        local.set $pair.left.name.0
-        i32.const 0
-        local.set $pair.left.name.1
-        i32.const 0
-        local.set $t0
-        local.get $item.name.0
-        local.get $early
+        local.get $pair.right.name.0
+        local.get $pair.right.name.1
+        call $rt:release_spilled'2
+      else
+        local.get $t0
+        if
+          local.get $pair.left.name.0
+          local.get $pair.left.name.1
+          call $rt:release_spilled'1
+        end
+        local.get $pair.right.name.0
+        local.get $pair.right.name.1
         call $rt:release_spilled'1
-        i32.const 0
-        local.set $item.name.0
-        i32.const 0
-        local.set $early
-        block
-          block
-            br 0
-          end
-        end
-    ;; 36 |     if early:
-      end
-      local.get $t1
-      if
-        local.get $t0
-        if
-          local.get $pair.left.name.0
-          local.get $pair.left.name.1
-          local.get $pair.right.name.0
-          local.get $pair.right.name.1
-          call $rt:release_spilled'2
-          i32.const 0
-          local.set $pair.left.name.0
-          i32.const 0
-          local.set $pair.left.name.1
-          i32.const 0
-          local.set $pair.right.name.0
-          i32.const 0
-          local.set $pair.right.name.1
-        else
-          local.get $t0
-          if
-            local.get $pair.left.name.0
-            local.get $pair.left.name.1
-            call $rt:release_spilled'1
-          end
-          local.get $pair.right.name.0
-          local.get $pair.right.name.1
-          call $rt:release_spilled'1
-        end
-      end
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $t1
-      if
-        local.get $t0
-        if
-          local.get $pair.left.name.0
-          local.get $pair.left.name.1
-          local.get $pair.right.name.0
-          local.get $pair.right.name.1
-          call $rt:release_spilled'2
-        else
-          local.get $t0
-          if
-            local.get $pair.left.name.0
-            local.get $pair.left.name.1
-            call $rt:release_spilled'1
-          end
-          local.get $pair.right.name.0
-          local.get $pair.right.name.1
-          call $rt:release_spilled'1
-        end
       end
     end
   )

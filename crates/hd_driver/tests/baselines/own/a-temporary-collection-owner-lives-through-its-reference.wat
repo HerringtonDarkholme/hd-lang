@@ -7,69 +7,49 @@
   (import "fixture" "read" (func $read (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $probe (result i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |     read(&source(7)["key"])
-    block
-      i32.const 7
-      call $source
-      local.set $t0
-      i32.const 65 ;; &"key"
-      local.set $t1
-      i32.const 3
-      local.set $t2
-      local.get $t0
-      i32.const 0
-      local.get $t1
-      local.get $t2
-      call $rt:map_lookup
-      i32.const 0
-      local.set $t1
-      local.set $t1
-      local.get $t1
-      i32.const 0
-      i32.lt_s
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t0
-      call $rt:map_unique
-      local.set $t0
-      local.get $t0
-      i32.load $heap offset=12
-      local.set $t2
-      local.get $t0
-      local.get $t2
-      i32.const 14
-      i32.mul
-      i32.add
-      i32.const 32
-      i32.add
-      local.get $t1
-      i32.const 12
-      i32.mul
-      i32.add
-      i32.const 8
-      i32.add
-      local.set $t1
-      local.get $t1
-      i32.const 16
-      i32.sub
-      local.set $t1
-      local.get $t1
-      i32.const 16
-      i32.add
-      local.set $t1
-      local.get $t1
-      call $read
-      local.set $t2
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      call $rt:release_ref
-      i32.const 0
-      local.set $t0
+    i32.const 7
+    call $source
+    local.tee $t0
+    i32.const 0
+    i32.const 65 ;; &"key"
+    i32.const 3
+    call $rt:map_lookup
+    local.tee $t1
+    i32.const 0
+    i32.lt_s
+    if
+      call $rt:panic
+      unreachable
     end
-    local.get $t2
+    local.get $t0
+    call $rt:map_unique
+    local.tee $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 14
+    i32.mul
+    i32.add
+    i32.const 32
+    i32.add
+    local.get $t1
+    i32.const 12
+    i32.mul
+    i32.add
+    i32.const 8
+    i32.add
+    call $read
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
   )
 )

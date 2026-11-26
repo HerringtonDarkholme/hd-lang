@@ -5,24 +5,14 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 12 |     _ := $.use(Vault).keep('A')
-    block
-      local.get $provider0
-      local.get $provider0.vtable
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $provider0
-      i32.const 0
-      local.set $provider0.vtable
-      local.get $t1
-      i32.const 65
-      local.get $t0
-      i32.load $heap
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $provider0
-    end
+    local.get $provider0
+    i32.const 65
+    local.get $provider0.vtable
+    i32.load $heap
+    call_indirect $table0 (param i32 i32) (result i32)
+    drop
   )
   (func $rt:enc (param $t0 i32) (param $t1 i32) (result i32)
     ;; (no span)
@@ -30,16 +20,13 @@
     local.get $t1
     i64.extend_i32_u
     call $rt:leb_put
-    local.set $t0
-    local.get $t0
   )
   (func $rt:dec (param $t0 i32) (result i32 i32) (local $t1 i64)
     ;; (no span)
     local.get $t0
     call $rt:leb_get
     local.set $t0
-    local.set $t1
-    local.get $t1
+    local.tee $t1
     i64.const 1114111
     i64.gt_u
     local.get $t1

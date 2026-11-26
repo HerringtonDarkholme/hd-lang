@@ -54,8 +54,6 @@ fn stack[T](value: T) -> T:
 @cold
 fn direct[T](value: T) -> T:
     value
-> std/rt_tests.stage_case/direct
->   release string (last use)
 
 pub fn main!() -> void $ Console + Clock:
     println(take!("text"))

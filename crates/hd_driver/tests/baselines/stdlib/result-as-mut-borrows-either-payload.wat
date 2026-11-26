@@ -2,123 +2,81 @@
 == @build: dev
 (module
   (import "fixture" "heap" (memory $heap 1))
-  (func $view (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $view (param $value i32) (result i32 i32)
     ;; 12 |     value.as_mut()
-    block
-      local.get $value
-      call $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]"
-      local.set $value
-      local.set $t0
-    end
-    local.get $t0
     local.get $value
+    call $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]"
   )
-  (func $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]" (param $t0 i32) (result i32 i32) (local $t1 i32)
     block
       block
-        block
-          block
     ;; (no span)
-            local.get $t0
-            i32.load $heap
-            local.set $t1
-            local.get $t1
-            i32.eqz
-            if
-              local.get $t0
-              i32.const 4
-              i32.add
-              local.set $t1
-              br 1
-            else
-              local.get $t0
-              i32.const 4
-              i32.add
-              local.set $t0
-              br 2
-            end
-            unreachable
-          end
-          local.get $t1
-          local.set $t2
-          i32.const 0
-          local.set $t1
-          i32.const 0
-          local.set $t1
-          br 1
-        end
         local.get $t0
-        local.set $t2
-        i32.const 0
-        local.set $t0
-        i32.const 1
-        local.set $t1
-        br 0
+        i32.load $heap
+        i32.eqz
+        if
+          local.get $t0
+          i32.const 4
+          i32.add
+          local.set $t0
+          br 1
+        else
+          local.get $t0
+          i32.const 4
+          i32.add
+          local.set $t0
+          br 2
+        end
+        unreachable
       end
+      i32.const 0
+      local.get $t0
+      return
     end
+    i32.const 1
+    local.set $t1
     local.get $t1
-    local.get $t2
+    local.get $t0
   )
 )
 == @build: checked
 (module
   (import "fixture" "heap" (memory $heap 1))
-  (func $view (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $view (param $value i32) (result i32 i32)
     ;; 12 |     value.as_mut()
-    block
-      local.get $value
-      call $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]"
-      local.set $value
-      local.set $t0
-    end
-    local.get $t0
     local.get $value
+    call $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]"
   )
-  (func $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $"impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut[Item, Item]" (param $t0 i32) (result i32 i32) (local $t1 i32)
     block
       block
-        block
-          block
     ;; (no span)
-            local.get $t0
-            i32.load $heap
-            local.set $t1
-            local.get $t1
-            i32.eqz
-            if
-              local.get $t0
-              i32.const 4
-              i32.add
-              local.set $t1
-              br 1
-            else
-              local.get $t0
-              i32.const 4
-              i32.add
-              local.set $t0
-              br 2
-            end
-            unreachable
-          end
-          local.get $t1
-          local.set $t2
-          i32.const 0
-          local.set $t1
-          i32.const 0
-          local.set $t1
-          br 1
-        end
         local.get $t0
-        local.set $t2
-        i32.const 0
-        local.set $t0
-        i32.const 1
-        local.set $t1
-        br 0
+        i32.load $heap
+        i32.eqz
+        if
+          local.get $t0
+          i32.const 4
+          i32.add
+          local.set $t0
+          br 1
+        else
+          local.get $t0
+          i32.const 4
+          i32.add
+          local.set $t0
+          br 2
+        end
+        unreachable
       end
+      i32.const 0
+      local.get $t0
+      return
     end
+    i32.const 1
+    local.set $t1
     local.get $t1
-    local.get $t2
+    local.get $t0
   )
 )
 == @build: release

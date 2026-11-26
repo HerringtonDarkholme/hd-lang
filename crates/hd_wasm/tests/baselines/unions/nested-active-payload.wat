@@ -2,67 +2,51 @@
 == @build: dev
 (module
   (import "fixture" "release_value[(i32 | string) | bool]" (func $"release_value[(i32 | string) | bool]" (param i32 i32 i32 i32)))
-  (func $nested_length (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (param $value.3 i32) (result i32) (local $t0 i32)
+  (func $nested_length (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (param $value.3 i32) (result i32) (local $t0 i32) (local $text.1 i32)
     ;; 10 |     match value:
+    local.get $value.0
+    local.set $t0
     block
       block
         block
-          block
     ;; 11 |         ._0(inner) =>
-            local.get $value.0
-            i32.eqz
-            if
-              br 1
-            else
-              br 2
-            end
+          local.get $t0
+          br_if 1
+          br 0
     ;; 10 |     match value:
-            unreachable
-          end
+          unreachable
+        end
     ;; 12 |             match inner:
+        block
           block
             block
-              block
     ;; 13 |                 ._0(_) => 0
-                local.get $value.2
-                i32.eqz
-                if
-                  br 1
-                else
-                  br 2
-                end
-    ;; 12 |             match inner:
-                unreachable
-              end
-              i32.const 0
-              local.set $t0
-              br 1
-            end
+              local.get $value.2
+              i32.eqz
+              br_if 0
     ;; 14 |                 ._1(text) => text.len()
-            block
-              block
-                local.get $value.3
-                local.set $t0
-                br 0
-              end
-            end
+              local.get $value.2
+              local.get $value.3
+              local.set $text.1
+              drop
+    ;; 13 |                 ._0(_) => 0
+              br 1
     ;; 12 |             match inner:
-            br 0
+              unreachable
+            end
+            br 1
           end
-    ;; 10 |     match value:
-          br 1
         end
-        i32.const 0
-        local.set $t0
-        br 0
+    ;; 10 |     match value:
+        br 1
       end
-      local.get $value.0
-      local.get $value.1
-      local.get $value.2
-      local.get $value.3
-      call $"release_value[(i32 | string) | bool]"
     end
-    local.get $t0
+    local.get $value.0
+    local.get $value.1
+    local.get $value.2
+    local.get $value.3
+    call $"release_value[(i32 | string) | bool]"
+    local.get $text.1
   )
 )
 == @build: release

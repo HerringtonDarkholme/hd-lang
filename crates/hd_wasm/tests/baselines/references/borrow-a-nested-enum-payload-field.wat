@@ -2,60 +2,35 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replace (param $value i32) (local $t0 i32) (local $t1 f64) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $replace (param $value i32)
     ;; 15 |     match value:
     block
       block
-        block
-          block
     ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
-            local.get $value
-            i32.load $heap
-            local.set $t0
-            local.get $t0
-            if
-              local.get $value
-              f64.load $heap offset=8
-              local.get $value
-              i32.load $heap
-              local.get $value
-              i32.load $heap offset=4
-              local.set $t0
-              local.set $t0
-              local.set $t1
-              br 1
-            else
-              br 2
-            end
-    ;; 15 |     match value:
-            unreachable
-          end
-    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
-          i32.const 65 ;; &"changed"
-          i32.const 7
-          local.set $t0
-          local.set $t2
-          local.get $value
-          i32.load $heap
-          local.set $t3
-          local.get $value
-          i32.load $heap offset=4
-          local.set $t4
-          local.get $value
-          local.get $t2
-          i32.store $heap
-          local.get $value
-          local.get $t0
-          i32.store $heap offset=4
-          local.get $t3
-          call $rt:release_ref
-    ;; 15 |     match value:
-          i32.const 0
-          local.set $value
-          br 1
-        end
+        local.get $value
+        i32.load $heap
+        i32.eqz
+        br_if 1
         br 0
+    ;; 15 |     match value:
+        unreachable
       end
+    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
+      local.get $value
+      i32.load $heap
+      local.get $value
+      i32.const 65 ;; &"changed"
+      i32.store $heap
+      local.get $value
+      i32.const 7
+      i32.store $heap offset=4
+      local.tee $value
+      if
+        local.get $value
+        call $rt:release_ref
+      end
+    ;; 15 |     match value:
+      return
     end
   )
 )
