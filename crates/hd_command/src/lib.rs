@@ -69,9 +69,10 @@ use crate::report::Reporter;
 const USAGE: &str = "usage:
   hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
   hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
+  hd [--cap NAME=VALUE]... FILE.cwasm [-- ARGS]
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd --repl [--engine NAME] FILE
-  hd build [--release] [--format json] [FILE.hd]
+  hd build [--release] [--format json|wasm] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--fix] [--format json]
   hd lint [FILE.hd] [--allow CODE | --warn CODE | --deny CODE] [--fix] [--format json]
   hd doc [--private] [--out DIR] [--open] [--format json]
@@ -82,7 +83,7 @@ const USAGE: &str = "usage:
   hd update [NAME[@QUERY]]
   hd remove NAME
   hd fetch
-  hd install [--root DIR] [--deny CAP]... SOURCE
+  hd install [--root DIR] [--engine NAME] [--format wasm] [--deny CAP]... SOURCE
   hd install [--root DIR] --list
   hd uninstall [--root DIR] NAME
   hd fmt [--check] [FILE.hd]
@@ -198,7 +199,7 @@ fn command_main() -> ExitCode {
         _ if arguments
             .iter()
             .take_while(|a| *a != "--")
-            .any(|a| has_extension(a, "wasm")) =>
+            .any(|a| has_extension(a, "wasm") || has_extension(a, "cwasm")) =>
         {
             run_wasm_command(&arguments)
         }
@@ -317,7 +318,7 @@ fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
     args
 }
 
-fn has_extension(word: &OsString, ext: &str) -> bool {
+fn has_extension(word: &std::ffi::OsStr, ext: &str) -> bool {
     Path::new(word)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case(ext))
@@ -786,6 +787,7 @@ fn compile(
 /// (`flow.panic.report`): none for a module that was built earlier.
 struct Compiled<'a> {
     wasm: Vec<u8>,
+    native: Option<std::sync::Arc<hd_run::artifact::Native>>,
     frames: Option<(test_cmd::Frames, &'a disk::DiskSources)>,
     /// A stored artifact's program and settings: its frames' positions
     /// come from building it again, only when a panic asks for them.
@@ -793,6 +795,22 @@ struct Compiled<'a> {
 }
 
 impl Compiled<'_> {
+    fn from_native(native: hd_run::artifact::Native) -> Self {
+        Self {
+            wasm: native.metadata.clone(),
+            native: Some(std::sync::Arc::new(native)),
+            frames: None,
+            stored: None,
+        }
+    }
+
+    fn image(&self) -> hd_run::artifact::Image<'_> {
+        match &self.native {
+            Some(native) => hd_run::artifact::Image::Native(native),
+            None => hd_run::artifact::Image::Wasm(&self.wasm),
+        }
+    }
+
     /// The lines of a trap's frames ([`test_cmd::Frames::lines`]). A stored
     /// artifact's program is built again through `store` for its positions
     /// (a warm build, each module's entries looked up), and only a build
@@ -848,6 +866,7 @@ fn compile_traced_in<'a>(
         }
         return Ok(Compiled {
             wasm,
+            native: None,
             frames: None,
             stored: Some((program, settings)),
         });
@@ -893,6 +912,7 @@ fn build_traced<'a>(
     };
     let compiled = Compiled {
         wasm,
+        native: None,
         frames: Some((test_cmd::Frames::new(positions), &program.sources)),
         stored: None,
     };
@@ -962,6 +982,16 @@ fn execute_with(
     }
     // After the capability refusal (`cli.cap.order.deny`), before the
     // module loads: the run never changes engine afterwards.
+    let choice = if built.native.is_some() {
+        if choice.kind != engine::EngineKind::Wasmtime {
+            return rep.fail(
+                "a .cwasm module requires wasmtime; build `--format wasm` for a portable module",
+            );
+        }
+        engine::Choice::named(engine::EngineKind::Wasmtime)
+    } else {
+        choice
+    };
     let engine = match choice.for_module(contract) {
         Ok(engine) => engine,
         Err(e) => {
@@ -996,7 +1026,7 @@ fn execute_with(
     } else {
         Vec::new()
     };
-    match engine::run(engine, level, wasm, &host, &providers) {
+    match engine::run(engine, level, built.image(), &host, &providers) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -1194,18 +1224,36 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
     };
     let mut rep = Reporter::stderr(w.json);
     if w.release {
-        return rep.fail(
-            "--release does not apply to FILE.wasm; its optimization level is recorded in the module",
-        );
+        let extension = if w
+            .file
+            .as_ref()
+            .is_some_and(|file| has_extension(file.as_os_str(), "cwasm"))
+        {
+            "cwasm"
+        } else {
+            "wasm"
+        };
+        return rep.fail(&format!("--release does not apply to FILE.{extension}; its optimization level is recorded in the module"));
     }
     let Some(file) = &w.file else {
         return usage();
     };
 
     let shown = file.display();
-    let wasm = match std::fs::read(file) {
-        Ok(b) => b,
-        Err(e) => return rep.fail(&format!("{shown}: {e}")),
+    let native = if has_extension(file.as_os_str(), "cwasm") {
+        match hd_run::artifact::Native::open(file) {
+            Ok(native) => Some(native),
+            Err(error) => return rep.fail(&format!("{shown}: {error}; rebuild with `hd build --release`, or build `--format wasm` for a portable module")),
+        }
+    } else {
+        None
+    };
+    let wasm = match &native {
+        Some(native) => native.metadata.clone(),
+        None => match std::fs::read(file) {
+            Ok(b) => b,
+            Err(e) => return rep.fail(&format!("{shown}: {e}")),
+        },
     };
     let checked = hd_run::module_imports(&wasm).and_then(|imports| {
         let exports = hd_run::module_exports(&wasm)?;
@@ -1228,7 +1276,11 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         Ok(metadata) => metadata,
         Err(e) => return rep.fail(&format!("`{shown}` has invalid module metadata: {e}")),
     };
-    let level = metadata.opt_level;
+    let level = if native.is_some() {
+        OptLevel::Optimized
+    } else {
+        metadata.opt_level
+    };
     let contract = metadata.contract.filter(|c| !c.interfaces.is_empty());
     // One index of the contract's imports, probed once per import.
     let described = contract.as_ref().map(hd_host_abi::schema::Imports::new);
@@ -1267,6 +1319,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         .map_or(&[][..], |p| p.capabilities.as_slice());
     let built = Compiled {
         wasm,
+        native: native.map(std::sync::Arc::new),
         frames: None,
         stored: None,
     };
@@ -1288,9 +1341,18 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
     )
 }
 
+fn portable_flag(args: &[OsString], i: usize) -> Option<usize> {
+    match args.get(i)?.to_str()? {
+        "--format=wasm" => Some(1),
+        "--format" if args.get(i + 1).is_some_and(|value| value == "wasm") => Some(2),
+        _ => None,
+    }
+}
+
 /// The words and flags of `hd run` and `hd build`.
 struct Words {
     release: bool,
+    portable: bool,
     json: bool,
     /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
     caps: Vec<caps::CapFlag>,
@@ -1308,6 +1370,7 @@ struct Words {
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
     let mut w = Words {
         release: false,
+        portable: false,
         json: false,
         caps: Vec::new(),
         positional: Vec::new(),
@@ -1322,6 +1385,13 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if command == "run" && args[i] == "--" {
             w.program_args = args[i + 1..].to_vec();
             break;
+        }
+        if command == "build"
+            && let Some(used) = portable_flag(args, i)
+        {
+            w.portable = true;
+            i += used;
+            continue;
         }
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
@@ -1503,9 +1573,24 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     };
     program.only_program(&chosen.file);
     let pipeline = Pipeline::of(w.engine.kind, w.release);
-    let built = match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
-        Ok(built) => built,
-        Err(code) => return code,
+    let built = if w.release && w.engine.kind == engine::EngineKind::Wasmtime {
+        match native_output(
+            &program,
+            &root,
+            (BuildProfile::Release, pipeline),
+            false,
+            &chosen.name,
+            Some(w.engine),
+            &mut rep,
+        ) {
+            Ok(built) => built,
+            Err(code) => return code,
+        }
+    } else {
+        match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
+            Ok(built) => built,
+            Err(code) => return code,
+        }
     };
     if chosen.is_task
         && let Err(e) = std::env::set_current_dir(&root)
@@ -1605,8 +1690,160 @@ fn workspace_member(
     })
 }
 
+fn build_artifact(
+    program: &disk::Program,
+    root: &Path,
+    (release, pipeline): (bool, Pipeline),
+    portable: bool,
+    files: bool,
+    stem: &str,
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
+    if release && !portable && pipeline.target == hd_base::EngineTarget::Wasmtime {
+        native_output(
+            program,
+            root,
+            (BuildProfile::Release, pipeline),
+            files,
+            stem,
+            None,
+            rep,
+        )
+        .map(|_| ())
+    } else {
+        let (wasm, text) = compile_standalone(program, (profile_of(release), pipeline), rep)?;
+        write_module(
+            root,
+            (release, pipeline.target),
+            files,
+            stem,
+            (&wasm, text.as_deref()),
+        )
+        .map_err(|e| rep.fail(&e))
+    }
+}
+
+fn native_output(
+    program: &disk::Program,
+    root: &Path,
+    settings: (BuildProfile, Pipeline),
+    files: bool,
+    stem: &str,
+    run_choice: Option<engine::Choice>,
+    rep: &mut Reporter,
+) -> Result<Compiled<'static>, ExitCode> {
+    let abi = engine::native_key().map_err(|e| rep.fail(&e))?;
+    let store = hd_cache::DeferredStore::new(disk_store());
+    let stored = stored_artifact(
+        program,
+        settings,
+        &store,
+        &format!("cli-native-output-v1:{:032x}", abi.0),
+    );
+    let key = stored
+        .map(|(key, client)| key.artifact_key(client))
+        .filter(|key| key.0 != 0);
+    let mut dir = root.join("build/release");
+    if files {
+        dir.push("files");
+    }
+    let out = dir.join(format!("{stem}.cwasm"));
+    if !wat::requested()
+        && let Some(key) = key
+        && let Ok(native) = hd_run::artifact::Native::open(&out)
+        && native.key == key
+        && let Ok(contract) = host_contract(&native.metadata)
+        && (contract.is_none()
+            || (dir.join(format!("{stem}.host.mjs")).is_file()
+                && dir.join(format!("{stem}.host.rs")).is_file()))
+        && run_choice.is_none_or(|choice| {
+            matches!(
+                choice.for_module(contract.as_ref()),
+                Ok(engine::EngineKind::Wasmtime)
+            )
+        })
+    {
+        if rep.diags(&program.problems) {
+            return Err(rep.finish(HD_FAILURE));
+        }
+        return Ok(Compiled::from_native(native));
+    }
+    let reported = (rep.errors, rep.warnings);
+    let (wasm, text) = compile_standalone_in(program, settings, rep, &store)?;
+    let contract = host_contract(&wasm).map_err(|e| rep.fail(&e))?;
+    if run_choice.is_some_and(|choice| {
+        !matches!(
+            choice.for_module(contract.as_ref()),
+            Ok(engine::EngineKind::Wasmtime)
+        )
+    }) {
+        // Keep the existing package-provider selection and refusal order.
+        // Node runs a portable image; an explicit Wasmtime refusal is
+        // reported by execute after its ordinary capability checks.
+        return Ok(Compiled {
+            wasm,
+            native: None,
+            frames: None,
+            stored: None,
+        });
+    }
+    let key = key
+        .or_else(|| {
+            stored_artifact(
+                program,
+                settings,
+                &store,
+                &format!("cli-native-output-v1:{:032x}", abi.0),
+            )
+            .map(|(key, client)| key.artifact_key(client))
+        })
+        .filter(|key| key.0 != 0 && (rep.errors, rep.warnings) == reported)
+        .unwrap_or(hd_base::Hash128(0));
+    let native = engine::precompile(&wasm)
+        .and_then(|native| hd_run::artifact::encode(native, &wasm, key))
+        .map_err(|e| rep.fail(&e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| rep.fail(&e.to_string()))?;
+    write_companions(
+        &dir,
+        stem,
+        hd_base::EngineTarget::Wasmtime,
+        &wasm,
+        text.as_deref(),
+    )
+    .map_err(|e| rep.fail(&e))?;
+    publish_native(&out, &native).map_err(|e| rep.fail(&e))?;
+    hd_run::artifact::Native::open(&out)
+        .map(Compiled::from_native)
+        .map_err(|e| rep.fail(&e))
+}
+
+/// Publish a new file: running native images keep their existing mapping.
+fn publish_native(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write as _;
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let temp = path.with_extension(format!("cwasm-{}-{nanos}-{serial}.tmp", std::process::id()));
+    let result = (|| {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        file.write_all(bytes)?;
+        drop(file);
+        std::fs::rename(&temp, path)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result.map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
-/// (`cli.build.output`, `cli.build.output.file`).
+/// (`cli.build.output.artifact`, `cli.build.output.file-artifact`).
 fn write_module(
     root: &Path,
     (release, target): (bool, hd_base::EngineTarget),
@@ -1621,17 +1858,27 @@ fn write_module(
         dir.push("files");
     }
     let out = dir.join(format!("{stem}.wasm"));
-    let artifacts = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?;
     std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(&out, wasm))
         .map_err(|e| format!("{}: {e}", out.display()))?;
+    write_companions(&dir, stem, target, wasm, text)
+}
+
+fn write_companions(
+    dir: &Path,
+    stem: &str,
+    target: hd_base::EngineTarget,
+    wasm: &[u8],
+    text: Option<&str>,
+) -> Result<(), String> {
+    let artifacts = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?;
     if let Some(text) = text {
         let wat = dir.join(format!("{stem}.wat"));
         std::fs::write(&wat, text).map_err(|e| format!("{}: {e}", wat.display()))?;
     }
     // The JavaScript glue always, and for a Wasmtime build the Rust
-    // companion too (`cli.host.package.native-companion`); the `.wasm` is
-    // the same either way (`native-wasm-identity`). A build that needs
+    // companion too (`cli.host.package.native-artifact-companion`), without
+    // changing portable Wasm (`native-portable-identity`). A build that needs
     // neither removes a stale one.
     let native = match &artifacts {
         Some(a) if target == hd_base::EngineTarget::Wasmtime => {
@@ -1674,9 +1921,9 @@ fn build_command(args: &[OsString]) -> ExitCode {
                 .map_err(|e| e.to_string())
                 .and_then(|cwd| disk::select_members(&cwd, &w.packages))
             {
-                Ok(members) => members
-                    .iter()
-                    .try_for_each(|(root, _)| build_package(root, (w.release, pipeline), &mut rep)),
+                Ok(members) => members.iter().try_for_each(|(root, _)| {
+                    build_package(root, (w.release, pipeline, w.portable), &mut rep)
+                }),
                 Err(e) => Err(rep.fail(&e)),
             }
         }
@@ -1685,15 +1932,15 @@ fn build_command(args: &[OsString]) -> ExitCode {
             .and_then(|cwd| disk::workspace_root(&cwd))
         {
             // `cli.workspace.members`: each member in turn.
-            Some((_, members)) => members
-                .iter()
-                .try_for_each(|root| build_package(root, (w.release, pipeline), &mut rep)),
+            Some((_, members)) => members.iter().try_for_each(|root| {
+                build_package(root, (w.release, pipeline, w.portable), &mut rep)
+            }),
             None => match package_of_cwd("build") {
-                Ok(root) => build_package(&root, (w.release, pipeline), &mut rep),
+                Ok(root) => build_package(&root, (w.release, pipeline, w.portable), &mut rep),
                 Err(e) => Err(rep.fail(&e)),
             },
         },
-        [file] => build_file(Path::new(file), (w.release, pipeline), &mut rep),
+        [file] => build_file(Path::new(file), (w.release, pipeline, w.portable), &mut rep),
         _ => Err(rep.fail("`hd build` takes at most one FILE")),
     };
     match built {
@@ -1706,7 +1953,7 @@ fn build_command(args: &[OsString]) -> ExitCode {
 /// no executable is checked and writes no `.wasm` file.
 fn build_package(
     root: &Path,
-    (release, pipeline): (bool, Pipeline),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     rep: &mut Reporter,
 ) -> Result<(), ExitCode> {
     if let Some(d) = disk::manifest_syntax_problem(root) {
@@ -1723,15 +1970,15 @@ fn build_package(
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
-        write_module(
+        build_artifact(
+            &program,
             root,
-            (release, pipeline.target),
+            (release, pipeline),
+            portable,
             false,
             &exe.name,
-            (&wasm, text.as_deref()),
-        )
-        .map_err(|e| rep.fail(&e))?;
+            rep,
+        )?;
     }
     Ok(())
 }
@@ -1741,7 +1988,7 @@ fn build_package(
 /// (`cli.mode.start`).
 fn build_file(
     file: &Path,
-    (release, pipeline): (bool, Pipeline),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     rep: &mut Reporter,
 ) -> Result<(), ExitCode> {
     if file.extension().is_none_or(|x| x != "hd") {
@@ -1762,19 +2009,19 @@ fn build_file(
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    write_module(
+    build_artifact(
+        &program,
         &root,
-        (release, pipeline.target),
+        (release, pipeline),
+        portable,
         true,
         &stem,
-        (&wasm, text.as_deref()),
+        rep,
     )
-    .map_err(|e| rep.fail(&e))
 }
 
 #[cfg(all(test, unix))]
@@ -1882,8 +2129,14 @@ mod stored_artifact_tests {
             program: "main".to_owned(),
         };
         let kind = engine::EngineKind::default();
-        let (outcome, trap) =
-            engine::run(kind, OptLevel::Dev, wasm, &host, &[]).expect("the engine runs");
+        let (outcome, trap) = engine::run(
+            kind,
+            OptLevel::Dev,
+            hd_run::artifact::Image::Wasm(wasm),
+            &host,
+            &[],
+        )
+        .expect("the engine runs");
         assert!(matches!(outcome, Outcome::Exit(3)), "{outcome:?}");
         trap
     }

@@ -351,7 +351,7 @@ fn help_lists_the_commands_and_each_commands_flags() {
     assert!(add.out.contains("--dev"), "{}", add.out);
     assert_eq!(ran(&dir, &["add", "--help"]).out, add.out);
     assert!(ran(&dir, &["clean", "--help"]).out.contains("--cache"));
-    // `cli.build.output.file`, `cli.run.package-only`: what `hd build FILE`
+    // `cli.build.output.file-artifact`, `cli.run.package-only`: what `hd build FILE`
     // writes, in both profiles, and that it needs a package.
     let build = ran(&dir, &["help", "build"]).out;
     for words in [

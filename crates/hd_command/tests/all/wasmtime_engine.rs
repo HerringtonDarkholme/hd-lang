@@ -175,6 +175,114 @@ fn assert_compile_jobs(trace: &Path, jobs: &str) {
 }
 
 #[test]
+fn native_artifacts_load_without_translation_and_reuse_the_build()
+-> Result<(), Box<dyn std::error::Error>> {
+    use object::{Object as _, ObjectSection as _};
+    let dir = work("native-artifacts");
+    std::fs::create_dir_all(dir.join("src"))?;
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/hd.toml"),
+    )?;
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/src/main.hd"),
+    )?;
+    let command = || {
+        let mut command = hd(&dir);
+        command.env("HD_ENGINE", "wasmtime").env("HD_JOBS", "2");
+        command
+    };
+    let built = run(command(), &["build", "--release"], "");
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    let native_path = dir.join("build/release/profile.cwasm");
+    assert!(native_path.is_file());
+    assert!(!dir.join("build/release/profile.wasm").exists());
+    let before = std::fs::metadata(&native_path)?.modified()?;
+    for (name, args) in [
+        ("file", vec!["build/release/profile.cwasm"]),
+        ("run", vec!["run", "--release"]),
+    ] {
+        let trace = dir.join(format!("{name}.json"));
+        let mut c = command();
+        c.env("HD_TRACE", &trace);
+        let out = run(c, &args, "");
+        assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "module profile\n");
+        let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+        let events = trace["traceEvents"]
+            .as_array()
+            .ok_or("missing trace events")?;
+        assert!(
+            events
+                .iter()
+                .any(|event| event["name"] == "wasmtime deserialize native image"),
+            "{trace}"
+        );
+        assert!(
+            !events
+                .iter()
+                .filter_map(|event| event["name"].as_str())
+                .any(|name| name.starts_with("wasmtime compile")
+                    || name.starts_with("wasmtime precompile")),
+            "{trace}"
+        );
+    }
+    assert_eq!(
+        std::fs::metadata(&native_path)?.modified()?,
+        before,
+        "a current native image is not rewritten"
+    );
+    // Editing the source invalidates the output identity even if only a comment changed.
+    let mut source = std::fs::read_to_string(dir.join("src/main.hd"))?;
+    source.push_str("\n# changed source\n");
+    std::fs::write(dir.join("src/main.hd"), source)?;
+    let trace = dir.join("edited.json");
+    let mut c = command();
+    c.env("HD_TRACE", &trace);
+    let out = run(c, &["run", "--release"], "");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+    assert!(
+        trace["traceEvents"]
+            .as_array()
+            .ok_or("events")?
+            .iter()
+            .filter_map(|event| event["name"].as_str())
+            .any(|name| name.starts_with("wasmtime precompile")),
+        "{trace}"
+    );
+    // Keep code intact and change only Wasmtime's documented version field.
+    let mut foreign = std::fs::read(&native_path)?;
+    let version_offset = {
+        let image = object::File::parse(foreign.as_slice())?;
+        let section = image
+            .section_by_name(".wasmtime.engine")
+            .ok_or("engine section")?;
+        let (offset, size) = section.file_range().ok_or("engine section range")?;
+        assert!(size > 2);
+        usize::try_from(offset)? + 2
+    };
+    *foreign.get_mut(version_offset).ok_or("version offset")? = b'!';
+    std::fs::write(dir.join("foreign.cwasm"), foreign)?;
+    let out = run(command(), &["foreign.cwasm"], "");
+    assert!(!out.status.success());
+    let error = text(&out.stderr);
+    assert!(error.contains("incompatible version"), "{error}");
+    assert!(
+        error.contains("rebuild with `hd build --release`"),
+        "{error}"
+    );
+    assert!(error.contains("--format wasm"), "{error}");
+    // A standalone artifact runs with the sources absent.
+    std::fs::rename(dir.join("src"), dir.join("hidden-src"))?;
+    let out = run(command(), &["build/release/profile.cwasm"], "");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "module profile\n");
+    Ok(())
+}
+
+#[test]
 fn samples_agree() {
     for sample in [
         "hello/hello.hd",
@@ -733,7 +841,7 @@ fn hd_build_takes_the_wasmtime_engine() {
     }
     for (engine, module) in [
         ("wasmtime", "build/debug/shop.wasm"),
-        ("wasmtime", "build/release/shop.wasm"),
+        ("wasmtime", "build/release/shop.cwasm"),
         ("node", "build/debug/shop.wasm"),
     ] {
         let out = run(hd(&dir), &["--engine", engine, module], "");

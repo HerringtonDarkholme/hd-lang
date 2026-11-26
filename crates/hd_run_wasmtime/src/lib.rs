@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 //! `hd_run_wasmtime`: the wasmtime engine and the default profile's host
 //! (`crates/hd_mono/DESIGN.md` §11.4; `docs/compiler/engines-and-test-runner.md` §18; `crates/hd_run_wasmtime/DESIGN.md`
 //! §17.5).
@@ -48,6 +48,8 @@ pub mod internals;
 mod limits;
 pub mod native;
 mod net;
+#[allow(unsafe_code)]
+mod precompiled;
 pub mod prim;
 mod process;
 mod profiles;
@@ -78,3 +80,6 @@ pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
     TestModule, TestPoolConfig,
 };
+
+pub use precompiled::{load as load_native, precompile, precompile_key};
+pub use run::run_native;

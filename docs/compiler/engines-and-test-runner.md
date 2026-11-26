@@ -50,8 +50,24 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 
 - **Modules, in process only.** `hd_run_wasmtime::cache` keeps compiled
   modules for the life of the process: a 128-entry LRU per engine, keyed
-  by the module bytes. Loading a serialized module needs `unsafe`, which
-  the crate denies, so no module is written to disk.
+  by the module bytes, for dev and test execution.
+- **Native release artifacts.** Wasmtime builds and installs emit `.cwasm`
+  through `Engine::precompile_module`, with speed optimization and inlining.
+  Dev, Node, and explicit `--format wasm` builds retain portable Wasm.
+  Native execution maps the open image through `Module::deserialize_open_file`,
+  the open-handle form of `deserialize_file`, without translating Wasm.
+  A fixed tail locates hd's import/export and custom-section metadata,
+  including original function-body offsets for source-position lookup;
+  code and data are not copied into that projection. Source frames and
+  host registration use their existing readers. Writers publish a new file
+  atomically, preserving already mapped images. The Rust loader's unsafe
+  contract is confined to the explicit native-artifact boundary.
+  As recorded in #2385, Cranelift inlining can omit inlined frames from
+  backtraces. Source positions retained in the artifact symbolize the
+  frames Wasmtime supplies, including non-inlined recursive bodies.
+  Source/manifest/toolchain and Wasmtime compatibility keys determine reuse;
+  no accumulated cache-directory scan or native-image hash is needed for a
+  direct run. Installed commands retain their existing artifact hash check.
 - **Per-function machine code** (`hd_run_wasmtime::code_cache`): Cranelift's
   incremental compilation cache, kept as `clpack` entries of the compiled
   cache. The key is the function's CLIF, which abstracts direct call

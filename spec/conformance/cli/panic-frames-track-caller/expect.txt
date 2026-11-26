@@ -11,7 +11,7 @@ exit: 3
 stderr: panic: explicit-panic: not positive
 stderr:     src/main.hd:12 shop.main.total
 stderr:     src/main.hd:16 shop.main.main
-run: hd build --release
+run: hd build --release --format wasm
 run: hd build/release/shop.wasm
 exit: 3
 stderr: panic: explicit-panic: not positive

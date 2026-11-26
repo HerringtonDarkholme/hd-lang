@@ -20,4 +20,6 @@ workspace = true
 signal-hook = "=0.3.18"
 
 [target.'cfg(windows)'.dependencies]
+# Native image mappings require an executable file handle on Windows.
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 ctrlc = "=3.5.2"

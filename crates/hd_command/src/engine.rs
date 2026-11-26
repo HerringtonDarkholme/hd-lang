@@ -272,7 +272,7 @@ impl EngineKind {
     }
 }
 
-fn parse(name: &str) -> Result<EngineKind, String> {
+pub(crate) fn parse(name: &str) -> Result<EngineKind, String> {
     match name {
         "node" => Ok(EngineKind::Node),
         "wasmtime" => match wasmtime::UNAVAILABLE {
@@ -372,12 +372,15 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 pub(crate) fn run(
     kind: EngineKind,
     level: OptLevel,
-    wasm: &[u8],
+    image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
     providers: &[crate::node::HostProvider],
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
+            let hd_run::artifact::Image::Wasm(wasm) = image else {
+                return Err("a .cwasm module requires wasmtime; build `--format wasm` for a portable module".into());
+            };
             let store = crate::disk_store();
             let node = crate::node::NodeEngine {
                 host_providers: providers.to_vec(),
@@ -389,7 +392,7 @@ pub(crate) fn run(
         }
         EngineKind::Wasmtime => {
             // The native engine refuses reachable package traits before guest start.
-            wasmtime::run_program(level, wasm, host)
+            wasmtime::run_program(level, image, host)
         }
     }
 }
@@ -835,6 +838,13 @@ impl Drop for NodeSession {
         }
         let _ = self.child.wait();
     }
+}
+
+pub(crate) fn native_key() -> Result<hd_base::Hash128, String> {
+    wasmtime::native_key()
+}
+pub(crate) fn precompile(wasm: &[u8]) -> Result<Vec<u8>, String> {
+    wasmtime::precompile(wasm)
 }
 
 #[cfg(test)]

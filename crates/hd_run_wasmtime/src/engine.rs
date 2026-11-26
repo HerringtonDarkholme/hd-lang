@@ -89,6 +89,21 @@ impl WasmtimeEngine {
         })
     }
 
+    pub(crate) fn package(&self, wasm: &[u8]) -> Result<Option<Arc<package::Package>>, LoadError> {
+        // The package imports the contract describes are resolved at
+        // instantiation, against the embedder's registry, if any.
+        let package = hd_host_abi::schema::from_wasm(wasm)
+            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
+            .map(|contract| Arc::new(package::Package::new(contract)));
+        let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
+        if let Some((m, n)) = imports.iter().find(|(m, n)| {
+            !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
+        }) {
+            return Err(LoadError::Engine(unsupported_message(m, n)));
+        }
+        Ok(package)
+    }
+
     /// Instantiates `m` with its standard streams on `io`.
     pub fn instantiate_with(
         &self,
@@ -333,17 +348,7 @@ impl Engine for WasmtimeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
-        // The package imports the contract describes are resolved at
-        // instantiation, against the embedder's registry, if any.
-        let package = hd_host_abi::schema::from_wasm(wasm)
-            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
-            .map(|contract| Arc::new(package::Package::new(contract)));
-        let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
-        if let Some((m, n)) = imports.iter().find(|(m, n)| {
-            !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
-        }) {
-            return Err(LoadError::Engine(unsupported_message(m, n)));
-        }
+        let package = self.package(wasm)?;
         let shared = cache::ondemand(&self.config).map_err(LoadError::Engine)?;
         shared
             .cache

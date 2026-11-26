@@ -18,6 +18,9 @@ use hd_base::SliceSort as _;
 
 use crate::imports::{Bytes, all_sections, import_kinds};
 
+/// Original body offsets in metadata projections that omit the code section.
+pub(crate) const CODE_STARTS: &str = "hd.code.starts";
+
 /// A frame of an engine's backtrace: function index, module byte offset.
 pub type RawFrame = (u32, u32);
 
@@ -46,7 +49,7 @@ pub struct LineTable {
     /// with a body.
     imports: u32,
     /// The module offset of each function body, by defined function.
-    starts: Vec<u32>,
+    starts: Vec<u64>,
     names: HashMap<u32, String>,
     /// Per function index, its rows: offset in its body, anchor; sorted.
     rows: HashMap<u32, Vec<(u32, u32)>>,
@@ -80,18 +83,22 @@ impl LineTable {
         };
         for (id, start, body) in sections {
             match id {
-                10 => {
-                    let mut r = Bytes { b: body, at: 0 };
-                    for _ in 0..r.len()? {
-                        let size = r.len()?;
-                        t.starts
-                            .push(u32::try_from(start + r.at).map_err(|e| e.to_string())?);
-                        r.at = r.at.checked_add(size).ok_or("a body is too long")?;
-                    }
-                }
+                10 => t.starts = crate::imports::code_starts(start, body)?,
                 0 => {
                     let mut r = Bytes { b: body, at: 0 };
                     match r.name()?.as_str() {
+                        CODE_STARTS => {
+                            t.starts.clear();
+                            let mut offset = 0u64;
+                            for _ in 0..r.len()? {
+                                let delta = hd_base::leb::get(r.b, &mut r.at, 64)
+                                    .ok_or("invalid code-body offset")?;
+                                offset = offset
+                                    .checked_add(delta)
+                                    .ok_or("code-body offset overflow")?;
+                                t.starts.push(offset);
+                            }
+                        }
                         "name" => t.names_section(&mut r)?,
                         "hd.names" => {
                             for _ in 0..r.len()? {
@@ -224,8 +231,10 @@ impl LineTable {
             .filter_map(|&(f, addr)| {
                 let rows = self.rows.get(&f)?;
                 let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
-                let at = addr.checked_sub(start)?;
-                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                let at = u64::from(addr).checked_sub(start)?;
+                let k = rows
+                    .partition_point(|&(off, _)| u64::from(off) <= at)
+                    .checked_sub(1)?;
                 Some((f, k))
             })
             .collect()
@@ -282,8 +291,10 @@ impl LineTable {
             .filter_map(|&(f, addr)| {
                 let rows = self.rows.get(&f)?;
                 let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
-                let at = addr.checked_sub(start)?;
-                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                let at = u64::from(addr).checked_sub(start)?;
+                let k = rows
+                    .partition_point(|&(off, _)| u64::from(off) <= at)
+                    .checked_sub(1)?;
                 let name = self.names.get(&f)?;
                 let item = name
                     .rsplit_once('#')
@@ -478,12 +489,36 @@ mod tests {
     }
 
     #[test]
+    fn metadata_projection_keeps_original_function_offsets() {
+        let wasm = module("hd.names");
+        let original = LineTable::parse(&wasm).expect("original table");
+        let metadata = crate::metadata_projection(&wasm).expect("metadata");
+        let projected = LineTable::parse(&metadata).expect("projected table");
+        assert_eq!(projected.starts, original.starts);
+        assert!(
+            crate::imports::all_sections(&metadata)
+                .expect("sections")
+                .iter()
+                .all(|&(id, _, _)| id != 10 && id != 11)
+        );
+        for (index, &start) in original.starts.iter().enumerate() {
+            for offset in 0..10 {
+                let frame = [(
+                    original.imports + u32::try_from(index).expect("index"),
+                    u32::try_from(start).expect("fixture offset") + offset,
+                )];
+                assert_eq!(projected.anchor(&frame), original.anchor(&frame));
+            }
+        }
+    }
+
+    #[test]
     fn frames_map_to_the_greatest_row_at_or_below_them() {
         for names in ["name", "hd.names"] {
             let m = module(names);
             let t = LineTable::parse(&m).expect("parses");
             // Function 2's body starts after function 1's ten bytes.
-            let start = t.starts[1];
+            let start = u32::try_from(t.starts[1]).expect("small fixture");
             let at = |inst| Anchored {
                 item: "app/main/f".into(),
                 inst,
@@ -491,7 +526,7 @@ mod tests {
             assert_eq!(
                 t.anchor(&[
                     (0, 0),
-                    (1, t.starts[0] + 4),
+                    (1, u32::try_from(t.starts[0]).expect("small fixture") + 4),
                     (2, start + 2),
                     (2, start + 3),
                     (2, start + 6),
@@ -516,7 +551,7 @@ mod tests {
             t.functions(),
             [(2, "app/main/f".to_owned(), vec![vec![f(5)], vec![f(9)]])]
         );
-        let start = t.starts[1];
+        let start = u32::try_from(t.starts[1]).expect("small fixture");
         assert!(t.resolved_lines(&[(2, start + 3)]).is_empty());
         m.extend(super::positions_section(
             &[(2, "src/main.hd".into(), "app.main.f".into(), vec![4, 7])],
@@ -551,7 +586,7 @@ mod tests {
                 inst: 6,
             },
         );
-        let start = t.starts[1];
+        let start = u32::try_from(t.starts[1]).expect("small fixture");
         assert_eq!(t.anchor(&[(2, start + 8)]), [g.clone(), f(5)]);
         assert_eq!(
             t.functions(),
