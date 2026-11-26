@@ -212,7 +212,7 @@ mod proof_answer_tests {
     #[test]
     fn fuel_exhaustion_and_wrong_goal_answers_are_distinct_errors() {
         let fuel = proof_answer(Answer::OutOfFuel).expect_err("fuel exhaustion");
-        assert!(is_out_of_fuel(&fuel));
+        assert!(std::hint::black_box(is_out_of_fuel)(&fuel));
         assert!(!fuel.bug);
         let error = proof_answer(Answer::Candidates(Vec::new())).expect_err("not a proof");
         assert_eq!(error.stage, Stage::Body);

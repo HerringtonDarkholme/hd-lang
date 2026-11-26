@@ -179,7 +179,7 @@ mod map_loop_metadata_tests {
                 ck.b().body().len(),
                 ck.b().body().extra.len(),
                 ck.b().body().local_ty.len(),
-                ck.depths().0,
+                std::hint::black_box(hd_check::testing::Checker::depths)(ck).0,
                 ck.depths().1,
                 ck.infer().var_count(),
             );

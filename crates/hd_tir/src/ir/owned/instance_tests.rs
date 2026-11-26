@@ -255,3 +255,37 @@ fn a_generic_local_function_is_rejected() {
         "{what:?}"
     );
 }
+
+#[test]
+fn a_move_through_a_reference_is_not_a_local_emptying() {
+    use crate::ir::{Place, PlaceRoot, Proj, ReadMode, Topology};
+    let pool = InternPool::new();
+    let reference = pool.intern_ty(&TyData::Ref {
+        inner: Ty::I32,
+        mutable: true,
+        counted: false,
+    });
+    let mut b = TirBuilder::new(F, BodyKind::Fn);
+    let root = b.open_block();
+    let slot = b.local(reference, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+    let place = b.place(&Place {
+        root: PlaceRoot::Local(slot),
+        proj: vec![Proj::Deref],
+    });
+    let moved = b.emit(
+        Tag::Read,
+        place,
+        ReadMode::Use as u32,
+        Ty::I32,
+        NodeIdx::NONE,
+    );
+    let root = b.close_block(root, Some(moved), Ty::I32, NodeIdx::NONE);
+    let mut body = b.finish(root, &[]).expect("reference-read shape");
+    body.phase = Phase::Elaborated;
+    body.data[moved.0 as usize][1] = ReadMode::Move as u32;
+    assert!(super::emptied(
+        &body,
+        &Topology::new(&body),
+        moved.0 as usize
+    ));
+}

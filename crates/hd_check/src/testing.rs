@@ -172,6 +172,11 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         &mut self.ck.b
     }
 
+    /// Check resolved literal-function metadata against the selected syntax.
+    pub fn check_literal_marker(&mut self, def: DefId, node: NodeRef<'a>) {
+        self.ck.check_literal_marker(def, node);
+    }
+
     pub fn infer(&mut self) -> &mut InferTable {
         &mut self.ck.infer
     }
