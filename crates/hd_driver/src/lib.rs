@@ -2697,11 +2697,7 @@ pub struct ResultKey {
 impl ResultKey {
     /// The opaque build-input identity, including the caller's further inputs.
     #[must_use]
-    pub fn artifact_key(self, client: Hash128) -> Hash128 {
-        self.entry(client)
-    }
-
-    fn entry(self, client: Hash128) -> Hash128 {
+    pub fn entry(self, client: Hash128) -> Hash128 {
         hd_cache::depfiles_key(
             self.toolchain,
             &format!("client:{:032x}:{:032x}", self.key.0, client.0),

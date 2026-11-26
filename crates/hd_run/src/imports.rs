@@ -179,7 +179,7 @@ pub(crate) fn code_starts(base: usize, body: &[u8]) -> Result<Vec<u64>, String> 
     let mut starts = Vec::new();
     for _ in 0..reader.len()? {
         let size = reader.len()?;
-        starts.push(u64::try_from(base + reader.at).map_err(|e| e.to_string())?);
+        starts.push((base + reader.at) as u64);
         reader.at = reader
             .at
             .checked_add(size)
@@ -208,15 +208,9 @@ pub fn metadata_projection(wasm: &[u8]) -> Result<Vec<u8>, String> {
         start = end;
     }
     let mut positions = Vec::new();
-    hd_base::leb::put(
-        &mut positions,
-        u64::try_from(crate::frames::CODE_STARTS.len()).map_err(|e| e.to_string())?,
-    );
+    hd_base::leb::put(&mut positions, crate::frames::CODE_STARTS.len() as u64);
     positions.extend_from_slice(crate::frames::CODE_STARTS.as_bytes());
-    hd_base::leb::put(
-        &mut positions,
-        u64::try_from(starts.len()).map_err(|e| e.to_string())?,
-    );
+    hd_base::leb::put(&mut positions, starts.len() as u64);
     let mut previous = 0;
     for start in starts {
         // Length-prefixed bodies have strictly increasing starts.
@@ -224,10 +218,7 @@ pub fn metadata_projection(wasm: &[u8]) -> Result<Vec<u8>, String> {
         previous = start;
     }
     out.push(0);
-    hd_base::leb::put(
-        &mut out,
-        u64::try_from(positions.len()).map_err(|e| e.to_string())?,
-    );
+    hd_base::leb::put(&mut out, positions.len() as u64);
     out.extend(positions);
     Ok(out)
 }

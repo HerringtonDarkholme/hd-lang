@@ -787,7 +787,7 @@ fn compile(
 /// (`flow.panic.report`): none for a module that was built earlier.
 struct Compiled<'a> {
     wasm: Vec<u8>,
-    native: Option<std::sync::Arc<hd_run::artifact::Native>>,
+    native: Option<hd_run::artifact::Native>,
     frames: Option<(test_cmd::Frames, &'a disk::DiskSources)>,
     /// A stored artifact's program and settings: its frames' positions
     /// come from building it again, only when a panic asks for them.
@@ -798,7 +798,7 @@ impl Compiled<'_> {
     fn from_native(native: hd_run::artifact::Native) -> Self {
         Self {
             wasm: native.metadata.clone(),
-            native: Some(std::sync::Arc::new(native)),
+            native: Some(native),
             frames: None,
             stored: None,
         }
@@ -1319,7 +1319,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         .map_or(&[][..], |p| p.capabilities.as_slice());
     let built = Compiled {
         wasm,
-        native: native.map(std::sync::Arc::new),
+        native,
         frames: None,
         stored: None,
     };
@@ -1574,23 +1574,21 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     program.only_program(&chosen.file);
     let pipeline = Pipeline::of(w.engine.kind, w.release);
     let built = if w.release && w.engine.kind == engine::EngineKind::Wasmtime {
-        match native_output(
+        build_artifact(
             &program,
             &root,
-            (BuildProfile::Release, pipeline),
+            (true, pipeline, false),
             false,
             &chosen.name,
             Some(w.engine),
             &mut rep,
-        ) {
-            Ok(built) => built,
-            Err(code) => return code,
-        }
+        )
     } else {
-        match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
-            Ok(built) => built,
-            Err(code) => return code,
-        }
+        compile_traced(&program, (profile_of(w.release), pipeline), &mut rep)
+    };
+    let built = match built {
+        Ok(built) => built,
+        Err(code) => return code,
     };
     if chosen.is_task
         && let Err(e) = std::env::set_current_dir(&root)
@@ -1693,66 +1691,43 @@ fn workspace_member(
 fn build_artifact(
     program: &disk::Program,
     root: &Path,
-    (release, pipeline): (bool, Pipeline),
-    portable: bool,
-    files: bool,
-    stem: &str,
-    rep: &mut Reporter,
-) -> Result<(), ExitCode> {
-    if release && !portable && pipeline.target == hd_base::EngineTarget::Wasmtime {
-        native_output(
-            program,
-            root,
-            (BuildProfile::Release, pipeline),
-            files,
-            stem,
-            None,
-            rep,
-        )
-        .map(|_| ())
-    } else {
-        let (wasm, text) = compile_standalone(program, (profile_of(release), pipeline), rep)?;
-        write_module(
-            root,
-            (release, pipeline.target),
-            files,
-            stem,
-            (&wasm, text.as_deref()),
-        )
-        .map_err(|e| rep.fail(&e))
-    }
-}
-
-fn native_output(
-    program: &disk::Program,
-    root: &Path,
-    settings: (BuildProfile, Pipeline),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     files: bool,
     stem: &str,
     run_choice: Option<engine::Choice>,
     rep: &mut Reporter,
 ) -> Result<Compiled<'static>, ExitCode> {
-    let abi = engine::native_key().map_err(|e| rep.fail(&e))?;
+    let native = release && !portable && pipeline.target == hd_base::EngineTarget::Wasmtime;
+    let settings = (profile_of(release), pipeline);
+    let dir = root
+        .join(if release {
+            "build/release"
+        } else {
+            "build/debug"
+        })
+        .join(if files { "files" } else { "" });
+    let out = dir.join(format!("{stem}.{}", if native { "cwasm" } else { "wasm" }));
     let store = hd_cache::DeferredStore::new(disk_store());
-    let stored = stored_artifact(
-        program,
-        settings,
-        &store,
-        &format!("cli-native-output-v1:{:032x}", abi.0),
-    );
-    let key = stored
-        .map(|(key, client)| key.artifact_key(client))
-        .filter(|key| key.0 != 0);
-    let mut dir = root.join("build/release");
-    if files {
-        dir.push("files");
-    }
-    let out = dir.join(format!("{stem}.cwasm"));
+    let tag = if native {
+        Some(format!(
+            "cli-native-output-v1:{:032x}",
+            engine::native_key().map_err(|e| rep.fail(&e))?.0
+        ))
+    } else {
+        None
+    };
+    let input_key = || {
+        tag.as_ref()
+            .and_then(|tag| stored_artifact(program, settings, &store, tag))
+            .map(|(key, client)| key.entry(client))
+            .filter(|key| key.0 != 0)
+    };
+    let key = input_key();
     if !wat::requested()
         && let Some(key) = key
-        && let Ok(native) = hd_run::artifact::Native::open(&out)
-        && native.key == key
-        && let Ok(contract) = host_contract(&native.metadata)
+        && let Ok(image) = hd_run::artifact::Native::open(&out)
+        && image.key == key
+        && let Ok(contract) = host_contract(&image.metadata)
         && (contract.is_none()
             || (dir.join(format!("{stem}.host.mjs")).is_file()
                 && dir.join(format!("{stem}.host.rs")).is_file()))
@@ -1766,59 +1741,50 @@ fn native_output(
         if rep.diags(&program.problems) {
             return Err(rep.finish(HD_FAILURE));
         }
-        return Ok(Compiled::from_native(native));
+        return Ok(Compiled::from_native(image));
     }
     let reported = (rep.errors, rep.warnings);
     let (wasm, text) = compile_standalone_in(program, settings, rep, &store)?;
-    let contract = host_contract(&wasm).map_err(|e| rep.fail(&e))?;
-    if run_choice.is_some_and(|choice| {
-        !matches!(
-            choice.for_module(contract.as_ref()),
-            Ok(engine::EngineKind::Wasmtime)
-        )
-    }) {
-        // Keep the existing package-provider selection and refusal order.
-        // Node runs a portable image; an explicit Wasmtime refusal is
-        // reported by execute after its ordinary capability checks.
-        return Ok(Compiled {
-            wasm,
-            native: None,
-            frames: None,
-            stored: None,
-        });
-    }
-    let key = key
-        .or_else(|| {
-            stored_artifact(
-                program,
-                settings,
-                &store,
-                &format!("cli-native-output-v1:{:032x}", abi.0),
+    let built = Compiled {
+        wasm,
+        native: None,
+        frames: None,
+        stored: None,
+    };
+    if native {
+        let contract = host_contract(&built.wasm).map_err(|e| rep.fail(&e))?;
+        if run_choice.is_some_and(|choice| {
+            !matches!(
+                choice.for_module(contract.as_ref()),
+                Ok(engine::EngineKind::Wasmtime)
             )
-            .map(|(key, client)| key.artifact_key(client))
-        })
-        .filter(|key| key.0 != 0 && (rep.errors, rep.warnings) == reported)
-        .unwrap_or(hd_base::Hash128(0));
-    let native = engine::precompile(&wasm)
-        .and_then(|native| hd_run::artifact::encode(native, &wasm, key))
-        .map_err(|e| rep.fail(&e))?;
+        }) {
+            // execute retains the existing provider fallback and capability-refusal order.
+            return Ok(built);
+        }
+    }
     std::fs::create_dir_all(&dir).map_err(|e| rep.fail(&e.to_string()))?;
-    write_companions(
-        &dir,
-        stem,
-        hd_base::EngineTarget::Wasmtime,
-        &wasm,
-        text.as_deref(),
-    )
-    .map_err(|e| rep.fail(&e))?;
-    publish_native(&out, &native).map_err(|e| rep.fail(&e))?;
-    hd_run::artifact::Native::open(&out)
-        .map(Compiled::from_native)
-        .map_err(|e| rep.fail(&e))
+    write_companions(&dir, stem, pipeline.target, &built.wasm, text.as_deref())
+        .map_err(|e| rep.fail(&e))?;
+    if native {
+        let key = key
+            .or_else(input_key)
+            .filter(|_| (rep.errors, rep.warnings) == reported)
+            .unwrap_or(hd_base::Hash128(0));
+        let bytes = engine::precompile(&built.wasm)
+            .and_then(|bytes| hd_run::artifact::encode(bytes, &built.wasm, key))
+            .map_err(|e| rep.fail(&e))?;
+        publish(&out, &bytes).map_err(|e| rep.fail(&e))?;
+        return hd_run::artifact::Native::open(&out)
+            .map(Compiled::from_native)
+            .map_err(|e| rep.fail(&e));
+    }
+    std::fs::write(&out, &built.wasm).map_err(|e| rep.fail(&format!("{}: {e}", out.display())))?;
+    Ok(built)
 }
 
 /// Publish a new file: running native images keep their existing mapping.
-fn publish_native(path: &Path, bytes: &[u8]) -> Result<(), String> {
+fn publish(path: &Path, bytes: &[u8]) -> Result<(), String> {
     use std::io::Write as _;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1826,7 +1792,7 @@ fn publish_native(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_nanos();
-    let temp = path.with_extension(format!("cwasm-{}-{nanos}-{serial}.tmp", std::process::id()));
+    let temp = path.with_extension(format!("pending-{}-{nanos}-{serial}", std::process::id()));
     let result = (|| {
         let mut file = std::fs::OpenOptions::new()
             .write(true)
@@ -1840,28 +1806,6 @@ fn publish_native(path: &Path, bytes: &[u8]) -> Result<(), String> {
         let _ = std::fs::remove_file(&temp);
     }
     result.map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
-/// (`cli.build.output.artifact`, `cli.build.output.file-artifact`).
-fn write_module(
-    root: &Path,
-    (release, target): (bool, hd_base::EngineTarget),
-    files: bool,
-    stem: &str,
-    (wasm, text): (&[u8], Option<&str>),
-) -> Result<(), String> {
-    let mut dir = root
-        .join("build")
-        .join(if release { "release" } else { "debug" });
-    if files {
-        dir.push("files");
-    }
-    let out = dir.join(format!("{stem}.wasm"));
-    std::fs::create_dir_all(&dir)
-        .and_then(|()| std::fs::write(&out, wasm))
-        .map_err(|e| format!("{}: {e}", out.display()))?;
-    write_companions(&dir, stem, target, wasm, text)
 }
 
 fn write_companions(
@@ -1973,10 +1917,10 @@ fn build_package(
         build_artifact(
             &program,
             root,
-            (release, pipeline),
-            portable,
+            (release, pipeline, portable),
             false,
             &exe.name,
+            None,
             rep,
         )?;
     }
@@ -2016,12 +1960,13 @@ fn build_file(
     build_artifact(
         &program,
         &root,
-        (release, pipeline),
-        portable,
+        (release, pipeline, portable),
         true,
         &stem,
+        None,
         rep,
     )
+    .map(|_| ())
 }
 
 #[cfg(all(test, unix))]

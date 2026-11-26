@@ -169,10 +169,10 @@ pub fn run_cancellable(
     interrupt: &HostInterrupt,
     bound: Duration,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
-    run_profile_with(
+    run_image(
         config,
         RuntimeProfile::Default,
-        wasm,
+        hd_run::artifact::Image::Wasm(wasm),
         setup,
         io,
         None,
@@ -192,18 +192,6 @@ fn run_profile(
     io: HostIo,
     read: Option<&str>,
 ) -> Result<Ran, String> {
-    run_profile_with(config, profile, wasm, setup, io, read, None)
-}
-
-fn run_profile_with(
-    config: EngineConfig,
-    profile: RuntimeProfile,
-    wasm: &[u8],
-    setup: &HostSetup,
-    io: HostIo,
-    read: Option<&str>,
-    cancel: Option<(&HostInterrupt, Duration)>,
-) -> Result<Ran, String> {
     run_image(
         config,
         profile,
@@ -211,7 +199,7 @@ fn run_profile_with(
         setup,
         io,
         read,
-        cancel,
+        None,
     )
 }
 
