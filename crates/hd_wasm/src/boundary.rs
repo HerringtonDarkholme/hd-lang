@@ -2696,11 +2696,16 @@ pub fn package_module(identity: &hd_host_abi::schema::Identity, handle: bool) ->
     format!("hd:pkg:{:032x}", h.finish().0)
 }
 
-/// Records a package host interface once per module. Its module names its
-/// trait's identity and role (`package_module`), and the trait, its
-/// called methods and their signatures decide the rest, so a second record
-/// of one module is the same interface.
+/// Records a package host interface once per module ([`Module::edit`]).
 pub fn record_package_interface(m: &mut Module, interface: hd_host_abi::schema::Interface) {
+    m.edit(crate::module::Edit::PackageInterface(interface));
+}
+
+/// [`record_package_interface`]'s write. Its module names its trait's
+/// identity and role (`package_module`), and the trait, its called
+/// methods and their signatures decide the rest, so a second record of
+/// one module is the same interface.
+pub(crate) fn add_package_interface(m: &mut Module, interface: hd_host_abi::schema::Interface) {
     #[cfg(feature = "testing")]
     {
         m.package_interface_probes += 1;
