@@ -1399,7 +1399,7 @@ struct Unit {
     /// [`Module::shims`] holds them, and in the order it asked, by shape.
     shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
     shim_queue: Vec<(Hash128, ShimRequest)>,
-    /// Its edits of the keyed tables emission only writes, in order.
+    /// Its edits of the tables emission only writes, in order.
     edits: Vec<Edit>,
 }
 
@@ -1415,6 +1415,9 @@ pub(crate) enum Edit {
     Frame(Hash128, u32),
     /// [`Module::frame_spills`] gets this layout.
     FrameSpill(Hash128, crate::task::FrameSpill),
+    /// [`Module::package_contract`] records this host interface once
+    /// (`boundary::record_package_interface`).
+    PackageInterface(hd_host_abi::schema::Interface),
 }
 
 /// The module under construction.
@@ -1888,6 +1891,9 @@ impl Module {
             }
             Edit::FrameSpill(key, spill) => {
                 self.frame_spills.insert(key, spill);
+            }
+            Edit::PackageInterface(interface) => {
+                crate::boundary::add_package_interface(self, interface);
             }
         }
     }
