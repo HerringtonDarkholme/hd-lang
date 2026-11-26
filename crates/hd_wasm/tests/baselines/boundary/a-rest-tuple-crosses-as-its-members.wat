@@ -14,62 +14,79 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "buf" (memory $buf 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t.0 i32) (local $t.1 i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-    i32.const 2
-    call $rt:list_buf
-    local.tee $t0
-    i32.const 2
-    i32.store $heap offset=4
-    local.get $t0
-    local.tee $t1
-    i32.const 65 ;; &"a"
-    i32.store $heap offset=16
-    local.get $t1
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $t1
-    i32.const 8
-    i32.add
-    local.tee $t1
-    i32.const 66 ;; &"b"
-    i32.store $heap offset=16
-    local.get $t1
-    i32.const 1
-    i32.store $heap offset=20
+    block
+      i32.const 2
+      local.set $t.0
+      local.get $t.0
+      call $rt:list_buf
+      local.set $t.1
+      local.get $t.1
+      local.get $t.0
+      i32.store $heap offset=4
+      local.get $t.1
+      local.set $t.0
+      local.get $t.0
+      i32.const 65 ;; &"a"
+      i32.store $heap offset=16
+      local.get $t.0
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t.0
+      i32.const 8
+      i32.add
+      local.set $t.0
+      local.get $t.0
+      i32.const 66 ;; &"b"
+      i32.store $heap offset=16
+      local.get $t.0
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t.0
+      i32.const 8
+      i32.add
+      local.set $t.0
+      i32.const 1
+      local.set $t.0
     ;; 14 |     _ := $.use(Vault).keep(t)
-    local.get $provider0
-    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-    i32.const 1
-    ;; 14 |     _ := $.use(Vault).keep(t)
-    local.get $t0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-    local.set $provider0
-    drop
-    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
-    local.get $provider0
-    if
       local.get $provider0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $provider0
-        call $rt:release_ref
-      end
-    end
-    local.get $t0
-    if
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $t.0
+      local.get $t.1
+      local.set $provider0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $t.0
+      i32.const 0
+      local.set $t.1
+      local.get $t1
+      local.get $provider0.vtable
+      local.get $provider0
       local.get $t0
-      i32.const 8
-      i32.sub
       i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
+      call_indirect $table0 (param i32 i32 i32) (result i32 i32)
+      local.set $provider0.vtable
+      local.set $t.0
+    ;; 13 |     let t: (i32, List[string]...) = (+1, "a", "b")
+      local.get $provider0.vtable
+      call $rt:release_ref
+      i32.const 0
+      local.set $t.0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $provider0
+      call $rt:release_ref
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
     end
   )
   (func $rt:hd:Vault/keep (param $t3 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
@@ -78,6 +95,8 @@
     local.get $t1
     local.get $t2
     call $rt:enc'1
+    local.set $t0
+    local.get $t0
     call $hd:Vault/keep
     drop
     i32.const 0
@@ -98,6 +117,8 @@
     i64.shr_s
     i64.xor
     call $rt:leb_put
+    local.set $t2
+    local.get $t2
   )
   (func $rt:enc'3 (param $t0 i32) (param $t2 i32) (param $t1 i32) (result i32)
     ;; (no span)
@@ -105,7 +126,8 @@
     local.get $t1
     i64.extend_i32_u
     call $rt:leb_put
-    local.tee $t0
+    local.set $t0
+    local.get $t0
     local.get $t1
     i32.add
     call $rt:fit
@@ -116,6 +138,8 @@
     local.get $t0
     local.get $t1
     i32.add
+    local.set $t0
+    local.get $t0
   )
   (func $rt:enc'4 (param $t2 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t3 i32)
     ;; (no span)
@@ -162,15 +186,20 @@
     local.get $t0
     local.get $t1
     call $rt:enc'2
+    local.set $t0
+    local.get $t0
     local.get $t2
     call $rt:enc'4
+    local.set $t0
+    local.get $t0
   )
   (func $rt:dec'2 (param $t0 i32) (result i32 i32) (local $t1 i64)
     ;; (no span)
     local.get $t0
     call $rt:leb_get
     local.set $t0
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i64.const 1
     i64.shr_u
     i64.const 0
@@ -179,7 +208,8 @@
     i64.and
     i64.sub
     i64.xor
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i64.const 32
     i64.shl
     i64.const 32
@@ -200,7 +230,8 @@
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     memory.size $buf
     i32.const 16
     i32.shl
@@ -217,7 +248,8 @@
     if
       local.get $t1
       call $rt:str
-      local.tee $t2
+      local.set $t2
+      local.get $t2
       local.get $t0
       local.get $t1
       call $rt:memory_copy/1/0
@@ -230,13 +262,14 @@
     local.get $t1
     local.get $t0
   )
-  (func $rt:dec'4 (param $t0 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $rt:dec'4 (param $t0 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32)
     ;; (no span)
     local.get $t0
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     memory.size $buf
     i32.const 16
     i32.shl
@@ -249,7 +282,8 @@
     end
     local.get $t1
     call $rt:list_buf
-    local.tee $t2
+    local.set $t2
+    local.get $t2
     i32.const 16
     i32.add
     local.set $t3
@@ -259,11 +293,13 @@
         local.get $t1
         i32.ge_u
         br_if 1
-        local.get $t3
         local.get $t0
         call $rt:dec'3
         local.set $t0
         local.set $t5
+        local.set $t6
+        local.get $t3
+        local.get $t6
         i32.store $heap
         local.get $t3
         local.get $t5
@@ -272,7 +308,8 @@
         local.get $t4
         i32.const 1
         i32.add
-        local.tee $t4
+        local.set $t4
+        local.get $t4
         i32.store $heap offset=4
         local.get $t3
         i32.const 8
@@ -284,10 +321,18 @@
     local.get $t2
     local.get $t0
   )
-  (func $rt:dec'1 (param $t0 i32) (result i32 i32 i32)
+  (func $rt:dec'1 (param $t0 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32)
     ;; (no span)
     local.get $t0
     call $rt:dec'2
+    local.set $t0
+    local.set $t1
+    local.get $t0
     call $rt:dec'4
+    local.set $t0
+    local.set $t2
+    local.get $t1
+    local.get $t2
+    local.get $t0
   )
 )

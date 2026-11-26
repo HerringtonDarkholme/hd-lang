@@ -4,51 +4,69 @@
   (import "fixture" "impl Offset for u64.offset" (func $"impl Offset for u64.offset" (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl Offset for i32.offset" (func $"impl Offset for i32.offset" (result i32)))
-  (func $"apply#1[u64]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64)
+  (func $"apply#1[u64]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64) (local $t2 i64)
+    block
     ;; 23 |             n + T::offset()
-    call $"impl Offset for u64.offset"
-    local.set $env
-    local.get $t0
-    i64.extend_i32_s
-    local.get $env
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
+      call $"impl Offset for u64.offset"
+      local.set $env
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t1
+      local.get $env
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t1
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t1
+      i32.wrap_i64
+      local.set $env
     end
-    local.get $t1
-    i32.wrap_i64
+    ;; ...
   )
-  (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64)
+  (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64) (local $t2 i64)
+    block
     ;; 23 |             n + T::offset()
-    call $"impl Offset for i32.offset"
-    local.set $env
-    local.get $t0
-    i64.extend_i32_s
-    local.get $env
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
+      call $"impl Offset for i32.offset"
+      local.set $env
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t1
+      local.get $env
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t1
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t1
+      i32.wrap_i64
+      local.set $env
     end
-    local.get $t1
-    i32.wrap_i64
+    ;; ...
   )
 )
 == @build: checked
@@ -56,51 +74,69 @@
   (import "fixture" "impl Offset for u64.offset" (func $"impl Offset for u64.offset" (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl Offset for i32.offset" (func $"impl Offset for i32.offset" (result i32)))
-  (func $"apply#1[u64]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64)
+  (func $"apply#1[u64]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64) (local $t2 i64)
+    block
     ;; 23 |             n + T::offset()
-    call $"impl Offset for u64.offset"
-    local.set $env
-    local.get $t0
-    i64.extend_i32_s
-    local.get $env
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
+      call $"impl Offset for u64.offset"
+      local.set $env
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t1
+      local.get $env
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t1
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t1
+      i32.wrap_i64
+      local.set $env
     end
-    local.get $t1
-    i32.wrap_i64
+    ;; ...
   )
-  (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64)
+  (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $t1 i64) (local $t2 i64)
+    block
     ;; 23 |             n + T::offset()
-    call $"impl Offset for i32.offset"
-    local.set $env
-    local.get $t0
-    i64.extend_i32_s
-    local.get $env
-    i64.extend_i32_s
-    i64.add
-    local.tee $t1
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t1
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
+      call $"impl Offset for i32.offset"
+      local.set $env
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t1
+      local.get $env
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t1
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t1
+      i32.wrap_i64
+      local.set $env
     end
-    local.get $t1
-    i32.wrap_i64
+    ;; ...
   )
 )
 == @build: release

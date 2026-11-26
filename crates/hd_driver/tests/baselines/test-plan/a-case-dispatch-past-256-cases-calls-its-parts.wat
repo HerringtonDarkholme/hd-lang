@@ -18,7 +18,8 @@
     local.get $x
     i32.const 3
     i32.mul
-    local.tee $x
+    local.set $x
+    local.get $x
     i32.const 2147483646
     i32.gt_s
     if
@@ -28,6 +29,8 @@
     local.get $x
     i32.const 1
     i32.add
+    local.set $x
+    local.get $x
   )
   (func $rt:test_poll (param $t0 i32) (param $t1 i32) (result i32)
     block

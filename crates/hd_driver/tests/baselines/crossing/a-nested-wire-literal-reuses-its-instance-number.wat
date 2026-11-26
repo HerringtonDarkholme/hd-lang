@@ -4,10 +4,10 @@
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "run[i32]" (func $"run[i32]" (param i32 i32) (result i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 19 funcref))
   (func $make#3 (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
@@ -33,92 +33,109 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
-    if
-      i32.const 1
-      local.get $t2
-      local.get $t1
-      call $"crossing_frame[(i32)]"
-      local.set $env
-      local.set $t3
-    else
-      i32.const 0
-      local.get $t0
-      local.get $t1
-      i32.const 0
-      local.get $ctx
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $env
-      local.set $t3
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
+    block
+      local.get $t3
       if
+        local.get $t2
+        local.get $t1
+        call $"crossing_frame[(i32)]"
+        local.set $env
+        i32.const 1
+        local.set $t3
+      else
         local.get $t0
-        call $rt:release_ref
+        local.get $t1
+        i32.const 0
+        local.get $ctx
+        call_indirect $table0 (param i32 i32 i32) (result i32)
+        local.set $env
+        i32.const 0
+        local.set $t3
       end
+      local.get $t0
+      call $rt:release_ref
+      i32.const 0
+      local.set $ctx
+      i32.const 0
+      local.set $t0
+      local.get $t0
+      call $rt:release_ref
     end
     local.get $t3
     local.get $env
   )
   (func $make#2 (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
     ;; 15 |         run(fn() -> i32: n + 1)
-    local.get $t0
-    i32.const 2147483646
-    i32.gt_s
-    if
-      call $rt:panic
-      unreachable
+    block
+      local.get $t0
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.const 1
+      i32.add
+      local.set $env
     end
-    local.get $t0
-    i32.const 1
-    i32.add
-  )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i32)
-    ;; ...
-    ;; 15 |         run(fn() -> i32: n + 1)
-    i64.const 7420542673795363667
-    i32.const 10
-    local.tee $ctx
-    i32.const 0
-    call $"crossing_number[fn((i32)) -> i32]"
-    local.set $t0
-    i32.const 11
-    i32.const 24
-    i32.const -2147483647
-    call $rt:new/class-2
-    local.tee $t1
-    local.get $ctx
-    i32.store $heap
-    local.get $t1
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $t1
     local.get $env
-    i32.store $heap offset=8
-    local.get $t1
-    local.get $t0
-    i64.store $heap offset=16
-    local.get $t1
-    call $"run[i32]"
+  )
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i32)
+    ;; ...
+    block
+    ;; 15 |         run(fn() -> i32: n + 1)
+      i32.const 10
+      i32.const 0
+      local.set $ctx
+      local.set $t0
+      local.get $ctx
+      call $rt:retain_known
+      i64.const 7420542673795363667
+      local.get $t0
+      local.get $ctx
+      call $"crossing_number[fn((i32)) -> i32]"
+      local.set $t1
+      i32.const 11
+      i32.const 24
+      i32.const -2147483647
+      call $rt:new/class-2
+      local.set $t2
+      local.get $t2
+      local.get $t0
+      i32.store $heap
+      local.get $t2
+      local.get $ctx
+      i32.store $heap offset=4
+      local.get $t2
+      local.get $env
+      i32.store $heap offset=8
+      local.get $t2
+      local.get $t1
+      i64.store $heap offset=16
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $ctx
+      local.set $env
+      local.get $env
+      local.get $t2
+      call $"run[i32]"
+      local.set $env
+      ;; ...
+    end
+    ;; ...
   )
 )
 == @build: checked
 (module
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "run[i32]" (func $"run[i32]" (param i32 i32) (result i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 19 funcref))
   (func $make#3 (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
@@ -144,84 +161,98 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
-    if
-      i32.const 1
-      local.get $t2
-      local.get $t1
-      call $"crossing_frame[(i32)]"
-      local.set $env
-      local.set $t3
-    else
-      i32.const 0
-      local.get $t0
-      local.get $t1
-      i32.const 0
-      local.get $ctx
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $env
-      local.set $t3
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
+    block
+      local.get $t3
       if
-        local.get $t0
-        call $rt:release_ref
+        local.get $t2
+        local.get $t1
+        call $"crossing_frame[(i32)]"
+        local.set $env
+        i32.const 1
+        local.set $t3
       else
-        call $skipped_test
+        local.get $t0
+        local.get $t1
+        i32.const 0
+        local.get $ctx
+        call_indirect $table0 (param i32 i32 i32) (result i32)
+        local.set $env
+        i32.const 0
+        local.set $t3
       end
-    else
-      call $skipped_test
+      local.get $t0
+      call $rt:release_ref
+      i32.const 0
+      local.set $ctx
+      i32.const 0
+      local.set $t0
+      local.get $t0
+      call $rt:release_ref
     end
     local.get $t3
     local.get $env
   )
   (func $make#2 (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
     ;; 15 |         run(fn() -> i32: n + 1)
-    local.get $t0
-    i32.const 2147483646
-    i32.gt_s
-    if
-      call $rt:panic
-      unreachable
+    block
+      local.get $t0
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.const 1
+      i32.add
+      local.set $env
     end
-    local.get $t0
-    i32.const 1
-    i32.add
-  )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i32)
-    ;; ...
-    ;; 15 |         run(fn() -> i32: n + 1)
-    i64.const 7420542673795363667
-    i32.const 10
-    local.tee $ctx
-    i32.const 0
-    call $"crossing_number[fn((i32)) -> i32]"
-    local.set $t0
-    i32.const 11
-    i32.const 24
-    i32.const -2147483647
-    call $rt:new
-    local.tee $t1
-    local.get $ctx
-    i32.store $heap
-    local.get $t1
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $t1
     local.get $env
-    i32.store $heap offset=8
-    local.get $t1
-    local.get $t0
-    i64.store $heap offset=16
-    local.get $t1
-    call $"run[i32]"
+  )
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i32)
+    ;; ...
+    block
+    ;; 15 |         run(fn() -> i32: n + 1)
+      i32.const 10
+      i32.const 0
+      local.set $ctx
+      local.set $t0
+      local.get $ctx
+      call $rt:retain_known
+      i64.const 7420542673795363667
+      local.get $t0
+      local.get $ctx
+      call $"crossing_number[fn((i32)) -> i32]"
+      local.set $t1
+      i32.const 11
+      i32.const 24
+      i32.const -2147483647
+      call $rt:new
+      local.set $t2
+      local.get $t2
+      local.get $t0
+      i32.store $heap
+      local.get $t2
+      local.get $ctx
+      i32.store $heap offset=4
+      local.get $t2
+      local.get $env
+      i32.store $heap offset=8
+      local.get $t2
+      local.get $t1
+      i64.store $heap offset=16
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $ctx
+      local.set $env
+      local.get $env
+      local.get $t2
+      call $"run[i32]"
+      local.set $env
+      ;; ...
+    end
+    ;; ...
   )
 )
 == @build: release

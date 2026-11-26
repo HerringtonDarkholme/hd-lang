@@ -8,49 +8,82 @@
     ;; 9 |     match value:
     block
       block
+        block
+          block
     ;; 10 |         .Some(item) => *item
-        local.get $value
-        i32.eqz
-        br_if 1
+            local.get $value
+            if
+              br 1
+            else
+              br 2
+            end
+    ;; 9 |     match value:
+            unreachable
+          end
+    ;; 10 |         .Some(item) => *item
+          local.get $value
+          i32.load $heap
+          local.set $value
+    ;; 9 |     match value:
+          br 1
+        end
+        i32.const -1
+        local.set $value
         br 0
-    ;; 9 |     match value:
-        unreachable
       end
-    ;; 10 |         .Some(item) => *item
-      local.get $value
-      i32.load $heap
-    ;; 9 |     match value:
-      return
     end
-    i32.const -1
+    local.get $value
   )
-  (func $call (result i32) (local $t0 i32)
+  (func $call (result i32) (local $t0 i32) (local $owner i32) (local $callback.0 i32) (local $t2 i32) (local $t1 i32)
     ;; 14 |     let owner: *i32 = box(+7)
-    i32.const 4
-    i32.const 0
-    call $rt:new/class-1
-    local.tee $t0
-    i32.const 7
-    i32.store $heap
-    ;; 16 |     callback(.Some(owner))
-    i32.const 0
-    local.get $t0
-    i32.const 0
-    ;; 15 |     let callback: fn((&i32)?) -> i32 = read
-    i32.const 2
-    ;; 16 |     callback(.Some(owner))
-    call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; 14 |     let owner: *i32 = box(+7)
-    local.get $t0
-    if
+    block
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t0
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
+      i32.const 7
+      i32.store $heap
+      local.get $t0
+      local.set $owner
+      i32.const 0
+      local.set $t0
+    ;; 15 |     let callback: fn((&i32)?) -> i32 = read
+      i32.const 2
+      i32.const 0
+      local.set $t0
+      local.set $callback.0
+    ;; 16 |     callback(.Some(owner))
+      local.get $callback.0
+      local.get $t0
+      local.set $t1
+      local.set $t2
+      i32.const 0
+      local.set $callback.0
+      i32.const 0
+      local.set $t0
+      local.get $owner
+      local.set $t0
+      local.get $t1
+      local.get $t0
+      i32.const 0
+      local.get $t2
+      call_indirect $table0 (param i32 i32 i32) (result i32)
+      local.set $callback.0
+    ;; 14 |     let owner: *i32 = box(+7)
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      call $rt:release_ref
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $owner
+      call $rt:release_ref
+      i32.const 0
+      local.set $owner
     end
+    local.get $callback.0
   )
 )

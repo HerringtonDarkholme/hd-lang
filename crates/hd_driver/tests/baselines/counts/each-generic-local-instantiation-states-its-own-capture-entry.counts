@@ -9,22 +9,28 @@
 fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string, string)):
     fn pair[T](value: T) -> (string, T):
 > app/main/generic
->   retain string (stored)
->   retain string (stored)
+>   release string (last use)
 > app/main/generic
 >   retain string (stored)
+>   retain string (stored)
+>   release string (last use)
+>   release string (last use)
+> app/main/generic
+>   retain string (stored)
+>   release string (last use)
         (captured, value)
     (pair::[i32], pair::[string])
-> app/main/generic
 >   retain counted reference (stored)
 
 fn counter() -> (fn!() -> usize):
     let count: usize = 0
 > app/main/counter
 >   release counted reference (last use)
+>   release counted reference (last use)
     fn!() -> usize:
 > app/main/counter
 >   retain counted reference (stored)
+>   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/counter
 >   release counted reference (cancelled)

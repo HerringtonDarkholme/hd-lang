@@ -1,5 +1,5 @@
 # @dump: counts
-# @build: std
+# @build: std release
 # A probe loop matches `at(entry).as_ref()`, as `UniqMap.insert` does
 # (#1230).
 # The reference only decides the match: its arms see copies of the

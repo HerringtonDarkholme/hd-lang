@@ -63,8 +63,12 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
 > app/main/use_generic
 >   retain app.main.Members[i32] [infos, points] (stored)
 >   release app.main.Members[i32] [infos, points] (last use)
+>   release app.main.Members[i32] [infos, points] (last use)
+>   release List[app.main.Wrap[string]] (last use)
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
 >   retain app.main.Members[i32] [infos, points] (stored)
 >   release string (last use)
+>   release app.main.Members[i32] [infos, points] (last use)
+>   release List[app.main.Wrap[string]] (last use)
         return m.y_at(i)
     0

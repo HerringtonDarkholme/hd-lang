@@ -10,31 +10,66 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "buf" (memory $buf 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |     _ := $.use(Vault).keep(Token.Node([Token.Leaf(+1)]))
-    i32.const 1
-    call $rt:list_buf
-    local.tee $t0
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $t0
-    i32.const 0
-    i32.store $heap offset=16
-    local.get $t0
-    i32.const 1
-    i32.store $heap offset=20
-    i32.const 1
-    local.set $t1
-    local.get $provider0
-    local.get $t1
-    local.get $t0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-    call $"release_value[Token]"
-    local.get $t1
-    local.get $t0
-    call $"release_value[Token]"
+    block
+      local.get $provider0
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      i32.const 1
+      local.set $provider0
+      local.set $provider0.vtable
+      i32.const 1
+      local.set $t2
+      local.get $t2
+      call $rt:list_buf
+      local.set $t3
+      local.get $t3
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t3
+      local.set $t2
+      local.get $t2
+      local.get $provider0.vtable
+      i32.store $heap offset=16
+      local.get $t2
+      local.get $provider0
+      i32.store $heap offset=20
+      local.get $t2
+      i32.const 8
+      i32.add
+      local.set $t2
+      i32.const 1
+      local.set $provider0
+      local.get $t1
+      local.get $provider0
+      local.get $t3
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32) (result i32 i32)
+      local.set $provider0.vtable
+      local.set $t0
+      local.get $t0
+      local.get $provider0.vtable
+      call $"release_value[Token]"
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $provider0
+      local.get $t3
+      call $"release_value[Token]"
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $t3
+    end
   )
   (func $rt:hd:Vault/keep (param $t3 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; (no span)
@@ -42,6 +77,8 @@
     local.get $t1
     local.get $t2
     call $rt:enc'1
+    local.set $t0
+    local.get $t0
     call $hd:Vault/keep
     drop
     i32.const 0
@@ -62,6 +99,8 @@
     i64.shr_s
     i64.xor
     call $rt:leb_put
+    local.set $t2
+    local.get $t2
   )
   (func $rt:enc'3 (param $t2 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t3 i32)
     ;; (no span)
@@ -134,7 +173,8 @@
     local.get $t0
     call $rt:leb_get
     local.set $t0
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i64.const 1
     i64.shr_u
     i64.const 0
@@ -143,7 +183,8 @@
     i64.and
     i64.sub
     i64.xor
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i64.const 32
     i64.shl
     i64.const 32
@@ -158,13 +199,14 @@
     i32.wrap_i64
     local.get $t0
   )
-  (func $rt:dec'3 (param $t0 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $rt:dec'3 (param $t0 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32)
     ;; (no span)
     local.get $t0
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     memory.size $buf
     i32.const 16
     i32.shl
@@ -177,7 +219,8 @@
     end
     local.get $t1
     call $rt:list_buf
-    local.tee $t2
+    local.set $t2
+    local.get $t2
     i32.const 16
     i32.add
     local.set $t3
@@ -187,11 +230,13 @@
         local.get $t1
         i32.ge_u
         br_if 1
-        local.get $t3
         local.get $t0
         call $rt:dec'1
         local.set $t0
         local.set $t5
+        local.set $t6
+        local.get $t3
+        local.get $t6
         i32.store $heap
         local.get $t3
         local.get $t5
@@ -200,7 +245,8 @@
         local.get $t4
         i32.const 1
         i32.add
-        local.tee $t4
+        local.set $t4
+        local.get $t4
         i32.store $heap offset=4
         local.get $t3
         i32.const 8
@@ -218,7 +264,8 @@
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i32.const 2
     i32.ge_u
     if
@@ -226,7 +273,8 @@
       unreachable
     end
     local.get $t1
-    i32.eqz
+    i32.const 0
+    i32.eq
     if
       local.get $t0
       call $rt:dec'2

@@ -19,131 +19,267 @@
     i32.const 4
     call $app/log/record
   )
-  (func $$test0 (local $t0 i32) (local $text.0'1 i32) (local $text.0'2 i32) (local $t1 i32) (local $t2 i64) (local $t4 i32) (local $t3 i32)
+  (func $$test0 (local $actual i32) (local $reason.1 i32) (local $expected i32) (local $reason.0 i32) (local $value.0 i32) (local $size i32) (local $t0 i64) (local $t1 i64) (local $result.0 i32) (local $offset i32)
     ;; 18 |         assert_equal(recorded(), ["a", "b", "c", "main"], reason="identity order among ready cycles")
-    call $app/log/recorded
-    i32.const 4
-    call $rt:list_buf
-    local.tee $t0
-    i32.const 4
-    i32.store $heap offset=4
-    local.get $t0
-    local.tee $text.0'1
-    i32.const 146 ;; &"a"
-    i32.store $heap offset=16
-    local.get $text.0'1
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $text.0'1
-    i32.const 8
-    i32.add
-    local.tee $text.0'1
-    i32.const 310 ;; &"b"
-    i32.store $heap offset=16
-    local.get $text.0'1
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $text.0'1
-    i32.const 8
-    i32.add
-    local.tee $text.0'1
-    i32.const 153 ;; &"c"
-    i32.store $heap offset=16
-    local.get $text.0'1
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $text.0'1
-    i32.const 8
-    i32.add
-    local.tee $text.0'1
-    i32.const 106 ;; &"main"
-    i32.store $heap offset=16
-    local.get $text.0'1
-    i32.const 4
-    i32.store $heap offset=20
-    local.get $t0
-    i32.const 365 ;; &"identity order among ready cycles"
-    i32.const 33
-    call $"check_equal[List[string]]"
+    block
+      call $app/log/recorded
+      local.set $actual
+      i32.const 4
+      local.set $reason.1
+      local.get $reason.1
+      call $rt:list_buf
+      local.set $expected
+      local.get $expected
+      local.get $reason.1
+      i32.store $heap offset=4
+      local.get $expected
+      local.set $reason.1
+      local.get $reason.1
+      i32.const 146 ;; &"a"
+      i32.store $heap offset=16
+      local.get $reason.1
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $reason.1
+      i32.const 8
+      i32.add
+      local.set $reason.1
+      local.get $reason.1
+      i32.const 310 ;; &"b"
+      i32.store $heap offset=16
+      local.get $reason.1
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $reason.1
+      i32.const 8
+      i32.add
+      local.set $reason.1
+      local.get $reason.1
+      i32.const 153 ;; &"c"
+      i32.store $heap offset=16
+      local.get $reason.1
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $reason.1
+      i32.const 8
+      i32.add
+      local.set $reason.1
+      local.get $reason.1
+      i32.const 106 ;; &"main"
+      i32.store $heap offset=16
+      local.get $reason.1
+      i32.const 4
+      i32.store $heap offset=20
+      local.get $reason.1
+      i32.const 8
+      i32.add
+      local.set $reason.1
+      i32.const 365 ;; &"identity order among ready cycles"
+      i32.const 33
+      local.set $reason.1
+      local.set $reason.0
+      block
+        block
+          local.get $actual
+          local.set $value.0
+          i32.const 0
+          local.set $actual
+          local.get $expected
+          local.set $actual
+          i32.const 0
+          local.set $expected
+          local.get $reason.0
+          local.get $reason.1
+          local.set $expected
+          local.set $size
+          i32.const 0
+          local.set $reason.0
+          i32.const 0
+          local.set $reason.1
+          local.get $value.0
+          local.get $actual
+          local.get $size
+          local.get $expected
+          call $"check_equal[List[string]]"
+          br 0
+        end
+      end
     ;; 19 |         assert_equal("${b()}${c()}", "bca", reason="every module is in use")
-    call $app/b/b
-    local.set $t0
-    local.set $text.0'1
-    call $app/c/c
-    local.set $t1
-    local.set $text.0'2
-    local.get $t0
-    i64.extend_i32_u
-    local.get $t1
-    i64.extend_i32_u
-    i64.add
-    local.tee $t2
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t2
-    i32.wrap_i64
-    local.tee $t3
-    i32.const 16
-    local.set $t4
-    if
-      local.get $t3
-      call $rt:str
-      local.set $t4
-    end
-    local.get $t4
-    i64.extend_i32_u
-    i64.const 0
-    i64.add
-    local.tee $t2
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t2
-    i32.wrap_i64
-    local.get $text.0'1
-    local.get $t0
-    call $rt:memory_copy/0/0
-    local.get $text.0'1
-    if
-      local.get $text.0'1
+      call $app/b/b
+      local.set $actual
+      local.set $reason.1
+      block
+        block
+          local.get $actual
+          local.set $expected
+          br 0
+        end
+      end
+      call $app/c/c
+      local.set $reason.0
+      local.set $value.0
+      block
+        block
+          local.get $reason.0
+          local.set $size
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $expected
+      i32.add
+      local.set $expected
+      local.get $expected
+      i64.extend_i32_u
+      local.set $t0
+      local.get $size
+      i64.extend_i32_u
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i64.add
+      local.set $t0
+      local.get $t0
+      i64.const 4294967295
+      i64.gt_u
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t0
+      i32.wrap_i64
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          i64.extend_i32_u
+          local.set $t0
+          local.get $offset
+          i64.extend_i32_u
+          local.set $t1
+          local.get $t0
+          local.get $t1
+          i64.add
+          local.set $t0
+          local.get $t0
+          i64.const 4294967295
+          i64.gt_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          i32.wrap_i64
+          local.set $offset
+          local.get $offset
+          local.get $reason.1
+          local.get $actual
+          call $rt:memory_copy/0/0
+          br 0
+        end
+      end
+      local.get $reason.1
       call $rt:release_ref
-    end
-    local.get $t4
-    i64.extend_i32_u
-    local.get $t0
-    i64.extend_i32_u
-    i64.add
-    local.tee $t2
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t2
-    i32.wrap_i64
-    local.get $text.0'2
-    local.get $t1
-    call $rt:memory_copy/0/0
-    local.get $text.0'2
-    if
-      local.get $text.0'2
+      i32.const 0
+      local.set $reason.1
+      i32.const 0
+      local.set $actual
+      block
+        block
+          local.get $result.0
+          i64.extend_i32_u
+          local.set $t0
+          local.get $expected
+          i64.extend_i32_u
+          local.set $t1
+          local.get $t0
+          local.get $t1
+          i64.add
+          local.set $t0
+          local.get $t0
+          i64.const 4294967295
+          i64.gt_u
+          if
+            call $rt:panic
+            unreachable
+          end
+          local.get $t0
+          i32.wrap_i64
+          local.set $actual
+          local.get $actual
+          local.get $value.0
+          local.get $reason.0
+          call $rt:memory_copy/0/0
+          br 0
+        end
+      end
+      local.get $value.0
       call $rt:release_ref
+      i32.const 0
+      local.set $value.0
+      i32.const 0
+      local.set $reason.0
+      i32.const 398 ;; &"bca"
+      i32.const 3
+      local.set $actual
+      local.set $reason.1
+      i32.const 401 ;; &"every module is in use"
+      i32.const 22
+      local.set $expected
+      local.set $reason.0
+      block
+        block
+          local.get $result.0
+          local.get $size
+          local.set $value.0
+          local.set $offset
+          i32.const 0
+          local.set $result.0
+          i32.const 0
+          local.set $size
+          local.get $reason.1
+          local.get $actual
+          local.set $size
+          local.set $result.0
+          i32.const 0
+          local.set $reason.1
+          i32.const 0
+          local.set $actual
+          local.get $reason.0
+          local.get $expected
+          local.set $actual
+          local.set $reason.1
+          i32.const 0
+          local.set $reason.0
+          i32.const 0
+          local.set $expected
+          local.get $offset
+          local.get $value.0
+          local.get $result.0
+          local.get $size
+          local.get $reason.1
+          local.get $actual
+          call $"check_equal[string]"
+          br 0
+        end
+      end
+    ;; 18 |         assert_equal(recorded(), ["a", "b", "c", "main"], reason="identity order among ready cycles")
     end
-    local.get $t4
-    local.get $t3
-    i32.const 398 ;; &"bca"
-    i32.const 3
-    i32.const 401 ;; &"every module is in use"
-    i32.const 22
-    call $"check_equal[string]"
   )
   (func $rt:test_init_walk (param $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; (no span)
@@ -315,7 +451,8 @@
         local.get $t1
         i32.const -1
         i32.add
-        local.tee $t1
+        local.set $t1
+        local.get $t1
         local.set $t3
         block
           loop
@@ -324,7 +461,8 @@
             i32.shl
             i32.const 1
             i32.add
-            local.tee $t5
+            local.set $t5
+            local.get $t5
             local.get $t4
             i32.ge_u
             br_if 1
@@ -419,9 +557,17 @@
         i32.const 0
         local.set $t3
         i32.const 612
+        local.get $t3
+        i32.const 2
+        i32.shl
+        i32.add
         i32.load $heap
         local.set $t0
         i32.const 612
+        local.get $t3
+        i32.const 2
+        i32.shl
+        i32.add
         i32.const 612
         local.get $t2
         i32.const 2
@@ -443,7 +589,8 @@
             i32.shl
             i32.const 1
             i32.add
-            local.tee $t5
+            local.set $t5
+            local.get $t5
             local.get $t2
             i32.ge_u
             br_if 1

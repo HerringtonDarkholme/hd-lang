@@ -6,31 +6,46 @@
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $"impl Reader for Value.read" (param $self i32) (result i32)
     ;; 13 |         self.number
+    block
+      local.get $self
+      i32.load $heap
+      local.set $self
+    end
     local.get $self
-    i32.load $heap
   )
-  (func $read (param $holder i32) (result i32) (local $t0 i32)
+  (func $read (param $holder i32) (result i32) (local $borrowed.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 19 |     let borrowed: &dyn Reader = &*holder.value
-    local.get $holder
-    i32.load $heap
-    local.get $holder
-    i32.load $heap offset=4
+    block
+      local.get $holder
+      i32.load $heap
+      local.set $borrowed.0
+      local.get $holder
+      i32.load $heap offset=4
+      local.set $holder
     ;; 20 |     borrowed.read()
-    local.set $holder
-    local.tee $t0
-    if
-      local.get $t0
+      local.get $borrowed.0
+      local.get $holder
+      local.set $t0
+      local.set $t1
+      local.get $t1
       call $retain
-    end
-    local.get $t0
-    local.get $holder
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    ;; 19 |     let borrowed: &dyn Reader = &*holder.value
-    local.get $t0
-    if
+      i32.const 0
+      local.set $borrowed.0
+      i32.const 0
+      local.set $holder
+      local.get $t1
       local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $holder
+    ;; 19 |     let borrowed: &dyn Reader = &*holder.value
+      local.get $t1
       call $rt:release_ref
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
     end
+    local.get $holder
   )
 )

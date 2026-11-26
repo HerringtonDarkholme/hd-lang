@@ -4,48 +4,61 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $projected (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
+  (func $projected (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 18 |     needs_base(value)
-    local.get $provider0
-    if
+    block
       local.get $provider0
       call $retain
-    end
-    local.get $provider0
-    local.get $provider0.vtable
-    i32.load $heap offset=4
-    local.set $provider0
-    local.tee $provider0.vtable
-    local.tee $t0
-    if
-      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      i32.load $heap offset=4
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $t1
       call $retain
-    end
-    local.get $t0
-    local.get $provider0.vtable
-    if
+      local.get $t1
+      local.get $t0
+      local.set $provider0
+      local.set $provider0.vtable
+      local.get $t1
+      call $rt:release_ref
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $provider0.vtable
+      local.get $provider0
+      local.set $t0
+      local.set $t1
+      local.get $t1
+      call $retain
       local.get $provider0.vtable
       call $rt:release_ref
-    end
-    local.tee $provider0.vtable
-    if
-      local.get $provider0.vtable
-      call $retain
-    end
-    local.get $t0
-    if
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
+      local.get $value
+      local.get $t1
       local.get $t0
+      i32.const 1
+      call_indirect $table0 (param i32 i32 i32) (result i32)
+      local.set $value
+      local.get $t1
       call $rt:release_ref
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
     end
     local.get $value
-    local.get $provider0.vtable
-    local.get $provider0
-    i32.const 0
-    call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.get $provider0.vtable
-    if
-      local.get $provider0.vtable
-      call $rt:release_ref
-    end
   )
 )

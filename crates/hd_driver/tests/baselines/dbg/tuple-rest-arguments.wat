@@ -3,56 +3,69 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "dbg[(List[string]...)]" (func $"dbg[(List[string]...)]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 18 funcref))
   (func $function_value#1 (param $env i32) (param $t0 i32) (param $ctx i32)
     ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
     local.get $t0
-    if
+    call $rt:retain_known
+    block
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:retain_known
-      end
+      local.set $env
+      i32.const 0
+      local.set $t0
+      local.get $env
+      i32.const 100 ;; &"1\u{1f}8\u{1f}48\u{1f}main.hd"
+      i32.const 14
+      call $"dbg[(List[string]...)]"
+      local.get $t0
+      call $rt:release_ref
     end
-    local.get $t0
-    i32.const 100 ;; &"1\u{1f}8\u{1f}48\u{1f}main.hd"
-    i32.const 14
-    call $"dbg[(List[string]...)]"
   )
-  (func $direct (param $values i32)
+  (func $direct (param $values i32) (local $t0 i32)
     ;; 5 |     dbg(values...)
-    local.get $values
-    i32.const 114 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
-    i32.const 13
-    call $"dbg[(List[string]...)]"
-  )
-  (func $function_value (param $values i32)
-    ;; 9 |     show(values)
-    i32.const 0
-    local.get $values
-    i32.const 0
-    ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
-    i32.const 8
-    ;; 9 |     show(values)
-    call_indirect $table0 (param i32 i32 i32)
-    ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
-    local.get $values
-    if
+    block
       local.get $values
+      local.set $t0
+      i32.const 0
+      local.set $values
+      local.get $t0
+      i32.const 114 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
+      i32.const 13
+      call $"dbg[(List[string]...)]"
+      local.get $values
+      call $rt:release_ref
+    end
+  )
+  (func $function_value (param $values i32) (local $show.0 i32) (local $show.1 i32) (local $t1 i32) (local $t0 i32)
+    ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
+    block
       i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $values
-        call $rt:release_ref
-      end
+      i32.const 0
+      local.set $show.1
+      local.set $show.0
+    ;; 9 |     show(values)
+      local.get $show.0
+      local.get $show.1
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $show.0
+      i32.const 0
+      local.set $show.1
+      local.get $t0
+      local.get $values
+      i32.const 0
+      local.get $t1
+      call_indirect $table0 (param i32 i32 i32)
+    ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
+      local.get $t0
+      call $rt:release_ref
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $values
+      call $rt:release_ref
     end
   )
 )

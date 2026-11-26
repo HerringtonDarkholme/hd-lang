@@ -2,63 +2,265 @@
 (module
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
+  (import "fixture" "release_value[std.rt_tests.stage_case.Big]" (func $"release_value[std.rt_tests.stage_case.Big]" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "release_value[std.rt_tests.stage_case.Part]" (func $"release_value[std.rt_tests.stage_case.Part]" (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 17))
-  (func $moved (param $t1 i32) (result i32) (local $t0 i32) (local $p.id.1 i32) (local $t2 i32) (local $t3 i64)
+  (func $moved (param $t3 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $p.id.0 i32) (local $p.id.1 i32) (local $t4 i32) (local $t5 i64) (local $t6 i64)
     ;; 68 |     keep(o.big.part) + o.v
-    i32.const 1
-    local.tee $t0
-    local.get $t1
-    i32.load $heap offset=8
-    local.get $t1
-    i32.load $heap offset=12
-    local.tee $p.id.1
-    local.set $t2
-    local.get $p.id.1
-    call $rt:release_spilled
-    local.get $t1
-    i32.load $heap offset=88
-    local.set $p.id.1
-    i32.const 0
-    i32.and
-    if
-      local.get $t1
-      call $rt:drop
-    else
-      local.get $t0
-      if
-        local.get $t1
-        i32.load $heap
-        local.tee $t0
-        if
-          local.get $t0
-          call $rt:release_ref
+    block
+      i32.const 1
+      local.set $t0
+      i32.const 1
+      local.set $t1
+      i32.const 1
+      local.set $t2
+      local.get $t3
+      i32.load $heap offset=8
+      local.get $t3
+      i32.load $heap offset=12
+      local.set $p.id.1
+      local.set $p.id.0
+      i32.const 0
+      local.set $t1
+      block
+        block
+          block
+            block
+              local.get $p.id.1
+              local.set $t4
+              br 0
+            end
+          end
+          br 0
         end
       end
-      local.get $t1
-      i32.const 80
-      i32.add
-      call $"release_value[std.rt_tests.stage_case.Part]"
+      local.get $p.id.0
+      local.get $p.id.1
+      call $rt:release_spilled
+      i32.const 0
+      local.set $p.id.0
+      i32.const 0
+      local.set $p.id.1
+      local.get $t3
+      i32.load $heap offset=88
+      local.set $p.id.1
+      local.get $t2
+      if
+        local.get $t0
+        local.get $t1
+        i32.and
+        local.set $t2
+        local.get $t2
+        if
+          local.get $t3
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t1
+            if
+              local.get $t3
+              call $"release_value[std.rt_tests.stage_case.Big]"
+            else
+              local.get $t3
+              i32.load $heap offset=16
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=20
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=24
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=28
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=32
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=36
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=40
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=44
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=48
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=52
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=56
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=60
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=64
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=68
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=72
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=76
+              local.set $t2
+              local.get $t3
+              i32.load $heap
+              local.set $t2
+              local.get $t3
+              i32.load $heap offset=4
+              local.set $t0
+              local.get $t2
+              call $rt:release_ref
+              local.get $t1
+              if
+                local.get $t3
+                i32.const 8
+                i32.add
+                call $"release_value[std.rt_tests.stage_case.Part]"
+              end
+            end
+          end
+          local.get $t3
+          i32.const 80
+          i32.add
+          call $"release_value[std.rt_tests.stage_case.Part]"
+          local.get $t3
+          i32.load $heap offset=88
+          local.set $t2
+        end
+      end
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $t1
+      local.get $t4
+      i64.extend_i32_s
+      local.set $t5
+      local.get $p.id.1
+      i64.extend_i32_s
+      local.set $t6
+      local.get $t5
+      local.get $t6
+      i64.add
+      local.set $t5
+      local.get $t5
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t5
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t5
+      i32.wrap_i64
+      local.set $p.id.1
+      local.get $t2
+      if
+        local.get $t0
+        local.get $t1
+        i32.and
+        local.set $t2
+        local.get $t2
+        if
+          local.get $t3
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t1
+            if
+              local.get $t3
+              call $"release_value[std.rt_tests.stage_case.Big]"
+            else
+              local.get $t3
+              i32.load $heap offset=16
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=20
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=24
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=28
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=32
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=36
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=40
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=44
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=48
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=52
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=56
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=60
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=64
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=68
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=72
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=76
+              local.set $t0
+              local.get $t3
+              i32.load $heap
+              local.set $t0
+              local.get $t3
+              i32.load $heap offset=4
+              local.set $t2
+              local.get $t0
+              call $rt:release_ref
+              local.get $t1
+              if
+                local.get $t3
+                i32.const 8
+                i32.add
+                call $"release_value[std.rt_tests.stage_case.Part]"
+              end
+            end
+          end
+          local.get $t3
+          i32.const 80
+          i32.add
+          call $"release_value[std.rt_tests.stage_case.Part]"
+          local.get $t3
+          i32.load $heap offset=88
+          local.set $t3
+        end
+      end
     end
-    local.get $t2
-    i64.extend_i32_s
     local.get $p.id.1
-    i64.extend_i32_s
-    i64.add
-    local.tee $t3
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t3
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t3
-    i32.wrap_i64
   )
 )

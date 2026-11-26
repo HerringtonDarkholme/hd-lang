@@ -29,11 +29,13 @@ fn optional(input: string, expected: string?) -> bool:
     expected == .Some(input)
 > app/main/optional
 >   release string? (last use)
+>   release string? (last use)
 >   release string (last use)
 
 fn replace(source: &mut Names) -> usize:
     source.second = "fresh"
 > app/main/replace
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 >   release string (last use)
     churn := source.first + "!"
@@ -43,6 +45,7 @@ fn during_arguments(input: Names) -> usize $ Console:
     let mut source = input
 > app/main/during_arguments
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
+>   release app.main.Names [first.0, second.0] (last use)
     observe(&Wrapped { values: source, n: 1 }, replace(&mut source))
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release app.main.Names [first.0, second.0] (last use)
@@ -50,6 +53,7 @@ fn during_arguments(input: Names) -> usize $ Console:
 fn replace_pointer(source: *mut Names) -> usize:
     source.second = "fresh"
 > app/main/replace_pointer
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 >   release string (last use)
 >   release *mut app.main.Names (last use)
@@ -62,6 +66,8 @@ fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
+>   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
 
 pub fn main() -> void $ Console:
     original := Names { first: "alpha" + "one", second: "b" + "eta" }
@@ -109,11 +115,13 @@ fn optional(input: string, expected: string?) -> bool:
     expected == .Some(input)
 > app/main/optional
 >   release string? (last use)
+>   release string? (last use)
 >   release string (last use)
 
 fn replace(source: &mut Names) -> usize:
     source.second = "fresh"
 > app/main/replace
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 >   release string (last use)
     churn := source.first + "!"
@@ -123,6 +131,7 @@ fn during_arguments(input: Names) -> usize $ Console:
     let mut source = input
 > app/main/during_arguments
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
+>   release app.main.Names [first.0, second.0] (last use)
     observe(&Wrapped { values: source, n: 1 }, replace(&mut source))
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release app.main.Names [first.0, second.0] (last use)
@@ -130,6 +139,7 @@ fn during_arguments(input: Names) -> usize $ Console:
 fn replace_pointer(source: *mut Names) -> usize:
     source.second = "fresh"
 > app/main/replace_pointer
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 >   release string (last use)
 >   release *mut app.main.Names (last use)
@@ -142,6 +152,8 @@ fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
+>   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
 
 pub fn main() -> void $ Console:
     original := Names { first: "alpha" + "one", second: "b" + "eta" }

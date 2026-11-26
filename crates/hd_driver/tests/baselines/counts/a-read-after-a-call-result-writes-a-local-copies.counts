@@ -21,8 +21,9 @@ impl Bag:
 
 fn change_then_read(name: string) -> usize:
     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
-    b.item_mut(0).qty = +7
 > std/rt_tests.stage_case/change_then_read
+>   release string (last use)
+    b.item_mut(0).qty = +7
 >   unique List[std.rt_tests.stage_case.Item] (may be shared)
     kept := b.label
     kept.len() + b.items.len()

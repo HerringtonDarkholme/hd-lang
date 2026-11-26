@@ -3,7 +3,9 @@
 
 use std::fmt::Write as _;
 
-use hd_driver::{EngineTarget, Executor, Goal, Host, NoClock, Output, Packages, build_packages};
+use hd_driver::{
+    EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages, build_packages,
+};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -35,7 +37,7 @@ fn program(points: usize, all_live: bool, depth: usize, pending: bool) -> String
     text
 }
 
-fn compile(source: &str, target: EngineTarget, checked: bool) -> Output {
+fn compile(source: &str, target: EngineTarget, checked: bool, level: OptLevel) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = crate::warm_store();
@@ -49,6 +51,7 @@ fn compile(source: &str, target: EngineTarget, checked: bool) -> Output {
     let packages = Packages {
         target,
         checked,
+        level,
         ..Packages::default()
     };
     let output = build_packages(
@@ -79,7 +82,12 @@ fn suspension_module_size_is_linear_even_when_all_results_stay_live() {
     on_worker_stack(|| {
         for all_live in [false, true] {
             let bytes = |points| {
-                let out = compile(&program(points, all_live, 0, true), EngineTarget::V8, false);
+                let out = compile(
+                    &program(points, all_live, 0, true),
+                    EngineTarget::V8,
+                    false,
+                    OptLevel::Dev,
+                );
                 let bytes = out.wasm.as_deref().map_or(0, <[u8]>::len);
                 assert!(bytes > 0);
                 eprintln!("suspension size all_live={all_live}, points={points}: {bytes}");
@@ -95,13 +103,16 @@ fn suspension_module_size_is_linear_even_when_all_results_stay_live() {
     });
 }
 
+/// The `optimizer` phase is the optimized link's liveness work, so the
+/// programs build optimized.
 #[test]
 fn resident_spill_work_is_linear_in_width_and_depth_together() {
     on_worker_stack(|| {
         let work = |width, depth| {
             let ((out, work), optimizer) = hd_wasm::work::count_liveness(|| {
                 hd_wasm::suspension_work::count(|| {
-                    compile(&program(width, true, depth, true), EngineTarget::V8, false)
+                    let source = program(width, true, depth, true);
+                    compile(&source, EngineTarget::V8, false, OptLevel::Optimized)
                 })
             });
             assert!(out.wasm.is_some());
@@ -147,6 +158,7 @@ fn one_thousand_real_awaits_execute_on_wasmtime() {
                 &program(1000, false, 0, true),
                 EngineTarget::Wasmtime,
                 checked,
+                OptLevel::Dev,
             );
             if let Some(wasm) = out.wasm {
                 let setup = hd_run::HostSetup {

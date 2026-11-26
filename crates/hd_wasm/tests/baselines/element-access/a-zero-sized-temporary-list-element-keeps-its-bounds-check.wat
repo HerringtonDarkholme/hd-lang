@@ -8,35 +8,38 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $visit (param $index i32) (local $t0 i32)
     ;; 12 |     accept(&source()[index])
-    call $source
-    call $rt:list_unique
-    local.set $t0
-    local.get $index
-    local.get $t0
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $t0
-    local.get $index
-    i32.const 0
-    i32.mul
-    i32.add
-    i32.const 16
-    i32.add
-    call $accept
-    local.get $t0
-    if
+    block
+      call $source
+      local.set $t0
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
+      call $rt:list_unique
+      local.set $t0
+      local.get $index
+      local.get $t0
+      i32.load $heap offset=4
+      i32.ge_u
       if
-        local.get $t0
-        call $rt:release_ref
+        call $rt:panic
+        unreachable
       end
+      local.get $t0
+      local.get $index
+      i32.const 0
+      i32.mul
+      i32.add
+      local.set $index
+      local.get $index
+      i32.const 16
+      i32.add
+      local.set $index
+      local.get $index
+      call $accept
+      i32.const 0
+      local.set $index
+      local.get $t0
+      call $rt:release_ref
+      i32.const 0
+      local.set $t0
     end
   )
 )

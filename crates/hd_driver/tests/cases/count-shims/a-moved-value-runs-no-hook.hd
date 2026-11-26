@@ -1,5 +1,5 @@
 # @dump: counts wat
-# @build: std
+# @build: std release
 # A parameter moved out whole (`identity` returns it) leaves nothing to
 # drop: its drop flag at the root is clear, so the open drop releases
 # none of its parts. Recursing into the fields under a clear root flag

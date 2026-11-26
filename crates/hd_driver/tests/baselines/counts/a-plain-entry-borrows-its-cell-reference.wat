@@ -10,25 +10,37 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"impl Update[string] for Sink.update" (param $self i32) (param $value.0 i32) (param $value.1 i32)
+  (func $"impl Update[string] for Sink.update" (param $self i32) (param $value.0 i32) (param $value.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 11 |         self.text = value
-    local.get $self
-    i32.load $heap
-    local.get $self
-    local.get $value.0
-    i32.store $heap
-    local.get $self
-    local.get $value.1
-    i32.store $heap offset=4
-    local.tee $self
-    if
+    block
+      local.get $value.0
+      local.get $value.1
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $value.0
+      i32.const 0
+      local.set $value.1
       local.get $self
+      i32.load $heap
+      local.set $value.1
+      local.get $self
+      i32.load $heap offset=4
+      local.set $t2
+      local.get $self
+      local.get $t1
+      i32.store $heap
+      local.get $self
+      local.get $t0
+      i32.store $heap offset=4
+      local.get $value.1
+      call $rt:release_ref'1
+      local.get $value.0
       call $rt:release_ref'1
     end
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $sink i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t2 i32) (local $t1 i32) (local $sink i32) (local $t0 i32)
     ;; 19 |     let mut sink = Sink { text: "" }
     global.get $stack
     global.get $stack_limit
@@ -44,115 +56,141 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $sink
-    i32.const 16 ;; &"\n"
-    i32.store $heap
-    local.get $sink
-    i32.const 0
-    i32.store $heap offset=4
-    ;; 20 |     sink() = "kept"
-    local.get $sink
-    i32.const 113 ;; &"kept"
-    i32.const 4
-    call $"impl Update[string] for Sink.update"
-    ;; 21 |     println(sink.text)
-    local.get $sink
-    i32.load $heap
-    local.get $sink
-    i32.load $heap offset=4
-    local.get $sink
-    i32.const 0
-    i32.store $heap
-    local.get $sink
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
-    ;; 22 |     _ := helper()
-    call $helper'1
-    ;; 19 |     let mut sink = Sink { text: "" }
-    local.tee $provider0
-    if
-      local.get $provider0
+    block
+      i32.const 16 ;; &"\n"
+      i32.const 0
+      local.set $t1
+      local.set $t2
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
       i32.const 8
-      i32.sub
+      i32.add
+      local.set $sink
+      local.get $sink
+      local.get $t2
+      i32.store $heap
+      local.get $sink
+      local.get $t1
+      i32.store $heap offset=4
+    ;; 20 |     sink() = "kept"
+      local.get $sink
+      local.set $t1
+      local.get $t1
+      i32.const 113 ;; &"kept"
+      i32.const 4
+      call $"impl Update[string] for Sink.update"
+      i32.const 0
+      local.set $t1
+    ;; 21 |     println(sink.text)
+      local.get $sink
       i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $provider0
-        call $rt:release_ref'2
-      end
+      local.get $sink
+      i32.load $heap offset=4
+      local.set $t1
+      local.set $t2
+      local.get $sink
+      i32.const 0
+      i32.store $heap
+      local.get $sink
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t2
+      local.get $t1
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    ;; 22 |     _ := helper()
+      call $helper'1
+      local.set $provider0
+    ;; 19 |     let mut sink = Sink { text: "" }
+      local.get $provider0
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $provider0
     end
     local.get $t0
     i32.const 16 ;; &"\n"
     i32.add
     global.set $stack
   )
-  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $sink i32)
+  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $sink i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
       local.get $frame
       local.get $frame
       i32.load $heap offset=12
-      local.tee $sink
+      local.tee $t0
       i32.const 128
       i32.and
-      local.set $t0
-      local.get $sink
+      local.set $t1
+      local.get $t0
       i32.const 128
       i32.or
       i32.store $heap offset=12
     end
-    i32.const 8
-    i32.const 1
-    call $rt:new/class-1
-    local.tee $sink
-    i32.const 16 ;; &"\n"
-    i32.store $heap
-    local.get $sink
-    i32.const 0
-    i32.store $heap offset=4
-    ;; 15 |     sink() = "helper"
-    local.get $sink
-    i32.const 117 ;; &"helper"
-    i32.const 6
-    call $"impl Update[string] for Sink.update"
-    ;; 16 |     sink.text
-    local.get $sink
-    i32.load $heap
-    local.get $sink
-    i32.load $heap offset=4
-    local.set $t1
-    local.tee $t2
+    local.get $frame
     if
-      local.get $t2
-      call $retain
+      local.get $frame
+      i32.load $heap offset=8
+      local.set $t0
+    else
     end
-    ;; 14 |     let mut sink = Sink { text: "" }
-    local.get $sink
-    if
-      local.get $sink
+    block
+      i32.const 16 ;; &"\n"
+      i32.const 0
+      local.set $t0
+      local.set $t2
       i32.const 8
-      i32.sub
+      i32.const 1
+      call $rt:new/class-1
+      local.set $sink
+      local.get $sink
+      local.get $t2
+      i32.store $heap
+      local.get $sink
+      local.get $t0
+      i32.store $heap offset=4
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+    ;; 15 |     sink() = "helper"
+      local.get $sink
+      local.set $t0
+      local.get $t0
+      i32.const 117 ;; &"helper"
+      i32.const 6
+      call $"impl Update[string] for Sink.update"
+      i32.const 0
+      local.set $t0
+    ;; 16 |     sink.text
+      local.get $sink
       i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $sink
-        call $rt:release_ref'2
-      end
+      local.set $t0
+      local.get $sink
+      i32.load $heap offset=4
+      local.set $t2
+      local.get $t0
+      call $retain
+    ;; 14 |     let mut sink = Sink { text: "" }
+      local.get $sink
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $sink
+      local.get $t0
+      local.get $t2
+      local.set $sink
+      local.set $t3
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $t2
     end
-    local.get $t2
-    local.get $t1
+    local.get $t3
+    local.get $sink
     local.get $frame
     if
       local.get $frame
@@ -162,7 +200,18 @@
       i32.or
       i32.store $heap offset=12
     end
-    i32.const 0
+    local.get $t4
+    if (result i32)
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const -17
+      i32.and
+      i32.store $heap offset=12
+      local.get $frame
+    else
+      i32.const 0
+    end
     local.get $frame
     if
       local.get $frame
@@ -170,7 +219,7 @@
       i32.load $heap offset=12
       i32.const -129
       i32.and
-      local.get $t0
+      local.get $t1
       i32.or
       i32.store $heap offset=12
     end
@@ -221,8 +270,20 @@
     i32.const 0
     return
   )
-  (func $helper'1 (result i32)
+  (func $helper.drop (param $t0 i32)
+    ;; 14 |     let mut sink = Sink { text: "" }
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+    end
+  )
+  (func $helper'1 (result i32) (local $t0 i32)
     ;; 14 |     let mut sink = Sink { text: "" }
     call $rt:frame
+    local.set $t0
+    local.get $t0
   )
 )

@@ -3,28 +3,79 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $main (local $left i32) (local $right i32)
+  (func $main (local $left i32) (local $right i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
     ;; 6 |     _ := collection_capacity_sum(~usize(0), 1)
+    i32.const 0
+    i32.const -1
+    i32.xor
+    local.set $left
+    i32.const 1
+    local.set $right
     block
-      i32.const 16 ;; &"heap-exhausted"
-      i32.const 14
-      i32.const 30 ;; &"collection capacity does not fit the address space"
-      i32.const 50
-      i32.const 0
-      call_indirect $table0 (param i32 i32 i32 i32)
-      unreachable
-      return
-    end
-    local.get $left
-    i64.extend_i32_u
-    local.get $right
-    i64.extend_i32_u
-    i64.add
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
+      block
+        i32.const 0
+        i32.const -1
+        i32.xor
+        local.set $t0
+        local.get $t0
+        i64.extend_i32_u
+        local.set $t1
+        local.get $left
+        i64.extend_i32_u
+        local.set $t2
+        local.get $t1
+        local.get $t2
+        i64.sub
+        local.set $t1
+        local.get $t1
+        i64.const 4294967295
+        i64.gt_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        i32.wrap_i64
+        local.set $t0
+        local.get $right
+        local.get $t0
+        i32.gt_u
+        local.set $t0
+        local.get $t0
+        if
+          i32.const 16 ;; &"heap-exhausted"
+          i32.const 14
+          i32.const 30 ;; &"collection capacity does not fit the address space"
+          i32.const 50
+          i32.const 0
+          call_indirect $table0 (param i32 i32 i32 i32)
+          unreachable
+          i32.const 0
+          local.set $t0
+          br 1
+        end
+        local.get $left
+        i64.extend_i32_u
+        local.set $t1
+        local.get $right
+        i64.extend_i32_u
+        local.set $t2
+        local.get $t1
+        local.get $t2
+        i64.add
+        local.set $t1
+        local.get $t1
+        i64.const 4294967295
+        i64.gt_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        i32.wrap_i64
+        local.set $t0
+        br 0
+      end
     end
   )
 )
@@ -32,28 +83,79 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $main (local $left i32) (local $right i32)
+  (func $main (local $left i32) (local $right i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
     ;; 6 |     _ := collection_capacity_sum(~usize(0), 1)
+    i32.const 0
+    i32.const -1
+    i32.xor
+    local.set $left
+    i32.const 1
+    local.set $right
     block
-      i32.const 16 ;; &"heap-exhausted"
-      i32.const 14
-      i32.const 30 ;; &"collection capacity does not fit the address space"
-      i32.const 50
-      i32.const 0
-      call_indirect $table0 (param i32 i32 i32 i32)
-      unreachable
-      return
-    end
-    local.get $left
-    i64.extend_i32_u
-    local.get $right
-    i64.extend_i32_u
-    i64.add
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
+      block
+        i32.const 0
+        i32.const -1
+        i32.xor
+        local.set $t0
+        local.get $t0
+        i64.extend_i32_u
+        local.set $t1
+        local.get $left
+        i64.extend_i32_u
+        local.set $t2
+        local.get $t1
+        local.get $t2
+        i64.sub
+        local.set $t1
+        local.get $t1
+        i64.const 4294967295
+        i64.gt_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        i32.wrap_i64
+        local.set $t0
+        local.get $right
+        local.get $t0
+        i32.gt_u
+        local.set $t0
+        local.get $t0
+        if
+          i32.const 16 ;; &"heap-exhausted"
+          i32.const 14
+          i32.const 30 ;; &"collection capacity does not fit the address space"
+          i32.const 50
+          i32.const 0
+          call_indirect $table0 (param i32 i32 i32 i32)
+          unreachable
+          i32.const 0
+          local.set $t0
+          br 1
+        end
+        local.get $left
+        i64.extend_i32_u
+        local.set $t1
+        local.get $right
+        i64.extend_i32_u
+        local.set $t2
+        local.get $t1
+        local.get $t2
+        i64.add
+        local.set $t1
+        local.get $t1
+        i64.const 4294967295
+        i64.gt_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $t1
+        i32.wrap_i64
+        local.set $t0
+        br 0
+      end
     end
   )
 )

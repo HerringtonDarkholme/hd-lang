@@ -2047,6 +2047,199 @@ impl Module {
         }
     }
 
+    /// The arity of each function, by symbol.
+    fn arities(&self) -> crate::opt::Arity {
+        let mut arity = vec![None; self.symbols.len()];
+        for (k, f) in self.funcs.iter().enumerate() {
+            if let Some(f) = f {
+                arity[k] = Some((f.params.len(), f.results.len()));
+            }
+        }
+        arity
+    }
+
+    /// Reads each top-level binding an init writes once with a constant as
+    /// that constant ([`crate::opt::constants`]); whether it folded one.
+    /// Every link runs it, dev too: a checked report's count hooks
+    /// (`count_audit`) run in the runtime's init dispatch, before
+    /// `std.rt.alloc`'s init, and its `block_of` divides by `PAGE`, which
+    /// holds 65536 only once that init ran or this fold made it a constant.
+    fn fold_init_constants(&mut self, session: bool, arity: &crate::opt::Arity) -> bool {
+        let inits = if session || self.open_world {
+            &[][..]
+        } else {
+            &self.init_insts
+        };
+        crate::opt::constants(&mut self.funcs, &self.symbols, inits, arity)
+    }
+
+    /// The optimized pipeline's module-level rewrites after
+    /// [`Self::fold_init_constants`], which `folded` reports: the local
+    /// rules, count tests, block and loop cleanup, lookup tables.
+    fn optimize(&mut self, session: bool, folded: bool, arity: &crate::opt::Arity) {
+        if !session && !self.open_world {
+            // A std init's release of its binding's old value reads the
+            // constant the fold just gave it. Dropping a release of a
+            // value that holds no reference leaves its helper's writes
+            // unreached (#1423), and so can a fold itself: a branch on a
+            // folded binding that guarded the collector's only writes of
+            // another. Either way the fold runs once more, so what it
+            // finds does not hang on whether an init happened to release
+            // anything (#2328).
+            let mut dropped = false;
+            for key in self.init_insts.clone() {
+                if self.std_insts.contains(&key) {
+                    let init = self.symbols.intern(Sym::Inst(key));
+                    dropped |= self.drop_null_releases(init);
+                }
+            }
+            if dropped || folded {
+                self.reach();
+                crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, arity);
+            }
+            self.skip_quiet_inits();
+        }
+        // Each function's cleanup reads only itself, the arities and the
+        // symbols, so the functions run on the task's threads (#2383).
+        self.symbols.freeze();
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::opt::fold_constant_branches(f);
+                crate::opt::locals(f, arity);
+            }
+        });
+        // Retained fixture roots are entered by the harness, and a suspending
+        // body can resume with frame-loaded arguments that no direct call site
+        // supplies. Neither is closed-world input to the static-value proof.
+        let static_params = crate::opt::static_values(
+            &self.funcs,
+            self.exports
+                .iter()
+                .map(|(_, id)| *id)
+                .chain(self.retained.iter().copied())
+                .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
+                    function.as_ref()?;
+                    // ruled out: these positions index interned u32 symbols.
+                    let id = SymId(u32::try_from(id).expect("symbols"));
+                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
+                }))
+                .chain(
+                    self.vtables
+                        .iter()
+                        .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
+                        .copied(),
+                ),
+            arity,
+        );
+        let retain = self.runtime.retain;
+        hd_sched::par_each_mut(&mut self.funcs, |id, f| {
+            if let Some(f) = f
+                && crate::opt::static_counts(f, retain, arity, &static_params[id])
+            {
+                crate::opt::locals(f, arity);
+            }
+        });
+        // A helper the folds above emptied leaves calls that do nothing.
+        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
+        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
+            if let Some(f) = f.as_mut().filter(|_| changed) {
+                crate::opt::locals(f, arity);
+            }
+        }
+        // Checked mode keeps every count a call, so its runtime audits them.
+        if self.inline_counts && self.runtime.checked.is_none() {
+            let mut inlined = false;
+            for f in self.funcs.iter_mut().flatten() {
+                if crate::opt::inline_counts(f, self.acyclic) {
+                    crate::opt::locals(f, arity);
+                    inlined = true;
+                }
+            }
+            if inlined {
+                for f in self.funcs.iter_mut().flatten() {
+                    f.rebuild_callees();
+                }
+                self.reach();
+            }
+        }
+        {
+            let r = self.runtime;
+            let counts = crate::count_tests::Counts {
+                retain: r.retain,
+                acyclic: self.acyclic,
+                known_inlined: self.inline_counts && r.checked.is_none(),
+                skipped: r.checked.map(|c| c.skipped_test),
+            };
+            // Glue, a helper, a count shim or a cell's release glue, keeps
+            // its counts plain calls: the runtime's count functions test
+            // null and static data, and a collection's trace hands each
+            // release to `visit` there. Each function reads only itself
+            // and the symbols, so they run on the task's threads (#2383).
+            // A lowering interns at most one new symbol (the checked
+            // build's `skipped`) and one new global (`Global::Tracing`),
+            // so each table's ids end the same at any thread count.
+            let symbols = &self.symbols;
+            hd_sched::par_each_mut(&mut self.funcs, |k, slot| {
+                let Some(f) = slot.as_mut() else { return };
+                // ruled out: every function was registered under a u32 SymId.
+                let id = SymId(crate::emit::required(
+                    u32::try_from(k).ok(),
+                    "function symbol fits u32",
+                ));
+                if !matches!(
+                    &*symbols.get(id),
+                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
+                ) && crate::count_tests::lower(f, counts)
+                {
+                    crate::opt::locals(f, arity);
+                    f.rebuild_callees();
+                }
+            });
+            self.reach();
+        }
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
+            // Branches and labels that only fall through split the
+            // straight-line runs the local rules read.
+            if crate::opt::blocks(f, arity) {
+                crate::opt::locals(f, arity);
+                // Forwarding can carry a constant into a branch test.
+                if crate::opt::fold_constant_branches(f) {
+                    crate::opt::locals(f, arity);
+                }
+            }
+            if crate::opt::fold_local_constants(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::blocks(f, arity);
+            }
+            if crate::opt::delete_empty_loops(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::blocks(f, arity);
+            }
+            crate::opt::coalesce(f);
+            if crate::opt::version_loop_bounds(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::coalesce(f);
+            }
+            if crate::opt::drops(f) {
+                crate::opt::locals(f, arity);
+            }
+        });
+        if !session && !self.open_world {
+            for id in 0..self.funcs.len() {
+                let Some(mut f) = self.funcs[id].take() else {
+                    continue;
+                };
+                if crate::tables::lower(&mut f, |bytes, align| self.static_bytes(bytes, align)) {
+                    f.resolve_statics(None);
+                    crate::opt::locals(&mut f, arity);
+                    crate::opt::coalesce(&mut f);
+                }
+                self.funcs[id] = Some(f);
+            }
+        }
+    }
+
     fn finish_link(
         mut self,
         session: bool,
@@ -2234,179 +2427,20 @@ impl Module {
                 self.data_roots.extend_from_slice(&f.data_refs);
             }
         }
-        let mut arity = vec![None; self.symbols.len()];
-        for (k, f) in self.funcs.iter().enumerate() {
-            if let Some(f) = f {
-                arity[k] = Some((f.params.len(), f.results.len()));
-            }
-        }
-        let inits = if session || self.open_world {
-            &[][..]
+        // Dev skips the optional rewrites, as Cranelift's `opt_level=none`
+        // skips its egraph pass (`Context::optimize`). It still shares
+        // locals: an engine frame holds each one, and without that a
+        // recursion 2,310 calls deep exhausts V8's stack.
+        let arity = self.arities();
+        let folded = self.fold_init_constants(session, &arity);
+        if self.optimized {
+            self.optimize(session, folded, &arity);
         } else {
-            &self.init_insts
-        };
-        let folded = crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
-        if !session && !self.open_world {
-            // A std init's release of its binding's old value reads the
-            // constant the fold just gave it. Dropping a release of a
-            // value that holds no reference leaves its helper's writes
-            // unreached (#1423), and so can a fold itself: a branch on a
-            // folded binding that guarded the collector's only writes of
-            // another. Either way the fold runs once more, so what it
-            // finds does not hang on whether an init happened to release
-            // anything (#2328).
-            let mut dropped = false;
-            for key in self.init_insts.clone() {
-                if self.std_insts.contains(&key) {
-                    let init = self.symbols.intern(Sym::Inst(key));
-                    dropped |= self.drop_null_releases(init);
-                }
-            }
-            if dropped || folded {
-                self.reach();
-                crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, &arity);
-            }
-            self.skip_quiet_inits();
-        }
-        // Each function's cleanup reads only itself, the arities and the
-        // symbols, so the functions run on the task's threads (#2383).
-        self.symbols.freeze();
-        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
-            if let Some(f) = f {
-                crate::opt::fold_constant_branches(f);
-                crate::opt::locals(f, &arity);
-            }
-        });
-        // Retained fixture roots are entered by the harness, and a suspending
-        // body can resume with frame-loaded arguments that no direct call site
-        // supplies. Neither is closed-world input to the static-value proof.
-        let static_params = crate::opt::static_values(
-            &self.funcs,
-            self.exports
-                .iter()
-                .map(|(_, id)| *id)
-                .chain(self.retained.iter().copied())
-                .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
-                    function.as_ref()?;
-                    // ruled out: these positions index interned u32 symbols.
-                    let id = SymId(u32::try_from(id).expect("symbols"));
-                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
-                }))
-                .chain(
-                    self.vtables
-                        .iter()
-                        .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
-                        .copied(),
-                ),
-            &arity,
-        );
-        let retain = self.runtime.retain;
-        hd_sched::par_each_mut(&mut self.funcs, |id, f| {
-            if let Some(f) = f
-                && crate::opt::static_counts(f, retain, &arity, &static_params[id])
-            {
-                crate::opt::locals(f, &arity);
-            }
-        });
-        // A helper the folds above emptied leaves calls that do nothing.
-        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
-        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
-            if let Some(f) = f.as_mut().filter(|_| changed) {
-                crate::opt::locals(f, &arity);
-            }
-        }
-        // Checked mode keeps every count a call, so its runtime audits them.
-        if self.inline_counts && self.runtime.checked.is_none() {
-            let mut inlined = false;
-            for f in self.funcs.iter_mut().flatten() {
-                if crate::opt::inline_counts(f, self.acyclic) {
-                    crate::opt::locals(f, &arity);
-                    inlined = true;
-                }
-            }
-            if inlined {
-                for f in self.funcs.iter_mut().flatten() {
-                    f.rebuild_callees();
-                }
-                self.reach();
-            }
-        }
-        {
-            let r = self.runtime;
-            let counts = crate::count_tests::Counts {
-                retain: r.retain,
-                acyclic: self.acyclic,
-                known_inlined: self.inline_counts && r.checked.is_none(),
-                skipped: r.checked.map(|c| c.skipped_test),
-            };
-            // Glue, a helper, a count shim or a cell's release glue, keeps
-            // its counts plain calls: the runtime's count functions test
-            // null and static data, and a collection's trace hands each
-            // release to `visit` there. Each function reads only itself
-            // and the symbols, so they run on the task's threads (#2383).
-            // A lowering interns at most one new symbol (the checked
-            // build's `skipped`) and one new global (`Global::Tracing`),
-            // so each table's ids end the same at any thread count.
-            let symbols = &self.symbols;
-            hd_sched::par_each_mut(&mut self.funcs, |k, slot| {
-                let Some(f) = slot.as_mut() else { return };
-                // ruled out: every function was registered under a u32 SymId.
-                let id = SymId(crate::emit::required(
-                    u32::try_from(k).ok(),
-                    "function symbol fits u32",
-                ));
-                if !matches!(
-                    &*symbols.get(id),
-                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
-                ) && crate::count_tests::lower(f, counts)
-                {
-                    crate::opt::locals(f, &arity);
-                    f.rebuild_callees();
+            hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+                if let Some(f) = f {
+                    crate::opt::coalesce(f);
                 }
             });
-            self.reach();
-        }
-        let optimized = self.optimized;
-        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
-            let Some(f) = f else { return };
-            // Branches and labels that only fall through split the
-            // straight-line runs the local rules read.
-            if crate::opt::blocks(f, &arity) {
-                crate::opt::locals(f, &arity);
-                // Forwarding can carry a constant into a branch test.
-                if crate::opt::fold_constant_branches(f) {
-                    crate::opt::locals(f, &arity);
-                }
-            }
-            if crate::opt::fold_local_constants(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::blocks(f, &arity);
-            }
-            if crate::opt::delete_empty_loops(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::blocks(f, &arity);
-            }
-            crate::opt::coalesce(f);
-            if optimized && crate::opt::version_loop_bounds(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::coalesce(f);
-            }
-            if crate::opt::drops(f) {
-                crate::opt::locals(f, &arity);
-            }
-        });
-        if !session && !self.open_world {
-            for id in 0..self.funcs.len() {
-                let Some(mut f) = self.funcs[id].take() else {
-                    continue;
-                };
-                if crate::tables::lower(&mut f, |bytes, align| self.static_bytes(bytes, align)) {
-                    f.resolve_statics(None);
-                    crate::opt::locals(&mut f, &arity);
-                    crate::opt::coalesce(&mut f);
-                }
-                self.funcs[id] = Some(f);
-            }
         }
         for f in self.funcs.iter_mut().flatten() {
             crate::bulk::lower(f, |at, len| {
@@ -2450,10 +2484,12 @@ impl Module {
             self.import_session(previous)?;
         }
         // Wide lowering can change signatures and add helpers: read the
-        // final ones for the stack heights of rule 18.
-        let arity = self.symbols.call_arities(&self.funcs);
-        for f in self.funcs.iter_mut().flatten() {
-            crate::opt::blocks(f, &arity);
+        // final ones for the stack heights of rule 18, an optional rewrite.
+        if self.optimized {
+            let arity = self.symbols.call_arities(&self.funcs);
+            for f in self.funcs.iter_mut().flatten() {
+                crate::opt::blocks(f, &arity);
+            }
         }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.

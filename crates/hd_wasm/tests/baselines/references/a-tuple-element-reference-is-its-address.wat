@@ -4,14 +4,22 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $second (param $t i32) (result i32)
+  (func $second (param $t i32) (result i32) (local $t0 i32)
     ;; 6 |     read(&t._1)
-    local.get $t
-    i32.const 4
-    i32.add
-    call $read
+    block
+      local.get $t
+      i32.const 4
+      i32.add
+      local.set $t
+      local.get $t
+      call $read
+      local.set $t0
+      i32.const 0
+      local.set $t
+    end
+    local.get $t0
   )
-  (func $first_of_local (result i32) (local $pair i32) (local $t0 i32)
+  (func $first_of_local (result i32) (local $t2 i32) (local $t1 i32) (local $pair i32) (local $t0 i32)
     ;; 9 |     pair := (+3, +4)
     global.get $stack
     global.get $stack_limit
@@ -27,22 +35,35 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $pair
-    i32.const 3
-    i32.store $heap
-    local.get $pair
-    i32.const 4
-    i32.store $heap offset=4
+    block
+      i32.const 3
+      i32.const 4
+      local.set $t1
+      local.set $t2
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $pair
+      local.get $pair
+      local.get $t2
+      i32.store $heap
+      local.get $pair
+      local.get $t1
+      i32.store $heap offset=4
     ;; 10 |     read(&pair._0)
-    local.get $pair
-    call $read
+      local.get $pair
+      call $read
+      local.set $t1
     ;; 9 |     pair := (+3, +4)
+      i32.const 0
+      local.set $pair
+      i32.const 0
+      local.set $pair
+    end
+    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
@@ -50,7 +71,11 @@
   )
   (func $read (param $p i32) (result i32)
     ;; 3 |     *p
+    block
+      local.get $p
+      i32.load $heap
+      local.set $p
+    end
     local.get $p
-    i32.load $heap
   )
 )

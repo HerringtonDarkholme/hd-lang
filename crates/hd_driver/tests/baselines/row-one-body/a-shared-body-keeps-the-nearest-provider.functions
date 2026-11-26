@@ -3,10 +3,15 @@ std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
 std/rt.cycle/push#0
+std/rt.alloc/local_page#0
 app/main/read_tag_later#adapter
 app/main/plain#0
 std/rt.cycle/scan#0
+std/rt.alloc/drain#0
+std/rt.alloc/owns#0
 std/rt.alloc/init_classes#0
+std/rt.alloc/registry#0
+std/rt.alloc/owner#0
 std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.cycle/suspect#0
@@ -31,10 +36,12 @@ app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
+std/rt.alloc/adopted#0
 std/rt.alloc/unlink#0
 app/main/read_tag#0
 std/rt.alloc/retain#0
 std/rt.cycle/opaque#0
+std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 app/main/plain_later#adapter
 app/main/impl Tag for Named.name#0
@@ -54,13 +61,18 @@ app/main/both_later#0 [{open row}]
 app/main/both_later#0.poll
 app/main/both_later#0.cancel
 app/main/both_later#0.drop
+std/rt.thread/init.init#0
+std/rt.alloc/joined#0
+std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.alloc/init.init#0
+std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.cycle/drop_root#0
 app/main/plain#adapter
 std/rt.cycle/mark#0
+std/time/init.init#0
 std/rt.cycle/visit#0
 app/main/plain_later#0
 app/main/plain_later#0.poll
@@ -142,5 +154,6 @@ rt:cancel_enter
 rt:cancel_leave
 rt:cancel_child
 rt:wake_mark
+rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
