@@ -2,19 +2,30 @@
 (module
   (import "fixture" "dbg[(Outer)]" (func $"dbg[(Outer)]" (param i32 i32 i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 18 |     dbg(Outer { plain: Plain { x: +7 }, tag: "t" })
-    i32.const 7
-    i32.const 241 ;; &"t"
-    i32.const 1
-    i32.const 242 ;; &"1\u{1f}18\u{1f}5\u{1f}main.hd\u{1f}18\u{1f}9\u{1f}18\u{1f}51\u{1f}\u{1f}Outer { plain: Plain { x: +7 }, tag: \"t\" }\u{1f}"
-    i32.const 70
-    call $"dbg[(Outer)]"
+    block
+      i32.const 7
+      local.set $t0
+      local.get $t0
+      i32.const 241 ;; &"t"
+      i32.const 1
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.get $t2
+      local.get $t1
+      local.get $t0
+      i32.const 242 ;; &"1\u{1f}18\u{1f}5\u{1f}main.hd\u{1f}18\u{1f}9\u{1f}18\u{1f}51\u{1f}\u{1f}Outer { plain: Plain { x: +7 }, tag: \"t\" }\u{1f}"
+      i32.const 70
+      call $"dbg[(Outer)]"
     ;; 19 |     println("done")
-    i32.const 312 ;; &"done"
-    i32.const 4
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
+      i32.const 312 ;; &"done"
+      i32.const 4
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    ;; 18 |     dbg(Outer { plain: Plain { x: +7 }, tag: "t" })
+    end
   )
 )

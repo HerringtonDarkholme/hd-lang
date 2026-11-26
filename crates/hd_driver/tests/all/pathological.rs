@@ -3376,15 +3376,15 @@ fn string_temporary_coalescing_work_is_near_linear() {
 // Emitter: #1914, rule 11's zero facts were a dense bit row of every
 // local per waiting block, copied at each forward branch, so `n` locals
 // across `n` blocks allocated `n²/64` words. They are persistent sets now,
-// shared between blocks and met by intersection.
+// shared between blocks and met by intersection. The rule is the
+// optimized link's, so the programs build optimized.
 #[test]
 fn zero_fact_work_is_linear_in_interpolations() {
     on_test_stack(|| {
-        let goal = Goal::Program {
-            entry: "main".into(),
-        };
         let build = |source: String| {
-            let (out, work) = hd_wasm::work::count_zero_facts(|| compile(&source, &goal));
+            let (out, work) = hd_wasm::work::count_zero_facts(|| {
+                build_at(&source, hd_driver::OptLevel::Optimized)
+            });
             assert!(!out.diags.has_errors(), "{}", out.render());
             work
         };
@@ -4992,6 +4992,15 @@ fn newtype_nest(n: usize) -> String {
     )
 }
 
+/// `source` with its `wrap` never inlined, so an optimized build keeps
+/// the call chain the static-value proof walks.
+fn kept_calls(source: &str) -> String {
+    format!(
+        "use std.meta.inline\n\n{}",
+        source.replacen("fn wrap", "@inline(.Never)\nfn wrap", 1)
+    )
+}
+
 /// [`generic_nest`] with nine parameters: each level's type
 /// `W^i[?t, ?a, ..., ?h]` holds the level below and the same eight
 /// literal variables, nine variables in all, which stay unbound to the
@@ -5096,13 +5105,11 @@ fn generic_nest_checks_walk_each_level_once() {
 // static-value proof went in rounds over every function, one level of
 // the call chain per round. Both cost O(depth^2). Now the run keeps one
 // memo of `Drop` answers, and the proof looks at a function again only
-// when a fact it reads was proved.
+// when a fact it reads was proved. The proof is the optimized link's, so
+// the programs build optimized, with `wrap` kept a call per level.
 #[test]
 fn generic_nest_builds_walk_each_level_once() {
     on_test_stack(|| {
-        let goal = Goal::Program {
-            entry: "main".into(),
-        };
         let shapes: [(&str, Generate); 2] = [
             ("generic-nest", generic_nest),
             ("generic-nest-in-generic", generic_nest_in_generic),
@@ -5110,7 +5117,9 @@ fn generic_nest_builds_walk_each_level_once() {
         for (name, generate) in shapes {
             let work = |n: usize| {
                 let ((out, looks), nodes) = hd_layout::work::count_member_layouts(|| {
-                    hd_wasm::work::count_static_looks(|| compile(&generate(n), &goal))
+                    hd_wasm::work::count_static_looks(|| {
+                        build_at(&kept_calls(&generate(n)), hd_driver::OptLevel::Optimized)
+                    })
                 });
                 assert!(!out.diags.has_errors(), "{name} {n}: {}", out.render());
                 (nodes, looks)

@@ -11,70 +11,88 @@
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $push_void (param $values i32) (local $t0 i32) (local $t1 i32)
     ;; 8 |     values.push(())
-    local.get $values
-    i32.load $heap
-    call $rt:list_unique'1
-    local.set $t0
-    local.get $values
-    local.get $t0
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=4
-    local.tee $t1
-    local.get $t0
-    i32.load $heap
-    i32.eq
-    if
+    block
+      local.get $values
+      i32.load $heap
+      local.set $t0
       local.get $t0
-      i32.const 1
-      call_indirect $table0 (param i32) (result i32)
+      call $rt:list_unique'1
       local.set $t0
       local.get $values
       local.get $t0
       i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      i32.eq
+      if
+        local.get $t0
+        i32.const 1
+        call_indirect $table0 (param i32) (result i32)
+        local.set $t0
+        local.get $values
+        local.get $t0
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t1
+      i32.const 0
+      i32.mul
+      i32.add
+      local.set $values
+      local.get $t0
+      local.get $t1
+      i32.const 1
+      i32.add
+      i32.store $heap offset=4
     end
-    local.get $t0
-    local.get $t1
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
   )
   (func $push_i32 (param $values i32) (param $value i32) (local $t0 i32) (local $t1 i32)
     ;; 5 |     values.push(value)
-    local.get $values
-    i32.load $heap
-    call $rt:list_unique'2
-    local.set $t0
-    local.get $values
-    local.get $t0
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=4
-    local.tee $t1
-    local.get $t0
-    i32.load $heap
-    i32.eq
-    if
+    block
+      local.get $values
+      i32.load $heap
+      local.set $t0
       local.get $t0
-      i32.const 2
-      call_indirect $table0 (param i32) (result i32)
+      call $rt:list_unique'2
       local.set $t0
       local.get $values
       local.get $t0
       i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      i32.eq
+      if
+        local.get $t0
+        i32.const 2
+        call_indirect $table0 (param i32) (result i32)
+        local.set $t0
+        local.get $values
+        local.get $t0
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t1
+      i32.const 4
+      i32.mul
+      i32.add
+      local.set $values
+      local.get $values
+      local.get $value
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $t1
+      i32.const 1
+      i32.add
+      i32.store $heap offset=4
     end
-    local.get $t0
-    local.get $t1
-    i32.const 4
-    i32.mul
-    i32.add
-    local.get $value
-    i32.store $heap offset=16
-    local.get $t0
-    local.get $t1
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
   )
   (func $rt:list_buf'1 (param $t0 i32) (result i32)
     ;; (no span)
@@ -85,7 +103,8 @@
     i32.add
     i32.const 0
     call $rt:new
-    local.tee $t0
+    local.set $t0
+    local.get $t0
     i32.const -1
     i32.store $heap
     local.get $t0
@@ -109,15 +128,16 @@
     i32.add
     i32.const 0
     call $rt:new
-    local.tee $t0
+    local.set $t0
+    local.get $t0
     local.get $t0
     i32.const 8
     i32.sub
     call $block_bytes
     i32.const 24
     i32.sub
-    i32.const 2
-    i32.shr_u
+    i32.const 4
+    i32.div_u
     i32.store $heap
     local.get $t0
     i32.const 0
@@ -128,7 +148,8 @@
     ;; (no span)
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     local.get $t0
     i32.load $heap
     i32.eq
@@ -153,7 +174,8 @@
         i32.add
       end
       call $rt:list_buf'1
-      local.tee $t2
+      local.set $t2
+      local.get $t2
       local.get $t1
       i32.store $heap offset=4
       local.get $t2
@@ -180,7 +202,8 @@
     ;; (no span)
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     local.get $t0
     i32.load $heap
     i32.eq
@@ -205,7 +228,8 @@
         i32.add
       end
       call $rt:list_buf'2
-      local.tee $t2
+      local.set $t2
+      local.get $t2
       local.get $t1
       i32.store $heap offset=4
       local.get $t2

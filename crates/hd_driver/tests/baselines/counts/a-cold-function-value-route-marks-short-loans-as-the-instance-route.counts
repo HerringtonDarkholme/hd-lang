@@ -15,6 +15,8 @@ fn lookup_direct!(values: *Map[string, string], key: string) -> usize:
 >   release string (last use)
 >   release *Map[string, string] (last use)
 >   release string? (last use)
+>   release *Map[string, string] (last use)
+>   release string (last use)
 > app/main/lookup_direct
 >   release *Map[string, string] (cancelled)
 >   release string (cancelled)
@@ -29,10 +31,15 @@ fn lookup_viewed!(values: *Map[string, string], key: string) -> usize:
 >   release string (last use)
 >   release *Map[string, string] (last use)
 >   release string? (last use)
+>   release *Map[string, string] (last use)
+>   release string (last use)
 > app/main/lookup_viewed
 >   release *Map[string, string] (cancelled)
 >   release string (cancelled)
         .Some(value) => value.len()
+> app/main/lookup_viewed
+>   release *Map[string, string] (last use)
+>   release string (last use)
         .None => 0
 
 @cold
@@ -43,6 +50,8 @@ fn viewed() -> fn!(*Map[string, string], string) -> usize:
 pub fn main!() -> void:
     values := box({ "key": "payload" })
 > app/main/main
+>   retain string (stored)
+>   retain string (stored)
 >   retain *mut Map[string, string] (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)

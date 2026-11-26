@@ -6,74 +6,89 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $shared#1 (param $env i32) (param $ctx i32) (result i32 i32)
     ;; 10 |     read := fn() -> Choice: value
     local.get $env
     i32.load $heap
-    local.tee $env
-    i32.load $heap
-    local.get $env
-    i32.load $heap offset=4
     local.set $env
-    local.tee $ctx
-    if
+    block
+      local.get $env
+      i32.load $heap
+      local.set $ctx
+      local.get $env
+      i32.load $heap offset=4
+      local.set $env
       local.get $ctx
       call $retain
     end
     local.get $ctx
     local.get $env
   )
-  (func $shared (param $seed i32) (result i32 i32) (local $value i32) (local $t0 i32)
+  (func $shared (param $seed i32) (result i32 i32) (local $read.0 i32) (local $value i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 9 |     let value: Choice = ._0(seed)
-    i32.const 8
-    i32.const 1
-    call $rt:new/class-1'1
-    local.tee $value
-    i32.const 0
-    i32.store $heap
-    local.get $value
-    local.get $seed
-    i32.store $heap offset=4
-    ;; 10 |     read := fn() -> Choice: value
-    i32.const 3
-    i32.const 4
-    i32.const -2147483646
-    call $rt:new/class-1'2
-    local.tee $seed
-    local.get $value
-    i32.store $heap
-    local.get $seed
-    call $rt:retain_fields
-    ;; 11 |     value = ._1("changed")
-    local.get $value
-    i32.load $heap
-    local.get $value
-    i32.const 65 ;; &"changed"
-    i32.store $heap
-    local.get $value
-    i32.const 7
-    i32.store $heap offset=4
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref'1
-    end
-    local.get $value
-    if
-      local.get $value
+    block
+      i32.const 0
+      local.set $read.0
       i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $value
-        call $rt:release_ref'2
-      end
-    end
+      i32.const 1
+      call $rt:new/class-1'1
+      local.set $value
+      local.get $value
+      local.get $read.0
+      i32.store $heap
+      local.get $value
+      local.get $seed
+      i32.store $heap offset=4
     ;; 10 |     read := fn() -> Choice: value
-    local.get $seed
+      i32.const 3
+      i32.const 4
+      i32.const -2147483646
+      call $rt:new/class-1'2
+      local.set $seed
+      local.get $seed
+      local.get $value
+      i32.store $heap
+      local.get $seed
+      call $rt:retain_fields
+      local.set $read.0
+    ;; 11 |     value = ._1("changed")
+      i32.const 65 ;; &"changed"
+      i32.const 7
+      local.set $t0
+      local.set $t1
+      local.get $value
+      i32.load $heap
+      local.set $t2
+      local.get $value
+      i32.load $heap offset=4
+      local.set $t3
+      local.get $value
+      local.get $t1
+      i32.store $heap
+      local.get $value
+      local.get $t0
+      i32.store $heap offset=4
+      local.get $t2
+      call $rt:release_ref'1
+      local.get $value
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $value
+    ;; 12 |     read
+      local.get $read.0
+      local.get $seed
+      local.set $t0
+      local.set $t1
+    ;; 9 |     let value: Choice = ._0(seed)
+      i32.const 0
+      local.set $read.0
+      i32.const 0
+      local.set $seed
+      local.get $value
+      call $rt:release_ref'2
+    end
+    local.get $t1
+    local.get $t0
   )
 )

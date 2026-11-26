@@ -7,11 +7,15 @@ use std::path::Path;
 use hd_testkit::Scratch;
 
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{Executor, Goal, Host, NoClock, OptLevel, Output, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn build_with(store: &MemoryStore, files: &[(&str, &str)]) -> Output {
+    build_at(store, files, OptLevel::Dev)
+}
+
+fn build_at(store: &MemoryStore, files: &[(&str, &str)], level: OptLevel) -> Output {
     let mut src = MemorySources::default();
     for (name, text) in files {
         src.insert(name, text);
@@ -23,9 +27,14 @@ fn build_with(store: &MemoryStore, files: &[(&str, &str)]) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    let out = build(
+    let packages = Packages {
+        level,
+        ..Packages::default()
+    };
+    let out = build_packages(
         &host,
         "app",
+        &packages,
         &Goal::Program {
             entry: "main".into(),
         },
@@ -167,7 +176,8 @@ fn handle_copies(out: &Output, suffix: &str) -> Result<usize, Box<dyn std::error
 }
 
 /// A once handle's one count is its returned copy's: the cell keeps the
-/// buffer it fills, with no copy of its own.
+/// buffer it fills, with no copy of its own. The link's count folds take
+/// the handle's other copies away, so both build optimized.
 #[test]
 fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Error>> {
     let static_facts = concat!(
@@ -191,7 +201,11 @@ fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Er
             "true true\n",
         ),
     ] {
-        let out = build_with(&MemoryStore::default(), &[("main.hd", source)]);
+        let out = build_at(
+            &MemoryStore::default(),
+            &[("main.hd", source)],
+            OptLevel::Optimized,
+        );
         assert_eq!(handle_copies(&out, suffix)?, 1, "{name}");
         assert_eq!(run(&out, name), expected);
     }

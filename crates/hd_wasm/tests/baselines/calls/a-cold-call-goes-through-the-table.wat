@@ -2,10 +2,15 @@
 (module
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $check (param $at i32) (param $size i32) (result i32 i32)
-    ;; ...
+    block
+      ;; ...
     ;; 13 |     report(at)
-    local.get $at
-    i32.const 1
-    call_indirect $table0 (param i32) (result i32 i32)
+      local.get $at
+      i32.const 1
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $size
+      local.set $at
+    end
+    ;; ...
   )
 )

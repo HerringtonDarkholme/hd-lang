@@ -3,74 +3,86 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Counter.add" (param $self i32) (param $k i32) (param $other i32) (local $t0 i64)
+  (func $"impl Counter.add" (param $self i32) (param $k i32) (param $other i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
     ;; 12 |         self.n += k
-    local.get $self
-    i32.load $heap
-    i64.extend_i32_s
-    local.get $k
-    i64.extend_i32_s
-    i64.add
-    local.tee $t0
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t0
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $self
-    local.get $t0
-    i32.wrap_i64
-    i32.store $heap
-    ;; 13 |         other.n += 1
-    local.get $other
-    i32.load $heap
-    local.tee $self
-    i32.const 2147483646
-    i32.gt_s
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $other
-    local.get $self
-    i32.const 1
-    i32.add
-    i32.store $heap
-    ;; 12 |         self.n += k
-    local.get $other
-    if
-      local.get $other
-      i32.const 8
-      i32.sub
+    block
+      local.get $self
       i32.load $heap
+      local.set $t0
+      local.get $t0
+      i64.extend_i32_s
+      local.set $t1
+      local.get $k
+      i64.extend_i32_s
+      local.set $t2
+      local.get $t1
+      local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t1
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
       if
-        local.get $other
-        call $rt:release_ref
+        call $rt:panic
+        unreachable
       end
+      local.get $t1
+      i32.wrap_i64
+      local.set $k
+      local.get $self
+      i32.load $heap
+      local.set $t0
+      local.get $self
+      local.get $k
+      i32.store $heap
+    ;; 13 |         other.n += 1
+      local.get $other
+      i32.load $heap
+      local.set $self
+      local.get $self
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $self
+      i32.const 1
+      i32.add
+      local.set $self
+      local.get $other
+      i32.load $heap
+      local.set $k
+      local.get $other
+      local.get $self
+      i32.store $heap
+    ;; 12 |         self.n += k
+      local.get $other
+      call $rt:release_ref
     end
   )
-  (func $bump (param $p i32) (param $other i32)
+  (func $bump (param $p i32) (param $other i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |     p.add(p.n, other)
-    local.get $p
-    local.get $p
-    i32.load $heap
-    local.get $other
-    call $"impl Counter.add"
-    local.get $p
-    if
+    block
       local.get $p
-      i32.const 8
-      i32.sub
       i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref
-      end
+      local.set $t0
+      local.get $other
+      local.set $t1
+      i32.const 0
+      local.set $other
+      local.get $p
+      local.get $t0
+      local.get $t1
+      call $"impl Counter.add"
+      local.get $other
+      call $rt:release_ref
+      local.get $p
+      call $rt:release_ref
     end
   )
 )

@@ -4,10 +4,12 @@ app/main/length
   retain string (conservative: copy read)
   release *app.main.Item (last use)
   release string (last use)
+  release *app.main.Item (last use)
 == @build: checked
 app/main/length
   retain string (conservative: copy read)
   release *app.main.Item (last use)
   release string (last use)
+  release *app.main.Item (last use)
 == @build: release
 no count operations

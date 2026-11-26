@@ -2,6 +2,8 @@
 (module
   (import "fixture" "impl string.repeat" (func $"impl string.repeat" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "std/rt.thread/init.init" (func $std/rt.thread/init.init))
+  (import "fixture" "std/time/init.init" (func $std/time/init.init))
   (import "fixture" "std/rt.alloc/table" (global $std/rt.alloc/table (mut i32)))
   (import "fixture" "std/rt.alloc/capacity" (global $std/rt.alloc/capacity (mut i32)))
   (import "fixture" "std/rt.alloc/known" (global $std/rt.alloc/known (mut i32)))
@@ -10,17 +12,23 @@
   (import "fixture" "std/rt.alloc/miss_end" (global $std/rt.alloc/miss_end (mut i32)))
   (import "fixture" "std/rt.alloc/heap" (global $std/rt.alloc/heap (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 8 |     println("ab".repeat(3))
-    i32.const 113 ;; &"ab"
-    i32.const 2
-    i32.const 3
-    call $"impl string.repeat"
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
+    block
+      i32.const 113 ;; &"ab"
+      i32.const 2
+      i32.const 3
+      call $"impl string.repeat"
+      local.set $t0
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    end
   )
-  (func $init.init
+  (func $std/rt.alloc/init.init
     ;; (no span)
     i32.const 0
     global.set $std/rt.alloc/table
@@ -43,7 +51,25 @@
     i32.const 1
     i32.add
     global.set $forbid
-    call $init.init
+    call $std/rt.alloc/init.init
+    global.get $forbid
+    i32.const -1
+    i32.add
+    global.set $forbid
+    global.get $forbid
+    i32.const 1
+    i32.add
+    global.set $forbid
+    call $std/rt.thread/init.init
+    global.get $forbid
+    i32.const -1
+    i32.add
+    global.set $forbid
+    global.get $forbid
+    i32.const 1
+    i32.add
+    global.set $forbid
+    call $std/time/init.init
     global.get $forbid
     i32.const -1
     i32.add

@@ -9,38 +9,53 @@
   (import "fixture" "host_provider[Node]" (func $"host_provider[Node]" (param i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     _ := $.use(Vault).root().next()
-    local.get $provider0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
-    local.tee $t0
-    if
+    block
+      local.get $provider0
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $t1
       local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $provider0
+      local.set $provider0.vtable
+      local.get $provider0.vtable
+      local.get $provider0
+      local.set $t0
+      local.set $t1
+      local.get $t1
       call $retain
-    end
-    local.get $provider0.vtable
-    if
       local.get $provider0.vtable
       call $rt:release_ref
-    end
-    local.get $t0
-    local.get $provider0
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32 i32)
-    drop
-    local.tee $provider0
-    if
-      local.get $provider0
-      call $rt:release_ref
-    end
-    local.get $t0
-    if
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $t0
+      local.set $t0
       local.get $t0
       call $rt:release_ref
+      i32.const 0
+      local.set $t0
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      call $rt:release_ref
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
     end
   )
   (func $rt:hd:Node/next (param $t1 i32) (param $t0 i32) (result i32 i32)
@@ -70,7 +85,8 @@
     i32.const 4
     i32.const 0
     call $rt:new
-    local.tee $t2
+    local.set $t2
+    local.get $t2
     local.get $t1
     i32.store $heap
     local.get $t2

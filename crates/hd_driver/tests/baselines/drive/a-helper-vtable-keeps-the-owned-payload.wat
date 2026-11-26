@@ -2,15 +2,32 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $make (param $id i32) (result i32 i32) (local $t0 i32)
+  (func $make (param $id i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 17 |     box(Worker { id: id })
-    i32.const 4
-    i32.const 0
-    call $rt:new/class-1
-    local.tee $t0
+    block
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t0
+      local.get $t0
+      local.get $id
+      i32.store $heap
+      local.get $t0
+      local.set $id
+      i32.const 0
+      local.set $t0
+      local.get $id
+      local.set $t0
+      i32.const 0
+      local.set $id
+      local.get $t0
+      i32.const 424 ;; &vtable[rt:dyn_slot, rt:block_drive]
+      local.set $id
+      local.set $t1
+      i32.const 0
+      local.set $t0
+    end
+    local.get $t1
     local.get $id
-    i32.store $heap
-    local.get $t0
-    i32.const 424 ;; &vtable[rt:dyn_slot, rt:block_drive]
   )
 )

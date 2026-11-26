@@ -3,35 +3,46 @@
 (module
   (func $scalar (param $value i32) (result i32) (local $t0 i32)
     ;; 7 |     char::try_from(value)
-    local.get $value
-    i32.const 1114111
-    i32.le_u
-    local.get $value
-    i32.const 55296
-    i32.sub
-    i32.const 2047
-    i32.gt_u
-    i32.and
-    local.set $t0
-    local.get $value
-    i32.const 1114112
-    local.get $t0
-    select
-    local.set $value
     block
       block
         local.get $value
+        i32.const 1114111
+        i32.le_u
+        local.get $value
+        i32.const 55296
+        i32.sub
+        i32.const 2047
+        i32.gt_u
+        i32.and
+        local.set $t0
+        local.get $value
         i32.const 1114112
-        i32.ne
-        i32.eqz
-        br_if 1
+        local.get $t0
+        select
+        local.set $value
+        block
+          block
+            block
+              local.get $value
+              i32.const 1114112
+              i32.ne
+              if
+                br 1
+              else
+                br 2
+              end
+              unreachable
+            end
+            br 1
+          end
+          i32.const 1114112
+          local.set $value
+          br 0
+        end
         br 0
-        unreachable
       end
-      local.get $value
-      return
     end
-    i32.const 1114112
+    local.get $value
   )
 )
 == @build: release

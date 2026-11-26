@@ -13,239 +13,350 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32)
+  (func $main (local $t6 i32) (local $stock i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
-    i32.const 4
-    call $rt:map_seed
-    call $rt:map_table
-    local.set $t0
-    i32.const 65 ;; &"apple"
-    i32.const 5
-    local.get $t0
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.set $t1
-    local.get $t0
-    local.get $t1
-    i32.const 65 ;; &"apple"
-    i32.const 5
-    call $rt:map_find
-    local.set $t2
-    local.get $t0
-    local.get $t1
-    local.get $t2
-    i32.const 65 ;; &"apple"
-    i32.const 5
-    i32.const 3
-    call $rt:map_put
-    local.set $t0
-    i32.const 4
-    i32.const 1
-    call $rt:new/class-1
-    local.tee $t1
-    local.get $t0
-    i32.store $heap
-    local.get $t1
-    ;; 12 |     alias := stock
-    local.tee $t0
-    if
+    block
+      i32.const 4
+      call $rt:map_seed
+      call $rt:map_table
+      local.set $stock
+      i32.const 65 ;; &"apple"
+      local.set $t0
+      i32.const 5
+      local.set $t1
       local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:retain_known
-      end
-    end
-    ;; 13 |     insert(alias, &mut stock["apple"])
-    local.get $t1
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $t1
-    i32.load $heap
-    i32.const 0
-    i32.const 65 ;; &"apple"
-    i32.const 5
-    call $rt:map_lookup
-    local.tee $t2
-    i32.const 0
-    i32.lt_s
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t1
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic'3
-      unreachable
-    end
-    local.get $t1
-    local.get $t1
-    i32.load $heap
-    call $rt:map_unique
-    i32.store $heap
-    local.get $t1
-    i32.const 4
-    i32.sub
-    local.tee $t3
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic'3
-      unreachable
-    end
-    local.get $t1
-    i32.load $heap
-    local.tee $t4
-    local.get $t4
-    i32.load $heap offset=12
-    i32.const 14
-    i32.mul
-    i32.add
-    i32.const 32
-    i32.add
-    local.get $t2
-    i32.const 12
-    i32.mul
-    i32.add
-    i32.const 8
-    i32.add
-    local.set $t2
-    local.get $t3
-    local.get $t3
-    i32.load $heap
-    i32.const 2097152
-    i32.add
-    i32.store $heap
+      local.get $t1
+      local.get $stock
+      i64.load $heap offset=24
+      call $rt:map_hash
+      local.set $t2
+      local.get $stock
+      local.get $t2
+      local.get $t0
+      local.get $t1
+      call $rt:map_find
+      local.set $t3
+      local.get $stock
+      local.get $t2
+      local.get $t3
+      local.get $t0
+      local.get $t1
+      i32.const 3
+      call $rt:map_put
+      local.set $stock
+      i32.const 4
+      i32.const 1
+      call $rt:new/class-1
+      local.set $t0
+      local.get $t0
+      local.get $stock
+      i32.store $heap
+      local.get $t0
+      local.set $stock
+      i32.const 0
+      local.set $t0
     ;; 12 |     alias := stock
-    local.get $t0
+      local.get $stock
+      call $rt:retain_known
+      local.get $stock
+      local.set $t0
     ;; 13 |     insert(alias, &mut stock["apple"])
-    local.get $t2
-    call $insert
-    local.get $t3
-    if
-      local.get $t3
-      local.get $t3
+      local.get $t0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $stock
+      i32.const 4
+      i32.sub
+      local.set $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
-    ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
-    local.get $t1
-    if
-      local.get $t1
-      i32.const 8
-      i32.sub
-      i32.load $heap
+      i32.and
+      local.get $t4
+      i32.const 2097152
+      i32.and
+      i32.ne
       if
-        local.get $t1
-        call $rt:release_ref
+        call $rt:panic'1
+        unreachable
       end
+      local.get $stock
+      i32.load $heap
+      local.set $t0
+      i32.const 65 ;; &"apple"
+      local.set $t2
+      i32.const 5
+      local.set $t3
+      local.get $t0
+      i32.const 0
+      local.get $t2
+      local.get $t3
+      call $rt:map_lookup
+      i32.const 0
+      local.set $t0
+      local.set $t0
+      local.get $t0
+      i32.const 0
+      i32.lt_s
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $stock
+      i32.const 4
+      i32.sub
+      local.set $t2
+      local.get $t2
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      local.get $t4
+      i32.ne
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $stock
+      i32.load $heap
+      local.set $t2
+      local.get $t2
+      call $rt:map_unique
+      local.set $t2
+      local.get $stock
+      local.get $t2
+      i32.store $heap
+      local.get $stock
+      i32.const 4
+      i32.sub
+      local.set $t2
+      local.get $t2
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      local.get $t4
+      i32.ne
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $stock
+      i32.load $heap
+      local.set $t3
+      local.get $t3
+      i32.load $heap offset=12
+      local.set $t5
+      local.get $t3
+      local.get $t5
+      i32.const 14
+      i32.mul
+      i32.add
+      i32.const 32
+      i32.add
+      local.get $t0
+      i32.const 12
+      i32.mul
+      i32.add
+      i32.const 8
+      i32.add
+      local.set $t0
+      local.get $t0
+      i32.const 16
+      i32.sub
+      local.set $t0
+      local.get $t0
+      i32.const 16
+      i32.add
+      local.set $t0
+      local.get $t6
+      if
+        local.get $t6
+        local.get $t6
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t4
+        i32.const 2097152
+        i32.sub
+        local.set $t4
+      end
+      local.get $t2
+      local.set $t6
+      local.get $t6
+      local.get $t6
+      i32.load $heap
+      i32.const 2097152
+      i32.add
+      i32.store $heap
+      local.get $t4
+      i32.const 2097152
+      i32.add
+      local.set $t4
+      local.get $t1
+      local.get $t0
+      call $insert
+      local.get $t6
+      if
+        local.get $t6
+        local.get $t6
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+        local.get $t4
+        i32.const 2097152
+        i32.sub
+        local.set $t4
+        i32.const 0
+        local.set $t6
+      end
+    ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
+      i32.const 0
+      local.set $t0
+      local.get $stock
+      call $rt:release_ref
+      i32.const 0
+      local.set $stock
     end
   )
   (func $insert (param $stock i32) (param $apples i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 7 |     _ := stock.get_or_insert("pear", 1)
-    local.get $stock
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    if
-      call $rt:panic'3
-      unreachable
-    end
-    local.get $stock
-    i32.load $heap
-    local.set $t0
-    i32.const 70 ;; &"pear"
-    local.tee $t1
-    i32.const 4
-    local.tee $t2
-    local.get $t0
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.set $t3
-    local.get $t0
-    local.get $t3
-    i32.const 70 ;; &"pear"
-    i32.const 4
-    call $rt:map_find
-    local.set $t4
-    local.get $t0
-    i32.const 8
-    i32.sub
-    i32.load $heap
-    i32.const 1
-    i32.ne
-    if
-      local.get $t0
-      call $rt:map_unique
-      local.set $t0
-    end
-    local.get $t4
-    i32.const 0
-    i32.ge_s
-    if
+    block
       local.get $stock
+      i32.const 4
+      i32.sub
+      local.set $t0
       local.get $t0
-      i32.store $heap
-    else
-      local.get $t0
-      local.get $t3
-      local.get $t4
+      i32.load $heap
+      i32.const 4128768
+      i32.and
       local.get $t1
-      local.get $t2
-      i32.const 1
-      call $rt:map_put
+      i32.ne
+      if
+        call $rt:panic'3
+        unreachable
+      end
+      local.get $stock
+      i32.load $heap
+      local.set $t1
+      i32.const 70 ;; &"pear"
       local.set $t0
-      local.get $stock
+      i32.const 4
+      local.set $t2
       local.get $t0
-      i32.store $heap
-    end
-    ;; 8 |     *apples += 1
-    local.get $apples
-    i32.load $heap
-    local.tee $t0
-    i32.const 2147483646
-    i32.gt_s
-    if
-      call $rt:panic'4
-      unreachable
-    end
-    local.get $apples
-    local.get $t0
-    i32.const 1
-    i32.add
-    i32.store $heap
-    ;; 7 |     _ := stock.get_or_insert("pear", 1)
-    local.get $stock
-    if
-      local.get $stock
+      local.get $t2
+      local.get $t1
+      i64.load $heap offset=24
+      call $rt:map_hash
+      local.set $t3
+      local.get $t1
+      local.get $t3
+      local.get $t0
+      local.get $t2
+      call $rt:map_find
+      local.set $t4
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
+      i32.const 1
+      i32.ne
+      if
+        local.get $t1
+        call $rt:map_unique
+        local.set $t1
+      end
+      local.get $t4
+      i32.const 0
+      i32.ge_s
       if
         local.get $stock
-        call $rt:release_ref
+        local.get $t1
+        i32.store $heap
+        local.get $t1
+        i32.load $heap offset=12
+        local.set $t0
+        local.get $t1
+        local.get $t0
+        i32.const 14
+        i32.mul
+        i32.add
+        i32.const 32
+        i32.add
+        local.get $t4
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 8
+        i32.add
+        local.set $t4
+      else
+        local.get $t0
+        call $retain
+        local.get $t1
+        local.get $t3
+        local.get $t4
+        local.get $t0
+        local.get $t2
+        i32.const 1
+        call $rt:map_put
+        local.set $t1
+        local.get $t1
+        i32.load $heap offset=4
+        i32.const 1
+        i32.sub
+        local.set $t4
+        local.get $stock
+        local.get $t1
+        i32.store $heap
+        local.get $t1
+        i32.load $heap offset=12
+        local.set $t0
+        local.get $t1
+        local.get $t0
+        i32.const 14
+        i32.mul
+        i32.add
+        i32.const 32
+        i32.add
+        local.get $t4
+        i32.const 12
+        i32.mul
+        i32.add
+        i32.const 8
+        i32.add
+        local.set $t4
       end
+      i32.const 0
+      local.set $t4
+    ;; 8 |     *apples += 1
+      local.get $apples
+      i32.load $heap
+      local.set $t1
+      local.get $t1
+      i32.const 2147483646
+      i32.gt_s
+      if
+        call $rt:panic'4
+        unreachable
+      end
+      local.get $t1
+      i32.const 1
+      i32.add
+      local.set $t1
+      local.get $apples
+      i32.load $heap
+      local.set $t0
+      local.get $apples
+      local.get $t1
+      i32.store $heap
+    ;; 7 |     _ := stock.get_or_insert("pear", 1)
+      local.get $stock
+      call $rt:release_ref
     end
   )
 )

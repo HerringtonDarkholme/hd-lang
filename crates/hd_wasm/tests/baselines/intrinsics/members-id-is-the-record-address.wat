@@ -2,6 +2,8 @@
 (module
   (func $id (param $record i32) (result i32)
     ;; 13 |     address_of(record)
+    block
+    end
     local.get $record
   )
 )

@@ -17,8 +17,9 @@
     local.get $value
     i32.const 1
     i32.add
+    local.set $value
     ;; 5 |     copy + 2
-    local.tee $value
+    local.get $value
     i32.const 2147483645
     i32.gt_s
     if
@@ -28,5 +29,8 @@
     local.get $value
     i32.const 2
     i32.add
+    local.set $value
+    ;; 4 |     copy := value + 1
+    local.get $value
   )
 )

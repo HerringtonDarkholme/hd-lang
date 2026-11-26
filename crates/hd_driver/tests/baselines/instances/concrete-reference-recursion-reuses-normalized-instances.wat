@@ -6,28 +6,36 @@
   (import "fixture" "changing[&i32]" (func $"changing[&i32]" (param i32) (result i32)))
   (import "fixture" "left[&i32]" (func $"left[&i32]" (param i32) (result i32)))
   (import "fixture" "right[&i32]" (func $"right[&i32]" (param i32) (result i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 26 |     println(shared::[&mut i32](+3))
     i32.const 3
     call $"shared[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 27 |     println(changing::[&i32](+4))
     i32.const 4
     call $"changing[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 28 |     println(left::[&mut i32](+5))
     i32.const 5
     call $"left[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 29 |     println(right::[&i32](+6))
     i32.const 6
     call $"right[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -40,28 +48,36 @@
   (import "fixture" "changing[&i32]" (func $"changing[&i32]" (param i32) (result i32)))
   (import "fixture" "left[&i32]" (func $"left[&i32]" (param i32) (result i32)))
   (import "fixture" "right[&i32]" (func $"right[&i32]" (param i32) (result i32)))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 26 |     println(shared::[&mut i32](+3))
     i32.const 3
     call $"shared[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 27 |     println(changing::[&i32](+4))
     i32.const 4
     call $"changing[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 28 |     println(left::[&mut i32](+5))
     i32.const 5
     call $"left[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 29 |     println(right::[&i32](+6))
     i32.const 6
     call $"right[&i32]"
+    local.set $t0
+    local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
