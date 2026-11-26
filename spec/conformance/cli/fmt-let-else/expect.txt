@@ -1,0 +1,10 @@
+# cli.fmt.meaning and grammar.stmt.let-else.same-line: suites preserve their owners.
+run: hd fmt inputs/suites.input
+same-text: inputs/suites.input want/suites.hd
+run: hd check want/suites.hd
+run: hd fmt inputs/suites.input
+same-text: inputs/suites.input want/suites.hd
+run: hd fmt --check inputs/suites.input
+stdout-json: []
+run: hd want/suites.hd
+stdout: nested let-else ok

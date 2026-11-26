@@ -940,9 +940,11 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let Some(first) = node.first_token().get() else {
             return;
         };
+        // The clause's direct owner decides its layout: a let-else or
+        // loop-else does not belong to an enclosing if's suite.
         let owner = self
-            .ancestors(node)
-            .find(|ancestor| ancestor.kind() == S::IfExpr);
+            .parent(node)
+            .filter(|parent| parent.kind() == S::IfExpr);
         let gap = match owner {
             Some(owner) if self.if_is_value(owner) => Gap::Soft(" "),
             Some(_) => Gap::Hard,
@@ -1993,6 +1995,14 @@ mod tests {
             let (twice, _) = format(&formatted, &reparsed);
             assert_eq!(twice, formatted, "{} is not idempotent", file.display());
         }
+    }
+
+    #[test]
+    fn nested_let_else_preserves_tree_comments_and_fixed_point() {
+        verify_corpus(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../spec/conformance/cli/fmt-let-else/want"),
+        );
     }
 
     /// On the stack `hd fmt` runs with (`hd_sched::pool::WORKER_STACK`):
