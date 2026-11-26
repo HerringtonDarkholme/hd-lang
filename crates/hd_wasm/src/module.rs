@@ -1378,6 +1378,29 @@ fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
     h.finish()
 }
 
+/// A count shim emission request: its type, kind, portion, whether it
+/// takes its value by value, and its function key ([`Module::shim_key`]).
+pub type ShimRequest = (
+    hd_types::Ty,
+    hd_layout::shims::Shim,
+    hd_layout::shims::Portion,
+    bool,
+    Hash128,
+);
+
+/// What one instance's emission adds to the module's shared tables, kept
+/// apart from them, as rustc's codegen unit, until the link merges it in
+/// emission order ([`Module::emit_local`]).
+#[derive(Default)]
+struct Unit {
+    /// The functions it defined, by local symbol id.
+    defines: Vec<(SymId, Func)>,
+    /// The count shims it asked for that the module had not, as
+    /// [`Module::shims`] holds them, and in the order it asked, by shape.
+    shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
+    shim_queue: Vec<(Hash128, ShimRequest)>,
+}
+
 /// The module under construction.
 pub struct Module {
     /// Instantiated whole-key vtable graph, once per supplier (never per K).
@@ -1405,9 +1428,9 @@ pub struct Module {
     /// [`Module::finish`] finds a body naming it.
     pub symbols: Symbols,
     funcs: Vec<Option<Func>>,
-    /// The functions an instance's emission defined against its local
-    /// view of [`Module::symbols`], by local id ([`Module::emit_local`]).
-    local_defines: Vec<(SymId, Func)>,
+    /// What the instance being emitted adds to the shared tables
+    /// ([`Module::emit_local`]).
+    unit: Unit,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<SymId>,
     /// Static data from [`STATIC_BASE`], deduplicated by content.
@@ -1524,13 +1547,7 @@ pub struct Module {
     /// kind: its key. Types of one shape share it; each is queued once, the
     /// first type of its shape, so the drain ends.
     pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
-    pub shim_queue: Vec<(
-        hd_types::Ty,
-        hd_layout::shims::Shim,
-        hd_layout::shims::Portion,
-        bool,
-        Hash128,
-    )>,
+    pub shim_queue: Vec<ShimRequest>,
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
@@ -1595,7 +1612,7 @@ impl Module {
             package_interface_probes: 0,
             symbols: Symbols::default(),
             funcs: Vec::default(),
-            local_defines: Vec::new(),
+            unit: Unit::default(),
             inst_order: Vec::default(),
             data: Vec::default(),
             data_at: hd_base::HashMap::default(),
@@ -1706,7 +1723,8 @@ impl Module {
     }
     /// Defines a symbol without moving its semantic ordering into the id.
     /// The function key of `t`'s `kind` shim, queued for the drain the
-    /// first time it is asked for.
+    /// first time it is asked for: in an instance's unit while it is
+    /// emitted, which the merge queues unless an earlier unit did.
     pub fn shim_key(
         &mut self,
         t: hd_types::Ty,
@@ -1715,7 +1733,12 @@ impl Module {
         portion: hd_layout::shims::Portion,
         by_value: bool,
     ) -> Hash128 {
-        if let Some(&key) = self.shims.get(&(shape, kind, by_value)) {
+        let local = self.symbols.is_local();
+        if let Some(&key) = self.shims.get(&(shape, kind, by_value)).or_else(|| {
+            local
+                .then(|| self.unit.shims.get(&(shape, kind, by_value)))
+                .flatten()
+        }) {
             return key;
         }
         let mut h = hd_base::StableHasher::new("count-shim");
@@ -1727,8 +1750,14 @@ impl Module {
         };
         h.u32(word | u32::from(by_value) << 1);
         let key = h.finish();
-        self.shims.insert((shape, kind, by_value), key);
-        self.shim_queue.push((t, kind, portion, by_value, key));
+        let request = (t, kind, portion, by_value, key);
+        if local {
+            self.unit.shims.insert((shape, kind, by_value), key);
+            self.unit.shim_queue.push((shape, request));
+        } else {
+            self.shims.insert((shape, kind, by_value), key);
+            self.shim_queue.push(request);
+        }
         key
     }
 
@@ -1741,7 +1770,7 @@ impl Module {
         if self.symbols.is_local() {
             // Its id is the local view's: the link places it once the
             // view's entries have module ids ([`Module::emit_local`]).
-            self.local_defines.push((id, f));
+            self.unit.defines.push((id, f));
         } else {
             self.place(id, f);
         }
@@ -1776,10 +1805,17 @@ impl Module {
         let module = std::mem::replace(&mut self.symbols, local);
         let emitted = emit(self);
         let local = std::mem::replace(&mut self.symbols, module);
-        let defines = std::mem::take(&mut self.local_defines);
+        let unit = std::mem::take(&mut self.unit);
         let remap = self.symbols.absorb(&local);
         let mut f = emitted?;
-        for (id, mut g) in defines {
+        // A shim another unit asked for first is already queued.
+        for (shape, request) in unit.shim_queue {
+            let (_, kind, _, by_value, key) = request;
+            if self.shims.insert((shape, kind, by_value), key).is_none() {
+                self.shim_queue.push(request);
+            }
+        }
+        for (id, mut g) in unit.defines {
             g.remap(&remap, &self.symbols);
             self.place(remap.sym(id), g);
         }
