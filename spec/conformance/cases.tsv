@@ -6052,6 +6052,7 @@ lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismat
 lang/references/generic-locality/static-bound-box-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 lang/references/generic-locality/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 lang/references/generic-locality/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
+lang/references/generic-locality/an-index-assignment-stores-like-index-set.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.store
 lang/references/generic-locality/static-bound-unbounded-parameter-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
 lang/references/generic-locality/static-bound-impl-unmet.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.generic.static.impl
 lang/references/static-references/static-reference-parameter-reads-a-field.hd	type	accept	lang/13-values-and-references.md#r-ref.static.form

@@ -1,1 +1,2 @@
 path	issue	engine	reason
+lang/references/generic-locality/an-index-assignment-stores-like-index-set.hd	#2389		an index assignment through a user IndexSet skips the generic store rule that the method form gets
