@@ -2,7 +2,7 @@
 app/main/digest
   local $0 value: usize [param read] value
     uses $0: entry -> %1 consume last
-  local $1 state: usize [read assigned captured captured-assigned] place
+  local $1 state: usize [read assigned mutated] place
   local $3 value: usize [read] value
     uses $3: %2 -> %3 consume last
   local $5 value: usize [read] value

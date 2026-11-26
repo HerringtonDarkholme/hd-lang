@@ -743,7 +743,8 @@ pub(crate) fn changed(b: &Body, i: usize) -> impl Iterator<Item = (u32, u32)> + 
 /// copies a shared block by the list glue of the block's head
 /// ([`OwnCx::block_list`]) and which hoisting moves out of a loop, as
 /// Swift's `array.make_mutable`. `r` borrows a reference and counts
-/// nothing. One pass, after the rules that place the other checks.
+/// nothing. One pass, first: reference forwarding (`local_refs`) then
+/// names the place the check makes unique.
 fn make_unique(b: &mut Body, cx: &dyn OwnCx) {
     for i in 0..b.len() {
         let c = (b.tags[i] == Tag::Call).then(|| Callee::from_words(b.record(b.data[i][0])));
@@ -1188,7 +1189,15 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// The copy verifier ([`uncopied`]) leaves its findings in `scratch`.
 /// Malformed insertion or splice inputs return their structural error.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    let own = |t: &Tag| matches!(t, Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear);
+    if let Some(i) = b.tags.iter().position(own) {
+        return Err(format!(
+            "an ownership statement `{}` at %{i}",
+            b.tags[i].name()
+        ));
+    }
     scopes::lower(b)?;
+    make_unique(b, cx);
     return_loan::forward_places(b, cx);
     local_refs::run(b, cx, &mut scratch.topo, &mut scratch.splice)?;
     local_refs::unflag_unreached(b);
@@ -1223,7 +1232,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     )?;
     loans::share_counters(b, cx.temporary_owner_name())?;
     insert::run(b, cx, scratch)?;
-    make_unique(b, cx);
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
     derive::run(b, topo, cx, &mut scratch.derive);

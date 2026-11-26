@@ -349,6 +349,8 @@ impl Lists<'_> {
             | Tag::LoanClose
             | Tag::LoanEnd
             | Tag::OwnLoans => false,
+            // A fresh buffer's check does nothing at run time.
+            Tag::IsUnique => b.data[i][1] != hd_tir::ir::unique_word::FRESH,
             Tag::Store => {
                 !(self.tail_store(i)
                     || b.stored_local(i).is_some_and(|(l, _)| {

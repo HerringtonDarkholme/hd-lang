@@ -92,7 +92,7 @@ fn first(xs: &List[string]) -> usize:
 fn slot() -> i32:
     let mut n = +1
 > app/main/slot
->   local $0 n: i32 [read assigned captured captured-assigned] value
+>   local $0 n: i32 [read assigned mutated] value
 >     uses $0: none
 >   %0 = Store [$0] 1:i32 : ()
 >   %2 = Block %1 : i32

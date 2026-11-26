@@ -403,7 +403,7 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >     uses $0: entry -> %1 consume last
 >   local $1 root: usize [param read] value
 >     uses $1: entry -> %50 consume last
->   local $2 s: Record [read assigned mutated captured captured-assigned] place
+>   local $2 s: Record [read assigned mutated] place
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %6 -> %10 lend
 >   local $6 index: usize [read assigned mutated] place

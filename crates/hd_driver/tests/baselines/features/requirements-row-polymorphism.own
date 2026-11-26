@@ -29,7 +29,7 @@ impl Tag for Named:
 fn read_tag() -> usize $ Tag:
     $.use(Tag).name().len()
 > app/main/read_tag
->   local $0 $ref: string [read assigned captured captured-assigned] value
+>   local $0 $ref: string [read assigned mutated] value
 >     uses $0: %5 -> %6 lend last
 >   %0 = ProviderGet #0 : Tag
 >   %1 = Coerce %0 [ProviderAsRef -] : &dyn Tag
@@ -101,7 +101,7 @@ fn run(s: string) -> usize:
 >     uses $0: entry -> %3 consume last
 >   local $2 callback: fn() -> usize [read] value
 >     uses $2: %2 -> %21 lend last
->   local $3 $ref: string [read assigned captured captured-assigned] value
+>   local $3 $ref: string [read assigned mutated] value
 >     uses $3: %27 -> %28 lend last
 >   local $5 provider: Named [read] value
 >     uses $5: %6 -> %7 consume last

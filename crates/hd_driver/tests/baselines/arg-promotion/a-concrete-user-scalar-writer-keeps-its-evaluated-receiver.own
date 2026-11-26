@@ -128,7 +128,7 @@ fn digest(value: u32) -> u64:
 > app/main/digest
 >   local $0 value: u32 [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 state: State [read assigned captured captured-assigned] place
+>   local $1 state: State [read assigned mutated] place
 >   local $3 value: u32 [read] value
 >     uses $3: %3 -> %4 lend last
 >   local $4 bits: u64 [read assigned mutated] place

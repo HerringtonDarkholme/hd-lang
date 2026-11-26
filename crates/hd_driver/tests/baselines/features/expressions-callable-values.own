@@ -51,7 +51,7 @@ fn read_cell(c: Cell) -> usize:
 > app/main/read_cell
 >   local $0 c: Cell [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %4 -> %5 lend last
 >   %0 = Read borrow [$0 .value] : string
 >   %1 = Break L1 %0 : never

@@ -6,10 +6,7 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "stack" (global $stack (mut i32)))
-  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $value i64) (local $t3 i32)
     ;; 21 |     println("${sum(Point { x: 1, y: 2, name: "a" + "b" })}")
     i32.const 2
@@ -73,49 +70,10 @@
       call $rt:release_ref
     end
   )
-  (func $sum (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $p i32)
-    ;; 17 |     r := &p
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 24
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 24
-    i32.sub
-    local.tee $p
-    global.set $stack
-    local.get $p
-    i64.const 0
-    i64.store $heap
-    local.get $p
-    local.get $t0
-    i32.store $heap offset=16
-    local.get $p
-    local.get $t1
-    i32.store $heap offset=20
-    local.get $p
-    local.get $t2
-    i32.store $heap offset=8
-    local.get $p
-    local.get $t3
-    i32.store $heap offset=12
-    local.get $p
+  (func $sum (param $p.x i32) (param $p.y i32) (param $p.name.0 i32) (param $p.name.1 i32) (result i32)
     ;; 18 |     r.x + r.y
-    i32.load $heap offset=16
-    ;; 17 |     r := &p
-    local.get $p
-    ;; 18 |     r.x + r.y
-    i32.load $heap offset=20
+    local.get $p.x
+    local.get $p.y
     i32.add
-    ;; 17 |     r := &p
-    local.get $p
-    i32.const 24
-    i32.add
-    global.set $stack
   )
 )

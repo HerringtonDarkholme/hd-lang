@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: v8 release
+# `xs[i] = 7` on a local `PlainList`: the inlined `self = &xs` forwards to
+# `xs` (reference propagation), so `xs` is a Wasm local, its fresh block
+# needs no make-unique, and `i < n` decides the bounds test: no test and
+# no load in the loop, as the builtin `List`'s.
+use std.collections.PlainList
+
+fn fill(n: usize) -> PlainList[i64]:
+    let mut xs = PlainList::[i64].with_capacity(n)
+    let mut k: usize = 0
+    while k < n:
+        xs.push(0)
+        k += 1
+    # subject
+    for i in 0..xs.len():
+        xs[i] = 7
+    xs

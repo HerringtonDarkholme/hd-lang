@@ -3,56 +3,58 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "heap" (memory $heap 1))
-  (func $query (param $rows i32) (param $rounds i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $query (param $rows i32) (param $rounds i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 13 |     for i in 0..rounds:
+    local.get $rows
+    i32.load $heap
+    local.set $t0
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $rounds
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
-        local.get $t0
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 14 |         total += field(rows[i % rows.len()]).len()
-        local.get $rows
-        i32.load $heap
+        local.get $t0
         i32.load $heap offset=4
-        local.tee $t1
+        local.tee $t2
         i32.eqz
         if
           call $rt:panic'1
           unreachable
         end
-        local.get $t1
+        local.get $t2
         i32.rem_u
         local.get $rows
         i32.load $heap
-        local.set $t1
-        local.tee $t2
-        local.get $t1
+        local.set $t2
+        local.tee $t3
+        local.get $t2
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t1
         local.get $t2
+        local.get $t3
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t1
+        local.tee $t2
         i32.load $heap offset=16
-        local.get $t1
+        local.get $t2
         i32.load $heap offset=20
-        local.set $t1
+        local.set $t2
         drop
         local.get $total
-        local.get $t1
+        local.get $t2
         i32.add
         local.set $total
     ;; 13 |     for i in 0..rounds:

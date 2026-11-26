@@ -175,7 +175,7 @@ pub fn main() -> void $ Console:
 >   local $0 items: List[Item] [read assigned captured captured-assigned] place
 >   local $1 shared: List[Item] [:= read assigned] value
 >     uses $1: %9 -> %42 lend last
->   local $2 o: Outer [read assigned captured captured-assigned] place
+>   local $2 o: Outer [read assigned mutated] place
 >   %0 = NewList - [0:i64] : List[i64]
 >   %1 = NewMap ["a" 1:i64] : Map[string, i64]
 >   %2 = NewStruct [%0 %1 0:usize] : Item

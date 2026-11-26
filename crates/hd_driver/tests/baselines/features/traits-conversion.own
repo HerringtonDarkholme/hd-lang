@@ -46,7 +46,7 @@ fn name_len(s: string) -> usize:
 > app/main/name_len
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %6 -> %7 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = NewStruct [%0] : Name

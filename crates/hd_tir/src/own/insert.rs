@@ -277,9 +277,6 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             Tag::CallDyn | Tag::ContextFor | Tag::Hole | Tag::Poison => {
                 return Err(format!("`{}` at %{i}", tag.name()));
             }
-            Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
-                return Err(format!("an ownership statement `{}` at %{i}", tag.name()));
-            }
             Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {
                 let Some(footer) = b.call_footer(i) else {
                     return Err(format!("missing call provider footer at %{i}"));

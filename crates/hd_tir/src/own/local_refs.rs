@@ -1,9 +1,13 @@
-//! Forward fully visible local-reference accesses to physical scalar places.
-//! Addresses observed by calls, captures, identity or pointer operations keep
-//! their existing storage. Buffer elements and pointer dereferences never enter
-//! this proof, so their dynamic loan checks remain intact.
+//! Forward fully visible local-reference accesses to the places they name,
+//! of any type: `$self = &$xs` makes `[*$self .block]` the place
+//! `[$xs .block]`, and `make_unique(self)`'s `IsUnique [*$self]` the check
+//! of `[$xs]`. Addresses observed by calls, captures, identity or pointer
+//! operations keep their existing storage. Buffer elements and pointer
+//! dereferences never enter this proof, so their dynamic loan checks remain
+//! intact.
 //!
-//! This is local scalar replacement after inlining, before storage selection:
+//! This is reference propagation (rustc's `ReferencePropagation` MIR pass)
+//! after inlining, before storage selection:
 //! a direct place preserves every read/write, while address-observing uses
 //! prevent replacement. LLVM's SROA uses the same address-use admission:
 //! <https://llvm.org/docs/Passes.html#sroa-scalar-replacement-of-aggregates>
@@ -112,11 +116,7 @@ fn forward(
         }
     }
     measure(n + b.local_ty.len() + b.cap_local.len());
-    let mut eligible: Vec<_> = b
-        .local_ty
-        .iter()
-        .map(|&ty| !cx.counted(ty) && !cx.holds_ref(ty) && cx.holds_drop(ty) == super::Tri::No)
-        .collect();
+    let mut eligible = vec![true; b.local_ty.len()];
     for l in &b.cap_local {
         eligible[l.idx()] = false;
     }
@@ -138,7 +138,7 @@ fn forward(
     for i in 0..n {
         measure(1);
         let [a, w] = b.data[i];
-        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref) {
+        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique) {
             rewritten[i] = through(b, a, &values, &locals, &mut measure);
         }
         if b.tags[i] == Tag::Store {
@@ -238,6 +238,7 @@ fn forward(
             let p = b.view(b.data[i][0]);
             let allowed = match b.tags[i] {
                 Tag::Read | Tag::Store => p.whole() || rewritten[i].is_some(),
+                Tag::IsUnique => rewritten[i].is_some(),
                 Tag::Ref => values[i].is_some(),
                 Tag::LoanEnd => p.whole(),
                 _ => false,
@@ -295,8 +296,8 @@ fn forward(
 /// `&self` method (`len()` after a loop) or this forwarding took the `Ref`
 /// away; the inliner's by-value binding clears it the same way
 /// (`crate::inline`'s `still_reached`). Hoisting and `fresh_buffers` then
-/// see the local as the body's alone. A `&mut` (`CAPTURED_ASSIGNED`) keeps
-/// its flags. Cost: one scan of the body.
+/// see the local as the body's alone. A forwarded `&mut`'s
+/// `CAPTURED_ASSIGNED` becomes `MUTATED`. Cost: one scan of the body.
 pub(super) fn unflag_unreached(b: &mut Body) {
     if !b.local_flags.iter().any(|f| f & local_flags::CAPTURED != 0) {
         return;
@@ -325,8 +326,11 @@ pub(super) fn unflag_unreached(b: &mut Body) {
         }
     }
     for (l, flags) in b.local_flags.iter_mut().enumerate() {
-        if !reached[l] && *flags & local_flags::CAPTURED_ASSIGNED == 0 {
-            *flags &= !local_flags::CAPTURED;
+        if !reached[l] {
+            if *flags & local_flags::CAPTURED_ASSIGNED != 0 {
+                *flags |= local_flags::MUTATED;
+            }
+            *flags &= !(local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED);
         }
     }
 }

@@ -141,9 +141,9 @@ fn use_rets(r: Rec) -> usize:
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
 > app/main/use_rets
 >   local $0 r: Rec [param read captured] place
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %7 -> %8 lend last
->   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $2 $ref: string [read assigned mutated] value
 >     uses $2: %19 -> %20 lend last
 >   local $5 r: Rec [read] value
 >     uses $5: %14 -> %15 consume last

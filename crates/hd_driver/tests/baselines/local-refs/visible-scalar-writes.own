@@ -35,7 +35,7 @@ fn visible(value: i32) -> i32:
 > app/main/visible
 >   local $0 value: i32 [param read] value
 >     uses $0: entry -> %2 consume last
->   local $1 state: State [read assigned captured captured-assigned] place
+>   local $1 state: State [read assigned mutated] place
 >   local $5 value: i32 [read] value
 >     uses $5: %3 -> %6 lend, %10 lend last
 >   %0 = NewStruct [5:i32 7:i32] : State

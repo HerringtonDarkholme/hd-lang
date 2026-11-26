@@ -39,7 +39,7 @@ fn reads(s: string) -> usize:
 > app/main/reads
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %9 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/ident[] (%0) : string
@@ -85,7 +85,7 @@ fn generic_reads(s: string) -> usize:
 > app/main/generic_reads
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %9 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call app/main/generic[string] (%0) : string
@@ -189,7 +189,7 @@ fn reads_explicit(s: string, first: bool) -> usize:
 >     uses $0: entry -> %0 lend, %10 lend last
 >   local $1 first: bool [param read] value
 >     uses $1: entry -> %1 lend last
->   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $2 $ref: string [read assigned mutated] value
 >     uses $2: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Read copy [$1] : bool
@@ -325,7 +325,7 @@ fn reads_field(value: Named) -> usize:
 > app/main/reads_field
 >   local $0 value: Named [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Call app/main/ident[] (%0) : string
@@ -349,7 +349,7 @@ fn reads_heap_field(value: *Named) -> usize:
 > app/main/reads_heap_field
 >   local $0 value: *Named [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [*$0 .name] : string
 >   %1 = Call app/main/ident[] (%0) : string
@@ -411,7 +411,7 @@ fn reads_element(value: List[string], index: usize) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 index: usize [param read] value
 >     uses $1: entry -> %0 lend last
->   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $2 $ref: string [read assigned mutated] value
 >     uses $2: %3 -> %4 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = Read borrow [$0 [%0]] : string

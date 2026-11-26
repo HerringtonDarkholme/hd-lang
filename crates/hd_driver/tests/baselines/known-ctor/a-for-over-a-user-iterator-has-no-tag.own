@@ -48,7 +48,7 @@ pub fn total(n: i64) -> i64:
 >   local $0 n: i64 [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 s: i64 [read assigned mutated] place
->   local $2 $ref: Cursor [read assigned captured captured-assigned] place
+>   local $2 $ref: Cursor [read assigned mutated] place
 >   local $4 x: i64 [read assigned] value
 >     uses $4: %17 -> %24 lend last
 >   local $6 value: i64 [:= read assigned] value

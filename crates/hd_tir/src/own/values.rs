@@ -814,6 +814,12 @@ pub(crate) fn aliases(
         unshared[c.idx()] = false;
     }
     for i in 0..b.len() {
+        // `std.rt.make_unique` may give its place a new buffer.
+        if b.tags[i] == Tag::IsUnique
+            && let Some(l) = b.view(b.data[i][0]).local()
+        {
+            fixed[l as usize] = false;
+        }
         for (_, v) in super::changed(b, i) {
             if (v as usize) < b.len()
                 && b.tags[v as usize] == Tag::Read
@@ -963,9 +969,10 @@ pub(crate) fn forward(
     if !any {
         return Ok(());
     }
-    // Before insertion: no ownership statement names a place yet.
+    // Before insertion only `std.rt.make_unique`'s `IsUnique` names a
+    // place: it may give the place a new buffer.
     let named = |b: &Body, i: usize| match b.tags[i] {
-        Tag::Read | Tag::Store | Tag::Ref => Some(b.view(b.data[i][0])),
+        Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique => Some(b.view(b.data[i][0])),
         _ => None,
     };
     t.names.clear();

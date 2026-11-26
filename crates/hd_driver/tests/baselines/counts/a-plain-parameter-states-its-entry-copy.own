@@ -200,8 +200,8 @@ pub fn main() -> void $ Console:
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
 >   local $3 shared: *mut Named [:= read assigned] value
 >     uses $3: %39 -> %40 lend, %48 consume, %63 lend last
->   local $4 items: UniqList[i32] [read assigned captured captured-assigned] place
->   local $5 $ref: UniqList[i32] [read assigned captured captured-assigned] value
+>   local $4 items: UniqList[i32] [read assigned mutated] place
+>   local $5 $ref: UniqList[i32] [read assigned mutated] value
 >     uses $5: %125 -> %126 consume last
 >   local $8 value: i32 [read] value
 >     uses $8: %75 -> %113 consume last

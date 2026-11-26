@@ -25,7 +25,7 @@ impl Namer for Fixed:
 fn ask() -> usize $ Namer:
     $.use(Namer).name().len()
 > app/main/ask
->   local $0 $ref: string [read assigned captured captured-assigned] value
+>   local $0 $ref: string [read assigned mutated] value
 >     uses $0: %7 -> %8 lend last
 >   %0 = ProviderGet #0 : Namer
 >   %1 = Coerce %0 [ProviderAsRef -] : &dyn Namer
@@ -53,7 +53,7 @@ fn install(s: string) -> usize:
 >     uses $2: %7 -> %8 consume last
 >   local $3 $ref: *Fixed [read assigned captured] value
 >     uses $3: %11 -> %12 lend last
->   local $4 $ref: string [read assigned captured captured-assigned] value
+>   local $4 $ref: string [read assigned mutated] value
 >     uses $4: %27 -> %28 lend last
 >   %0 = Retain %41 Entry local $0 #0 : ()
     f := box(Fixed { n: s })

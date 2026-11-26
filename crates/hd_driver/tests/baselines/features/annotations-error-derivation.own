@@ -210,7 +210,7 @@ enum FsError:
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
 >     uses $1: %1 -> %2 lend last, %63 consume last, %88 lend, %91 lend
->   local $3 $ref: FsError [read assigned captured captured-assigned] value
+>   local $3 $ref: FsError [read assigned mutated] value
 >     uses $3: %64 -> %65 lend last, %82 lend
 >   local $7 result: string [read] value
 >     uses $7: %39 -> %44 lend last
@@ -242,7 +242,7 @@ enum FsError:
 >   local $4 $ref: YamlError [read assigned captured captured-assigned] place
 >   local $5 $ref: *YamlError [read assigned captured] value
 >     uses $5: %21 -> %22 lend last
->   local $6 $ref: FsError [read assigned captured captured-assigned] value
+>   local $6 $ref: FsError [read assigned mutated] value
 >     uses $6: none
 >   %0 = Read borrow [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
@@ -505,7 +505,7 @@ fn message(e: &LoadError) -> usize:
 > app/main/message
 >   local $0 e: &LoadError [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [$0] : &LoadError
 >   %1 = Call std/format/Display.to_string for LoadError [] via Impl (%0) : string

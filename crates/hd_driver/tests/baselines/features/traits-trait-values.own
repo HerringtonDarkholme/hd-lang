@@ -16,7 +16,7 @@ impl dyn Greet:
 > app/main/impl dyn Greet.twice
 >   local $0 self: &dyn Greet [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 $ref: string [read assigned captured captured-assigned] value
+>   local $1 $ref: string [read assigned mutated] value
 >     uses $1: %4 -> %5 lend last
 >   %0 = Read borrow [*$0] : Greet
 >   %1 = LoanBegin %0 #0 : ()

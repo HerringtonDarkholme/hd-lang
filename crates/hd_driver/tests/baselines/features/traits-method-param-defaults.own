@@ -81,7 +81,7 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >     uses $0: none
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %0 consume last
->   local $2 $ref: string [read assigned captured captured-assigned] value
+>   local $2 $ref: string [read assigned mutated] value
 >     uses $2: %4 -> %5 lend last
 >   %0 = Read borrow [$1] : string
 >   %1 = Break L1 %0 : never
