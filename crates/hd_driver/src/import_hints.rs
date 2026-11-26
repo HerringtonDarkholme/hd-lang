@@ -8,13 +8,13 @@ use std::sync::{Arc, OnceLock};
 use hd_base::{FileId, HashSet, ModuleId};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_project::ModuleTable;
-use hd_resolve::iface::{ImportHint, ImportIndex};
+use hd_resolve::iface::ImportIndex;
 use hd_resolve::{Cx, KnownItems, ModIn, Names, Src, UnitIface, World};
 use hd_types::InternPool;
 
-pub(crate) fn hint(name: &str) -> ImportHint {
+pub(crate) fn index() -> &'static ImportIndex {
     static INDEX: OnceLock<ImportIndex> = OnceLock::new();
-    INDEX.get_or_init(build).hint(name)
+    INDEX.get_or_init(build)
 }
 
 /// A names-only view: all embedded modules participate in resolution, not
@@ -22,6 +22,10 @@ pub(crate) fn hint(name: &str) -> ImportHint {
 struct Modules(HashSet<String>);
 
 impl World for Modules {
+    fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX)
+    }
+
     fn module_unit(&self, module: &str) -> Option<u32> {
         self.0.contains(module).then_some(0)
     }

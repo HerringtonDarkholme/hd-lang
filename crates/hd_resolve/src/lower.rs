@@ -310,10 +310,8 @@ pub trait World {
     /// (`module.use.facade.module`); `None` when no module has that path.
     fn published(&self, module: &str) -> Option<bool>;
     fn iface(&self, unit: u32) -> Option<Arc<UnitIface>>;
-    /// Complete std import advice, when the host supplies an immutable index.
-    fn import_hint(&self, _name: &str) -> Option<crate::iface::ImportHint> {
-        None
-    }
+    /// Explicit immutable std advice, independent of the checked interfaces.
+    fn import_hints(&self) -> crate::iface::ImportHints<'_>;
     /// Holds (`true`) or resumes the recording of the reads that follow,
     /// in a world that records them ([`Recorded`]): binding a use reads
     /// quietly, since its reads count only once a lookup consults a name
@@ -381,8 +379,8 @@ impl<'a> Recorded<'a> {
 }
 
 impl World for Recorded<'_> {
-    fn import_hint(&self, name: &str) -> Option<crate::iface::ImportHint> {
-        self.world.import_hint(name)
+    fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+        self.world.import_hints()
     }
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.world.module_path_node(module)
@@ -3083,20 +3081,7 @@ impl Lower<'_, '_, '_> {
         if self.in_std() {
             return crate::iface::ImportHint::default();
         }
-        let world = self.r.cx.world;
-        if let Some(hint) = world.import_hint(name) {
-            return hint;
-        }
-        // A small world without a complete advice provider can use the
-        // interface containing Ordering, as before. The project driver
-        // supplies immutable advice without widening checked interfaces.
-        let root = self.names.module_node(self.names.known.ordering);
-        world
-            .module_unit_node(&self.names, root)
-            .and_then(|unit| world.iface(unit))
-            .map_or_else(crate::iface::ImportHint::default, |iface| {
-                crate::iface::std_import_hint(&self.names, [&*iface], name)
-            })
+        self.r.cx.world.import_hints().hint(name)
     }
 
     fn segments(&self, n: NodeRef<'_>) -> Vec<(String, hd_base::TokenIdx)> {
@@ -10406,6 +10391,10 @@ mod prelude_tests {
 
         struct PartialStd;
         impl World for PartialStd {
+            fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+                crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+            }
+
             fn module_unit(&self, module: &str) -> Option<u32> {
                 matches!(module, "std.cmp" | "app").then_some(0)
             }
@@ -10506,6 +10495,10 @@ mod module_key_tests {
     struct Modules;
 
     impl World for Modules {
+        fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+        }
+
         fn module_unit(&self, module: &str) -> Option<u32> {
             EXPORT_LOOKUPS.with(|count| count.set(count.get() + 1));
             match module {
@@ -10582,6 +10575,10 @@ mod module_key_tests {
                 app: PathId,
             }
             impl World for Indexed {
+                fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+                    crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+                }
+
                 fn module_unit(&self, _: &str) -> Option<u32> {
                     panic!("node lookup must not fall back to text");
                 }

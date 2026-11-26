@@ -15,6 +15,10 @@ use hd_types::{ConstValue, InternPool, ParamRef, Prim, TyData};
 struct OneUnit;
 
 impl World for OneUnit {
+    fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX)
+    }
+
     fn module_unit(&self, module: &str) -> Option<u32> {
         (module == "app").then_some(0)
     }
