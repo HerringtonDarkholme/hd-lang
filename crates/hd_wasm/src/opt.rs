@@ -2385,7 +2385,23 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
         after[hi] = last;
     }
     let mut dead_after = Vec::with_capacity(body.len());
-    for (at, ins) in body.iter().enumerate() {
+    let plain = |at: usize| !gone[at] && !teed[at] && moved[at] == NONE && !dead_write(at);
+    let mut next = 0;
+    while next < body.len() {
+        // A run the round left alone is copied whole: its dead accesses
+        // are `after`'s, as none of it is a dead write.
+        let start = next;
+        while next < body.len() && plain(next) {
+            next += 1;
+        }
+        out.extend_from_slice(&body[start..next]);
+        origins.copy(start..next);
+        dead_after.extend_from_slice(&after[start..next]);
+        let Some(ins) = body.get(next) else {
+            break;
+        };
+        let at = next;
+        next += 1;
         if gone[at] {
             continue;
         }
@@ -2400,17 +2416,12 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
                 .first(p..p + 1)
                 .or_else(|| origins.first(at..at + 1));
             origins.repeat(origin, 1);
-        } else if dead_write(at) {
-            // A dead set drops its value; rule 15 takes back a pure push
-            // just before it.
-            if matches!(ins, Ins::Op(I::LocalTee(_))) {
-                dead_after.pop();
-                continue;
-            }
-            out.push(Ins::Op(I::Drop));
-            origins.copy(at..at + 1);
+        } else if matches!(ins, Ins::Op(I::LocalTee(_))) {
+            // A dead tee leaves its value; a dead set drops it, and rule
+            // 15 takes back a pure push just before it.
+            dead_after.pop();
         } else {
-            out.push(*ins);
+            out.push(Ins::Op(I::Drop));
             origins.copy(at..at + 1);
         }
     }
