@@ -54,7 +54,7 @@ doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.diagnostic.file,cli.file.check-test
 file-diagnostic-written-path	cli.diagnostic.file,cli.file.run,cli.file.check-test
 release-wraps	cli.profile.release,cli.profile.test,cli.exit.test-failure,cli.profile.default,cli.profile.pipeline.release,cli.profile.pipeline.unobservable,cli.profile.pipeline.limits,cli.profile.pipeline.one
-release-test-checked	cli.profile.release.file,cli.profile.test.release,cli.profile.release.commands,cli.exit.test-failure,cli.profile.pipeline.release,cli.profile.pipeline.limits,cli.profile.pipeline.one
+release-test-checked	cli.profile.release.hd-file,cli.profile.test.release,cli.profile.release.source-commands,cli.exit.test-failure,cli.profile.pipeline.release,cli.profile.pipeline.limits,cli.profile.pipeline.one
 dep-missing-sum	cli.dep.missing-sum,cli.dep.no-sum-write,cli.dep.remove,cli.json.lines.build,cli.exit.hd-failure,cli.dep.verify,cli.dep.missing-sum.manifest,cli.dep.verify.manifest,cli.dep.no-prompt,cli.dep.edit
 dep-sum-mismatch	cli.dep.verify,cli.sum.keep,cli.sum.line,cli.sum.hash
 dep-invalid-add	cli.dep.add.check,cli.dep.invalid,cli.dep.unchanged-on-error,cli.json.commands,cli.dep.repo-url,cli.dep.git,cli.dep.tag,cli.dep.no-prompt,cli.dep.add.target,cli.dep.add.lower,cli.dep.add.lower.selection,cli.dep.select,cli.dep.no-question,cli.dep.target.github,cli.dep.key.name-flag
@@ -401,3 +401,4 @@ name-dot-dependency	cli.name.dot,cli.name.dot.manifest,cli.name.dot.diagnostic,c
 name-dot-key	cli.name.dot.key,cli.name.dot.diagnostic,cli.dep.invalid,cli.dep.key.name-flag,cli.exit.hd-failure
 new-dot	cli.name.dot.new,cli.name.dot.diagnostic,cli.exit.hd-failure
 fmt-let-else	cli.fmt.meaning,cli.fmt.idempotent
+wasm-build-profile	cli.wasm.build-level,cli.wasm.legacy-level,cli.wasm.release-flag

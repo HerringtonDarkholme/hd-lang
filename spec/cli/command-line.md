@@ -140,6 +140,9 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 11. r[cli.wasm.not-hd] A valid module that `hd build` did not write is an error, with status 101.
 12. r[cli.wasm.not-hd.detect] `hd` knows such a module by a missing entry export, or by an import of a host function that `hd` does not provide.
 13. r[cli.wasm.not-hd.message] The error's message names the missing export or the unknown import, and suggests rebuilding the module with `hd build`.
+14. r[cli.wasm.build-level] `hd build` records its optimization level in the module, and `hd FILE.wasm` uses that level.
+15. r[cli.wasm.legacy-level] A module without a recorded optimization level runs with the dev pipeline.
+16. r[cli.wasm.release-flag] `hd FILE.wasm` rejects `--release`, because the module determines its optimization level.
 
 > **Why.** Builtin-only modules need no package source or manifest.
 > A package provider needs the app's manifest consent and its SDK's provider map.
@@ -946,10 +949,10 @@ hd test --release     # still checked, with optimized code
 
 1. r[cli.profile.default] `hd FILE`, `hd run`, `hd build`, `hd test`, and the REPL use the debug profile, which panics on integer overflow by [`types.arith.checked`](../lang/04-type-system.md#r-types.arith.checked).
 2. r[cli.profile.release] `--release` on `hd build` and `hd run` selects the release profile, which wraps on integer overflow by [`types.arith.release`](../lang/04-type-system.md#r-types.arith.release).
-3. r[cli.profile.release.file] `--release` on `hd FILE` selects the release profile too.
+3. r[cli.profile.release.hd-file] `--release` on `hd FILE.hd` selects the release profile too.
 4. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
 5. r[cli.profile.test.release] `hd test --release` keeps the test profile, so integer overflow still panics. The flag selects only the pipeline.
-6. r[cli.profile.release.commands] `hd FILE`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
+6. r[cli.profile.release.source-commands] `hd FILE.hd`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
 7. r[cli.profile.cfg-selection] For a configured declaration, the debug and test profiles select its `.Debug` body, including under `hd test --release`; the release profile selects its `.Release` body.
 
 > **Why.** Cargo has the same two profiles, and checks overflow in one
