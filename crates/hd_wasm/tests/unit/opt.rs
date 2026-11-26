@@ -1543,7 +1543,7 @@ mod origin_tests {
         f.body
             .iter()
             .filter(|i| {
-                matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id),
+                matches!(i, Ins::Call(id, _) if matches!(f.symbol(*id),
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)))
             })
             .count()

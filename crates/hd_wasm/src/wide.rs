@@ -486,7 +486,7 @@ fn branches_out(f: &Func) -> bool {
 pub fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool> {
     for i in &f.body {
         if let Ins::Call(id, _) = i
-            && let Sym::Import(im) = &*f.symbol(*id)
+            && let Sym::Import(im) = f.symbol(*id)
             && wide(&im.params, &im.results)
         {
             return Err(bug(&format!("a wide import {}/{}", im.module, im.name)));

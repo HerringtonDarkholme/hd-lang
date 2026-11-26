@@ -1001,6 +1001,7 @@ dependencies = [
  "hd_layout",
  "hd_mono",
  "hd_opt",
+ "hd_sched",
  "hd_testkit",
  "hd_tir",
  "hd_types",

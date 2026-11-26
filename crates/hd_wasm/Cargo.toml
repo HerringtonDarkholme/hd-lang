@@ -30,6 +30,7 @@ hd_opt = { workspace = true }
 hd_mono = { workspace = true }
 hd_layout = { workspace = true }
 hd_host_abi = { workspace = true }
+hd_sched = { workspace = true }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

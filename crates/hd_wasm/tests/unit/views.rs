@@ -71,7 +71,7 @@ mod tests {
         // Named runtime ownership is tested on an adapter, like boundary cleanup.
         // Module relinking regenerates typed helpers from their constructors.
         if named {
-            let call = body.body.iter().position(|ins| matches!(ins, hd_wasm::testing::module::Ins::Call(id, _) if matches!(&*body.symbol(*id), Sym::Shim(..)))).expect("release shim call");
+            let call = body.body.iter().position(|ins| matches!(ins, hd_wasm::testing::module::Ins::Call(id, _) if matches!(body.symbol(*id), Sym::Shim(..)))).expect("release shim call");
             body.note_runtime_count(
                 call,
                 CountAction::Release,

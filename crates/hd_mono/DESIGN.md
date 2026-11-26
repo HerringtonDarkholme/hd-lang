@@ -64,8 +64,8 @@ below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
 
 | Stage | Input | Output | Unit | Parallel | Cached | Key |
 | --- | --- | --- | --- | --- | --- | --- |
-| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program | inside `link` | none |
-| Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | serial | `link` | §13.10 |
+| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | one task; in release the ownership passes run one call-graph level of components at a time on the task's threads (#2383) | inside `link` | none |
+| Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | one task: emission serial; the per-function cleanups of `Module::finish` on the task's threads (#2383) | `link` | §13.10 |
 | Compile (outside the task graph) | Wasm bytes, engine config | wasmtime's module | program and pipeline | no: one thread per module | Cranelift's code per function, in `clpack` entries (docs/compiler/engines-and-test-runner.md §18.2) | the module bytes and wasmtime's compatibility hash |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 

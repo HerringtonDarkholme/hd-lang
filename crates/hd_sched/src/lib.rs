@@ -35,6 +35,28 @@ pub fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send)
     items.iter().map(f).collect()
 }
 
+/// Runs `f` on each of `items` with its index, as [`par_map`] maps: on
+/// the task's pool when [`task_threads`] is above 1, else in order. Each
+/// call owns its item, so the items end the same at any thread count.
+pub fn par_each_mut<T: Send>(items: &mut [T], f: impl Fn(usize, &mut T) + Sync + Send) {
+    #[cfg(feature = "threads")]
+    if task_threads() > 1 {
+        use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
+        // A job of at least 16 items: one split per small function costs
+        // more than its cleanup.
+        items
+            .par_iter_mut()
+            .with_min_len(16)
+            .enumerate()
+            .for_each(|(k, item)| f(k, item));
+        return;
+    }
+    items
+        .iter_mut()
+        .enumerate()
+        .for_each(|(k, item)| f(k, item));
+}
+
 /// Every task of the run (§6.1). Payloads are dense run IDs: a file,
 /// unit or module index, or a program or instance slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

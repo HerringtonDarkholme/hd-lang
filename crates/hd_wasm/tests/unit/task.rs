@@ -80,7 +80,7 @@ mod tests {
             let f = hd_wasm::testing::rt::helper(&helper, &mut m);
             for ins in &f.body {
                 if let Ins::Call(id, _) | Ins::TableSlot(id) = ins
-                    && let Sym::Helper(callee) = &*f.symbols.get(*id)
+                    && let Sym::Helper(callee) = f.symbols.get(*id)
                 {
                     pending.push(callee.clone());
                 }
@@ -286,7 +286,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             );
             let heap = f.body.iter().any(|ins| {
                 matches!(ins, Ins::Call(id, _)
-                if matches!(&*f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
+                if matches!(f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
                     hd_wasm::testing::rt::Helper::HostCold { .. } | hd_wasm::testing::rt::Helper::New)))
             });
             assert_eq!(heap, !blocking);
@@ -307,7 +307,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                     Ins::Op(hd_wasm::testing::op::Op::I32Const(-1))
                 ));
                 assert!(!f.body.iter().any(|ins| matches!(ins,
-                    Ins::Call(id, _) if matches!(&*f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
+                    Ins::Call(id, _) if matches!(f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
                         hd_wasm::testing::rt::Helper::RetainAny | hd_wasm::testing::rt::Helper::CopyElems { .. }))
                 )));
             }
@@ -338,7 +338,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             let f = hd_wasm::testing::task::pending_cold(&m, &[]);
             let linked = f.body.iter().any(|ins| {
                 matches!(ins, hd_wasm::testing::module::Ins::TableSlot(id)
-                    if matches!(&*f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
+                    if matches!(f.symbols.get(*id), hd_wasm::testing::module::Sym::Helper(
                         hd_wasm::testing::rt::Helper::CleanupCancel | hd_wasm::testing::rt::Helper::PendingCancel)))
             });
             assert_eq!(linked, enabled, "{}", f.name);
