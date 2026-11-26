@@ -16,11 +16,12 @@ fn build(root: &Path, wat: bool, args: &[&str]) {
         "HD_CACHE",
         crate::shared_objects(root.with_extension("cache")),
     )
-    .env_remove("HD_JOBS")
+    .env("HD_JOBS", "2")
     .env_remove("HD_ENGINE")
     .env_remove("HD_WAT")
     .current_dir(root)
     .arg("build")
+    .args(["--format", "wasm"])
     .args(args);
     if wat {
         cmd.env("HD_WAT", "1");

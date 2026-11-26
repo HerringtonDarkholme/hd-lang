@@ -2,27 +2,28 @@ run: hd --help
 stdout: usage: hd COMMAND [FLAGS] [ARGS]
 stdout:
 stdout: commands:
-stdout:   (none)     open the REPL, or run standard input when it is not a terminal
-stdout:   FILE       run FILE as a single-file program, which may use only std
-stdout:   FILE.wasm  run a module that hd build wrote
-stdout:   --repl     run a REPL session whose inputs are the lines of FILE
-stdout:   build      build the package's executables, or the module of one FILE in the package
-stdout:   run        run the package's executable, or the executable or task named NAME
-stdout:   test       run the test cases of the package, or of FILE
-stdout:   check      type-check the package, or FILE, without running it
-stdout:   lint       report optional advice; --fix applies behavior-preserving edits
-stdout:   doc        write the package's documentation, or print one item's
-stdout:   new        create a package in PATH, or in the current directory
-stdout:   add        require each TARGET, fetch it, and record its hash
-stdout:   update     move dependencies to the newest release on their compatibility line
-stdout:   remove     delete the dependency NAME and its hd.sum entries
-stdout:   fetch      fetch every selected dependency version the cache lacks, as CI does
-stdout:   install    install a package's executables as commands on PATH
-stdout:   uninstall  remove one installed executable
-stdout:   clean      remove the package's build directory, or with --cache the dependency cache
-stdout:   fmt        format the package's source files, or FILE
-stdout:   cache gc   evict compiled entries down to the size cap
-stdout:   help       print the commands, or one command's flags
+stdout:   (none)      open the REPL, or run standard input when it is not a terminal
+stdout:   FILE        run FILE as a single-file program, which may use only std
+stdout:   FILE.wasm   run a module that hd build wrote
+stdout:   FILE.cwasm  run a native release artifact that hd build wrote
+stdout:   --repl      run a REPL session whose inputs are the lines of FILE
+stdout:   build       build the package's executables, or the module of one FILE in the package
+stdout:   run         run the package's executable, or the executable or task named NAME
+stdout:   test        run the test cases of the package, or of FILE
+stdout:   check       type-check the package, or FILE, without running it
+stdout:   lint        report optional advice; --fix applies behavior-preserving edits
+stdout:   doc         write the package's documentation, or print one item's
+stdout:   new         create a package in PATH, or in the current directory
+stdout:   add         require each TARGET, fetch it, and record its hash
+stdout:   update      move dependencies to the newest release on their compatibility line
+stdout:   remove      delete the dependency NAME and its hd.sum entries
+stdout:   fetch       fetch every selected dependency version the cache lacks, as CI does
+stdout:   install     install a package's executables as commands on PATH
+stdout:   uninstall   remove one installed executable
+stdout:   clean       remove the package's build directory, or with --cache the dependency cache
+stdout:   fmt         format the package's source files, or FILE
+stdout:   cache gc    evict compiled entries down to the size cap
+stdout:   help        print the commands, or one command's flags
 stdout:
 stdout: global flag:
 stdout:   --format FORMAT  print diagnostics as text (the default) or as JSON lines
