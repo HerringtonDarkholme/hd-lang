@@ -29,7 +29,9 @@ use wasm_encoder::BlockType;
 
 use crate::Input;
 use crate::layout::{Enc, Is, IsOps as _, NumWidth, Pass, Test, num_width, vals};
-use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
+use crate::module::{
+    Edit, Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem,
+};
 use crate::rt::Helper;
 use hd_layout::shims::Portion;
 
@@ -449,7 +451,7 @@ fn body_func<'i>(
     if let Some(cell) = &once {
         if em.m.track_origins {
             let name = format!("{}#once", (input.path)(item));
-            em.m.storage_names.insert(key, name);
+            em.m.edit(Edit::StorageName(key, name, true));
         }
         cell.enter(&mut em, ret)?;
     }
@@ -729,18 +731,21 @@ impl Reentry {
         let cell = self.cell;
         if em.input.runtime.checked.is_some() {
             // Teardown zeros the flag between test cases, as a once-cell's.
-            em.m.stored.insert(
+            em.m.edit(Edit::Stored(
                 cell,
                 Stored {
                     vals: vec![Val::I32],
                     counted: crate::rt::Counted::None,
                     slot: None,
                 },
-            );
+            ));
         }
         if em.m.track_origins {
-            em.m.storage_names
-                .insert(cell, format!("{}#evaluating", path(item)));
+            em.m.edit(Edit::StorageName(
+                cell,
+                format!("{}#evaluating", path(item)),
+                true,
+            ));
         }
         em.f.global_get(self.flag());
         em.f.op(I::If(BlockType::Empty));
@@ -818,14 +823,14 @@ impl OnceCell<'_> {
             let mut vals = self.results.clone();
             vals.push(Val::I32);
             let counted = crate::rt::counted_of(em.input, em.m, ret)?;
-            em.m.stored.insert(
+            em.m.edit(Edit::Stored(
                 self.key,
                 Stored {
                     vals,
                     counted,
                     slot: None,
                 },
-            );
+            ));
         }
         let held = self.load_cached(&mut em.f);
         // The global keeps its count; every caller receives a fresh one.
@@ -2916,7 +2921,7 @@ impl Em<'_, '_, '_> {
         let h = self.env().path_hash(def);
         if self.m.track_origins {
             let path = (self.input.path)(def);
-            self.m.storage_names.entry(h).or_insert(path);
+            self.m.edit(Edit::StorageName(h, path, false));
         }
         h
     }
