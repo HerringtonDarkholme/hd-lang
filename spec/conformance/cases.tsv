@@ -1481,6 +1481,12 @@ lang/types/collection-values/readonly-map-remove.hd	type	reject:not-writable	lan
 lang/types/map-key-types/map-grow-and-remove.hd	runtime	accept	lang/04-type-system.md#lookup-and-order
 lang/data/construction-and-access/data-field-evaluation-order.hd	runtime	accept	lang/08-data-and-enums.md#data-literals
 lang/data/struct-declarations/field-defaults-run-per-construction-after-explicit-fields.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-if.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-match.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-return-through-mut-self.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-scope.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-tuple.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
+lang/data/struct-declarations/defaulted-fields-value-self.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
 lang/data/struct-declarations/suspending-data-field-default.hd	type	reject:suspension-forbidden-context	lang/07-functions.md#r-fn.default.suspends
 lang/data/struct-declarations/generic-optional-field-default.hd	type	accept	lang/08-data-and-enums.md#field-defaults
 lang/data/struct-declarations/data-field-default-type-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.assign.mismatch

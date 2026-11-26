@@ -717,7 +717,12 @@ impl Em<'_, '_, '_> {
                         {
                             self.placed.insert(r, (base, off));
                             self.placed.insert(block, (base, off));
-                            work.push((value, off));
+                            // The block tail still writes parameters and constants
+                            // through `placed_tail`; only instructions have more
+                            // construction to plan at this destination.
+                            if Ref(value).as_inst().is_some() {
+                                work.push((value, off));
+                            }
                         }
                     }
                     continue;

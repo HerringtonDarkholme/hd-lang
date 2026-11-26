@@ -1,0 +1,49 @@
+# @dump: own wat
+# @build: std | std release
+# expected: scope forwarding writes every result field; scalar constants are stored and a wide parameter is copied.
+use std.rt.inline
+
+struct Wide:
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+@inline(.Always)
+fn constant() -> i32:
+    +73
+
+# subject
+fn constant_scope(x: i32) -> Wide:
+    Wide {
+        a: x,
+        b: +2,
+        c: +3,
+        d: +4,
+        e: +5,
+        f: +6,
+        g: +7,
+        h: +8,
+        i: +9,
+        j: +10,
+        k: +11,
+        l: +12,
+        m: +13,
+        n: +14,
+        o: +15,
+        p: +16,
+        q: constant(),
+    }

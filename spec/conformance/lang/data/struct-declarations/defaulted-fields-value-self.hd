@@ -1,0 +1,45 @@
+# expect-stdout: 1
+use std.testing.assert_equal
+
+struct File:
+    old_path: string
+    new_path: string
+    header_lines: List[string] = []
+    hunks: List[string] = ["hunk"]
+    old_sha: string? = .Some("oldsum")
+    new_sha: string? = .Some("newsum")
+    binary: bool = true
+
+impl File:
+    fn new(old_path: string, new_path: string, header_line: string) -> File:
+        File { old_path: old_path, new_path: new_path, header_lines: [header_line] }
+
+struct Parser:
+    current: File = File::new("old-path", "new-path", "header-value")
+    count: u32 = 0
+    prefix: string = ""
+    buf: List[string] = []
+    pending: string? = .None
+
+impl Parser:
+    fn finish(self) -> List[File]:
+        [self.current]
+
+fn parse() -> List[File]:
+    parser := Parser {}
+    parser.finish()
+
+pub fn main() -> void $ Console:
+    items := parse()
+    assert_equal(items.len(), 1, reason="one returned value")
+    file := items[0]
+    assert_equal(file.old_path, "old-path", reason="old path copied")
+    assert_equal(file.new_path, "new-path", reason="new path copied")
+    assert_equal(file.header_lines.len(), 1, reason="header list copied")
+    assert_equal(file.header_lines[0], "header-value", reason="header copied")
+    assert_equal(file.hunks.len(), 1, reason="default list copied")
+    assert_equal(file.hunks[0], "hunk", reason="default list content copied")
+    assert_equal(file.old_sha, .Some("oldsum"), reason="old optional copied")
+    assert_equal(file.new_sha, .Some("newsum"), reason="new optional copied")
+    assert_equal(file.binary, true, reason="default flag copied")
+    println(items.len())
