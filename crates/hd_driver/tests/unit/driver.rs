@@ -1127,8 +1127,8 @@ mod instantiation_chain_tests {
     }
 
     /// A release build owns one level of strongly connected components
-    /// at a time, and cleans up the linked functions, on the pool's
-    /// threads (#2383): `bench/json-decode`, with recursive components
+    /// at a time, and cleans up the linked functions and puts their
+    /// count calls behind tests, on the pool's threads (#2383): `bench/json-decode`, with recursive components
     /// and generic instances, links to the same bytes on one thread and
     /// on eight.
     #[test]

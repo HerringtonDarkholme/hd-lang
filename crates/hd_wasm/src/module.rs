@@ -2341,20 +2341,28 @@ impl Module {
             // Glue, a helper, a count shim or a cell's release glue, keeps
             // its counts plain calls: the runtime's count functions test
             // null and static data, and a collection's trace hands each
-            // release to `visit` there.
-            for (k, slot) in self.funcs.iter_mut().enumerate() {
-                let id = SymId(u32::try_from(k).expect("symbols"));
-                if let Some(f) = slot.as_mut()
-                    && !matches!(
-                        &*self.symbols.get(id),
-                        Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
-                    )
-                    && crate::count_tests::lower(f, counts)
+            // release to `visit` there. Each function reads only itself
+            // and the symbols, so they run on the task's threads (#2383).
+            // A lowering interns at most one new symbol (the checked
+            // build's `skipped`) and one new global (`Global::Tracing`),
+            // so each table's ids end the same at any thread count.
+            let symbols = &self.symbols;
+            hd_sched::par_each_mut(&mut self.funcs, |k, slot| {
+                let Some(f) = slot.as_mut() else { return };
+                // ruled out: every function was registered under a u32 SymId.
+                let id = SymId(crate::emit::required(
+                    u32::try_from(k).ok(),
+                    "function symbol fits u32",
+                ));
+                if !matches!(
+                    &*symbols.get(id),
+                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
+                ) && crate::count_tests::lower(f, counts)
                 {
                     crate::opt::locals(f, &arity);
                     f.rebuild_callees();
                 }
-            }
+            });
             self.reach();
         }
         let optimized = self.optimized;
