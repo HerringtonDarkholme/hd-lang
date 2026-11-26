@@ -344,9 +344,10 @@ Continuing §7.3 at step 4:
    compile it in process; Cranelift takes each function's machine code
    from the module's `clpack` entry when an earlier run compiled it
    (docs/compiler/engines-and-test-runner.md §18.2), so a warm run
-   translates the module and compiles no function. wasmtime's
-   precompiled modules are not cached, since deserializing them is
-   `unsafe`.
+   translates the module and compiles no function. This describes the
+   portable-Wasm path. Built native release artifacts instead map the
+   precompiled image without translating Wasm (§20.3); their unsafe
+   loading contract is confined to the native-artifact boundary.
 2. Read the import list; refuse a totally denied need with status 101.
 3. Instantiate with the default profile's providers and the grant.
 4. Call `hd.init`, then drive `hd.poll` and the reactor (§14.4).
@@ -355,11 +356,14 @@ Continuing §7.3 at step 4:
 
 ### 20.3 `hd build`
 
-- Writes the link entry's bytes to `build/debug/NAME.wasm` or
-  `build/release/NAME.wasm`, per executable, and
-  `build/{debug,release}/files/STEM.wasm` for `hd build FILE`. The file
-  is a copy of a cache entry, so an unchanged program writes identical
-  bytes.
+- Dev, Node, and explicit `--format wasm` builds write portable Wasm to
+  `build/{debug,release}/NAME.wasm`, or `files/STEM.wasm` for `hd build FILE`.
+  Wasmtime release builds instead write `.cwasm` native images at those
+  locations. Matching source, manifest, toolchain and Wasmtime compatibility
+  keys permit reuse without translation or compilation.
+- Native images include the metadata needed for imports, exports and source
+  positions. Publication replaces the file atomically, preserving existing
+  mappings; direct execution loads the open image without copying its code.
 - A library-only package writes no `.wasm` (§7.5).
 - No grant is written into the module
   ([`cli.cap.build`](../../spec/cli/command-line.md#r-cli.cap.build)).

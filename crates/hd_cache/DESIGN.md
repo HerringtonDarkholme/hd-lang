@@ -634,11 +634,12 @@ instead of one per instance.
   cached pack's, such as a new package's first build, emits that
   unit's instances again: packs share whole groups only.
 
-Planned, not built: precompiled modules cached across runs (`cwasm`),
-which wasmtime's `unsafe` deserialization rules out today
-(crates/hd_run_wasmtime/DESIGN.md §17.9). Machine code is cached function
-by function instead, one `clpack` per module
-(docs/compiler/engines-and-test-runner.md §18.2).
+Portable-Wasm execution caches machine code function by function, one
+`clpack` per module. Separately, Wasmtime release builds publish reusable
+`.cwasm` native artifacts outside this cache, with compatibility and source
+keys. Their loader confines unsafe deserialization to the native-artifact
+boundary; it maps the open file without translating Wasm. See
+[compile caches](../../docs/compiler/engines-and-test-runner.md#182-compile-caches).
 
 #### 5.4.1 Historical Packing Experiment (#751, 2026-10-22)
 
