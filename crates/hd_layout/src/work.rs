@@ -2,6 +2,13 @@
 //! regressions; off unless a test takes a count on its thread.
 
 use std::cell::Cell;
+use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+
+/// The counts being taken on any thread. While it is zero, as in every
+/// build but a counting test, [`add`] returns after one relaxed load, not
+/// a thread-local lookup, which is a call on macOS: the counters sit in
+/// the backend's per-instruction loops.
+static TAKING: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
@@ -55,8 +62,10 @@ pub fn count<R>(
     impl Drop for Restore {
         fn drop(&mut self) {
             self.0.set(self.1);
+            TAKING.fetch_sub(1, Relaxed);
         }
     }
+    TAKING.fetch_add(1, Relaxed);
     let restore = Restore(counter, counter.replace(Some(0)));
     let result = run();
     let work = counter.get().unwrap_or(0);
@@ -66,6 +75,9 @@ pub fn count<R>(
 
 /// Adds `n` to `counter`, when one is being taken.
 pub fn add(counter: &'static std::thread::LocalKey<Cell<Option<u64>>>, n: usize) {
+    if TAKING.load(Relaxed) == 0 {
+        return;
+    }
     counter.with(|c| {
         if let Some(w) = c.get() {
             c.set(Some(w + n as u64));
