@@ -3,8 +3,8 @@
   (import "fixture" "rt:list_unique'1" (func $rt:list_unique'1 (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
+  (import "fixture" "out_of_bounds" (func $out_of_bounds))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 4 funcref))
   (func $mark_builtin (param $flags i32) (param $i i32) (param $n i32) (local $j i32) (local $t0 i32) (local $t1 i32)
     ;; 10 |     let mut j = i * i
     local.get $i
@@ -91,12 +91,7 @@
         local.get $t0
         i32.ge_u
         if
-          i32.const 65 ;; &"index-out-of-bounds"
-          i32.const 19
-          i32.const 84 ;; &"list index out of bounds"
-          i32.const 24
-          i32.const 0
-          call_indirect $table0 (param i32 i32 i32 i32)
+          call $out_of_bounds
           unreachable
         end
         local.get $t1

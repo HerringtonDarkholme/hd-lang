@@ -59,8 +59,8 @@ app/main/double
   %35 = Block - : usize
   %36 = Scope %35 [] : usize
   %37 = Prim Ge [%29 %36] : bool
-  %38 = Call std/rt.bytes/panic_with[] ("index-out-of-bounds", "list index out of bounds") : ()
-  %39 = Block - : ()
+  %38 = Call std/collections.plain_list/out_of_bounds[] () : never
+  %39 = Block - : never
   %40 = If 0:bool [%39 -] : ()
   %41 = Read borrow [$5] : &mut PlainList[i64]
   %42 = Read borrow [$5] : &mut PlainList[i64]

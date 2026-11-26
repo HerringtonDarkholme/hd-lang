@@ -1239,9 +1239,10 @@ impl Lists<'_> {
             .and_then(|c| self.cx.intrinsic(&c))
     }
 
-    /// Whether instruction `s` calls the panic intrinsic.
+    /// Whether instruction `s` panics: the panic intrinsic or a call typed `never`.
     fn calls_panic(&self, s: u32) -> bool {
-        self.intrinsic(s).as_deref() == Some("panic")
+        self.b.tags[s as usize] == Tag::Call && self.b.ty[s as usize] == Ty::NEVER
+            || self.intrinsic(s).as_deref() == Some("panic")
     }
 
     /// The `x` of instruction `v` when it is `x - 1`, or
