@@ -1,8 +1,8 @@
 # @dump: functions
 # @build: dev | release
 # A `using!` binding's `dispose!` that completes at once is a plain call
-# at the scope's end: neither it nor `main!` links a `.poll`, `.cancel`
-# or `.drop` (#2419).
+# at the scope's end in dev and may inline in release. Neither it nor
+# `main!` links a `.poll`, `.cancel` or `.drop` (#2419).
 use std.ops.AsyncDisposable
 
 struct Handle:

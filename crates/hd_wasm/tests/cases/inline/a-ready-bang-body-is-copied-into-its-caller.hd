@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: release program
+# @helpers: app/main/caller
+# A driven ready call uses the existing inliner; a cold constructor stays cold.
+use std.meta.inline
+
+fn ready!(value: i32) -> i32:
+    value + 1
+
+@inline(.Never)
+fn caller!(value: i32) -> i32:
+    ready!(value)
+
+pub fn main!() -> void $ Console:
+    _ := ready(0)
+    println(caller!(41))

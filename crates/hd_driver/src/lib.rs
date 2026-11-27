@@ -10597,6 +10597,13 @@ impl Run<'_> {
     /// never touch the code cache, so a held build shares nothing with
     /// an unheld one.
     fn scenario_hold(&self, p: &ProgramTables) -> Option<(DefId, bool)> {
+        let (def, active) = self.scenario_hold_target()?;
+        self.body_of(p, def).is_some().then_some((def, active))
+    }
+
+    /// The held declaration's identity, without querying or owning its body.
+    /// The inliner asks this while ownership is already in progress.
+    fn scenario_hold_target(&self) -> Option<(DefId, bool)> {
         let Goal::Scenario { entry, hold } = &self.goal else {
             return None;
         };
@@ -10605,7 +10612,7 @@ impl Run<'_> {
             &format!("{}.{entry}", hd_project::package_ident(&self.package)),
             &held.func,
         );
-        self.body_of(p, def).is_some().then_some((def, held.active))
+        Some((def, held.active))
     }
 
     /// `Collect` (`crates/hd_mono/DESIGN.md` §11.3): `prog_key`, then instances, then code

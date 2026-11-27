@@ -1,0 +1,39 @@
+# @dump: stdout functions
+# @build: dev | checked | release | release checked
+# Waiting calls, stored awaits, joins and races keep their cancellation boundaries.
+use std.meta.inline
+use std.task.{Sender, Receiver, channel, join, race}
+
+@inline(.Auto)
+fn await_job![T](job: Suspend[T]) -> T:
+    job!()
+
+@inline(.Auto)
+fn read_after!(note: &string, job: Suspend[i32?]) -> i32:
+    value := job!().unwrap_or(-1)
+    value + i32(note.len())
+
+fn consumer!(receiver: Receiver[i32]) -> i32:
+    first := await_job!(receiver.recv()).unwrap_or(-1)
+    note := "kept-$first"
+    first + read_after!(&note, receiver.recv())
+
+fn producer!(sender: Sender[i32]) -> i32:
+    sender.send!(2)
+    sender.send!(1)
+    2
+
+@inline(.Auto)
+fn combine!(left: Suspend[i32], right: Suspend[i32]) -> (i32, i32):
+    join!(left, right)
+
+@inline(.Auto)
+fn first!(left: Suspend[i32], right: Suspend[i32]) -> i32:
+    race!(left, right)
+
+pub fn main!() -> void $ Console:
+    let (sender, receiver) = channel::[i32](1)
+    let (value, sent) = combine!(consumer(receiver), producer(sender))
+    println("$value $sent")
+    let (sender, receiver) = channel::[i32](1)
+    println(first!(consumer(receiver), producer(sender)))

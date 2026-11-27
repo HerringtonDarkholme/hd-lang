@@ -2,6 +2,7 @@
 # @build: dev | release
 # `outer!` waits only on `inner!`, which never waits: both complete at
 # once, so neither links a `.poll`, `.cancel` or `.drop` (#2419).
+# Release may inline both ready bodies; dev keeps their plain calls.
 fn inner!(x: i32) -> i32:
     x * 2
 
