@@ -539,6 +539,9 @@ pub struct Collected {
     /// Shared concrete vtable DAG, in postorder. Parent IDs always precede
     /// their child, so emission, hashing and destruction need no recursion.
     pub vtables: Vec<VTable>,
+    /// Traits whose tables can come from a host provider or returned handle.
+    /// Recorded by the existing boundary walk, including supertraits.
+    pub host_traits: HashSet<DefId>,
     /// Per instance: the hash of what its code reads besides its own TIR:
     /// callees' representation summaries and signatures (walking skeleton,
     /// SK-3) and the layouts of its types; each code key holds it.
@@ -2302,6 +2305,7 @@ impl Cx<'_> {
             if !visited.insert((trait_, targs, package)) {
                 continue;
             }
+            self.out.host_traits.insert(trait_);
             let full = self.pool.list(
                 &std::iter::once(class_ref(self.pool))
                     .chain(self.pool.list_items(targs).iter().copied())

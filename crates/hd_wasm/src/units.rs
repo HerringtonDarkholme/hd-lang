@@ -148,6 +148,7 @@ impl<'i, 'a> Keys<'i, 'a> {
         );
         sorted(&mut h, input.coinductive_flags.iter().copied());
         sorted(&mut h, input.ready.iter().copied());
+        sorted(&mut h, input.ready_slots.iter().map(|&d| env.path_hash(d)));
         let link = h.finish();
 
         // Each instance's loan rows, in a stable order.
