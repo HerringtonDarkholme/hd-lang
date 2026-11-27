@@ -224,11 +224,13 @@ function cNumber(num: string, raw: Dynamic): Dynamic {
 // length; a string is decoded from its bytes. Cost: one pass over the
 // arguments; a string copies its bytes once.
 function cArguments(params: CParam[], raw: Dynamic[], heap: () => ArrayBuffer): Dynamic[] {
+  // A cursor over the parameters: each is read once, in order.
+  let next = 0;
   const take = (): Dynamic => {
-    if (!raw.length) {
+    if (next >= raw.length) {
       fail("wrong import arity");
     }
-    return raw.shift();
+    return raw[next++];
   };
   const view = (num: string, at: number, length: number): Dynamic => {
     const View = C_VIEWS[num] ?? fail(`unknown C number type ${num}`);
@@ -258,7 +260,7 @@ function cArguments(params: CParam[], raw: Dynamic[], heap: () => ArrayBuffer): 
         return fail(`unknown C argument kind ${kind}`);
     }
   });
-  if (raw.length) {
+  if (next !== raw.length) {
     fail("wrong import arity");
   }
   return args;
@@ -1118,7 +1120,8 @@ export function createPackageRuntime(
           const args = cMethod
             ? cArguments(cMethod.params, raw, io.heap)
             : argumentsFor(method, i.handle, raw);
-          if (raw.length) {
+          // `cArguments` checks its own arity.
+          if (!cMethod && raw.length) {
             fail("wrong import arity");
           }
           const file = receiver?.[method.member];
