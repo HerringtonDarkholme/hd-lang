@@ -21,7 +21,7 @@
       i32.const 0
       local.set $id
       local.get $t0
-      i32.const 424 ;; &vtable[rt:dyn_slot, rt:block_drive]
+      i32.const 424 ;; &vtable[rt:dyn_trap, rt:block_drive]
       local.set $id
       local.set $t1
       i32.const 0

@@ -424,9 +424,13 @@ pub enum Helper {
     /// parameter, the receiver first, that `target` owns; the slot counts
     /// a copy of each. `given` has each handed-in value, by its index in
     /// `own`, that `target` only borrows, and its layout: the slot releases
-    /// it after the call, including its Drop hooks.
+    /// it after the call, including its Drop hooks. With `body`, it calls
+    /// `target`'s body on its fresh path instead of its cold constructor,
+    /// for a target that completes at once (#2419): `results` are then the
+    /// method's, and the body's frame, always 0, is dropped.
     DynSlot {
         target: Hash128,
+        body: bool,
         retained_result: Counted,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
@@ -2895,6 +2899,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
+            body,
             retained_result,
             leaves,
             params,
@@ -2919,13 +2924,21 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 .as_ref()
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
             own_lent(&mut f, m, &rvals, &recv, params, own);
+            if *body {
+                f.i32(0);
+            }
             recv(&mut f);
             push_slot_params(
                 &mut f,
                 params.len() - usize::from(ctx.is_some()),
                 ctx.as_ref(),
             );
-            f.call(Sym::Inst(*target));
+            if *body {
+                f.call(Sym::Part(*target, crate::module::Part::Body));
+                f.op(Instruction::Drop);
+            } else {
+                f.call(Sym::Inst(*target));
+            }
             retain_slot_result(&mut f, m, results, retained_result);
             release_given(&mut f, m, own, given);
             f

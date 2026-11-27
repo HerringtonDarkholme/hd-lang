@@ -90,6 +90,7 @@ interface Entry {
 const ENTRIES: Readonly<Record<string, Entry>> = {
   // Items.
   "fn-items": { construct: "functions" },
+  "bang-chain": { construct: "bang functions, each awaiting the next, all completing at once" },
   "struct-items": { construct: "structs and struct literals" },
   "enum-items": { construct: "enums and payload patterns" },
   "trait-items": { construct: "traits, impls and method calls" },

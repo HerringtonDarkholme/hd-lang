@@ -1551,9 +1551,9 @@ pub struct Facts {
     pub driven: hd_base::HashSet<hd_base::DefId>,
     /// Methods synchronously consumed by `block_on`, with caller-local host storage.
     pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
-    /// Closed-program methods whose dynamic calls all use blocking drive slots.
-    /// Their host vtables need no normal cold-constructor slot.
-    pub blocking_only: hd_base::HashSet<hd_base::DefId>,
+    /// Closed-program methods whose dynamic calls all use drive slots.
+    /// Their vtables need no normal cold-constructor slot.
+    pub drive_only: hd_base::HashSet<hd_base::DefId>,
     /// The std runtime every linked program provides to its helpers.
     pub runtime: crate::Runtime,
     /// Each instance by its key, for a caller to read how its callee takes
@@ -1749,7 +1749,7 @@ impl Module {
                 open_world: Default::default(),
                 driven: hd_base::HashSet::default(),
                 blocking_driven: hd_base::HashSet::default(),
-                blocking_only: hd_base::HashSet::default(),
+                drive_only: hd_base::HashSet::default(),
                 runtime: *runtime,
                 inst_of: hd_base::HashMap::default(),
                 indirect_params: Vec::new(),

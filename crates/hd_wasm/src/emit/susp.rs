@@ -18,6 +18,7 @@ use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
 use super::{Ctl, Em};
+use crate::Input;
 use crate::layout::IsOps as _;
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
@@ -27,12 +28,29 @@ use crate::task::{
     F_STATE, UNWINDING,
 };
 
-/// Whether instruction tag `t` is a suspension point.
-pub(super) fn is_point(t: Tag) -> bool {
-    matches!(
-        t,
-        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
-    )
+/// Whether instruction `i` of body `b`, whose call targets are `calls`,
+/// may wait: a suspension point other than a bang call of an instance that
+/// completes at once ([`ready_callee`]).
+pub(super) fn waits(input: &Input<'_>, calls: &HashMap<u32, Target>, b: &Body, i: u32) -> bool {
+    hd_opt::whole::is_point(b.tags[i as usize]) && ready_callee(input, calls, b, i).is_none()
+}
+
+/// The callee of bang call `i` when it completes at once (`Input::ready`,
+/// #2419): the call is a plain call of its body, not a suspension point.
+pub(super) fn ready_callee<'c>(
+    input: &Input<'_>,
+    calls: &'c HashMap<u32, Target>,
+    b: &Body,
+    i: u32,
+) -> Option<&'c hd_mono::CallTarget> {
+    match (b.tags[i as usize], calls.get(&i)) {
+        (Tag::Await, Some(Target::Call(t)))
+            if t.kind == TargetKind::Instance && input.ready.contains(&t.key) =>
+        {
+            Some(t)
+        }
+        _ => None,
+    }
 }
 
 /// The blocks instruction `i` runs, in the order emission enters them.
@@ -64,21 +82,30 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
     out
 }
 
-/// Each suspension point's state, and each block's and instruction's
-/// range of states, when it holds one.
-pub(super) type Plan = (HashMap<u32, u32>, HashMap<u32, (u32, u32)>);
+/// Each suspension point's state, each block's and instruction's range
+/// of states, when it holds one, and those that hold a bang call, one that
+/// completes at once too.
+pub(super) type Plan = (
+    HashMap<u32, u32>,
+    HashMap<u32, (u32, u32)>,
+    hd_base::HashSet<u32>,
+);
 
-/// Numbers the suspension points of the body under `root` in structural
-/// order, from 1, and records the range of states each block and
-/// instruction holds: a subtree's states are contiguous (§14.2).
-pub(super) fn plan(b: &Body, root: u32) -> Plan {
+/// Numbers the suspension points of the body under `root` that `waits`
+/// in structural order, from 1, and records the range of states each block
+/// and instruction holds: a subtree's states are contiguous (§14.2).
+pub(super) fn plan(b: &Body, root: u32, waits: &dyn Fn(u32) -> bool) -> Plan {
     fn join(r: Option<(u32, u32)>, x: Option<(u32, u32)>) -> Option<(u32, u32)> {
         match (r, x) {
             (Some(a), Some(c)) => Some((a.0.min(c.0), a.1.max(c.1))),
             (a, c) => a.or(c),
         }
     }
-    let mut p = (HashMap::default(), HashMap::default());
+    let mut p = (
+        HashMap::default(),
+        HashMap::default(),
+        hd_base::HashSet::default(),
+    );
     let mut next = 0;
     let mut stack = vec![(root, false)];
     while let Some((i, ready)) = stack.pop() {
@@ -100,17 +127,21 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
         }
         crate::suspension_work::add(1, 0, 0, 0, 0);
         let mut range = None;
+        let mut bang = false;
         if is_block {
             for child in b.record(b.data[i as usize][0]) {
                 if b.tags[*child as usize] != Tag::Block {
                     range = join(range, p.1.get(child).copied());
+                    bang |= p.2.contains(child);
                 }
             }
         } else {
             for child in operand_blocks(b, i) {
                 range = join(range, p.1.get(&child).copied());
+                bang |= p.2.contains(&child);
             }
-            if is_point(b.tags[i as usize]) {
+            bang |= hd_opt::whole::is_point(b.tags[i as usize]);
+            if waits(i) {
                 // Each point has a distinct u32 instruction identity.
                 next += 1;
                 p.0.insert(i, next);
@@ -120,6 +151,9 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
         }
         if let Some(range) = range {
             p.1.insert(i, range);
+        }
+        if bang {
+            p.2.insert(i);
         }
     }
     p
@@ -805,7 +839,7 @@ impl Em<'_, '_, '_> {
                         matches!(target, Some(Target::Dyn)),
                         "mono::scan must resolve Await"
                     );
-                    if self.shield == 0 && self.drives(a) {
+                    if self.drives(a) {
                         return self.await_driven(i, k, a, &args);
                     }
                     self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
@@ -882,6 +916,36 @@ impl Em<'_, '_, '_> {
         self.release_child(i, ch);
         self.f.i32(0);
         self.f.set(pc);
+        for l in &tmp {
+            self.f.get(*l);
+        }
+        self.store_awaited(i)
+    }
+
+    /// `g!(x)` of an instance that completes at once (#2419): its body's
+    /// fresh path called as a plain call. It returns frame 0, so the call
+    /// is no suspension point and the caller keeps no child.
+    pub(super) fn await_ready(
+        &mut self,
+        i: u32,
+        key: Hash128,
+        item: hd_base::DefId,
+        targs: hd_types::TyList,
+    ) -> StageResult<()> {
+        ledger!("susp/await-ready-body-call");
+        let args = self.b.call_args(i as usize).to_vec();
+        let res = self.vals(self.ty(i))?;
+        let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
+        self.f.i32(0);
+        self.push_cold_args(i, &args, item, targs, None)?;
+        let c = self.push_call_providers(i, item, targs)?;
+        self.f.call(Sym::Part(key, Part::Body));
+        self.f.op(I::Drop);
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.settle(i);
+        self.release_call_ctx(i, c);
         for l in &tmp {
             self.f.get(*l);
         }
@@ -1048,7 +1112,9 @@ impl Em<'_, '_, '_> {
     /// [`Em::await_stored`] awaits the cold call's frame: a fresh start
     /// calls the drive slot, whose frame is 0 when the call is done and
     /// was then released by the slot; a Pending frame becomes the child,
-    /// and a resume polls it as before.
+    /// and a resume polls it as before. A shielded point steps as
+    /// [`Em::await_direct`] does, a fresh child losing its count when it
+    /// is abandoned.
     fn await_driven(&mut self, i: u32, k: u32, a: u32, args: &[u32]) -> StageResult<()> {
         ledger!("susp/await-driven-vtable-slot");
         let pc = self.pc();
@@ -1056,16 +1122,28 @@ impl Em<'_, '_, '_> {
         let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
         let ready = self.f.local(Val::I32);
+        let shielded = self.shield > 0;
+        let gone = self.f.local(Val::I32);
         self.f.get(pc);
         self.f.u32(k);
         self.f.op(I::I32Eq);
+        if shielded {
+            // The child is read before the shield's abandon check.
+            self.f.set(held);
+            self.f.get(held);
+            self.f.op(I::If(BlockType::Empty));
+            self.load_child(s);
+            self.f.op(I::End);
+            self.shield_enter(k, s, &tmp, gone);
+            self.f.get(held);
+        }
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        self.f.get(FRAME);
-        self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-        self.f.set(s);
-        self.f.i32(1);
-        self.f.set(held);
+        if !shielded {
+            self.load_child(s);
+            self.f.i32(1);
+            self.f.set(held);
+        }
         self.f.get(s);
         self.f.get(s);
         self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
@@ -1082,12 +1160,25 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(s);
         self.settle(i);
-        self.f.i32(0);
-        self.f.set(held);
+        if !shielded {
+            self.f.i32(0);
+            self.f.set(held);
+        }
         self.f.get(s);
         self.f.op(I::I32Eqz);
         self.f.set(ready);
         self.close();
+        if shielded {
+            self.f.i32(0);
+            self.f.get(s);
+            self.f.get(ready);
+            self.f.op(I::Select);
+            self.f.set(gone);
+            self.shield_leave(i, gone, Some(held));
+            self.f.get(gone);
+            self.f.op(I::I32Eqz);
+            self.f.set(ready);
+        }
         self.f.get(ready);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -1111,6 +1202,13 @@ impl Em<'_, '_, '_> {
             self.f.get(*l);
         }
         self.store_awaited(i)
+    }
+
+    /// Loads this frame's child into local `s`.
+    fn load_child(&mut self, s: u32) {
+        self.f.get(FRAME);
+        self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+        self.f.set(s);
     }
 
     /// Ends one completed child result where its point's cleanup packet

@@ -110,6 +110,7 @@ rt:list_buf#1
 rt:list_buf#2
 rt:list_unique
 rt:list_copy
+rt:dyn_trap
 rt:hd:pkg:4a5136287679f55232773dc2d414152a/wait
 rt:hd:pkg:4a5136287679f55232773dc2d414152a/wait.poll
 rt:host_cancel

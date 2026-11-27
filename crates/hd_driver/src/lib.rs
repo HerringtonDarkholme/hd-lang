@@ -12270,6 +12270,10 @@ impl Run<'_> {
                 || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
             let coinductive_flags =
                 hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
+            let ready =
+                hd_opt::whole::completes_at_once(env, &instances, &c.collected.calls, &|item| {
+                    entry.held(item).is_some()
+                });
             // Each `Drop` implementation's instance, by its type, for the
             // release shims: one pass over the instances. Types may share
             // one instance (its key), so each type keeps its own entry.
@@ -12360,6 +12364,7 @@ impl Run<'_> {
                 own_cx: env,
                 mutation_targets: &mutation_targets,
                 coinductive_flags: &coinductive_flags,
+                ready: &ready,
                 units: dev_units.as_ref().map(|u| u as &dyn hd_wasm::UnitStore),
             };
             // The `own` view shows an item's plain instance's final rows.

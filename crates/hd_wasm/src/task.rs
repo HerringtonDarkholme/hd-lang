@@ -1686,12 +1686,21 @@ fn drive(m: &Module, blocking: bool, cold: &Helper, params: &[Val], results: &[V
         signature,
         all,
     );
-    let fr = f.local(Val::I32);
-    let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    // A slot that calls a body completing at once (#2419) hands back the
+    // results themselves: the call is done, with no frame.
+    let ready = matches!(cold, Helper::DynSlot { body: true, .. });
+    if ready {
+        f.i32(0);
+    }
     for k in 0..u32::try_from(params.len()).expect("params") {
         f.get(k);
     }
     f.helper(cold.clone());
+    if ready {
+        return f;
+    }
+    let fr = f.local(Val::I32);
+    let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     f.set(fr);
     f.get(fr);
     f.get(fr);

@@ -307,6 +307,7 @@ impl Em<'_, '_, '_> {
             } else {
                 Helper::DynSlot {
                     target: t.key,
+                    body: false,
                     retained_result: retained_result.clone(),
                     leaves: leaves.map(<[Leaf]>::to_vec),
                     params,

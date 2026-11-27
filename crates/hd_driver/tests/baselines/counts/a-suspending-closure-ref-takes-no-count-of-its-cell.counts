@@ -27,7 +27,6 @@ fn local!() -> i64:
     run := fn!() -> i64:
 > app/main/local
 >   release counted reference (last use)
->   release counted reference (last use)
 > app/main/local
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -38,13 +37,8 @@ fn local!() -> i64:
 >   release fn!() -> i64 (last use)
 > app/main/local
 >   release counted reference (last use)
-> app/main/local
->   retain counted reference (stored)
         let mut tally = Tally { n: 0 }
         bump!(&mut tally)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
         tally.n
     run!()
 >   retain counted reference (stored)
@@ -65,10 +59,6 @@ fn shared!() -> i64:
 > app/main/shared
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (last use)
 > app/main/shared
 >   release counted reference (cancelled)
 >   release counted reference (last use)
@@ -76,8 +66,6 @@ fn shared!() -> i64:
 > app/main/shared
 >   retain counted reference (stored)
 >   retain counted reference (stored)
->   retain counted reference (stored)
-> app/main/shared
 >   retain counted reference (stored)
     run!()
 >   retain counted reference (stored)
@@ -100,14 +88,9 @@ fn copied!() -> i64:
     run := fn!() -> i64: read!(&tally)
 > app/main/copied
 >   release counted reference (last use)
->   release counted reference (last use)
->   release counted reference (cancelled)
->   release counted reference (last use)
 > app/main/copied
 >   release counted reference (last use)
 >   release counted reference (last use)
-> app/main/copied
->   retain counted reference (stored)
 > app/main/copied
 >   retain counted reference (stored)
     run!()

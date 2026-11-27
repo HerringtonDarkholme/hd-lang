@@ -226,7 +226,8 @@ fn body_func<'i>(
         .and_then(|id| m.body_facts.remove(&id))
         .unwrap_or_default();
     let boundary = inst.and_then(|id| (input.boundary)(id)).unwrap_or_else(|| {
-        let inputs = promote::boundary_inputs(input, b, item, own.cold.is_some(), own.lends);
+        let inputs =
+            promote::boundary_inputs(input, b, targets, item, own.cold.is_some(), own.lends);
         let topo = hd_tir::ir::Topology::new(b);
         let work = &mut crate::work::loan_queries;
         let mut boundary = hd_tir::own::boundary::plan(b, &topo, input.own_cx, &inputs, work);
@@ -246,7 +247,9 @@ fn body_func<'i>(
     // A suspending body is a state machine over a frame (`susp.rs`), but
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
-    let plan = susp::plan(b, b.sub_root[sub as usize]);
+    let plan = susp::plan(b, b.sub_root[sub as usize], &|i| {
+        susp::waits(input, targets, b, i)
+    });
     let closure = (sub != 0).then(|| {
         closure::closure_of(
             input,
@@ -259,7 +262,9 @@ fn body_func<'i>(
         None => {
             own.cold.is_none()
                 && input.env.suspends(item)
-                && !(input.entry.root(item) && plan.0.is_empty())
+                && !(input.entry.root(item)
+                    && input.entry.held(item).is_none()
+                    && plan.0.is_empty())
         }
         Some((_, suspends, _)) => suspends,
     };
@@ -455,6 +460,7 @@ fn body_func<'i>(
         }
         cell.enter(&mut em, ret)?;
     }
+    em.bangs = plan.2;
     if suspending {
         let pc = em.f.local(Val::I32);
         let cancelled = em.f.local(Val::I32);
@@ -1391,6 +1397,9 @@ struct Em<'i, 'a, 'm> {
     /// How many `using` dispose suites that wait the instruction being
     /// emitted is inside: their points are shielded (`susp.rs`).
     shield: u32,
+    /// The instructions that hold a bang call (`susp::plan`): a cleanup
+    /// suite among them runs under the driver, shielded.
+    bangs: hd_base::HashSet<u32>,
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
@@ -1591,6 +1600,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cell_layouts: std::cell::RefCell::default(),
             flagged: None,
             susp: None,
+            bangs: hd_base::HashSet::default(),
             shield: 0,
             cells: shared,
             param_vals: HashMap::default(),
@@ -2651,13 +2661,14 @@ impl Em<'_, '_, '_> {
                     self.slot(i)?;
                 }
                 self.open(Ctl::Plain);
-                // A cleanup suite (`own::scopes`). One that waits runs
-                // under the driver (flow.using.async.not-forbidden), its
-                // points shielded (flow.using.async.cancel.shielded); one
-                // that does not is a forbidden context
-                // (`req.drive.block-on.indirect`).
+                // A cleanup suite (`own::scopes`). One that holds a bang
+                // call runs under the driver
+                // (flow.using.async.not-forbidden), its points shielded
+                // (flow.using.async.cancel.shielded), though its calls may
+                // all complete at once (#2419); one that holds none is a
+                // forbidden context (`req.drive.block-on.indirect`).
                 let suite = self.b.is_suite(i);
-                let shield = u32::from(suite && self.range(i).is_some());
+                let shield = u32::from(suite && self.bangs.contains(&i));
                 let forbid = i32::from(suite) - i32::from(shield != 0);
                 self.shield += shield;
                 self.forbid_by(forbid);
@@ -2826,7 +2837,10 @@ impl Em<'_, '_, '_> {
                 self.call_value(i, a, &args)?;
             }
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
-                self.point(i, a, bw)?;
+                match susp::ready_callee(self.input, self.calls, self.b, i) {
+                    Some(t) => self.await_ready(i, t.key, t.item, t.args)?,
+                    None => self.point(i, a, bw)?,
+                }
             }
             Tag::With => self.with(i, a, bw)?,
             Tag::ContextNew => self.context_new(i, a)?,
@@ -3454,10 +3468,8 @@ impl Em<'_, '_, '_> {
             self.f.set(*value);
         }
         self.release_call_ctx(i, context);
-        let complete = self
-            .m
-            .inst(target.key)
-            .is_some_and(|id| crate::drive::completes(self.input, id));
+        // A body that completes at once (#2419) never hands back a frame.
+        let complete = self.input.ready.contains(&target.key);
         self.driven.insert(
             on,
             Driven {

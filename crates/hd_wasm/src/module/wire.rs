@@ -636,7 +636,7 @@ wire_enum!(Helper {
         59 => MapGrow { entry },
         60 => MapUnique { entry },
         61 => MapSlotNext,
-        62 => DynSlot { target, retained_result, leaves, params, results, own, given, ctx },
+        62 => DynSlot { target, body, retained_result, leaves, params, results, own, given, ctx },
         63 => DynRead { target, retained_result, read, params, results, own, given, ctx },
         64 => MapStep { entry, item },
         65 => ListTruncate { elem },

@@ -4,7 +4,7 @@
 //! (`crates/hd_wasm/DESIGN.md` §23.28). The scan reads the
 //! backend's layout through [`ObjectLayout`].
 
-use hd_base::{DefId, HashSet, InstId};
+use hd_base::{DefId, HashSet, InstId, SliceSort as _};
 use hd_mono::{InstanceTable, ProgramEnv, Sub, subst};
 use hd_tir::ir::{Body, PlaceRoot, Tag, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -484,6 +484,98 @@ pub fn solve_flags(
     }
     *work += sccs.work + evals;
     value
+}
+
+/// The bang instances that complete at once (#2419): each is an item's
+/// own body (`Sub::Body(0)`) of a suspending function, other than a
+/// `held` one (a runtime scenario's held call), whose suspension points
+/// are all bang calls of instances that complete at once. So no await of
+/// a stored suspension, `join!`, `race!` or trait-value bang call, which
+/// may wait. A caller lowers a bang call of one as a plain call of its
+/// body, which is then no suspension point. A cycle of such calls
+/// completes at once: this is the greatest fixed point, found by marking
+/// the callers of each instance that may wait over the reversed call
+/// edges. Cost: one `Topology` per distinct body with a point, then
+/// O(instances + e log e) for the e bang-call edges.
+#[must_use]
+pub fn completes_at_once(
+    env: &dyn ProgramEnv,
+    instances: &Instances<'_>,
+    calls: &[hd_base::HashMap<u32, hd_mono::Target>],
+    held: &dyn Fn(DefId) -> bool,
+) -> HashSet<hd_base::Hash128> {
+    let table = instances.table;
+    let n = table.item.len();
+    let by_key: hd_base::HashMap<hd_base::Hash128, u32> = (table.key.iter().enumerate())
+        .filter(|&(i, _)| table.sub[i] == Sub::Body(0))
+        .map(|(i, &k)| (k, word(i)))
+        .collect();
+    // Each distinct body's points in its own sub-body: closures are
+    // instances of their own.
+    let mut points: hd_base::HashMap<*const Body, Vec<u32>> = hd_base::HashMap::default();
+    let mut waits = vec![true; n];
+    let mut edges: Vec<(u32, u32)> = Vec::new();
+    for &id in instances.order {
+        let i = id.idx();
+        let item = table.item[i];
+        if table.sub[i] != Sub::Body(0) || !env.suspends(item) || held(item) {
+            continue;
+        }
+        let Some(b) = (instances.body)(id) else {
+            continue;
+        };
+        let own = points.entry(std::ptr::from_ref(b)).or_insert_with(|| {
+            if !b.tags.iter().any(|&t| is_point(t)) {
+                return Vec::new();
+            }
+            let topo = hd_tir::ir::Topology::new(b);
+            (0..b.len())
+                .filter(|&at| topo.sub[at] == 0 && is_point(b.tags[at]))
+                .map(word)
+                .collect()
+        });
+        let from = edges.len();
+        let ready = own.iter().all(|&at| {
+            let callee = match (b.tags[at as usize], calls.get(i).and_then(|c| c.get(&at))) {
+                (Tag::Await, Some(hd_mono::Target::Call(t)))
+                    if t.kind == hd_mono::TargetKind::Instance =>
+                {
+                    by_key.get(&t.key)
+                }
+                _ => None,
+            };
+            callee.inspect(|&&j| edges.push((j, word(i)))).is_some()
+        });
+        if ready {
+            waits[i] = false;
+        } else {
+            edges.truncate(from);
+        }
+    }
+    // The callers of each instance that may wait may wait too.
+    edges.sort_stable();
+    let mut stack: Vec<u32> = (0..word(n)).filter(|&i| waits[i as usize]).collect();
+    while let Some(j) = stack.pop() {
+        let lo = edges.partition_point(|e| e.0 < j);
+        for &(_, caller) in edges[lo..].iter().take_while(|e| e.0 == j) {
+            if !std::mem::replace(&mut waits[caller as usize], true) {
+                stack.push(caller);
+            }
+        }
+    }
+    (0..n)
+        .filter(|&i| !waits[i])
+        .map(|i| table.key[i])
+        .collect()
+}
+
+/// Whether tag `t` is a suspension point.
+#[must_use]
+pub fn is_point(t: Tag) -> bool {
+    matches!(
+        t,
+        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+    )
 }
 
 #[cfg(test)]

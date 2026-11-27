@@ -1404,6 +1404,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         },
         Helper::DynSlot {
             target: Hash128(8),
+            body: false,
             retained_result: hd_wasm::testing::rt::Counted::Address {
                 index: 0,
                 known: true,

@@ -6,15 +6,30 @@
 # must be loaded before that frame is freed, on explicit and tail returns.
 use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -72,15 +87,30 @@ pub fn main!() -> void $ Console:
 # must be loaded before that frame is freed, on explicit and tail returns.
 use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -138,15 +168,30 @@ pub fn main!() -> void $ Console:
 # must be loaded before that frame is freed, on explicit and tail returns.
 use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -201,15 +246,30 @@ pub fn main!() -> void $ Console:
 # must be loaded before that frame is freed, on explicit and tail returns.
 use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40

@@ -1,0 +1,9 @@
+{{! A chain of bang functions, each awaiting the next; the last never waits, so every one completes at once (#2419). }}
+{{#each items}}
+fn f{{i}}!(x: i32) -> i32: f{{next}}!(x) + 1
+
+{{/each}}
+fn f{{last}}!(x: i32) -> i32: x
+
+pub fn main!() -> void $ Console:
+    println("${f0000!(1)}")

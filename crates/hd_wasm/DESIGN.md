@@ -1537,6 +1537,18 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   local reference its parameters hold by value, a tuple member's too.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
+- **Completed at once** (issue #2419). A bang instance whose points
+  are all bang calls of instances that complete at once completes at
+  once itself (`hd_opt::whole::completes_at_once`, the greatest fixed
+  point over the bang-call edges; `Input::ready`). A bang call of one is
+  no suspension point: the caller calls its body's fresh path with frame
+  0 and drops the 0 it hands back (`Em::await_ready`), so a caller whose
+  points are all such calls has no state and no frame either. Its other
+  parts stay for a cold call or a cold vtable slot, and unreferenced
+  they are dropped. rustc 1.97 builds a coroutine for an `async fn`
+  with no `.await` and its caller keeps a state for the await (MIR);
+  only LLVM's inliner removes them at -O3. swiftc 6.4 splits such an
+  `async` function at its executor hop at -Onone and -O alike.
 - **Lent frames** (issue #1355). When the frame counts such objects, the
   instance has a second constructor, `Part::Lent` (`NAME.lent`), built by
   the same code without those counts. A cold call whose frame only an
@@ -2762,15 +2774,17 @@ host finishes the call at once. Such a call goes through a second slot
 instead, the method's **drive slot**: the cold call and its first poll
 in one (`drive.rs`).
 
-- **Awaited at once.** A bang call `x.m!(args)` of a trait value, at a
-  point that no `using` suite shields. Or a cold call `x.m(args)` that
+- **Awaited at once.** A bang call `x.m!(args)` of a trait value, a
+  shielded one in a `using` suite too: it steps as a direct shielded
+  await does. Or a cold call `x.m(args)` that
   `block_on` drives, either as its argument or through a local. The
   call is stored in the local, and `block_on` moves it out. Only drops
   of other values may run between (`drive::block_on_of`). Any other cold
   call, such as a suspension kept for `join!`, uses the cold slot. Only
-  a method that is not generic, of a trait with no type arguments and no
-  supertraits, has a drive slot, so all of the trait's vtables have the
-  same shape.
+  a method that is not generic, of a trait with no type arguments but
+  rows (`AsyncDisposable[$ R]`), has a drive slot, so all of the trait's
+  vtables have the same shape. In a closed program, a method that only
+  drive slots call keeps a trapping normal slot (`Facts::drive_only`).
 - **The vtable.** Before any vtable is built, `drive::collect` reads
   every body for the methods that some call awaits at once. Each vtable
   of their trait gets their drive slots after its method slots, in
@@ -2785,8 +2799,10 @@ in one (`drive.rs`).
   registered with the current waker, as the first poll leaves it. An hd
   provider's slot (`Helper::Drive`) calls the cold slot's function,
   polls the frame once, and releases it when it is done. That is the
-  same work and the same allocations as before. A trapping cold slot
-  gets a trapping drive slot.
+  same work and the same allocations as before. An implementation that
+  completes at once (§23.21) is driven by its body's fresh path
+  (`Helper::DynSlot` with `body`): no frame is made. A trapping cold
+  slot gets a trapping drive slot.
 - **The caller.** At a bang point, a fresh start calls the drive slot.
   A Pending frame becomes the child and the task suspends as before; a
   resume polls the child. For `block_on`, the forbidden-context check

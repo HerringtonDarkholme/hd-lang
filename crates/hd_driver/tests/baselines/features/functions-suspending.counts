@@ -58,10 +58,6 @@ fn closure_bang!(key: string) -> usize:
         fetch!(key)
 > app/main/closure_bang
 >   retain string (stored)
->   release counted reference (last use)
->   release counted reference (last use)
->   release string (last use)
->   release string (last use)
 > app/main/closure_bang
 >   release string (cancelled)
 > app/main/closure_bang
@@ -71,8 +67,6 @@ fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang
 >   retain counted reference (stored)
 >   retain string (stored)
-> app/main/closure_bang
->   retain counted reference (stored)
 
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
@@ -84,10 +78,6 @@ fn stored!(key: string) -> usize:
 >   release counted reference (last use)
 > app/main/stored
 >   retain string (stored)
->   release counted reference (last use)
->   release counted reference (last use)
->   release string (last use)
->   release string (last use)
 > app/main/stored
 >   release string (cancelled)
 > app/main/stored
@@ -96,8 +86,6 @@ fn stored!(key: string) -> usize:
 >   release counted reference (last use)
 > app/main/stored
 >   retain string (stored)
->   retain counted reference (stored)
-> app/main/stored
 >   retain counted reference (stored)
     loader!(key).len()
 >   retain counted reference (stored)

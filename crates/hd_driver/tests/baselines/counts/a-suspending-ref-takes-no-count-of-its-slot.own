@@ -6,30 +6,51 @@
 struct Tally:
     n: i64
 
+# Awaiting a suspending closure is a suspension point, so `bump!` and
+# `direct!` keep their frames (#2419).
 fn bump!(t: &mut Tally) -> void:
 > app/main/bump
 >   local $0 t: &mut Tally [param read] value
->     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %10 Cold local $0 #0 : ()
->   %1 = Retain %10 Entry local $0 #0 : ()
->   %2 = Retain %10 Cold referent $0 #8 : ()
->   %3 = Release %10 FrameDrop referent $0 #2 : ()
->   %4 = Release %10 Exit referent $0 #8 : ()
-    t.n += 1
->   %5 = Read copy [*$0 .n] : i64
->   %6 = Prim Add [%5 1:i64] : i64
->   %7 = Store [*$0 .n] %6 : ()
->   %8 = Drop [$0] : ()
->   %9 = Drop [$0] : ()
->   %10 = Block - : ()
->   %11 = Intrinsic ParamOwned [0:i32] : bool
->   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block - : ()
+>     uses $0: entry -> %12 lend, %22 lend last
+>   local $1 step: fn!() -> i64 [:= read assigned] value
+>     uses $1: %11 -> %13 lend last
+>   %0 = Retain %25 Cold local $0 #0 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
+>   %5 = Retain %25 Cold referent $0 #8 : ()
+>   %6 = Release %25 FrameDrop referent $0 #2 : ()
+>   %7 = Release %25 Exit referent $0 #8 : ()
+    step := fn!() -> i64: 1
+>   %2 = Retain %9 Cold row #0 : ()
+>   %3 = Retain %9 Materialize row #0 : ()
+>   %4 = Release %9 FrameDrop row #2 : ()
+>   %8 = Release %25 FrameDrop child #2 : ()
+>   %9 = Block 1:i64 : i64
+>   %10 = Closure #1 : fn!() -> i64
+>   %11 = Store [$1] %10 : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Block - : ()
+>   %31 = Intrinsic ParamOwned [0:i32] : bool
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
+>   %34 = If %31 [%33 -] : ()
+>   %35 = Block - : ()
+    t.n += step!()
+>   %12 = Read copy [*$0 .n] : i64
+>   %13 = Read move [$1] : fn!() -> i64
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = CallValue %13 [] : Suspend[i64]
+>   %16 = AwaitValue %15 : i64
+>   %17 = Release %16 Operation child #2 : ()
+>   %18 = Retain %16 Operation child #0 : ()
+>   %19 = Drop [%15] : ()
+>   %20 = Drop [%13] : ()
+>   %21 = Prim Add [%12 %16] : i64
+>   %22 = Store [*$0 .n] %21 : ()
+>   %23 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %10 releases [%16 %11]
+>   cancel %16 releases [%13 %15 %2147483648 %4294967295]
+>   cancel %25 releases [%16 %31]
 
 fn direct!() -> i64:
     let mut tally = Tally { n: 0 }

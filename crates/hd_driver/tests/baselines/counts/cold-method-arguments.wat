@@ -722,7 +722,7 @@
     call $rt:forbid_check
     i32.const 0
     local.get $reader
-    i32.const 540 ;; &vtable[rt:dyn_slot, rt:drive]
+    i32.const 540 ;; &vtable[rt:dyn_trap, rt:drive]
     local.get $t4
     local.get $provider0
     local.get $provider0.vtable

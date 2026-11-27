@@ -56,10 +56,6 @@ std/rt.bytes/signed_magnitude#0
 std/time/init.init#0
 std/rt.cycle/visit#0
 app/main/impl Closer for Mem.close#0
-app/main/impl Closer for Mem.close#0.poll
-app/main/impl Closer for Mem.close#0.cancel
-app/main/impl Closer for Mem.close#0.drop
-app/main/impl Closer for Mem.close#0
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
 std/rt.bytes/write_unsigned_sized#0
@@ -94,10 +90,8 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-1
-rt:new/class-3
 rt:new/class-4
 rt:alloc_class/1
-rt:alloc_class/3
 rt:alloc_class/4
 rt:free_class
 rt:free_class_loaded
@@ -107,6 +101,7 @@ rt:release_drain
 rt:retain_known
 rt:release_ref#1
 rt:dyn_slot
+rt:dyn_trap
 rt:drive
 rt:hd:Console/write_sync
 rt:leb_get
@@ -116,7 +111,6 @@ rt:dec#2
 rt:dec#3
 rt:frame#0
 rt:frame#1
-rt:frame#2
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:poll_check
@@ -171,10 +165,6 @@ std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
 std/rt.cycle/visit#0
 app/main/impl Closer for Mem.close#0
-app/main/impl Closer for Mem.close#0.poll
-app/main/impl Closer for Mem.close#0.cancel
-app/main/impl Closer for Mem.close#0.drop
-app/main/impl Closer for Mem.close#0
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
 std/rt.bytes/write_unsigned_sized#0
@@ -208,10 +198,8 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-1
-rt:new/class-3
 rt:new/class-4
 rt:alloc_class/1
-rt:alloc_class/3
 rt:alloc_class/4
 rt:free_class
 rt:free_class_loaded
@@ -220,6 +208,7 @@ rt:release_ref#0
 rt:release_drain
 rt:release_ref#1
 rt:dyn_slot
+rt:dyn_trap
 rt:drive
 rt:hd:Console/write_sync
 rt:leb_get
@@ -229,7 +218,6 @@ rt:dec#2
 rt:dec#3
 rt:frame#0
 rt:frame#1
-rt:frame#2
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:poll_check

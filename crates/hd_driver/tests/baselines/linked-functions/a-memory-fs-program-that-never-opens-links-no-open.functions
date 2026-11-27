@@ -30,10 +30,6 @@ std/rt.hash/hash_bytes_long#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/fs/impl FsWrite for MemoryFs.write_text#0
-std/fs/impl FsWrite for MemoryFs.write_text#0.poll
-std/fs/impl FsWrite for MemoryFs.write_text#0.cancel
-std/fs/impl FsWrite for MemoryFs.write_text#0.drop
-std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
@@ -157,7 +153,8 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4
+rt:new/class-4#0
+rt:new/class-4#1
 rt:new/class-5#0
 rt:new/class-5#1
 rt:alloc_class/2
@@ -195,6 +192,8 @@ rt:map_unique#1
 rt:dyn_slot
 rt:dyn_read
 rt:list_reserve
+rt:dyn_trap#0
+rt:dyn_trap#1
 rt:str_from_bytes
 rt:str_to_bytes
 rt:str_eq
@@ -210,12 +209,9 @@ rt:frame#0
 rt:frame#1
 rt:frame#2
 rt:frame#3
-rt:frame#4
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
-rt:frame_ensure#3
-rt:frame_ensure#4
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter

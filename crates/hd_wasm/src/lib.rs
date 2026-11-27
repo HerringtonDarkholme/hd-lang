@@ -276,6 +276,10 @@ pub struct Input<'a> {
     /// `annot.bound.recursive.flag`): each one's code answers a call made
     /// while the same instance is evaluating with `true`.
     pub coinductive_flags: &'a hd_base::HashSet<Hash128>,
+    /// The bang instances that complete at once
+    /// (`hd_opt::whole::completes_at_once`, #2419): a bang call of one is
+    /// a plain call of its body, not a suspension point.
+    pub ready: &'a hd_base::HashSet<Hash128>,
     /// The store of emitted units a dev link reads and fills (#2423),
     /// `None` where a link may not share one.
     pub units: Option<&'a dyn UnitStore>,
@@ -742,6 +746,7 @@ fn link(
         own_cx: input.own_cx,
         mutation_targets: input.mutation_targets,
         coinductive_flags: input.coinductive_flags,
+        ready: input.ready,
         // The store's body hashes are of the bodies before the hook.
         units: None,
     };

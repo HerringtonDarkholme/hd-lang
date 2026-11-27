@@ -106,6 +106,7 @@ rt:release_ref#0
 rt:release_drain
 rt:retain_known
 rt:release_ref#1
+rt:dyn_trap
 rt:hd:Clock/sleep
 rt:hd:Clock/sleep.poll
 rt:host_cancel
@@ -225,6 +226,7 @@ rt:free_class_loaded
 rt:str
 rt:release_ref
 rt:release_drain
+rt:dyn_trap
 rt:hd:Clock/sleep
 rt:hd:Clock/sleep.poll
 rt:host_cancel

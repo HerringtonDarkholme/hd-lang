@@ -59,7 +59,7 @@ impl<'i, 'a> Keys<'i, 'a> {
             open_world,
             driven,
             blocking_driven,
-            blocking_only,
+            drive_only,
             runtime,
             // ruled out: Module::inst records keyed reads; numeric indices belong to this link.
             inst_of: _,
@@ -111,7 +111,7 @@ impl<'i, 'a> Keys<'i, 'a> {
             h.u8(u8::from(flag));
         }
         h.str(&format!("{:?} {:?}", runtime, input.float_ops));
-        for set in [driven, blocking_driven, blocking_only] {
+        for set in [driven, blocking_driven, drive_only] {
             sorted(&mut h, set.iter().map(|&d| env.path_hash(d)));
         }
         let mut addressed: Vec<_> = addressed.iter().collect();
@@ -145,6 +145,7 @@ impl<'i, 'a> Keys<'i, 'a> {
             }),
         );
         sorted(&mut h, input.coinductive_flags.iter().copied());
+        sorted(&mut h, input.ready.iter().copied());
         let link = h.finish();
 
         // Each instance's loan rows, in a stable order.

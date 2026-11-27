@@ -102,11 +102,11 @@ fn linked_slots(
 }
 
 #[test]
-fn only_immediate_blocking_host_calls_omit_the_normal_cold_slot() {
+fn only_driven_host_calls_omit_the_normal_cold_slot() {
     let immediate = include_str!("programs/host_drive_slots/immediate.hd");
     let stored = include_str!("programs/host_drive_slots/stored.hd");
-    // An await may need the normal slot in a shielded dispose suite. Retain
-    // asynchronous methods conservatively, even beside a blocking drive.
+    // An await steps through the drive slot, a shielded one too (#2419), so
+    // an asynchronous method beside a blocking drive needs no normal slot.
     let asynchronous = include_str!("programs/host_drive_slots/asynchronous.hd");
     let callable = include_str!("programs/host_drive_slots/callable.hd");
     // No trait-method adapter occurs here: the unresolved recursive callback
@@ -123,7 +123,7 @@ fn only_immediate_blocking_host_calls_omit_the_normal_cold_slot() {
             for (source, expected) in [
                 (immediate, false),
                 (stored, true),
-                (asynchronous, true),
+                (asynchronous, false),
                 (callable, false),
                 (shielded, true),
                 (cold_callable, true),

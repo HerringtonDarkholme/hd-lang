@@ -30,10 +30,6 @@ std/rt.hash/hash_bytes_long#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/fs/impl FsWrite for MemoryFs.write_text#0
-std/fs/impl FsWrite for MemoryFs.write_text#0.poll
-std/fs/impl FsWrite for MemoryFs.write_text#0.cancel
-std/fs/impl FsWrite for MemoryFs.write_text#0.drop
-std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
@@ -50,10 +46,6 @@ std/text/impl string.split#0
 std/text/impl StringBuilder.push#0
 std/rt.alloc/adopted#0
 std/rt.alloc/unlink#0
-std/fs/impl Read for MemoryFile.read#0
-std/fs/impl Read for MemoryFile.read#0.poll
-std/fs/impl Read for MemoryFile.read#0.cancel
-std/fs/impl Read for MemoryFile.read#0.drop
 std/fs/impl Read for MemoryFile.read#0
 std/rt.alloc/retain#0
 std/rt.cycle/opaque#0
@@ -84,10 +76,6 @@ std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
 std/rt.thread/init.init#0
 std/rt.alloc/joined#0
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.poll
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.cancel
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.drop
 std/fs/impl AsyncDisposable for MemoryFile.dispose#0
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
 std/rt.alloc/foreign_block#0
@@ -172,17 +160,14 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-3#0
-rt:new/class-3#1
-rt:new/class-4
-rt:new/class-5#0
-rt:new/class-5#1
-rt:new/class-8
+rt:new/class-4#0
+rt:new/class-4#1
+rt:new/class-5
+rt:new/class-9
 rt:alloc_class/2
-rt:alloc_class/3
 rt:alloc_class/4
 rt:alloc_class/5
-rt:alloc_class/8
+rt:alloc_class/9
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -220,11 +205,16 @@ rt:dyn_slot#2
 rt:dyn_read
 rt:list_reserve#0
 rt:list_reserve#1
+rt:dyn_trap#0
+rt:dyn_trap#1
+rt:dyn_trap#2
+rt:dyn_trap#3
 rt:str_to_bytes
 rt:str_eq
 rt:drive#0
 rt:drive#1
 rt:drive#2
+rt:drive#3
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -235,14 +225,9 @@ rt:frame#0
 rt:frame#1
 rt:frame#2
 rt:frame#3
-rt:frame#4
-rt:frame#5
-rt:frame#6
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
-rt:frame_ensure#3
-rt:frame_ensure#4
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter
@@ -278,10 +263,6 @@ std/rt.hash/hash_bytes_long#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/fs/impl FsWrite for MemoryFs.write_text#0
-std/fs/impl FsWrite for MemoryFs.write_text#0.poll
-std/fs/impl FsWrite for MemoryFs.write_text#0.cancel
-std/fs/impl FsWrite for MemoryFs.write_text#0.drop
-std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
@@ -295,10 +276,6 @@ std/rt.alloc/move_table#0
 std/text/impl string.split#0
 std/text/impl StringBuilder.push#0
 std/rt.alloc/unlink#0
-std/fs/impl Read for MemoryFile.read#0
-std/fs/impl Read for MemoryFile.read#0.poll
-std/fs/impl Read for MemoryFile.read#0.cancel
-std/fs/impl Read for MemoryFile.read#0.drop
 std/fs/impl Read for MemoryFile.read#0
 std/rt.alloc/retain#0
 std/rt.cycle/opaque#0
@@ -322,10 +299,6 @@ std/fs/FsRead.open#0.drop
 std/fs/FsRead.open#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.poll
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.cancel
-std/fs/impl AsyncDisposable for MemoryFile.dispose#0.drop
 std/fs/impl AsyncDisposable for MemoryFile.dispose#0
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
 std/fs/impl MemoryFs.dir_at#0
@@ -403,17 +376,14 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-3#0
-rt:new/class-3#1
-rt:new/class-4
-rt:new/class-5#0
-rt:new/class-5#1
-rt:new/class-8
+rt:new/class-4#0
+rt:new/class-4#1
+rt:new/class-5
+rt:new/class-9
 rt:alloc_class/2
-rt:alloc_class/3
 rt:alloc_class/4
 rt:alloc_class/5
-rt:alloc_class/8
+rt:alloc_class/9
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -452,11 +422,16 @@ rt:dyn_slot#2
 rt:dyn_read
 rt:list_reserve#0
 rt:list_reserve#1
+rt:dyn_trap#0
+rt:dyn_trap#1
+rt:dyn_trap#2
+rt:dyn_trap#3
 rt:str_to_bytes
 rt:str_eq
 rt:drive#0
 rt:drive#1
 rt:drive#2
+rt:drive#3
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -467,14 +442,9 @@ rt:frame#0
 rt:frame#1
 rt:frame#2
 rt:frame#3
-rt:frame#4
-rt:frame#5
-rt:frame#6
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
-rt:frame_ensure#3
-rt:frame_ensure#4
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter

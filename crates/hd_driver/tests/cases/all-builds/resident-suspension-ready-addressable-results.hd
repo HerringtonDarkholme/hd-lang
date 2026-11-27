@@ -4,9 +4,12 @@
 # must be loaded before that frame is freed, on explicit and tail returns.
 use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
+    pause!() + *value
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40

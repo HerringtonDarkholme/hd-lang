@@ -812,7 +812,7 @@
             i32.const 0
             local.set $provider0
             local.get $provider1
-            i32.const 516 ;; &vtable[rt:dyn_slot, rt:drive]
+            i32.const 516 ;; &vtable[rt:dyn_trap, rt:drive]
             local.set $provider0
             local.set $provider0.vtable
             i32.const 0

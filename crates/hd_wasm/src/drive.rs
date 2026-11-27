@@ -17,11 +17,12 @@ use crate::rt::Helper;
 
 /// Whether a dynamic call of `method`, of trait `trait_`, may use a drive
 /// slot: a bang method that is not generic, of a trait with no type
-/// arguments, so the slot's signature is the method's own. Parent vtable
-/// pointers precede the drive slots, just as in ordinary trait vtables.
+/// arguments but rows (`AsyncDisposable[$ R]`), so the slot's signature
+/// is the method's own. Parent vtable pointers precede the drive slots,
+/// just as in ordinary trait vtables.
 pub fn drivable(env: &dyn ProgramEnv, trait_: DefId, method: DefId) -> bool {
     env.suspends(method)
-        && env.trait_arity(trait_) == 0
+        && env.generic_rows(trait_).iter().all(|&row| row)
         && env.bounded(method).is_none_or(|b| b.is_empty())
 }
 
@@ -116,31 +117,6 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
         blk = tail;
         pos = 0;
     }
-}
-
-/// A known body's first drive always finishes: its own sub-body has no
-/// suspension point, and a runtime scenario does not hold its polls.
-/// Nested closure bodies do not run merely because their maker runs.
-pub fn completes(input: &Input<'_>, id: InstId) -> bool {
-    if input.collected.table.sub[id.idx()] != Sub::Body(0)
-        || input
-            .entry
-            .held(input.collected.table.item[id.idx()])
-            .is_some()
-    {
-        return false;
-    }
-    let Some(body) = (input.body)(id) else {
-        return false;
-    };
-    let topo = Topology::new(body);
-    !(0..body.len()).any(|i| {
-        topo.sub[i] == 0
-            && matches!(
-                body.tags[i],
-                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
-            )
-    })
 }
 
 /// An unresolved function value can name a cold constructor only when its
@@ -263,10 +239,10 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
                 continue;
             }
             if tag == Tag::Await {
+                // Every bang call of a trait value, a shielded one in a
+                // dispose suite too, steps through the drive slot.
                 m.facts_mut().driven.insert(method);
-                // An await in a shielded dispose suite uses the normal slot.
-                // Retain it conservatively for every asynchronous invocation.
-                cold.insert(method);
+                immediate.insert(method);
             } else {
                 let t = facts.topo.get_or_init(|| Topology::new(b));
                 if block_on_of(b, t, calls, x).is_some() {
@@ -279,7 +255,7 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
         }
     }
     if !m.open_world && !unknown {
-        m.facts_mut().blocking_only = immediate.difference(&cold).copied().collect();
+        m.facts_mut().drive_only = immediate.difference(&cold).copied().collect();
     }
 }
 
@@ -361,7 +337,7 @@ pub fn vtable(
     // reachability edges, including a host drive's owned Pending fallback.
     if !m.open_world {
         for (method, normal) in methods.iter().zip(&mut slots) {
-            if m.blocking_only.contains(method) && matches!(normal, Helper::HostCold { .. }) {
+            if m.drive_only.contains(method) {
                 *normal = crate::boundary::uncalled_slot(input, *method)?;
             }
         }
@@ -407,11 +383,27 @@ fn slot(input: &Input<'_>, method: DefId, cold: &Helper, blocking: bool) -> Stag
             },
             results: [vec![Val::I32], results].concat(),
         },
-        other => Helper::Drive {
-            blocking,
-            cold: Box::new(other.clone()),
-            params,
-            results,
-        },
+        other => {
+            let mut cold = other.clone();
+            // An implementation that completes at once (#2419) is driven by
+            // its body's fresh path: no frame is made.
+            if let Helper::DynSlot {
+                target,
+                body,
+                results: r,
+                ..
+            } = &mut cold
+                && input.ready.contains(target)
+            {
+                *body = true;
+                r.clone_from(&results);
+            }
+            Helper::Drive {
+                blocking,
+                cold: Box::new(cold),
+                params,
+                results,
+            }
+        }
     }))
 }

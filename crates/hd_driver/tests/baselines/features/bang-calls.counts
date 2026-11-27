@@ -19,10 +19,6 @@ fn one!(s: string) -> usize:
     label!(s).len()
 > app/main/one
 >   release counted reference (last use)
->   release counted reference (last use)
->   release string (last use)
->   release counted reference (last use)
->   release string (last use)
 > app/main/one
 >   release string (cancelled)
 >   release counted reference (last use)

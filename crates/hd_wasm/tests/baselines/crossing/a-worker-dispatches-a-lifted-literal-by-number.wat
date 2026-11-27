@@ -34,7 +34,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 63 funcref))
+  (import "fixture" "table0" (table $table0 61 funcref))
   (func $main#2 (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
     ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
     local.get $env
@@ -203,7 +203,7 @@
                 end
               end
               local.get $provider0.vtable
-              i32.const 2328 ;; &vtable[rt:dyn_slot, rt:drive]
+              i32.const 2328 ;; &vtable[rt:dyn_trap, rt:drive]
               local.set $provider0.vtable
               local.get $t1
               local.get $provider0.vtable
@@ -241,7 +241,7 @@
                 local.get $provider0.vtable
                 call $retain
               end
-              i32.const 22
+              i32.const 21
               local.get $t1
               i32.const 0
               i32.store $heap offset=36
@@ -260,7 +260,7 @@
               local.get $provider0.vtable
               call $"crossing_number[fn((u32)) -> u32]"
               local.set $t3
-              i32.const 23
+              i32.const 22
               i32.const 24
               i32.const -2147483646
               call $rt:new/class-2
@@ -517,7 +517,7 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=68
-            i32.const 24
+            i32.const 23
             local.get $t1
             i32.const 0
             i32.store $heap offset=80
@@ -536,7 +536,7 @@
             local.get $provider0.vtable
             call $"crossing_number[fn((string)) -> string]"
             local.set $t3
-            i32.const 25
+            i32.const 24
             i32.const 24
             i32.const -2147483645
             call $rt:new/class-2
