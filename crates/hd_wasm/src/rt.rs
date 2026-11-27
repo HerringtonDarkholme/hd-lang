@@ -4195,15 +4195,10 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
-/// elements take their own counts and the old buffer one holder less.
-fn list_copy(elem: &Elem, m: &Module) -> Func {
-    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.set(n);
-    f.get(n);
+/// With a capacity on the stack: a new buffer for `elem` in local `nb`,
+/// holding a bitwise copy of the `n` elements of the buffer in local `b`,
+/// at length `n`. The caller settles the elements' counts.
+fn new_buffer_copy(f: &mut Func, elem: &Elem, b: u32, n: u32, nb: u32) {
     f.helper(Helper::ListBuf { elem: elem.clone() });
     f.set(nb);
     f.get(nb);
@@ -4219,6 +4214,18 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
     f.push(crate::bulk::copy(HEAP, HEAP));
+}
+
+/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
+/// elements take their own counts and the old buffer one holder less.
+fn list_copy(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(n);
+    new_buffer_copy(&mut f, elem, b, n, nb);
     if elem.counts() {
         f.get(nb);
         f.u32(LIST_ELEMS);
@@ -4272,21 +4279,7 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.i32(4);
     f.op(Instruction::I32Add);
     f.op(Instruction::End);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
-    f.set(nb);
-    f.get(nb);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(nb);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.push(crate::bulk::copy(HEAP, HEAP));
+    new_buffer_copy(&mut f, elem, b, n, nb);
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
@@ -4365,21 +4358,7 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32GtU);
     f.op(Instruction::Select);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
-    f.set(nb);
-    f.get(nb);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(nb);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.push(crate::bulk::copy(HEAP, HEAP));
+    new_buffer_copy(&mut f, elem, b, n, nb);
     f.get(own);
     f.op(Instruction::If(BlockType::Empty));
     // The list's own buffer: its elements move, and the old block is
