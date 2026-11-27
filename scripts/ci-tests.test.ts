@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -39,7 +47,14 @@ function run(body: string, limit = "10") {
         assert.match(readFileSync(join(resources, `memory-${phase}.txt`), "utf8"), /cgroup:/);
       }
     }
-    return { status: result.status, output: result.stdout + result.stderr };
+    // cost: only this invocation's fresh diagnostics, removed in finally.
+    const signals = existsSync(resources)
+      ? readdirSync(resources)
+          .filter((name) => name.startsWith("signals-") && name.endsWith(".txt"))
+          .map((name) => readFileSync(join(resources, name), "utf8"))
+          .join("\n")
+      : "";
+    return { status: result.status, output: result.stdout + result.stderr, signals };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -94,5 +109,24 @@ test(
     assert.match(output, /crates\/hd_command all was killed by signal 9/);
     assert.doesNotMatch(output, /ran over/);
     assert.match(output, /next binary/);
+  },
+);
+
+test(
+  "CI runner traces a group kill outside the disposable binary group",
+  {
+    skip:
+      process.platform !== "linux" ||
+      spawnSync("strace", ["--version"], { timeout: 5000 }).status !== 0,
+  },
+  () => {
+    // timeout owns this disposable group. The tracer, runner and Node test
+    // stay outside it and must survive to report the sender and run next.
+    const { status, output, signals } = run("kill -KILL 0");
+    assert.equal(status, 1, output);
+    assert.match(output, /crates\/hd_command all was killed by signal 9/);
+    assert.match(output, /next binary/);
+    assert.match(signals, /kill\(0(?:<[^>]+>)?, SIGKILL\)/);
+    assert.match(signals, /setpgid\(0, 0\)/);
   },
 );

@@ -11,7 +11,9 @@
 # be read per binary, apart from how busy the runner was.
 #
 # Usage: scripts/ci-tests.sh [-v] PATTERN [test binary arguments...]
-# Cost: one process per selected binary, nothing built.
+# Cost: one test process per selected binary, nothing built. The optional
+# CLI tracer records only this run's signal/group events, O(events) output;
+# seccomp filtering avoids stops for unrelated syscalls. No history scan.
 set -uo pipefail
 invert=
 if [ "${1:-}" = -v ]; then
@@ -66,6 +68,7 @@ while IFS=$'\t' read -r -u 3 dir name exe; do
   echo "     Running $dir $name ($exe)"
   TIMEFORMAT="     Took %R s wall, %U s user, %S s system: $dir $name"
   resources=
+  signal_trace=
   # Verbose records the first forwarded signal before kill-after can escalate.
   measured=(timeout --verbose --kill-after=10 "${CI_TEST_LIMIT:-600}" "$root/$exe" "$@")
   if [ "$dir/$name" = crates/hd_command/all ] && [ "$system" = Linux ]; then
@@ -81,6 +84,18 @@ while IFS=$'\t' read -r -u 3 dir name exe; do
       # GNU time stays outside timeout's process group, preserving its RSS
       # report when the test or its group is killed. Its status is retained.
       measured=(/usr/bin/time -v -o "$resources/time.txt" "${measured[@]}")
+    fi
+    if [ -n "$resources" ] && command -v strace >/dev/null 2>&1; then
+      signal_trace="$resources/signals-$$.txt"
+      # -DD preserves the command's parent/status and puts the tracer in its
+      # own group: a stray group kill cannot erase the record, and surviving
+      # descendants cannot make the runner wait for the tracer. Kernel
+      # filtering avoids stops for unrelated I/O; one file holds this run.
+      measured=(strace -DD -f --seccomp-bpf -ttt --decode-pids=comm
+        -e trace=kill,tgkill,tkill,pidfd_send_signal,rt_sigqueueinfo,rt_tgsigqueueinfo,setpgid,setsid
+        -e signal=SIGKILL,SIGINT,SIGTERM,SIGHUP,SIGUSR1,SIGUSR2
+        -o "$signal_trace" "${measured[@]}")
+      printf '     Signal sender trace: %s\n' "$signal_trace"
     fi
   fi
   # A hung binary is stopped after ${CI_TEST_LIMIT:-600} s and named, so the
@@ -101,6 +116,10 @@ while IFS=$'\t' read -r -u 3 dir name exe; do
       # status or stop later binaries. The cgroup counters need no privilege.
       TZ=UTC timeout 5 dmesg --ctime --since "$resource_since" > "$resources/kernel.txt" 2>&1 || true
       cat "$resources/kernel.txt"
+      if [ -n "$signal_trace" ] && [ -r "$signal_trace" ]; then
+        printf '     Signal sender report: %s\n' "${signal_trace##*/}"
+        cat "$signal_trace"
+      fi
     fi
   fi
   # 124 is timeout's own exit; 137 is SIGKILL, from timeout's kill-after only
