@@ -853,6 +853,7 @@ pub fn round_trip_records() {
     check(&Helper::MapSlotNext);
     check(&Helper::DynSlot {
         target: s(11),
+        body: true,
         retained_result: s(12),
         leaves: s(13),
         params: s(14),
