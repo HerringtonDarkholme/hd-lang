@@ -3683,6 +3683,33 @@ pub(super) fn reading<T>(f: impl FnOnce() -> T) -> (T, Vec<DefId>) {
     (out, reads)
 }
 
+impl hd_types::lookup::UnitContext for Run<'_> {
+    fn get(&self, unit: usize) -> Option<&hd_types::lookup::UnitImpls> {
+        self.unit_impls.get(unit)?;
+        self.unit_impls(hd_base::UnitId::from_raw(u32::try_from(unit).ok()?))
+    }
+    fn units_at(
+        &self,
+        codes: [Option<u64>; 3],
+    ) -> Box<dyn Iterator<Item = (usize, &hd_types::lookup::UnitImpls)> + '_> {
+        let built = self.built_units.get_or_init(|| {
+            lock(&self.counters).view_units += self.table.units.len();
+            (0..self.table.units.len())
+                .map(super::u32_of)
+                .filter(|&u| self.unit_impls(hd_base::UnitId::from_raw(u)).is_some())
+                .collect()
+        });
+        Box::new(built.iter().filter_map(move |&u| {
+            hd_types::work::view_slots(1);
+            let table = self.unit_impls(hd_base::UnitId::from_raw(u))?;
+            table
+                .table
+                .has_rows_at(codes)
+                .then_some((u as usize, table))
+        }))
+    }
+}
+
 impl Run<'_> {
     /// The body table's entry for `def`.
     pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
@@ -3698,18 +3725,11 @@ impl Run<'_> {
     /// ([`ProgramTables::test_impls`]); a layout normalizes associated
     /// types through them.
     pub(super) fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
-        let built = self.built_units.get_or_init(|| {
-            lock(&self.counters).view_units += self.table.units.len();
-            (0..self.table.units.len())
-                .map(super::u32_of)
-                .filter(|&f| self.unit_impls(hd_base::UnitId::from_raw(f)).is_some())
-                .collect()
-        });
         let view = hd_types::lookup::ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
-            units: hd_types::lookup::UnitSlots::Program(&self.unit_impls, built),
+            units: self,
             universe: p.universe,
             extra: &p.extra,
             arity: &p.arity(),

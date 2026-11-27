@@ -92,3 +92,14 @@ pub fn view_slots(n: usize) {
         }
     });
 }
+
+#[cfg(feature = "testing")]
+#[path = "../tests/support/context_map_work.rs"]
+mod context_map_work;
+#[cfg(feature = "testing")]
+pub(crate) use context_map_work::context_map_step;
+#[cfg(feature = "testing")]
+pub use context_map_work::count_context_map_steps;
+#[cfg(not(feature = "testing"))]
+#[inline]
+pub(crate) fn context_map_step() {}

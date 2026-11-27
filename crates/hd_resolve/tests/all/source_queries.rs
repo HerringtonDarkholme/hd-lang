@@ -313,9 +313,10 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
     let unit_id = UnitId::from_raw(0);
     let index = IfaceIndex::default();
     index.insert(unit_id, &unit);
+    let interfaces = [(unit_id, &unit)];
     let lookup = Lookup::new(
         &own,
-        [(unit_id, &unit)],
+        &interfaces,
         &index,
         hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
     );
@@ -587,9 +588,10 @@ fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
         assert_eq!(hint.text, "; add `use std.text.Shared`");
         // Explicit advice is independent of the lookup's visible interfaces.
         let directory = IfaceIndex::default();
+        let interfaces = [];
         let lookup = Lookup::new(
             &[],
-            [],
+            &interfaces,
             &directory,
             hd_resolve::iface::ImportHints::Index(&index),
         );

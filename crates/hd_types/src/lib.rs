@@ -5,6 +5,7 @@
 //! `docs/compiler/data-structures.md` §3.4, §3.6, §3.9.2, §3.20.2; `crates/hd_check/DESIGN.md` (type checking) §3;
 //! `crates/hd_check/DESIGN.md` (trait solver)).
 
+pub mod context_map;
 pub mod lookup;
 pub mod pool;
 pub mod sealed;

@@ -4,11 +4,9 @@
 //! through a trait argument. The last two are merged per impl universe, so
 //! a context sees only the units of its own closure.
 
-use std::sync::{Arc, OnceLock};
-
 use crate::AdtId;
-use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_base::{HashMap, HashSet};
 
 use hd_base::{DefId, ModuleId, PathId, UnitId};
 use hd_intern::{PathKind, PathTable};
@@ -84,6 +82,8 @@ pub struct UnitImpls {
     /// (`nonlocal-impl`, `orphan-impl`), which stay visible so their uses
     /// add no second error.
     pub unowned: Vec<u32>,
+    /// Head codes of rows owned through this unit's trait or self type.
+    pub owner_codes: Vec<u64>,
 }
 
 impl UnitImpls {
@@ -99,10 +99,12 @@ impl UnitImpls {
         let mine = |o: Option<UnitId>| o == Some(unit);
         let mut arg_impls = Vec::new();
         let mut unowned = Vec::new();
+        let mut owner_codes = HashSet::default();
         for r in 0..table.def.len() {
             if mine(owners.owner(paths, table.trait_[r]))
                 || mine(owners.owner_of_ty(paths, pool, table.head_self[r]))
             {
+                owner_codes.insert(table.head_key[r].code());
                 continue;
             }
             let row = crate::word(r);
@@ -120,6 +122,7 @@ impl UnitImpls {
             table,
             arg_impls,
             unowned,
+            owner_codes: owner_codes.into_iter().collect(),
         }
     }
 
@@ -130,154 +133,141 @@ impl UnitImpls {
     }
 }
 
-/// Rows that point into unit tables, grouped by trait and head key: the
-/// candidate directory, and the synthetic table of unowned rows.
-#[derive(Debug, Default)]
+/// Persistent secondary indexes. Packed integer prefixes group rows by
+/// (trait,head), traits by head, and names by (head,symbol), in stable order.
+#[derive(Clone, Debug, Default)]
 pub struct RefTable {
-    /// `(trait, head key code, row)`, sorted; the code groups, the row
-    /// (unit, then row) orders within a group.
-    rows: Vec<(u32, u64, ImplRef)>,
-    by_trait: HashMap<u32, (u32, u32)>,
-    /// Each head key code's traits, each once (`ImplTable::traits_by_key`).
-    traits_by_key: HashMap<u64, Vec<DefId>>,
-    /// `traits_by_key` by method name, made on the first ask.
-    names: std::sync::OnceLock<crate::solver::NameIndex>,
+    by_trait: crate::context_map::Map<Rows>,
+    traits_by_key: crate::context_map::Map<DefId>,
+    names: crate::context_map::Map<DefId>,
+    unnamed: crate::context_map::Map<DefId>,
 }
-
+type Rows = crate::context_map::Map<ImplRef>;
 impl RefTable {
-    fn build(mut rows: Vec<(u32, u64, ImplRef)>) -> Self {
-        rows.sort_stable_by_key(|(t, k, r)| (*t, *k, r.module.raw(), r.row));
-        let mut by_trait: HashMap<u32, (u32, u32)> = HashMap::default();
-        let mut traits_by_key: HashMap<u64, Vec<DefId>> = HashMap::default();
-        let mut last = None;
-        for (i, (t, k, _)) in rows.iter().enumerate() {
-            let i = crate::word(i);
-            by_trait
-                .entry(*t)
-                .and_modify(|e| e.1 = i + 1)
-                .or_insert((i, i + 1));
-            // Sorted by trait, then code: one entry per (trait, code).
-            if last != Some((*t, *k)) {
-                last = Some((*t, *k));
-                traits_by_key
-                    .entry(*k)
-                    .or_default()
-                    .push(DefId::from_raw(*t));
+    fn build(
+        rows: impl IntoIterator<Item = (u32, u64, ImplRef)>,
+        names: &crate::solver::TraitNames<'_>,
+    ) -> Self {
+        let mut out = Self::default();
+        for (tr, code, row) in rows {
+            let def = DefId::from_raw(tr);
+            let (tr, code) = (u128::from(tr), u128::from(code));
+            let key = (tr << 64) | code;
+            let mut entries = out.by_trait.get(key).cloned().unwrap_or_default();
+            entries.insert(
+                (u128::from(row.module.raw()) << 32) | u128::from(row.row),
+                row,
+            );
+            out.by_trait.insert(key, entries);
+            let key = (code << 32) | tr;
+            if out.traits_by_key.get(key).is_none() {
+                out.traits_by_key.insert(key, def);
+                if !names(def, &mut |name| {
+                    out.names
+                        .insert((code << 64) | (u128::from(name.raw()) << 32) | tr, def);
+                }) {
+                    out.unnamed.insert(key, def);
+                }
             }
         }
-        RefTable {
-            rows,
-            by_trait,
-            traits_by_key,
-            names: std::sync::OnceLock::new(),
+        out
+    }
+    fn union(&self, other: &Self) -> Self {
+        Self {
+            by_trait: self.by_trait.nested_union(&other.by_trait),
+            traits_by_key: self.traits_by_key.left_union(&other.traits_by_key),
+            names: self.names.left_union(&other.names),
+            unnamed: self.unnamed.left_union(&other.unnamed),
         }
     }
-
-    /// [`crate::solver::ImplTable::has_rows_at`] of this table.
     fn has_rows_at(&self, codes: [Option<u64>; 3]) -> bool {
-        crate::solver::has_rows_at(&self.traits_by_key, codes)
+        codes.into_iter().flatten().any(|c| {
+            self.traits_by_key
+                .prefix(u128::from(c) << 32, 32)
+                .next()
+                .is_some()
+        })
     }
-
-    /// [`crate::solver::ImplTable::traits_named`] of this table.
     fn traits_at(&self, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
         for code in codes.into_iter().flatten() {
-            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+            out.extend(
+                self.traits_by_key
+                    .prefix(u128::from(code) << 32, 32)
+                    .map(|(_, &tr)| tr),
+            );
         }
     }
-
-    fn traits_named(
-        &self,
-        codes: [Option<u64>; 3],
-        sym: hd_base::Symbol,
-        names: &crate::solver::TraitNames<'_>,
-        out: &mut Vec<DefId>,
-    ) {
-        let ix = self
-            .names
-            .get_or_init(|| crate::solver::NameIndex::new(&self.traits_by_key, names));
+    fn traits_named(&self, codes: [Option<u64>; 3], sym: hd_base::Symbol, out: &mut Vec<DefId>) {
         for code in codes.into_iter().flatten() {
-            ix.at(code, sym, out);
+            let code = u128::from(code);
+            out.extend(
+                self.names
+                    .prefix((code << 64) | (u128::from(sym.raw()) << 32), 32)
+                    .chain(self.unnamed.prefix(code << 32, 32))
+                    .map(|(_, &tr)| tr),
+            );
         }
     }
-
-    fn bucket(&self, s: u32, e: u32, code: u64) -> &[(u32, u64, ImplRef)] {
-        let rows = &self.rows[s as usize..e as usize];
-        let lo = rows.partition_point(|r| r.1 < code);
-        let hi = rows.partition_point(|r| r.1 <= code);
-        &rows[lo..hi]
+    fn buckets(&self, trait_: DefId, key: HeadKey) -> impl Iterator<Item = &Rows> {
+        let base = u128::from(trait_.raw()) << 64;
+        let all = (key == HeadKey::Any).then(|| self.by_trait.prefix(base, 64));
+        let codes = [
+            (key != HeadKey::Any).then(|| key.code()),
+            (key != HeadKey::Any && key != HeadKey::Param).then(|| HeadKey::Param.code()),
+            matches!(key, HeadKey::Tuple(_)).then(|| HeadKey::TupleAny.code()),
+        ];
+        all.into_iter().flatten().map(|(_, rows)| rows).chain(
+            codes
+                .into_iter()
+                .flatten()
+                .filter_map(move |code| self.by_trait.get(base | u128::from(code))),
+        )
     }
-
-    /// The buckets of one trait whose head key can match `key` (those of
-    /// `ImplTable::candidates`); a bucket that does not apply is empty.
-    fn buckets(&self, trait_: DefId, key: HeadKey) -> [&[(u32, u64, ImplRef)]; 3] {
-        let Some(&(s, e)) = self.by_trait.get(&trait_.raw()) else {
-            return [&[], &[], &[]];
-        };
-        if key == HeadKey::Any {
-            return [&self.rows[s as usize..e as usize], &[], &[]];
-        }
-        let param = if key == HeadKey::Param {
-            &[][..]
-        } else {
-            self.bucket(s, e, HeadKey::Param.code())
-        };
-        let tuple = if matches!(key, HeadKey::Tuple(_)) {
-            self.bucket(s, e, HeadKey::TupleAny.code())
-        } else {
-            &[]
-        };
-        [self.bucket(s, e, key.code()), param, tuple]
-    }
-
-    /// The rows of one trait whose head key can match `key`, appended
-    /// unordered.
     pub fn candidates(&self, trait_: DefId, key: HeadKey, out: &mut Vec<ImplRef>) {
-        for b in self.buckets(trait_, key) {
-            out.extend(b.iter().map(|r| r.2));
-        }
+        out.extend(
+            self.buckets(trait_, key)
+                .flat_map(|rows| rows.iter().map(|(_, &r)| r)),
+        );
     }
-
-    /// Whether a probe of `(trait_, key)` finds any row here.
     #[must_use]
     pub fn has(&self, trait_: DefId, key: HeadKey) -> bool {
-        self.buckets(trait_, key).iter().any(|b| !b.is_empty())
+        self.buckets(trait_, key).next().is_some()
     }
 }
 
-/// What an impl universe adds to owner lookup (§3.2): the unowned rows
-/// (the synthetic `STD_BUILTIN_TABLE`, plus rejected impls) and the
-/// candidate directory, each over the universe's units only.
-#[derive(Debug, Default)]
+/// The unowned rows and argument-owner directory contributed by a context.
+#[derive(Clone, Debug, Default)]
 pub struct UniverseImpls {
     pub unowned: RefTable,
     pub directory: RefTable,
 }
 
 impl UniverseImpls {
-    /// Merges the sections of a universe's units, given in unit order.
+    /// One unit's contribution, indexed before dependency roots merge.
     #[must_use]
-    pub fn new(units: &[(UnitId, &UnitImpls)]) -> Self {
-        let mut unowned = Vec::new();
-        let mut directory = Vec::new();
-        for (f, fi) in units {
-            let t = &fi.table;
-            let at = |row: u32| {
-                let r = row as usize;
-                (
-                    t.trait_[r].raw(),
-                    t.head_key[r].code(),
-                    ImplRef {
-                        module: unit_table(*f),
-                        row,
-                    },
-                )
-            };
-            unowned.extend(fi.unowned.iter().map(|&r| at(r)));
-            directory.extend(fi.arg_impls.iter().map(|&r| at(r)));
+    pub fn unit(unit: UnitId, fi: &UnitImpls, names: &crate::solver::TraitNames<'_>) -> Self {
+        let at = |row: u32| {
+            let i = row as usize;
+            (
+                fi.table.trait_[i].raw(),
+                fi.table.head_key[i].code(),
+                ImplRef {
+                    module: unit_table(unit),
+                    row,
+                },
+            )
+        };
+        Self {
+            unowned: RefTable::build(fi.unowned.iter().copied().map(at), names),
+            directory: RefTable::build(fi.arg_impls.iter().copied().map(at), names),
         }
-        UniverseImpls {
-            unowned: RefTable::build(unowned),
-            directory: RefTable::build(directory),
+    }
+
+    #[must_use]
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            unowned: self.unowned.union(&other.unowned),
+            directory: self.directory.union(&other.directory),
         }
     }
 }
@@ -314,62 +304,26 @@ impl Unseen<'_> {
     }
 }
 
-/// The impl tables of a closure's units, by unit id: the closure's
-/// units alone, sorted by id, so a read is a binary search and a walk
-/// visits the closure, not every unit of the program. A dense slot per
-/// program unit made each module's view, and each walk of it, cost the
-/// program's units: k modules in k units cost k^2 (Cranelift's
-/// `SparseMap` keeps members apart from the key space the same way).
-/// A program's view, whose closure is every unit, reads the run's own
-/// per-unit table instead, so building one costs nothing per body.
-#[derive(Clone, Copy)]
-pub enum UnitSlots<'a> {
-    /// The closure's units, sorted by unit id with no id twice.
-    Closure(&'a [(u32, &'a UnitImpls)]),
-    /// The run's table by unit id, and its built units' ids in order.
-    Program(&'a [OnceLock<Option<Arc<UnitImpls>>>], &'a [u32]),
+/// Shared immutable owner-table access for a checking context. Empty
+/// tables remain addressable; enumeration needs only nonempty tables.
+pub trait UnitContext: Sync {
+    fn get(&self, unit: usize) -> Option<&UnitImpls>;
+    fn units_at(
+        &self,
+        codes: [Option<u64>; 3],
+    ) -> Box<dyn Iterator<Item = (usize, &UnitImpls)> + '_>;
 }
-
-impl Default for UnitSlots<'_> {
-    fn default() -> Self {
-        UnitSlots::Closure(&[])
+impl UnitContext for () {
+    fn get(&self, _: usize) -> Option<&UnitImpls> {
+        None
+    }
+    fn units_at(&self, _: [Option<u64>; 3]) -> Box<dyn Iterator<Item = (usize, &UnitImpls)> + '_> {
+        Box::new(std::iter::empty())
     }
 }
-
-impl<'a> UnitSlots<'a> {
-    /// The slots `slots`, sorted by unit id with no id twice.
-    #[must_use]
-    pub fn new(slots: &'a [(u32, &'a UnitImpls)]) -> Self {
-        debug_assert!(slots.windows(2).all(|w| w[0].0 < w[1].0), "sorted slots");
-        UnitSlots::Closure(slots)
-    }
-
-    /// Unit `i`'s tables, when the closure holds it: a binary search,
-    /// or a program view's index.
-    #[must_use]
-    pub fn get(self, i: usize) -> Option<&'a UnitImpls> {
-        match self {
-            UnitSlots::Closure(slots) => {
-                let i = u32::try_from(i).ok()?;
-                let at = slots.binary_search_by_key(&i, |s| s.0).ok()?;
-                Some(slots[at].1)
-            }
-            UnitSlots::Program(table, _) => table.get(i)?.get()?.as_deref(),
-        }
-    }
-
-    /// The closure's units in id order.
-    pub fn iter(self) -> impl Iterator<Item = (usize, &'a UnitImpls)> {
-        let (slots, built): (&[_], &[u32]) = match self {
-            UnitSlots::Closure(slots) => (slots, &[]),
-            UnitSlots::Program(_, built) => (&[], built),
-        };
-        let built = built
-            .iter()
-            .filter_map(move |&i| Some((i as usize, self.get(i as usize)?)));
-        slots.iter().map(|&(i, f)| (i as usize, f)).chain(built)
-    }
-}
+#[cfg(test)]
+#[path = "../tests/support/contexts.rs"]
+mod context_fixtures;
 
 /// A solving context's view of the impls (§3.2): its own module's table,
 /// the frozen tables of its closure's units, read by owner, and its
@@ -378,8 +332,8 @@ pub struct ImplView<'a> {
     pub paths: &'a PathTable,
     pub owners: &'a OwnerMap,
     pub own: Option<&'a ImplTable>,
-    /// The units of the closure, by unit id ([`UnitSlots`]).
-    pub units: UnitSlots<'a>,
+    /// The units of the closure, by unit id ([`UnitContext`]).
+    pub units: &'a dyn UnitContext,
     pub universe: ImplUniverseId,
     pub extra: &'a UniverseImpls,
     /// A trait's number of arguments: a projection that leaves them
@@ -484,11 +438,8 @@ impl<'a> Impls<'a> {
         if v.own.is_some_and(|t| t.has_rows_at(codes)) {
             out.push(TableAt::Own);
         }
-        for (i, f) in v.units.iter() {
-            crate::work::view_slots(1);
-            if f.table.has_rows_at(codes) {
-                out.push(TableAt::Unit(i));
-            }
+        for (i, _) in v.units.units_at(codes) {
+            out.push(TableAt::Unit(i));
         }
         if v.extra.unowned.has_rows_at(codes) {
             out.push(TableAt::Unowned);
@@ -525,8 +476,8 @@ impl<'a> Impls<'a> {
                     f.table.traits_named(codes, sym, names, out);
                 }
             }
-            TableAt::Unowned => v.extra.unowned.traits_named(codes, sym, names, out),
-            TableAt::Directory => v.extra.directory.traits_named(codes, sym, names, out),
+            TableAt::Unowned => v.extra.unowned.traits_named(codes, sym, out),
+            TableAt::Directory => v.extra.directory.traits_named(codes, sym, out),
         }
     }
 
@@ -647,11 +598,11 @@ fn one_row_per_impl(mut rows: Vec<(ImplRef, &ImplTable)>) -> Vec<(ImplRef, &Impl
 
 #[cfg(test)]
 mod coverage_contracts {
-    use super::{UnitImpls, UnitSlots};
+    use super::{UnitContext, UnitImpls};
     use std::sync::{Arc, OnceLock};
 
     #[test]
-    fn program_unit_iteration_matches_the_built_closure_without_copying_tables() {
+    fn borrowed_unit_context_keeps_sparse_published_tables_and_failed_units() {
         let slots: Vec<OnceLock<Option<Arc<UnitImpls>>>> =
             (0..5).map(|_| OnceLock::new()).collect();
         let first = Arc::new(UnitImpls::default());
@@ -664,11 +615,21 @@ mod coverage_contracts {
             .set(Some(Arc::clone(&second)))
             .expect("publish unit 3");
         let built = [1, 3];
-        let program = UnitSlots::Program(&slots, &built);
+        let published: Vec<_> = built
+            .iter()
+            .filter_map(|&id| Some((id, slots[id as usize].get()?.as_deref()?)))
+            .collect();
+        let program: &dyn UnitContext = &published;
         let entries = [(1, first.as_ref()), (3, second.as_ref())];
-        let closure = UnitSlots::new(&entries);
-        let actual: Vec<_> = program.iter().collect();
-        let expected: Vec<_> = closure.iter().collect();
+        let closure: &dyn UnitContext = &entries;
+        let actual: Vec<_> = built
+            .iter()
+            .filter_map(|&id| program.get(id as usize).map(|t| (id, t)))
+            .collect();
+        let expected: Vec<_> = built
+            .iter()
+            .filter_map(|&id| closure.get(id as usize).map(|t| (id, t)))
+            .collect();
         assert_eq!(actual.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [1, 3]);
         for ((a, table_a), (b, table_b)) in actual.iter().zip(expected.iter()) {
             assert_eq!(a, b);

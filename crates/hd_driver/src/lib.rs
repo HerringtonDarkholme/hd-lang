@@ -46,8 +46,8 @@ use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, 
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
-    Declarations, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls, MemberStep,
-    OWN_TABLE, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl, UnitImpls, UniverseImpls,
+    Declarations, GlobalMemo, ImplRef, ImplUniverseId, ImplView, Impls, MemberStep, OWN_TABLE,
+    OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl, UnitImpls, UniverseImpls,
     unit_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -60,6 +60,7 @@ pub use hd_wasm::{FunctionOrigins, InstructionOrigin, StaticData};
 pub mod analysis;
 pub mod bench;
 mod checked_rooms;
+mod contexts;
 mod dbg;
 pub mod diagnostics;
 mod import_hints;
@@ -1723,6 +1724,9 @@ type ShimBodies =
     HashMap<(Ty, hd_layout::shims::Shim, hd_layout::shims::Portion, bool), Option<Arc<Body>>>;
 type LiftedTemplate = Option<Arc<Body>>;
 
+type ContextUniverse = (contexts::UnitSet, ImplUniverseId, Arc<UniverseImpls>);
+type ContextUniverses = HashMap<Option<usize>, ContextUniverse>;
+
 struct Run<'a> {
     /// The attached analysis consumer, when a lint run asked for one.
     lint: Option<analysis::Lint<'a>>,
@@ -1748,7 +1752,6 @@ struct Run<'a> {
     /// The compiler-known std items, resolved once for the run.
     known: Arc<hd_resolve::KnownItems>,
     syms: Arc<ShardedInterner>,
-    universes: ImplUniverses,
     memo: GlobalMemo,
     /// Which unit declares what (`crates/hd_check/DESIGN.md` (trait solver) §3.2), built on first use.
     owners: OnceLock<OwnerMap>,
@@ -1856,10 +1859,8 @@ struct Run<'a> {
     fetched: Vec<bool>,
     /// Each module's text skim, std's from the toolchain's `depfiles` entry.
     files: skims::FileSkims<'a>,
-    /// Each module's row of the last check run of its kind (`rows`).
-    rows: rows::ModuleRows<'a>,
-    /// The units' rows of the same records ([`rows::UnitRows`]).
-    unit_rows: rows::UnitRows<'a>,
+    /// Module checks, unit fingerprints and headers in one source-set record.
+    rows: rows::Rows<'a>,
     /// Per unit: its closure digests ([`Run::digest`]), set once.
     digests: Vec<OnceLock<Option<Arc<Digest>>>>,
     skim: Vec<OnceLock<SkimOut>>,
@@ -1867,10 +1868,13 @@ struct Run<'a> {
     /// The module graph and its units, built before the run
     /// ([`module_graph`]).
     graph: ModuleGraph,
+    contexts: contexts::Contexts,
+    metadata_contexts: contexts::MetadataContexts,
+    language_metadata: OnceLock<Option<contexts::Metadata>>,
+    context_universes: Mutex<ContextUniverses>,
     iface: Vec<OnceLock<Option<Arc<UnitIface>>>>,
     iface_index: IfaceIndex,
-    /// Method maps shared only by exactly the same ordered visible interfaces.
-    method_indexes: Mutex<HashMap<Vec<UnitId>, Arc<hd_check::MethodIndex>>>,
+    /// Each module's prepared declarations.
     prep: Vec<OnceLock<Option<PrepOut>>>,
     /// Per module that declares a derivation template: its items and scope,
     /// lowered once per run for the opt-ins that instantiate it.
@@ -1939,6 +1943,7 @@ struct Run<'a> {
     check_scope: OnceLock<Option<(Vec<bool>, Vec<bool>)>>,
     /// Real-use closure of the fixed implicit language providers, once per run.
     language_units: OnceLock<Vec<UnitId>>,
+    language_context: OnceLock<contexts::UnitSet>,
     language_key: OnceLock<Option<Hash128>>,
     /// For a REPL input's build, per unit: whether the input's closure or
     /// the runtime's holds it ([`Run::builds`]); `None` for every other
@@ -2942,9 +2947,7 @@ fn build_packages_inner(
         k.hash(package_key);
         k.finish()
     });
-    let rows = rows::ModuleRows::new(host.store, toolchain, &identities, kind, n);
-    let unit_rows =
-        rows::UnitRows::new(host.store, toolchain, &identities, kind, table.units.len());
+    let rows = rows::Rows::new(host.store, toolchain, &identities, kind, &table);
     let run = Run {
         lint: analysis::Lint::new(analysis, n),
         host,
@@ -2957,7 +2960,6 @@ fn build_packages_inner(
         paths,
         known,
         syms,
-        universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
         owners: OnceLock::new(),
         unit_impls: (0..nf).map(|_| OnceLock::new()).collect(),
@@ -3035,14 +3037,16 @@ fn build_packages_inner(
             .collect(),
         files,
         rows,
-        unit_rows,
         digests: (0..nf).map(|_| OnceLock::new()).collect(),
         skim: skims.into_iter().map(OnceLock::from).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
+        contexts: contexts::Contexts::new(nf),
+        metadata_contexts: contexts::MetadataContexts::new(nf),
+        language_metadata: OnceLock::new(),
+        context_universes: Mutex::default(),
         graph,
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
         iface_index: IfaceIndex::default(),
-        method_indexes: Mutex::default(),
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         template_mods: (0..n).map(|_| OnceLock::new()).collect(),
         unit_templates: (0..nf).map(|_| OnceLock::new()).collect(),
@@ -3076,6 +3080,7 @@ fn build_packages_inner(
         check_roots: packages.check_roots.clone(),
         check_scope: OnceLock::new(),
         language_units: OnceLock::new(),
+        language_context: OnceLock::new(),
         language_key: OnceLock::new(),
         repl_scope: OnceLock::new(),
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
@@ -3190,7 +3195,6 @@ fn build_packages_inner(
     };
     let records = phase("records");
     run.rows.finish(&run.table);
-    run.unit_rows.finish(&run.table);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -4334,7 +4338,11 @@ impl Run<'_> {
             let mut deps: Vec<TaskId> = Vec::new();
             for &u in units {
                 if kept[u.idx()] {
-                    deps.extend(self.closure(u).iter().filter_map(|c| iface_task[c.idx()]));
+                    deps.extend(
+                        self.closure(u)
+                            .iter()
+                            .filter_map(|c| iface_task[c as usize]),
+                    );
                 } else {
                     deps.extend(iface_task[u.idx()]);
                 }
@@ -4491,27 +4499,9 @@ impl Run<'_> {
         sp.release(pr);
     }
 
-    /// `closure(F)`: F and every unit its uses reach, in unit order, found
-    /// on demand (`crates/hd_sched/DESIGN.md` §6.1). Cost: O(the closure
-    /// and its edges) per call; no per-unit set is kept.
-    fn closure(&self, unit: UnitId) -> Vec<UnitId> {
-        self.closure_of([unit])
-    }
-
-    /// The units `starts` reach, themselves included, in unit order.
-    fn closure_of(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<UnitId> {
-        let mut seen: HashSet<UnitId> = HashSet::default();
-        let mut stack: Vec<UnitId> = starts.into_iter().filter(|s| seen.insert(*s)).collect();
-        while let Some(f) = stack.pop() {
-            for &u in &self.graph.uses[f.idx()] {
-                if seen.insert(u) {
-                    stack.push(u);
-                }
-            }
-        }
-        let mut out: Vec<UnitId> = seen.into_iter().collect();
-        out.sort_stable_by_key(|f| f.raw());
-        out
+    /// Shared reach of a unit, without a materialized closure vector.
+    fn closure(&self, unit: UnitId) -> contexts::UnitSet {
+        self.contexts.closure(&self.graph, [unit])
     }
 
     /// Unit `f`'s [`Digest`]: `None` while a unit of its closure has no
@@ -4634,10 +4624,11 @@ impl Run<'_> {
         units
     }
 
-    /// Provider closure is shared by all checks, not rediscovered per module.
-    fn language_units(&self) -> &[UnitId] {
-        self.language_units.get_or_init(|| {
-            self.closure_of(
+    /// The fixed implicit-provider context, shared by all checks.
+    fn language_context(&self) -> &contexts::UnitSet {
+        self.language_context.get_or_init(|| {
+            self.contexts.closure(
+                &self.graph,
                 language_modules(&self.table)
                     .into_iter()
                     .map(|m| self.table.modules[m].unit),
@@ -4645,13 +4636,14 @@ impl Run<'_> {
         })
     }
 
-    /// Checking sees implicit providers without adding source-cycle edges.
-    fn check_closure(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<UnitId> {
-        let mut units = self.closure_of(starts);
-        units.extend_from_slice(self.language_units());
-        units.sort_stable_by_key(|u| u.raw());
-        units.dedup();
-        units
+    /// The ordered provider slice for readers that still require one.
+    fn language_units(&self) -> &[UnitId] {
+        self.language_units.get_or_init(|| {
+            self.language_context()
+                .iter()
+                .map(UnitId::from_raw)
+                .collect()
+        })
     }
 
     /// One key for the implicit interfaces every header and body can read.
@@ -4668,13 +4660,6 @@ impl Run<'_> {
             }
             Some(key.finish())
         })
-    }
-
-    /// The units module `m`'s check reads, in unit order: the closure of
-    /// [`Self::module_units`] and the fixed implicit providers
-    /// (`crates/hd_cache/DESIGN.md` §5.3).
-    fn module_closure(&self, m: usize) -> Vec<UnitId> {
-        self.check_closure(self.module_units(m))
     }
 
     fn iface_of(&self, f: UnitId) -> Option<Arc<UnitIface>> {
@@ -4741,7 +4726,7 @@ impl Run<'_> {
             let Some(f) = self.item_unit(d) else {
                 continue;
             };
-            if f == fid || reach.contains(&f) || !seen.insert(f) {
+            if f == fid || reach.contains(f.raw()) || !seen.insert(f) {
                 continue;
             }
             let span = Span {
@@ -4853,7 +4838,12 @@ impl Run<'_> {
             .any(|m| self.repl_number(m.idx()).is_some());
         let mut reach_hashes = Vec::new();
         if input {
-            for c in self.closure(fid).into_iter().filter(|c| *c != fid) {
+            for c in self
+                .closure(fid)
+                .iter()
+                .map(UnitId::from_raw)
+                .filter(|c| *c != fid)
+            {
                 let Some(i) = self.iface_of(c) else {
                     self.blocked(Stage::UnitIface);
                     let _ = self.iface[fi].set(None);
@@ -4883,15 +4873,15 @@ impl Run<'_> {
                 iface_key(own, &rows)
             }
         };
-        // The unit's row: when its reads answer as last run, its
-        // interface is the row's, and no entry is read.
+        // A row keeps only the read fingerprint and canonical interface key.
+        // Missing/evicted interface bytes fall through to the ordinary rebuild.
         if !input
             && !broken
-            && let Some((key, sections)) = self.unit_rows.iface(&self.table, fi, own)
-            && let Some((reads, sections)) = sections.split_first()
-            && let Some(reads) = decode_reads(reads)
+            && let Some((key, reads)) = self.rows.iface(&self.table, fi, own)
+            && let Some(reads) = decode_reads(&reads)
             && key_of(&reads) == key
-            && let Some(mentions) = self.iface_hit(fi, sections, None)
+            && let Some(sections) = self.lookup(EntryKind::Iface, key)
+            && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
             if let Some(diags) = sections.get(1).and_then(|d| decode_iface_diags(d)) {
                 self.leave_reused(fi, own, reads, key, diags, &mentions);
@@ -4927,8 +4917,7 @@ impl Run<'_> {
                 self.leave_reused(fi, own, reads.clone(), key, diags, &mentions);
             }
             if let Some(reads) = stored.as_deref().filter(|_| !input) {
-                self.unit_rows
-                    .record_iface(&self.table, fi, (own, key), reads, &sections);
+                self.rows.record_iface(&self.table, fi, (own, key), reads);
             }
             let m = unit.modules[0].idx();
             self.keep_input(
@@ -5038,15 +5027,7 @@ impl Run<'_> {
             if stored.as_deref() != Some(bytes.as_slice()) {
                 self.put(EntryKind::Iface, own, &[&bytes]);
             }
-            self.unit_rows.record_iface(
-                &self.table,
-                fi,
-                (own, key),
-                &bytes,
-                &[
-                    &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
-                ],
-            );
+            self.rows.record_iface(&self.table, fi, (own, key), &bytes);
         }
         self.keep_input(
             unit.modules[0].idx(),
@@ -5913,11 +5894,6 @@ impl Run<'_> {
         out
     }
 
-    /// The interfaces of an already computed checking closure, in its order.
-    fn closure_ifaces(&self, closure: &[UnitId]) -> Option<Vec<Arc<UnitIface>>> {
-        closure.iter().map(|&c| self.iface_of(c)).collect()
-    }
-
     /// Where an item, or one of its written types (`slot`), sits in its
     /// file: resolved from the interface's declaration-relative anchors
     /// against this run's parse. Falls back to the start of the module file.
@@ -6040,7 +6016,7 @@ impl Run<'_> {
         let parses = self.unit_parses(fi);
         // The unit's row first: an unchanged unit reads no entry.
         if parses
-            && let Some(sections) = self.unit_rows.header(&self.table, fi, key)
+            && let Some(sections) = self.rows.header(&self.table, fi, key)
             && self.header_hit(fi, &own, &sections)
         {
             return;
@@ -6053,13 +6029,11 @@ impl Run<'_> {
                 .ok()
             && self.header_hit(fi, &own, &sections)
         {
-            self.unit_rows
-                .record_header(&self.table, fi, key, &sections);
+            self.rows.record_header(&self.table, fi, key, &sections);
             return;
         }
         self.computed(Stage::HeaderCheck);
-        let closure = self.check_closure([fid]);
-        let Some(all) = self.closure_ifaces(&closure) else {
+        let Some(context) = self.check_view([fid]).filter(|c| !c.metadata.missing) else {
             self.blocked(Stage::HeaderCheck);
             return;
         };
@@ -6078,17 +6052,17 @@ impl Run<'_> {
         lock(&self.diags).append(&found_uses);
         let lookup = Lookup::new(
             &[],
-            closure.iter().copied().zip(all.iter().map(AsRef::as_ref)),
+            &context,
             &self.iface_index,
             hd_resolve::iface::ImportHints::Lazy(import_hints::index),
         );
-        let (units, universe, extra) = self.closure_impls(&closure);
+        let (universe, extra) = self.context_universe(&context);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: None,
-            units: hd_types::lookup::UnitSlots::new(&units),
+            units: &context,
             universe,
             extra: &extra,
             arity: &arity,
@@ -6115,7 +6089,7 @@ impl Run<'_> {
         let bytes = encode_header_findings(&findings, &lookup.own_index);
         if parses {
             self.put(EntryKind::Graph, key, &[&bytes, &uses]);
-            self.unit_rows
+            self.rows
                 .record_header(&self.table, fi, key, &[&bytes, &uses]);
         }
         self.keep_input(
@@ -6745,7 +6719,7 @@ impl Run<'_> {
     fn test_overlaps(
         &self,
         m: usize,
-        ifaces: &[Arc<UnitIface>],
+        ifaces: &hd_resolve::iface::Interfaces<'_>,
         (items, anchors): (&[Item], &hd_resolve::anchor::Anchors),
         src: &Src<'_>,
         diags: &mut DiagBuf,
@@ -6917,7 +6891,11 @@ impl Run<'_> {
         self.template_hashes(&self.module_units(m), &|trait_| {
             opts_in
                 && self.names_trait(
-                    closure.get_or_init(|| self.module_closure(m)),
+                    closure.get_or_init(|| {
+                        self.contexts
+                            .closure(&self.graph, self.module_units(m))
+                            .union(self.language_context())
+                    }),
                     &self.texts[m],
                     trait_,
                 )
@@ -6926,14 +6904,17 @@ impl Run<'_> {
 
     /// Whether `text` holds a name the trait `trait_` goes by in
     /// `closure`: its declared name, or the name of a `pub use` of it.
-    fn names_trait(&self, closure: &[UnitId], text: &str, trait_: DefId) -> bool {
+    fn names_trait(&self, closure: &contexts::UnitSet, text: &str, trait_: DefId) -> bool {
         let names = self.names();
         text.contains(names.display_name(trait_))
-            || closure.iter().filter_map(|c| self.iface_of(*c)).any(|i| {
-                i.exports
-                    .iter()
-                    .any(|e| e.def == trait_ && text.contains(names.text(e.name)))
-            })
+            || closure
+                .iter()
+                .filter_map(|c| self.iface_of(UnitId::from_raw(c)))
+                .any(|i| {
+                    i.exports
+                        .iter()
+                        .any(|e| e.def == trait_ && text.contains(names.text(e.name)))
+                })
     }
 
     /// The template text hashes of the user tuple-template modules in
@@ -7190,33 +7171,127 @@ impl Run<'_> {
             .as_deref()
     }
 
-    /// A solving context's impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): the closure's
-    /// unit tables by unit id, read by owner, and its impl universe,
-    /// the closure's units whose `arg_impls` or unowned rows are not
-    /// empty.
-    fn closure_impls(
-        &self,
-        closure: &[UnitId],
-    ) -> (Vec<(u32, &UnitImpls)>, ImplUniverseId, Arc<UniverseImpls>) {
-        let mut units: Vec<(u32, &UnitImpls)> = Vec::new();
-        let mut members = Vec::new();
-        for f in closure {
-            let Some(fi) = self.unit_impls(*f) else {
-                continue;
-            };
-            units.push((f.raw(), fi));
-            if fi.in_universe() {
-                members.push((*f, fi));
-            }
+    fn own_context_metadata(&self, unit: UnitId) -> Option<contexts::Metadata> {
+        let Some(iface) = self.iface[unit.idx()].get()?.as_deref() else {
+            return Some(contexts::Metadata {
+                missing: true,
+                reach: contexts::UnitSet::singleton(unit.raw()),
+                ..contexts::Metadata::default()
+            });
+        };
+        // One actual interface registration, not a closure-sized copy.
+        work::context_item_step();
+        let impls = self.unit_impls(unit)?;
+        let mut owner_heads = hd_types::context_map::Map::default();
+        for &code in &impls.owner_codes {
+            owner_heads.insert(u128::from(code), contexts::UnitSet::singleton(unit.raw()).0);
         }
-        // By id, for `UnitSlots`: O(c log c) for a closure of c units,
-        // where a slot per unit of the program cost every module the
-        // program's units.
-        units.sort_stable_by_key(|s| s.0);
-        units.dedup_by_key(|s| s.0);
-        hd_types::work::view_slots(units.len());
-        let (universe, extra) = self.universes.intern(&members);
-        (units, universe, extra)
+        Some(contexts::Metadata {
+            missing: false,
+            providers: false,
+            reach: contexts::UnitSet::singleton(unit.raw()),
+            owner_heads,
+            universe: if impls.in_universe() {
+                contexts::UnitSet::singleton(unit.raw())
+            } else {
+                contexts::UnitSet::default()
+            },
+            universe_data: if impls.in_universe() {
+                let visible = self
+                    .contexts
+                    .closure(&self.graph, [unit])
+                    .union(self.language_context());
+                let names = |tr, emit: &mut dyn FnMut(hd_base::Symbol)| {
+                    let Some((owner, slot)) = self.iface_index.unique_location(tr) else {
+                        return false;
+                    };
+                    // Keep undeclared/invisible recovery targets unnamed.
+                    if !visible.contains(owner.raw()) {
+                        return false;
+                    }
+                    let Some(iface) = self
+                        .iface
+                        .get(owner.idx())
+                        .and_then(|v| v.get())
+                        .and_then(Option::as_deref)
+                    else {
+                        return false;
+                    };
+                    let Some(ItemData::Trait(data)) = iface.items.get(slot).map(|it| &it.data)
+                    else {
+                        return false;
+                    };
+                    for &(name, _) in &data.methods {
+                        emit(name);
+                    }
+                    true
+                };
+                Arc::new(UniverseImpls::unit(unit, impls, &names))
+            } else {
+                Arc::default()
+            },
+            methods: Arc::new(hd_check::MethodIndex::unit(unit, iface, self.pool.types())),
+        })
+    }
+
+    fn context_metadata(
+        &self,
+        starts: &[UnitId],
+        providers: Option<&contexts::Metadata>,
+    ) -> Option<contexts::Metadata> {
+        self.metadata_contexts
+            .closure(&self.graph, starts, providers, |u| {
+                self.own_context_metadata(u)
+            })
+    }
+
+    fn check_view(
+        &self,
+        starts: impl IntoIterator<Item = UnitId>,
+    ) -> Option<contexts::View<'_, '_>> {
+        let starts: Vec<_> = starts.into_iter().collect();
+        let language = self
+            .language_metadata
+            .get_or_init(|| {
+                let mut metadata = self.context_metadata(self.language_units(), None)?;
+                metadata.providers = true;
+                Some(metadata)
+            })
+            .as_ref()?;
+        let metadata = self.context_metadata(&starts, Some(language))?;
+        Some(contexts::View {
+            run: self,
+            units: metadata.reach.clone(),
+            methods: vec![Arc::clone(&metadata.methods)],
+            metadata,
+        })
+    }
+
+    /// IDs for shared candidate directories, keyed by retained root identity.
+    /// Independent equal roots may get distinct IDs; distinct sets never alias.
+    fn context_universe(
+        &self,
+        context: &contexts::View<'_, '_>,
+    ) -> (ImplUniverseId, Arc<UniverseImpls>) {
+        self.metadata_universe(&context.metadata)
+    }
+
+    fn metadata_universe(
+        &self,
+        metadata: &contexts::Metadata,
+    ) -> (ImplUniverseId, Arc<UniverseImpls>) {
+        let set = &metadata.universe;
+        let mut cache = lock(&self.context_universes);
+        let key = set.0.identity();
+        if let Some((_, id, extra)) = cache.get(&key) {
+            return (*id, Arc::clone(extra));
+        }
+        let id = ImplUniverseId(u32_of(cache.len()));
+        let extra = Arc::clone(&metadata.universe_data);
+        // Retain the root: allocator address reuse cannot alias universes.
+        // Independent equal roots may miss reuse, but never share wrong answers.
+        cache.insert(key, (set.clone(), id, Arc::clone(&extra)));
+        (id, extra)
     }
 
     /// Whether a module's file already has an error: its header errors are
@@ -7232,18 +7307,15 @@ impl Run<'_> {
             .any(|(s, at)| *s == Severity::Error && at.file == file)
     }
 
-    /// Each lookup keeps its own items ahead of its shared interface closure.
-    fn method_index(&self, lookup: &Lookup<'_>, units: &[UnitId]) -> Arc<hd_check::MethodIndex> {
-        let shared = lock(&self.method_indexes)
-            .entry(units.to_vec())
-            .or_insert_with(|| {
-                Arc::new(hd_check::MethodIndex::interfaces(lookup, self.pool.types()))
-            })
-            .clone();
-        Arc::new(hd_check::MethodIndex::with_own(
+    fn method_index(
+        &self,
+        lookup: &Lookup<'_>,
+        context: &contexts::View<'_, '_>,
+    ) -> Arc<hd_check::MethodIndex> {
+        Arc::new(hd_check::MethodIndex::with_contexts(
             lookup,
             self.pool.types(),
-            shared,
+            &context.methods,
         ))
     }
 
@@ -7267,11 +7339,11 @@ impl Run<'_> {
             return;
         };
         let module = &self.table.modules[m];
-        let closure = self.module_closure(m);
-        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
-            .iter()
-            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
-            .unzip();
+        let Some(context) = self.check_view(self.module_units(m)) else {
+            self.blocked(Stage::Body);
+            let _ = self.body[m].set(None);
+            return;
+        };
         // A REPL input also sees `src/lib.hd`'s private items
         // (`cli.repl.package.lib`), which no interface carries.
         // Only an input whose session holds the library asks: its closure
@@ -7289,10 +7361,7 @@ impl Run<'_> {
         };
         let lookup = Lookup::new(
             &own,
-            iface_units
-                .iter()
-                .copied()
-                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &context,
             &self.iface_index,
             hd_resolve::iface::ImportHints::Lazy(import_hints::index),
         );
@@ -7319,13 +7388,13 @@ impl Run<'_> {
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
             .collect();
         let own_table = hd_resolve::impl_table(&names, &own_impls);
-        let (units, universe, extra) = self.closure_impls(&closure);
+        let (universe, extra) = self.context_universe(&context);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            units: hd_types::lookup::UnitSlots::new(&units),
+            units: &context,
             universe,
             extra: &extra,
             arity: &arity,
@@ -7360,7 +7429,7 @@ impl Run<'_> {
             impls: &impls,
             global: &self.memo,
             solver: &solver,
-            methods: self.method_index(&lookup, &iface_units),
+            methods: self.method_index(&lookup, &context),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
                 self.declared_by(m),
@@ -7393,7 +7462,7 @@ impl Run<'_> {
         if tests {
             self.test_overlaps(
                 m,
-                &ifaces,
+                lookup.ifaces,
                 (&lowered.items, &lowered.anchors),
                 &src,
                 &mut diags,
@@ -8792,16 +8861,11 @@ impl Run<'_> {
         let tmod = self.template_mods[tm]
             .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
-        let mut closure = self.module_closure(m);
-        for fo in self.closure(self.table.modules[tm].unit) {
-            if !closure.contains(&fo) {
-                closure.push(fo);
-            }
-        }
-        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
-            .iter()
-            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
-            .unzip();
+        let mut context = self.check_view(self.module_units(m))?;
+        let starts = [self.table.modules[tm].unit];
+        let later = self.context_metadata(&starts, None)?;
+        context.metadata = context.metadata.union(&later);
+        context.methods.push(later.methods);
         let lib = if self.with_lib(tm) {
             self.lib_scope().map_or(&[][..], |l| l.private.as_slice())
         } else {
@@ -8816,20 +8880,17 @@ impl Run<'_> {
             .collect();
         let lookup = Lookup::new(
             &items,
-            iface_units
-                .iter()
-                .copied()
-                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &context,
             &self.iface_index,
             hd_resolve::iface::ImportHints::Lazy(import_hints::index),
         );
-        let (units, universe, extra) = self.closure_impls(&closure);
+        let (universe, extra) = self.context_universe(&context);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: own_impls,
-            units: hd_types::lookup::UnitSlots::new(&units),
+            units: &context,
             universe,
             extra: &extra,
             arity: &arity,
@@ -8848,7 +8909,7 @@ impl Run<'_> {
             impls: &view,
             global: &self.memo,
             solver: &TableSolver,
-            methods: self.method_index(&lookup, &iface_units),
+            methods: self.method_index(&lookup, &context),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -8880,17 +8941,10 @@ impl Run<'_> {
         let tmod = self.template_mods[tm]
             .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
-        let closure = self.check_closure([self.table.modules[tm].unit]);
-        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
-            .iter()
-            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
-            .unzip();
+        let context = self.check_view([self.table.modules[tm].unit])?;
         let lookup = Lookup::new(
             &tmod.items,
-            iface_units
-                .iter()
-                .copied()
-                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &context,
             &self.iface_index,
             hd_resolve::iface::ImportHints::Lazy(import_hints::index),
         );
@@ -8900,13 +8954,13 @@ impl Run<'_> {
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
             .collect();
         let own_table = hd_resolve::impl_table(&names, &own_impls);
-        let (units, universe, extra) = self.closure_impls(&closure);
+        let (universe, extra) = self.context_universe(&context);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            units: hd_types::lookup::UnitSlots::new(&units),
+            units: &context,
             universe,
             extra: &extra,
             arity: &arity,
@@ -8925,7 +8979,7 @@ impl Run<'_> {
             impls: &view,
             global: &memo,
             solver: &TableSolver,
-            methods: self.method_index(&lookup, &iface_units),
+            methods: self.method_index(&lookup, &context),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -10044,7 +10098,9 @@ impl Run<'_> {
         items.std.known = (0..self.paths.len())
             .map(|_| std::sync::atomic::AtomicU32::new(0))
             .collect();
-        let (universe, extra) = self.universes.intern(&members);
+        let roots: Vec<_> = members.iter().map(|(unit, _)| *unit).collect();
+        let metadata = self.context_metadata(&roots, None)?;
+        let (universe, extra) = self.metadata_universe(&metadata);
         let _ = self.program.set(ProgramTables {
             items,
             supplied_rets: Mutex::new(HashMap::default()),

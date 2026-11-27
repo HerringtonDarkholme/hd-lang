@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use hd_base::{
-    AppendVec, DefId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol, UnitId,
+    AppendVec, DefId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol,
 };
 
 pub use crate::lookup::{
@@ -513,34 +513,11 @@ impl ParamEnv {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ImplUniverseId(pub u32);
 
-/// Interns impl universes once per run; equal lists share one id and one
-/// merged view of their units' unowned rows and directory.
-#[derive(Default)]
-pub struct ImplUniverses {
-    by_list: Mutex<UniverseMap>,
-}
-
-type UniverseMap = HashMap<Vec<UnitId>, (ImplUniverseId, Arc<UniverseImpls>)>;
-
-impl ImplUniverses {
-    /// The universe of a context: `units` are the units of its closure
-    /// that hold `arg_impls` or unowned rows, in any order.
-    pub fn intern(&self, units: &[(UnitId, &UnitImpls)]) -> (ImplUniverseId, Arc<UniverseImpls>) {
-        let mut list = units.to_vec();
-        list.sort_stable_by_key(|(f, _)| f.raw());
-        list.dedup_by_key(|(f, _)| *f);
-        let key: Vec<UnitId> = list.iter().map(|(f, _)| *f).collect();
-        let mut m = self.by_list.lock().unwrap_or_else(PoisonError::into_inner);
-        let next = ImplUniverseId(crate::word(m.len()));
-        m.entry(key)
-            .or_insert_with(|| (next, Arc::new(UniverseImpls::new(&list))))
-            .clone()
-    }
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
-        self.by_list.lock().expect("universes").len()
-    }
-}
+#[cfg(test)]
+#[path = "../tests/support/universes.rs"]
+mod universe_fixtures;
+#[cfg(test)]
+use universe_fixtures::ImplUniverses;
 
 /// An impl head's index key (§3.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -4613,12 +4590,12 @@ mod tests {
             }
         }
 
-        fn view<'a>(&'a self, units: &'a [(u32, &'a super::UnitImpls)]) -> super::ImplView<'a> {
+        fn view<'a>(&'a self, units: &'a dyn crate::lookup::UnitContext) -> super::ImplView<'a> {
             super::ImplView {
                 paths: &self.paths,
                 owners: &self.owners,
                 own: None,
-                units: crate::lookup::UnitSlots::new(units),
+                units,
                 universe: ImplUniverses::default().intern(&[]).0,
                 extra: &self.extra,
                 arity: &no_arity,
@@ -5260,7 +5237,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            units: crate::lookup::UnitSlots::new(&all_slots),
+            units: &all_slots,
             universe,
             extra: &extra,
             arity: &arity,
@@ -5331,7 +5308,7 @@ mod tests {
         // table must not discard the row owned through Product in unit 1.
         let sparse_slots = [(1, &probes)];
         let sparse = ImplView {
-            units: crate::lookup::UnitSlots::new(&sparse_slots),
+            units: &sparse_slots,
             ..view
         };
         let mut sparse_reads = crate::lookup::UniverseReads::default();
@@ -5361,7 +5338,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                units: crate::lookup::UnitSlots::new(&units),
+                units: &units,
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -5494,7 +5471,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            units: crate::lookup::UnitSlots::new(&slots),
+            units: &slots,
             universe,
             extra: &extra,
             arity: &no_arity,
@@ -5538,7 +5515,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                units: crate::lookup::UnitSlots::new(&units),
+                units: &units,
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -5695,7 +5672,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            units: crate::lookup::UnitSlots::new(&units),
+            units: &units,
             universe,
             extra: &extra,
             arity: &arity,
@@ -6889,7 +6866,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own,
-            units: crate::lookup::UnitSlots::new(&units),
+            units: &units,
             universe,
             extra: &extra,
             arity: &arity,
@@ -7397,7 +7374,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            units: crate::lookup::UnitSlots::default(),
+            units: &(),
             universe,
             extra: &extra,
             arity: &arity,
@@ -7512,7 +7489,7 @@ mod tests {
             paths: &w.paths,
             owners: &w.owners,
             own: None,
-            units: crate::lookup::UnitSlots::new(&units),
+            units: &units,
             universe,
             extra: &extra,
             arity: &arity,

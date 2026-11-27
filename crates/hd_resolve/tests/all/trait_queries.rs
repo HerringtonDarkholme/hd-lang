@@ -15,6 +15,16 @@ use hd_resolve::{
 use hd_types::sealed::Declarations;
 use hd_types::{InternPool, Ty};
 
+struct Shared<'a>(&'a [(UnitId, &'a hd_resolve::UnitIface)]);
+impl hd_resolve::iface::InterfaceContext for Shared<'_> {
+    fn unit(&self, unit: UnitId) -> Option<&hd_resolve::UnitIface> {
+        self.0.iter().find(|p| p.0 == unit).map(|p| p.1)
+    }
+    fn iter(&self) -> Box<dyn Iterator<Item = &hd_resolve::UnitIface> + '_> {
+        Box::new(self.0.iter().map(|p| p.1))
+    }
+}
+
 fn with_lookups(mut test: impl FnMut(Names<'_>, &Lookup<'_>)) {
     let pool = InternPool::new();
     let paths = PathTable::new();
@@ -42,20 +52,31 @@ fn with_lookups(mut test: impl FnMut(Names<'_>, &Lookup<'_>)) {
     let unit = UnitId::from_raw(0);
     let index = IfaceIndex::default();
     index.insert(unit, &iface);
+    let interfaces = [];
     let local = Lookup::new(
         &items,
-        [],
+        &interfaces,
         &index,
         hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
     );
+    let interfaces = [(unit, &iface)];
     let cached = Lookup::new(
         &[],
-        [(unit, &iface)],
+        &interfaces,
         &index,
         hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
     );
     test(names, &local);
     test(names, &cached);
+    let held = [(unit, &iface)];
+    let shared = Shared(&held);
+    let lookup = Lookup::new(
+        &[],
+        &shared,
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
+    test(names, &lookup);
 }
 
 #[test]
@@ -156,4 +177,66 @@ fn declaration_queries_keep_misses_neutral_and_check_reference_capabilities() {
         assert!(decls.has_unavailable_reference_member(edit, false));
         assert!(!decls.has_unavailable_reference_member(edit, true));
     });
+}
+
+#[test]
+fn shared_lookup_preserves_duplicate_identity_recovery_and_visibility() -> Result<(), String> {
+    let pool = InternPool::new();
+    let paths = PathTable::new();
+    let syms = ShardedInterner::default();
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let (items, _) =
+        super::const_generics::resolve_in(names, include_str!("inputs/trait_queries.hd"));
+    let def = names.item("app", "Base");
+    let mut item = items
+        .into_iter()
+        .find(|i| i.def == def)
+        .ok_or("fixture has no Base")?;
+    item.public = false;
+    let first = unit_iface(
+        "first",
+        Items::new(vec![item.clone()]),
+        Vec::new(),
+        Arc::from([]),
+        None,
+        &[],
+        Vec::new(),
+    );
+    item.public = true;
+    let second = unit_iface(
+        "second",
+        Items::new(vec![item]),
+        Vec::new(),
+        Arc::from([]),
+        None,
+        &[],
+        Vec::new(),
+    );
+    let (a, b) = (UnitId::from_raw(0), UnitId::from_raw(1));
+    let index = IfaceIndex::default();
+    index.insert(a, &first);
+    index.insert(b, &second);
+    assert!(index.unique_location(def).is_none());
+    let hints = || hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX);
+    for order in [[(a, &first), (b, &second)], [(b, &second), (a, &first)]] {
+        let shared = Shared(&order);
+        let lookup = Lookup::new(&[], &shared, &index, hints());
+        assert_eq!(
+            lookup.interface_item(def).map(|i| i.public),
+            Some(order[0].0 == b)
+        );
+        assert!(lookup.interface_satisfies(def, |i| i.public));
+    }
+    let held = [(a, &first)];
+    let shared = Shared(&held);
+    let lookup = Lookup::new(&[], &shared, &index, hints());
+    assert!(lookup.unit(b).is_none());
+    assert!(!lookup.interface_satisfies(def, |i| i.public));
+    Ok(())
 }

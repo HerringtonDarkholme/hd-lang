@@ -17,7 +17,7 @@ test = false
 [features]
 # What `tests/unit` reaches inside the driver; the dev-dependency on itself
 # below turns it on for test builds.
-testing = []
+testing = ["hd_check/testing", "hd_types/testing", "hd_tir/test-utils"]
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]

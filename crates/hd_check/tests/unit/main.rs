@@ -19,6 +19,7 @@ mod local_refs;
 mod newtype;
 mod opaque;
 mod pat;
+mod persistent;
 mod regions;
 mod results;
 mod rows;
