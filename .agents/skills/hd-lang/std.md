@@ -24,7 +24,8 @@ These need no import.
 | In test code only | `it`, `assert`, `assert_equal` |
 
 `@derive`, `@error` and `@from` need no import. Floats provide `sin`, `cos`, `tan`, `asin`, `acos`, `atan`,
-`atan2`, `exp`, `ln`, `log2`, `log10`, `powf`, `powi`, `abs` and `signum` without one; angles are radians.
+`atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `exp`, `exp2`, `exp_m1`, `ln`, `log2`, `log10`, `ln_1p`,
+`cbrt`, `hypot`, `mul_add`, `powf`, `powi`, `abs` and `signum` without one; angles are radians.
 `f64::pi()`, `f64::e()`, `f32::pi()` and `f32::e()` are associated functions. A function or variable named
 `string`, `f32` or `println` is `prelude-name-shadow`.
 
@@ -319,12 +320,18 @@ tests:
         assert_equal(max(2, 7) + min(2, 7), 9)
         assert_equal(clamp(15, 0, 10), 10)
         assert_equal(i32(3).pow(2), 9)
+        assert_equal(3.0.hypot(4.0), 5.0)
+        assert_equal(1.0.exp(), 2.718281828459045)      # musl's libm, bit for bit
+        assert_equal(2.0.mul_add(3.0, 1.0), 7.0)        # 2 * 3 + 1, rounded once
 ```
 
 - Widen with `i64(x)`. Narrow with `T::try_from(x)`, a `Result` that needs `std.convert.TryFrom`.
 - Overflow panics. Use `checked_add`, `wrapping_add` or `saturating_add` (also `_sub`, `_mul`) when expected.
 - Also on integers: `abs`, `abs_diff`, `pow`, `count_ones`, `to_radix`; on floats: `sqrt`, `floor`, `ceil`,
   `round`, `is_nan`, `to_fixed(digits)`. `Integer` and `Float` bound generic numeric code.
+- Float math (`sin` to `mul_add` above) gives musl libm's result bit for bit at both widths, so a program
+  prints the digits C and Rust print on musl. `exp_m1` and `ln_1p` stay accurate near zero. There is no
+  `gamma`, `erf`, `frexp` or Bessel function in std.
 - `a.cmp(&b)` gives `Ordering` (`.Less`, `.Equal`, `.Greater`); `.then(other)` chains keys.
 - `let n: i64 = 300` is the typed binding. `n: i64 := 300` is `missing-let`.
 

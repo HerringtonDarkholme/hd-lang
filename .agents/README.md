@@ -14,7 +14,7 @@ and `description` frontmatter.
 | [`design-doc`](skills/design-doc/SKILL.md) | write a design document an owner can approve and an implementer can build from: semantics, architecture with pseudo-code, extension points, bottom-up cost, stress test |
 | [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, compiler, docs, checks, and push |
 | [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
-| [`hd-lang`](skills/hd-lang/SKILL.md) | write, check, test and run hd code: the edit-check loop, the rules that differ from Python and Rust, and references by scenario, syntax, std, testing and diagnostics. Vendored from the [hd-skill](https://github.com/HerringtonDarkholme/hd-skill) repo (`skills/hd-lang`, at deb33c7): change it there, then copy it here |
+| [`hd-lang`](skills/hd-lang/SKILL.md) | write, check, test and run hd code: the edit-check loop, the rules that differ from Python and Rust, and references by scenario, syntax, std, testing and diagnostics. Vendored from the [hd-skill](https://github.com/HerringtonDarkholme/hd-skill) repo (`skills/hd-lang`, at c4c36ac): change it there, then copy it here |
 | [`hd-cli`](skills/hd-cli/SKILL.md) | drive the `hd` command: the edit-check loop, JSON diagnostics and fix-its, tests, packages, exit statuses |
 | [`compiler-tests`](skills/compiler-tests/SKILL.md) | write focused stage fixtures, pick the view that shows one topic, bless baselines, and measure perf changes |
 | [`cleanup`](skills/cleanup/SKILL.md) | run the routine cleanup: builds, worktrees and branches, a text and folder sweep of the docs, measurements, KNOWN_FAILURES, an issue sweep, one commit |

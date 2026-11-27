@@ -17,7 +17,7 @@ item's full text and examples, run `hd doc std.time.sleep` inside any package.
 | Module | File | Items | First names |
 | --- | --- | ---: | --- |
 | `std.text` | [text.txt](text.txt) | 60 | `r`, `interpolate`, `EscapeError`, `process_escapes`, `Utf8Error`, `Parse`, `ParseBoolError`, `ParseCharError`, ... |
-| `std.num` | [num.txt](num.txt) | 100 | `Num`, `Integer`, `Float`, `ParseNumberError`, `TryFromIntError`, `N`, `i8`, `i16`, ... |
+| `std.num` | [num.txt](num.txt) | 126 | `Num`, `Integer`, `Float`, `ParseNumberError`, `TryFromIntError`, `N`, `i8`, `i16`, ... |
 | `std.convert` | [convert.txt](convert.txt) | 3 | `From`, `TryFrom`, `CharTryFromError` |
 | `std.cmp` | [cmp.txt](cmp.txt) | 14 | `Ordering`, `PartialOrd`, `Ord`, `min`, `max`, `clamp`, `Reverse`, `Id`, ... |
 | `std.ops` | [ops.txt](ops.txt) | 52 | `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, `Template`, `Add`, `Sub`, `Mul`, ... |
