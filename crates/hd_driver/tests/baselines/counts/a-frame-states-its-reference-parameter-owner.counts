@@ -3,13 +3,36 @@
 # @build: v8 release
 # expected: cold, exit and teardown state the parameter's object counts; an ordinary call has none.
 fn read!(value: &i32) -> i32:
-    *value
+    pause!()
 > app/main/read
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+    *value
 
 fn plain(value: &i32) -> i32:
     *value
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

@@ -26,27 +26,32 @@ fn read(value: (&i32, i32)) -> i32:
 @cold
 > app/main/read_cold
 >   local $0 value: (&i32, i32) [param read] value
->     uses $0: entry -> %5 lend, %6 lend last
->   %0 = Retain %10 Cold local $0 #0 : ()
->   %1 = Retain %10 Entry local $0 #0 : ()
->   %2 = Retain %10 Cold referent $0 #8 : ()
->   %3 = Release %10 FrameDrop referent $0 #2 : ()
->   %4 = Release %10 Exit referent $0 #8 : ()
+>     uses $0: entry -> %8 lend, %9 lend last
+>   %0 = Retain %13 Cold local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
+>   %2 = Retain %13 Cold referent $0 #8 : ()
+>   %3 = Release %13 FrameDrop referent $0 #2 : ()
+>   %4 = Release %13 Exit referent $0 #8 : ()
 fn read_cold!(value: (&i32, i32)) -> i32:
-    *value._0 + value._1
->   %5 = Read copy [$0 .0 *] : i32
->   %6 = Read copy [$0 .1] : i32
->   %7 = Prim Add [%5 %6] : i32
->   %8 = Drop [$0] : ()
->   %9 = Drop [$0] : ()
->   %10 = Block %7 : i32
->   %11 = Intrinsic ParamOwned [0:i32] : bool
+    pause!()
+>   %5 = Release %13 FrameDrop child #2 : ()
+>   %6 = Await app/main/pause[] () : ()
+>   %7 = Release %6 Operation child #2 : ()
 >   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block - : ()
+>   %13 = Block %10 : i32
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block - : ()
+    *value._0 + value._1
+>   %8 = Read copy [$0 .0 *] : i32
+>   %9 = Read copy [$0 .1] : i32
+>   %10 = Prim Add [%8 %9] : i32
+>   %11 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
->   cancel %10 releases [%16 %11]
+>   cancel %6 releases [%2147483648 %4294967295]
+>   cancel %13 releases [%16 %17]
 
 @cold
 > app/main/invoke
@@ -118,3 +123,29 @@ fn main_like() -> bool:
 >   %7 = Prim Eq [%6 10:i32] : bool
 >   %8 = Block %7 : bool
 >   storage sub 0: $0 cell
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   cancel %10 releases [%7 %9 %4294967295]

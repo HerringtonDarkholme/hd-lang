@@ -50,7 +50,6 @@ std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 app/main/read_tag_later#0
 app/main/read_tag_later#0.poll
-app/main/read_tag_later#0.cancel
 app/main/read_tag_later#0.drop
 app/main/read_tag_later#0
 std/rt.entry/host_provider#0 [Console]
@@ -76,7 +75,6 @@ std/time/init.init#0
 std/rt.cycle/visit#0
 app/main/plain_later#0
 app/main/plain_later#0.poll
-app/main/plain_later#0.cancel
 app/main/plain_later#0.drop
 app/main/plain_later#0
 std/rt.cycle/collect#0
@@ -156,3 +154,4 @@ rt:wake_mark
 rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel

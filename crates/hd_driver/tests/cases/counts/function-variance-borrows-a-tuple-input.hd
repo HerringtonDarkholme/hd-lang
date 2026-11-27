@@ -12,6 +12,7 @@ fn read(value: (&i32, i32)) -> i32:
 
 @cold
 fn read_cold!(value: (&i32, i32)) -> i32:
+    pause!()
     *value._0 + value._1
 
 @cold
@@ -25,3 +26,8 @@ fn escaped(value: *i32) -> Suspend[i32]:
 
 fn main_like() -> bool:
     invoke(read, box(+7)) == 10
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

@@ -26,7 +26,7 @@
   (import "fixture" "wake_bit" (global $wake_bit (mut i32)))
   (import "fixture" "all_polls" (global $all_polls (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 20 funcref))
+  (import "fixture" "table0" (table $table0 19 funcref))
   (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $offset i32) (local $t5 i32) (local $t3 i32) (local $t4 i32) (local $value i64) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 20 |     n := box::[Note](Note { text: "n" })
     global.get $stack
@@ -826,52 +826,28 @@
     call $retain
     local.get $t0
   )
-  (func $change'2 (param $frame i32) (param $n i32) (result i32 i32) (local $t3 i32) (local $self.0 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $self.1 i32)
+  (func $change'2 (param $n i32) (result i32) (local $self.1 i32) (local $self.0 i32) (local $t0 i32)
     ;; 13 |     n.text = "m"
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $self.1
-      i32.const 128
-      i32.and
-      local.set $t0
-      local.get $self.1
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $n
-      local.get $frame
-      i32.load $heap offset=8
-      local.set $self.1
-    else
-    end
     block
       i32.const 114 ;; &"m"
       i32.const 1
       local.set $self.1
-      local.set $self.0
-      local.get $self.0
+      local.set $self.1
+      local.get $self.1
       call $retain
       local.get $n
       i32.load $heap
-      local.set $t1
+      local.set $self.0
       local.get $n
       i32.load $heap offset=4
-      local.set $t2
-      local.get $n
-      local.get $self.0
-      i32.store $heap
+      local.set $t0
       local.get $n
       local.get $self.1
+      i32.store $heap
+      local.get $n
+      i32.const 1
       i32.store $heap offset=4
-      local.get $t1
+      local.get $self.0
       call $rt:release_ref'2
     ;; 14 |     n.text.len()
       local.get $n
@@ -893,51 +869,43 @@
       local.get $n
       call $rt:release_ref'1
       i32.const 0
-      local.set $n
-      local.get $n
+      local.tee $n
       call $rt:release_ref'1
     end
     local.get $self.0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $t3
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t0
-      i32.or
-      i32.store $heap offset=12
-    end
   )
   (func $change.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 13 |     n.text = "m"
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
     local.get $t0
     call $rt:poll_check
     if
       i32.const 0
       i32.const 0
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
       return
     end
     local.get $t0
@@ -947,73 +915,38 @@
     i32.or
     i32.store $heap offset=12
     local.get $t0
-    i32.const 0
+    i32.load $heap offset=24
+    local.set $t1
+    local.get $t1
     call $change'2
     local.set $t1
-    local.set $t2
     local.get $t0
     local.get $t0
     i32.load $heap offset=12
     i32.const -2
     i32.and
     i32.store $heap offset=12
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 68
+    i32.or
+    i32.store $heap offset=12
+    i32.const 1
     local.get $t1
-    i32.eqz
+    local.get $t0
     if
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 4
+      i32.const -129
+      i32.and
+      local.get $t2
       i32.or
       i32.store $heap offset=12
-      i32.const 1
-      local.get $t2
-      return
     end
-    i32.const 0
-    i32.const 0
-    return
   )
-  (func $change.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 13 |     n.text = "m"
-    call $rt:cancel_enter
-    local.set $t0
-    block
-      local.get $t1
-      call $rt:cancel_check
-      i32.eqz
-      br_if 0
-      local.get $t1
-      i32.load $heap offset=8
-      i32.eqz
-      br_if 0
-      local.get $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 16
-      i32.or
-      i32.store $heap offset=12
-      local.get $t1
-      i32.const 0
-      call $change'2
-      local.set $t2
-      local.set $t3
-      local.get $t2
-      i32.eqz
-      if
-        local.get $t1
-        local.get $t1
-        i32.load $heap offset=12
-        i32.const -17
-        i32.and
-        i32.store $heap offset=12
-      end
-    end
-    local.get $t1
-    local.get $t0
-    call $rt:cancel_leave
-  )
-  (func $change.drop (param $t0 i32)
+  (func $change.drop (param $t0 i32) (local $t1 i32)
     ;; 13 |     n.text = "m"
     local.get $t0
     i32.load $heap offset=12
@@ -1023,11 +956,18 @@
     if
       local.get $t0
       i32.load $heap offset=24
-      local.set $t0
-      local.get $t0
+      local.set $t1
+      local.get $t1
       call $rt:release_ref'1
       i32.const 0
-      local.set $t0
+      local.set $t1
+    end
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
     end
   )
   (func $change'1 (param $t1 i32) (result i32) (local $t0 i32)
@@ -1039,70 +979,42 @@
     i32.store $heap offset=24
     local.get $t0
   )
-  (func $other'2 (param $frame i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $other'2 (result i32)
     ;; 17 |     1
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=8
-      local.set $t0
-    else
-    end
     i32.const 1
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $t2
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
   (func $other.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 17 |     1
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
     local.get $t0
     call $rt:poll_check
     if
       i32.const 0
       i32.const 0
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
       return
     end
     local.get $t0
@@ -1111,73 +1023,43 @@
     i32.const 1
     i32.or
     i32.store $heap offset=12
-    local.get $t0
     call $other'2
     local.set $t1
-    local.set $t2
     local.get $t0
     local.get $t0
     i32.load $heap offset=12
     i32.const -2
     i32.and
     i32.store $heap offset=12
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 68
+    i32.or
+    i32.store $heap offset=12
+    i32.const 1
     local.get $t1
-    i32.eqz
+    local.get $t0
     if
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 4
+      i32.const -129
+      i32.and
+      local.get $t2
       i32.or
       i32.store $heap offset=12
-      i32.const 1
-      local.get $t2
-      return
     end
-    i32.const 0
-    i32.const 0
-    return
-  )
-  (func $other.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 17 |     1
-    call $rt:cancel_enter
-    local.set $t0
-    block
-      local.get $t1
-      call $rt:cancel_check
-      i32.eqz
-      br_if 0
-      local.get $t1
-      i32.load $heap offset=8
-      i32.eqz
-      br_if 0
-      local.get $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 16
-      i32.or
-      i32.store $heap offset=12
-      local.get $t1
-      call $other'2
-      local.set $t2
-      local.set $t3
-      local.get $t2
-      i32.eqz
-      if
-        local.get $t1
-        local.get $t1
-        i32.load $heap offset=12
-        i32.const -17
-        i32.and
-        i32.store $heap offset=12
-      end
-    end
-    local.get $t1
-    local.get $t0
-    call $rt:cancel_leave
   )
   (func $other.drop (param $t0 i32)
     ;; 17 |     1
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+    end
     local.get $t0
     i32.load $heap offset=12
     i32.const 64

@@ -7,25 +7,55 @@ enum Input[T]:
     Present(value: T)
 
 fn optional!(value: (&i32)?) -> i32:
-    match value:
+    pause!()
 > app/main/optional
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/optional
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/optional
 >   retain counted reference (by design)
+    match value:
         .Some(item) => *item
         .None => -1
 
 fn tagged!(value: Input[(&i32, i32)]) -> i32:
-    match value:
+    pause!()
 > app/main/tagged
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release app.main.Input[(&i32, i32)] (last use)
+>   release counted reference (last use)
+>   release app.main.Input[(&i32, i32)] (last use)
 >   release app.main.Input[(&i32, i32)] (last use)
 >   release counted reference (by design)
 > app/main/tagged
 >   release app.main.Input[(&i32, i32)] (cancelled)
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/tagged
 >   retain counted reference (by design)
+    match value:
         .Present(pair) => *pair._0 + pair._1
         .Missing(text) => i32(text.len())
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

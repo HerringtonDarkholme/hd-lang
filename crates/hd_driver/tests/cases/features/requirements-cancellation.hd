@@ -7,6 +7,7 @@
 use std.task.CleanupEnd
 
 fn fetch!(key: string) -> string:
+    pause!()
     key + "?"
 
 fn stop!(key: string) -> bool:
@@ -19,3 +20,8 @@ fn stop!(key: string) -> bool:
 fn drop_now(key: string) -> void:
     let mut job = fetch(key)
     job.abandon()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

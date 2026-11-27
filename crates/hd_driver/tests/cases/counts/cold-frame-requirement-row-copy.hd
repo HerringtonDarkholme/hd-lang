@@ -5,4 +5,10 @@ trait Value:
     fn value(&self) -> i32
 
 fn read!() -> i32 $ Value:
+    pause!()
     $.use(Value).value()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

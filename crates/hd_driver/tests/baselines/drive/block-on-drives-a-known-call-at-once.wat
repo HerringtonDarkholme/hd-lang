@@ -4,56 +4,30 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
-  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "release_value[std.task.BlockOn[string]]" (func $"release_value[std.task.BlockOn[string]]" (param i32 i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
+  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32) (local $t0 i32)
+  (func $fetch'1 (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     key + "?"
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $key.0
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $key.1
-    end
     local.get $key.1
     i32.const 1
     i32.add
     local.tee $t0
     call $rt:str
+    local.tee $t1
     local.tee $t2
-    local.tee $t3
     local.get $key.0
     local.get $key.1
     call $rt:memory_copy/0/0
-    local.get $t3
+    local.get $t2
     local.get $key.1
     i32.add
     i32.const 63
@@ -63,38 +37,42 @@
       local.get $key.0
       call $rt:release_ref'1
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    i32.const 0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
   (func $fetch.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 11 |     key + "?"
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
     local.get $t0
     call $rt:poll_check
     if
       i32.const 0
       i32.const 0
       i32.const 0
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
       return
     end
     local.get $t0
@@ -104,11 +82,11 @@
     i32.or
     i32.store $heap offset=12
     local.get $t0
-    i32.const 0
-    i32.const 0
+    i32.load $heap offset=24
+    local.get $t0
+    i32.load $heap offset=28
     call $fetch'1
     local.set $t1
-    local.set $t2
     local.set $t3
     local.get $t0
     local.get $t0
@@ -116,70 +94,26 @@
     i32.const -2
     i32.and
     i32.store $heap offset=12
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 68
+    i32.or
+    i32.store $heap offset=12
+    i32.const 1
+    local.get $t3
     local.get $t1
-    i32.eqz
+    local.get $t0
     if
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 4
+      i32.const -129
+      i32.and
+      local.get $t2
       i32.or
       i32.store $heap offset=12
-      i32.const 1
-      local.get $t3
-      local.get $t2
-      return
     end
-    i32.const 0
-    i32.const 0
-    i32.const 0
-    return
-  )
-  (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 11 |     key + "?"
-    call $rt:cancel_enter
-    local.set $t0
-    block
-      local.get $t1
-      call $rt:cancel_check
-      i32.eqz
-      br_if 0
-      local.get $t1
-      i32.load $heap offset=8
-      i32.eqz
-      br_if 0
-      local.get $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 16
-      i32.or
-      i32.store $heap offset=12
-      local.get $t1
-      i32.const 0
-      i32.const 0
-      call $fetch'1
-      local.set $t2
-      drop
-      local.set $t3
-      local.get $t2
-      i32.eqz
-      if
-        local.get $t1
-        local.get $t1
-        i32.load $heap offset=12
-        i32.const -17
-        i32.and
-        i32.store $heap offset=12
-        local.get $t3
-        if
-          local.get $t3
-          call $rt:release_ref'1
-        end
-      end
-    end
-    local.get $t1
-    local.get $t0
-    call $rt:cancel_leave
   )
   (func $fetch.drop (param $t0 i32)
     ;; 11 |     key + "?"
@@ -209,10 +143,9 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $value.1 i32)
+  (func $direct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32)
     ;; 14 |     match block_on(fetch(key)):
     call $rt:forbid_check
-    i32.const 0
     i32.const 0
     local.get $key.0
     local.get $key.1
@@ -220,28 +153,14 @@
     local.set $key.0
     local.set $key.1
     local.set $t0
-    local.set $t1
-    local.get $key.0
-    if
-      local.get $key.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $key.0
-        call $rt:release_ref'2
-      end
-    end
     block
       block
         block
     ;; 15 |         .Completed(value) => value.len()
-          local.get $t1
-          br_if 1
           local.get $t0
+          br_if 1
           local.get $key.1
+          local.get $key.0
           local.set $value.1
           drop
           br 0
@@ -251,9 +170,9 @@
         br 1
       end
     end
-    local.get $t1
     local.get $t0
     local.get $key.1
+    local.get $key.0
     call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )
@@ -371,43 +290,26 @@
     call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )
-  (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $value.1 i32)
+  (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32) (local $value.1 i32)
     ;; 20 |     match block_on(pending):
     call $rt:forbid_check
     i32.const 0
     ;; 19 |     let pending: Suspend[string] = fetch(key)
-    i32.const 0
     local.get $key.0
     local.get $key.1
     call $fetch'1
-    local.set $key.0
     ;; 20 |     match block_on(pending):
+    local.set $key.0
     local.set $key.1
     local.set $t0
-    local.set $t1
-    ;; 19 |     let pending: Suspend[string] = fetch(key)
-    local.get $key.0
-    ;; 20 |     match block_on(pending):
-    if
-      local.get $key.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $key.0
-        call $rt:release_ref'2
-      end
-    end
     block
       block
         block
     ;; 21 |         .Completed(value) => value.len()
-          local.get $t1
-          br_if 1
           local.get $t0
+          br_if 1
           local.get $key.1
+          local.get $key.0
           local.set $value.1
           drop
           br 0
@@ -418,9 +320,9 @@
       end
     end
     ;; 19 |     let pending: Suspend[string] = fetch(key)
-    local.get $t1
     local.get $t0
     local.get $key.1
+    local.get $key.0
     call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )

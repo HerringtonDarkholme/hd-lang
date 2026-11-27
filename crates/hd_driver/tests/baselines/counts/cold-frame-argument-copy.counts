@@ -3,8 +3,33 @@
 # @build: v8 release
 # expected: the cold frame stores the incoming count and releases it if abandoned.
 fn length!(text: string) -> usize:
+    pause!()
+> app/main/length
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+> app/main/length
+>   release counted reference (cancelled)
+>   release counted reference (last use)
     text.len()
-> app/main/length
->   release string (last use)
-> app/main/length
->   release string (cancelled)
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)
