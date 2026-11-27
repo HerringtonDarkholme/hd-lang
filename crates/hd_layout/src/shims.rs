@@ -143,6 +143,8 @@ pub struct Counts {
     portion: Portion,
     of: HashMap<Ty, Count>,
     shapes: HashMap<Ty, Hash128>,
+    /// The `canon` digest of each type with a hook, which its shape holds.
+    canons: hd_mono::layout::CanonMemo,
 }
 
 impl Counts {
@@ -239,9 +241,16 @@ impl Counts {
         let vals = crate::vals(pool, env, t)?;
         let mut h = StableHasher::new("count-shape");
         h.u32(self.portion as u32);
-        // A type with a hook has its own: its hook is its type's.
+        // A type with a hook has its own: its hook is its type's. Named by
+        // its `canon` digest, not its number in this run's pool, so a
+        // shim's key is the same in every build of the type (#2423).
         if crate::holds_drop(pool, env, t) {
-            h.u32(t.0);
+            h.hash(hd_mono::layout::canon(
+                pool,
+                &|d| env.path_hash(d),
+                &mut self.canons,
+                t,
+            ));
         }
         h.u64(std_hash(&|s| std::hash::Hash::hash(&vals, s)));
         match self.of(pool, env, t)? {
