@@ -90,7 +90,13 @@ fn drive(
     };
     let interrupt = crate::HostInterrupt::new();
     let started = if scenario == Scenario::CancellationCleanup {
-        engine.instantiate_cancellable(&module, setup, io, &interrupt, SCENARIO_CLEANUP)
+        engine.instantiate_run(
+            &module,
+            setup,
+            io,
+            Some((&interrupt, SCENARIO_CLEANUP)),
+            None,
+        )
     } else {
         engine.instantiate_with(&module, setup, io)
     };

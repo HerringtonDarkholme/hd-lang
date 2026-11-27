@@ -230,3 +230,21 @@ Common categories: `explicit-panic` (a `panic(...)` call, a failed
 - `hd build` needs a package, and writes nothing for a library.
 - `hd new` in a folder that already has files works: it adds the package
   files beside them.
+
+## Profile guest code
+
+`hd run --release --engine wasmtime --profile[=FILE]` records guest stacks
+as Firefox profiler JSON with hd function names. Without a joined path it
+writes `profile.json` in the working directory. The same flag works with
+`hd FILE.hd`, portable `.wasm` modules and release `.cwasm` artifacts.
+
+```sh
+hd run --release --engine wasmtime --profile=cpu.json -- -n 'reduce range(1000000) as $i (0; . + $i)'
+hd src/main.hd --engine wasmtime --profile
+hd build/release/app.cwasm --engine wasmtime --profile=cpu.json
+```
+
+Open the JSON in Firefox Profiler to inspect sampled guest stacks.
+Sampling uses 10 ms guest epoch checks; a very short run may have no
+samples. Node refuses the flag and suggests `--engine wasmtime`.
+`--profile` consumes no following word; words after `--` stay guest arguments.

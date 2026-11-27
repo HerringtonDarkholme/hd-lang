@@ -19,6 +19,7 @@ pub(crate) mod net;
 pub(crate) mod prim;
 pub(crate) mod process;
 pub(crate) mod runtime;
+pub(crate) mod sampling;
 pub(crate) mod session_tests;
 pub(crate) mod sys;
 pub(crate) mod test_engine;

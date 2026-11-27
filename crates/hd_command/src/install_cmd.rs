@@ -779,6 +779,7 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
             engine,
             hd_driver::OptLevel::Optimized,
             engine::ProgramLimits::default(),
+            None,
         ),
         &mut rep,
     )

@@ -1658,6 +1658,7 @@ mod tests {
                         wall_ms: Some(2000),
                         cleanup_ms: None,
                     },
+                    None,
                 ),
                 &mut reporter,
             );

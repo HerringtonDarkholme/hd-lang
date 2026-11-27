@@ -4,9 +4,9 @@
 //! the item the function compiles. The caller resolves anchors to
 //! `FILE:LINE` against the current sources (`cli.test.report.frame`).
 //!
-//! The table is read only on a trap, never on a clean run. A function's
-//! name comes from the `name` section, or from `hd.names` in a release
-//! build, which omits `name`.
+//! Trap reporting reads the table on demand. Artifact creation and explicitly
+//! requested profiling also read it to retain standard Wasm function names.
+//! Names come from `name`, compact `hd.names`, or resolved `hd.positions`.
 //!
 //! A module that `hd build` wrote stands alone (`crates/hd_mono/DESIGN.md`
 //! "Positions"): its `hd.positions` section gives each anchor's file, line
@@ -327,6 +327,55 @@ pub fn cut_inlined(wasm: &mut Vec<u8>) {
     cut_custom(wasm, "hd.inlined");
 }
 
+/// Retains symbolic function names for external tools, including Wasmtime's
+/// guest profiler. Existing standard name sections are left byte-identical.
+/// hd release names and written positions are expanded only when necessary.
+pub fn retain_function_names(wasm: &mut Vec<u8>) -> Result<(), String> {
+    for (id, _, body) in all_sections(wasm)? {
+        if id == 0 {
+            let mut bytes = Bytes { b: body, at: 0 };
+            if bytes.name()? == "name" {
+                return Ok(());
+            }
+        }
+    }
+    let table = LineTable::parse(wasm)?;
+    let defined = u32::try_from(table.starts.len()).map_err(|error| error.to_string())?;
+    let end = table
+        .imports
+        .checked_add(defined)
+        .ok_or_else(|| "function index overflow in profiling names".to_owned())?;
+    // cost: one pass over this module's function index space. Indexed
+    // metadata lookups avoid sorting or a scan per function.
+    let names: Vec<_> = (0..end)
+        .filter_map(|index| {
+            table
+                .resolved
+                .get(&index)
+                .map(|(_, name, _)| name)
+                .or_else(|| table.names.get(&index))
+                .map(|name| (index, name))
+        })
+        .collect();
+    if names.is_empty() {
+        return Ok(());
+    }
+    let mut map = Vec::new();
+    hd_base::leb::put(&mut map, names.len() as u64);
+    for (index, name) in names {
+        hd_base::leb::put(&mut map, u64::from(index));
+        hd_base::leb::put(&mut map, name.len() as u64);
+        map.extend_from_slice(name.as_bytes());
+    }
+    let mut body = vec![4, b'n', b'a', b'm', b'e', 1];
+    hd_base::leb::put(&mut body, map.len() as u64);
+    body.extend(map);
+    wasm.push(0);
+    hd_base::leb::put(wasm, body.len() as u64);
+    wasm.extend(body);
+    Ok(())
+}
+
 /// A module without its `hd.names` section, which `hd build` drops once
 /// `hd.positions` holds every function name needed by a written module.
 pub fn cut_names(wasm: &mut Vec<u8>) {
@@ -486,6 +535,52 @@ mod tests {
             custom(&mut m, "hd.names", &entries);
         }
         m
+    }
+
+    #[test]
+    fn profiling_names_expand_release_metadata_once_without_changing_code()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut wasm = module("hd.names");
+        let original = LineTable::parse(&wasm)?;
+        let code = crate::imports::all_sections(&wasm)?
+            .into_iter()
+            .find(|section| section.0 == 10)
+            .ok_or("code")?
+            .2
+            .to_vec();
+        super::retain_function_names(&mut wasm)?;
+        let named = LineTable::parse(&wasm)?;
+        assert_eq!(named.names, original.names);
+        assert_eq!(named.starts, original.starts);
+        assert_eq!(
+            crate::imports::all_sections(&wasm)?
+                .into_iter()
+                .find(|section| section.0 == 10)
+                .ok_or("code")?
+                .2,
+            code
+        );
+        let once = wasm.clone();
+        super::retain_function_names(&mut wasm)?;
+        assert_eq!(wasm, once);
+        Ok(())
+    }
+
+    #[test]
+    fn profiling_names_use_written_positions_after_compact_names_are_removed()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut wasm = module("hd.names");
+        super::cut_names(&mut wasm);
+        wasm.extend(super::positions_section(
+            &[(2, "main.hd".into(), "hot_vm_loop".into(), vec![1, 2])],
+            &[],
+        ));
+        super::retain_function_names(&mut wasm)?;
+        assert_eq!(
+            LineTable::parse(&wasm)?.names.get(&2).map(String::as_str),
+            Some("hot_vm_loop")
+        );
+        Ok(())
     }
 
     #[test]

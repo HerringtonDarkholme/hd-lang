@@ -63,6 +63,7 @@ pub(crate) fn run_program(
     _level: hd_driver::OptLevel,
     _image: hd_run::artifact::Image<'_>,
     _host: &HostSetup,
+    _sampling: Option<&std::path::Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     missing()
 }

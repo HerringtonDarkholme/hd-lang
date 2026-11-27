@@ -697,7 +697,7 @@ fn compile_standalone_in(
     // same inputs stored (#1510): one lookup beside the stamp table, no
     // per-module entry. A build that writes its text (`HD_WAT`) builds,
     // for the functions' names.
-    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1")
+    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v2")
         .filter(|_| !wat::requested());
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
         if rep.diags(&program.problems) {
@@ -714,6 +714,7 @@ fn compile_standalone_in(
         hd_run::frames::cut_names(&mut wasm);
         wasm.extend(section);
     }
+    hd_run::frames::retain_function_names(&mut wasm).map_err(|error| rep.fail(&error))?;
     // Only a build that reported nothing: a hit reports nothing either.
     if let Some((key, client)) = stored
         && (rep.errors, rep.warnings) == reported
@@ -939,7 +940,12 @@ fn execute(
     flags: &[caps::CapFlag],
     provider_program: Option<&disk::Program>,
     args: &[OsString],
-    run: (engine::Choice, OptLevel, engine::ProgramLimits),
+    run: (
+        engine::Choice,
+        OptLevel,
+        engine::ProgramLimits,
+        Option<&Path>,
+    ),
     rep: &mut Reporter,
 ) -> ExitCode {
     match host_contract(&built.wasm) {
@@ -972,7 +978,12 @@ fn execute_with(
     ),
     provider_program: Option<&disk::Program>,
     args: &[OsString],
-    (choice, level, limits): (engine::Choice, OptLevel, engine::ProgramLimits),
+    (choice, level, limits, sampling): (
+        engine::Choice,
+        OptLevel,
+        engine::ProgramLimits,
+        Option<&Path>,
+    ),
     rep: &mut Reporter,
 ) -> ExitCode {
     let wasm = &built.wasm;
@@ -1026,7 +1037,7 @@ fn execute_with(
     } else {
         Vec::new()
     };
-    match engine::run(engine, level, built.image(), &host, &providers) {
+    match engine::run(engine, level, built.image(), &host, &providers, sampling) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -1066,6 +1077,7 @@ struct FileWords {
     engine: engine::Choice,
     release: bool,
     limits: engine::ProgramLimits,
+    sampling: Option<PathBuf>,
 }
 
 fn file_words(args: &[OsString]) -> Result<FileWords, String> {
@@ -1077,6 +1089,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         engine: engine::Choice::default(),
         release: false,
         limits: engine::ProgramLimits::default(),
+        sampling: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -1114,6 +1127,11 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             let (ms, used) = limit?;
             w.limits.cleanup_ms = Some(ms);
             i += used;
+            continue;
+        }
+        if let Some(path) = engine::sampling_flag(&args[i]) {
+            w.sampling = Some(path?);
+            i += 1;
             continue;
         }
         if let Some(jobs) = jobs_flag(args, i) {
@@ -1170,7 +1188,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &w.caps,
             Some(&program),
             &w.program_args,
-            (w.engine, pipeline.level, w.limits),
+            (w.engine, pipeline.level, w.limits, w.sampling.as_deref()),
             &mut rep,
         ),
         Err(code) => code,
@@ -1205,7 +1223,12 @@ fn run_stdin_command() -> ExitCode {
             &[],
             Some(&program),
             &[],
-            (engine, pipeline.level, engine::ProgramLimits::default()),
+            (
+                engine,
+                pipeline.level,
+                engine::ProgramLimits::default(),
+                None,
+            ),
             &mut rep,
         ),
         Err(code) => code,
@@ -1336,7 +1359,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         ),
         provider_program.as_ref(),
         &w.program_args,
-        (w.engine, level, w.limits),
+        (w.engine, level, w.limits, w.sampling.as_deref()),
         &mut rep,
     )
 }
@@ -1365,6 +1388,7 @@ struct Words {
     /// runs on, and the one whose target `hd run` and `hd build` tune for.
     engine: engine::Choice,
     limits: engine::ProgramLimits,
+    sampling: Option<PathBuf>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
@@ -1378,6 +1402,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         packages: Vec::new(),
         engine: engine::Choice::default(),
         limits: engine::ProgramLimits::default(),
+        sampling: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -1410,6 +1435,13 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             w.engine = engine::Choice::named(kind);
             engine_flag = true;
             i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(path) = engine::sampling_flag(&args[i])
+        {
+            w.sampling = Some(path?);
+            i += 1;
             continue;
         }
         if let Some(jobs) = jobs_flag(args, i) {
@@ -1603,7 +1635,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         &w.caps,
         Some(&program),
         &w.program_args,
-        (w.engine, pipeline.level, w.limits),
+        (w.engine, pipeline.level, w.limits, w.sampling.as_deref()),
         &mut rep,
     )
 }
@@ -1710,7 +1742,7 @@ fn build_artifact(
     let store = hd_cache::DeferredStore::new(disk_store());
     let tag = if native {
         Some(format!(
-            "cli-native-output-v1:{:032x}",
+            "cli-native-output-v2:{:032x}",
             engine::native_key().map_err(|e| rep.fail(&e))?.0
         ))
     } else {
@@ -2055,6 +2087,7 @@ mod stored_artifact_tests {
             hd_run::artifact::Image::Wasm(wasm),
             &host,
             &[],
+            None,
         )
         .expect("the engine runs");
         assert!(matches!(outcome, Outcome::Exit(3)), "{outcome:?}");

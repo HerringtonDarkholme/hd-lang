@@ -1,0 +1,5 @@
+[package]
+name = "guest_profile"
+
+[capabilities]
+Console = true
