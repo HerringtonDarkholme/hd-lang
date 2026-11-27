@@ -125,7 +125,9 @@ miss refuses the run, naming package, triple and trait. Std's linked
 Per call, the binder adds the memory's base to each pointer and calls the
 slot with `self`, with no codec. Std's binders are typed
 (`Linker::func_wrap`); a package's signatures get one Cranelift
-trampoline each per run, as Deno's do. The base cannot move mid-call: a
+trampoline each, compiled once per process, as Deno's do (built in step
+6: one trampoline serves every slot of its signature, taking the slot's
+address as its first argument). The base cannot move mid-call: a
 shared memory's never does, and only the calling instance grows its own.
 
 **Completions.** As for a native provider's pending call:
@@ -419,7 +421,7 @@ Rules this design revises, quoted:
 
 | Part | As built |
 | --- | --- |
-| calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers, or a target other than x86-64 or arm64, is refused at startup (decision 16) |
+| calls | from step 6, each slot is called through a Cranelift trampoline of its C signature, compiled once per process (`native/c_trampoline.rs`); there is no limit on arguments and no target list beyond Cranelift's (decision 16, resolved) |
 | `!` methods | step 5 binds them; see [Step 5 As Built](#step-5-as-built) |
 | pointer arguments | a reference to a number, or to a list of numbers, must lie in the guest heap at a multiple of its number type's size; otherwise the call fails with `host-contract`, "misaligned C pointer argument", as the JavaScript glue words it ([`module.host.package.c-aligned`](../../spec/lang/10-modules.md#r-module.host.package.c-aligned)) |
 | `hd test` | from step 4b, a Wasmtime test run binds the C providers of the programs its tests run by name; a Node run, and a test case's own module, bind none |
@@ -710,9 +712,12 @@ A third answer, on returned handles, took effect in step 4b:
 Owner, 2026-11-27, on phase step 4's questions:
 
 16. **Call bridge limits, temporary until step 6:** through steps 4 and 5,
-    Wasmtime refuses at startup a C slot that needs more than 16 stack
+    Wasmtime refused at startup a C slot that needed more than 16 stack
     words past the registers, and C providers on any target other than
-    x86-64 or arm64. Step 6's trampolines remove both limits.
+    x86-64 or arm64. Resolved in step 6: each distinct C signature gets a
+    Cranelift trampoline compiled once per process, after Deno's FFI
+    turbocall, so both limits are gone; C providers run wherever
+    Cranelift has a back end.
 
 Owner, 2026-11-27, on phase step 5's questions:
 

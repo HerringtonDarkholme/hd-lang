@@ -70,6 +70,16 @@ wasmtime = { version = "=49.0.2", default-features = false, features = [
     "std",
     "threads",
 ] }
+# C provider trampolines (#2388 step 6, `native/c_trampoline.rs`): one
+# native function per distinct C signature, compiled at run time with the
+# Cranelift that Wasmtime already builds (the same 0.136.2 release), so
+# no second code generator enters the build. `cranelift-jit` and
+# `cranelift-module` add only its executable-memory and icache handling.
+cranelift-codegen = { version = "=0.136.2", default-features = false, features = ["std", "host-arch"] }
+cranelift-frontend = { version = "=0.136.2", default-features = false, features = ["std"] }
+cranelift-native = "=0.136.2"
+cranelift-jit = "=0.136.2"
+cranelift-module = "=0.136.2"
 
 [lints]
 workspace = true
