@@ -153,10 +153,15 @@ fn hash_text(table: &Table) -> String {
 
 /// The cursor library, built once per test into its own folder.
 fn library(name: &str) -> (std::path::PathBuf, Library) {
+    library_for(name, STORE, &tables())
+}
+
+/// [`library`], selected for the root interface `module`, with the
+/// contract hashes of `tables`.
+fn library_for(name: &str, module: &str, tables: &[Table]) -> (std::path::PathBuf, Library) {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("c-handles-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("library folder");
-    let tables = tables();
     let source = include_str!("c_handles/cursor.rs")
         .replace("__STORE__", &hash_text(&tables[0]))
         .replace("__CURSOR__", &hash_text(&tables[1]));
@@ -196,7 +201,7 @@ fn library(name: &str) -> (std::path::PathBuf, Library) {
         String::from_utf8_lossy(&built.stderr)
     );
     let library = Library {
-        module: STORE.into(),
+        module: module.into(),
         path: file.clone(),
         name: "hd_store".into(),
         package: "sdk".into(),
@@ -326,4 +331,148 @@ fn a_forged_or_stale_c_handle_calls_no_slot() {
     assert_eq!(counts(&file).1, 0, "no `next` slot ran");
     // Each released cursor was destroyed once.
     assert_eq!(counts(&file).0, 2);
+}
+
+/// How many providers the library at `file` created.
+#[allow(unsafe_code)]
+fn created(file: &std::path::Path) -> u32 {
+    // SAFETY: the test's own library; `created` takes nothing.
+    unsafe {
+        let lib = libloading::Library::new(file).expect("the library");
+        let created = lib
+            .get::<unsafe extern "C" fn() -> u32>(b"created")
+            .expect("created");
+        created()
+    }
+}
+
+/// A module of `contract` and `tables` whose `hd.init` traps, so a guest
+/// that started would end in a trap, not the refusal.
+fn guarded(contract: &Contract, tables: &[Table]) -> Vec<u8> {
+    let mut types = TypeSection::new();
+    types.ty().function([], []);
+    types.ty().function([ValType::I32], [ValType::I32]);
+    let mut functions = FunctionSection::new();
+    functions.function(0).function(1);
+    let mut memory = MemorySection::new();
+    memory.memory(MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    });
+    let mut exports = ExportSection::new();
+    exports.export("hd.x", ExportKind::Memory, 0);
+    exports.export("hd.heap", ExportKind::Memory, 0);
+    exports.export("hd.init", ExportKind::Func, 0);
+    exports.export("hd.poll", ExportKind::Func, 1);
+    let mut init = Function::new([]);
+    init.instruction(&I::Unreachable).instruction(&I::End);
+    let mut poll = Function::new([]);
+    poll.instruction(&I::I32Const(0)).instruction(&I::End);
+    let mut code = CodeSection::new();
+    code.function(&init).function(&poll);
+    let mut wasm = Wasm::new();
+    wasm.section(&types)
+        .section(&functions)
+        .section(&memory)
+        .section(&exports)
+        .section(&code);
+    wasm.section(&wasm_encoder::CustomSection {
+        name: hd_host_abi::schema::SECTION.into(),
+        data: contract.encode().into(),
+    });
+    wasm.section(&wasm_encoder::CustomSection {
+        name: hd_host_abi::c::SECTION.into(),
+        data: hd_host_abi::c::encode(tables).into(),
+    });
+    wasm.finish()
+}
+
+/// The refusal of `wasm` with `libraries` bound and both roots consented,
+/// and what the guest wrote to standard output.
+#[allow(unsafe_code)]
+fn refused(wasm: &[u8], libraries: &[Library]) -> (String, Vec<u8>) {
+    let out = Shared::default();
+    let io = HostIo {
+        out: Box::new(out.clone()),
+        err: Box::new(Shared::default()),
+        input: None,
+    };
+    let setup = HostSetup {
+        grants: Grants::with_consent(Consent::new(
+            &[
+                ("dep.sdk.store.Store".to_owned(), GrantValue::All),
+                ("dep.sdk.shelf.Store".to_owned(), GrantValue::All),
+            ],
+            &[],
+        )),
+        limits: Limits::default(),
+        args: vec![],
+        program: "c-handles".into(),
+    };
+    // SAFETY: a portable Wasm image, and the test's own libraries.
+    let ran = unsafe {
+        hd_run_wasmtime::run_with_c_providers(
+            EngineConfig::default(),
+            hd_run::artifact::Image::Wasm(wasm),
+            &setup,
+            io,
+            libraries,
+            None,
+            None,
+        )
+    };
+    let Err(message) = ran else {
+        panic!("not refused: {ran:?}");
+    };
+    (message, out.take())
+}
+
+/// `cli.host.c.unseen-conflict`: a conflict no one check saw refuses the
+/// run before the guest starts and before any `create` runs. Two root
+/// traits of two libraries return one handle trait
+/// (`cli.host.c.handle-library`), and a handle trait takes its library's
+/// entry name of a root trait (`cli.host.c.handle-entry`).
+#[test]
+fn a_conflict_no_check_saw_refuses_the_run_before_any_create() {
+    let mut two = tables();
+    let shelf = "hd:pkg:shelf";
+    // A second root, `shelf.Store`, of another library file, also returns
+    // `Cursor`.
+    two.push(Table {
+        module: shelf.into(),
+        ..two[0].clone()
+    });
+    let mut roots = contract();
+    roots.interfaces.push(Interface {
+        identity: identity("shelf.Store"),
+        module: shelf.into(),
+        selectors: vec!["dep.sdk.shelf.Store".into()],
+        ..roots.interfaces[0].clone()
+    });
+    let (store_file, store) = library_for("conflict-store", STORE, &two);
+    let (shelf_file, shelf_library) = library_for("conflict-shelf", shelf, &two);
+    let (message, out) = refused(&guarded(&roots, &two), &[store, shelf_library]);
+    assert!(
+        message.contains("returned by C providers of two libraries"),
+        "{message}"
+    );
+    assert!(message.contains("store.Cursor"), "{message}");
+    assert!(out.is_empty(), "the guest wrote {out:?}");
+    assert_eq!((created(&store_file), created(&shelf_file)), (0, 0));
+
+    // `Cursor`'s table named `Store`: the root's entry symbol.
+    let mut tables = tables();
+    tables[1].trait_name = "Store".into();
+    tables[0].methods[0].result = Ret::Handle("Store".into());
+    let (file, library) = library_for("conflict-entry", STORE, &tables);
+    let (message, out) = refused(&guarded(&contract(), &tables), &[library]);
+    assert!(
+        message.contains("would both take the entry symbol `hd_store_Store`"),
+        "{message}"
+    );
+    assert!(out.is_empty(), "the guest wrote {out:?}");
+    assert_eq!(created(&file), 0);
 }

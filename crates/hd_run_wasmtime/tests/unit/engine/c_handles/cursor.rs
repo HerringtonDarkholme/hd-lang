@@ -4,6 +4,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 static DESTROYED: AtomicU32 = AtomicU32::new(0);
+static CREATED: AtomicU32 = AtomicU32::new(0);
 static CALLS: AtomicU32 = AtomicU32::new(0);
 
 #[repr(C)]
@@ -25,6 +26,7 @@ pub struct Cursor {
 }
 
 unsafe extern "C" fn create() -> *mut c_void {
+    CREATED.fetch_add(1, Ordering::SeqCst);
     Box::into_raw(Box::new(100i32)).cast()
 }
 unsafe extern "C" fn destroy_store(this: *mut c_void) {
@@ -76,4 +78,10 @@ pub extern "C" fn hd_store_Cursor() -> *const Cursor {
 #[unsafe(no_mangle)]
 pub extern "C" fn counts() -> u64 {
     u64::from(DESTROYED.load(Ordering::SeqCst)) << 32 | u64::from(CALLS.load(Ordering::SeqCst))
+}
+
+/// How many providers `create` made.
+#[unsafe(no_mangle)]
+pub extern "C" fn created() -> u32 {
+    CREATED.load(Ordering::SeqCst)
 }
