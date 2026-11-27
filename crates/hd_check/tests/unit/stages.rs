@@ -1,4 +1,4 @@
-use hd_base::DefId;
+use hd_base::{DefId, HashSet};
 use hd_check::stages::{CycleOrder, cycle_order, runs};
 
 use hd_check::init::{InitFacts, InitSummary, StmtSummary};
@@ -154,4 +154,61 @@ fn statements_that_wait_on_each_other_are_stuck() {
             waits_on: d(2),
         }
     );
+}
+
+#[test]
+fn uncalled_function_graphs_do_no_cycle_read_closure_work() {
+    // Ten times as many independent chains, each twenty calls deep.
+    // Their leaf reads a real cycle binding, so eager closure is observable.
+    for width in [100u32, 1000] {
+        let depth = 20u32;
+        let mut one = module(vec![stmt(&[], &[])], &[(1, 0)], &[]);
+        let two = module(vec![stmt(&[], &[])], &[(2, 0)], &[]);
+        for chain in 0..width {
+            let first = 1000 + chain * depth;
+            for level in 0..depth {
+                let leaf = level + 1 == depth;
+                one.fns.push((
+                    d(first + level),
+                    InitFacts {
+                        reads: if leaf {
+                            [d(2)].into_iter().collect()
+                        } else {
+                            HashSet::default()
+                        },
+                        calls: if leaf {
+                            HashSet::default()
+                        } else {
+                            [d(first + level + 1)].into_iter().collect()
+                        },
+                        ..InitFacts::default()
+                    },
+                ));
+            }
+            one.dispatch.push((d(500_000 + chain), vec![d(first)]));
+        }
+        let (order, scanned) = hd_check::work::count_scan_work(|| cycle_order(&[&one, &two]));
+        assert_eq!(order, CycleOrder::Steps(vec![(0, 0), (1, 0)]));
+        assert_eq!(scanned, 0, "no function or dispatch summary is visited");
+
+        // Direct binding dependencies still order rootless initializers.
+        one.stmts[0].facts.reads.insert(d(2));
+        assert_eq!(
+            cycle_order(&[&one, &two]),
+            CycleOrder::Steps(vec![(1, 0), (0, 0)])
+        );
+        one.stmts[0].facts.reads.clear();
+
+        // Either kind of root must retain transitive read propagation.
+        one.stmts[0].facts.calls.insert(d(1000));
+        let (order, scanned) = hd_check::work::count_scan_work(|| cycle_order(&[&one, &two]));
+        assert_eq!(order, CycleOrder::Steps(vec![(1, 0), (0, 0)]));
+        assert_eq!(scanned, u64::from(width * (depth + 1)));
+        one.stmts[0].facts.calls.clear();
+        one.stmts[0].facts.dispatch.insert(d(500_000));
+        assert_eq!(
+            cycle_order(&[&one, &two]),
+            CycleOrder::Steps(vec![(1, 0), (0, 0)])
+        );
+    }
 }
