@@ -208,12 +208,7 @@ function open(fd: number | null): void {
     // This is Node's stdio split, without a worker's redirected process.stdin.
     if (isatty(fd)) {
       source = new ReadStream(fd);
-    } else if (
-      process.platform === "darwin" &&
-      !stat.isFile() &&
-      !stat.isSocket() &&
-      !(stat.isFIFO() && stat.dev === 0)
-    ) {
+    } else if (process.platform === "darwin" && stat.isFIFO() && stat.dev !== 0) {
       // XNU pipe_stat zeroes st_dev for anonymous pipes. A vnode-backed
       // FIFO retains its filesystem device, even after its name is unlinked.
       source = specialInput(fd);
@@ -261,6 +256,20 @@ function startInput(request: Dynamic): { ok: number } {
   return { ok: operation };
 }
 
+function closeInput(): Promise<{ ok: null }> {
+  waiting.clear();
+  operations.clear();
+  source?.pause();
+  if (specialClosed !== null) {
+    // Only this stream owns an OS child. Other streams borrow the
+    // caller's fd, and destroying an fs.ReadStream closes even autoClose:false.
+    source?.destroy();
+  } else {
+    source?.unref?.();
+  }
+  return (specialClosed ?? Promise.resolve()).then(() => ({ ok: null }));
+}
+
 const run = (request: Dynamic): Dynamic => {
   switch (request.op) {
     case "wait_start":
@@ -292,10 +301,7 @@ const run = (request: Dynamic): Dynamic => {
       return { ok: null };
     }
     case "close": {
-      waiting.clear();
-      operations.clear();
-      source?.destroy();
-      return (specialClosed ?? Promise.resolve()).then(() => ({ ok: null }));
+      return closeInput();
     }
     default:
       throw new Error("unknown input control call");
