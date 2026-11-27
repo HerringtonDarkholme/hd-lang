@@ -24,8 +24,18 @@ pub fn main!() -> void $ Disk:
     _ := disk.wait!(10)
 ";
 
+/// The dev build and the release build, whose inliner may copy a call
+/// site, each keep one C import per called method.
 #[test]
 fn a_c_bound_trait_records_its_whole_table_and_takes_c_arguments() {
+    check(hd_driver::OptLevel::Dev, hd_driver::BuildProfile::default());
+    check(
+        hd_driver::OptLevel::Optimized,
+        hd_driver::BuildProfile::Release,
+    );
+}
+
+fn check(level: hd_driver::OptLevel, build_profile: hd_driver::BuildProfile) {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", SOURCE);
     let store = crate::warm_store();
@@ -50,13 +60,15 @@ fn a_c_bound_trait_records_its_whole_table_and_takes_c_arguments() {
                 .expect("manifest")
                 .host,
             }],
+            level,
+            build_profile,
             ..Packages::default()
         },
         &Goal::Program {
             entry: "main".into(),
         },
     );
-    assert!(!out.diags.has_errors(), "{}", out.render());
+    assert!(!out.diags.has_errors(), "{level:?}: {}", out.render());
     let wasm = out.wasm.expect("the program links");
     wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
         .validate_all(&wasm)
@@ -169,4 +181,12 @@ fn a_c_bound_trait_records_its_whole_table_and_takes_c_arguments() {
     );
     assert_eq!(signature("wait.start"), (vec![I32], vec![I32, I32]));
     assert!(imports.iter().all(|(n, _)| !n.starts_with("unused")));
+    // One import per called method, or per part of a suspending one.
+    let mut names: Vec<&str> = imports.iter().map(|(n, _)| n.as_str()).collect();
+    hd_base::SliceSort::sort_stable(&mut names[..]);
+    assert_eq!(
+        names,
+        ["wait.finish", "wait.start", "write"],
+        "{level:?}: one import each"
+    );
 }
