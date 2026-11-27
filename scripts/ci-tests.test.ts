@@ -126,7 +126,9 @@ test(
     assert.equal(status, 1, output);
     assert.match(output, /crates\/hd_command all was killed by signal 9/);
     assert.match(output, /next binary/);
-    assert.match(signals, /kill\(0(?:<[^>]+>)?, SIGKILL\)/);
+    // The sender is killed by its own signal, so strace may print the call
+    // finished or as `kill(0, SIGKILL <unfinished ...>`.
+    assert.match(signals, /kill\(0(?:<[^>]+>)?, SIGKILL(?:\)| <unfinished)/);
     assert.match(signals, /setpgid\(0, 0\)/);
   },
 );
