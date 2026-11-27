@@ -85,7 +85,7 @@ pub struct HostProvider {
     pub trait_path: String,
     /// The JavaScript provider file: the string value, or a table's `js`.
     pub path: Option<String>,
-    /// A table's `c` library name (`cli.host.c.file`).
+    /// A table's `c` library name (`cli.host.c.name`).
     pub c: Option<String>,
     /// Why the value is neither a string nor a `{ c, js }` table, kept for
     /// a located diagnostic.
@@ -1002,7 +1002,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                         ),
                     );
                 }
-                // The entry symbol is `NAME_TRAIT` (`cli.host.c.entry`).
+                // The entry symbol is `NAME_TRAIT` (docs/future-work/FFI.md).
                 if let Some(name) = &entry.c
                     && !c_identifier(name)
                 {
