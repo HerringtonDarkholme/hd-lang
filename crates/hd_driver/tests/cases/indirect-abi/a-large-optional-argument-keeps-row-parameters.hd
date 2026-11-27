@@ -1,0 +1,27 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+struct Options:
+    indent: i64? = .None
+    color: bool = false
+    mono: bool = false
+    null_input: bool = false
+    raw_input: bool = false
+    stream: bool = false
+    slurp: bool = false
+    from_file: bool = false
+    exit_status: bool = false
+    help: bool = false
+    version: bool = false
+    yaml_input: bool = false
+    yaml_output: bool = false
+    named: List[(string, string, string)] = []
+    positional: List[(string, string)] = []
+    rest: List[string] = []
+
+fn finish(opts: Options) -> i64 $ Console:
+    0
+
+pub fn main() -> void $ Console:
+    opts := Options {}
+    # subject
+    println("${finish(opts)}")

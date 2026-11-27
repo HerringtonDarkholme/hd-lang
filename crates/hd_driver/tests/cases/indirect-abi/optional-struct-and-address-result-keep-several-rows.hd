@@ -1,0 +1,51 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+use std.fs.FsRead
+
+struct Inner:
+    value: i64
+
+struct Packet:
+    maybe: Inner? = .None
+    words: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = (
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+    )
+
+fn finish(opts: Packet) -> Packet $ Console + FsRead:
+    opts
+
+fn caller_row_only(opts: Packet) -> Packet:
+    opts
+
+fn identity[T](value: T) -> T $ Console:
+    value
+
+impl Packet:
+    fn through_method(self) -> Packet $ Console:
+        self
+
+pub fn main() -> void $ Console + FsRead:
+    value := finish(Packet { maybe: .Some(Inner { value: 42 }) })
+    again := caller_row_only(value)
+    callback := finish
+    via_callback := callback(again)
+    via_generic := identity(via_callback)
+    via_method := via_generic.through_method()
+    closure := fn(value: Packet) -> Packet $ Console: value
+    via_closure := closure(via_method)
+    println("${via_closure.maybe.unwrap().value} ${via_closure.words._15}")

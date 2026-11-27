@@ -1,0 +1,26 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Owner's second trigger: nested strings, no optional argument field.
+struct Colors:
+    a: string = "90"
+    b: string = "33"
+    c: string = "33"
+    d: string = "36"
+    e: string = "32"
+    f: string = "34;1"
+    g: string = ""
+    h: string = ""
+
+struct EncodeOptions:
+    indent: usize = 2
+    tab: bool = false
+    compact: bool = true
+    color: bool = false
+    colors: Colors = Colors {}
+
+fn run_one(encode: EncodeOptions, yaml: i64) -> i64? $ Console:
+    .None
+
+pub fn main() -> void $ Console:
+    _ := run_one(EncodeOptions {}, 1)
+    println("ok")
