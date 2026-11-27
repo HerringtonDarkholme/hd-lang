@@ -55,7 +55,7 @@ test("stdin preserves UTF-8 and CRLF across chunks and mixed line/all reads", (c
   const middle = "y".repeat(65534);
   const input = reader(context, Buffer.from(`${prefix}é${middle}\r\nsecond\r\nlast\r`));
   assert.equal(input(), `${prefix}é${middle}`);
-  assert.equal(input.all(), "second\nlast\r");
+  assert.equal(input.all(), "second\r\nlast\r");
   assert.equal(input(), null);
   assert.equal(input.all(), "");
 });

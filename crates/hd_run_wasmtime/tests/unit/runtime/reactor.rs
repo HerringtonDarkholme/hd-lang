@@ -320,7 +320,7 @@ mod tests {
             _ => panic!("read {h} has no result"),
         };
         assert_eq!(text(&mut r, first).as_deref(), Some(&b"a"[..]));
-        assert_eq!(text(&mut r, rest).as_deref(), Some(&b"b\n\nc\n"[..]));
+        assert_eq!(text(&mut r, rest).as_deref(), Some(&b"b\r\n\nc\n"[..]));
         assert_eq!(text(&mut r, again).as_deref(), Some(&b""[..]));
     }
 
@@ -330,7 +330,8 @@ mod tests {
             (&b"a\nb\n"[..], "a\nb\n"),
             (b"a\nb", "a\nb"),
             (b"\n", "\n"),
-            (b"a\r\nb\r\n", "a\nb\n"),
+            (b"a\r\nb\r\n", "a\r\nb\r\n"),
+            (b"a\r\nb\r", "a\r\nb\r"),
             (b"a\r", "a\r"),
             (b"", ""),
         ] {

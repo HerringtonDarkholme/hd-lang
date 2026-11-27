@@ -433,8 +433,7 @@ impl Reactor {
         self.read(Want::Line)
     }
 
-    /// A read of all the rest of standard input as read, with `\r\n` read
-    /// as `\n`.
+    /// A read of all the rest of standard input without newline translation.
     pub fn read_all(&mut self) -> i32 {
         self.read(Want::All)
     }
@@ -460,7 +459,7 @@ impl Reactor {
                 if !self.at_end {
                     break;
                 }
-                Some(normalize_crlf(&std::mem::take(&mut self.buffered)))
+                Some(std::mem::take(&mut self.buffered))
             } else if let Want::Bytes(max) = want {
                 // Bytes as soon as any are buffered; empty only at the end.
                 if self.buffered.is_empty() && !self.at_end && max > 0 {
@@ -863,16 +862,4 @@ fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, i32> {
             Err(error) => return Err(error.raw_os_error().unwrap_or(0)),
         }
     }
-}
-
-/// All the input that is left, as read, with `\r\n` read as `\n`.
-fn normalize_crlf(input: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(input.len());
-    for (i, &b) in input.iter().enumerate() {
-        if b == b'\r' && input.get(i + 1) == Some(&b'\n') {
-            continue;
-        }
-        out.push(b);
-    }
-    out
 }

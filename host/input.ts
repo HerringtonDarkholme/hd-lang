@@ -54,7 +54,7 @@ const complete = (state: InputState, newline: boolean): void => {
     }
     state.result = { ok: !newline && !bytes.length ? null : bytes.toString("utf8") };
   } else {
-    state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
+    state.result = { ok: bytes.toString("utf8") };
   }
 };
 const canServe = (): boolean => available.length > 0 || ended || failure !== null;

@@ -1,0 +1,9 @@
+[package]
+name = "console_crlf"
+
+[capabilities]
+Console = true
+ConsoleInput = true
+
+[dev-capabilities]
+Process = true

@@ -102,9 +102,10 @@ pub trait ConsoleInput:
 
 1. r[std-console.input.decl] `std.console` declares the host capability trait `ConsoleInput` with the method above. Code imports it, as in `use std.console.ConsoleInput`.
 2. r[std-console.input.read-line] `read_line!` returns the next line of input without its line ending, or `.None` at the end of input.
-3. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
-4. r[std-console.input.mut-ref.reference-values] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance through its input.
-5. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
+3. r[std-console.input.line-ending-lf-crlf] The removed ending is one LF and its immediately preceding CR, if present; a lone CR remains in the returned text.
+4. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
+5. r[std-console.input.mut-ref.reference-values] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance through its input.
+6. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
 
 ```text
 use std.console.{ConsoleInput, read_line}
@@ -127,10 +128,13 @@ fn whole_input!() -> string $ ConsoleInput:
         .Err(_) => ""
 ```
 
-6. r[std-console.input.read-all-ref] `ConsoleInput` also declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, a bang call that takes `&mut self` as `read_line!` does. It returns the rest of the input as one string with the line structure of the text, as Go's `io.ReadAll`, Rust's `read_to_string` and Python's `read()` do: `"a\nb\n"` gives `"a\nb\n"`, `"a\nb"` gives `"a\nb"`, and `"\n"` gives `"\n"`. A `\r\n` is read as `\n`, as `read_line!` reads it. The result is `""` when no input is left. After it, `read_line!` returns `.Ok(.None)`.
-7. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
-8. r[std-console.input.read-all-host-coded-error] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the input as read, with each `\r\n` read as `\n` and nothing else changed; bytes that are not UTF-8 become U+FFFD. A host read failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
-9. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
+7. r[std-console.input.read-all-preserves-text] `ConsoleInput` declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, returning the remaining input without newline translation.
+8. r[std-console.input.read-all-end] It returns `""` when no input remains, after which `read_line!` returns `.Ok(.None)`.
+9. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
+10. r[std-console.input.read-all-host-preserves-bytes] The host's `ConsoleInput` provider overrides `read_all!` to preserve all remaining standard-input bytes, including CRLF and lone CR, except malformed UTF-8.
+11. r[std-console.input.read-all-host-lossy] Malformed UTF-8 is replaced as [`string::from_utf8_lossy`](text.md#r-std-text.utf8.from-utf8-lossy) specifies.
+12. r[std-console.input.read-all-host-read-error] A host read failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
+13. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
 
 > **Why.** Input is its own trait, apart from `Console`, so a program
 > that only prints gains no authority to read.

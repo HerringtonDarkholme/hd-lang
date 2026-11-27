@@ -1,0 +1,6 @@
+use std.console.{ConsoleInput, read_line}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    println(debug(read_line!().expect("first line is readable").unwrap_or("EOF")))
+    println(debug(read_line!().expect("last line is readable").unwrap_or("EOF")))
+    println(debug(read_line!().expect("EOF is readable").unwrap_or("EOF")))

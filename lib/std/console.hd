@@ -32,8 +32,8 @@ pub trait ConsoleInput:
     # line had an ending, so it ends every line with `\n`
     # (spec/std/console.md#r-std-console.input.read-all-default).
     # The host's provider overrides it with one read of standard input,
-    # which keeps the text as it was, with `\r\n` read as `\n`
-    # (spec/std/console.md#r-std-console.input.read-all-host-coded-error).
+    # which keeps the text without newline translation
+    # (spec/std/console.md#r-std-console.input.read-all-host-preserves-bytes).
     fn read_all!(&mut self) -> Result[string, ConsoleError]:
         out := StringBuilder::new()
         while true:
@@ -58,7 +58,7 @@ pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
 # The rest of the covering provider's input, as one string
 # with the line structure of the text
 # (spec/std/console.md#r-std-console.input.read-all-helper).
-## Returns all the input that is left, as text, with `\r\n` read as `\n`.
+## Returns all remaining input as text without newline translation.
 ## See [std-console.input.read-all-helper](../../spec/std/console.md#r-std-console.input.read-all-helper).
 pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
     input := $.use(ConsoleInput)
