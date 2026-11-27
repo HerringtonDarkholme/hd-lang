@@ -41,9 +41,12 @@ checking.
   judged.
 - **Two pipelines** ([tiering.md](tiering.md)): a dev pipeline for
   `hd run`, `hd test` and the REPL, and an optimized pipeline for
-  `--release`. hd's body passes and the release summaries run in the
-  optimized pipeline only; the structure folds and the inliner run in
-  both, the dev inliner on std and `@inline` functions only.
+  `--release`. Both instantiate each instance, run the structure folds
+  and inliner, then run ownership in that order. Planned body passes
+  and release summaries run in the optimized pipeline only. The dev
+  inliner considers std and `@inline` functions; dev links run only the
+  cleanup passes valid code needs, as [tiering.md](tiering.md#22-what-it-runs)
+  records.
 - The first release targets Wasm only, run on wasmtime inside `hd` or on
   V8. No native backend is planned (#188 closed).
 - The compiler process has no memory cap. The shared cache defaults to
