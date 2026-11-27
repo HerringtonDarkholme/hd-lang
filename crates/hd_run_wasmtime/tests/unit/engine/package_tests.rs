@@ -1,5 +1,5 @@
 //! Native package provider preflight and linking (`host/package.rs`):
-//! `cli.host.package.native-provider-missing`, `native-cli`, `native-reachable`,
+//! `cli.host.package.native-provider-missing`, `native-cli-binds-c`, `native-reachable`,
 //! `native-mismatch`, `native-preflight`, `native-two-keys`,
 //! `manifest-consent`, `no-flag-consent`, `duplicate`. Every refusal case's
 //! module has a trapping start function, so a guest start is visible as a

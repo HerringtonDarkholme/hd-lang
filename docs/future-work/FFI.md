@@ -71,7 +71,7 @@ None. The owner's answers are under [Decisions](#decisions).
 | `cat notes.md \| pager`: keys come from `/dev/tty` | no API; #2382 planned new Rust and TypeScript host code | `hd_term` opens stdin or `/dev/tty`; the rest is std hd code |
 | `race!(term.read!(), sleep!(16ms))` | no API | `read!` waits on a completion; a cancel runs `read_abort` and loses no byte |
 | a trap while the terminal is raw | the shell stays raw | `destroy` runs at instance close, trap or not, and restores the mode |
-| a package wrapping `sqlite3` | needs a custom Rust embedder ([`native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli)) | a flat C shim in `native/<triple>/` and the app's root consent |
+| a package wrapping `sqlite3` | needs a custom Rust embedder ([`native-cli-binds-c`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-binds-c)) | a flat C shim in `native/<triple>/` and the app's root consent |
 
 ## How It Works
 
@@ -406,9 +406,9 @@ Rules this design revises, quoted:
 | Rule | Today | Proposed |
 | --- | --- | --- |
 | [Host Boundary note](../../spec/lang/10-modules.md#host-boundary) | "hd has no `extern` declaration and no FFI capability. A Wasm module can call only its imports, so a custom host trait that an embedder binds is hd's foreign function interface" | "hd has no `extern` declaration. A host trait is hd's foreign function interface: its provider is JavaScript, C that a package ships, or Rust that an embedder registers." |
-| [`native-no-discovery`](../../spec/cli/command-line.md#r-cli.host.package.native-no-discovery) | "An implementation never discovers or loads a dynamic library for a package host trait." | "An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder." |
-| [`native-cli`](../../spec/cli/command-line.md#r-cli.host.package.native-cli) | "The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait" | "On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration." |
-| [`native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node) | "Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node" | "Without an `--engine` flag, they run on Wasmtime when every required package host trait has a C provider, and else on Node." |
+| [`native-library-scope`](../../spec/cli/command-line.md#r-cli.host.package.native-library-scope) | "An implementation never discovers or loads a dynamic library for a package host trait." | "An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder." |
+| [`native-cli-binds-c`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-binds-c) | "The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait" | "On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration." |
+| [`native-cli-choice`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-choice) | "Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node" | "Without an `--engine` flag, they run on Wasmtime when every required package host trait has a C provider, and else on Node." |
 
 ## Appendix E. Details
 
@@ -416,7 +416,7 @@ Rules this design revises, quoted:
 
 | Part | As built |
 | --- | --- |
-| calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers is refused at startup |
+| calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers, or a target other than x86-64 or arm64, is refused at startup (decision 16) |
 | `!` methods | a module that calls a C provider's suspending method is refused at startup until step 5 binds its token |
 | `hd test` | binds no C provider yet: a C-bound trait's test runs on Node through its `js` provider |
 | workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
@@ -655,5 +655,12 @@ Owner, 2026-11-27, on phase step 1's questions:
     step 2b and lifts the refusal for `{ c, js }` (built:
     [`module.host.package.c-js-views`](../../spec/lang/10-modules.md#r-module.host.package.c-js-views)).
 
-A third answer, on returned handles, takes effect in step 4 and is
+A third answer, on returned handles, takes effect in step 4b and is
 recorded there.
+
+Owner, 2026-11-27, on phase step 4's questions:
+
+16. **Call bridge limits, temporary until step 6:** through steps 4 and 5,
+    Wasmtime refuses at startup a C slot that needs more than 16 stack
+    words past the registers, and C providers on any target other than
+    x86-64 or arm64. Step 6's trampolines remove both limits.

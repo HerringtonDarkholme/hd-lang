@@ -121,7 +121,7 @@ fn refused(message: String) -> StartError {
 /// Resolves `bindings` against the module's contract before anything is
 /// linked or the guest starts, and returns the providers in contract
 /// interface order. With no registry, a module requiring a root trait is
-/// refused (`cli.host.package.native-cli`). A registered provider runs
+/// refused (`cli.host.package.native-cli-binds-c`). A registered provider runs
 /// only when `consent`, the root manifest's, grants its trait
 /// (`native-two-keys`): registration grants the guest nothing.
 pub(crate) fn preflight(

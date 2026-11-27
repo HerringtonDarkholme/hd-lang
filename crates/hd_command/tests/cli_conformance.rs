@@ -135,7 +135,7 @@ fn unavailable_wasmtime(steps: &[Step], wasmtime_available: bool) -> bool {
 /// mode makes its engine the command's default through `HD_ENGINE`, as a
 /// build defaulting to that engine would, so a step without `--engine`
 /// keeps `hd`'s own choice for a module that needs a package host trait
-/// (`cli.host.package.native-cli-node`). A session names its engine.
+/// (`cli.host.package.native-cli-choice`). A session names its engine.
 fn select_engine(
     words: &[String],
     mode: EngineMode,

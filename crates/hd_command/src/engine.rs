@@ -305,7 +305,7 @@ pub(crate) fn engine_flag(
 
 /// The engine a command's words chose, and whether an `--engine` flag
 /// named it. Only a named engine is kept for a module that needs a
-/// package host trait (`cli.host.package.native-cli-node`).
+/// package host trait (`cli.host.package.native-cli-choice`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Choice {
     pub(crate) kind: EngineKind,
@@ -329,10 +329,10 @@ impl Choice {
     /// modules of its C-bound root interfaces (`hd_host_abi::c`). With no
     /// `--engine`, a module whose every root interface has a C provider
     /// runs on Wasmtime, in a build that has it, and any other module with
-    /// a root interface on Node (`native-cli-node`). A named Wasmtime
+    /// a root interface on Node (`native-cli-choice`). A named Wasmtime
     /// refuses a root interface no C provider serves, naming the trait:
-    /// `hd` registers no other native provider (`native-cli`,
-    /// `native-cli-explicit`). Cost: one pass over the contract's
+    /// `hd` registers no other native provider (`native-cli-binds-c`,
+    /// `native-cli-named`). Cost: one pass over the contract's
     /// interfaces, which the caller decoded once for the run, with one
     /// probe of `c` each.
     pub(crate) fn for_module(
@@ -999,7 +999,7 @@ mod tests {
         assert_eq!(list[0].2, grants);
     }
 
-    /// `cli.host.package.native-cli-node`, `-explicit`: every engine source
+    /// `cli.host.package.native-cli-choice`, `native-cli-named`: every engine source
     /// against a module with no contract, a handle-only contract and a
     /// root interface.
     #[test]
@@ -1056,7 +1056,7 @@ mod tests {
             Choice::default().for_module(Some(&rooted), &none),
             Ok(EngineKind::Node)
         );
-        // `native-cli-node`, as decision 7 revises it: unnamed, a module whose
+        // `native-cli-choice`, as decision 7 revises it: unnamed, a module whose
         // every root has a C provider runs on Wasmtime in a build that has
         // it, whatever `HD_ENGINE` says; a named Wasmtime runs it too.
         let c: std::collections::BTreeSet<String> = ["pkg:Server".to_owned()].into();
