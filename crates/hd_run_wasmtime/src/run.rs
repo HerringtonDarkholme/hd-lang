@@ -311,14 +311,6 @@ fn run_image(
                 let (engine, module) = match image {
                     hd_run::artifact::Image::Wasm(wasm) => {
                         let engine = WasmtimeEngine::new_with_profile(config, profile)?;
-                        let mut named;
-                        let wasm = if options.sample.is_some() {
-                            named = wasm.to_vec();
-                            hd_run::frames::retain_function_names(&mut named)?;
-                            named.as_slice()
-                        } else {
-                            wasm
-                        };
                         let module = engine
                             .load(wasm, &hd_cache::MemoryStore::default())
                             .map_err(|e| match e {
@@ -335,7 +327,16 @@ fn run_image(
                 let sampling = options
                     .sample
                     .map(|path| {
-                        crate::sampling::Sampling::start(&engine, &module, &setup.program, path)
+                        crate::sampling::Sampling::start(
+                            &engine,
+                            &module,
+                            &setup.program,
+                            path,
+                            match image {
+                                hd_run::artifact::Image::Wasm(wasm) => wasm,
+                                hd_run::artifact::Image::Native(native) => &native.metadata,
+                            },
+                        )
                     })
                     .transpose()?;
                 let started = engine.instantiate_run(
