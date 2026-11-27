@@ -894,6 +894,12 @@ fn build_traced<'a>(
         entry: program.entry.clone(),
     };
     let out = build_goal_through(program, &goal, settings, false, rep, store)?;
+    if program.c_tables
+        && let Some(root) = &program.package_dir
+    {
+        let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
+        write_header(program, root, &package, &out.c_tables).map_err(|e| rep.fail(&e))?;
+    }
     let positions = out.positions(&mut hd_driver::PositionPool::default());
     let Some(wasm) = out.wasm else {
         return Err(rep.fail("no Wasm produced"));
@@ -1949,17 +1955,13 @@ fn build_package(
             build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ())
         };
     }
-    if let Some(first) = executables.first() {
-        let mut program = disk::load_package(root, &first.file).map_err(|e| rep.fail(&e))?;
-        if binds_c(&program) {
-            program.only_program("");
-            // The executables' builds report the diagnostics.
-            c_header(&program, root, &package, false, rep)?;
-        }
-    }
+    let mut header = None;
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
+        // The artifact's own check gives the C tables, and its build writes
+        // the header (`cli.host.c.header`): one pass over the package.
+        program.c_tables = binds_c(&program);
         build_artifact(
             &program,
             root,
@@ -1969,8 +1971,58 @@ fn build_package(
             None,
             rep,
         )?;
+        if program.c_tables && header.is_none() {
+            header = Some(program);
+        }
+    }
+    // A build that took a stored artifact ran no check, and the header the
+    // build of the same inputs wrote stands. Only a removed header needs
+    // the package checked again for its tables.
+    if let Some(mut program) = header
+        && !header_path(root, &package).is_file()
+    {
+        program.only_program("");
+        c_header(&program, root, &package, false, rep)?;
     }
     Ok(())
+}
+
+/// Where `hd build` writes `package`'s C header (`cli.host.c.header`).
+fn header_path(root: &Path, package: &str) -> PathBuf {
+    root.join("native/include").join(format!("{package}.h"))
+}
+
+/// Writes the C header of `package`, at `root`, from its C tables
+/// (`cli.host.c.header`), only when its bytes change. Each table's library
+/// is the `c` of its trait's `[host]` entry.
+fn write_header(
+    program: &disk::Program,
+    root: &Path,
+    package: &str,
+    c_tables: &[(String, hd_host_abi::c::Table)],
+) -> Result<(), String> {
+    let libraries: std::collections::BTreeMap<&str, &str> = program
+        .host_packages
+        .iter()
+        .find(|p| p.package == 0)
+        .and_then(|p| p.declarations.as_ref())
+        .and_then(|d| d.providers.as_deref())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|e| Some((e.trait_path.as_str(), e.c.as_deref()?)))
+        .collect();
+    let tables: Vec<(&str, &str, &hd_host_abi::c::Table)> = c_tables
+        .iter()
+        .filter_map(|(path, table)| Some((path.as_str(), *libraries.get(path.as_str())?, table)))
+        .collect();
+    let text = hd_host_abi::c::header(package, &tables);
+    let path = header_path(root, package);
+    if std::fs::read(&path).is_ok_and(|old| old == text.as_bytes()) {
+        return Ok(());
+    }
+    std::fs::create_dir_all(root.join("native/include"))
+        .and_then(|()| std::fs::write(&path, text))
+        .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// Whether `program`'s root manifest binds a host trait to a C provider.
@@ -1985,10 +2037,11 @@ fn binds_c(program: &disk::Program) -> bool {
 }
 
 /// Writes `native/include/<package>.h` for the root package's C-bound
-/// host traits (`cli.host.c.header`), from their checked signatures,
-/// when the package checks without an error. With `report`, the check's
-/// diagnostics are this command's; without, a later build reports them.
-/// The file is written only when its bytes change.
+/// host traits (`cli.host.c.header`) from a check of the package, when it
+/// checks without an error: a library's build, whose check this is, and
+/// with `report` its diagnostics are this command's; or a package with
+/// executables whose builds all took stored artifacts and whose header is
+/// gone, the one case where no run of this command checked the package.
 ///
 /// Cost: one check of the package, whose modules' entries the cache
 /// holds on a warm run, and one header the size of the C tables.
@@ -2016,29 +2069,7 @@ fn c_header(
         }
         out
     };
-    let libraries: std::collections::BTreeMap<&str, &str> = program
-        .host_packages
-        .iter()
-        .find(|p| p.package == 0)
-        .and_then(|p| p.declarations.as_ref())
-        .and_then(|d| d.providers.as_deref())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|e| Some((e.trait_path.as_str(), e.c.as_deref()?)))
-        .collect();
-    let tables: Vec<(&str, &str, &hd_host_abi::c::Table)> = out
-        .c_tables
-        .iter()
-        .filter_map(|(path, table)| Some((path.as_str(), *libraries.get(path.as_str())?, table)))
-        .collect();
-    let text = hd_host_abi::c::header(package, &tables);
-    let path = root.join("native/include").join(format!("{package}.h"));
-    if std::fs::read(&path).is_ok_and(|old| old == text.as_bytes()) {
-        return Ok(());
-    }
-    std::fs::create_dir_all(root.join("native/include"))
-        .and_then(|()| std::fs::write(&path, text))
-        .map_err(|e| rep.fail(&format!("{}: {e}", path.display())))
+    write_header(program, root, package, &out.c_tables).map_err(|e| rep.fail(&e))
 }
 
 /// The package check that gives the C tables, reporting nothing.

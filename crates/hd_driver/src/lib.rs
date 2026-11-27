@@ -2283,8 +2283,9 @@ pub struct Packages<'a> {
     pub entry_capabilities: bool,
     /// Expose the C table of each root-package host trait bound to a C
     /// provider, from its checked signatures (`Output::c_tables`), for the
-    /// header `hd build` writes (`cli.host.c.header`). A run that asks for
-    /// them takes no stored package result.
+    /// header `hd build` writes (`cli.host.c.header`). A check that asks
+    /// for them takes no stored package result; an artifact build's caller
+    /// key still applies, since the header outlives the run.
     pub c_tables: bool,
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.

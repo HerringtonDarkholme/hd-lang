@@ -74,8 +74,10 @@ pub(crate) fn key(
         // reads it, and the CLI stores that command's whole result.
         && !packages.doc_scopes
         // `Output::c_tables` is not stored either: only `hd build` of a
-        // package declaring a C provider asks for it.
-        && !packages.c_tables
+        // package declaring a C provider asks for it. A caller key's
+        // caller stores what it derives, and the header it writes from the
+        // tables outlives the run.
+        && (caller || !packages.c_tables)
         && packages.session.is_none()
         && packages.reuse.is_none()
         && packages.inputs_from.is_none()
