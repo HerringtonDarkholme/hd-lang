@@ -458,6 +458,15 @@ jobs:
       - name: Unpack the build
         run: zstd -dc target/ci-build.tar.zst | tar -xf -
 
+      - name: Set up CLI signal-sender tracing
+        if: matrix.shard == 'cli and host'
+        run: |
+          if ! command -v strace >/dev/null; then
+            timeout 120 sudo apt-get update
+            timeout 120 sudo apt-get install -y strace
+          fi
+          timeout 40 node --test --test-name-pattern='CI runner traces a group kill' scripts/ci-tests.test.ts
+
       - name: Test
         run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/(hd_command|hd_run_wasmtime)/' --skip specification_conformance_passes_except_known_failures
 
