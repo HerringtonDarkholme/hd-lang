@@ -1420,8 +1420,10 @@ bits remain, so no product exceeds the final magnitude and a result in
 range never panics. A float base calls std's implementation of its own
 width: `libm_powf(f32, f32) -> f32` or `float_pow_f64(f64, f64) -> f64`
 in `lib/std/num.hd`, the same functions the inherent `powf` methods call.
-The Wasm emitter selects the matching `FloatOps` key; f32 power does not
-widen to f64 power and narrow. Both are the musl libm 1.2.5 ports, with
+Collection follows a reachable f32 power's implicit call to `libm_powf`,
+so programs without one allocate none of its static table data. The Wasm
+emitter selects the matching `FloatOps` key; f32 power does not widen to
+f64 power and narrow. Both are the musl libm 1.2.5 ports, with
 IEEE 754 clause 9.2 special cases and results within 1 ULP. No host import
 is involved, so every host gives the same bits apart from NaN sign/payload.
 

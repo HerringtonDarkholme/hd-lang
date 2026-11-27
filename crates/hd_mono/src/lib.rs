@@ -52,6 +52,11 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
+    /// An ordinary std implementation needed by this primitive operation.
+    /// Collection follows the implicit call only in a reachable instance,
+    /// as rustc's mono collector follows backend-inserted helper calls.
+    fn float_operator(&self, op: hd_tir::ir::PrimOp, ty: Ty) -> Option<DefId>;
+
     /// Whether `ty` has the layout and owned parameter convention of
     /// the A1 class [`A1Class::Ref`]. References with a loan convention
     /// keep their concrete keys even when they fit in one address.
@@ -3399,6 +3404,14 @@ impl Cx<'_> {
             let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
+                Tag::Prim => {
+                    if let Some(op) = hd_tir::ir::PrimOp::from_u32(a)
+                        && let Some(def) = env.float_operator(op, ty)
+                    {
+                        let target = self.target(def, TyList::EMPTY, id)?;
+                        self.hash_target(&target, &mut reps);
+                    }
+                }
                 Tag::Call | Tag::Await => {
                     let Some(c) = Callee::from_words(body.record(a)) else {
                         return err("a malformed callee record");
