@@ -314,7 +314,9 @@ pub(crate) fn c_preflight(
         }
         Ok(())
     };
-    // Roots first, in contract order; each creates its provider.
+    // Roots first, in contract order, then their handle traits; every
+    // check and refusal comes before any `create` runs.
+    let mut checked = Vec::new();
     for (index, interface) in interfaces.iter().enumerate() {
         let Some(c) = package.c_interface(index).filter(|_| !interface.handle) else {
             continue;
@@ -335,9 +337,9 @@ pub(crate) fn c_preflight(
             opened.insert(library.path.as_path(), Arc::clone(&lib));
             lib
         };
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
         let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
         check_slots(index, &table, library, &name)?;
-        claim(&mut entries, library, &c.table.trait_name, &name)?;
         for m in &c.table.methods {
             if let Ret::Handle(handle) = &m.result
                 && let Some(&h) = package.c_handles.get(handle)
@@ -345,8 +347,7 @@ pub(crate) fn c_preflight(
                 queue(&mut queued, &mut todo, h, library, &interfaces[h])?;
             }
         }
-        bound.providers[index] =
-            Some(crate::native::c::create(table, library, &name).map_err(refused)?);
+        checked.push((index, table, library, name));
     }
     // Then each handle trait a checked trait returns, once, over a
     // worklist: one visit per handle trait and per method that returns one.
@@ -359,9 +360,9 @@ pub(crate) fn c_preflight(
         let Some(lib) = opened.get(library.path.as_path()).cloned() else {
             unreachable!("ruled out: a handle trait's library opened with its root")
         };
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
         let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
         check_slots(index, &table, library, &name)?;
-        claim(&mut entries, library, &c.table.trait_name, &name)?;
         for m in &c.table.methods {
             if let Ret::Handle(handle) = &m.result
                 && let Some(&h) = package.c_handles.get(handle)
@@ -370,6 +371,12 @@ pub(crate) fn c_preflight(
             }
         }
         bound.handles[index] = Some(table);
+    }
+    // Every table checked: each root's provider is created
+    // (`cli.host.c.create`).
+    for (index, table, library, name) in checked {
+        bound.providers[index] =
+            Some(crate::native::c::create(table, library, &name).map_err(refused)?);
     }
     Ok(bound)
 }
