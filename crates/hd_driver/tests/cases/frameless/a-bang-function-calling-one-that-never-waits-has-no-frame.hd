@@ -1,0 +1,12 @@
+# @dump: functions
+# @build: dev | release
+# `outer!` waits only on `inner!`, which never waits: both complete at
+# once, so neither links a `.poll`, `.cancel` or `.drop` (#2419).
+fn inner!(x: i32) -> i32:
+    x * 2
+
+fn outer!(x: i32) -> i32:
+    inner!(x) + inner!(x + 1)
+
+pub fn main!() -> void $ Console:
+    println("${outer!(3)}")

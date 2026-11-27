@@ -1,0 +1,22 @@
+# @dump: functions
+# @build: dev | release
+# `close_it![Mem]` calls `Mem.close!`, which completes at once, so the
+# instance has no suspension point either: neither links a `.poll`,
+# `.cancel` or `.drop` (#2419).
+trait Closer:
+    fn close!(&mut self) -> i32
+
+struct Mem:
+    n: i32
+
+impl Closer for Mem:
+    fn close!(&mut self) -> i32:
+        self.n = self.n + 1
+        self.n
+
+fn close_it![C < Closer](c: &mut C) -> i32:
+    c.close!()
+
+pub fn main!() -> void $ Console:
+    let mut m = Mem { n: 1 }
+    println("${close_it!(&mut m)}")

@@ -1,0 +1,17 @@
+# @dump: functions
+# @build: dev | release
+# A `using!` binding's `dispose!` that completes at once is a plain call
+# at the scope's end: neither it nor `main!` links a `.poll`, `.cancel`
+# or `.drop` (#2419).
+use std.ops.AsyncDisposable
+
+struct Handle:
+    id: i32
+
+impl AsyncDisposable for Handle:
+    fn dispose!(&mut self) -> void:
+        self.id = 0
+
+pub fn main!() -> void $ Console:
+    using! h = Handle { id: 7 }
+    println("open ${h.id}")
