@@ -1,2 +1,1 @@
 path	issue	engine	reason
-cli/host-c-provider-engines	#2388		Node cannot yet call a C-bound trait's imports through its `js` provider; the generated glue for C arguments is #2388 step 2b

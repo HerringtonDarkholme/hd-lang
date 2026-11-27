@@ -114,8 +114,8 @@ impl From<String> for Refusal {
 
 /// Resolve only reachable package providers. A CLI flag cannot supply the
 /// missing manifest consent, and no provider module is imported here. A
-/// trait whose `[host]` entry names a C library is refused on a JavaScript
-/// host (`cli.host.c.engine`): `native-provider-missing`.
+/// trait whose `[host]` entry names only a C library has no provider on a
+/// JavaScript host (`cli.host.c.engine`): `native-provider-missing`.
 pub(crate) fn manifest_providers(
     contract: Option<&hd_host_abi::schema::Contract>,
     program: Option<&crate::disk::Program>,
@@ -145,20 +145,14 @@ pub(crate) fn manifest_providers(
         let entry = providers
             .entry(package, &identity.trait_path)
             .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
-        // A C-bound trait's imports take C arguments, which the generated
-        // JavaScript glue does not yet call (FFI decision 15): its `js`
-        // provider waits for that glue, as a C-only trait has none
-        // (`cli.host.c.engine`).
-        if let Some(library) = &entry.c {
-            let js = if entry.path.is_some() {
-                "this JavaScript host cannot yet call the C-bound imports of its `js` provider"
-            } else {
-                "a JavaScript host cannot load it"
-            };
+        // A C-only trait has no provider a JavaScript host can load
+        // (`cli.host.c.engine`); a `{ c, js }` trait's `js` provider takes
+        // the C arguments through the generated glue.
+        if let (None, Some(library)) = (&entry.path, &entry.c) {
             return Err(Refusal(
                 Some(hd_diag::Code::NativeProviderMissing),
                 format!(
-                    "{}:{}: {name} is bound to the C provider `{library}`, and {js}",
+                    "{}:{}: {name} has only the C provider `{library}`, which a JavaScript host cannot load; add a `js` provider to its `[host]` entry",
                     package.manifest, entry.line
                 ),
             ));

@@ -548,10 +548,13 @@ pub struct HostArtifacts {
 /// Read validated package host metadata and generate trusted glue. This
 /// also serves cached/prebuilt Wasm without executing artifact-supplied JS.
 pub fn host_artifacts(wasm: &[u8]) -> Result<Option<HostArtifacts>, &'static str> {
-    hd_host_abi::schema::from_wasm(wasm)?
+    let metadata = hd_host_abi::schema::module_metadata(wasm)?;
+    let c_tables = metadata.c_tables;
+    metadata
+        .contract
         .filter(|contract| !contract.interfaces.is_empty())
         .map(|contract| {
-            let javascript = hd_host_abi::javascript::generate(&contract)?;
+            let javascript = hd_host_abi::javascript::generate(&contract, &c_tables)?;
             Ok(HostArtifacts {
                 contract,
                 javascript,

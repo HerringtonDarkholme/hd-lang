@@ -126,6 +126,7 @@ fn a_c_bound_trait_records_its_whole_table_and_takes_c_arguments() {
     // Each argument is an import parameter: a string and a list two each.
     let mut imports = Vec::new();
     let mut types = Vec::new();
+    let mut heap_exported = false;
     for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
         match payload.expect("payload") {
             wasmparser::Payload::TypeSection(reader) => {
@@ -145,9 +146,18 @@ fn a_c_bound_trait_records_its_whole_table_and_takes_c_arguments() {
                     }
                 }
             }
+            wasmparser::Payload::ExportSection(reader) => {
+                for export in reader {
+                    let export = export.expect("export");
+                    heap_exported |=
+                        export.name == "hd.heap" && export.kind == wasmparser::ExternalKind::Memory;
+                }
+            }
             _ => {}
         }
     }
+    // A host reads pointer arguments in the guest heap.
+    assert!(heap_exported, "a module with a C table exports its heap");
     let signature = |name: &str| {
         let ty = imports.iter().find(|(n, _)| n == name).expect(name).1;
         let f = &types[ty as usize];

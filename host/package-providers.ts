@@ -169,6 +169,161 @@ interface RuntimeInterface {
   methods: RuntimeMethod[];
 }
 
+/** A C argument's kind (`hd_host_abi::c::Param`): `["bool"]`, `["num", N]`,
+ * `["ref", N, mutable]`, `["list", N, mutable]` or `["str"]`. */
+type CParam = [string, string?, boolean?];
+/** A C result's kind (`hd_host_abi::c::Ret`). */
+type CResult = [string, (string | CResult)?];
+
+interface CMethod {
+  params: CParam[];
+  result: CResult;
+}
+
+/** The C tables a module's glue describes, with their `hd.c` section bytes. */
+interface CTables {
+  section: Uint8Array;
+  methods: Record<string, Record<string, CMethod>>;
+}
+
+// The typed array of each C number, which a pointer argument is a view of
+// (module.host.package.c-references): the provider reads it, and writes a
+// `&mut` one, until the call returns.
+const C_VIEWS: Record<string, Dynamic> = {
+  i8: Int8Array,
+  i16: Int16Array,
+  i32: Int32Array,
+  i64: BigInt64Array,
+  u8: Uint8Array,
+  u16: Uint16Array,
+  u32: Uint32Array,
+  usize: Uint32Array,
+  u64: BigUint64Array,
+  f32: Float32Array,
+  f64: Float64Array,
+};
+
+// A C number argument as its JavaScript value (module.host.package.js-integers):
+// a 64-bit integer as `BigInt`, an unsigned 32-bit one as its unsigned
+// `Number`, and the rest as the Wasm parameter's `Number`.
+function cNumber(num: string, raw: Dynamic): Dynamic {
+  switch (num) {
+    case "u64":
+      return BigInt.asUintN(64, raw);
+    case "u32":
+    case "usize":
+      return raw >>> 0;
+    default:
+      return raw;
+  }
+}
+
+// The provider arguments of a C-bound method from its import's parameters:
+// each argument is one or two of them, with no exchange buffer. A pointer
+// is a typed-array view of the guest heap at its address, as long as its
+// length; a string is decoded from its bytes. Cost: one pass over the
+// arguments; a string copies its bytes once.
+function cArguments(params: CParam[], raw: Dynamic[], heap: () => ArrayBuffer): Dynamic[] {
+  const take = (): Dynamic => {
+    if (!raw.length) {
+      fail("wrong import arity");
+    }
+    return raw.shift();
+  };
+  const view = (num: string, at: number, length: number): Dynamic => {
+    const View = C_VIEWS[num] ?? fail(`unknown C number type ${num}`);
+    if (at % View.BYTES_PER_ELEMENT !== 0) {
+      fail("misaligned C pointer argument");
+    }
+    return new View(heap(), at, length);
+  };
+  const args = params.map(([kind, num]) => {
+    switch (kind) {
+      case "bool":
+        return take() !== 0;
+      case "num":
+        return cNumber(num!, take());
+      case "ref":
+        return view(num!, take() >>> 0, 1);
+      case "list": {
+        const at = take() >>> 0;
+        return view(num!, at, take() >>> 0);
+      }
+      case "str": {
+        const at = take() >>> 0;
+        // A copy, since a thread's shared heap cannot be decoded in place.
+        return decodeUtf8(new Uint8Array(heap(), at, take() >>> 0).slice());
+      }
+      default:
+        return fail(`unknown C argument kind ${kind}`);
+    }
+  });
+  if (raw.length) {
+    fail("wrong import arity");
+  }
+  return args;
+}
+
+const C_BITS: Record<string, [number, boolean]> = {
+  i8: [8, true],
+  i16: [16, true],
+  i32: [32, true],
+  i64: [64, true],
+  u8: [8, false],
+  u16: [16, false],
+  u32: [32, false],
+  usize: [32, false],
+  u64: [64, false],
+};
+
+// An integer result checked against C number `num`'s range, as the Wasm
+// result's value: a 64-bit one as a `BigInt`, else a `Number`.
+function cInteger(num: string, value: Dynamic): Dynamic {
+  const [bits, signed] = C_BITS[num] ?? fail(`unknown C number type ${num}`);
+  if (typeof value !== "bigint" && !(typeof value === "number" && Number.isSafeInteger(value))) {
+    fail("expected integer");
+  }
+  const big = BigInt(value);
+  const low = signed ? -(1n << BigInt(bits - 1)) : 0n;
+  const high = (1n << BigInt(bits - (signed ? 1 : 0))) - 1n;
+  if (big < low || big > high) {
+    fail("integer is out of range");
+  }
+  return bits === 64 ? BigInt.asIntN(64, big) : Number(BigInt.asIntN(32, big));
+}
+
+// A C-bound method's result as its import's result: nothing, `bool` as
+// 0 or 1, an integer checked against its type's range, a float as its
+// `Number`.
+function cReturn([kind, num]: CResult, value: Dynamic): Dynamic {
+  switch (kind) {
+    case "void":
+      return value === undefined ? undefined : fail("void result has a value");
+    case "bool":
+      return typeof value === "boolean" ? Number(value) : fail("expected bool");
+    case "num":
+      if (num === "f32" || num === "f64") {
+        return typeof value === "number" ? value : fail("expected float");
+      }
+      return cInteger(String(num), value);
+    default:
+      return fail(`a C method that returns at once has no ${kind} result`);
+  }
+}
+
+// The C tables the glue describes are the guest's own `hd.c` section, so
+// each C-bound import reads its arguments as the guest passes them.
+function checkCTables(module: WebAssembly.Module, cTables: CTables | null): void {
+  const sections = WebAssembly.Module.customSections(module, "hd.c");
+  if (
+    sections.length > 1 ||
+    (cTables === null) !== (sections.length === 0) ||
+    (cTables !== null && !equalBytes(cTables.section, new Uint8Array(sections[0])))
+  ) {
+    fail("generated glue does not match the guest's C tables");
+  }
+}
+
 interface ProviderRegistration {
   contract: Uint8Array;
   module: string;
@@ -188,6 +343,7 @@ export interface PackageRuntime extends DynamicRecord {
     contract: Uint8Array,
     generated: RuntimeInterface[],
     providers: ProviderRegistration[],
+    cTables?: CTables | null,
   ): DynamicRecord;
   close(): void;
   handleCount(): number;
@@ -872,6 +1028,7 @@ export function createPackageRuntime(
     contract: Uint8Array,
     generated: RuntimeInterface[],
     providers: ProviderRegistration[],
+    cTables: CTables | null = null,
   ): DynamicRecord => {
     const descriptors = generated.map((i) => ({
       ...i,
@@ -882,6 +1039,7 @@ export function createPackageRuntime(
     if (!sections || sections.length !== 1 || !equalBytes(contract, new Uint8Array(sections[0]))) {
       fail("generated glue does not match the guest contract");
     }
+    checkCTables(module!, cTables);
     const shapes = descriptors.map((i) => ({
       ...i,
       methods: i.methods.map((item) => ({
@@ -924,6 +1082,7 @@ export function createPackageRuntime(
       }
       for (const method of i.methods) {
         const key = `${i.module} ${method.name}`;
+        const cMethod: CMethod | undefined = cTables?.methods[i.module]?.[method.name];
         const label = `${named(declared)}.${method.member}`;
         const write = (value: Dynamic): Dynamic => {
           const tx: number[] = [];
@@ -956,7 +1115,9 @@ export function createPackageRuntime(
             }
             receiver = host.value;
           }
-          const args = argumentsFor(method, i.handle, raw);
+          const args = cMethod
+            ? cArguments(cMethod.params, raw, io.heap)
+            : argumentsFor(method, i.handle, raw);
           if (raw.length) {
             fail("wrong import arity");
           }
@@ -1035,6 +1196,15 @@ export function createPackageRuntime(
                 prepared.abort?.();
               } finally {
                 fail(`non-suspending method ${label} returned a pending operation`);
+              }
+            }
+            if (cMethod) {
+              try {
+                return cReturn(cMethod.result, value);
+              } catch (error) {
+                throw new HostContract(
+                  `${label}: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
             }
             return write(value);
