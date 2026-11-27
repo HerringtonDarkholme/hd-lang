@@ -1,0 +1,28 @@
+# CLI sampling names/output; runtime tests verify the JSON and sampled stacks.
+run: hd run --engine wasmtime --profile
+stdout: profiled
+file: profile.json
+run: hd src/main.hd --engine wasmtime --profile=source.json
+stdout: profiled
+file: source.json
+run: hd build --release --engine wasmtime
+file: build/release/guest_profile.cwasm
+run: hd build/release/guest_profile.cwasm --engine wasmtime --profile=native.json
+stdout: profiled
+file: native.json
+run: hd build --release --format wasm --engine wasmtime
+file: build/release/guest_profile.wasm
+run: hd build/release/guest_profile.wasm --engine wasmtime --profile=portable.json
+stdout: profiled
+file: portable.json
+run: hd run --engine node --profile=node.json
+exit: 101
+stderr: error: guest profiling requires `--engine wasmtime`
+no-file: node.json
+run: hd run --profile=
+exit: 101
+stderr: error: `--profile=FILE` needs a nonempty FILE
+run: hd run --engine wasmtime --profile=arguments.json -- --profile=guest.json
+stdout: profiled
+file: arguments.json
+no-file: guest.json

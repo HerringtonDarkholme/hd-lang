@@ -356,3 +356,19 @@ diagnostic. Read next:
   a suspending function: `fn!`, or `main!`.
 
 Each message names its code, and the rule IDs it cites are in the specification.
+
+## Profile A Program
+
+On Wasmtime, `--profile[=FILE]` writes guest stack samples as Firefox
+profiler JSON, with hd function names. It defaults to `profile.json` in
+the working directory. Release and prebuilt `.cwasm` programs keep names.
+
+```sh
+hd run --release --engine wasmtime --profile=cpu.json -- -n 'reduce range(1000000) as $i (0; . + $i)'
+hd src/main.hd --engine wasmtime --profile
+hd build/release/app.cwasm --engine wasmtime --profile=cpu.json
+```
+
+Load the JSON into Firefox Profiler to inspect sampled stacks. Sampling
+uses the existing 10 ms guest epoch checks; very short runs may have no
+samples. Node reports an error pointing to `--engine wasmtime`.

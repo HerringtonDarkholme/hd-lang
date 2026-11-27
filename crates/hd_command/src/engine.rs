@@ -14,7 +14,8 @@
 //! `wasmtime.rs` has it; a build without the feature compiles
 //! `no_wasmtime.rs` in its place, and naming the engine is an error.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 
 use hd_driver::{EngineTarget, OptLevel};
 use hd_run::journal::End;
@@ -375,9 +376,13 @@ pub(crate) fn run(
     image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
     providers: &[crate::node::HostProvider],
+    sampling: Option<&Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
+            if sampling.is_some() {
+                return Err("guest profiling requires `--engine wasmtime`".into());
+            }
             let hd_run::artifact::Image::Wasm(wasm) = image else {
                 return Err("a .cwasm module requires wasmtime; build `--format wasm` for a portable module".into());
             };
@@ -392,9 +397,43 @@ pub(crate) fn run(
         }
         EngineKind::Wasmtime => {
             // The native engine refuses reachable package traits before guest start.
-            wasmtime::run_program(level, image, host)
+            wasmtime::run_program(level, image, host, sampling)
         }
     }
+}
+
+/// `--profile[=FILE]`: an optional joined path, without consuming a task
+/// name or a guest argument. Native path bytes are preserved.
+pub(crate) fn sampling_flag(argument: &OsStr) -> Option<Result<PathBuf, String>> {
+    if argument == "--profile" {
+        return Some(Ok(PathBuf::from("profile.json")));
+    }
+    let bytes = argument.as_encoded_bytes();
+    let suffix = bytes.strip_prefix(b"--profile=")?;
+    if suffix.is_empty() {
+        return Some(Err("`--profile=FILE` needs a nonempty FILE".into()));
+    }
+    #[cfg(unix)]
+    let path = {
+        use std::os::unix::ffi::OsStrExt as _;
+        PathBuf::from(OsStr::from_bytes(suffix))
+    };
+    #[cfg(windows)]
+    let path = {
+        use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+        PathBuf::from(OsString::from_wide(
+            &argument
+                .encode_wide()
+                .skip(b"--profile=".len())
+                .collect::<Vec<_>>(),
+        ))
+    };
+    #[cfg(not(any(unix, windows)))]
+    let path = match std::str::from_utf8(suffix) {
+        Ok(path) => PathBuf::from(path),
+        Err(error) => return Some(Err(format!("invalid profile path: {error}"))),
+    };
+    Some(Ok(path))
 }
 
 /// Scoped cancellation when no program wait owns the delivered kind.
@@ -873,6 +912,35 @@ mod tests {
     use super::{EngineKind, ProgramLimits, parse_duration, parse_size, time_limit_flag};
     use hd_run::Limits;
     use std::ffi::OsString;
+
+    #[test]
+    fn sampling_flag_keeps_task_and_guest_arguments_separate() {
+        use std::ffi::OsStr;
+        use std::path::PathBuf;
+        assert_eq!(
+            super::sampling_flag(OsStr::new("--profile")),
+            Some(Ok(PathBuf::from("profile.json")))
+        );
+        assert_eq!(
+            super::sampling_flag(OsStr::new("--profile=cpu samples.json")),
+            Some(Ok(PathBuf::from("cpu samples.json")))
+        );
+        assert!(matches!(
+            super::sampling_flag(OsStr::new("--profile=")),
+            Some(Err(_))
+        ));
+        assert_eq!(super::sampling_flag(OsStr::new("--profiled")), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sampling_flag_preserves_native_path_bytes() -> Result<(), Box<dyn std::error::Error>> {
+        use std::os::unix::ffi::OsStrExt;
+        let argument = std::ffi::OsStr::from_bytes(b"--profile=samples-\xff.json");
+        let path = super::sampling_flag(argument).ok_or("profile flag")??;
+        assert_eq!(path.as_os_str().as_bytes(), b"samples-\xff.json");
+        Ok(())
+    }
 
     #[cfg(all(feature = "dist", not(debug_assertions)))]
     #[test]

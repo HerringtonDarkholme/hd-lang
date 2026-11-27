@@ -94,6 +94,7 @@ pub struct Host {
     pub(crate) calls: u64,
     /// `Workers` and `WorkerPort` (`std-remote.workers.host`).
     pub(crate) workers: crate::workers::State,
+    pub(crate) sampling: Option<crate::sampling::Collector>,
 }
 
 impl Host {
@@ -135,6 +136,7 @@ impl Host {
             muted: false,
             calls: 0,
             workers: crate::workers::State::default(),
+            sampling: None,
         }
     }
 

@@ -55,6 +55,7 @@ mod process;
 mod profiles;
 mod run;
 mod runtime;
+mod sampling;
 pub mod scenario;
 mod session;
 mod sys;
@@ -72,7 +73,7 @@ pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
     Captured, run, run_cancellable, run_captured, run_captured_reading, run_captured_with_profile,
-    run_traced, run_with_profile,
+    run_sampled, run_traced, run_with_profile,
 };
 pub use runtime::io::io_started;
 pub use session::{Ran, Stopper, WasmtimeSession};
@@ -82,4 +83,4 @@ pub use test_engine::{
 };
 
 pub use precompiled::{load as load_native, precompile, precompile_key};
-pub use run::run_native;
+pub use run::{run_native, run_native_sampled};

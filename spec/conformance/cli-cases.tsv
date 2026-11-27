@@ -406,3 +406,4 @@ wasm-build-profile	cli.wasm.build-level,cli.wasm.legacy-level,cli.wasm.release-f
 native-build-artifacts	cli.build.output.artifact,cli.build.output.file-artifact,cli.build.artifact.profile-directory,cli.build.artifact.native,cli.build.artifact.portable,cli.build.artifact.native-pipeline,cli.run.native-release,cli.native.run,cli.native.engine,cli.native.host,cli.native.standalone,cli.native.compatibility,cli.native.release-flag,cli.install.release-artifact
 console-crlf	cli.test.process,cli.test.process.tasks,cli.engine.same-behavior
 deep-recursion	cli.file.run,cli.engine.same-behavior
+guest-profile	cli.sampling.run,cli.sampling.output,cli.sampling.names,cli.sampling.node,cli.sampling.arguments,cli.sampling.empty-path

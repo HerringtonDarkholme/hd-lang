@@ -39,6 +39,10 @@ const CLEANUP_LIMIT: (&str, &str) = (
     "--cleanup-limit DURATION",
     "how long a Ctrl-C waits for the program's cleanup before it abandons it; the default is 10s",
 );
+const SAMPLING: (&str, &str) = (
+    "--profile[=FILE]",
+    "record Wasmtime guest samples as Firefox profiler JSON; default profile.json",
+);
 const ENGINE: (&str, &str) = (
     "--engine NAME",
     "run on the engine NAME; the default is HD_ENGINE, else the implementation's own",
@@ -57,7 +61,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
@@ -65,6 +69,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            SAMPLING,
             CAP,
             TIME_LIMIT,
             CLEANUP_LIMIT,
@@ -75,23 +80,23 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
-        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
+        usage: "hd [--engine NAME] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
         about: &[
             "Run a module that hd build wrote. Package host providers also need the app manifest above the module.",
             "The module records its optimization level; older modules use dev. --release is not accepted for this form.",
         ],
-        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+        flags: &[ENGINE, SAMPLING, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
         name: "FILE.cwasm",
         summary: "run a native release artifact that hd build wrote",
-        usage: "hd [--engine wasmtime] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.cwasm [-- ARGS]",
+        usage: "hd [--engine wasmtime] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.cwasm [-- ARGS]",
         about: &[
             "Run a native release artifact with Wasmtime, without translating Wasm.",
             "Rebuild incompatible artifacts with hd build --release; use --format wasm for portable output.",
             "--release is not accepted for an already built artifact.",
         ],
-        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+        flags: &[ENGINE, SAMPLING, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
         name: "--repl",
@@ -131,7 +136,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "run",
         summary: "run the package's executable, or the executable or task named NAME",
-        usage: "hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
+        usage: "hd run [--release] [--engine NAME] [--profile[=FILE]] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
         about: &[
             "Run the package's executable, or the executable or task named NAME.",
             "",
@@ -142,6 +147,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            SAMPLING,
             PACKAGE,
             CAP,
             TIME_LIMIT,

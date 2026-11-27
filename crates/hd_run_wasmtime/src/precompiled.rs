@@ -28,11 +28,13 @@ pub fn precompile_key() -> Result<Hash128, String> {
 
 /// Compiles a release image, without the dev/test function cache.
 pub fn precompile(wasm: &[u8], jobs: usize) -> Result<Vec<u8>, String> {
+    let mut named = wasm.to_vec();
+    hd_run::frames::retain_function_names(&mut named)?;
     let engine = engine(jobs)?;
     let _trace = hd_base::trace::span("phase", || {
         format!("wasmtime precompile Speed Yes jobs={jobs}")
     });
-    crate::code_cache::with_compiler_pool(jobs, || engine.engine.precompile_module(wasm))
+    crate::code_cache::with_compiler_pool(jobs, || engine.engine.precompile_module(&named))
         .map_err(|e| format!("{e:#}"))
 }
 

@@ -163,6 +163,26 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 > keeps that profile's overflow behavior. A module from an incompatible
 > `hd` shows only as a missing entry export or an unknown import.
 
+### Sampling Profiles
+
+Wasmtime can record guest stacks while a program runs:
+
+```sh
+hd run --release --engine wasmtime --profile
+hd src/main.hd --engine wasmtime --profile=cpu.json
+hd build/release/app.cwasm --engine wasmtime --profile=cpu.json
+```
+
+1. r[cli.sampling.run] `hd run --profile[=FILE]` and `hd FILE --profile[=FILE]` record Wasmtime guest stack samples in Firefox profiler JSON.
+2. r[cli.sampling.output] With no joined path, the output is `profile.json` in the working directory; `--profile=FILE` chooses FILE.
+3. r[cli.sampling.names] Profiles retain hd function names in dev, release, portable Wasm, and native `.cwasm` programs.
+4. r[cli.sampling.node] Selecting Node with `--profile` is an error that suggests `--engine wasmtime`, with status 101.
+5. r[cli.sampling.arguments] `--profile` consumes no following word; arguments after `--` remain program arguments.
+6. r[cli.sampling.empty-path] `--profile=` is an error with status 101.
+
+> **Why.** Guest samples expose hot language functions without requiring
+> callers to reconstruct the module's host imports in an external runner.
+
 ## Running A Package
 
 `hd run` runs the programs a package declares: its executables, which it

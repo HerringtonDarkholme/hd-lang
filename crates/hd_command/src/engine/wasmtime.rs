@@ -216,6 +216,7 @@ pub(crate) fn run_program(
     level: hd_driver::OptLevel,
     image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
+    sampling: Option<&std::path::Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     let _code = match image {
         hd_run::artifact::Image::Wasm(_) => code_cache(),
@@ -227,24 +228,30 @@ pub(crate) fn run_program(
         format!("wasmtime OptLevel::{:?}", config.cranelift_opt)
     });
     let io = hd_run_wasmtime::HostIo::process();
-    let Some(ms) = host.limits.cleanup_ms else {
-        return match image {
-            hd_run::artifact::Image::Wasm(wasm) => {
-                hd_run_wasmtime::run_traced(config, wasm, host, io)
-            }
-            hd_run::artifact::Image::Native(native) => run_native_image(native, host, io, None),
-        };
-    };
-    let interrupt = hd_run_wasmtime::HostInterrupt::new();
-    let handler = interrupt.clone();
-    let _signals = super::on_ctrl_c(move |_| handler.request());
-    let bound = std::time::Duration::from_millis(ms);
+    let interrupt = host
+        .limits
+        .cleanup_ms
+        .map(|_| hd_run_wasmtime::HostInterrupt::new());
+    let _signals = interrupt.as_ref().map(|interrupt| {
+        let handler = interrupt.clone();
+        super::on_ctrl_c(move |_| handler.request())
+    });
+    let cancel = interrupt
+        .as_ref()
+        .zip(host.limits.cleanup_ms)
+        .map(|(interrupt, ms)| (interrupt, std::time::Duration::from_millis(ms)));
     match image {
-        hd_run::artifact::Image::Wasm(wasm) => {
-            hd_run_wasmtime::run_cancellable(config, wasm, host, io, &interrupt, bound)
-        }
+        hd_run::artifact::Image::Wasm(wasm) => match (sampling, cancel) {
+            (Some(output), cancel) => {
+                hd_run_wasmtime::run_sampled(config, wasm, host, io, output, cancel)
+            }
+            (None, Some((interrupt, bound))) => {
+                hd_run_wasmtime::run_cancellable(config, wasm, host, io, interrupt, bound)
+            }
+            (None, None) => hd_run_wasmtime::run_traced(config, wasm, host, io),
+        },
         hd_run::artifact::Image::Native(native) => {
-            run_native_image(native, host, io, Some((&interrupt, bound)))
+            run_native_image(native, host, io, cancel, sampling)
         }
     }
 }
@@ -267,9 +274,15 @@ fn run_native_image(
     host: &HostSetup,
     io: hd_run_wasmtime::HostIo,
     cancel: Option<(&hd_run_wasmtime::HostInterrupt, std::time::Duration)>,
+    sampling: Option<&std::path::Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     // SAFETY: the CLI only passes an explicitly selected native artifact
     // or its own build/install output, held open for this run. Its writers
     // publish replacements instead of modifying existing mapped files.
-    unsafe { hd_run_wasmtime::run_native(native, host, io, cancel) }
+    unsafe {
+        match sampling {
+            Some(output) => hd_run_wasmtime::run_native_sampled(native, host, io, output, cancel),
+            None => hd_run_wasmtime::run_native(native, host, io, cancel),
+        }
+    }
 }

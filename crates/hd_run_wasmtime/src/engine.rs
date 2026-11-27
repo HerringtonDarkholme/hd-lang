@@ -141,27 +141,31 @@ impl WasmtimeEngine {
 
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
     /// through `interrupt` (`cancel.rs`), with the cleanup bound `bound`.
-    pub(crate) fn instantiate_cancellable(
+    pub(crate) fn instantiate_run(
         &self,
         m: &Module,
         setup: &HostSetup,
         io: HostIo,
-        interrupt: &crate::HostInterrupt,
-        bound: std::time::Duration,
+        cancel: Option<(&crate::HostInterrupt, std::time::Duration)>,
+        sampling: Option<crate::sampling::Collector>,
     ) -> Result<WasmtimeInstance, StartError> {
         let mut host = host_of(setup, io);
-        host.interrupt = Some(Arc::clone(&interrupt.flag));
-        let mut inst = self.instantiate_host(m, host)?;
-        *interrupt
-            .waker
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) =
-            Some(inst.store.data().reactor.waker());
-        // A request made before the reactor had a waker set the flag only.
-        if interrupt.flag.load(std::sync::atomic::Ordering::Relaxed) {
-            interrupt.request();
+        host.sampling = sampling;
+        if let Some((interrupt, _)) = cancel {
+            host.interrupt = Some(Arc::clone(&interrupt.flag));
         }
-        inst.host_cancel = Some(crate::cancel::HostCancel::new(bound));
+        let mut inst = self.instantiate_host(m, host)?;
+        if let Some((interrupt, bound)) = cancel {
+            *interrupt
+                .waker
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(inst.store.data().reactor.waker());
+            if interrupt.flag.load(std::sync::atomic::Ordering::Relaxed) {
+                interrupt.request();
+            }
+            inst.host_cancel = Some(crate::cancel::HostCancel::new(bound));
+        }
         Ok(inst)
     }
 
@@ -321,7 +325,9 @@ pub(crate) fn new_store(
     let mut store = Store::try_new(engine, host).map_err(|error| {
         StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
     })?;
-    if store.data().deadline().is_some() || store.data().interrupt.is_some() {
+    if let Some(samples) = store.data().sampling.clone() {
+        crate::sampling::attach(engine, &mut store, samples).map_err(StartError::Engine)?;
+    } else if store.data().deadline().is_some() || store.data().interrupt.is_some() {
         epochs::register(engine).map_err(StartError::Engine)?;
         store.epoch_deadline_callback(|cx| {
             cx.data().check_deadline()?;

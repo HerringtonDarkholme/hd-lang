@@ -20,6 +20,7 @@ test = false
 testing = []
 
 [dependencies]
+tempfile = "=3.27.0"
 # `OptLevel`, which selects the engine options (`EngineConfig::pipeline`).
 hd_base = { workspace = true }
 # The compiled cache's private `clpack` entries (`code_cache.rs`).
@@ -61,6 +62,7 @@ wasmtime = { version = "=49.0.2", default-features = false, features = [
     "incremental-cache",
     "parallel-compilation",
     "pooling-allocator",
+    "profiling",
     "runtime",
     "std",
     "threads",
