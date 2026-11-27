@@ -7461,6 +7461,7 @@ std/text/scalar-conversion/surrogate.hd	runtime	accept	std/text.md#r-std-text.ch
 std/text/scalar-conversion/above-maximum.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
 std/text/scalar-conversion/maximum-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
 std/text/scalar-conversion/emoji-scalar.hd	runtime	accept	std/text.md#r-std-text.char.try-from-u32
+std/text/utf-8-conversion/lossy-utf8-replaces-maximal-subparts.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8-lossy
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

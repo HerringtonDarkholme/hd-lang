@@ -1,0 +1,2 @@
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"read_all preserves CRLF and a trailing lone CR","outcome":"passed"},{"kind":"test","name":"read_line removes only its final line ending","outcome":"passed"},{"kind":"test","name":"read_line preserves a lone CR at EOF","outcome":"passed"},{"kind":"summary","errors":0,"passed":3,"failed":0,"status":0}]

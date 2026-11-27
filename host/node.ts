@@ -371,8 +371,8 @@ export function lineReader(fd: number | null): LineReader {
       }
     }
   }) as LineReader;
-  // The rest of the input as read, with `\r\n` read as `\n`
-  // (std-console.input.read-all-host-coded-error).
+  // The rest of the input without newline translation
+  // (std-console.input.read-all-host-preserves-bytes).
   line.all = () => {
     retain(pending);
     pending = Buffer.alloc(0);
@@ -383,7 +383,7 @@ export function lineReader(fd: number | null): LineReader {
       retain(pending);
       pending = Buffer.alloc(0);
     }
-    return take().toString("utf8").replaceAll("\r\n", "\n");
+    return take().toString("utf8");
   };
   return line;
 }
