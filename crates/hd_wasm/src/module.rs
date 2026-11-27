@@ -1554,6 +1554,8 @@ pub struct Facts {
     /// Closed-program methods whose dynamic calls all use drive slots.
     /// Their vtables need no normal cold-constructor slot.
     pub drive_only: hd_base::HashSet<hd_base::DefId>,
+    /// Ready bodies have no resume ABI; their cold frames only cancel before polling.
+    pub ready: hd_base::HashSet<Hash128>,
     /// The std runtime every linked program provides to its helpers.
     pub runtime: crate::Runtime,
     /// Each instance by its key, for a caller to read how its callee takes
@@ -1750,6 +1752,7 @@ impl Module {
                 driven: hd_base::HashSet::default(),
                 blocking_driven: hd_base::HashSet::default(),
                 drive_only: hd_base::HashSet::default(),
+                ready: hd_base::HashSet::default(),
                 runtime: *runtime,
                 inst_of: hd_base::HashMap::default(),
                 indirect_params: Vec::new(),

@@ -923,8 +923,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `g!(x)` of an instance that completes at once (#2419): its body's
-    /// fresh path called as a plain call. It returns frame 0, so the call
-    /// is no suspension point and the caller keeps no child.
+    /// fresh path called with its plain ABI: no frame argument or result,
+    /// no suspension point, and no child kept by the caller.
     pub(super) fn await_ready(
         &mut self,
         i: u32,
@@ -936,11 +936,9 @@ impl Em<'_, '_, '_> {
         let args = self.b.call_args(i as usize).to_vec();
         let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
-        self.f.i32(0);
         self.push_cold_args(i, &args, item, targs, None)?;
         let c = self.push_call_providers(i, item, targs)?;
         self.f.call(Sym::Part(key, Part::Body));
-        self.f.op(I::Drop);
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
@@ -1578,6 +1576,7 @@ pub(super) fn finish(
     let cancelled = suspension.cancelled;
     let spill_base = suspension.spill_base;
     let has_points = !suspension.states.is_empty();
+    let ready = em.input.ready.contains(&key);
     let row = suspension.provs.clone();
     // Cleanup helpers still query suspension ranges and ownership facts.
     // Suspension tables remain in place for cleanup and cancellation while
@@ -1771,6 +1770,15 @@ pub(super) fn finish(
     em.f.op(I::End);
     // A parameter a body with no suspension point borrows from its
     // frame (`Em::borrowed`): the frame's count outlives the body.
+    if ready {
+        // A completed plain call consumed the cold arguments below in ready_poll.
+        em.f.get(FRAME);
+        em.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
+        em.f.i32(EXITED);
+        em.f.op(I::I32And);
+        em.f.op(I::I32Eqz);
+        em.f.op(I::If(BlockType::Empty));
+    }
     for &l in plocals {
         if em.borrowed.contains(&l)
             && let Some(ls) = em.locals.get(&l).cloned()
@@ -1787,6 +1795,9 @@ pub(super) fn finish(
             let t = em.b.local_ty[l];
             em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
         }
+    }
+    if ready {
+        em.f.op(I::End);
     }
     if !row.is_empty() {
         // ruled out: counts::expected pairs cold_row::roots' copies with
@@ -2101,10 +2112,16 @@ pub(super) fn finish(
         // No yield, no resident-access overhead: only a cold entry needs
         // to restore its constructor arguments/captures once.
         super::susp_spill::initial(&mut body, &area, &selected);
-        crate::task::guard_frame(&mut body);
+        if !ready {
+            crate::task::guard_frame(&mut body);
+        }
         if let Some((base, size)) = local_frame {
             crate::wide::locals_frame(&mut body, base, size);
         }
+    }
+
+    if ready {
+        direct_body(&mut body);
     }
 
     // The poll: the runtime checks, then the body over the frame.
@@ -2148,7 +2165,11 @@ pub(super) fn finish(
     f.op(I::Return);
     f.op(I::End);
     pending(&mut f);
-    let poll = f;
+    let poll = if ready {
+        ready_poll(&mut em, key, &name, plocals, params, &positions)?
+    } else {
+        f
+    };
 
     // The cancel (§14.6): a frame that never started is only marked; a
     // started one unwinds until its body leaves by its cancellation.
@@ -2236,12 +2257,200 @@ pub(super) fn finish(
     };
     em.m.define(Sym::Part(key, Part::Body), body);
     em.m.define(Sym::Part(key, Part::Poll), poll);
-    em.m.define(Sym::Part(key, Part::Cancel), cancel);
+    if !ready {
+        em.m.define(Sym::Part(key, Part::Cancel), cancel);
+    }
     em.m.define(Sym::Part(key, Part::Drop), drop);
     if let Some(lent) = lent {
         em.m.define(Sym::Part(key, Part::Lent), lent);
     }
     Ok(cold)
+}
+
+/// Specialize the fresh path at frame zero, then remove its frame parameter
+/// and result. The existing constant folds delete the cold-entry branches.
+/// Cost O(instructions + locals); there is no retry or recursive traversal.
+fn direct_body(f: &mut crate::module::Func) {
+    let np = super::shape::u32_of(f.params.len());
+    f.params.remove(0);
+    f.locals.insert(0, Val::I32);
+    let _ = f.results.pop();
+    let local = |l: u32| {
+        if l == FRAME {
+            np - 1
+        } else if l < np {
+            l - 1
+        } else {
+            l
+        }
+    };
+    if let Some(names) = &mut f.local_names {
+        *names = std::mem::take(names)
+            .into_iter()
+            .map(|(l, name)| (local(l), name))
+            .collect();
+    }
+    let body = std::mem::take(&mut f.body);
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
+    for (at, mut ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[at]);
+        if let Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) = &mut ins {
+            *l = local(*l);
+        }
+        if matches!(ins, Ins::Op(I::Return)) {
+            f.op(I::Drop);
+        }
+        f.push(ins);
+    }
+    f.origin_at = outer;
+    f.op(I::Drop);
+    crate::opt::fold_local_constants(f);
+    crate::opt::fold_constant_branches(f);
+    crate::opt::drops(f);
+    f.rebuild_callees();
+}
+
+/// Poll an unstarted ready call: load its saved arguments and invoke the
+/// ordinary fresh-entry ABI. The cold frame's copies outlive that call;
+/// transferred arguments move to it, while borrowed copies end afterwards.
+fn ready_poll(
+    em: &mut Em<'_, '_, '_>,
+    key: Hash128,
+    name: &str,
+    plocals: &[usize],
+    params: &[Val],
+    positions: &[Option<(u32, Val)>],
+) -> StageResult<crate::module::Func> {
+    let results = em.results.clone();
+    let mut pres = vec![Val::I32];
+    pres.extend(&results);
+    em.f = em.m.func(format!("{name}.poll"), vec![Val::I32], pres);
+    em.inherit_origin_source(Reason::Conservative("ready poll"));
+    let out: Vec<u32> = results.iter().map(|v| em.f.local(*v)).collect();
+    em.f.get(FRAME);
+    em.f.helper(Helper::PollCheck);
+    em.f.op(I::If(BlockType::Empty));
+    em.f.i32(0);
+    for &value in &results {
+        push_zero(&mut em.f, value);
+    }
+    em.f.op(I::Return);
+    em.f.op(I::End);
+    set_flags(&mut em.f, ACTIVE, true);
+    let mut args = vec![None; params.len()];
+    let mut cells = hd_base::HashMap::default();
+    // A cold constructor already materialized an addressed parameter's cell.
+    // Its ordinary argument is the value (or its address), not that cell's slot.
+    for &l in plocals {
+        let Some(arrival) = em.param_vals.get(&l).cloned() else {
+            continue;
+        };
+        let source = em.locals[&l][0];
+        let (offset, value) = super::required(
+            positions[source as usize],
+            "cold parameter cells have saved positions",
+        );
+        let cell = em.f.local(value);
+        em.f.get(FRAME);
+        em.f.op(load_op(value, offset));
+        em.f.set(cell);
+        let values = if arrival.len() == 1
+            && crate::layout::by_address(em.pool(), em.env(), em.b.local_ty[l])?
+        {
+            vec![cell]
+        } else {
+            let mem = em.cell_mem(l)?;
+            em.f.load_locals(cell, &mem.leaves)
+        };
+        for (param, value) in arrival.into_iter().zip(values) {
+            args[param as usize] = Some(value);
+        }
+        cells.insert(l, cell);
+    }
+    for (j, &value) in params.iter().enumerate().skip(1) {
+        if args[j].is_none() {
+            let (offset, _) = super::required(
+                positions[j],
+                "every cold argument or provider has a saved position",
+            );
+            let v = em.f.local(value);
+            em.f.get(FRAME);
+            em.f.op(load_op(value, offset));
+            em.f.set(v);
+            args[j] = Some(v);
+        }
+        em.f.get(super::required(args[j], "the cold argument was loaded"));
+    }
+    em.f.call(Sym::Part(key, Part::Body));
+    for &v in out.iter().rev() {
+        em.f.set(v);
+    }
+    set_flags(&mut em.f, ACTIVE, false);
+    set_flags(&mut em.f, DONE | EXITED, true);
+    let transferred = |em: &Em<'_, '_, '_>, l: usize| {
+        em.cx().cold_parameter_transfers(em.item, em.b.local_ty[l])
+            || crate::layout::holds_drop(em.pool(), em.env(), em.b.local_ty[l])
+    };
+    for &l in plocals {
+        let ty = em.b.local_ty[l];
+        if let Some(&cell) = cells.get(&l) {
+            let old = em.locals.insert(l, vec![cell]);
+            if transferred(em, l) {
+                // The fresh body took the value; its old cell keeps no count.
+                em.empty_place(hd_tir::ir::place::BARE_LOCAL | super::shape::u32_of(l))?;
+                em.init_cell_drop(cell, ty, Some(false));
+            }
+            em.because(Reason::ByDesign, |em| em.release_cell_of(l, cell))?;
+            if let Some(old) = old {
+                em.locals.insert(l, old);
+            }
+        } else if !transferred(em, l)
+            && em
+                .stated_count(
+                    Tag::Retain,
+                    CountAt::Cold,
+                    CountPart::Local(super::shape::u32_of(l)),
+                )
+                .is_some()
+        {
+            let values: Vec<u32> = em.locals[&l]
+                .iter()
+                .map(|&v| {
+                    super::required(args[v as usize], "the parameter's arrival value was loaded")
+                })
+                .collect();
+            em.because(Reason::ByDesign, |em| em.release_locals(&values, ty))?;
+        }
+    }
+    // The cold constructor holds reference owners separately from argument
+    // values. The fresh body has zero-initialized owner temporaries, so its
+    // ordinary exit cannot release these saved cold counts.
+    for saved in em.frame_refs.clone() {
+        let reason = em.required_stated_count(
+            Tag::Release,
+            CountAt::Exit,
+            CountPart::Referent(super::shape::u32_of(saved.local)),
+        );
+        for (conditional, held) in saved.conditional.iter().copied().zip(saved.held) {
+            let (offset, value) = super::required(
+                positions[held as usize],
+                "saved cold referents have frame positions",
+            );
+            let owner = em.f.local(value);
+            em.f.get(FRAME);
+            em.f.op(load_op(value, offset));
+            em.f.set(owner);
+            em.because(reason, |em| em.release_frame_referent(owner, conditional));
+        }
+    }
+    em.f.i32(1);
+    for v in out {
+        em.f.get(v);
+    }
+    let mut f = std::mem::take(&mut em.f);
+    crate::task::guard_frame(&mut f);
+    Ok(f)
 }
 
 /// Sets (`on`) or clears flag bits `bits` of the frame in local 0.

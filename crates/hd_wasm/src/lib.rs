@@ -769,6 +769,7 @@ fn link_prepared(
         facts.track_origins = track_origins;
     }
     facts.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
+    facts.ready.clone_from(input.ready);
     // ruled out: hd_driver collects every REPL input, the only open-world
     // link, with all slots (`hd_mono::collect`'s `open_world`), so a later
     // input's call finds every slot it numbers.

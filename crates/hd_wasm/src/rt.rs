@@ -2924,9 +2924,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 .as_ref()
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
             own_lent(&mut f, m, &rvals, &recv, params, own);
-            if *body {
-                f.i32(0);
-            }
             recv(&mut f);
             push_slot_params(
                 &mut f,
@@ -2935,7 +2932,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             );
             if *body {
                 f.call(Sym::Part(*target, crate::module::Part::Body));
-                f.op(Instruction::Drop);
             } else {
                 f.call(Sym::Inst(*target));
             }

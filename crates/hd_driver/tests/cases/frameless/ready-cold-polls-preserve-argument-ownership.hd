@@ -1,0 +1,128 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A separate consumer prevents fresh-drive fusion: these really poll stored calls.
+use std.meta.inline
+use std.task.block_on
+
+@inline(.Never)
+fn drive[T](work: Suspend[T]) -> T:
+    match block_on(work):
+        .Completed(value) => value
+        .Cancelled => panic("unexpected cancellation")
+        .Abandoned => panic("unexpected abandonment")
+
+fn echo!(text: string, words: List[string]) -> string:
+    text + words[0]
+
+fn addressed!(text: string) -> string:
+    view := &text
+    *view + "!"
+
+fn pair!(n: i64) -> (i64, f64):
+    (n + 1, f64(n) + 0.5)
+
+trait Label:
+    fn label(&self) -> string
+
+struct Name:
+    text: string
+
+impl Label for Name:
+    fn label(&self) -> string:
+        self.text
+
+fn labelled!(text: string) -> string $ Label:
+    text + $.use(Label).label()
+
+@inline(.Never)
+fn fresh(n: i32) -> string:
+    "heap-$n"
+
+@inline(.Never)
+fn length(text: &string) -> usize:
+    text.len()
+
+fn inspected!(text: string, inspect: fn(&string) -> usize) -> usize:
+    inspect(&text)
+
+struct Wide:
+    a: string
+    b: string
+    c: string
+    d: string
+    e: string
+    f: string
+    g: string
+    h: string
+    i: string
+    j: string
+    k: string
+    l: string
+    m: string
+    n: string
+    o: string
+    p: string
+    q: string
+    r: string
+
+fn wide!(value: Wide) -> Wide:
+    value
+
+@inline(.Never)
+fn wide_size(value: &Wide) -> usize:
+    value.a.len() + value.r.len()
+
+fn inspected_wide!(value: Wide, inspect: fn(&Wide) -> usize) -> usize:
+    inspect(&value)
+
+pub fn main() -> void $ Console:
+    text := fresh(7)
+    words := [fresh(8)]
+    println(drive(echo(text, words)))
+    println(text + words[0])
+    println(drive(addressed(fresh(9))))
+    println(drive(inspected(fresh(10), length)))
+    let (n, f) = drive(pair(7))
+    println("$n $f")
+    $.with(Label=box(Name { text: fresh(11) })):
+        println(drive(labelled("saved-")))
+    big := Wide {
+        a: fresh(0),
+        b: fresh(1),
+        c: fresh(2),
+        d: fresh(3),
+        e: fresh(4),
+        f: fresh(5),
+        g: fresh(6),
+        h: fresh(7),
+        i: fresh(8),
+        j: fresh(9),
+        k: fresh(10),
+        l: fresh(11),
+        m: fresh(12),
+        n: fresh(13),
+        o: fresh(14),
+        p: fresh(15),
+        q: fresh(16),
+        r: fresh(17),
+    }
+    result := drive(wide(big))
+    println(result.a + result.r)
+    println(big.a + big.r)
+    println(drive(inspected_wide(big, wide_size)))
+    captured := fresh(20)
+    closure := fn!() -> string: captured + " captured"
+    println(drive(closure()))
+    println(drive(closure()))
+    let calls = +0
+    shared := fn!() -> i32:
+        calls += 1
+        calls
+    println(drive(shared()))
+    println(drive(shared()))
+    println(calls)
+    # Unstarted cold calls release heap copies and addressed values too.
+    _ := echo(fresh(12), [fresh(13)])
+    _ := inspected(fresh(14), length)
+    _ := wide(big)
+    _ := inspected_wide(big, wide_size)

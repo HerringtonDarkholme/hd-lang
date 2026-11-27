@@ -69,7 +69,6 @@ std/rt.alloc/retain_known#0
 std/rt.memory/room#0
 std/fs/FsRead.open#0 [std.fs.MemoryFs]
 std/fs/FsRead.open#0.poll
-std/fs/FsRead.open#0.cancel
 std/fs/FsRead.open#0.drop
 std/fs/FsRead.open#0
 std/rt.alloc/alloc#0
@@ -237,6 +236,7 @@ rt:wake_mark
 rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel
 == @build: release
 std/console/println#0 [string]
 std/rt.cycle/compact#0
@@ -294,7 +294,6 @@ std/rt.memory/room#0
 std/collections.list/impl[T < Display] List[T].join#0 [string]
 std/fs/FsRead.open#0 [std.fs.MemoryFs]
 std/fs/FsRead.open#0.poll
-std/fs/FsRead.open#0.cancel
 std/fs/FsRead.open#0.drop
 std/fs/FsRead.open#0
 std/rt.alloc/alloc#0
@@ -453,3 +452,4 @@ rt:cancel_child
 rt:wake_mark
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel

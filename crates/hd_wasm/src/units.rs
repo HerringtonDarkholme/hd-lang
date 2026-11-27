@@ -60,6 +60,8 @@ impl<'i, 'a> Keys<'i, 'a> {
             driven,
             blocking_driven,
             drive_only,
+            // ruled out: the identical Input::ready set is hashed below.
+            ready: _,
             runtime,
             // ruled out: Module::inst records keyed reads; numeric indices belong to this link.
             inst_of: _,
