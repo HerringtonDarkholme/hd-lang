@@ -1,0 +1,45 @@
+# test: both float widths classify only the two infinities as infinite
+# Spec std/num.md: std-num.is-infinite.
+# expect-stdout: ok
+use std.testing.assert_equal
+
+pub fn main() -> void $ Console:
+    let cases32: List[(u32, bool)] = [
+        (0x00000000, false),
+        (0x80000000, false),
+        (0x00000001, false),
+        (0x80000001, false),
+        (0x007fffff, false),
+        (0x00800000, false),
+        (0x3f800000, false),
+        (0x7f7fffff, false),
+        (0xff7fffff, false),
+        (0x7f800000, true),
+        (0xff800000, true),
+        (0x7fc00000, false),
+        (0xffc00001, false),
+        (0x7f800001, false),
+        (0xffbfffff, false),
+    ]
+    for (bits, expected) in cases32:
+        assert_equal(f32::from_bits(bits).is_infinite(), expected, reason="binary32 classification")
+    let cases64: List[(u64, bool)] = [
+        (0x0000000000000000, false),
+        (0x8000000000000000, false),
+        (0x0000000000000001, false),
+        (0x8000000000000001, false),
+        (0x000fffffffffffff, false),
+        (0x0010000000000000, false),
+        (0x3ff0000000000000, false),
+        (0x7fefffffffffffff, false),
+        (0xffefffffffffffff, false),
+        (0x7ff0000000000000, true),
+        (0xfff0000000000000, true),
+        (0x7ff8000000000000, false),
+        (0xfff8000000000001, false),
+        (0x7ff0000000000001, false),
+        (0xfff7ffffffffffff, false),
+    ]
+    for (bits, expected) in cases64:
+        assert_equal(f64::from_bits(bits).is_infinite(), expected, reason="binary64 classification")
+    println("ok")
