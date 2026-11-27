@@ -43,6 +43,8 @@ fn count_bytes![R < Read](source: &mut R) -> Result[usize, IoError]:
 4. r[std-io.read.zero] `read!(0)` returns an empty list at once and reads nothing.
 5. r[std-io.read.suspends] Reading is I/O, so `read!` is a bang call. A read that waits for its source suspends the calling task, and other tasks run.
 6. r[std-io.read.one-call] A host source makes one host call per `read!`, and holds no more of its input in the program than the chunk it returns.
+7. r[std-io.read.pending-closed] A `read!` that is pending on a [`File`](fs.md#reading-files-in-chunks) when the file is disposed completes with `.Err(IoError.Closed)` on every host, as a socket's does by [`std-net.close.pending-closed`](net.md#r-std-net.close.pending-closed).
+8. r[std-io.read.pending-dropped] Bytes that reach the file after its dispose are dropped, so no `read!` returns them.
 
 > **Why.** Go's `io.Reader` and Rust's `Read` fill a caller's buffer and
 > report a count. hd has no borrowed byte buffers at the host boundary,
