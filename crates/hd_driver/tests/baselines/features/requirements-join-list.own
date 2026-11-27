@@ -55,18 +55,14 @@ fn all!(keys: List[string]) -> usize:
 >   local $8 results: List[string] [:= read assigned] place
 >   local $9 n: usize [read assigned mutated] place
 >   local $10 $len: usize [assigned] value
->     uses $10: %68 -> %71 lend
+>     uses $10: %56 -> %59 lend
 >   local $11 $pos: usize [assigned] place
 >   local $12 r: &string [read assigned] value
->     uses $12: %85 -> %79 lend last
->   local $13 tasks: List[Suspend[string]] [read] value
->     uses $13: %50 -> %51 lend last
->   local $14 frame: Suspend[List[string]] [read assigned] value
->     uses $14: %53 -> %54 lend last
->   %0 = Retain %100 Cold local $0 #0 : ()
->   %1 = Retain %100 Entry local $0 #0 : ()
+>     uses $12: %73 -> %67 lend last
+>   %0 = Retain %87 Cold local $0 #0 : ()
+>   %1 = Retain %87 Entry local $0 #0 : ()
     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
->   %2 = Release %100 FrameDrop child #2 : ()
+>   %2 = Release %87 FrameDrop child #2 : ()
 >   %3 = NewList - [] : List[Suspend[string]]
 >   %4 = Store [$1] %3 : ()
 >   %5 = Read move [$0] : List[string]
@@ -111,72 +107,59 @@ fn all!(keys: List[string]) -> usize:
 >   %45 = Read move [$1] : List[Suspend[string]]
 >   %46 = Intrinsic Empty [] : ()
 >   %47 = Store [$7] %45 : ()
->   %98 = Drop [$0] : ()
->   %99 = Drop [$13] : ()
->   %100 = Block %97 : usize
->   %106 = Intrinsic ParamOwned [0:i32] : bool
->   %107 = Drop [$0] : ()
->   %108 = Block - : ()
->   %109 = If %106 [%108 -] : ()
->   %110 = Block - : ()
+>   %86 = Drop [$0] : ()
+>   %87 = Block %85 : usize
+>   %91 = Intrinsic ParamOwned [0:i32] : bool
+>   %92 = Drop [$0] : ()
+>   %93 = Block - : ()
+>   %94 = If %91 [%93 -] : ()
+>   %95 = Block - : ()
     results := join!(tasks...)
 >   %48 = Read move [$7] : List[Suspend[string]]
 >   %49 = Intrinsic Empty [] : ()
->   %50 = Store [$13] %48 : ()
->   %51 = Read borrow [$13] : List[Suspend[string]]
->   %52 = Call std/task/all_frame[string] (%51) : Suspend[List[string]]
->   %53 = Store [$14] %52 : ()
->   %54 = Read move [$14] : Suspend[List[string]]
->   %55 = Intrinsic Empty [] : ()
->   %56 = AwaitValue %54 : List[string]
->   %57 = Release %56 Operation child #2 : ()
->   %58 = Retain %56 Operation child #0 : ()
->   %59 = Drop [%54] : ()
->   %60 = Break L2 %56 : never
->   %61 = Block - : List[string]
->   %62 = Scope %61 [] : List[string]
->   %63 = Drop [$13] : ()
->   %64 = Store [$8] %62 : ()
+>   %50 = Await std/task/all_list[string] (%48) : List[string]
+>   %51 = Release %50 Operation child #2 : ()
+>   %52 = Store [$8] %50 : ()
     let mut n = 0
->   %65 = Store [$9] 0:usize : ()
+>   %53 = Store [$9] 0:usize : ()
     for r in &results:
->   %66 = Read borrow [$8] : List[string]
->   %67 = Intrinsic ListLen [%66] : usize
->   %68 = Store [$10] %67 : ()
->   %69 = Store [$11] 0:usize : ()
->   %70 = Read copy [$11] : usize
->   %71 = Read copy [$10] : usize
->   %72 = Prim Lt [%70 %71] : bool
->   %73 = Read copy [$11] : usize
->   %74 = Read copy [$11] : usize
->   %75 = Prim Add [%74 1:usize] : usize
->   %76 = Store [$11] %75 : ()
->   %77 = Ref local pins [%66 [%73]] : &string
->   %83 = Block - : ()
->   %84 = Read borrow [%77] : &string
->   %85 = Store [$12] %84 : ()
->   %87 = Block - : never
->   %88 = Match %77 [%87 %83] : ()
->   %89 = LoanEnd [%77] : ()
->   %90 = Block - : ()
->   %91 = Break L1 - : never
->   %92 = Block - : ()
->   %93 = If %72 [%90 %92] : ()
->   %94 = Block - : ()
->   %95 = Loop %94 - : ()
->   %96 = Drop [$8] : ()
+>   %54 = Read borrow [$8] : List[string]
+>   %55 = Intrinsic ListLen [%54] : usize
+>   %56 = Store [$10] %55 : ()
+>   %57 = Store [$11] 0:usize : ()
+>   %58 = Read copy [$11] : usize
+>   %59 = Read copy [$10] : usize
+>   %60 = Prim Lt [%58 %59] : bool
+>   %61 = Read copy [$11] : usize
+>   %62 = Read copy [$11] : usize
+>   %63 = Prim Add [%62 1:usize] : usize
+>   %64 = Store [$11] %63 : ()
+>   %65 = Ref local pins [%54 [%61]] : &string
+>   %71 = Block - : ()
+>   %72 = Read borrow [%65] : &string
+>   %73 = Store [$12] %72 : ()
+>   %75 = Block - : never
+>   %76 = Match %65 [%75 %71] : ()
+>   %77 = LoanEnd [%65] : ()
+>   %78 = Block - : ()
+>   %79 = Break L1 - : never
+>   %80 = Block - : ()
+>   %81 = If %60 [%78 %80] : ()
+>   %82 = Block - : ()
+>   %83 = Loop %82 - : ()
+>   %84 = Drop [$8] : ()
         n += r.len()
->   %78 = Read copy [$9] : usize
->   %79 = Read borrow [$12] : &string
->   %80 = Call std/text/impl string.len[] (%79) : usize
->   %81 = Prim Add [%78 %80] : usize
->   %82 = Store [$9] %81 : ()
+>   %66 = Read copy [$9] : usize
+>   %67 = Read borrow [$12] : &string
+>   %68 = Call std/text/impl string.len[] (%67) : usize
+>   %69 = Prim Add [%66 %68] : usize
+>   %70 = Store [$9] %69 : ()
     n
->   %97 = Read copy [$9] : usize
->   exit sub 0 drops [$0 $13]
+>   %85 = Read copy [$9] : usize
+>   exit sub 0 drops [$0]
 >   summary none
->   cancel %56 releases [%54 %2147483648 %2147483661 %4294967295]
->   cancel %100 releases [%16 %106]
+>   cancel %50 releases [%2147483648 %4294967295]
+>   cancel %87 releases [%16 %91]
 >   loop %43 keeps [$2] (%7..%44)
 
 # Keep the frame path live: the stored closure can wait.

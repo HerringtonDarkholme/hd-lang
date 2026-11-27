@@ -44,24 +44,18 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
 >   retain counted reference (stored)
     maybe_change(alias, false)
     sleep!(Duration::milliseconds(500))
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
->   release std.time.Clock (last use)
     *value
 >   retain string (stored)
 
 fn quick!() -> string $ Clock:
     sleep!(Duration::milliseconds(20))
 > app/main/quick
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
->   release std.time.Clock (last use)
 > app/main/quick
 >   release string (cancelled)
 > app/main/quick
@@ -79,7 +73,6 @@ pub fn main!() -> void $ Console + Clock:
 >   retain *mut app.main.Slots (stored)
 >   release counted reference (last use)
 >   release *mut app.main.Slots (last use)
->   release List[Suspend[string]] (last use)
 > app/main/main
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -93,14 +86,9 @@ pub fn main!() -> void $ Console + Clock:
     println(race!(held(p, p), quick()))
 >   retain *mut app.main.Slots (stored)
 >   retain *mut app.main.Slots (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release Suspend[string] (cancelled)
 >   release *mut app.main.Slots (last use)
->   release List[Suspend[string]] (last use)
->   release Suspend[string] (last use)
->   release List[Suspend[string]] (last use)
     p.items.push("after")
 >   unique List[string] (may be shared)
     println(p.items.len())

@@ -21,22 +21,18 @@ fn same[T](a: &T, b: &T) -> bool:
 fn take![T < 'static](value: T) -> T $ Clock:
 > std/rt_tests.stage_case/take
 >   local $0 value: T [param read captured] place
->   local $1 duration: Duration [read] value
->     uses $1: %22 -> %29 lend last
->   local $2 clock: &mut dyn Clock [:= read assigned] value
->     uses $2: %25 -> %26 lend last
->   local $3 count: i64 [read] value
->     uses $3: %16 -> %17 lend last
->   %0 = Retain %45 Cold local $0 #0 : ()
->   %1 = Retain %45 Entry local $0 #0 : ()
->   %5 = Retain %45 Cold referent $0 #8 : ()
->   %6 = Release %45 FrameDrop referent $0 #2 : ()
->   %7 = Release %45 Exit referent $0 #8 : ()
+>   local $1 count: i64 [read] value
+>     uses $1: %16 -> %17 lend last
+>   %0 = Retain %29 Cold local $0 #0 : ()
+>   %1 = Retain %29 Entry local $0 #0 : ()
+>   %5 = Retain %29 Cold referent $0 #8 : ()
+>   %6 = Release %29 FrameDrop referent $0 #2 : ()
+>   %7 = Release %29 Exit referent $0 #8 : ()
     _ := same(&value, &value)
->   %2 = Retain %45 Cold row #0 : ()
->   %3 = Retain %45 Materialize row #0 : ()
->   %4 = Release %45 FrameDrop row #2 : ()
->   %8 = Release %45 FrameDrop child #2 : ()
+>   %2 = Retain %29 Cold row #0 : ()
+>   %3 = Retain %29 Materialize row #0 : ()
+>   %4 = Release %29 FrameDrop row #2 : ()
+>   %8 = Release %29 FrameDrop child #2 : ()
 >   %9 = Box #0 #1 : ()
 >   %10 = Ref local [$0] : &T
 >   %11 = Coerce %10 [Weaken -] : &T
@@ -44,47 +40,31 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %13 = Call std/rt_tests.stage_case/same[T] (%11, %12) : bool
 >   %14 = Drop [%12] : ()
 >   %15 = Drop [%11] : ()
->   %43 = Drop [$0] : ()
->   %44 = Drop [$2] : ()
->   %45 = Block %40 : T
->   %51 = Intrinsic ParamOwned [0:i32] : bool
->   %52 = Drop [$0] : ()
->   %53 = Block - : ()
->   %54 = If %51 [%53 -] : ()
->   %55 = Block - : ()
+>   %28 = Drop [$0] : ()
+>   %29 = Block %25 : T
+>   %33 = Intrinsic ParamOwned [0:i32] : bool
+>   %34 = Drop [$0] : ()
+>   %35 = Block - : ()
+>   %36 = If %33 [%35 -] : ()
+>   %37 = Block - : ()
     sleep!(ms(1))
->   %16 = Store [$3] 1:i64 : ()
->   %17 = Read copy [$3] : i64
+>   %16 = Store [$1] 1:i64 : ()
+>   %17 = Read copy [$1] : i64
 >   %18 = Call std/time/impl Duration.milliseconds[] (%17) : Duration
->   %19 = Break L1 %18 : never
+>   %19 = Break L0 %18 : never
 >   %20 = Block - : Duration
 >   %21 = Scope %20 [] : Duration
->   %22 = Store [$1] %21 : ()
->   %23 = ProviderGet #39 : Clock
->   %24 = Coerce %23 [ProviderAsRef -] : &mut dyn Clock
->   %25 = Store [$2] %24 : ()
->   %26 = Read copy [*$2] : Clock
->   %27 = Retain %26 Value #0 : ()
->   %28 = LoanBegin %26 #0 : ()
->   %29 = Read copy [$1] : Duration
->   %30 = LoanBegin %26 #2 : ()
->   %31 = Await std/time/Clock.sleep for Clock [] via TraitValue (%26, %29) : ()
->   %32 = Release %31 Operation child #2 : ()
->   %33 = LoanClose %28 : ()
->   %34 = Drop [%26] : ()
->   %35 = Drop [$2] : ()
->   %36 = Break L0 - : never
->   %37 = Block - : ()
->   %38 = Scope %37 [] : ()
+>   %22 = Await std/time/sleep[] (%21) : ()
+>   %23 = Release %22 Operation child #2 : ()
     value
->   %39 = FlagClear [$0] #4 : ()
->   %40 = Read move [$0] : T
->   %41 = Intrinsic Empty [] : ()
->   %42 = Drop [$0] : ()
->   exit sub 0 drops [$0 $2]
+>   %24 = FlagClear [$0] #2 : ()
+>   %25 = Read move [$0] : T
+>   %26 = Intrinsic Empty [] : ()
+>   %27 = Drop [$0] : ()
+>   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   cancel %31 releases [%26 %2147483648 %2147483650 %4294967295]
->   cancel %45 releases [%16 %51]
+>   cancel %22 releases [%2147483648 %4294967295]
+>   cancel %29 releases [%16 %33]
 
 @cold
 > std/rt_tests.stage_case/stack

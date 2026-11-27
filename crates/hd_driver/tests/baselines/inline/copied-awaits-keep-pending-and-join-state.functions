@@ -20,6 +20,10 @@ std/rt.alloc/release_known#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/rt.bytes/write_signed_sized#0
+app/main/await_job#0 [i32?]
+app/main/await_job#0.poll
+app/main/await_job#0.cancel
+app/main/await_job#0.drop
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 std/task/impl[T < 'static] Sender[T].send#0 [i32]
@@ -35,7 +39,7 @@ std/task/impl[T < 'static] Receiver[T].recv#0 [i32]
 std/task/impl[T < 'static] Receiver[T].recv#0.poll
 std/task/impl[T < 'static] Receiver[T].recv#0.cancel
 std/task/impl[T < 'static] Receiver[T].recv#0.drop
-std/task/impl[T < 'static] Receiver[T].recv#0.lent
+std/task/impl[T < 'static] Receiver[T].recv#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -61,12 +65,20 @@ std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/task/channel#0 [i32]
+app/main/read_after#0
+app/main/read_after#0.poll
+app/main/read_after#0.cancel
+app/main/read_after#0.drop
 std/rt.entry/host_provider#0 [Console]
 std/rt.alloc/retain_known#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
 std/rt.thread/init.init#0
 std/rt.alloc/joined#0
+std/task/race#0 [i32]
+std/task/race#0.poll
+std/task/race#0.cancel
+std/task/race#0.drop
 std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
@@ -81,8 +93,16 @@ std/console/println#0 [i32]
 std/rt.cycle/drop_root#0
 std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
+app/main/first#0
+app/main/first#0.poll
+app/main/first#0.cancel
+app/main/first#0.drop
 std/time/init.init#0
 std/collections.deque/impl[T] Deque[T].pop_front#0 [i32]
+app/main/combine#0
+app/main/combine#0.poll
+app/main/combine#0.cancel
+app/main/combine#0.drop
 std/collections.deque/impl[T] Deque[T].slot#0 [i32]
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
@@ -117,19 +137,19 @@ rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
-rt:new/class-1#0
-rt:new/class-1#1
+rt:new/class-1
 rt:new/class-3#0
 rt:new/class-3#1
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-6
+rt:new/class-3#2
+rt:new/class-4
+rt:new/class-5
 rt:alloc_class/1
 rt:alloc_class/3
 rt:alloc_class/4
-rt:alloc_class/6
+rt:alloc_class/5
 rt:free_class
 rt:free_class_loaded
+rt:free_frame
 rt:str
 rt:release_ref#0
 rt:release_drain
@@ -140,7 +160,6 @@ rt:drop#0
 rt:drop#1
 rt:drop#2
 rt:drop#3
-rt:drop#4
 rt:list_buf#0
 rt:list_buf#1
 rt:drop_elems
@@ -159,11 +178,21 @@ rt:frame#1
 rt:frame#2
 rt:frame#3
 rt:frame#4
+rt:frame#5
+rt:frame#6
+rt:frame#7
+rt:frame#8
+rt:frame#9
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
 rt:frame_ensure#3
 rt:frame_ensure#4
+rt:frame_ensure#5
+rt:frame_ensure#6
+rt:frame_ensure#7
+rt:frame_ensure#8
+rt:frame_ensure#9
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter
@@ -218,6 +247,10 @@ std/rt.cycle/takes_part#0
 std/rt.checked/retain#0
 std/rt.bytes/write_signed_sized#0
 std/rt.checked/allocate#0
+app/main/await_job#0 [i32?]
+app/main/await_job#0.poll
+app/main/await_job#0.cancel
+app/main/await_job#0.drop
 std/rt.alloc/block_of#0
 std/task/impl[T < 'static] Sender[T].send#0 [i32]
 std/task/impl[T < 'static] Sender[T].send#0.poll
@@ -232,7 +265,7 @@ std/task/impl[T < 'static] Receiver[T].recv#0 [i32]
 std/task/impl[T < 'static] Receiver[T].recv#0.poll
 std/task/impl[T < 'static] Receiver[T].recv#0.cancel
 std/task/impl[T < 'static] Receiver[T].recv#0.drop
-std/task/impl[T < 'static] Receiver[T].recv#0.lent
+std/task/impl[T < 'static] Receiver[T].recv#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.checked/known_payload#0
@@ -261,6 +294,10 @@ std/rt.checked/unique_checks#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/task/channel#0 [i32]
+app/main/read_after#0
+app/main/read_after#0.poll
+app/main/read_after#0.cancel
+app/main/read_after#0.drop
 std/rt.entry/host_provider#0 [Console]
 std/rt.checked/released#0
 std/rt.alloc/alloc#0
@@ -268,6 +305,10 @@ std/rt.checked/notify#0
 std/rt.alloc/extend#0
 std/rt.thread/init.init#0
 std/rt.alloc/joined#0
+std/task/race#0 [i32]
+std/task/race#0.poll
+std/task/race#0.cancel
+std/task/race#0.drop
 std/rt.alloc/foreign_block#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
@@ -288,9 +329,17 @@ std/rt.cycle/drop_root#0
 std/rt.checked/hold#0
 std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
+app/main/first#0
+app/main/first#0.poll
+app/main/first#0.cancel
+app/main/first#0.drop
 std/time/init.init#0
 std/rt.checked/init.init#0
 std/collections.deque/impl[T] Deque[T].pop_front#0 [i32]
+app/main/combine#0
+app/main/combine#0.poll
+app/main/combine#0.cancel
+app/main/combine#0.drop
 std/collections.deque/impl[T] Deque[T].slot#0 [i32]
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
@@ -327,6 +376,7 @@ rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
+rt:free_frame
 rt:str
 rt:release_ref#0
 rt:release_drain
@@ -337,7 +387,6 @@ rt:drop#0
 rt:drop#1
 rt:drop#2
 rt:drop#3
-rt:drop#4
 rt:list_buf#0
 rt:list_buf#1
 rt:drop_elems
@@ -356,11 +405,21 @@ rt:frame#1
 rt:frame#2
 rt:frame#3
 rt:frame#4
+rt:frame#5
+rt:frame#6
+rt:frame#7
+rt:frame#8
+rt:frame#9
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
 rt:frame_ensure#3
 rt:frame_ensure#4
+rt:frame_ensure#5
+rt:frame_ensure#6
+rt:frame_ensure#7
+rt:frame_ensure#8
+rt:frame_ensure#9
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter
@@ -404,6 +463,10 @@ std/rt.alloc/release_known#0
 std/rt.alloc/alloc_class#0
 std/rt.cycle/takes_part#0
 std/rt.bytes/write_signed_sized#0
+app/main/await_job#0 [i32?]
+app/main/await_job#0.poll
+app/main/await_job#0.cancel
+app/main/await_job#0.drop
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 std/task/impl[T < 'static] Sender[T].send#0 [i32]
@@ -419,7 +482,7 @@ std/task/impl[T < 'static] Receiver[T].recv#0 [i32]
 std/task/impl[T < 'static] Receiver[T].recv#0.poll
 std/task/impl[T < 'static] Receiver[T].recv#0.cancel
 std/task/impl[T < 'static] Receiver[T].recv#0.drop
-std/task/impl[T < 'static] Receiver[T].recv#0.lent
+std/task/impl[T < 'static] Receiver[T].recv#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
 app/main/producer#0
@@ -441,10 +504,18 @@ std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/task/channel#0 [i32]
+app/main/read_after#0
+app/main/read_after#0.poll
+app/main/read_after#0.cancel
+app/main/read_after#0.drop
 std/rt.entry/host_provider#0 [Console]
 std/rt.alloc/retain_known#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
+std/task/race#0 [i32]
+std/task/race#0.poll
+std/task/race#0.cancel
+std/task/race#0.drop
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
@@ -456,7 +527,15 @@ std/rt.cycle/collection_due#0
 std/console/println#0 [i32]
 std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
+app/main/first#0
+app/main/first#0.poll
+app/main/first#0.cancel
+app/main/first#0.drop
 std/collections.deque/impl[T] Deque[T].pop_front#0 [i32]
+app/main/combine#0
+app/main/combine#0.poll
+app/main/combine#0.cancel
+app/main/combine#0.drop
 std/collections.deque/impl[T] Deque[T].slot#0 [i32]
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
@@ -493,15 +572,16 @@ rt:new
 rt:new/class-1
 rt:new/class-3#0
 rt:new/class-3#1
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-6
+rt:new/class-3#2
+rt:new/class-4
+rt:new/class-5
 rt:alloc_class/1
 rt:alloc_class/3
 rt:alloc_class/4
-rt:alloc_class/6
+rt:alloc_class/5
 rt:free_class
 rt:free_class_loaded
+rt:free_frame
 rt:str
 rt:release_ref#0
 rt:release_drain
@@ -529,11 +609,21 @@ rt:frame#1
 rt:frame#2
 rt:frame#3
 rt:frame#4
+rt:frame#5
+rt:frame#6
+rt:frame#7
+rt:frame#8
+rt:frame#9
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
 rt:frame_ensure#3
 rt:frame_ensure#4
+rt:frame_ensure#5
+rt:frame_ensure#6
+rt:frame_ensure#7
+rt:frame_ensure#8
+rt:frame_ensure#9
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter
@@ -583,6 +673,10 @@ std/rt.cycle/takes_part#0
 std/rt.checked/retain#0
 std/rt.bytes/write_signed_sized#0
 std/rt.checked/allocate#0
+app/main/await_job#0 [i32?]
+app/main/await_job#0.poll
+app/main/await_job#0.cancel
+app/main/await_job#0.drop
 std/rt.alloc/block_of#0
 std/task/impl[T < 'static] Sender[T].send#0 [i32]
 std/task/impl[T < 'static] Sender[T].send#0.poll
@@ -597,7 +691,7 @@ std/task/impl[T < 'static] Receiver[T].recv#0 [i32]
 std/task/impl[T < 'static] Receiver[T].recv#0.poll
 std/task/impl[T < 'static] Receiver[T].recv#0.cancel
 std/task/impl[T < 'static] Receiver[T].recv#0.drop
-std/task/impl[T < 'static] Receiver[T].recv#0.lent
+std/task/impl[T < 'static] Receiver[T].recv#0
 std/rt.alloc/full#0
 std/rt.checked/known_payload#0
 std/rt.alloc/move_table#0
@@ -622,11 +716,19 @@ std/rt.checked/unique_checks#0
 std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/task/channel#0 [i32]
+app/main/read_after#0
+app/main/read_after#0.poll
+app/main/read_after#0.cancel
+app/main/read_after#0.drop
 std/rt.entry/host_provider#0 [Console]
 std/rt.checked/released#0
 std/rt.alloc/alloc#0
 std/rt.checked/notify#0
 std/rt.alloc/extend#0
+std/task/race#0 [i32]
+std/task/race#0.poll
+std/task/race#0.cancel
+std/task/race#0.drop
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
@@ -644,9 +746,17 @@ std/console/println#0 [i32]
 std/rt.checked/hold#0
 std/rt.cycle/mark#0
 std/rt.bytes/signed_magnitude#0
+app/main/first#0
+app/main/first#0.poll
+app/main/first#0.cancel
+app/main/first#0.drop
 std/time/init.init#0
 std/rt.checked/init.init#0
 std/collections.deque/impl[T] Deque[T].pop_front#0 [i32]
+app/main/combine#0
+app/main/combine#0.poll
+app/main/combine#0.cancel
+app/main/combine#0.drop
 std/collections.deque/impl[T] Deque[T].slot#0 [i32]
 std/rt.cycle/visit#0
 std/rt.cycle/collect#0
@@ -682,6 +792,7 @@ rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
+rt:free_frame
 rt:str
 rt:release_ref#0
 rt:release_drain
@@ -709,11 +820,21 @@ rt:frame#1
 rt:frame#2
 rt:frame#3
 rt:frame#4
+rt:frame#5
+rt:frame#6
+rt:frame#7
+rt:frame#8
+rt:frame#9
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
 rt:frame_ensure#3
 rt:frame_ensure#4
+rt:frame_ensure#5
+rt:frame_ensure#6
+rt:frame_ensure#7
+rt:frame_ensure#8
+rt:frame_ensure#9
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter

@@ -7,46 +7,24 @@ use std.time.{Clock, ms, sleep}
 fn read!() -> i32 $ Clock:
     sleep!(ms(1))
 > app/main/read
->   local $0 duration: Duration [read] value
->     uses $0: %10 -> %17 lend last
->   local $1 clock: &mut dyn Clock [:= read assigned] value
->     uses $1: %13 -> %14 lend last
->   local $2 count: i64 [read] value
->     uses $2: %4 -> %5 lend last
->   %0 = Retain %28 Cold row #0 : ()
->   %1 = Retain %28 Materialize row #0 : ()
->   %2 = Release %28 FrameDrop row #2 : ()
->   %3 = Release %28 FrameDrop child #2 : ()
->   %4 = Store [$2] 1:i64 : ()
->   %5 = Read copy [$2] : i64
+>   local $0 count: i64 [read] value
+>     uses $0: %4 -> %5 lend last
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
+>   %4 = Store [$0] 1:i64 : ()
+>   %5 = Read copy [$0] : i64
 >   %6 = Call std/time/impl Duration.milliseconds[] (%5) : Duration
->   %7 = Break L1 %6 : never
+>   %7 = Break L0 %6 : never
 >   %8 = Block - : Duration
 >   %9 = Scope %8 [] : Duration
->   %10 = Store [$0] %9 : ()
->   %11 = ProviderGet #21 : Clock
->   %12 = Coerce %11 [ProviderAsRef -] : &mut dyn Clock
->   %13 = Store [$1] %12 : ()
->   %14 = Read copy [*$1] : Clock
->   %15 = Retain %14 Value #0 : ()
->   %16 = LoanBegin %14 #0 : ()
->   %17 = Read copy [$0] : Duration
->   %18 = LoanBegin %14 #2 : ()
->   %19 = Await std/time/Clock.sleep for Clock [] via TraitValue (%14, %17) : ()
->   %20 = Release %19 Operation child #2 : ()
->   %21 = LoanClose %16 : ()
->   %22 = Drop [%14] : ()
->   %23 = Drop [$1] : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = Scope %25 [] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block 7:i32 : i32
->   %30 = Drop [$1] : ()
->   %31 = Return - #2 : never
->   exit sub 0 drops [$1]
+>   %10 = Await std/time/sleep[] (%9) : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Block 7:i32 : i32
+>   %13 = Return - #2 : never
 >   summary none
->   cancel %19 releases [%14 %2147483649 %4294967295]
+>   cancel %10 releases [%4294967295]
     7
 
 fn stored!() -> i32 $ Clock:

@@ -6,7 +6,6 @@
 # and no value row. `holds`'s temporary has a row at the point, so the body's
 # cancelled way out releases it (`release string (cancelled)`); `gone`'s
 # temporary ends before the point, so nothing releases it there.
-# Keep the call boundary under test when small bang bodies can inline.
 use std.meta.inline
 use std.time.{Clock, ms, sleep}
 
@@ -135,50 +134,27 @@ fn total(a: string, b: string) -> usize:
 >   %21 = Block %10 : usize
 >   summary kept [] borrows [$0 $1]
 
-@inline(.Never)
 fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
->   local $0 duration: Duration [read] value
->     uses $0: %10 -> %17 lend last
->   local $1 clock: &mut dyn Clock [:= read assigned] value
->     uses $1: %13 -> %14 lend last
->   local $2 count: i64 [read] value
->     uses $2: %4 -> %5 lend last
->   %0 = Retain %28 Cold row #0 : ()
->   %1 = Retain %28 Materialize row #0 : ()
->   %2 = Release %28 FrameDrop row #2 : ()
->   %3 = Release %28 FrameDrop child #2 : ()
->   %4 = Store [$2] 1:i64 : ()
->   %5 = Read copy [$2] : i64
+>   local $0 count: i64 [read] value
+>     uses $0: %4 -> %5 lend last
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
+>   %4 = Store [$0] 1:i64 : ()
+>   %5 = Read copy [$0] : i64
 >   %6 = Call std/time/impl Duration.milliseconds[] (%5) : Duration
->   %7 = Break L1 %6 : never
+>   %7 = Break L0 %6 : never
 >   %8 = Block - : Duration
 >   %9 = Scope %8 [] : Duration
->   %10 = Store [$0] %9 : ()
->   %11 = ProviderGet #21 : Clock
->   %12 = Coerce %11 [ProviderAsRef -] : &mut dyn Clock
->   %13 = Store [$1] %12 : ()
->   %14 = Read copy [*$1] : Clock
->   %15 = Retain %14 Value #0 : ()
->   %16 = LoanBegin %14 #0 : ()
->   %17 = Read copy [$0] : Duration
->   %18 = LoanBegin %14 #2 : ()
->   %19 = Await std/time/Clock.sleep for Clock [] via TraitValue (%14, %17) : ()
->   %20 = Release %19 Operation child #2 : ()
->   %21 = LoanClose %16 : ()
->   %22 = Drop [%14] : ()
->   %23 = Drop [$1] : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = Scope %25 [] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block "x" : string
->   %30 = Drop [$1] : ()
->   %31 = Return - #2 : never
->   exit sub 0 drops [$1]
+>   %10 = Await std/time/sleep[] (%9) : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Block "x" : string
+>   %13 = Return - #2 : never
 >   summary none
->   cancel %19 releases [%14 %2147483649 %4294967295]
+>   cancel %10 releases [%4294967295]
     "x"
 
 fn holds!() -> usize $ Clock:
@@ -206,17 +182,13 @@ fn gone!() -> usize $ Clock:
 > app/main/gone
 >   local $0 $ref: string [read assigned captured captured-assigned] place
 >   local $1 n: usize [:= read assigned] value
->     uses $1: %11 -> %35 consume last
->   local $2 duration: Duration [read] value
->     uses $2: %18 -> %25 lend last
->   local $3 clock: &mut dyn Clock [:= read assigned] value
->     uses $3: %21 -> %22 lend last
->   local $4 count: i64 [read] value
->     uses $4: %12 -> %13 lend last
->   %0 = Retain %37 Cold row #0 : ()
->   %1 = Retain %37 Materialize row #0 : ()
->   %2 = Release %37 FrameDrop row #2 : ()
->   %3 = Release %37 FrameDrop child #2 : ()
+>     uses $1: %11 -> %20 consume last
+>   local $2 count: i64 [read] value
+>     uses $2: %12 -> %13 lend last
+>   %0 = Retain %21 Cold row #0 : ()
+>   %1 = Retain %21 Materialize row #0 : ()
+>   %2 = Release %21 FrameDrop row #2 : ()
+>   %3 = Release %21 FrameDrop child #2 : ()
 >   %4 = Call app/main/text[] (1:i32) : string
 >   %5 = Box #0 #1 : ()
 >   %6 = Store [$0] %4 : ()
@@ -225,37 +197,19 @@ fn gone!() -> usize $ Clock:
 >   %9 = LoanEnd [%7] : ()
 >   %10 = Drop [$0] : ()
 >   %11 = Store [$1] %8 : ()
->   %36 = Drop [$3] : ()
->   %37 = Block %35 : usize
+>   %21 = Block %20 : usize
     sleep!(ms(1))
->   %12 = Store [$4] 1:i64 : ()
->   %13 = Read copy [$4] : i64
+>   %12 = Store [$2] 1:i64 : ()
+>   %13 = Read copy [$2] : i64
 >   %14 = Call std/time/impl Duration.milliseconds[] (%13) : Duration
->   %15 = Break L1 %14 : never
+>   %15 = Break L0 %14 : never
 >   %16 = Block - : Duration
 >   %17 = Scope %16 [] : Duration
->   %18 = Store [$2] %17 : ()
->   %19 = ProviderGet #45 : Clock
->   %20 = Coerce %19 [ProviderAsRef -] : &mut dyn Clock
->   %21 = Store [$3] %20 : ()
->   %22 = Read copy [*$3] : Clock
->   %23 = Retain %22 Value #0 : ()
->   %24 = LoanBegin %22 #0 : ()
->   %25 = Read copy [$2] : Duration
->   %26 = LoanBegin %22 #2 : ()
->   %27 = Await std/time/Clock.sleep for Clock [] via TraitValue (%22, %25) : ()
->   %28 = Release %27 Operation child #2 : ()
->   %29 = LoanClose %24 : ()
->   %30 = Drop [%22] : ()
->   %31 = Drop [$3] : ()
->   %32 = Break L0 - : never
->   %33 = Block - : ()
->   %34 = Scope %33 [] : ()
->   %39 = Drop [$3] : ()
->   %40 = Return - #2 : never
+>   %18 = Await std/time/sleep[] (%17) : ()
+>   %19 = Release %18 Operation child #2 : ()
+>   %22 = Return - #2 : never
     n
->   %35 = Read copy [$1] : usize
->   exit sub 0 drops [$3]
+>   %20 = Read copy [$1] : usize
 >   storage sub 0: $0 cell
 >   summary none
->   cancel %27 releases [%22 %2147483651 %4294967295]
+>   cancel %18 releases [%4294967295]

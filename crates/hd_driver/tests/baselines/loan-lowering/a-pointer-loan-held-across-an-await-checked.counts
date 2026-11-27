@@ -44,13 +44,10 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
 >   retain counted reference (stored)
     maybe_change(alias, false)
     sleep!(Duration::milliseconds(1))
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
->   release std.time.Clock (last use)
     *value
 >   retain string (stored)
 

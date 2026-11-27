@@ -27,7 +27,7 @@
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $construct (param $key.0 i32) (param $key.1 i32) (result i32)
-    ;; 16 |     _ := fetch(key)
+    ;; 12 |     _ := fetch(key)
     local.get $key.0
     if
       local.get $key.0
@@ -36,7 +36,7 @@
     local.get $key.0
     local.get $key.1
     call $fetch'1
-    ;; 17 |     key.len()
+    ;; 13 |     key.len()
     local.tee $key.0
     if
       local.get $key.0
@@ -53,7 +53,7 @@
     local.get $key.1
   )
   (func $fetch'2 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -214,7 +214,7 @@
             local.set $t4
             br 1
           end
-    ;; 13 |     key + "?"
+    ;; 9 |     key + "?"
           local.get $t1
           i32.load $heap
           local.get $t1
@@ -242,7 +242,7 @@
           i32.add
           i32.const 63
           i32.store8 $heap
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
           local.get $key.1
           if
             local.get $key.1
@@ -380,7 +380,7 @@
     global.set $stack
   )
   (func $fetch.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     local.get $t0
     call $rt:poll_check
     if
@@ -428,7 +428,7 @@
     return
   )
   (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -474,7 +474,7 @@
     call $rt:cancel_leave
   )
   (func $fetch.drop (param $t0 i32) (local $t1 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -502,7 +502,7 @@
     end
   )
   (func $fetch'1 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -513,7 +513,7 @@
     local.get $t0
   )
   (func $closure_bang#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $t4 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -877,7 +877,7 @@
     global.set $stack
   )
   (func $closure_bang#1.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     local.get $t0
     call $rt:poll_check
     if
@@ -925,7 +925,7 @@
     return
   )
   (func $closure_bang#1.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -971,7 +971,7 @@
     call $rt:cancel_leave
   )
   (func $closure_bang#1.drop (param $t0 i32) (local $t1 i32)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -1006,7 +1006,7 @@
     end
   )
   (func $closure_bang#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $t3 i32)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     call $rt:frame'2
     local.tee $t0
     local.get $t1
@@ -1039,7 +1039,7 @@
     local.get $t0
   )
   (func $closure_bang'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -1102,7 +1102,7 @@
           local.get $t4
           i32.eqz
           if
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
             i32.const 10
             i32.const 8
             i32.const 1
@@ -1128,7 +1128,7 @@
             local.get $t1
             local.get $key.1
             i32.store $heap offset=8
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
           end
           block
             block
@@ -1370,7 +1370,7 @@
     global.set $stack
   )
   (func $closure_bang.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     local.get $t0
     call $rt:poll_check
     if
@@ -1414,7 +1414,7 @@
     return
   )
   (func $closure_bang.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1454,7 +1454,7 @@
     call $rt:cancel_leave
   )
   (func $closure_bang.drop (param $t0 i32) (local $t1 i32)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -1482,7 +1482,7 @@
     end
   )
   (func $closure_bang'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     call $rt:frame'3
     local.tee $t0
     local.get $t1
@@ -1493,7 +1493,7 @@
     local.get $t0
   )
   (func $pause#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $frame
     if
       local.get $frame
@@ -1531,7 +1531,7 @@
     end
   )
   (func $pause#1.poll (param $t0 i32) (result i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -1569,7 +1569,7 @@
     return
   )
   (func $pause#1.cancel (param $t1 i32) (local $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1606,7 +1606,7 @@
     call $rt:cancel_leave
   )
   (func $pause#1.drop (param $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=28
     local.tee $t0
@@ -1616,7 +1616,7 @@
     end
   )
   (func $pause#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     call $rt:frame'4
     local.tee $t0
     local.get $t1
@@ -1632,7 +1632,7 @@
     local.get $t0
   )
   (func $run_twice'1 (param $frame i32) (param $body.0 i32) (param $body.1 i32) (result i32 i32) (local $t4 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -2333,7 +2333,7 @@
     global.set $stack
   )
   (func $run_twice.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     local.get $t0
     call $rt:poll_check
     if
@@ -2377,7 +2377,7 @@
     return
   )
   (func $run_twice.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -2417,7 +2417,7 @@
     call $rt:cancel_leave
   )
   (func $run_twice.drop (param $t0 i32) (local $t1 i32)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -2453,7 +2453,7 @@
     end
   )
   (func $run_twice'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     call $rt:frame'5
     local.tee $t0
     local.get $t1
@@ -2464,7 +2464,7 @@
     local.get $t0
   )
   (func $stored'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t4 i32) (local $t7 i32) (local $loader.1 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -2534,7 +2534,7 @@
           i32.eqz
           if
             i32.const 11
-    ;; 29 |     loader!(key).len()
+    ;; 24 |     loader!(key).len()
             local.get $t1
             local.get $loader.1
             i32.store $heap offset=8
@@ -2565,9 +2565,9 @@
             local.get $t1
             local.get $loader.1
             i32.store $heap offset=16
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
           end
-    ;; 29 |     loader!(key).len()
+    ;; 24 |     loader!(key).len()
           block
             block
               local.get $t4
@@ -2789,12 +2789,12 @@
           local.get $t1
           local.get $loader.1
           i32.store $heap offset=8
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
           i32.const 8
           i32.const 1
           call $rt:new/class-1
           local.tee $key.1
-    ;; 29 |     loader!(key).len()
+    ;; 24 |     loader!(key).len()
           local.get $t6
           i32.store $heap
           local.get $key.1
@@ -2803,7 +2803,7 @@
           local.get $key.1
           call $"impl string.len"
           local.set $key.0
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
           local.get $key.1
           if
             local.get $key.1
@@ -2942,7 +2942,7 @@
     global.set $stack
   )
   (func $stored.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     call $rt:poll_check
     if
@@ -2986,7 +2986,7 @@
     return
   )
   (func $stored.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -3026,7 +3026,7 @@
     call $rt:cancel_leave
   )
   (func $stored.drop (param $t0 i32) (local $t1 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -3054,7 +3054,7 @@
     end
   )
   (func $stored'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     call $rt:frame'6
     local.tee $t0
     local.get $t1
@@ -3065,7 +3065,7 @@
     local.get $t0
   )
   (func $pause'1 (param $frame i32) (result i32) (local $step.0 i32) (local $t3 i32) (local $step.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -3119,7 +3119,7 @@
           i32.eqz
           if
             i32.const 12
-    ;; 35 |     step!()
+    ;; 30 |     step!()
             local.get $t1
             local.get $step.1
             i32.store $heap
@@ -3132,9 +3132,9 @@
             local.get $t1
             local.get $step.1
             i32.store $heap offset=4
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
           end
-    ;; 35 |     step!()
+    ;; 30 |     step!()
           block
             block
               local.get $step.0
@@ -3287,7 +3287,7 @@
             local.set $t3
             br 1
           end
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
           local.get $t1
           i32.load $heap offset=4
           local.tee $step.1
@@ -3441,7 +3441,7 @@
     global.set $stack
   )
   (func $pause.poll (param $t0 i32) (result i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -3477,7 +3477,7 @@
     return
   )
   (func $pause.cancel (param $t1 i32) (local $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -3512,7 +3512,7 @@
     call $rt:cancel_leave
   )
   (func $pause.drop (param $t0 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=16
     if
@@ -3526,11 +3526,11 @@
     end
   )
   (func $pause'2 (result i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     call $rt:frame'7
   )
   (func $stored#1'2 (param $frame i32) (param $env i32) (param $k.0 i32) (param $k.1 i32) (param $ctx i32) (result i32 i32 i32) (local $t4 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -3881,7 +3881,7 @@
     global.set $stack
   )
   (func $stored#1.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     call $rt:poll_check
     if
@@ -3931,7 +3931,7 @@
     return
   )
   (func $stored#1.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -3979,7 +3979,7 @@
     call $rt:cancel_leave
   )
   (func $stored#1.drop (param $t0 i32) (local $t1 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -4014,7 +4014,7 @@
     end
   )
   (func $stored#1'1 (param $t2 i32) (param $t1 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     call $rt:frame'8
     local.tee $t0
     local.get $t1
@@ -4041,7 +4041,7 @@
     local.get $t0
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 12 |     pause!()
+    ;; 8 |     pause!()
     local.get $t0
     i32.eqz
     if
@@ -4072,7 +4072,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
-    ;; 25 |         fetch!(key)
+    ;; 20 |         fetch!(key)
     local.get $t0
     i32.eqz
     if
@@ -4127,7 +4127,7 @@
     local.get $t7
   )
   (func $rt:frame_ensure'3 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
-    ;; 24 |     run_twice!():
+    ;; 19 |     run_twice!():
     local.get $t0
     i32.eqz
     if
@@ -4167,7 +4167,7 @@
     local.get $t5
   )
   (func $rt:frame_ensure'4 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
-    ;; 21 |     body!().len() + body!().len()
+    ;; 16 |     body!().len() + body!().len()
     local.get $t0
     i32.eqz
     if
@@ -4219,7 +4219,7 @@
     local.get $t7
   )
   (func $rt:frame_ensure'5 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     i32.eqz
     if
@@ -4271,7 +4271,7 @@
     local.get $t7
   )
   (func $rt:frame_ensure'6 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 34 |     step := fn!() -> void: pass
+    ;; 29 |     step := fn!() -> void: pass
     local.get $t0
     i32.eqz
     if
@@ -4302,7 +4302,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'7 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
-    ;; 28 |     loader := fn!(k: string) -> string: fetch!(k)
+    ;; 23 |     loader := fn!(k: string) -> string: fetch!(k)
     local.get $t0
     i32.eqz
     if

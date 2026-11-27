@@ -2331,6 +2331,15 @@ impl InlineEnv for Env<'_> {
     }
 
     fn inline_hint(&self, def: DefId) -> InlineHint {
+        // A scenario-held body is replaced by a pending poll at emission.
+        // Its written body cannot prove readiness or replace that boundary.
+        if self
+            .run
+            .scenario_hold_target()
+            .is_some_and(|(held, _)| held == def)
+        {
+            return InlineHint::Never;
+        }
         self.p
             .items
             .get(def)

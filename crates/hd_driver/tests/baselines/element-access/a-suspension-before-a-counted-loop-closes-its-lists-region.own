@@ -13,36 +13,31 @@ fn total!(c: bool) -> i64 $ Clock:
 >   local $0 c: bool [param read] value
 >     uses $0: entry -> %10 lend last
 >   local $1 xs: List[i64] [read assigned] value
->     uses $1: %9 -> %12 lend, %16 lend, %61 lend
+>     uses $1: %9 -> %12 lend, %16 lend, %46 lend
 >   local $2 n: usize [:= read assigned] value
->     uses $2: %18 -> %43 consume last
+>     uses $2: %18 -> %28 consume last
 >   local $3 s: i64 [read assigned mutated] place
 >   local $4 $cur: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %48 -> %52 lend
+>     uses $5: %33 -> %37 lend
 >   local $6 $incl: bool [assigned] value
 >     uses $6: none
 >   local $7 i: usize [read assigned] value
->     uses $7: %55 -> %60 lend last
->   local $8 duration: Duration [read] value
->     uses $8: %25 -> %32 lend last
->   local $9 clock: &mut dyn Clock [:= read assigned] value
->     uses $9: %28 -> %29 lend last
->   local $10 count: i64 [read] value
->     uses $10: %19 -> %20 lend last
->   %0 = Retain %74 Cold row #0 : ()
->   %1 = Retain %74 Materialize row #0 : ()
->   %2 = Release %74 FrameDrop row #2 : ()
->   %3 = Release %74 FrameDrop child #2 : ()
+>     uses $7: %40 -> %45 lend last
+>   local $8 count: i64 [read] value
+>     uses $8: %19 -> %20 lend last
+>   %0 = Retain %58 Cold row #0 : ()
+>   %1 = Retain %58 Materialize row #0 : ()
+>   %2 = Release %58 FrameDrop row #2 : ()
+>   %3 = Release %58 FrameDrop child #2 : ()
 >   %4 = Coerce 1:i64 [Identity -] : i64
 >   %5 = Coerce 2:i64 [Identity -] : i64
 >   %6 = Coerce 3:i64 [Identity -] : i64
 >   %7 = Coerce 4:i64 [Identity -] : i64
 >   %8 = NewList - [%4 %5 %6 %7] : List[i64]
 >   %9 = Store [$1] %8 : ()
->   %72 = Drop [$1] : ()
->   %73 = Drop [$9] : ()
->   %74 = Block %71 : i64
+>   %57 = Drop [$1] : ()
+>   %58 = Block %56 : i64
     if c:
 >   %10 = Read copy [$0] : bool
 >   %15 = If %10 [%14 -] : ()
@@ -56,70 +51,54 @@ fn total!(c: bool) -> i64 $ Clock:
 >   %17 = Intrinsic ListLen [%16] : usize
 >   %18 = Store [$2] %17 : ()
     sleep!(ms(1))
->   %19 = Store [$10] 1:i64 : ()
->   %20 = Read copy [$10] : i64
+>   %19 = Store [$8] 1:i64 : ()
+>   %20 = Read copy [$8] : i64
 >   %21 = Call std/time/impl Duration.milliseconds[] (%20) : Duration
->   %22 = Break L2 %21 : never
+>   %22 = Break L1 %21 : never
 >   %23 = Block - : Duration
 >   %24 = Scope %23 [] : Duration
->   %25 = Store [$8] %24 : ()
->   %26 = ProviderGet #126 : Clock
->   %27 = Coerce %26 [ProviderAsRef -] : &mut dyn Clock
->   %28 = Store [$9] %27 : ()
->   %29 = Read copy [*$9] : Clock
->   %30 = Retain %29 Value #0 : ()
->   %31 = LoanBegin %29 #0 : ()
->   %32 = Read copy [$8] : Duration
->   %33 = LoanBegin %29 #2 : ()
->   %34 = Await std/time/Clock.sleep for Clock [] via TraitValue (%29, %32) : ()
->   %35 = Release %34 Operation child #2 : ()
->   %36 = LoanClose %31 : ()
->   %37 = Drop [%29] : ()
->   %38 = Drop [$9] : ()
->   %39 = Break L1 - : never
->   %40 = Block - : ()
->   %41 = Scope %40 [] : ()
->   %76 = Drop [$1] : ()
->   %77 = Drop [$9] : ()
->   %78 = Return - #2 : never
+>   %25 = Await std/time/sleep[] (%24) : ()
+>   %26 = Release %25 Operation child #2 : ()
+>   %59 = Drop [$1] : ()
+>   %60 = Return - #2 : never
     let s = 0i64
->   %42 = Store [$3] 0:i64 : ()
+>   %27 = Store [$3] 0:i64 : ()
     for i in 0..n:
->   %43 = Read copy [$2] : usize
->   %44 = NewStruct [0:usize %43 0:bool] : Range[usize]
->   %45 = Read copy [%44 .start] : usize
->   %46 = Store [$4] %45 : ()
->   %47 = Read copy [%44 .end] : usize
->   %48 = Store [$5] %47 : ()
->   %49 = Read copy [%44 .inclusive] : bool
->   %50 = Store [$6] %49 : ()
->   %51 = Read copy [$4] : usize
->   %52 = Read copy [$5] : usize
->   %53 = Prim Lt [%51 %52] : bool
->   %54 = Read copy [$4] : usize
->   %55 = Store [$7] %54 : ()
->   %56 = Read copy [$4] : usize
->   %57 = Prim Add [%56 1:usize] : usize
->   %58 = Store [$4] %57 : ()
->   %64 = Block - : ()
->   %65 = Break L0 - : never
->   %66 = Block - : ()
->   %67 = If %53 [%64 %66] : ()
->   %68 = Block - : ()
->   %69 = Loop %68 - : ()
->   %70 = Drop [$1] : ()
+>   %28 = Read copy [$2] : usize
+>   %29 = NewStruct [0:usize %28 0:bool] : Range[usize]
+>   %30 = Read copy [%29 .start] : usize
+>   %31 = Store [$4] %30 : ()
+>   %32 = Read copy [%29 .end] : usize
+>   %33 = Store [$5] %32 : ()
+>   %34 = Read copy [%29 .inclusive] : bool
+>   %35 = Store [$6] %34 : ()
+>   %36 = Read copy [$4] : usize
+>   %37 = Read copy [$5] : usize
+>   %38 = Prim Lt [%36 %37] : bool
+>   %39 = Read copy [$4] : usize
+>   %40 = Store [$7] %39 : ()
+>   %41 = Read copy [$4] : usize
+>   %42 = Prim Add [%41 1:usize] : usize
+>   %43 = Store [$4] %42 : ()
+>   %49 = Block - : ()
+>   %50 = Break L0 - : never
+>   %51 = Block - : ()
+>   %52 = If %38 [%49 %51] : ()
+>   %53 = Block - : ()
+>   %54 = Loop %53 - : ()
+>   %55 = Drop [$1] : ()
         s = s + xs[i]
->   %59 = Read copy [$3] : i64
->   %60 = Read copy [$7] : usize
->   %61 = Read copy [$1 [%60]] : i64
->   %62 = Prim Add [%59 %61] : i64
->   %63 = Store [$3] %62 : ()
+>   %44 = Read copy [$3] : i64
+>   %45 = Read copy [$7] : usize
+>   %46 = Read copy [$1 [%45]] : i64
+>   %47 = Prim Add [%44 %46] : i64
+>   %48 = Store [$3] %47 : ()
     s
->   %71 = Read copy [$3] : i64
->   exit sub 0 drops [$1 $9]
+>   %56 = Read copy [$3] : i64
+>   exit sub 0 drops [$1]
 >   summary none
->   cancel %34 releases [%29 %2147483649 %2147483657 %4294967295]
->   loop %69 keeps [$1] (%34..%70)
+>   cancel %25 releases [%2147483649 %4294967295]
+>   loop %54 keeps [$1] (%25..%55)
 
 pub fn main!() -> void $ Console + Clock:
     a := total!(true)

@@ -4,12 +4,8 @@
 # Feature: bang calls, `join!` and `race!` (#1364).
 # expected: a frame holds one count of each argument; the results are
 # moved out; at most the suspension counts of #1355.
-# Keep the call boundary under test when small bang bodies can inline.
-use std.meta.inline
-
 use std.task.{join, race}
 
-@inline(.Never)
 fn label!(s: string) -> string:
     pause!()
 > app/main/label

@@ -3,16 +3,12 @@
 # @build: v8 release
 # expected: cold closure parameters borrow string and List inputs, taking
 # their own copies at Cold or fresh Entry; the caller retains its owners.
-# Keep the call boundary under test when small bang bodies can inline.
-use std.meta.inline
-
-@inline(.Never)
+fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %5 lend last
 >   %0 = Retain %10 Cold local $0 #0 : ()
 >   %1 = Retain %10 Entry local $0 #0 : ()
-fn fetch!(key: string) -> string:
     pause!()
 >   %2 = Release %10 FrameDrop child #2 : ()
 >   %3 = Await app/main/pause[] () : ()

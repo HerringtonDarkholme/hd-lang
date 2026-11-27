@@ -28,7 +28,7 @@
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 34 funcref))
   (func $"ready[i32]" (param $frame i32) (param $value i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -172,10 +172,10 @@
           end
           br 1
         end
-    ;; 11 |     value
+    ;; 8 |     value
         local.get $t1
         i32.load $heap
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
         local.get $frame
         if
           local.get $frame
@@ -292,7 +292,7 @@
     global.set $stack
   )
   (func $ready.poll'1 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     call $rt:poll_check
     if
@@ -335,7 +335,7 @@
     return
   )
   (func $ready.cancel'1 (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -374,7 +374,7 @@
     call $rt:cancel_leave
   )
   (func $ready.drop'1 (param $t0 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     i32.load $heap offset=16
     if
@@ -388,7 +388,7 @@
     end
   )
   (func $ready'1 (param $t1 i32) (result i32) (local $t0 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -396,7 +396,7 @@
     local.get $t0
   )
   (func $pause#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $frame
     if
       local.get $frame
@@ -434,7 +434,7 @@
     end
   )
   (func $pause#1.poll (param $t0 i32) (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -472,7 +472,7 @@
     return
   )
   (func $pause#1.cancel (param $t1 i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -509,7 +509,7 @@
     call $rt:cancel_leave
   )
   (func $pause#1.drop (param $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=28
     local.tee $t0
@@ -519,7 +519,7 @@
     end
   )
   (func $pause#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:frame'2
     local.tee $t0
     local.get $t1
@@ -535,7 +535,7 @@
     local.get $t0
   )
   (func $scalar'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t3 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 21 |     join!(ready(a), ready(b))
+    ;; 17 |     join!(ready(a), ready(b))
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -1103,7 +1103,7 @@
     global.set $stack
   )
   (func $scalar.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 21 |     join!(ready(a), ready(b))
+    ;; 17 |     join!(ready(a), ready(b))
     local.get $t0
     call $rt:poll_check
     if
@@ -1151,7 +1151,7 @@
     return
   )
   (func $scalar.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 21 |     join!(ready(a), ready(b))
+    ;; 17 |     join!(ready(a), ready(b))
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1192,7 +1192,7 @@
     call $rt:cancel_leave
   )
   (func $scalar'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 21 |     join!(ready(a), ready(b))
+    ;; 17 |     join!(ready(a), ready(b))
     call $rt:frame'3
     local.tee $t0
     local.get $t1
@@ -1203,7 +1203,7 @@
     local.get $t0
   )
   (func $pause'1 (param $frame i32) (result i32) (local $step.0 i32) (local $t3 i32) (local $step.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -1257,7 +1257,7 @@
           i32.eqz
           if
             i32.const 11
-    ;; 30 |     step!()
+    ;; 26 |     step!()
             local.get $t1
             local.get $step.1
             i32.store $heap
@@ -1270,9 +1270,9 @@
             local.get $t1
             local.get $step.1
             i32.store $heap offset=4
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
           end
-    ;; 30 |     step!()
+    ;; 26 |     step!()
           block
             block
               local.get $step.0
@@ -1425,7 +1425,7 @@
             local.set $t3
             br 1
           end
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
           local.get $t1
           i32.load $heap offset=4
           local.tee $step.1
@@ -1579,7 +1579,7 @@
     global.set $stack
   )
   (func $pause.poll (param $t0 i32) (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -1615,7 +1615,7 @@
     return
   )
   (func $pause.cancel (param $t1 i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1650,7 +1650,7 @@
     call $rt:cancel_leave
   )
   (func $pause.drop (param $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=16
     if
@@ -1664,11 +1664,11 @@
     end
   )
   (func $pause'2 (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:frame'4
   )
   (func $text'1 (param $frame i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32 i32 i32 i32) (local $t3 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -2059,7 +2059,7 @@
     global.set $stack
   )
   (func $text.poll (param $t0 i32) (result i32 i32 i32 i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     local.get $t0
     call $rt:poll_check
     if
@@ -2117,7 +2117,7 @@
     return
   )
   (func $text.cancel (param $t1 i32) (local $t0 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -2167,7 +2167,7 @@
     call $rt:cancel_leave
   )
   (func $text.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -2203,7 +2203,7 @@
     end
   )
   (func $text'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     call $rt:frame'5
     local.tee $t0
     local.get $t1
@@ -2220,7 +2220,7 @@
     local.get $t0
   )
   (func $"ready[string]" (param $frame i32) (param $value.0 i32) (param $value.1 i32) (result i32 i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -2383,12 +2383,12 @@
             local.set $t4
             br 1
           end
-    ;; 11 |     value
+    ;; 8 |     value
           local.get $t1
           i32.load $heap
           local.get $t1
           i32.load $heap offset=4
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
           local.get $t1
           local.get $t3
           i32.store $heap
@@ -2525,7 +2525,7 @@
     global.set $stack
   )
   (func $ready.poll'2 (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     call $rt:poll_check
     if
@@ -2573,7 +2573,7 @@
     return
   )
   (func $ready.cancel'2 (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -2619,7 +2619,7 @@
     call $rt:cancel_leave
   )
   (func $ready.drop'2 (param $t0 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -2647,7 +2647,7 @@
     end
   )
   (func $ready'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     call $rt:frame'6
     local.tee $t0
     local.get $t1
@@ -2658,7 +2658,7 @@
     local.get $t0
   )
   (func $"generic[string]" (param $frame i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32 i32 i32 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -3328,7 +3328,7 @@
     global.set $stack
   )
   (func $generic.poll (param $t0 i32) (result i32 i32 i32 i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     local.get $t0
     call $rt:poll_check
     if
@@ -3386,7 +3386,7 @@
     return
   )
   (func $generic.cancel (param $t1 i32) (local $t0 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     call $rt:cancel_enter
     local.set $t0
     block
@@ -3436,7 +3436,7 @@
     call $rt:cancel_leave
   )
   (func $generic.drop (param $t0 i32) (local $t1 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -3461,7 +3461,7 @@
     end
   )
   (func $generic (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     call $rt:frame'7
     local.tee $t0
     local.get $t1
@@ -3478,7 +3478,7 @@
     local.get $t0
   )
   (func $sequential'1 (param $frame i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32 i32 i32 i32) (local $pair.0.0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -4019,24 +4019,24 @@
             i32.store $heap offset=16
             local.get $t4
             local.get $a.0
-    ;; 25 |     join!(ready(pair._0), ready(pair._1))
+    ;; 21 |     join!(ready(pair._0), ready(pair._1))
             call $ready'2
             local.set $b.0
             local.get $t1
             local.get $b.0
             i32.store $heap offset=52
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
             local.get $t3
             local.get $b.1
-    ;; 25 |     join!(ready(pair._0), ready(pair._1))
+    ;; 21 |     join!(ready(pair._0), ready(pair._1))
             call $ready'2
             local.set $b.0
             local.get $t1
             local.get $b.0
             i32.store $heap offset=56
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
           end
-    ;; 25 |     join!(ready(pair._0), ready(pair._1))
+    ;; 21 |     join!(ready(pair._0), ready(pair._1))
           block
             block
               local.get $pair.0.0
@@ -4421,7 +4421,7 @@
             local.set $t5
             br 1
           end
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
           local.get $t1
           i32.load $heap offset=56
           local.tee $t4
@@ -4619,7 +4619,7 @@
     global.set $stack
   )
   (func $sequential.poll (param $t0 i32) (result i32 i32 i32 i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     local.get $t0
     call $rt:poll_check
     if
@@ -4677,7 +4677,7 @@
     return
   )
   (func $sequential.cancel (param $t1 i32) (local $t0 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     call $rt:cancel_enter
     local.set $t0
     block
@@ -4727,7 +4727,7 @@
     call $rt:cancel_leave
   )
   (func $sequential.drop (param $t0 i32) (local $t1 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -4752,7 +4752,7 @@
     end
   )
   (func $sequential'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32) (local $t0 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     call $rt:frame'8
     local.tee $t0
     local.get $t1
@@ -4769,7 +4769,7 @@
     local.get $t0
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     i32.eqz
     if
@@ -4800,7 +4800,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 21 |     join!(ready(a), ready(b))
+    ;; 17 |     join!(ready(a), ready(b))
     local.get $t0
     i32.eqz
     if
@@ -4831,7 +4831,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'3 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.eqz
     if
@@ -4862,7 +4862,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'4 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 18 |     generic!(a, b)
+    ;; 14 |     generic!(a, b)
     local.get $t0
     i32.eqz
     if
@@ -4893,7 +4893,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'5 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 10 |     pause!()
+    ;; 7 |     pause!()
     local.get $t0
     i32.eqz
     if
@@ -4924,7 +4924,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'6 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 15 |     join!(ready(a), ready(b))
+    ;; 11 |     join!(ready(a), ready(b))
     local.get $t0
     i32.eqz
     if
@@ -4955,7 +4955,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'7 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 24 |     pair := join!(ready(a), ready(b))
+    ;; 20 |     pair := join!(ready(a), ready(b))
     local.get $t0
     i32.eqz
     if

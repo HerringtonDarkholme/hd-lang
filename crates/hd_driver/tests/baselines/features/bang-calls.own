@@ -4,18 +4,14 @@
 # Feature: bang calls, `join!` and `race!` (#1364).
 # expected: a frame holds one count of each argument; the results are
 # moved out; at most the suspension counts of #1355.
-# Keep the call boundary under test when small bang bodies can inline.
-use std.meta.inline
-
 use std.task.{join, race}
 
-@inline(.Never)
+fn label!(s: string) -> string:
 > app/main/label
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %5 lend last
 >   %0 = Retain %10 Cold local $0 #0 : ()
 >   %1 = Retain %10 Entry local $0 #0 : ()
-fn label!(s: string) -> string:
     pause!()
 >   %2 = Release %10 FrameDrop child #2 : ()
 >   %3 = Await app/main/pause[] () : ()
@@ -139,16 +135,12 @@ fn either!(a: string, b: string) -> usize:
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %8 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   local $3 tasks: List[Suspend[string]] [read] value
->     uses $3: %12 -> %13 lend last
->   local $4 frame: Suspend[string] [read assigned] value
->     uses $4: %15 -> %16 lend last
->   %0 = Retain %35 Cold local $0 #0 : ()
->   %1 = Retain %35 Entry local $0 #0 : ()
->   %2 = Retain %35 Cold local $1 #0 : ()
->   %3 = Retain %35 Entry local $1 #0 : ()
+>   %0 = Retain %22 Cold local $0 #0 : ()
+>   %1 = Retain %22 Entry local $0 #0 : ()
+>   %2 = Retain %22 Cold local $1 #0 : ()
+>   %3 = Retain %22 Entry local $1 #0 : ()
     race!(label(a), label(b)).len()
->   %4 = Release %35 FrameDrop child #2 : ()
+>   %4 = Release %22 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
 >   %6 = Intrinsic Empty [] : ()
 >   %7 = Call app/main/label[] (%5) : Suspend[string]
@@ -156,44 +148,31 @@ fn either!(a: string, b: string) -> usize:
 >   %9 = Intrinsic Empty [] : ()
 >   %10 = Call app/main/label[] (%8) : Suspend[string]
 >   %11 = NewList - [%7 %10] : List[Suspend[string]]
->   %12 = Store [$3] %11 : ()
->   %13 = Read borrow [$3] : List[Suspend[string]]
->   %14 = Call std/task/race_frame[string] (%13) : Suspend[string]
->   %15 = Store [$4] %14 : ()
->   %16 = Read move [$4] : Suspend[string]
->   %17 = Intrinsic Empty [] : ()
->   %18 = AwaitValue %16 : string
->   %19 = Release %18 Operation child #2 : ()
->   %20 = Retain %18 Operation child #0 : ()
->   %21 = Drop [%16] : ()
->   %22 = Break L0 %18 : never
->   %23 = Block - : string
->   %24 = Scope %23 [] : string
->   %25 = Drop [$3] : ()
->   %26 = Box #2 #1 : ()
->   %27 = Store [$2] %24 : ()
->   %28 = Ref local [$2] : &string
->   %29 = Call std/text/impl string.len[] (%28) : usize
->   %30 = LoanEnd [%28] : ()
->   %31 = Drop [$2] : ()
->   %32 = Drop [$0] : ()
->   %33 = Drop [$1] : ()
->   %34 = Drop [$3] : ()
->   %35 = Block %29 : usize
->   %42 = Intrinsic ParamOwned [0:i32] : bool
->   %43 = Drop [$0] : ()
->   %44 = Block - : ()
->   %45 = If %42 [%44 -] : ()
->   %46 = Intrinsic ParamOwned [1:i32] : bool
->   %47 = Drop [$1] : ()
->   %48 = Block - : ()
->   %49 = If %46 [%48 -] : ()
->   %50 = Block - : ()
->   exit sub 0 drops [$0 $1 $3]
+>   %12 = Await std/task/race[string] (%11) : string
+>   %13 = Release %12 Operation child #2 : ()
+>   %14 = Box #2 #1 : ()
+>   %15 = Store [$2] %12 : ()
+>   %16 = Ref local [$2] : &string
+>   %17 = Call std/text/impl string.len[] (%16) : usize
+>   %18 = LoanEnd [%16] : ()
+>   %19 = Drop [$2] : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Drop [$1] : ()
+>   %22 = Block %17 : usize
+>   %27 = Intrinsic ParamOwned [0:i32] : bool
+>   %28 = Drop [$0] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Intrinsic ParamOwned [1:i32] : bool
+>   %32 = Drop [$1] : ()
+>   %33 = Block - : ()
+>   %34 = If %31 [%33 -] : ()
+>   %35 = Block - : ()
+>   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
->   cancel %18 releases [%16 %2147483648 %2147483649 %2147483651 %4294967295]
->   cancel %35 releases [%16 %42 %16 %46]
+>   cancel %12 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %22 releases [%16 %27 %16 %31]
 
 # A suspension point: awaiting a suspending closure, so a caller of
 # `pause!` keeps its frame and child (#2419).

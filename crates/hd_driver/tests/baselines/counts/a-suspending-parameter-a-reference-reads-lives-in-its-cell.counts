@@ -8,12 +8,9 @@ use std.time.{Clock, ms, sleep}
 fn sized!(u: UniqList[i32]) -> usize $ Clock:
     sleep!(ms(1))
 > std/rt_tests.stage_case/sized
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
 >   release counted reference (last use)
->   release std.time.Clock (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/sized
@@ -30,8 +27,6 @@ pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
-> std/rt_tests.stage_case/main
->   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
@@ -42,8 +37,7 @@ pub fn main!() -> void $ Console + Clock:
 >   retain counted reference (stored)
     u.push(1)
     a := sized!(u)
->   release counted reference (last use)
->   release counted reference (last use)
+> std/rt_tests.stage_case/main
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)

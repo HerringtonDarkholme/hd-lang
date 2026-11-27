@@ -1,6 +1,6 @@
 # @dump: stdout functions
 # @build: dev | checked | release | release checked
-# An Auto copy keeps stored awaits and joins as awaits until ownership/state-machine planning.
+# Waiting calls, stored awaits, joins and races keep their cancellation boundaries.
 use std.meta.inline
 use std.task.{Sender, Receiver, channel, join, race}
 

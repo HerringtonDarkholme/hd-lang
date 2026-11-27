@@ -28,7 +28,7 @@
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -189,7 +189,7 @@
             local.set $t4
             br 1
           end
-    ;; 11 |     key + "?"
+    ;; 7 |     key + "?"
           local.get $t1
           i32.load $heap
           local.get $t1
@@ -217,7 +217,7 @@
           i32.add
           i32.const 63
           i32.store8 $heap
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
           local.get $key.1
           if
             local.get $key.1
@@ -355,7 +355,7 @@
     global.set $stack
   )
   (func $fetch.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     local.get $t0
     call $rt:poll_check
     if
@@ -403,7 +403,7 @@
     return
   )
   (func $fetch.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -449,7 +449,7 @@
     call $rt:cancel_leave
   )
   (func $fetch.drop (param $t0 i32) (local $t1 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -477,7 +477,7 @@
     end
   )
   (func $fetch'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -488,7 +488,7 @@
     local.get $t0
   )
   (func $cancel#1'1 (param $frame i32) (param $env i32) (param $word.0 i32) (param $word.1 i32) (param $words i32) (param $ctx i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -904,7 +904,7 @@
     global.set $stack
   )
   (func $cancel#1.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     call $rt:poll_check
     if
@@ -951,7 +951,7 @@
     return
   )
   (func $cancel#1.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -994,7 +994,7 @@
     call $rt:cancel_leave
   )
   (func $cancel#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -1045,7 +1045,7 @@
     end
   )
   (func $cancel#1'2 (param $t3 i32) (param $t1 i32) (param $t4 i32) (param $t2 i32) (param $t5 i32) (result i32) (local $t0 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:frame'2
     local.tee $t0
     local.get $t1
@@ -1077,7 +1077,7 @@
     local.get $t0
   )
   (func $live#1'1 (param $frame i32) (param $env i32) (param $word.0 i32) (param $word.1 i32) (param $words i32) (param $ctx i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -1493,7 +1493,7 @@
     global.set $stack
   )
   (func $live#1.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     call $rt:poll_check
     if
@@ -1540,7 +1540,7 @@
     return
   )
   (func $live#1.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1583,7 +1583,7 @@
     call $rt:cancel_leave
   )
   (func $live#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -1634,7 +1634,7 @@
     end
   )
   (func $live#1'2 (param $t3 i32) (param $t1 i32) (param $t4 i32) (param $t2 i32) (param $t5 i32) (result i32) (local $t0 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:frame'3
     local.tee $t0
     local.get $t1
@@ -1666,7 +1666,7 @@
     local.get $t0
   )
   (func $pause#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $frame
     if
       local.get $frame
@@ -1704,7 +1704,7 @@
     end
   )
   (func $pause#1.poll (param $t0 i32) (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -1742,7 +1742,7 @@
     return
   )
   (func $pause#1.cancel (param $t1 i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1779,7 +1779,7 @@
     call $rt:cancel_leave
   )
   (func $pause#1.drop (param $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=28
     local.tee $t0
@@ -1789,7 +1789,7 @@
     end
   )
   (func $pause#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:frame'4
     local.tee $t0
     local.get $t1
@@ -1805,7 +1805,7 @@
     local.get $t0
   )
   (func $stored'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (param $keys i32) (result i32 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -1869,11 +1869,11 @@
           i32.eqz
           if
             i32.const 10
-    ;; 15 |     loader!(key, keys)
+    ;; 11 |     loader!(key, keys)
             local.get $t1
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
             i32.const 0
-    ;; 15 |     loader!(key, keys)
+    ;; 11 |     loader!(key, keys)
             i32.store $heap offset=12
             drop
             local.get $t1
@@ -1913,9 +1913,9 @@
             local.get $t1
             local.get $keys
             i32.store $heap offset=24
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
           end
-    ;; 15 |     loader!(key, keys)
+    ;; 11 |     loader!(key, keys)
           block
             block
               local.get $t3
@@ -2121,7 +2121,7 @@
             local.set $t5
             br 1
           end
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
           local.get $t1
           i32.load $heap offset=24
           local.tee $keys
@@ -2328,7 +2328,7 @@
     global.set $stack
   )
   (func $stored.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     call $rt:poll_check
     if
@@ -2373,7 +2373,7 @@
     return
   )
   (func $stored.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -2414,7 +2414,7 @@
     call $rt:cancel_leave
   )
   (func $stored.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -2458,7 +2458,7 @@
     end
   )
   (func $stored'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:frame'5
     local.tee $t0
     local.get $t1
@@ -2472,7 +2472,7 @@
     local.get $t0
   )
   (func $pause'1 (param $frame i32) (result i32) (local $step.0 i32) (local $t3 i32) (local $step.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -2526,7 +2526,7 @@
           i32.eqz
           if
             i32.const 11
-    ;; 30 |     step!()
+    ;; 26 |     step!()
             local.get $t1
             local.get $step.1
             i32.store $heap
@@ -2539,9 +2539,9 @@
             local.get $t1
             local.get $step.1
             i32.store $heap offset=4
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
           end
-    ;; 30 |     step!()
+    ;; 26 |     step!()
           block
             block
               local.get $step.0
@@ -2694,7 +2694,7 @@
             local.set $t3
             br 1
           end
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
           local.get $t1
           i32.load $heap offset=4
           local.tee $step.1
@@ -2848,7 +2848,7 @@
     global.set $stack
   )
   (func $pause.poll (param $t0 i32) (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     call $rt:poll_check
     if
@@ -2884,7 +2884,7 @@
     return
   )
   (func $pause.cancel (param $t1 i32) (local $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:cancel_enter
     local.set $t0
     block
@@ -2919,7 +2919,7 @@
     call $rt:cancel_leave
   )
   (func $pause.drop (param $t0 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.load $heap offset=16
     if
@@ -2933,18 +2933,18 @@
     end
   )
   (func $pause'2 (result i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     call $rt:frame'6
   )
   (func $cancel (param $key.0 i32) (param $key.1 i32) (param $keys i32)
-    ;; 19 |     _ := loader(key, keys)
+    ;; 15 |     _ := loader(key, keys)
     i32.const 0
     local.get $key.0
     local.get $key.1
     local.get $keys
     i32.const 0
     call $cancel#1'2
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.tee $key.0
     if
       local.get $key.0
@@ -2960,7 +2960,7 @@
     end
   )
   (func $stored#1'2 (param $frame i32) (param $env i32) (param $word.0 i32) (param $word.1 i32) (param $words i32) (param $ctx i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -3376,7 +3376,7 @@
     global.set $stack
   )
   (func $stored#1.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     call $rt:poll_check
     if
@@ -3423,7 +3423,7 @@
     return
   )
   (func $stored#1.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -3466,7 +3466,7 @@
     call $rt:cancel_leave
   )
   (func $stored#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -3517,7 +3517,7 @@
     end
   )
   (func $stored#1'1 (param $t3 i32) (param $t1 i32) (param $t4 i32) (param $t2 i32) (param $t5 i32) (result i32) (local $t0 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:frame'7
     local.tee $t0
     local.get $t1
@@ -3549,7 +3549,7 @@
     local.get $t0
   )
   (func $live'1 (param $frame i32) (param $loader.0 i32) (param $t5 i32) (param $keys i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -3626,11 +3626,11 @@
           i32.eqz
           if
             i32.const 12
-    ;; 23 |     size := loader!(key, keys)
+    ;; 19 |     size := loader!(key, keys)
             local.get $t1
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
             i32.const 0
-    ;; 23 |     size := loader!(key, keys)
+    ;; 19 |     size := loader!(key, keys)
             i32.store $heap offset=8
             drop
             local.get $t1
@@ -3655,9 +3655,9 @@
             local.get $t1
             local.get $keys
             i32.store $heap offset=12
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
           end
-    ;; 23 |     size := loader!(key, keys)
+    ;; 19 |     size := loader!(key, keys)
           block
             block
               local.get $t4
@@ -3881,7 +3881,7 @@
           local.get $t1
           local.get $keys
           i32.store $heap offset=8
-    ;; 24 |     size + key.len() + keys.len()
+    ;; 20 |     size + key.len() + keys.len()
           local.get $t1
           i32.load $heap offset=4
           call $"impl string.len"
@@ -3929,7 +3929,7 @@
           end
           i32.add
           local.set $t5
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
           local.get $t1
           i32.load $heap offset=4
           local.tee $keys
@@ -4078,7 +4078,7 @@
     global.set $stack
   )
   (func $live.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     call $rt:poll_check
     if
@@ -4123,7 +4123,7 @@
     return
   )
   (func $live.cancel (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:cancel_enter
     local.set $t0
     block
@@ -4164,7 +4164,7 @@
     call $rt:cancel_leave
   )
   (func $live.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -4216,7 +4216,7 @@
     end
   )
   (func $live'2 (param $t2 i32) (param $t3 i32) (param $t1 i32) (result i32) (local $t0 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     call $rt:frame'8
     local.tee $t0
     local.get $t1
@@ -4236,7 +4236,7 @@
     local.get $t0
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 10 |     pause!()
+    ;; 6 |     pause!()
     local.get $t0
     i32.eqz
     if
@@ -4267,7 +4267,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.eqz
     if
@@ -4301,7 +4301,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'3 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.eqz
     if
@@ -4335,7 +4335,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'4 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.eqz
     if
@@ -4366,7 +4366,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'5 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 29 |     step := fn!() -> void: pass
+    ;; 25 |     step := fn!() -> void: pass
     local.get $t0
     i32.eqz
     if
@@ -4397,7 +4397,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'6 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 14 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 10 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.eqz
     if
@@ -4431,7 +4431,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'7 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
-    ;; 22 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+    ;; 18 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.eqz
     if

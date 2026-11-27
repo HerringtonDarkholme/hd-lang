@@ -6,7 +6,6 @@
 # and no value row. `holds`'s temporary has a row at the point, so the body's
 # cancelled way out releases it (`release string (cancelled)`); `gone`'s
 # temporary ends before the point, so nothing releases it there.
-# Keep the call boundary under test when small bang bodies can inline.
 use std.meta.inline
 use std.time.{Clock, ms, sleep}
 
@@ -18,15 +17,11 @@ fn text(n: i32) -> string:
 fn total(a: string, b: string) -> usize:
     a.len() + b.len()
 
-@inline(.Never)
 fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
->   release std.time.Clock (last use)
 > app/main/pause
 >   release string (cancelled)
 > app/main/pause
@@ -66,9 +61,6 @@ fn gone!() -> usize $ Clock:
 > app/main/gone
 >   retain counted reference (stored)
     sleep!(ms(1))
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
->   release std.time.Clock (last use)
     n

@@ -1029,7 +1029,13 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
-        let made = made.filter(|(body, _)| hint != InlineHint::Default || copy_metadata_fits(body));
+        // Preparation copies ready callees bottom-up. A remaining suspension
+        // point needs its own cancellation boundary; never splice that body
+        // into its caller. Cache this proof with the existing prepared copy.
+        let made = made.filter(|(body, _)| {
+            !body.tags.iter().copied().any(crate::whole::is_point)
+                && (hint != InlineHint::Default || copy_metadata_fits(body))
+        });
         if let Some(memo) = memo {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
@@ -1379,6 +1385,7 @@ impl dyn InlineEnv + '_ {
         }
         let (copy, hash, _) = self.instance(Key::new(def, targs, false))?;
         if !copy_metadata_fits(&copy)
+            || copy.tags.iter().copied().any(crate::whole::is_point)
             || !self.fits_size(&copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
@@ -1403,8 +1410,9 @@ impl dyn InlineEnv + '_ {
     /// change, and its hash, when a call of it may inline: a function
     /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
-    /// not call itself. Driven bang calls use this same body copy before
-    /// ownership and suspension planning. Dev builds consider std functions
+    /// not call itself. Driven bang calls use this same preparation path,
+    /// but only copies with no remaining suspension point may inline.
+    /// Dev builds consider std functions
     /// plus explicitly decorated user functions; release builds consider all
     /// user functions. `fits` applies the selected hint's size and
     /// reference policy.
@@ -1794,6 +1802,11 @@ impl dyn InlineEnv + '_ {
     /// argument's type, as the call binds it. Any other difference keeps
     /// the call.
     fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
+        // Literal closures also reach this gate without callee preparation.
+        // Every copied body must complete before cancellation can unwind it.
+        if copy.tags.iter().copied().any(crate::whole::is_point) {
+            return false;
+        }
         let pool = self.pool();
         let open = |t: Ty| hd_mono::reveal(pool, self, t);
         let fits = |got: Option<Ty>, want: Ty| {

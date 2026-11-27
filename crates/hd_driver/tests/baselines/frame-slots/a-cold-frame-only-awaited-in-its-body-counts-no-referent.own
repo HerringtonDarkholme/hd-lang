@@ -13,66 +13,46 @@ use std.time.{Clock, ms, sleep}
 fn size!(text: &string) -> usize $ Clock:
 > app/main/size
 >   local $0 text: &string [param read] value
->     uses $0: entry -> %32 lend last
->   local $2 duration: Duration [read] value
->     uses $2: %15 -> %22 lend last
->   local $3 clock: &mut dyn Clock [:= read assigned] value
->     uses $3: %18 -> %19 lend last
->   local $4 count: i64 [read] value
->     uses $4: %9 -> %10 lend last
->   %0 = Retain %41 Cold local $0 #0 : ()
->   %1 = Retain %41 Entry local $0 #0 : ()
->   %5 = Retain %41 Cold referent $0 #8 : ()
->   %6 = Release %41 FrameDrop referent $0 #2 : ()
->   %7 = Release %41 Exit referent $0 #8 : ()
+>     uses $0: entry -> %17 lend last
+>   local $2 count: i64 [read] value
+>     uses $2: %9 -> %10 lend last
+>   %0 = Retain %25 Cold local $0 #0 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
+>   %5 = Retain %25 Cold referent $0 #8 : ()
+>   %6 = Release %25 FrameDrop referent $0 #2 : ()
+>   %7 = Release %25 Exit referent $0 #8 : ()
     sleep!(ms(1))
->   %2 = Retain %41 Cold row #0 : ()
->   %3 = Retain %41 Materialize row #0 : ()
->   %4 = Release %41 FrameDrop row #2 : ()
->   %8 = Release %41 FrameDrop child #2 : ()
->   %9 = Store [$4] 1:i64 : ()
->   %10 = Read copy [$4] : i64
+>   %2 = Retain %25 Cold row #0 : ()
+>   %3 = Retain %25 Materialize row #0 : ()
+>   %4 = Release %25 FrameDrop row #2 : ()
+>   %8 = Release %25 FrameDrop child #2 : ()
+>   %9 = Store [$2] 1:i64 : ()
+>   %10 = Read copy [$2] : i64
 >   %11 = Call std/time/impl Duration.milliseconds[] (%10) : Duration
->   %12 = Break L2 %11 : never
+>   %12 = Break L1 %11 : never
 >   %13 = Block - : Duration
 >   %14 = Scope %13 [] : Duration
->   %15 = Store [$2] %14 : ()
->   %16 = ProviderGet #58 : Clock
->   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Clock
->   %18 = Store [$3] %17 : ()
->   %19 = Read copy [*$3] : Clock
->   %20 = Retain %19 Value #0 : ()
->   %21 = LoanBegin %19 #0 : ()
->   %22 = Read copy [$2] : Duration
->   %23 = LoanBegin %19 #2 : ()
->   %24 = Await std/time/Clock.sleep for Clock [] via TraitValue (%19, %22) : ()
->   %25 = Release %24 Operation child #2 : ()
->   %26 = LoanClose %21 : ()
->   %27 = Drop [%19] : ()
->   %28 = Drop [$3] : ()
->   %29 = Break L1 - : never
->   %30 = Block - : ()
->   %31 = Scope %30 [] : ()
->   %39 = Drop [$0] : ()
->   %40 = Drop [$3] : ()
->   %41 = Block %37 : usize
->   %47 = Intrinsic ParamOwned [0:i32] : bool
->   %48 = Drop [$0] : ()
->   %49 = Block - : ()
->   %50 = If %47 [%49 -] : ()
->   %51 = Block - : ()
+>   %15 = Await std/time/sleep[] (%14) : ()
+>   %16 = Release %15 Operation child #2 : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Block %22 : usize
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Block - : ()
     text.len()
->   %32 = Read borrow [$0] : &string
->   %33 = Read borrow [*%32] : string
->   %34 = Call std/core/bytes_len[] (%33) : usize
->   %35 = Break L0 %34 : never
->   %36 = Block - : usize
->   %37 = Scope %36 [] : usize
->   %38 = Drop [$0] : ()
->   exit sub 0 drops [$0 $3]
+>   %17 = Read borrow [$0] : &string
+>   %18 = Read borrow [*%17] : string
+>   %19 = Call std/core/bytes_len[] (%18) : usize
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Drop [$0] : ()
+>   exit sub 0 drops [$0]
 >   summary none
->   cancel %24 releases [%19 %2147483648 %2147483651 %4294967295]
->   cancel %41 releases [%16 %47]
+>   cancel %15 releases [%2147483648 %4294967295]
+>   cancel %25 releases [%16 %29]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)
@@ -177,21 +157,16 @@ fn first!(n: usize) -> usize $ Clock:
 >     uses $0: entry -> %4 lend, %8 lend last
 >   local $1 a: string [read assigned captured] place
 >   local $2 b: string [read assigned captured] place
->   local $3 tasks: List[Suspend[usize]] [read] value
->     uses $3: %21 -> %22 lend last
->   local $4 frame: Suspend[usize] [read assigned] value
->     uses $4: %24 -> %25 lend last
->   %0 = Retain %36 Cold row #0 : ()
->   %1 = Retain %36 Materialize row #0 : ()
->   %2 = Release %36 FrameDrop row #2 : ()
->   %3 = Release %36 FrameDrop child #2 : ()
+>   %0 = Retain %23 Cold row #0 : ()
+>   %1 = Retain %23 Materialize row #0 : ()
+>   %2 = Release %23 FrameDrop row #2 : ()
+>   %3 = Release %23 FrameDrop child #2 : ()
 >   %4 = Read copy [$0] : usize
 >   %5 = Call std/text/impl string.repeat[] ("a", %4) : string
 >   %6 = Box #1 #1 : ()
 >   %7 = Store [$1] %5 : ()
 >   %10 = Box #2 #1 : ()
->   %35 = Drop [$3] : ()
->   %36 = Block %33 : usize
+>   %23 = Block %21 : usize
     let b = "b".repeat(n)
 >   %8 = Read copy [$0] : usize
 >   %9 = Call std/text/impl string.repeat[] ("b", %8) : string
@@ -206,23 +181,9 @@ fn first!(n: usize) -> usize $ Clock:
 >   %18 = LoanEnd [%16] : ()
 >   %19 = Drop [$2] : ()
 >   %20 = NewList - [%13 %17] : List[Suspend[usize]]
->   %21 = Store [$3] %20 : ()
->   %22 = Read borrow [$3] : List[Suspend[usize]]
->   %23 = Call std/task/race_frame[usize] (%22) : Suspend[usize]
->   %24 = Store [$4] %23 : ()
->   %25 = Read move [$4] : Suspend[usize]
->   %26 = Intrinsic Empty [] : ()
->   %27 = AwaitValue %25 : usize
->   %28 = Release %27 Operation child #2 : ()
->   %29 = Retain %27 Operation child #0 : ()
->   %30 = Drop [%25] : ()
->   %31 = Break L0 %27 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Drop [$3] : ()
->   %38 = Drop [$3] : ()
->   %39 = Return - #2 : never
->   exit sub 0 drops [$3]
+>   %21 = Await std/task/race[usize] (%20) : usize
+>   %22 = Release %21 Operation child #2 : ()
+>   %24 = Return - #2 : never
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   cancel %27 releases [%25 %2147483651 %4294967295]
+>   cancel %21 releases [%4294967295]

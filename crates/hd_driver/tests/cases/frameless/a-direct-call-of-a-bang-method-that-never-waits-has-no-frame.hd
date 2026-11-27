@@ -1,16 +1,12 @@
 # @dump: functions
 # @build: dev | release
-# `close!` has no suspension point, so it completes at once: `main!`
-# calls its body as a plain call and links no `.poll`, `.cancel` or
-# `.drop` for it (#2419).
-# Keep the call boundary under test when small bang bodies can inline.
-use std.meta.inline
-
+# `close!` has no suspension point, so it completes at once: dev calls
+# its body as a plain call and release may inline it. Neither build
+# links a `.poll`, `.cancel` or `.drop` for it (#2419).
 struct Mem:
     closed: bool
 
 impl Mem:
-    @inline(.Never)
     fn close!(&mut self) -> void:
         self.closed = true
 

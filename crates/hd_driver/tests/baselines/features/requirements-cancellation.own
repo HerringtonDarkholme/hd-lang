@@ -41,64 +41,42 @@ fn stop!(key: string) -> bool:
 >   local $1 job: Suspend[string] [read assigned] value
 >     uses $1: %6 -> %7 consume last
 >   local $2 end: CleanupEnd [:= read assigned] value
->     uses $2: %28 -> %29 lend last
->   local $3 self: Suspend[string] [read] value
->     uses $3: %9 -> %10 lend last
->   local $4 cleanup: Suspend[bool] [read assigned] value
->     uses $4: %12 -> %13 lend last
->   %0 = Retain %41 Cold local $0 #0 : ()
->   %1 = Retain %41 Entry local $0 #0 : ()
+>     uses $2: %11 -> %12 lend last
+>   %0 = Retain %23 Cold local $0 #0 : ()
+>   %1 = Retain %23 Entry local $0 #0 : ()
     let mut job = fetch(key)
->   %2 = Release %41 FrameDrop child #2 : ()
+>   %2 = Release %23 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Intrinsic Empty [] : ()
 >   %5 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %6 = Store [$1] %5 : ()
->   %39 = Drop [$0] : ()
->   %40 = Drop [$3] : ()
->   %41 = Block %38 : bool
->   %47 = Intrinsic ParamOwned [0:i32] : bool
->   %48 = Drop [$0] : ()
->   %49 = Block - : ()
->   %50 = If %47 [%49 -] : ()
->   %51 = Block - : ()
+>   %22 = Drop [$0] : ()
+>   %23 = Block %21 : bool
+>   %27 = Intrinsic ParamOwned [0:i32] : bool
+>   %28 = Drop [$0] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Block - : ()
     end := job.cancel!()
 >   %7 = Read move [$1] : Suspend[string]
 >   %8 = Intrinsic Empty [] : ()
->   %9 = Store [$3] %7 : ()
->   %10 = Read borrow [$3] : Suspend[string]
->   %11 = Call std/task/cleanup_frame[string] (%10) : Suspend[bool]
->   %12 = Store [$4] %11 : ()
->   %13 = Read move [$4] : Suspend[bool]
->   %14 = Intrinsic Empty [] : ()
->   %15 = AwaitValue %13 : bool
->   %16 = Release %15 Operation child #2 : ()
->   %17 = Retain %15 Operation child #0 : ()
->   %18 = Drop [%13] : ()
->   %19 = NewVariant #1 [] : CleanupEnd
->   %20 = Block %19 : CleanupEnd
->   %21 = NewVariant #0 [] : CleanupEnd
->   %22 = Block %21 : CleanupEnd
->   %23 = If %15 [%20 %22] : CleanupEnd
->   %24 = Break L0 %23 : never
->   %25 = Block - : CleanupEnd
->   %26 = Scope %25 [] : CleanupEnd
->   %27 = Drop [$3] : ()
->   %28 = Store [$2] %26 : ()
+>   %9 = Await std/task/impl[T] Suspend[T].cancel[string] (%7) : CleanupEnd
+>   %10 = Release %9 Operation child #2 : ()
+>   %11 = Store [$2] %9 : ()
     match end:
->   %29 = Read copy [$2] : CleanupEnd
->   %37 = Block - : never
->   %38 = Match %29 [%37 %30 %31] : bool
+>   %12 = Read copy [$2] : CleanupEnd
+>   %20 = Block - : never
+>   %21 = Match %12 [%20 %13 %14] : bool
         .Finished => true
->   %30 = Block 1:bool : bool
->   %33 = Block - : never
->   %36 = SwitchTag %29 [#0 %33 %35] : never
+>   %13 = Block 1:bool : bool
+>   %16 = Block - : never
+>   %19 = SwitchTag %12 [#0 %16 %18] : never
         .Abandoned => false
->   %31 = Block 0:bool : bool
->   exit sub 0 drops [$0 $3]
+>   %14 = Block 0:bool : bool
+>   exit sub 0 drops [$0]
 >   summary none
->   cancel %15 releases [%13 %2147483648 %2147483651 %4294967295]
->   cancel %41 releases [%16 %47]
+>   cancel %9 releases [%2147483648 %4294967295]
+>   cancel %23 releases [%16 %27]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now

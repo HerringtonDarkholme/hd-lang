@@ -979,211 +979,171 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
     cold_starts += 1
 > std/rt_tests.stage_case/delayed_size
 >   local $0 value: Resource [param read captured] place
->   local $1 duration: Duration [read] value
->     uses $1: %14 -> %21 lend last
->   local $2 clock: &mut dyn Clock [:= read assigned] value
->     uses $2: %17 -> %18 lend last
->   local $3 count: i64 [read] value
->     uses $3: %8 -> %9 lend last
->   %0 = Retain %37 Cold row #0 : ()
->   %1 = Retain %37 Materialize row #0 : ()
->   %2 = Release %37 FrameDrop row #2 : ()
->   %3 = Release %37 FrameDrop child #2 : ()
+>   local $1 count: i64 [read] value
+>     uses $1: %8 -> %9 lend last
+>   %0 = Retain %21 Cold row #0 : ()
+>   %1 = Retain %21 Materialize row #0 : ()
+>   %2 = Release %21 FrameDrop row #2 : ()
+>   %3 = Release %21 FrameDrop child #2 : ()
 >   %4 = Box #0 #1 : ()
 >   %5 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Store [@std/rt_tests.stage_case/cold_starts] %6 : ()
->   %35 = Drop [$0] : ()
->   %36 = Drop [$2] : ()
->   %37 = Block %32 : usize
->   %43 = Intrinsic ParamOwned [0:i32] : bool
->   %44 = Drop [$0] : ()
->   %45 = Block - : ()
->   %46 = If %43 [%45 -] : ()
->   %47 = Block - : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Block %17 : usize
+>   %25 = Intrinsic ParamOwned [0:i32] : bool
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Block - : ()
     sleep!(ms(1))
->   %8 = Store [$3] 1:i64 : ()
->   %9 = Read copy [$3] : i64
+>   %8 = Store [$1] 1:i64 : ()
+>   %9 = Read copy [$1] : i64
 >   %10 = Call std/time/impl Duration.milliseconds[] (%9) : Duration
->   %11 = Break L1 %10 : never
+>   %11 = Break L0 %10 : never
 >   %12 = Block - : Duration
 >   %13 = Scope %12 [] : Duration
->   %14 = Store [$1] %13 : ()
->   %15 = ProviderGet #50 : Clock
->   %16 = Coerce %15 [ProviderAsRef -] : &mut dyn Clock
->   %17 = Store [$2] %16 : ()
->   %18 = Read copy [*$2] : Clock
->   %19 = Retain %18 Value #0 : ()
->   %20 = LoanBegin %18 #0 : ()
->   %21 = Read copy [$1] : Duration
->   %22 = LoanBegin %18 #2 : ()
->   %23 = Await std/time/Clock.sleep for Clock [] via TraitValue (%18, %21) : ()
->   %24 = Release %23 Operation child #2 : ()
->   %25 = LoanClose %20 : ()
->   %26 = Drop [%18] : ()
->   %27 = Drop [$2] : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = Scope %29 [] : ()
+>   %14 = Await std/time/sleep[] (%13) : ()
+>   %15 = Release %14 Operation child #2 : ()
     value.owned.len()
->   %31 = Ref local [$0 .owned] : &UniqList[usize]
->   %32 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%31) : usize
->   %33 = LoanEnd [%31] : ()
->   %34 = Drop [$0] : ()
->   exit sub 0 drops [$0 $2]
+>   %16 = Ref local [$0 .owned] : &UniqList[usize]
+>   %17 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%16) : usize
+>   %18 = LoanEnd [%16] : ()
+>   %19 = Drop [$0] : ()
+>   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   cancel %23 releases [%18 %2147483648 %2147483650 %4294967295]
->   cancel %37 releases [%16 %43]
+>   cancel %14 releases [%2147483648 %4294967295]
+>   cancel %21 releases [%16 %25]
 
 @inline(.Never)
 > std/rt_tests.stage_case/prepared_native
 >   local $0 literal: bool [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 seen: *mut i32 [param read] value
->     uses $1: entry -> %93 consume last
+>     uses $1: entry -> %77 consume last
 >   local $2 constructor: fn!(Resource) -> usize [read assigned mutated] place
 >   local $3 value: Resource [param read captured] place
 >   local $4 owned: UniqList[usize] [read assigned captured captured-assigned] place
 >   local $5 self: &mut UniqList[usize] [read] value
->     uses $5: %57 -> %59 consume, %63 lend, %70 lend, %76 lend, %86 lend last
+>     uses $5: %41 -> %43 consume, %47 lend, %54 lend, %60 lend, %70 lend last
 >   local $6 value: usize [read] value
->     uses $6: %58 -> %82 consume last
+>     uses $6: %42 -> %66 consume last
 >   local $7 size: usize [:= read assigned] value
->     uses $7: %62 -> %68 lend, %71 lend, %78 lend, %84 lend last
->   local $8 duration: Duration [read] value
->     uses $8: %20 -> %27 lend last
->   local $9 clock: &mut dyn Clock [:= read assigned] value
->     uses $9: %23 -> %24 lend last
->   local $10 count: i64 [read] value
->     uses $10: %14 -> %15 lend last
->   %0 = Retain %106 Entry local $1 #0 : ()
+>     uses $7: %46 -> %52 lend, %55 lend, %62 lend, %68 lend last
+>   local $8 count: i64 [read] value
+>     uses $8: %14 -> %15 lend last
+>   %0 = Retain %90 Entry local $1 #0 : ()
 fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
     let constructor = delayed_size
 >   %1 = ItemRef #0 [..] : fn!(Resource) -> usize
 >   %2 = Store [$2] %1 : ()
->   %53 = Box #4 #0 : ()
->   %105 = Drop [$1] : ()
->   %106 = Block %99 : Suspend[usize]
+>   %37 = Box #4 #0 : ()
+>   %89 = Drop [$1] : ()
+>   %90 = Block %83 : Suspend[usize]
     if literal:
 >   %3 = Read copy [$0] : bool
->   %48 = If %3 [%47 -] : ()
+>   %32 = If %3 [%31 -] : ()
         constructor = fn!(value: Resource) -> usize $ Clock:
->   %4 = Retain %43 Cold local $3 #0 : ()
->   %5 = Retain %43 Entry local $3 #0 : ()
->   %6 = Retain %43 Cold row #0 : ()
->   %7 = Retain %43 Materialize row #0 : ()
->   %8 = Release %43 FrameDrop row #2 : ()
->   %9 = Release %43 FrameDrop child #2 : ()
+>   %4 = Retain %27 Cold local $3 #0 : ()
+>   %5 = Retain %27 Entry local $3 #0 : ()
+>   %6 = Retain %27 Cold row #0 : ()
+>   %7 = Retain %27 Materialize row #0 : ()
+>   %8 = Release %27 FrameDrop row #2 : ()
+>   %9 = Release %27 FrameDrop child #2 : ()
 >   %10 = Box #3 #1 : ()
->   %41 = Drop [$3] : ()
->   %42 = Drop [$9] : ()
->   %43 = Block %38 : usize
->   %44 = Closure #1 : fn!(Resource) -> usize
->   %45 = Store [$2] %44 : ()
->   %46 = Release %45 Operation #3 : ()
->   %47 = Block - : ()
->   %112 = Intrinsic ParamOwned [3:i32] : bool
->   %113 = Drop [$3] : ()
->   %114 = Block - : ()
->   %115 = If %112 [%114 -] : ()
->   %116 = Block - : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Block %23 : usize
+>   %28 = Closure #1 : fn!(Resource) -> usize
+>   %29 = Store [$2] %28 : ()
+>   %30 = Release %29 Operation #3 : ()
+>   %31 = Block - : ()
+>   %94 = Intrinsic ParamOwned [3:i32] : bool
+>   %95 = Drop [$3] : ()
+>   %96 = Block - : ()
+>   %97 = If %94 [%96 -] : ()
+>   %98 = Block - : ()
             cold_starts += 1
 >   %11 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
 >   %13 = Store [@std/rt_tests.stage_case/cold_starts] %12 : ()
             sleep!(ms(1))
->   %14 = Store [$10] 1:i64 : ()
->   %15 = Read copy [$10] : i64
+>   %14 = Store [$8] 1:i64 : ()
+>   %15 = Read copy [$8] : i64
 >   %16 = Call std/time/impl Duration.milliseconds[] (%15) : Duration
->   %17 = Break L3 %16 : never
+>   %17 = Break L2 %16 : never
 >   %18 = Block - : Duration
 >   %19 = Scope %18 [] : Duration
->   %20 = Store [$8] %19 : ()
->   %21 = ProviderGet #248 : Clock
->   %22 = Coerce %21 [ProviderAsRef -] : &mut dyn Clock
->   %23 = Store [$9] %22 : ()
->   %24 = Read copy [*$9] : Clock
->   %25 = Retain %24 Value #0 : ()
->   %26 = LoanBegin %24 #0 : ()
->   %27 = Read copy [$8] : Duration
->   %28 = LoanBegin %24 #2 : ()
->   %29 = Await std/time/Clock.sleep for Clock [] via TraitValue (%24, %27) : ()
->   %30 = Release %29 Operation child #2 : ()
->   %31 = LoanClose %26 : ()
->   %32 = Drop [%24] : ()
->   %33 = Drop [$9] : ()
->   %34 = Break L2 - : never
->   %35 = Block - : ()
->   %36 = Scope %35 [] : ()
+>   %20 = Await std/time/sleep[] (%19) : ()
+>   %21 = Release %20 Operation child #2 : ()
             value.owned.len()
->   %37 = Ref local [$3 .owned] : &UniqList[usize]
->   %38 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%37) : usize
->   %39 = LoanEnd [%37] : ()
->   %40 = Drop [$3] : ()
+>   %22 = Ref local [$3 .owned] : &UniqList[usize]
+>   %23 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%22) : usize
+>   %24 = LoanEnd [%22] : ()
+>   %25 = Drop [$3] : ()
     let mut owned: UniqList[usize] = UniqList::new()
->   %49 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
->   %50 = Break L1 %49 : never
->   %51 = Block - : UniqList[usize]
->   %52 = Scope %51 [] : UniqList[usize]
->   %54 = Store [$4] %52 : ()
->   %55 = FlagSet [$4] #11 : ()
+>   %33 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %34 = Break L1 %33 : never
+>   %35 = Block - : UniqList[usize]
+>   %36 = Scope %35 [] : UniqList[usize]
+>   %38 = Store [$4] %36 : ()
+>   %39 = FlagSet [$4] #9 : ()
     owned.push(23)
->   %56 = Ref mut local frame [$4] : &mut UniqList[usize]
->   %57 = Store [$5] %56 : ()
->   %58 = Store [$6] 23:usize : ()
->   %59 = Read borrow [$5] : &mut UniqList[usize]
->   %60 = Coerce %59 [Weaken -] : &UniqList[usize]
->   %61 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%60) : usize
->   %62 = Store [$7] %61 : ()
->   %63 = Ref local [*$5 .buffer] : &Buffer[usize]
->   %64 = LoanBegin %63 #0 : ()
->   %65 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%63) : usize
->   %66 = LoanClose %64 : ()
->   %67 = LoanEnd [%63] : ()
+>   %40 = Ref mut local frame [$4] : &mut UniqList[usize]
+>   %41 = Store [$5] %40 : ()
+>   %42 = Store [$6] 23:usize : ()
+>   %43 = Read borrow [$5] : &mut UniqList[usize]
+>   %44 = Coerce %43 [Weaken -] : &UniqList[usize]
+>   %45 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%44) : usize
+>   %46 = Store [$7] %45 : ()
+>   %47 = Ref local [*$5 .buffer] : &Buffer[usize]
+>   %48 = LoanBegin %47 #0 : ()
+>   %49 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%47) : usize
+>   %50 = LoanClose %48 : ()
+>   %51 = LoanEnd [%47] : ()
+>   %52 = Read copy [$7] : usize
+>   %53 = Prim Le [%49 %52] : bool
+>   %54 = Read borrow [$5] : &mut UniqList[usize]
+>   %55 = Read copy [$7] : usize
+>   %56 = Prim Add [%55 1:usize] : usize
+>   %57 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%54, %56) : ()
+>   %58 = Block - : ()
+>   %59 = If %53 [%58 -] : ()
+>   %60 = Ref local [*$5 .buffer] : &Buffer[usize]
+>   %61 = LoanBegin %60 #0 : ()
+>   %62 = Read copy [$7] : usize
+>   %63 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%60, %62) : Ptr[usize]
+>   %64 = LoanClose %61 : ()
+>   %65 = LoanEnd [%60] : ()
+>   %66 = Read copy [$6] : usize
+>   %67 = Store [ptr %63] %66 : ()
 >   %68 = Read copy [$7] : usize
->   %69 = Prim Le [%65 %68] : bool
->   %70 = Read borrow [$5] : &mut UniqList[usize]
->   %71 = Read copy [$7] : usize
->   %72 = Prim Add [%71 1:usize] : usize
->   %73 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%70, %72) : ()
->   %74 = Block - : ()
->   %75 = If %69 [%74 -] : ()
->   %76 = Ref local [*$5 .buffer] : &Buffer[usize]
->   %77 = LoanBegin %76 #0 : ()
->   %78 = Read copy [$7] : usize
->   %79 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%76, %78) : Ptr[usize]
->   %80 = LoanClose %77 : ()
->   %81 = LoanEnd [%76] : ()
->   %82 = Read copy [$6] : usize
->   %83 = Store [ptr %79] %82 : ()
->   %84 = Read copy [$7] : usize
->   %85 = Prim Add [%84 1:usize] : usize
->   %86 = Store [*$5 .len] %85 : ()
->   %87 = Break L0 - : never
->   %88 = Block - : ()
->   %89 = Scope %88 [] : ()
->   %90 = LoanEnd [$5] : ()
+>   %69 = Prim Add [%68 1:usize] : usize
+>   %70 = Store [*$5 .len] %69 : ()
+>   %71 = Break L0 - : never
+>   %72 = Block - : ()
+>   %73 = Scope %72 [] : ()
+>   %74 = LoanEnd [$5] : ()
     constructor(Resource { seen: seen, owned: owned })
->   %91 = Read move [$2] : fn!(Resource) -> usize
->   %92 = Intrinsic Empty [] : ()
->   %93 = Read move [$1] : *mut i32
->   %94 = Intrinsic Empty [] : ()
->   %95 = FlagClear [$4] #11 : ()
->   %96 = Read move [$4] : UniqList[usize]
->   %97 = Intrinsic Empty [] : ()
->   %98 = NewStruct [%93 %96] : Resource
->   %99 = CallValue %91 [%98] : Suspend[usize]
->   %100 = Retain %99 Operation row #0 : ()
->   %101 = Release %99 Operation row #2 : ()
->   %102 = Release %99 Operation arguments #2 : ()
->   %103 = Drop [%98] : ()
->   %104 = Drop [%91] : ()
+>   %75 = Read move [$2] : fn!(Resource) -> usize
+>   %76 = Intrinsic Empty [] : ()
+>   %77 = Read move [$1] : *mut i32
+>   %78 = Intrinsic Empty [] : ()
+>   %79 = FlagClear [$4] #9 : ()
+>   %80 = Read move [$4] : UniqList[usize]
+>   %81 = Intrinsic Empty [] : ()
+>   %82 = NewStruct [%77 %80] : Resource
+>   %83 = CallValue %75 [%82] : Suspend[usize]
+>   %84 = Retain %83 Operation row #0 : ()
+>   %85 = Release %83 Operation row #2 : ()
+>   %86 = Release %83 Operation arguments #2 : ()
+>   %87 = Drop [%82] : ()
+>   %88 = Drop [%75] : ()
 >   exit sub 0 drops [$1]
->   exit sub 1 drops [$3 $9]
+>   exit sub 1 drops [$3]
 >   storage sub 0: $3 cell, $4 slot
 >   storage sub 1: $3 cell, $4 cell
->   cancel %29 releases [%24 %2147483651 %2147483657 %4294967295]
->   cancel %43 releases [%16 %112]
+>   cancel %20 releases [%2147483651 %4294967295]
+>   cancel %27 releases [%16 %94]
 
 pub fn main!() -> void $ Clock:
     plain_controls()

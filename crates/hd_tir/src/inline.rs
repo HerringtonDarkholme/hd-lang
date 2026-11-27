@@ -125,8 +125,9 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>
 /// ownership statement, and no call with explicit providers. A generic
 /// local function's instantiation, which names its item's sub-body, is
 /// not a closure here: only that item's bodies copy one. A copied `With`
-/// retains its lexical scope; awaits stay awaits for ownership and resume
-/// planning. Copied `ProviderGet`s resolve there, exactly
+/// retains its lexical scope. Direct awaits are allowed while preparing
+/// nested copies; the optimizer must eliminate every suspension point before
+/// publishing an inline copy. Copied `ProviderGet`s resolve there, exactly
 /// as they resolved at the call. Context construction keeps its call boundary.
 #[must_use]
 pub fn copyable(c: &Body) -> bool {
@@ -136,13 +137,14 @@ pub fn copyable(c: &Body) -> bool {
         .map(|i| c.record(c.data[i][1])[1] as usize)
         .sum();
     let refused = |i: usize| match c.tags[i] {
-        Tag::Call | Tag::Await | Tag::AwaitValue => {
-            c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0)
-        }
+        Tag::Call | Tag::Await => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
         Tag::Closure => !c.is_instantiation(i),
         t => matches!(
             t,
-            Tag::Hook
+            Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
+                | Tag::Hook
                 | Tag::Defer
                 | Tag::Closure
                 | Tag::ContextFor

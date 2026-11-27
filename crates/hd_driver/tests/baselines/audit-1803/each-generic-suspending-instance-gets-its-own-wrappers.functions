@@ -6,6 +6,9 @@ std/rt.cycle/push#0
 app/main/relay#0 [string]
 app/main/relay#0.poll
 app/main/relay#0.drop
+std/time/sleep#0
+std/time/sleep#0.poll
+std/time/sleep#0.drop
 std/rt.cycle/scan#0
 std/rt.alloc/init_classes#0
 std/rt.cycle/drain#0
@@ -80,8 +83,9 @@ rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
-rt:new/class-5
-rt:alloc_class/5
+rt:new/class-4#0
+rt:new/class-4#1
+rt:alloc_class/4
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -103,10 +107,12 @@ rt:frame#0
 rt:frame#1
 rt:frame#2
 rt:frame#3
+rt:frame#4
 rt:frame_ensure#0
 rt:frame_ensure#1
 rt:frame_ensure#2
 rt:frame_ensure#3
+rt:frame_ensure#4
 rt:poll_check
 rt:cancel_enter
 rt:cancel_leave

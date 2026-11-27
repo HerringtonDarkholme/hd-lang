@@ -4,10 +4,6 @@
 # expected: `construct` allocates one suspension and frees it unrun;
 # `closure_bang` and `stored` hold `key` in the suspending frame (by
 # design, #1355) and build one string per `fetch`.
-# Keep the call boundary under test when small bang bodies can inline.
-use std.meta.inline
-
-@inline(.Never)
 fn fetch!(key: string) -> string:
     pause!()
     key + "?"
@@ -16,7 +12,6 @@ fn construct(key: string) -> usize:
     _ := fetch(key)
     key.len()
 
-@inline(.Never)
 fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 

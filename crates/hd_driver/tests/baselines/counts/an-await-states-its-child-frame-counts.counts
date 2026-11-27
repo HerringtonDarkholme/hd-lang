@@ -7,11 +7,8 @@ use std.time.{Clock, ms, sleep}
 fn read!() -> i32 $ Clock:
     sleep!(ms(1))
 > app/main/read
->   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release std.time.Clock (cancelled)
->   release std.time.Clock (last use)
 > app/main/read
 >   release counted reference (last use)
 >   release counted reference (last use)
