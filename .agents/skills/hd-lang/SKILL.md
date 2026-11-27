@@ -158,6 +158,8 @@ Types and values:
 - There is no `null`: use `T?`. `unwrap()` panics on failure; use `match`, `?`,
   `unwrap_or(fallback)` or `expect("why")` for the behavior you need.
 - An unused `Result` or optional is an error: discard it with `_ := expr`.
+- A string's `len()`, `slice` and `find` count bytes, not characters
+  ([common operations](references/how-to/common-operations.md)).
 
 Requirements:
 
@@ -192,6 +194,7 @@ pieces it is made of.
 
 | To | Read |
 | --- | --- |
+| do everyday string, number, list, map, tree and scanner operations, with the clues that trip agents up | [common-operations.md](references/how-to/common-operations.md) |
 | build a command-line tool: `@derive(Cli)` options, `--help`, exit status | [cli-tool.md](references/how-to/cli-tool.md) |
 | read standard input and transform it | [stdin-filter.md](references/how-to/stdin-filter.md) |
 | parse a text or CSV file into typed records with regex `decode`, with line-numbered errors | [text-records.md](references/how-to/text-records.md) |
@@ -224,6 +227,7 @@ pieces it is made of.
 
 | File | Covers |
 | --- | --- |
+| [api/](references/std/api/README.md) | every public std module: each item's signature and one-line summary, generated from `hd doc` |
 | [imports.md](references/std/imports.md) | the prelude, and the import line for everything else |
 | [text.md](references/std/text.md) | string methods, parsing, building text, characters, regex and typed `decode` |
 | [collections.md](references/std/collections.md) | list, map, iterator, optional and result methods; `Set`, `Deque`, `Heap` |
