@@ -1,8 +1,16 @@
 # Native FFI: C Providers For Host Traits
 
 Status: accepted by the owner, 2026-11-27; not yet implemented (P3);
-domain: runtime and host, CLI. Design for #2388, first used by `std.terminal` (#2382), after
-the owner's [decisions](#decisions). It revises
+domain: runtime and host, CLI. Design for #2388, after the owner's
+[decisions](#decisions).
+
+**Changed 2026-11-27 (owner): the terminal is not std.** Std ships only
+`is_terminal` and `Command.status!` (#2382), neither of which needs FFI.
+Raw mode, size, resize and key input become a terminal *package* that
+ships `hd_term` under `native/<target-triple>/`, so the package path
+below is the real one. Read this doc's `std.terminal`, "linked into
+`hd`" and default-profile rows as that package's, bound by the package's
+own `[host]` table and granted by its user. It revises
 [Package Host Traits](../../spec/lang/10-modules.md#package-host-traits)
 and [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
 

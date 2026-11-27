@@ -19,7 +19,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 ### Application and host
 
-- [Native FFI](FFI.md): accepted 2026-11-27, not yet implemented (#2388): C as a provider kind for package `@host` traits, one entry symbol per trait returning a checked table of function pointers, completion callbacks for `!` methods, and prebuilt libraries in `native/<target-triple>/`; `std.terminal` (#2382) is the first user, over `hd_term` linked into `hd`.
+- [Native FFI](FFI.md): accepted 2026-11-27, not yet implemented (#2388): C as a provider kind for package `@host` traits; its first user is a terminal package (raw mode, size, keys), not std.
 - [Streaming Design](STREAMING_DESIGN.md): historical proposal for HTTP bodies,
   process pipes and shared reader/writer helpers. Implemented file and stdin
   reads use [`std.io.Read`](../../spec/std/io.md); the proposal's names are placeholders.
