@@ -679,6 +679,11 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            // A bang Call constructs a cold suspension; only Await runs its
+            // body here. Preserve constructors even when inlining is preferred.
+            if lifted.is_none() && body.tags[c] != Tag::Await && self.suspends(def) {
+                continue;
+            }
             let in_loop =
                 topo.get_or_init(|| hd_tir::ir::Topology::new(body)).loop_of[c] != hd_tir::ir::NONE;
             let key = Key::new(def, targs, lifted.is_some());
@@ -1024,7 +1029,13 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
-        let made = made.filter(|(body, _)| hint != InlineHint::Default || copy_metadata_fits(body));
+        // Preparation copies ready callees bottom-up. A remaining suspension
+        // point needs its own cancellation boundary; never splice that body
+        // into its caller. Cache this proof with the existing prepared copy.
+        let made = made.filter(|(body, _)| {
+            !body.tags.iter().copied().any(crate::whole::is_point)
+                && (hint != InlineHint::Default || copy_metadata_fits(body))
+        });
         if let Some(memo) = memo {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
@@ -1374,6 +1385,7 @@ impl dyn InlineEnv + '_ {
         }
         let (copy, hash, _) = self.instance(Key::new(def, targs, false))?;
         if !copy_metadata_fits(&copy)
+            || copy.tags.iter().copied().any(crate::whole::is_point)
             || !self.fits_size(&copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
@@ -1398,8 +1410,10 @@ impl dyn InlineEnv + '_ {
     /// change, and its hash, when a call of it may inline: a function
     /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
-    /// not suspend or call itself. Dev builds consider std functions and
-    /// explicitly decorated user functions; release builds consider all
+    /// not call itself. Driven bang calls use this same preparation path,
+    /// but only copies with no remaining suspension point may inline.
+    /// Dev builds consider std functions
+    /// plus explicitly decorated user functions; release builds consider all
     /// user functions. `fits` applies the selected hint's size and
     /// reference policy.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
@@ -1415,10 +1429,7 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        let (_, suspends, _) = self.signature(def)?;
-        if suspends {
-            return None;
-        }
+        let _ = self.signature(def)?;
         let (body, hash) = self.checked_body(def)?;
         // A With can hold many keys in very few instructions. The same
         // metadata bound as literal consumers prevents record width from
@@ -1503,6 +1514,10 @@ impl dyn InlineEnv + '_ {
             return None;
         };
         if !body.is_instantiation(made as usize)
+            || matches!(
+                self.pool().get(body.ty[made as usize]),
+                TyData::Fn { suspends: true, .. }
+            )
             || body.call_providers(c) != hd_tir::ir::Providers::None
             || (count > 0 && made != body.data[c][0])
         {
@@ -1787,6 +1802,11 @@ impl dyn InlineEnv + '_ {
     /// argument's type, as the call binds it. Any other difference keeps
     /// the call.
     fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
+        // Literal closures also reach this gate without callee preparation.
+        // Every copied body must complete before cancellation can unwind it.
+        if copy.tags.iter().copied().any(crate::whole::is_point) {
+            return false;
+        }
         let pool = self.pool();
         let open = |t: Ty| hd_mono::reveal(pool, self, t);
         let fits = |got: Option<Ty>, want: Ty| {
