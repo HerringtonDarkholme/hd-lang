@@ -1,0 +1,19 @@
+# @dump: own
+# A #2432 control: the early return reads only `q`; `p` is read after the
+# loop, so nothing moves `p` while `pa`'s borrow lives.
+enum Value:
+    Null
+    Arr(a: *mut List[Value])
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> Value?:
+    let .Arr(pa) = p else:
+        return .None
+    for q in *pa:
+        let .Arr(_) = q else:
+            return .Some(q)
+        update(*pa)
+    _ := p
+    .None

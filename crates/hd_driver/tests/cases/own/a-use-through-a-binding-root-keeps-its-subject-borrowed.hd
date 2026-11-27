@@ -1,0 +1,21 @@
+# @dump: own wat
+# #2432: `q` lives on `$coll`, a copy read through `pa`, so the move
+# pass counts its read as a use of the borrow `pa` holds, which lives on
+# `p`. `p` returns as a copy (`Read copy [$0]`), not a move under a live
+# borrow of it.
+enum Value:
+    Null
+    Arr(a: *mut List[Value])
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> (Value, Value)?:
+    let .Arr(pa) = p else:
+        return .None
+    for q in *pa:
+        let .Arr(_) = q else:
+            return .Some((p, q))
+            #^^^^^^^^^^^^^^^^^^^
+        update(*pa)
+    .None

@@ -453,15 +453,25 @@ fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
 
 /// Adds the uses of each root local through what may point into it
 /// ([`super::frame::roots`]) to [`Tables::frame_uses`], drops and uses
-/// through raw addresses alone aside: whether there was any.
+/// through raw addresses alone aside: whether there was any. A binding
+/// local owns no count of what it holds, so a use through it is a use of
+/// the borrow it holds and of what that borrow lives on ([`Tables::deps`]),
+/// as the borrow pass and the verifier read it.
 fn root_reads(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let mut out = std::mem::take(&mut t.frame_uses);
     let before = out.len();
-    let lnum = &t.lnum;
+    let shared = &*t;
     super::frame::roots(b, cx, |i, l, kind| {
-        let bit = lnum[l as usize];
-        if bit != NONE && kind == UseKind::Access && b.tags[i as usize] != Tag::Drop {
+        if kind != UseKind::Access || b.tags[i as usize] == Tag::Drop {
+            return;
+        }
+        let bit = shared.lnum[l as usize];
+        if bit != NONE {
             out.push((i, bit));
+        }
+        let held = shared.holds[l as usize];
+        if held != NONE {
+            shared.deps(b, held, &mut |bit| out.push((i, bit)));
         }
     });
     let added = out.len() > before;

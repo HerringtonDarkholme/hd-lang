@@ -1,0 +1,21 @@
+# @dump: own
+# #2432 through a boxed struct's list field (`pa.items`), as hdjq's
+# `delpaths` reads it: `p` copies at the early return.
+enum Value:
+    Null
+    Arr(a: *mut Items)
+
+struct Items:
+    items: List[Value]
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> (Value, Value)?:
+    let .Arr(pa) = p else:
+        return .None
+    for q in pa.items:
+        let .Arr(path) = q else:
+            return .Some((p, q))
+        update(path.items)
+    .None

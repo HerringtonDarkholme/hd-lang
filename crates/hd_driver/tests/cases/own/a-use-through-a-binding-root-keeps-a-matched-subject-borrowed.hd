@@ -1,0 +1,19 @@
+# @dump: own
+# #2432 with `match` arms: the early return copies `p`, which `pa`'s
+# borrow still lives on when `q` is read.
+enum Value:
+    Null
+    Arr(a: *mut List[Value])
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> (Value, Value)?:
+    match p:
+        .Arr(pa) =>
+            for q in *pa:
+                match q:
+                    .Arr(_) => update(*pa)
+                    _ => return .Some((p, q))
+        _ => pass
+    .None

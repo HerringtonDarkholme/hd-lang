@@ -1,0 +1,18 @@
+# @dump: own
+# #2432 over `&mut *pa`: reading `*q` after the early return's `p` uses
+# the borrow `pa` holds, so `p` copies.
+enum Value:
+    Null
+    Arr(a: *mut List[Value])
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> (Value, Value)?:
+    let .Arr(pa) = p else:
+        return .None
+    for q in &mut *pa:
+        let .Arr(inner) = *q else:
+            return .Some((p, *q))
+        update(*inner)
+    .None
