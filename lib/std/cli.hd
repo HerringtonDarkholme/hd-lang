@@ -146,32 +146,52 @@ impl ArgParser:
             if argument == "--":
                 only_positionals = true
                 continue
-            let written = argument
-            let attached: string? = .None
-            if argument.starts_with("--"):
-                match argument.split_once("="):
-                    .Some((before, after)) =>
-                        written = before
-                        attached = .Some(after)
-                    .None => pass
-            slot := match self.options.get(written):
-                .None => return .Err(CliError.UnknownOption(written))
-                .Some(found) => found
-            option := self.declarations[slot]
-            if option.kind == .Flag:
-                if attached.is_some():
-                    return .Err(CliError.UnexpectedValue(option.name))
-                flags[option.name] = true
-                if option.repeated:
-                    flag_counts[option.name] = flag_counts.get(option.name).unwrap_or(0) + 1
-            else:
-                match attached:
-                    .Some(value) => store_value(option, value, &mut values, &mut histories)?
-                    .None =>
-                        if index >= arguments.len():
-                            return .Err(CliError.MissingValue(option.name))
-                        store_value(option, arguments[index], &mut values, &mut histories)?
-                        index = index + 1
+            short_group := !argument.starts_with("--")
+            let mut shorts = argument.chars()
+            _ := shorts.next() # The first dash, shared by both forms.
+            let short_end = 1
+            while true:
+                let written = argument
+                let attached: string? = .None
+                if short_group:
+                    letter := match shorts.next():
+                        .Some(letter) => letter
+                        .None => break
+                    written = "-$letter"
+                    short_end += written.len() - 1
+                    if written == "-h":
+                        return .Err(CliError.Help(self.usage()))
+                else:
+                    match argument.split_once("="):
+                        .Some((before, after)) =>
+                            written = before
+                            attached = .Some(after)
+                        .None => pass
+                slot := match self.options.get(written):
+                    .None => return .Err(CliError.UnknownOption(written))
+                    .Some(found) => found
+                option := self.declarations[slot]
+                if short_group && option.kind == .Option && short_end < argument.len():
+                    rest := argument.slice(short_end, argument.len())
+                    attached = .Some(rest.strip_prefix("=").unwrap_or(rest))
+                if option.kind == .Flag:
+                    if attached.is_some():
+                        return .Err(CliError.UnexpectedValue(option.name))
+                    flags[option.name] = true
+                    if option.repeated:
+                        flag_counts[option.name] = flag_counts.get(option.name).unwrap_or(0) + 1
+                else:
+                    match attached:
+                        .Some(value) => store_value(option, value, &mut values, &mut histories)?
+                        .None =>
+                            if index >= arguments.len():
+                                return .Err(CliError.MissingValue(option.name))
+                            store_value(option, arguments[index], &mut values, &mut histories)?
+                            index = index + 1
+                # Like clap, the first value-taking short owns the remainder;
+                # only value-free shorts continue through the same iterator.
+                if !short_group || option.kind != .Flag:
+                    break
         if self.commands.len() > 0 && self.command_required && selected.is_empty():
             return .Err(CliError.MissingCommand)
         for arg in self.declarations:

@@ -3730,6 +3730,8 @@ std/cli/subcommands/cli-positional-after-command.hd	runtime	panic:explicit-panic
 std/cli/parsing/cli-automatic-help.hd	runtime	accept	std/cli.md#r-std-cli.error.help-stop
 std/cli/parsing/cli-subcommands.hd	runtime	accept	std/cli.md#r-std-cli.parsed.command
 std/cli/parsing/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
+std/cli/parsing/cli-posix-shorts.hd	runtime	accept	std/cli.md#argument-forms
+std/cli/typed-records/cli-derived-posix-shorts.hd	runtime	accept	std/cli.md#argument-forms
 std/cli/parsing/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 std/cli/usage-text/cli-usage.hd	runtime	accept	std/cli.md#usage-text
 std/cli/parsing/cli-parse-args.hd	runtime	accept	std/cli.md#parsing

@@ -1,0 +1,58 @@
+# test: derived CLI records use the same grouped-short and attached-value grammar as the builder
+# Spec std/cli Argument Forms: std-cli.form.short-group, std-cli.form.short-attached, std-cli.form.short-group-value, std-cli.form.short-group-help, std-cli.form.short-group-unknown, std-cli.form.short-attached-empty; Short Field Facts: std-cli.short.spelling.
+use std.cli.{Cli, CliError, short}
+
+@derive(Cli, Eq, Debug)
+struct Options:
+    @short('n')
+    null_input: List[bool]
+    @short('r')
+    raw: bool
+    @short('é')
+    unicode: bool
+    @short('L')
+    library: List[string]
+
+tests:
+    it("groups repeated and ordinary flags"):
+        parsed := Options::parse(["-nnr"]).expect("flags")
+        assert_equal(parsed.null_input, [true, true], reason="each occurrence")
+        assert(parsed.raw, reason="raw")
+
+    it("a group's final option takes an attached or separate value"):
+        for args in [["-nrLdir"], ["-nrL=dir"], ["-nrL", "dir"], ["-n", "-r", "-Ldir"]]:
+            parsed := Options::parse(args).expect("group with a value")
+            assert_equal(parsed.null_input, [true], reason="leading flag")
+            assert(parsed.raw, reason="second flag")
+            assert_equal(parsed.library, ["dir"], reason="value")
+        parsed := Options::parse(["-Lnr"]).expect("value")
+        assert_equal(parsed.null_input, [], reason="remainder is value")
+        assert_equal(parsed.library, ["nr"], reason="complete remainder")
+
+    it("attached values and aliases retain their order and bytes"):
+        parsed := Options::parse(
+            ["-L=", "-La=b", "-L==x", "-néL=λ", "--library=long", "-L-r", "-L", "--"],
+        )
+            .expect("values")
+        assert_equal(
+            parsed.library,
+            ["", "a=b", "=x", "λ", "long", "-r", "--"],
+            reason="exact values",
+        )
+        assert(parsed.unicode, reason="complete Unicode short")
+        assert(!parsed.raw, reason="value is not a flag")
+
+    it("derived parsing retains grouped errors and automatic help"):
+        assert_equal(
+            Options::parse(["-nrL"]),
+            .Err(CliError.MissingValue("library")),
+            reason="missing value",
+        )
+        assert_equal(
+            Options::parse(["-nx"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="unknown member",
+        )
+        match Options::parse(["-nhx"]):
+            .Err(.Help(_)) => pass
+            _ => panic("grouped help must finish immediately")
