@@ -639,9 +639,6 @@
             local.set $provider0
           end
           local.get $provider0
-          local.get $provider0.vtable
-          local.set $provider0.vtable
-          local.tee $provider0
           local.set $provider1
           local.get $value
           local.get $provider1

@@ -2747,6 +2747,116 @@ mod origin_tests {
         }
     }
 
+    #[test]
+    fn coalescing_removes_self_copies_without_renaming_a_local() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let uses = vec![
+            op(I::LocalGet(0)),
+            op(I::Drop),
+            op(I::LocalGet(1)),
+            op(I::Drop),
+            op(I::LocalGet(2)),
+            op(I::Drop),
+        ];
+        for prefix in [
+            vec![op(I::LocalGet(1)), op(I::LocalSet(1))],
+            vec![
+                op(I::LocalGet(0)),
+                op(I::LocalGet(1)),
+                op(I::LocalSet(1)),
+                op(I::LocalSet(0)),
+            ],
+            vec![op(I::LocalGet(1)), op(I::LocalTee(1)), op(I::LocalSet(1))],
+            vec![
+                op(I::LocalGet(1)),
+                op(I::LocalTee(1)),
+                op(I::LocalTee(1)),
+                op(I::LocalSet(1)),
+            ],
+        ] {
+            let n = prefix.len();
+            let mut body = prefix;
+            body.extend(uses.clone());
+            let f = run(tracked(&symbols, 3, 0, body), coalesce);
+            assert_eq!(format!("{:?}", f.body), format!("{uses:?}"));
+            assert_eq!(
+                spans(&f),
+                (n..n + uses.len())
+                    .map(|i| 10 + u32::try_from(i).unwrap())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(f.params.len(), 3);
+        }
+    }
+
+    #[test]
+    fn self_copy_cleanup_preserves_other_bundle_writes_and_clobbers() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let uses = vec![
+            op(I::LocalGet(0)),
+            op(I::Drop),
+            op(I::LocalGet(1)),
+            op(I::Drop),
+            op(I::LocalGet(2)),
+            op(I::Drop),
+        ];
+        for (prefix, kept) in [
+            (
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalSet(2)),
+                    op(I::LocalSet(0)),
+                ],
+                vec![1, 2],
+            ),
+            (
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalTee(0)),
+                    op(I::Drop),
+                ],
+                vec![0, 4],
+            ),
+            (
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalSet(0)),
+                    op(I::LocalSet(1)),
+                ],
+                vec![0, 1, 2, 3],
+            ),
+            (
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::LocalSet(0)),
+                    op(I::LocalSet(0)),
+                ],
+                vec![0, 1, 2, 3],
+            ),
+        ] {
+            let n = prefix.len();
+            let mut expected: Vec<_> = kept.iter().map(|&i| prefix[i]).collect();
+            expected.extend(uses.clone());
+            let origins: Vec<_> = kept
+                .into_iter()
+                .chain(n..n + uses.len())
+                .map(|i| 10 + u32::try_from(i).unwrap())
+                .collect();
+            let mut body = prefix;
+            body.extend(uses.clone());
+            let f = run(tracked(&symbols, 3, 0, body), coalesce);
+            assert_eq!(format!("{:?}", f.body), format!("{expected:?}"));
+            assert_eq!(spans(&f), origins);
+        }
+    }
+
     /// Each set of a multi-value copy pairs with its get from the end of
     /// the run of gets, a tee ends the run, and a set whose source an
     /// earlier set of the run wrote copies nothing.

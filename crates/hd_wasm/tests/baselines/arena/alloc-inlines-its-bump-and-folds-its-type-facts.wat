@@ -43,8 +43,6 @@
   )
   (func $label (param $arena i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $t0 i32) (local $at i32)
     ;; 21 |     arena.alloc(Label { text: text })
-    local.get $text.0
-    local.set $text.0
     block
       local.get $arena
       i32.load $heap

@@ -2195,7 +2195,8 @@ impl Scan {
 /// each into a class of its type whose pieces leave a hole holding all of
 /// it, the one whose next piece starts soonest after it, else a class of
 /// its own. A copy between two locals of one class then goes, a pair of a
-/// multi-value copy too ([`same_local_copies`]).
+/// multi-value copy too ([`same_local_copies`]). Existing self-copies go
+/// even when every local keeps its original index.
 ///
 /// The one probe is a priced limit (#2025): a bundle that fits only a
 /// free class other than the one it probes opens a class, so 13 stage
@@ -2490,7 +2491,12 @@ pub fn coalesce(f: &mut Func) {
         }
     }
     crate::work::liveness(scan.steps);
-    if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
+    let renamed_any = to.iter().enumerate().any(|(x, t)| *t as usize != x);
+    let self_copy = sources.iter().enumerate().any(|(at, source)| {
+        matches!(body[at], Ins::Op(I::LocalSet(x) | I::LocalTee(x))
+            if source.is_some_and(|(y, _)| x == y))
+    });
+    if !renamed_any && !self_copy {
         return;
     }
     let renamed: Vec<Ins> = body
@@ -2502,16 +2508,26 @@ pub fn coalesce(f: &mut Func) {
             other => other,
         })
         .collect();
-    let gone = same_local_copies(&renamed);
+    let gone = if renamed_any {
+        drop(sources);
+        same_local_copies(&renamed, &copy_sources(&renamed, n))
+    } else {
+        same_local_copies(&renamed, &sources)
+    };
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out: Vec<Ins> = Vec::with_capacity(body.len());
     for (at, ins) in renamed.into_iter().enumerate() {
         if gone[at] {
             continue;
         }
-        if let (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalTee(b))) = (out.last(), ins)
+        if let (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalSet(b) | I::LocalTee(b))) =
+            (out.last(), ins)
             && *a == b
         {
+            if matches!(ins, Ins::Op(I::LocalSet(_))) {
+                out.pop();
+                origins.pop();
+            }
             continue;
         }
         out.push(ins);
@@ -2577,35 +2593,19 @@ pub fn copy_sources(body: &[Ins], locals: usize) -> Vec<Option<(u32, usize)>> {
 /// The pairs of multi-value copies `local.get a ...; ... local.set a`
 /// whose two ends name one local and that no set of the run before writes
 /// over: each such pair is a no-op, and taking both ends out leaves every
-/// other pair matched.
-fn same_local_copies(body: &[Ins]) -> Vec<bool> {
+/// other pair matched. A self-copying tee loses only its write, keeping
+/// the pushed value. One scan of [`copy_sources`]'s stamped metadata.
+fn same_local_copies(body: &[Ins], sources: &[Option<(u32, usize)>]) -> Vec<bool> {
     let mut gone = vec![false; body.len()];
-    let mut at = 0;
-    while at < body.len() {
-        if !matches!(body[at], Ins::Op(I::LocalSet(_))) {
-            at += 1;
-            continue;
-        }
-        let start = at;
-        while at < body.len() && matches!(body[at], Ins::Op(I::LocalSet(_))) {
-            at += 1;
-        }
-        let mut gets = start;
-        while gets > 0 && matches!(body[gets - 1], Ins::Op(I::LocalGet(_))) {
-            gets -= 1;
-        }
-        for j in 0..(at - start).min(start - gets) {
-            let (Ins::Op(I::LocalSet(x)), Ins::Op(I::LocalGet(y))) =
-                (body[start + j], body[start - 1 - j])
-            else {
-                continue;
-            };
-            let overwritten = body[start..start + j]
-                .iter()
-                .any(|i| matches!(i, Ins::Op(I::LocalSet(z)) if *z == x));
-            if x == y && !overwritten {
-                gone[start + j] = true;
-                gone[start - 1 - j] = true;
+    // Reuse the linear stamped-copy walk, including its clobber check.
+    // A tee loses only its write: the source value stays on the stack.
+    for (at, source) in sources.iter().copied().enumerate() {
+        if let Some((y, get)) = source
+            && matches!(body[at], Ins::Op(I::LocalSet(x) | I::LocalTee(x)) if x == y)
+        {
+            gone[at] = true;
+            if matches!(body[at], Ins::Op(I::LocalSet(_))) {
+                gone[get] = true;
             }
         }
     }
