@@ -766,7 +766,6 @@ fn link_prepared(
     // the merge, in order, numbers what they added as one serial
     // emission would have (`Module::merge`), so the bytes do not depend
     // on the thread count.
-    let base = m.symbols.snapshot();
     let facts = m.shared_facts();
     let mut units: Vec<_> = input
         .order
@@ -782,7 +781,7 @@ fn link_prepared(
     hd_sched::par_each_mut(&mut units, |_, (id, cell, out)| {
         let cell = cell.take().map(|cell| (*id, cell));
         let emitted = hd_layout::cached_for_run(layouts, || {
-            module::Module::emit_unit(&facts, &base, cell, |m| emit::instance(input, m, *id))
+            module::Module::emit_unit(&facts, cell, |m| emit::instance(input, m, *id))
         });
         *out = Some(emitted);
     });
