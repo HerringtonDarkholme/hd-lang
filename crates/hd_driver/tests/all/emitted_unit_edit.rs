@@ -141,3 +141,34 @@ fn the_merge_of_units_is_linear_in_the_program() {
     assert!(a < b, "{a} {b} {c}");
     assert_eq!(b - a, c - b, "{a} {b} {c}");
 }
+
+/// `use_a` calls `a` through a trait value and `use_b` calls `b`, a later
+/// method of the same trait. Once a vtable keeps only the slots some call
+/// through a trait value names (#2415, #2420), `b`'s slot index depends
+/// on whether any call names `a`: an edit that takes away the only dyn
+/// call of `a` must emit `use_b` again, and the warm module is the cold
+/// build's of the edited source.
+#[test]
+fn removing_the_only_dyn_call_of_a_method_emits_the_dyn_calls_of_its_trait() {
+    let files = |use_a: &str| {
+        vec![(
+            "main.hd".to_owned(),
+            format!(
+                "trait Shape:\n    fn a(&self) -> i64\n    fn b(&self) -> i64\n\n\
+                 struct Sq:\n    k: i64\n\n\
+                 impl Shape for Sq:\n    fn a(&self) -> i64:\n        self.k\n    fn b(&self) -> i64:\n        self.k + 1\n\n\
+                 fn use_a(s: &dyn Shape) -> i64:\n    {use_a}\n\n\
+                 fn use_b(s: &dyn Shape) -> i64:\n    s.b()\n\n\
+                 pub fn main() -> void $ Console:\n    s := Sq {{ k: 2 }}\n    println(\"${{use_a(&s)}} ${{use_b(&s)}}\")\n"
+            ),
+        )]
+    };
+    let store = MemoryStore::default();
+    build(&store, &files("s.a()"));
+    let edited = files("1");
+    let warm = build(&store, &edited);
+    let emitted = own_emitted(&warm);
+    assert!(emitted.contains(&"own/main/use_a"), "{emitted:?}");
+    assert!(emitted.contains(&"own/main/use_b"), "{emitted:?}");
+    assert_eq!(warm.wasm, build(&MemoryStore::default(), &edited).wasm);
+}
