@@ -765,15 +765,15 @@ fn open_stops_early_on_a_large_file() {
     );
 }
 
-/// A `File`'s last drop releases its descriptor, on both engines: under a
-/// limit of 128 descriptors the program opens a file 2048 times
-/// (`std-fs.open.released`).
+/// A `using!` binding's dispose closes its `File`, on both engines: under
+/// a limit of 128 descriptors the program opens a file 2048 times
+/// (`std-fs.open.dispose`).
 #[cfg(unix)]
 #[test]
-fn dropped_files_release_their_descriptors() {
+fn disposed_files_release_their_descriptors() {
     let dir = program(
         "open-release",
-        include_str!("programs/wasmtime_engine/dropped_files_release_their_descriptors.hd"),
+        include_str!("programs/wasmtime_engine/disposed_files_release_their_descriptors.hd"),
     );
     std::fs::write(dir.join("one.txt"), "x").expect("seed");
     let hd_bin = env!("CARGO_BIN_EXE_hd");

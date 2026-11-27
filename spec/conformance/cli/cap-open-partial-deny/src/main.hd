@@ -4,8 +4,8 @@ use std.path.Path
 
 fn attempt!(path: string) -> string $ FsRead:
     match open!(Path(path)):
-        .Ok(file) =>
-            let mut file = file
+        .Ok(opened) =>
+            using! file = opened
             match file.read!(64):
                 .Ok(bytes) => "read ${bytes.len()} bytes"
                 .Err(_) => "read failed"

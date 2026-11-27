@@ -7,7 +7,7 @@ use std.path.Path
 use std.testing.{assert_equal, temp_dir}
 
 fn chunks!(path: Path, max: usize) -> Result[List[List[u8]], FsError] $ FsRead:
-    let mut file = open!(path)?
+    using! file = open!(path)?
     let mut found: List[List[u8]] = []
     while true:
         match file.read!(max):
@@ -42,7 +42,8 @@ it("the host and MemoryFs read a file in the same chunks"):
 it("a BufReader over a host file keeps each line ending"):
     file := temp_dir().join("lines.txt")
     write_bytes!(file, "a\r\nb\n".to_utf8()).expect("seed the file")
-    let mut lines = BufReader::new(open!(file).expect("open")).lines()
+    using! source = open!(file).expect("open")
+    let mut lines = BufReader::new(source).lines()
     assert_equal(lines.next!(), .Some(.Ok("a\r\n")), reason="the CRLF line")
     assert_equal(lines.next!(), .Some(.Ok("b\n")), reason="the LF line")
     assert_equal(lines.next!(), .None, reason="the end")

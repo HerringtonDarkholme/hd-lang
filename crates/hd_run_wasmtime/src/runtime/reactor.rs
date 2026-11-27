@@ -63,7 +63,7 @@ pub enum Done {
     Fs(crate::codec::Enc),
     /// `FsRead.open` of a special file: the file, or the encoded error.
     Opened(Result<std::fs::File, crate::codec::Enc>),
-    /// `FileHandle.read` of a special file: the bytes read.
+    /// `File.read` of a special file: the bytes read.
     Read(std::io::Result<Vec<u8>>),
     /// `Workers.send!`: the encoded reply or `CrossError`.
     Workers(crate::codec::Enc),

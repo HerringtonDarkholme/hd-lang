@@ -163,10 +163,13 @@ pub fn stdin() -> Stdin $ ConsoleInput
 3. r[std-console.stdin.exact] A host `Stdin` returns the input's bytes exactly as read: a `\r\n` stays two bytes, and bytes that are not UTF-8 stay as they are.
 4. r[std-console.stdin.chunks] Each `read!(max)` of the host's `Stdin` is one host call. It returns the bytes that have arrived, at most `max`, as soon as there is one, and an empty list at the end of input.
 5. r[std-console.stdin.shared] The host's `Stdin`, `read_line!`, and `read_all!` read one buffered input, so each byte goes to exactly one of them, in the order the calls ask.
+6. r[std-console.stdin.not-disposable] A `Stdin` is not a closable handle: standard input belongs to the process, not to the code that reads it, so nothing disposes it, and every `stdin()` reads the same input.
 
 > **Why.** A line read decodes text and drops line endings. A filter that
 > copies its input, or a decoder that frames values its own way, needs
-> the bytes as they are.
+> the bytes as they are. A file is disposed where its scope ends
+> ([Reading Files In Chunks](fs.md#reading-files-in-chunks)); standard input
+> is not, as Rust's `Stdin` has no `close`.
 
 ## Console Errors
 

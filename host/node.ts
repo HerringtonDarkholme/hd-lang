@@ -913,20 +913,44 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
   const providers = Object.fromEntries(
     Object.entries(fileOperations).map(([module, ops]) => [module, fsOps(module, ops)]),
   );
-  // An open file's handle is its descriptor (fileOperations' `open`).
+  // An open file's handle is a number never issued twice, not its
+  // descriptor, so an alias of a disposed file is `Closed` even once the
+  // OS reuses the descriptor (std-fs.open.dispose).
+  const files = new Map<number, number>();
+  let nextFile = 1;
+  const reads = providers["hd:FsRead"];
   return {
     ...providers,
     "hd:FsRead": {
-      ...providers["hd:FsRead"],
-      "FileHandle.read": (fd: number, max: number) => {
+      ...reads,
+      open: (path: string) => {
+        const opened = reads.open(path);
+        if (!opened.ok) {
+          return opened;
+        }
+        files.set(nextFile, opened.value);
+        return Ok(nextFile++);
+      },
+      "File.read": (file: number, max: number) => {
         flush();
+        const fd = files.get(file);
+        if (fd === undefined) {
+          return Err({ tag: "Closed" });
+        }
         try {
           return Ok(readOpen(fd, max >>> 0));
         } catch (error) {
           return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
         }
       },
-      "FileHandle.$release": (fd: number) => closeSync(fd),
+      // `dispose!` closes an open file; disposing a closed one does nothing.
+      "File.dispose": (file: number) => {
+        const fd = files.get(file);
+        if (fd !== undefined) {
+          files.delete(file);
+          closeSync(fd);
+        }
+      },
     },
   };
 }

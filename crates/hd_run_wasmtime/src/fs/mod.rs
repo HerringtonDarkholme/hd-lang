@@ -40,10 +40,7 @@ pub(crate) fn call(
     caller: &mut Caller<'_, Host>,
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
-    if matches!(
-        method.id,
-        Id::FsReadFileHandleRead | Id::FsReadFileHandleRelease
-    ) {
+    if matches!(method.id, Id::FsReadFileRead | Id::FsReadFileDispose) {
         return file::call(method.id, finish, caller, params);
     }
     if finish {

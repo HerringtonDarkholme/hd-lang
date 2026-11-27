@@ -62,8 +62,8 @@ fn host(
         | Id::FsReadListDir
         | Id::FsReadStat
         | Id::FsReadOpen
-        | Id::FsReadFileHandleRead
-        | Id::FsReadFileHandleRelease
+        | Id::FsReadFileRead
+        | Id::FsReadFileDispose
         | Id::FsWriteWriteBytes
         | Id::FsWriteWriteText
         | Id::FsWriteAppendText

@@ -296,7 +296,7 @@ const readBytes = (path: string, size?: number): Uint8Array => {
 // makes more calls, so a chunk is never allocated ahead of its bytes.
 const READ_CHUNK = 65536;
 
-// `FileHandle.read`: the next bytes of the open file `fd`, at most `max`,
+// `File.read`: the next bytes of the open file `fd`, at most `max`,
 // all that are left when fewer, as the Rust host reads a regular file.
 // cost: one host call per chunk, ceil(n / READ_CHUNK) `readSync` calls,
 // and O(n) memory for the n bytes read.
@@ -317,9 +317,9 @@ export const readOpen = (fd: number, max: number): Uint8Array => {
 
 export const fileOperations = {
   "hd:FsRead": {
-    // A file opened for reading: its descriptor is the handle's number
-    // until `FileHandle.$release` closes it (std-fs.open.released). A
-    // directory is `IsADirectory`, as its read would be.
+    // A file opened for reading: its descriptor, which `File.dispose`
+    // closes (std-fs.open.dispose). A directory is `IsADirectory`, as its
+    // read would be.
     open: (path: string) => {
       const fd = opening(path, () => openSync(path, "r"));
       if (fstatSync(fd).isDirectory()) {

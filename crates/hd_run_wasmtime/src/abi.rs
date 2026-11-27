@@ -280,8 +280,8 @@ impl Wire for EntryKind {
     }
 }
 
-/// `FileHandle`, a host handle: its handle number.
-pub type FileHandle = Handle;
+/// `File`, a host handle: its handle number.
+pub type File = Handle;
 
 /// `FormError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -467,7 +467,7 @@ impl Wire for HostError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum IoError {
     Closed,
-    NotGranted,
+    NotGranted { subject: String },
     InvalidUtf8,
     Other { message: String },
 }
@@ -478,8 +478,9 @@ impl Wire for IoError {
             Self::Closed => {
                 e.leb(0);
             }
-            Self::NotGranted => {
+            Self::NotGranted { subject } => {
                 e.leb(1);
+                subject.enc(e);
             }
             Self::InvalidUtf8 => {
                 e.leb(2);
@@ -493,7 +494,9 @@ impl Wire for IoError {
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
         Ok(match d.tag(4)? {
             0 => Self::Closed,
-            1 => Self::NotGranted,
+            1 => Self::NotGranted {
+                subject: Wire::dec(d)?,
+            },
             2 => Self::InvalidUtf8,
             _ => Self::Other {
                 message: Wire::dec(d)?,
@@ -1177,8 +1180,8 @@ pub enum Id {
     PropertyRunnerStart,
     PropertyRunnerRecord,
     PropertyRunnerShow,
-    FsReadFileHandleRead,
-    FsReadFileHandleRelease,
+    FsReadFileRead,
+    FsReadFileDispose,
     ConsoleInputStdinHandleRead,
     NetTcpStreamRead,
     NetTcpStreamWrite,
@@ -1333,7 +1336,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: Some(ResourceArg::Path),
         params: &[Codec::Buffer("Path")],
-        result: Codec::Buffer("Result[FileHandle, FsError]"),
+        result: Codec::Buffer("Result[File, FsError]"),
     },
     HostMethod {
         id: Id::FsWriteWriteBytes,
@@ -1646,19 +1649,19 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Void,
     },
     HostMethod {
-        id: Id::FsReadFileHandleRead,
+        id: Id::FsReadFileRead,
         module: "hd:FsRead",
-        name: "FileHandle.read",
+        name: "File.read",
         wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
         result: Codec::Buffer("Result[List[u8], IoError]"),
     },
     HostMethod {
-        id: Id::FsReadFileHandleRelease,
+        id: Id::FsReadFileDispose,
         module: "hd:FsRead",
-        name: "FileHandle.$release",
-        wait: Wait::Never,
+        name: "File.dispose",
+        wait: Wait::May,
         resource: None,
         params: &[Codec::Scalar(Scalar::I32)],
         result: Codec::Void,

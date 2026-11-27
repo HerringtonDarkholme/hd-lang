@@ -8,10 +8,9 @@
 //! owner of its pending calls (#2081). An entry records the contract
 //! interface of its generated handle trait, that trait's dispatch, and the
 //! trait object. The host's own handles that a std handle trait names
-//! (`hd_host_abi::HANDLES` rows with a release row, as `std.fs.FileHandle`)
-//! live here too, under an interface number no contract issues and with no
-//! dispatch: their methods are host methods, which reach the value with
-//! [`Handles::host`].
+//! (`hd_host_abi::HANDLES` rows, as `std.fs.File`) live here too, under
+//! an interface number no contract issues and with no dispatch: their
+//! methods are host methods, which reach the value with [`Handles::host`].
 //!
 //! The table follows slotmap's `SlotMap`: a vector of slots, each with a
 //! generation, and a free list of the vacant ones. A handle number is the

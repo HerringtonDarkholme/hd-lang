@@ -90,7 +90,7 @@ export const Entry = data({
   size: unsigned64,
   modified: option(Timestamp),
 });
-export const FileHandle = handle;
+export const File = handle;
 export const FsError = variants({
   NotFound: { path: Path },
   PermissionDenied: { path: Path },
@@ -110,7 +110,7 @@ export const HostError = variants({
 });
 export const IoError = variants({
   Closed: {},
-  NotGranted: {},
+  NotGranted: { subject: str },
   InvalidUtf8: {},
   Other: { message: str },
 });
@@ -297,16 +297,16 @@ export const METHODS = {
       wait: "may",
       resource: "path",
       params: [Path],
-      result: result(FileHandle, FsError),
+      result: result(File, FsError),
     },
-    "FileHandle.read": {
+    "File.read": {
       wait: "may",
       resource: null,
       params: ["i32", "i32"],
       result: result(bytes, IoError),
     },
-    "FileHandle.$release": {
-      wait: "never",
+    "File.dispose": {
+      wait: "may",
       resource: null,
       params: ["i32"],
       result: "void",

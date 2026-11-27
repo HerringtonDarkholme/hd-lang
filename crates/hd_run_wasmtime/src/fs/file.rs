@@ -1,14 +1,15 @@
-//! `FsRead.open` and the `std.fs.FileHandle` it returns
+//! `FsRead.open` and the `std.fs.File` it returns
 //! (`std-fs.open.decl`). An open file lives in the instance's handle
 //! registry (`native::Handles`) under [`FILE`], so its number is checked
-//! in O(1) and never issued twice. Each `FileHandle.read` is one read of
+//! in O(1) and never issued twice. Each `File.read` is one read of
 //! at most `max` bytes: a regular file's runs inline on the program
 //! thread, as `read_bytes` does; a special file's (a FIFO, a device) runs
 //! on the blocking pool, so a slow writer never blocks other tasks
-//! (`std-fs.special-file`). `FileHandle.$release`, which the last
-//! reference's release glue calls, drops the file, which closes it
-//! (`std-fs.open.released`). A read in flight holds the file too, so the
-//! descriptor closes when both are done.
+//! (`std-fs.special-file`). `File.dispose`, which a `using!` binding
+//! calls, drops the file, which closes it (`std-fs.open.dispose`); the
+//! number is dead from then on, so a later call through an alias is
+//! `Closed`. A read in flight holds the file too, so the descriptor closes
+//! when both are done.
 //!
 //! Cost: one host call and one `read` system call per chunk, and
 //! O(min(max, the bytes left)) memory; nothing reads the whole file.
@@ -18,7 +19,7 @@ use std::sync::Arc;
 
 use wasmtime::{Caller, Val};
 
-use crate::abi::{FileHandle, FsError, Id, IoError};
+use crate::abi::{File, FsError, Id, IoError};
 use crate::codec::{Enc, encode};
 use crate::host::offload::{finished, not_completed, pending};
 use crate::host::{Host, Ret, Stop, count_arg, int_arg};
@@ -39,7 +40,7 @@ struct Open {
     special: bool,
 }
 
-/// The `Result[FileHandle, FsError]` of an `open`: `file` gets its number.
+/// The `Result[File, FsError]` of an `open`: `file` gets its number.
 pub(crate) fn issue(host: &mut Host, opened: Result<std::fs::File, Enc>, special: bool) -> Enc {
     let file = match opened {
         Ok(file) => file,
@@ -50,14 +51,14 @@ pub(crate) fn issue(host: &mut Host, opened: Result<std::fs::File, Enc>, special
         special,
     });
     match host.handles.insert_host(FILE, value) {
-        Ok(number) => encode(&Ok::<FileHandle, FsError>(crate::codec::Handle(u64::from(
+        Ok(number) => encode(&Ok::<File, FsError>(crate::codec::Handle(u64::from(
             number,
         )))),
-        Err(error) => encode(&Err::<FileHandle, _>(FsError::Other { message: error.0 })),
+        Err(error) => encode(&Err::<File, _>(FsError::Other { message: error.0 })),
     }
 }
 
-/// A `FileHandle.read` `.start` or `.finish`, or `FileHandle.$release`.
+/// A `File.read` or `File.dispose` `.start`, or a read's `.finish`.
 pub(crate) fn call(
     id: Id,
     finish: bool,
@@ -72,16 +73,21 @@ pub(crate) fn call(
     }
     let number = u32::try_from(int_arg(params, 0)?).unwrap_or(0);
     let host = caller.data_mut();
-    if id == Id::FsReadFileHandleRelease {
-        host.handles
-            .release(number, FILE)
-            .map_err(|error| Stop::Contract(error.0))?;
-        return Ok(Ret::void());
+    // A number that is not live was disposed: only unchecked code makes
+    // one this instance never issued. Disposing it again does nothing.
+    let open = host.handles.host::<Open>(number, FILE);
+    if id == Id::FsReadFileDispose {
+        if open.is_some() {
+            host.handles
+                .release(number, FILE)
+                .map_err(|error| Stop::Contract(error.0))?;
+        }
+        return Ret::ready(Enc::default());
     }
-    let max = count_arg(params, 1)?;
-    let Some(open) = host.handles.host::<Open>(number, FILE) else {
-        return Err(Stop::Contract("a read of a file handle that is not open".into()).into());
+    let Some(open) = open else {
+        return Ret::ready(encode(&Err::<Vec<u8>, _>(IoError::Closed)));
     };
+    let max = count_arg(params, 1)?;
     let (file, special) = (Arc::clone(&open.file), open.special);
     if !special {
         return Ret::ready(chunk(read_regular(&file, max)));

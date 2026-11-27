@@ -2,7 +2,8 @@
 # `Entry`, `File`, and the deterministic provider `MemoryFs`
 # (spec/std/fs.md). The default profile binds the host's file system
 # (src/commands/default-profile.ts).
-use std.io.{Cursor, IoError, Read}
+use std.io.{IoError, Read}
+use std.ops.AsyncDisposable
 use std.path.Path
 use std.time.Timestamp
 
@@ -64,33 +65,44 @@ pub trait FsRead:
     # A provider with no handles of its own, `MemoryFs` among them, serves
     # the file's bytes from memory (r-std-fs.open.default). The host's
     # provider opens the file and reads each chunk with one host call.
-    fn open!(self, path: Path) -> Result[*mut dyn FileHandle, FsError]:
+    fn open!(self, path: Path) -> Result[*mut dyn File, FsError]:
         bytes := self.read_bytes!(path)?
         # Boxed because the returned handle outlives this call.
-        .Ok(box(Cursor::new(bytes)))
+        .Ok(box(MemoryFile { bytes: bytes, at: 0, closed: false }))
 
-# The host's file handles are host handles (hd_host_abi::HANDLES): each
-# method is one host call with the handle's number, and the last release
-# of the box releases the host's file (r-std-fs.open.released).
-## An open file's reader, as a provider's `open!` returns it.
+# The host's files are host handles (hd_host_abi::HANDLES): each method,
+# `dispose!` among them, is one host call with the handle's number.
+## A file opened for reading: a closable handle that a `using!` binding disposes.
 ## See [std-fs.open.handle](../../spec/std/fs.md#r-std-fs.open.handle).
-pub trait FileHandle < Read
+pub trait File < Read & AsyncDisposable
 
-impl FileHandle for Cursor
+# The default `open!`'s file: its bytes, read as a `Cursor` reads them,
+# until it is disposed. cost: O(the chunk) per read, as `Cursor`'s.
+struct MemoryFile:
+    bytes: List[u8]
+    at: usize
+    closed: bool
 
-## A file opened for reading. It implements `Read`, and its file is released when the last copy of it is dropped.
-## See [std-fs.open.decl](../../spec/std/fs.md#r-std-fs.open.decl).
-pub struct File:
-    handle: *mut dyn FileHandle
-
-impl Read for File:
+impl Read for MemoryFile:
     fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
-        self.handle.read!(max)
+        if self.closed:
+            return .Err(IoError.Closed)
+        size := self.bytes.len()
+        end := if size - self.at < max: size else: self.at + max
+        chunk := self.bytes.slice(self.at, end)
+        self.at = end
+        .Ok(chunk)
+
+impl AsyncDisposable for MemoryFile:
+    fn dispose!(&mut self) -> void:
+        self.closed = true
+
+impl File for MemoryFile
 
 ## Opens the file at `path` for reading in chunks, through the covering `FsRead` provider.
 ## See [std-fs.open.decl](../../spec/std/fs.md#r-std-fs.open.decl).
-pub fn open!(path: Path) -> Result[File, FsError] $ FsRead:
-    .Ok(File { handle: $.use(FsRead).open!(path)? })
+pub fn open!(path: Path) -> Result[*mut dyn File, FsError] $ FsRead:
+    $.use(FsRead).open!(path)
 
 ## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, and `copy!`.
 ## See [std-fs.write.copy-decl](../../spec/std/fs.md#r-std-fs.write.copy-decl).

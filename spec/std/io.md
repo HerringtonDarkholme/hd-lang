@@ -54,7 +54,7 @@ fn count_bytes![R < Read](source: &mut R) -> Result[usize, IoError]:
 ```text
 pub enum IoError:
     Closed
-    NotGranted
+    NotGranted(subject: string)
     InvalidUtf8
     Other(message: string)
 ```
@@ -62,6 +62,8 @@ pub enum IoError:
 1. r[std-io.error.decl] `std.io` declares `IoError` as above. It implements `Debug`, `Eq`, and `Display`. Code imports it, as in `use std.io.IoError`.
 2. r[std-io.error.other] `Other` holds a host read failure with the host's message.
 3. r[std-io.error.invalid-utf8] `InvalidUtf8` reports bytes that a read of text, such as [`BufReader.read_line!`](#buffered-reading), cannot decode as UTF-8.
+4. r[std-io.error.closed] `Closed` reports a read of a source that was disposed, such as a [`File`](fs.md#reading-files-in-chunks).
+5. r[std-io.error.not-granted] `NotGranted(subject)` reports a source that the run's grants do not cover. Its `Display` text is `access to SUBJECT is not granted`.
 
 ## Cursor
 
@@ -117,11 +119,14 @@ pub struct Lines[R < Read]
 6. r[std-io.buf-reader.read] `read!(max)` returns buffered bytes first. With an empty buffer, a `max` of at least the capacity reads `inner` directly, and a smaller one refills the buffer.
 7. r[std-io.buf-reader.into-inner] `into_inner(self) -> R` returns the source. Bytes still in the buffer are dropped.
 8. r[std-io.buf-reader.cost] A line costs O(its length): each byte is read from `inner` once, scanned once, and copied once.
+9. r[std-io.buf-reader.dispose] A `BufReader` does not dispose its source. The binding that opened the source disposes it, as `using! file = open!(path)?` does, and a reader made from `file` holds a copy of the same handle.
 
 > **Why.** Line endings stay, as Rust's `read_line` and Go's
 > `ReadString('\n')` keep them, so a filter writes back exactly the bytes
 > it read. `Lines` is a cursor with a bang `next!`, not an `Iterator`,
-> because reading suspends.
+> because reading suspends. As Go's `bufio.Reader` has no `Close`, one
+> binding owns each handle's disposal, so a wrapper never closes a source
+> that the code which opened it still uses.
 
 See also: [Reading Files In Chunks](fs.md#reading-files-in-chunks),
 [Standard Input Bytes](console.md#standard-input-bytes).

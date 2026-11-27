@@ -208,7 +208,7 @@ pub static TABLE: &[HostTrait] = &[
             m(
                 "open",
                 &[B("Path")],
-                B("Result[FileHandle, FsError]"),
+                B("Result[File, FsError]"),
                 Wait::May,
                 Some(ResourceArg::Path),
             ),
@@ -459,28 +459,20 @@ pub static RUNNERS: &[HostTrait] = &[
 /// take the handle first, as an `i32`; they are imported from the module
 /// of the capability that made the handle, named `<Trait>.<method>`. A
 /// supertrait's methods are the handle trait's too, as `TcpStream.dispose`
-/// for `std.ops.AsyncDisposable`. A handle whose host resource goes with
-/// its last reference has a [`RELEASE`] row: the release glue of the box
-/// that holds its number calls it, once.
+/// for `std.ops.AsyncDisposable`.
 pub static HANDLES: &[HostTrait] = &[
     HostTrait {
         key: "FsRead",
-        std_path: "std.fs.FileHandle",
+        std_path: "std.fs.File",
         methods: &[
             m(
-                "FileHandle.read",
+                "File.read",
                 &[S(Scalar::I32), S(Scalar::I32)],
                 B("Result[List[u8], IoError]"),
                 Wait::May,
                 None,
             ),
-            m(
-                "FileHandle.$release",
-                &[S(Scalar::I32)],
-                V,
-                Wait::Never,
-                None,
-            ),
+            m("File.dispose", &[S(Scalar::I32)], V, Wait::May, None),
         ],
     },
     HostTrait {
@@ -621,19 +613,6 @@ pub static HANDLES: &[HostTrait] = &[
         ],
     },
 ];
-
-/// The member name of a handle's release row, which no std method declares.
-pub const RELEASE: &str = "$release";
-
-/// Handle trait `t`'s release row, `<Trait>.$release`, if its host
-/// resource goes with the last reference to it.
-#[must_use]
-pub fn release_row(t: &HostTrait) -> Option<&'static str> {
-    t.methods
-        .iter()
-        .find(|m| m.name.rsplit('.').next() == Some(RELEASE))
-        .map(|m| m.name)
-}
 
 /// The host trait, capability or runner, whose std path is `std_path`.
 #[must_use]
@@ -798,9 +777,6 @@ mod tests {
             for m in t.methods {
                 // A handle's method is named `<Trait>.<method>`.
                 let method = m.name.rsplit('.').next().unwrap_or(m.name);
-                if method == super::RELEASE {
-                    continue;
-                }
                 assert!(
                     text.contains(&format!("fn {method}")),
                     "{}.{} missing",

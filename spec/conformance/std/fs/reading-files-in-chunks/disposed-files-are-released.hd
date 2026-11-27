@@ -1,0 +1,45 @@
+# fixture-test-layout: integration
+# test: a using! binding disposes its File, which closes it through every copy, so a program opens more files than the OS lets one hold at once
+# Spec std/fs Reading Files In Chunks: std-fs.open.dispose, std-fs.open.default.
+use std.fs.{File, FsRead, FsWrite, MemoryFs, open, write_text}
+use std.io.{IoError, Read}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+fn first_byte!(path: Path) -> u8 $ FsRead:
+    using! file = open!(path).expect("open the file")
+    file.read!(1).expect("read a byte")[0]
+
+fn read_held!(file: *mut dyn File) -> List[u8]:
+    using! held = file
+    held.read!(1).expect("read a byte")
+
+fn closes_every_copy!(root: Path) -> void $ FsRead + FsWrite:
+    path := root.join("two.txt")
+    write_text!(path, "ab").expect("seed the file")
+    file := open!(path).expect("open the file")
+    assert_equal(read_held!(file), [97], reason="the binding reads before its dispose")
+    assert_equal(file.read!(1), .Err(IoError.Closed), reason="a copy sees the dispose")
+    # A later open may reuse the descriptor; the disposed file stays closed.
+    using! next = open!(path).expect("open the file again")
+    assert_equal(file.read!(1), .Err(IoError.Closed), reason="closed after a later open")
+    assert_equal(next.read!(2), .Ok([97, 98]), reason="the later open reads from the start")
+    file.dispose!()
+    assert_equal(file.read!(1), .Err(IoError.Closed), reason="a second dispose does nothing")
+
+it("opens a file 4096 times, each disposed after one read"):
+    path := temp_dir().join("one.txt")
+    write_text!(path, "x").expect("seed the file")
+    # More than the usual per-process descriptor limit (256 on macOS, 1024
+    # on Linux): without the dispose, an open past it fails.
+    opens := usize(4096)
+    let total: usize = 0
+    for _ in 0..opens:
+        total = total + usize(first_byte!(path))
+    assert_equal(total, opens * 120, reason="every open read its byte")
+
+it("a disposed host file and MemoryFs file are closed through every copy"):
+    closes_every_copy!(temp_dir())
+    files := MemoryFs::new()
+    $.with(FsRead=files, FsWrite=files):
+        closes_every_copy!(Path("/"))

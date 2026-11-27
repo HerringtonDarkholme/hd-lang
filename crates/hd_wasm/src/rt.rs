@@ -608,12 +608,9 @@ pub enum Helper {
         ctx: bool,
         results: Vec<Val>,
     },
-    /// `(payload)`: the last release of a host handle's box calls the
-    /// import `module`.`name` with its number: a package handle's binding
-    /// goes, or a std handle's host resource (`boundary::LHandle::release`).
-    HandleRelease {
+    /// `(payload)`: remove the package handle's host binding on last release.
+    PackageHandleRelease {
         module: String,
-        name: String,
     },
     /// `(end)`: grows the exchange buffer to `end` bytes.
     Fit,
@@ -2352,7 +2349,7 @@ pub fn arity(helper: &Helper) -> (usize, usize) {
         | H::RetainFields { .. }
         | H::DropElems { .. }
         | H::DropEntries { .. }
-        | H::HandleRelease { .. }
+        | H::PackageHandleRelease { .. }
         | H::Fit
         | H::WakeMark
         | H::WakeRegister
@@ -2526,14 +2523,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             ctx,
             results,
         } => crate::boundary::handle_slot(m, inner, params, *ctx, results),
-        Helper::HandleRelease { module, name } => {
-            let package = name == hd_host_abi::RELEASE;
-            let symbol = if package {
-                "rt:package_handle_release"
-            } else {
-                "rt:handle_release"
-            };
-            let mut f = m.func(symbol, vec![Val::I32], vec![]);
+        Helper::PackageHandleRelease { module } => {
+            let mut f = m.func("rt:package_handle_release", vec![Val::I32], vec![]);
             if !m.acyclic {
                 f.global_get(Global::Tracing);
                 f.op(Instruction::If(BlockType::Empty));
@@ -2544,7 +2535,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
             f.call(Sym::Import(Import {
                 module: module.clone(),
-                name: name.clone(),
+                name: "$release".into(),
                 params: vec![Val::I32],
                 results: vec![],
             }));

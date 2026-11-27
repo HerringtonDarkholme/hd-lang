@@ -9,8 +9,8 @@
 pub enum IoError:
     @error("the reader is closed")
     Closed
-    @error("input access is not granted")
-    NotGranted
+    @error("access to ${subject} is not granted")
+    NotGranted(subject: string)
     @error("invalid UTF-8")
     InvalidUtf8
     @error("$message")

@@ -732,7 +732,7 @@ fn rs_type(ty: &Ty, scope: &[String], types: &BTreeMap<String, Reached<'_>>) -> 
 /// in camel case (`Net` `TcpStream.read` is `NetTcpStreamRead`).
 fn rs_id(key: &str, name: &str) -> String {
     let mut out = key.to_owned();
-    for word in name.split(['.', '_', '$']) {
+    for word in name.split(['.', '_']) {
         let mut cs = word.chars();
         if let Some(c) = cs.next() {
             out.push(c.to_ascii_uppercase());

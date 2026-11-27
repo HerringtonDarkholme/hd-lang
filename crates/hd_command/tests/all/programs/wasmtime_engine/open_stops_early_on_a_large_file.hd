@@ -3,7 +3,7 @@ use std.io.Read
 use std.path.Path
 
 pub fn main!() -> void $ Console + FsRead:
-    let mut file = open!(Path("big.bin")).expect("open")
+    using! file = open!(Path("big.bin")).expect("open")
     head := file.read!(16).expect("head")
     let total = head.len()
     let calls: usize = 1

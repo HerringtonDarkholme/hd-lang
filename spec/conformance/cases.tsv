@@ -5549,7 +5549,7 @@ std/error/cause-chain/error-chain-free-function-removed.hd	type	reject:unknown-i
 std/error/error-context/error-context-private-type.hd	type	reject:private-import	std/error.md#r-std-error.context.result-private-wrapper
 std/error/error-context/error-context-private-field.hd	type	reject:unknown-field	std/error.md#r-std-error.context.result-private-wrapper
 std/fs/memory-file-system/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
-std/fs/reading-files-in-chunks/dropped-files-are-released.hd	runtime	accept	std/fs.md#r-std-fs.open.released
+std/fs/reading-files-in-chunks/disposed-files-are-released.hd	runtime	accept	std/fs.md#r-std-fs.open.dispose
 std/fs/reading-files-in-chunks/open-reads-a-file-in-chunks.hd	runtime	accept	std/fs.md#r-std-fs.open.chunks
 std/io/buffered-reading/buf-reader-lines.hd	runtime	accept	std/io.md#r-std-io.buf-reader.read-line
 std/io/reading-in-chunks/cursor-reads-in-chunks.hd	runtime	accept	std/io.md#r-std-io.read.at-most
