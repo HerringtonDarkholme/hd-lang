@@ -273,6 +273,11 @@ pub(crate) fn wrapper(
     leaves: &[Vec<Val>],
     results: Vec<Val>,
 ) -> Func {
+    debug_assert_eq!(
+        abi.params.len(),
+        leaves.len(),
+        "ABI logical parameter groups"
+    );
     let mut params = Vec::new();
     // Per worker parameter: the wrapper's first parameter for it, and the
     // block offset of an address one.
@@ -300,12 +305,18 @@ pub(crate) fn wrapper(
         size = (size + mem.size).next_multiple_of(8);
         (off, mem)
     });
-    let rest = worker.params.len() - plan.len() - usize::from(result.is_some());
-    for k in 0..rest {
+    // Freeze the worker suffix before appending to plan: plan.len() grows
+    // once per forwarded value and cannot also be the suffix's base index.
+    let end = worker.params.len() - usize::from(result.is_some());
+    for &value in &worker.params[plan.len()..end] {
         let at = u32_of(params.len());
-        params.push(worker.params[plan.len() + k]);
+        params.push(value);
         plan.push((at, None));
     }
+    debug_assert_eq!(
+        plan.len() + usize::from(result.is_some()),
+        worker.params.len()
+    );
     let mut f = m.func(format!("{}#leaves", worker.name), params, results);
     let base = f.local(Val::I32);
     let size = size.cast_signed();
