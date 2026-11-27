@@ -3761,8 +3761,13 @@ impl Module {
             exports.export("hd.all_polls", ExportKind::Global, *index);
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
+        // A C provider's host reads its pointer arguments in the heap
+        // (`module.host.package.c-references`), as the count audit does.
         #[cfg(feature = "checked-report")]
-        if self.runtime.report().is_some() {
+        let report = self.runtime.report().is_some();
+        #[cfg(not(feature = "checked-report"))]
+        let report = false;
+        if report || !self.c_tables.is_empty() {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
         let mut manifest = previous.cloned().unwrap_or_default();

@@ -1,6 +1,19 @@
 @host
 pub trait Both:
-    fn read(&self) -> i32
+    fn write(&mut self, path: string, data: &List[u8], at: &mut u64, scale: f32) -> i32
+    fn fill(&mut self, into: &mut List[i32], big: i64, wide: u32) -> bool
+    fn take!(&mut self, limit: usize) -> Result[List[u8], i32]
 
-pub fn main() -> void $ Console + Both:
-    println("${$.use(Both).read()}")
+pub fn main!() -> void $ Console + Both:
+    both := $.use(Both)
+    let mut at: u64 = 7
+    let data: List[u8] = [1, 2, 3]
+    let mut into: List[i32] = [0, 0]
+    let kept = into
+    n := both.write("é.txt", &data, &mut at, 1.5)
+    println("write ${n}, at ${at}")
+    ok := both.fill(&mut into, -5000000000, 4000000000)
+    println("fill ${ok}, into ${into[0]} ${into[1]}, kept ${kept[0]}")
+    match both.take!(2):
+        .Ok(bytes) => println("take ${bytes.len()} ${bytes[0]}")
+        .Err(code) => println("error ${code}")

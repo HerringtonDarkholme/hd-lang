@@ -986,6 +986,7 @@ export function httpProvider(
 function initialState(env: CoreEnv, layer: Dynamic): DynamicRecord {
   return {
     memory: null,
+    heap: null,
     // The operating system's random bytes: the platform's, or webcrypto.
     random: layer?.randomBytes ?? randomBytes,
     // The labels of the facts bodies running, innermost last (`hd:rt`
@@ -1193,6 +1194,15 @@ function buildCoreImports(options: Dynamic): Dynamic {
   const io: DynamicRecord = {
     view,
     text,
+    // The guest heap, which a C-bound method's pointer arguments address
+    // (module.host.package.c-references): exported only by a module with
+    // a C table.
+    heap: (): ArrayBuffer => {
+      if (!st.heap) {
+        throw new HostContract("the guest exports no heap for C pointer arguments");
+      }
+      return st.heap.buffer;
+    },
     put,
     pending,
     finished,
@@ -1524,6 +1534,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // codecs read the exchange buffer through it.
   const prime = (instance: WebAssembly.Instance): void => {
     st.memory = instance.exports["hd.x"] ?? null;
+    st.heap = instance.exports["hd.heap"] ?? null;
     // No facts body runs yet, whatever an earlier input left.
     st.facts = [];
   };

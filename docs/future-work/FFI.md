@@ -1,8 +1,9 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; phase steps 1 and 2 built
-(the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
-check, and the C lowering with its table section), the rest not yet (P3);
+Status: accepted by the owner, 2026-11-27; phase steps 1, 2 and 2b
+built (the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
+check, the C lowering with its table section, and the JavaScript glue
+for a C-bound trait's `js` provider), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 
@@ -628,7 +629,8 @@ Owner, 2026-11-27, on phase step 1's questions:
     arguments, so Node and the web refuse it at startup, `{ c, js }` as a
     C-only trait, with `native-provider-missing`. The generic JavaScript
     glue (typed-array views for pointers, scalar parameters) follows as
-    step 2b and lifts the refusal for `{ c, js }`.
+    step 2b and lifts the refusal for `{ c, js }` (built:
+    [`module.host.package.c-js-views`](../../spec/lang/10-modules.md#r-module.host.package.c-js-views)).
 
 A third answer, on returned handles, takes effect in step 4 and is
 recorded there.

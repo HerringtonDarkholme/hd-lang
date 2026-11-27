@@ -1,12 +1,19 @@
 //! Signature-specific JavaScript glue for package host traits. All text
 //! derived from a declaration is escaped data; helpers come from the host.
 
+use crate::c::{Num, Param, Ret, Table};
 use crate::schema::{Contract, Field, VERSION, Value};
 use std::fmt::Write as _;
 
 /// Generate an ES module without imports, eval, or provider implementation
 /// code. Its invoker passes the trusted host helpers and plain JS providers.
-pub fn generate(contract: &Contract) -> Result<String, &'static str> {
+/// A trait bound to a C provider has a table in `c_tables`: its methods'
+/// imports take C arguments (`module.host.package.c-types`), which the
+/// glue describes beside the contract, with the `hd.c` section's bytes
+/// the runtime checks against the guest's.
+///
+/// Cost: one pass over the contract and the tables.
+pub fn generate(contract: &Contract, c_tables: &[Table]) -> Result<String, &'static str> {
     contract.validate()?;
     if contract.interfaces.is_empty() {
         return Ok(String::new());
@@ -69,8 +76,94 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
         }
         out.push_str("    ] },\n");
     }
-    out.push_str("  ], providers);\n}\n");
+    out.push_str("  ], providers, ");
+    c_methods(&mut out, c_tables);
+    out.push_str(");\n}\n");
     Ok(out)
+}
+
+/// The C argument and result kinds of each C-bound interface's methods,
+/// by import module and method name, with the `hd.c` section's bytes; or
+/// `null` for a contract with no C-bound interface.
+fn c_methods(out: &mut String, tables: &[Table]) {
+    if tables.is_empty() {
+        out.push_str("null");
+        return;
+    }
+    out.push_str("{ section: new Uint8Array([");
+    for (n, b) in crate::c::encode(tables).iter().enumerate() {
+        if n != 0 {
+            out.push(',');
+        }
+        let _ = write!(out, "{b}");
+    }
+    out.push_str("]), methods: {");
+    for (n, t) in tables.iter().enumerate() {
+        if n != 0 {
+            out.push(',');
+        }
+        let _ = write!(out, " {}: {{", quoted(&t.module));
+        for (k, m) in t.methods.iter().enumerate() {
+            if k != 0 {
+                out.push(',');
+            }
+            let _ = write!(out, " {}: {{ params: [", quoted(&m.name));
+            for (j, (_, p)) in m.params.iter().enumerate() {
+                if j != 0 {
+                    out.push(',');
+                }
+                let _ = match *p {
+                    Param::Bool => write!(out, "[\"bool\"]"),
+                    Param::Num(n) => write!(out, "[\"num\",\"{}\"]", num(n)),
+                    Param::Ref { num: n, mutable } => {
+                        write!(out, "[\"ref\",\"{}\",{mutable}]", num(n))
+                    }
+                    Param::List { num: n, mutable } => {
+                        write!(out, "[\"list\",\"{}\",{mutable}]", num(n))
+                    }
+                    Param::Str => write!(out, "[\"str\"]"),
+                };
+            }
+            out.push_str("], result: ");
+            ret(out, &m.result);
+            out.push_str(" }");
+        }
+        out.push_str(" }");
+    }
+    out.push_str(" } }");
+}
+
+fn ret(out: &mut String, r: &Ret) {
+    match r {
+        Ret::Void => out.push_str("[\"void\"]"),
+        Ret::Bool => out.push_str("[\"bool\"]"),
+        Ret::Num(n) => {
+            let _ = write!(out, "[\"num\",\"{}\"]", num(*n));
+        }
+        Ret::Bytes => out.push_str("[\"bytes\"]"),
+        Ret::Result(inner) => {
+            out.push_str("[\"result\",");
+            ret(out, inner);
+            out.push(']');
+        }
+    }
+}
+
+/// A C number's hd name, which the JS runtime keys its views by.
+fn num(n: Num) -> &'static str {
+    match n {
+        Num::I8 => "i8",
+        Num::I16 => "i16",
+        Num::I32 => "i32",
+        Num::I64 => "i64",
+        Num::U8 => "u8",
+        Num::U16 => "u16",
+        Num::U32 => "u32",
+        Num::U64 => "u64",
+        Num::Usize => "usize",
+        Num::F32 => "f32",
+        Num::F64 => "f64",
+    }
 }
 
 fn fields(out: &mut String, fs: &[Field]) {
@@ -188,9 +281,72 @@ mod tests {
     use std::io::Write as _;
     use std::process::Stdio;
 
+    /// A C-bound interface's glue names each method's C argument and
+    /// result kinds, with the `hd.c` section's bytes; other glue passes
+    /// `null`.
+    #[test]
+    fn c_bound_glue_describes_c_arguments_beside_the_contract() {
+        use crate::c::{Method, Num, Param, Ret, Table};
+        let contract = crate::schema::tests::sample();
+        assert!(
+            generate(&contract, &[])
+                .unwrap()
+                .contains("], providers, null);")
+        );
+        let root = contract.interfaces.iter().find(|i| !i.handle).unwrap();
+        let table = Table {
+            module: root.module.clone(),
+            trait_name: "Store".into(),
+            methods: vec![
+                Method {
+                    name: "put".into(),
+                    params: vec![
+                        ("path".into(), Param::Str),
+                        (
+                            "into".into(),
+                            Param::List {
+                                num: Num::I32,
+                                mutable: true,
+                            },
+                        ),
+                        (
+                            "at".into(),
+                            Param::Ref {
+                                num: Num::U64,
+                                mutable: false,
+                            },
+                        ),
+                        ("on".into(), Param::Bool),
+                        ("x".into(), Param::Num(Num::F32)),
+                    ],
+                    result: Ret::Num(Num::Usize),
+                    suspends: false,
+                },
+                Method {
+                    name: "take".into(),
+                    params: Vec::new(),
+                    result: Ret::Result(Box::new(Ret::Bytes)),
+                    suspends: true,
+                },
+            ],
+        };
+        let glue = generate(&contract, std::slice::from_ref(&table)).unwrap();
+        let section: Vec<String> = crate::c::encode(&[table])
+            .iter()
+            .map(u8::to_string)
+            .collect();
+        assert!(glue.contains(&format!(
+            "{{ section: new Uint8Array([{}]), methods: {{ {}: {{",
+            section.join(","),
+            quoted(&root.module)
+        )));
+        assert!(glue.contains(r#""put": { params: [["str"],["list","i32",true],["ref","u64",false],["bool"],["num","f32"]], result: ["num","usize"] }"#));
+        assert!(glue.contains(r#""take": { params: [], result: ["result",["bytes"]] }"#));
+    }
+
     #[test]
     fn ordinary_programs_emit_no_glue() {
-        assert_eq!(generate(&Contract::default()).unwrap(), "");
+        assert_eq!(generate(&Contract::default(), &[]).unwrap(), "");
     }
 
     #[test]
@@ -198,7 +354,7 @@ mod tests {
         let mut c = crate::schema::tests::sample();
         // Raw names cannot inject module code, alter prototypes, or break strings.
         c.interfaces[0].methods[0].name = "__proto__\"\\\n\u{2028}".into();
-        let glue = generate(&c).unwrap();
+        let glue = generate(&c, &[]).unwrap();
         let script = format!(
             r"
 const exports = await import('data:text/javascript,' + encodeURIComponent({}));
