@@ -2215,7 +2215,10 @@ mod origin_tests {
             let mut f = tracked(&symbols, 1, 2, body.clone());
             let mut dead = Live::dead_accesses(&f, None).expect("analysed");
             let mut rounds = 0;
-            while let Some(next) = live_once(&mut f, &Arity::new(), &dead) {
+            let mut changed: Option<Vec<usize>> = None;
+            while let Some((next, touched)) =
+                live_once(&mut f, &Arity::new(), &dead, changed.as_deref())
+            {
                 assert_eq!(
                     Some(&next),
                     Live::dead_accesses(&f, None).as_ref(),
@@ -2223,6 +2226,7 @@ mod origin_tests {
                     f.body
                 );
                 dead = next;
+                changed = Some(touched);
                 rounds += 1;
             }
             assert!(rounds > 0, "{body:?} rewrites");

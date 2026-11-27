@@ -2223,12 +2223,37 @@ pub fn live_rules(f: &mut Func, arity: &Arity, cfg: Option<Cfg>) -> bool {
         return false;
     };
     let mut any = false;
-    while let Some(next) = live_once(f, arity, &dead) {
+    let mut changed: Option<Vec<usize>> = None;
+    loop {
+        // A whole round, uncounted, to check the round over changed spans.
+        #[cfg(debug_assertions)]
+        let whole = changed.as_ref().map(|_| {
+            crate::work::count_liveness(|| {
+                let mut g = f.clone();
+                let d = live_once(&mut g, arity, &dead, None).map(|r| r.0);
+                (d, format!("{:?}", g.body))
+            })
+            .0
+        });
+        let Some((next, edits)) = live_once(f, arity, &dead, changed.as_deref()) else {
+            #[cfg(debug_assertions)]
+            debug_assert!(
+                whole.is_none_or(|(d, _)| d.is_none()),
+                "rule 13's round over the changed spans missed a rewrite"
+            );
+            break;
+        };
+        #[cfg(debug_assertions)]
+        debug_assert!(
+            whole.is_none_or(|(d, b)| d.as_ref() == Some(&next) && b == format!("{:?}", f.body)),
+            "rule 13's round over the changed spans differs from a whole round"
+        );
         debug_assert!(
             Live::dead_accesses(f, None).is_none_or(|solved| solved == next),
             "rule 13's carried dead accesses differ from a new liveness pass"
         );
         dead = next;
+        changed = Some(edits);
         any = true;
     }
     any
@@ -2250,7 +2275,26 @@ const NONE: u32 = u32::MAX;
 /// exactly when `m`'s last old access in the union was: what follows the
 /// union is unchanged. Each access is walked in at most one union, and
 /// the moves are sorted once: `O(B + M log M)` for `M` moves, no set.
-pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
+///
+/// `changed`, from the round before, lists in order the positions that
+/// round touched: a new or rewritten instruction, the first one after a
+/// removed run (the body's length for its end), and one whose dead flag
+/// moved. A candidate reads only its window, from its push or the start
+/// of its row of sets to one past its get, and the round's state changes
+/// only where it accepts. So a candidate whose window holds no touched
+/// position reads what it read last round, where it was refused, and a
+/// refusal that came from the state names an accepted position in the
+/// window: it is refused again without its walks. A dead write sits at a
+/// touched position too, and the new body is copied in runs between the
+/// edits. A nest of `N` pairs, peeled one per round, then costs `N`
+/// rounds of a few array passes, not `N` rounds of every candidate's
+/// walks and a per-instruction rebuild.
+pub fn live_once(
+    f: &mut Func,
+    arity: &Arity,
+    dead: &[bool],
+    changed: Option<&[usize]>,
+) -> Option<(Vec<bool>, Vec<usize>)> {
     crate::work::liveness(f.body.len());
     let body = &f.body;
     let mut origins = Remap::new(f.origins.as_deref());
@@ -2272,6 +2316,9 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
     let mut next = vec![NONE; body.len()];
     // `(m, p, j)`: the read of local `m` at `p` moves to `j`.
     let mut reads_moved: Vec<(u32, u32, usize)> = Vec::new();
+    // The positions the rewrite edits, and the gets that take a push.
+    let mut edits: Vec<usize> = Vec::new();
+    let mut takers: Vec<usize> = Vec::new();
     let mut seen = vec![NONE; f.params.len() + f.locals.len()];
     for (at, ins) in body.iter().enumerate().rev() {
         if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = ins {
@@ -2279,12 +2326,18 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
             seen[*l as usize] = u32::try_from(at).expect("body");
         }
     }
+    // The start of the row of sets that ends at `k`, as `matching_push`
+    // walks it.
+    let mut row = 0;
     for k in 0..body.len() {
         let tee = match body[k] {
             Ins::Op(I::LocalSet(_)) => false,
             Ins::Op(I::LocalTee(_)) => true,
             _ => continue,
         };
+        if tee || k == 0 || !matches!(body[k - 1], Ins::Op(I::LocalSet(_))) {
+            row = k;
+        }
         if dead[k] {
             continue;
         }
@@ -2298,6 +2351,20 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
         let j = j as usize;
         if !matches!(body[j], Ins::Op(I::LocalGet(_))) {
             continue;
+        }
+        if let Some(changed) = changed {
+            // The window's first position: the push a tee keeps, or the
+            // first instruction `matching_push` reads.
+            let lo = if tee {
+                k.saturating_sub(1)
+            } else {
+                row.checked_sub(1 + (k - row))
+                    .unwrap_or_else(|| row.saturating_sub(1))
+            };
+            let t = changed.partition_point(|&x| x < lo);
+            if changed.get(t).is_none_or(|&x| x > j + 1) {
+                continue;
+            }
         }
         let last = dead[j];
         let Some(level) = single_use(body, k, j, arity, &f.symbols) else {
@@ -2316,7 +2383,12 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
         {
             // A tee's push stays where it is, and the get reads it again.
             gone[p] = !tee;
+            if !tee {
+                edits.push(p);
+            }
             moved[j] = u32::try_from(p).expect("body");
+            edits.push(j);
+            takers.push(j);
             if let Ins::Op(I::LocalGet(m)) = body[p] {
                 reads_moved.push((m, moved[j], j));
             }
@@ -2329,29 +2401,49 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
                 continue;
             }
             gone[j] = true;
+            edits.push(j);
             open.push((k, j));
             if !last {
                 teed[k] = true;
+                edits.push(k);
                 continue;
             }
         } else {
             continue;
         }
         gone[k] = true;
+        edits.push(k);
     }
-    if !gone.iter().any(|g| *g) && !(0..body.len()).any(dead_write) {
+    // A dead write of the round before's body sits where it touched, as
+    // the doc comment says; a whole round looks at every position.
+    match changed {
+        Some(changed) => edits.extend(
+            changed
+                .iter()
+                .copied()
+                .filter(|&at| at < body.len() && dead_write(at)),
+        ),
+        None => edits.extend((0..body.len()).filter(|&at| dead_write(at))),
+    }
+    if edits.is_empty() {
         return None;
     }
+    edits.sort_stable();
+    edits.dedup();
     // The dead accesses after the rewrites, by old position: a moved get
     // that reads no local is no access, and each union of one local's
     // move spans is settled as the doc comment says.
     let mut after = dead.to_vec();
+    // The positions `after` may differ from `dead` at.
+    let mut flipped: Vec<usize> = Vec::new();
     for &(_, _, j) in &reads_moved {
         after[j] = false;
+        flipped.push(j);
     }
-    for (at, &p) in moved.iter().enumerate() {
-        if p != NONE && !matches!(body[p as usize], Ins::Op(I::LocalGet(_))) {
+    for &at in &takers {
+        if !matches!(body[moved[at] as usize], Ins::Op(I::LocalGet(_))) {
             after[at] = false;
+            flipped.push(at);
         }
     }
     reads_moved.sort_stable();
@@ -2373,29 +2465,44 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
         while r != NONE && (r as usize) < hi {
             last = dead[r as usize];
             after[r as usize] = false;
+            flipped.push(r as usize);
             r = next[r as usize];
         }
         after[hi] = last;
+        flipped.push(hi);
     }
+    flipped.sort_stable();
+    flipped.dedup();
+    flipped.retain(|&at| after[at] != dead[at]);
     let mut dead_after = Vec::with_capacity(body.len());
-    let plain = |at: usize| !gone[at] && !teed[at] && moved[at] == NONE && !dead_write(at);
-    let mut next = 0;
-    while next < body.len() {
+    // The new positions the next round reads again, as the doc comment
+    // says: `out.len()` stands for the body's end.
+    let mut touched: Vec<usize> = Vec::new();
+    let mut flips = flipped.iter().copied().peekable();
+    let mut gap = false;
+    let mut start = 0;
+    for at in edits.iter().copied().chain(std::iter::once(body.len())) {
         // A run the round left alone is copied whole: its dead accesses
         // are `after`'s, as none of it is a dead write.
-        let start = next;
-        while next < body.len() && plain(next) {
-            next += 1;
+        let base = out.len();
+        out.extend_from_slice(&body[start..at]);
+        origins.copy(start..at);
+        dead_after.extend_from_slice(&after[start..at]);
+        if gap && at > start {
+            touched.push(base);
+            gap = false;
         }
-        out.extend_from_slice(&body[start..next]);
-        origins.copy(start..next);
-        dead_after.extend_from_slice(&after[start..next]);
-        let Some(ins) = body.get(next) else {
+        while let Some(x) = flips.next_if(|&x| x < at) {
+            if x >= start {
+                touched.push(base + x - start);
+            }
+        }
+        start = at + 1;
+        let Some(ins) = body.get(at) else {
             break;
         };
-        let at = next;
-        next += 1;
         if gone[at] {
+            gap = true;
             continue;
         }
         dead_after.push(after[at] && !dead_write(at));
@@ -2413,14 +2520,22 @@ pub fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>
             // A dead tee leaves its value; a dead set drops it, and rule
             // 15 takes back a pure push just before it.
             dead_after.pop();
+            gap = true;
+            continue;
         } else {
             out.push(Ins::Op(I::Drop));
             origins.copy(at..at + 1);
         }
+        touched.push(out.len() - 1);
+        gap = false;
     }
+    if gap {
+        touched.push(out.len());
+    }
+    touched.dedup();
     f.body = out;
     origins.finish(f);
-    Some(dead_after)
+    Some((dead_after, touched))
 }
 
 /// The pure push that the `local.set` at `k` takes its value from, when
