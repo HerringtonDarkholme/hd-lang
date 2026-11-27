@@ -19,22 +19,22 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   local $3 $iter: &mut UniqMapIntoIter[string, Parcel] [assigned] value
 >     uses $3: %13 -> %14 lend
 >   local $4 key: string [read assigned] value
->     uses $4: %39 -> %17 lend last
+>     uses $4: %38 -> %17 lend last
 >   local $5 parcel: Parcel [read assigned] value
->     uses $5: %42 -> %22 consume last
+>     uses $5: %40 -> %22 consume last
 >   local $6 self: string [read] value
 >     uses $6: %23 -> %24 lend last
 >   local $9 $temporary_owner: bool [read assigned] value
->     uses $9: %1 -> %57 lend last
+>     uses $9: %1 -> %55 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$9] %0 : ()
 >   %2 = Store [$1] 0:usize : ()
 >   %10 = Box #2 #0 : ()
->   %57 = Read copy [$9] : bool
->   %58 = Drop [$0] : ()
->   %59 = Block - : ()
->   %60 = If %57 [%59 -] : ()
->   %61 = Block %56 : usize
+>   %55 = Read copy [$9] : bool
+>   %56 = Drop [$0] : ()
+>   %57 = Block - : ()
+>   %58 = If %55 [%57 -] : ()
+>   %59 = Block %54 : usize
     for (key, parcel) in parcels:
 >   %3 = Read move [$0] : UniqMap[string, Parcel]
 >   %4 = Intrinsic Empty [] : ()
@@ -54,19 +54,17 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %35 = Read move [%15 as #1 .0] : (string, Parcel)
 >   %36 = Intrinsic Empty [] : ()
 >   %37 = Read move [%35 .0] : string
->   %38 = Intrinsic Empty [] : ()
->   %39 = Store [$4] %37 : ()
->   %40 = Read move [%35 .1] : Parcel
->   %41 = Intrinsic Empty [] : ()
->   %42 = Store [$5] %40 : ()
->   %48 = Block - : never
->   %49 = Match %15 [%48 %32 %34] : ()
->   %50 = Drop [$5] : ()
->   %51 = Drop [$4] : ()
->   %52 = Block - : ()
->   %53 = Loop %52 - : ()
->   %54 = LoanEnd [$3] : ()
->   %55 = Drop [$2] : ()
+>   %38 = Store [$4] %37 : ()
+>   %39 = Read move [%35 .1] : Parcel
+>   %40 = Store [$5] %39 : ()
+>   %46 = Block - : never
+>   %47 = Match %15 [%46 %32 %34] : ()
+>   %48 = Drop [$5] : ()
+>   %49 = Drop [$4] : ()
+>   %50 = Block - : ()
+>   %51 = Loop %50 - : ()
+>   %52 = LoanEnd [$3] : ()
+>   %53 = Drop [$2] : ()
         n += key.len() + parcel.label.len()
 >   %16 = Read copy [$1] : usize
 >   %17 = Read borrow [$4] : string
@@ -85,6 +83,6 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %30 = Prim Add [%16 %29] : usize
 >   %31 = Store [$1] %30 : ()
     n
->   %56 = Read copy [$1] : usize
+>   %54 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot

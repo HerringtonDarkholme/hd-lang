@@ -286,6 +286,73 @@ pub(crate) fn after(b: &Body, topo: &Topology, i: usize) -> (u32, u32) {
     (blk, pos + u32_of(counts))
 }
 
+/// Each value of `b` that the body reads only by fields, in `out` (one
+/// per instruction): its every use is the root of a `Read` of a field
+/// path of it. Nothing drops, releases, borrows whole or tests such a
+/// value, so after a `Read move` of one of its parts nothing reads that
+/// part again: the move leaves no place for an `Empty` to clear
+/// ([`elaborate`](super::elaborate)), and the backend names the part's
+/// words of the value instead of copying them. A nested tuple pattern's
+/// columns are such values (`hd_check` `expand_tuple`), as Rust's MIR
+/// moves each leaf out of one place (#2402). All false in a body that
+/// suspends: a cancel block releases a value whole, reading each part.
+/// O(instructions + operand words).
+pub fn field_read_only(b: &Body, out: &mut Vec<bool>) {
+    use crate::ir::{Proj, Ref, Word};
+    out.clear();
+    let suspends = b.tags.iter().any(|&t| crate::ir::is_suspension(t));
+    out.resize(b.len(), !suspends);
+    for i in (0..b.len()).filter(|_| !suspends) {
+        // A field-only place names no value but its root.
+        let a = b.data[i][0];
+        let root = (b.tags[i] == Tag::Read && a & place::BARE_LOCAL == 0)
+            .then(|| b.view(a))
+            .filter(|p| !p.whole() && p.steps(b).all(|s| matches!(s, Proj::Field(_))))
+            .and_then(crate::ir::PlaceView::value);
+        crate::ir::slots(b, i, |_, v, word| {
+            let member = b.tags[i] == Tag::Block && matches!(word, Word::Inst);
+            if !member
+                && !matches!(word, Word::Block)
+                && root != Some(v)
+                && Ref(v).as_inst().is_some()
+                && let Some(x) = out.get_mut(v as usize)
+            {
+                *x = false;
+            }
+        });
+    }
+}
+
+/// Whether `Read move` `i` takes a field path of a value the body reads
+/// only by fields ([`field_read_only`]), which leaves nothing to empty.
+/// Not of a borrow: its parts are the place it reads, which stays.
+#[must_use]
+pub fn leaves_no_place(b: &Body, field_only: &[bool], i: usize) -> bool {
+    b.tags[i] == Tag::Read
+        && b.data[i][1] == ReadMode::Move as u32
+        && b.data[i][0] & place::BARE_LOCAL == 0
+        && b.view(b.data[i][0])
+            .value()
+            .is_some_and(|v| field_only[v as usize] && !b.is_borrow(v))
+}
+
+/// Whether `Read move` `i`, of a local's or a value's place, is followed
+/// past its counts by an `Empty` of that place (`own::elaborate`). The
+/// backend names a part of a value's words for a move with none.
+#[must_use]
+pub fn emptied(b: &Body, topo: &Topology, i: usize) -> bool {
+    let p = b.view(b.data[i][0]);
+    if topo.blk[i] == NONE || !matches!(p.root, Root::Local(_) | Root::Value(_)) || !p.in_place(b) {
+        return true;
+    }
+    let (blk, pos) = after(b, topo, i);
+    let next = b.record(b.data[blk as usize][0]).get(pos as usize).copied();
+    next.is_some_and(|e| {
+        b.tags[e as usize] == Tag::Intrinsic
+            && b.data[e as usize][0] == crate::ir::IntrinsicOp::Empty as u32
+    })
+}
+
 /// Writes the drop flags of `b`'s locals and values (module doc) as edits.
 pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
     let (cells, slots) = cells(b);

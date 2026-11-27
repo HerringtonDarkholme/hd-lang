@@ -431,7 +431,7 @@ impl Em<'_, '_, '_> {
     /// ([`Em::names_part`]), else a copy of them.
     fn part_read(&mut self, i: u32, a: u32, p: crate::layout::Part) -> StageResult<()> {
         if let Some(ls) = self.vals.get(&a)
-            && self.names_part(i, self.ty_of(a))
+            && self.names_part(i, a)
         {
             let ls = ls[p.first..p.first + p.count].to_vec();
             self.vals.insert(i, ls);

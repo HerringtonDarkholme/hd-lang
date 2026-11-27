@@ -285,7 +285,7 @@ fn a_move_through_a_reference_is_not_a_local_emptying() {
     let mut body = b.finish(root, &[]).expect("reference-read shape");
     body.phase = Phase::Elaborated;
     body.data[moved.0 as usize][1] = ReadMode::Move as u32;
-    assert!(super::emptied(
+    assert!(crate::own::drop_flags::emptied(
         &body,
         &Topology::new(&body),
         moved.0 as usize

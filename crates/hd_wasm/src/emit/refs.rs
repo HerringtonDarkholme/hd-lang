@@ -929,26 +929,43 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let (at, ty) = self.walk_place(i, &p, p.proj.len(), start)?;
+        if let (At::Vals(ls), PlaceRoot::Value(r)) = (&at, p.root)
+            && r.as_inst().is_some()
+            && p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+            && self.names_part(i, r.0)
+        {
+            self.vals.insert(i, ls.clone());
+            return Ok(());
+        }
         self.push_at(&at, ty)?;
         self.store(i)?;
         Ok(())
     }
 
-    /// Whether projection read `i` of a part of an instruction's value of
-    /// type `whole` (`part_read`) is that part of the value's own
-    /// locals, with nothing emitted. A value's locals are set once where it is made, and change
-    /// only when a release zeroes them all: a borrow outlives no part of
-    /// its value, and a value that counts nothing is never released. In a
+    /// Whether read `i` of a part of instruction value `whole`
+    /// (`place_read`, `part_read`) is that part of the value's own
+    /// locals, with nothing emitted. A value's locals are set once where
+    /// it is made, and change only when a release zeroes them all or an
+    /// `Empty` zeroes a moved part: a borrow outlives no part of its
+    /// value; a value that counts nothing is never released; and a move
+    /// with no `Empty` after it takes a part of a value that nothing
+    /// releases or reads again (`drop_flags::field_read_only`). In a
     /// suspending body a moved value's locals are zeroed for its cancel
     /// block, so it copies. A nested tuple pattern reads each column from
     /// the one above (`hd_check` `expand_tuple`): a copy per level would
-    /// cost O(depth^2) leaves (#2400).
-    pub(super) fn names_part(&self, i: u32, whole: Ty) -> bool {
+    /// cost O(depth^2) leaves (#2400, #2402).
+    pub(super) fn names_part(&self, i: u32, whole: u32) -> bool {
+        let t = self.ty_of(whole);
+        let unemptied_move = || {
+            self.b.tags[i as usize] == Tag::Read
+                && self.b.data[i as usize][1] == hd_tir::ir::ReadMode::Move as u32
+                && !hd_tir::own::drop_flags::emptied(self.b, &self.topo, i as usize)
+        };
         self.susp.is_none()
             && !self.input_transferred.contains_key(&i)
             && (self.b.is_borrow(i)
-                || !self.cx().tracked(whole)
-                    && !crate::layout::holds_drop(self.pool(), self.env(), whole))
+                || !self.cx().tracked(t) && !crate::layout::holds_drop(self.pool(), self.env(), t)
+                || unemptied_move())
     }
 
     /// Whether read `i` of a whole `target` through reference type

@@ -81,7 +81,13 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * Superlinear lines already found, as `SHAPE COMMAND` to the issue. The
  * first run's findings name the issue that tracks each one.
  */
-export const KNOWN: ReadonlyMap<string, string> = new Map();
+export const KNOWN: ReadonlyMap<string, string> = new Map([
+  // Every nested tuple type a release walks in place keys its by-value
+  // count shims too (`rt::counted_of_portion`), each O(its leaves); and
+  // the borrow pass's source walk stops at 8 roots (`derive` `DEPTH`), so
+  // the ninth column copies.
+  ["tuple-nest-string build", "#2402"],
+]);
 
 /**
  * Superlinear lines the owner accepted as bounded by a language limit,

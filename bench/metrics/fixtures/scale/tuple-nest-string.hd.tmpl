@@ -1,0 +1,7 @@
+{{! A tuple of `string` leaves, its value and pattern nested one level deeper per `items` entry (#2402): each nested column moves out of the one above; `{{rep P}}` is P once per `items` entry, with `@` the entry's number and `~` a space. }}
+pub fn main() -> void $ Console:
+    let t = "s"
+    let x: {{rep (string,~}}string{{rep )}} = {{rep (t,~}}t{{rep )}}
+    let {{rep (a@,~}}z{{rep )}} = x
+    t = z
+    println(t)

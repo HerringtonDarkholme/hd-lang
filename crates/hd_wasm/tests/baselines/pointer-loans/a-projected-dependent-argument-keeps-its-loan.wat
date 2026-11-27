@@ -76,28 +76,24 @@
       i32.const 0
       local.set $t0
       local.set $t0
-      local.get $t0
+      local.get $alias
       local.set $t1
       i32.const 0
-      local.set $t0
-      local.get $alias
-      local.set $t0
-      i32.const 0
       local.set $alias
-      local.get $t0
-      call $later
-      local.set $t0
       local.get $t1
+      call $later
+      local.set $t1
       local.get $t0
+      local.get $t1
       call $observe
-      local.set $t0
+      local.set $t1
       local.set $t3
       local.get $t2
       if
         local.get $t2
         i32.load $heap
-        local.set $t1
-        local.get $t1
+        local.set $t0
+        local.get $t0
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -107,7 +103,7 @@
           call $rt:loan_unshare
         else
           local.get $t2
-          local.get $t1
+          local.get $t0
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -120,14 +116,14 @@
         local.set $t2
       end
       i32.const 0
-      local.set $t1
+      local.set $t0
       local.get $alias
       call $rt:release_ref
       local.get $p
       call $rt:release_ref
     end
     local.get $t3
-    local.get $t0
+    local.get $t1
   )
 )
 == @build: release

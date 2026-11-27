@@ -272,11 +272,18 @@ impl Elab<'_> {
 /// A flag under a part that does not open, or a refused renumbering.
 pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     // Each move leaves its place empty, a statement after its counts
-    // (`owned::lowered`, L3).
+    // (`owned::lowered`, L3), but a move out of a value read only by
+    // fields, which nothing reads again (`drop_flags::field_read_only`).
     let (topo, mut edits) = (Topology::new(b), super::splice::Tables::default());
+    let mut field_only = Vec::new();
+    super::drop_flags::field_read_only(b, &mut field_only);
     for i in 0..b.len() {
         let read = b.tags[i] == Tag::Read && topo.blk[i] != NONE;
-        if read && b.data[i][1] == ReadMode::Move as u32 && key_of(b, b.data[i][0]).is_some() {
+        if read
+            && b.data[i][1] == ReadMode::Move as u32
+            && key_of(b, b.data[i][0]).is_some()
+            && !super::drop_flags::leaves_no_place(b, &field_only, i)
+        {
             let (blk, pos) = super::drop_flags::after(b, &topo, i);
             let args = b.push_record(&[]);
             let data = [IntrinsicOp::Empty as u32, args];

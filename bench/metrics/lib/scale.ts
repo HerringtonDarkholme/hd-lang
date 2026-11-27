@@ -185,6 +185,10 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "bool-nest": { construct: "nested comparisons and logic", form: "nest", n: 8 },
   "bit-nest": { construct: "nested bitwise operators and shifts", form: "nest" },
   "tuple-nest": { construct: "nested tuple types, values and patterns", form: "nest" },
+  "tuple-nest-string": {
+    construct: "nested tuple types, values and patterns of `string` leaves",
+    form: "nest",
+  },
   "if-expr-nest": { construct: "nested inline `if` expressions", form: "nest", n: 8 },
   "call-nest": { construct: "nested calls", form: "nest" },
   "index-nest": { construct: "nested index expressions", form: "nest" },

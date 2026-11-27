@@ -613,7 +613,8 @@ fn instance(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
 /// cancel block; every flag a local's drops test is read in TIR, the
 /// backend reading none (`own::drop_flags`; a cell's are its slots); and
 /// every move of a local's or a value's place is followed, past its counts,
-/// by its `Empty`, the backend moving nothing. O(instructions).
+/// by its `Empty`, the backend moving nothing, but a move out of a value
+/// read only by fields (`drop_flags::field_read_only`). O(instructions).
 fn lowered(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     let mut bad = |inst: u32, what: String| {
         errs.push(VerifyError {
@@ -629,6 +630,8 @@ fn lowered(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
             read[(a & !place::BARE_LOCAL) as usize] = true;
         }
     }
+    let mut field_only = Vec::new();
+    crate::own::drop_flags::field_read_only(b, &mut field_only);
     for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
         let suites = tag == Tag::Scope && w != NONE && !b.record(w).is_empty();
         let flag = matches!(tag, Tag::FlagSet | Tag::FlagClear)
@@ -640,28 +643,17 @@ fn lowered(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
             "a suspension point with no cancel block"
         } else if flag {
             "a drop flag no elaborated drop reads"
-        } else if tag == Tag::Read && w == ReadMode::Move as u32 && !emptied(b, topo, i) {
+        } else if tag == Tag::Read
+            && w == ReadMode::Move as u32
+            && !crate::own::drop_flags::emptied(b, topo, i)
+            && !crate::own::drop_flags::leaves_no_place(b, &field_only, i)
+        {
             "a move with no `Empty` of its place after it"
         } else {
             continue;
         };
         bad(u32_of(i), what.into());
     }
-}
-
-/// Whether `Read move` `i`, of a local's or a value's place, is followed
-/// past its counts by an `Empty` of that place (`own::elaborate`).
-fn emptied(b: &Body, topo: &Topology, i: usize) -> bool {
-    let p = b.view(b.data[i][0]);
-    if topo.blk[i] == NONE || !matches!(p.root, Root::Local(_) | Root::Value(_)) || !p.in_place(b) {
-        return true;
-    }
-    let (blk, pos) = crate::own::drop_flags::after(b, topo, i);
-    let next = b.record(b.data[blk as usize][0]).get(pos as usize).copied();
-    next.is_some_and(|e| {
-        b.tags[e as usize] == Tag::Intrinsic
-            && b.data[e as usize][0] == super::IntrinsicOp::Empty as u32
-    })
 }
 
 /// The read modes and the side rows.

@@ -1,0 +1,9 @@
+# @dump: own wat
+# #2402: a `for` pattern over a list of nested tuples reads each leaf from
+# its column; a column copies no suffix.
+fn each(xs: List[(string, (string, (string, string)))]) -> List[string]:
+    let mut out: List[string] = []
+    # subject
+    for (a0, (a1, (a2, z))) in xs:
+        out.push(a0 + a1 + a2 + z)
+    out
