@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 
-import { lineReader } from "./node.ts";
+import { createGrant, lineReader, nodeLayer } from "./node.ts";
 import { fixture } from "./node-test-support.ts";
 
 function reader(context: TestContext, content: Uint8Array) {
@@ -72,4 +72,35 @@ test("stdin preserves empty lines, closed input and descriptor failures", (conte
   const failed = lineReader(-1);
   assert.equal(failed(), false);
   assert.equal(failed.all(), false);
+});
+
+test("stdin byte reads preserve CRLF, invalid UTF-8, EOF and mixed text reads", (context) => {
+  const input = reader(context, Buffer.from([97, 13, 10, 255, 0, 13, 10, 98, 13, 10, 99, 13]));
+  assert.deepEqual(input.bytes(0), new Uint8Array());
+  assert.deepEqual([...(input.bytes(1) as Uint8Array)], [97]);
+  assert.equal(input(), "");
+  assert.deepEqual([...(input.bytes(4) as Uint8Array)], [255, 0, 13, 10]);
+  assert.equal(input.all(), "b\r\nc\r");
+  assert.deepEqual([...(input.bytes(100) as Uint8Array)], []);
+  assert.deepEqual(lineReader(null).bytes(100), new Uint8Array());
+  assert.equal(lineReader(-1).bytes(100), false);
+});
+
+test("closed stdin provider returns byte EOF without synthesizing a line", (context) => {
+  const platform = nodeLayer.providers({
+    env: { stdin: null },
+    sink: { out() {}, err() {} },
+    st: {},
+    grant: createGrant(),
+    flush() {},
+    left: () => Infinity,
+  });
+  context.after(() => platform.close());
+  const input = platform.traits["hd:ConsoleInput"];
+  assert.deepEqual(input["StdinHandle.read"](input.stdin(), 100), {
+    ok: true,
+    value: new Uint8Array(),
+  });
+  assert.deepEqual(input.read_line(), { ok: true, value: null });
+  assert.deepEqual(input.read_all(), { ok: true, value: "" });
 });

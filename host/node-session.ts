@@ -47,6 +47,14 @@ export async function driveNodeSession() {
   };
   const readLine = (() => input(false)) as LineReader;
   readLine.all = () => input(true);
+  readLine.bytes = (max) => {
+    if (max === 0) {
+      return new Uint8Array();
+    }
+    send("bytes", max);
+    const value = receive()?.value;
+    return value === false ? false : Uint8Array.from(value ?? []);
+  };
   let session: ReturnType<typeof createNodeSession> | undefined;
   let recording = true;
   try {

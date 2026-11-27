@@ -131,7 +131,7 @@ fn session_on(
     on_start: impl FnOnce(crate::engine::SessionStopper),
     stdout: Option<&Buffer>,
     bounds: Bounds,
-    input: Option<&str>,
+    input: Option<&[u8]>,
 ) -> Transcript {
     let err = Buffer::default();
     let out = stdout.cloned().unwrap_or_else(|| err.clone());
@@ -140,8 +140,7 @@ fn session_on(
             out: Box::new(out.clone()),
             err: Box::new(err.clone()),
             input: input.map(|text| {
-                Box::new(std::io::Cursor::new(text.as_bytes().to_vec()))
-                    as Box<dyn std::io::BufRead + Send>
+                Box::new(std::io::Cursor::new(text.to_vec())) as Box<dyn std::io::BufRead + Send>
             }),
         },
         diags: Box::new(err.clone()),
@@ -1335,12 +1334,58 @@ fn node_session_keeps_guest_stdin_separate_from_control() {
         |_| {},
         None,
         Bounds::default(),
-        Some("out\t\"not a frame\"\n{\"op\":\"close\"}\n"),
+        Some(b"out\t\"not a frame\"\n{\"op\":\"close\"}\n"),
     );
     assert_eq!(
         t.out,
         "\"out\\t\\\"not a frame\\\"\" : string\n\"{\\\"op\\\":\\\"close\\\"}\" : string\n7 : i32\n"
     );
+}
+
+/// std-console.stdin.exact: the framed Node reader shares raw bytes with
+/// line/all reads. A reload replays those results without consuming input.
+#[test]
+fn node_session_preserves_stdin_bytes_and_mixed_reads() {
+    let dir = Scratch::new(SCRATCH, "node-session-raw-input");
+    let script = Script::of(
+        &include_str!("tests/programs/repl_tests/stdin_bytes.in")
+            .lines()
+            .collect::<Vec<_>>(),
+    );
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds::default(),
+        Some(b"a\r\n\xff\0\r\nline\xff\r\nb\xff\r\nc\r"),
+    );
+    assert_eq!(
+        t.out,
+        "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nreloaded: 4 inputs replayed\n7 : i32\n"
+    );
+}
+
+/// An explicitly closed REPL stdin remains EOF for byte and text reads.
+#[test]
+fn node_session_closed_stdin_is_eof() {
+    let dir = Scratch::new(SCRATCH, "node-session-closed-input");
+    let script = Script::of(
+        &include_str!("tests/programs/repl_tests/stdin_closed.in")
+            .lines()
+            .collect::<Vec<_>>(),
+    );
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds::default(),
+        None,
+    );
+    assert_eq!(t.out, "true\ntrue\ntrue\n");
 }
 
 /// Every Node input and an explicit rebuild use journaled host results.
