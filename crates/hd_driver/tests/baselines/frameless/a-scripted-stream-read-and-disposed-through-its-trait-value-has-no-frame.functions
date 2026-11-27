@@ -25,10 +25,6 @@ std/rt.cycle/takes_part#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
-app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -38,7 +34,6 @@ std/net/impl ScriptedStream.is_closed#0
 std/rt.alloc/unlink#0
 std/net/impl ScriptedStream.written#0
 std/rt.alloc/retain#0
-std/rt.cycle/opaque#0
 std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 std/collections.deque/impl[T] Deque[T].push_back#0 [std.net.ScriptedConnection]
@@ -100,7 +95,6 @@ rt:collect
 rt:cycle_trace
 rt:cycle_release
 rt:cycle_free
-rt:opaque
 rt:panic#0
 rt:panic#1
 rt:panic#2
@@ -115,9 +109,6 @@ rt:panic#10
 rt:panic#11
 rt:panic#12
 rt:panic#13
-rt:panic#14
-rt:panic#15
-rt:panic#16
 rt:panic_str
 rt:loan_share
 rt:loan_unshare
@@ -127,11 +118,9 @@ rt:new
 rt:new/class-1
 rt:new/class-2
 rt:new/class-5
-rt:new/class-10
 rt:alloc_class/1
 rt:alloc_class/2
 rt:alloc_class/5
-rt:alloc_class/10
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -190,22 +179,10 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame
-rt:frame_ensure
-rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:wake_notify
-rt:entry_cancel#0
-rt:entry_cancel#1
 == @build: checked
 std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
-std/rt.cycle/marking#0
 std/rt.cycle/push#0
 std/rt.alloc/local_page#0
 std/rt.checked/observe_unique#0
@@ -232,10 +209,6 @@ std/rt.checked/retain#0
 std/rt.checked/allocate#0
 std/rt.alloc/block_of#0
 app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
-app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
 std/rt.checked/known_payload#0
@@ -248,7 +221,6 @@ std/rt.alloc/adopted#0
 std/net/impl ScriptedStream.is_closed#0
 std/rt.alloc/unlink#0
 std/net/impl ScriptedStream.written#0
-std/rt.cycle/opaque#0
 std/rt.alloc/held#0
 std/rt.cycle/sweep#0
 std/collections.deque/impl[T] Deque[T].push_back#0 [std.net.ScriptedConnection]
@@ -320,7 +292,6 @@ rt:collect
 rt:cycle_trace
 rt:cycle_release
 rt:cycle_free
-rt:opaque
 rt:panic#0
 rt:panic#1
 rt:panic#2
@@ -335,9 +306,6 @@ rt:panic#10
 rt:panic#11
 rt:panic#12
 rt:panic#13
-rt:panic#14
-rt:panic#15
-rt:panic#16
 rt:panic_str
 rt:loan_share
 rt:loan_unshare
@@ -400,17 +368,6 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame
-rt:frame_ensure
-rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:wake_notify
-rt:entry_cancel#0
-rt:entry_cancel#1
 == @build: release
 std/console/println#0 [string]
 std/rt.cycle/compact#0
@@ -432,16 +389,11 @@ std/rt.cycle/takes_part#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
-app/main/main#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
 std/collections.deque/impl[T] Deque[T].pop_front#0 [std.net.ScriptedConnection]
 std/rt.alloc/unlink#0
 std/rt.alloc/retain#0
-std/rt.cycle/opaque#0
 std/rt.cycle/sweep#0
 std/collections.deque/impl[T] Deque[T].push_back#0 [std.net.ScriptedConnection]
 std/rt.hash/hash_string#0
@@ -496,7 +448,6 @@ rt:collect
 rt:cycle_trace
 rt:cycle_release
 rt:cycle_free
-rt:opaque
 rt:panic#0
 rt:panic#1
 rt:panic#2
@@ -509,10 +460,6 @@ rt:panic#8
 rt:panic#9
 rt:panic#10
 rt:panic#11
-rt:panic#12
-rt:panic#13
-rt:panic#14
-rt:panic#15
 rt:panic_str
 rt:loan_share
 rt:loan_unshare
@@ -522,11 +469,9 @@ rt:new
 rt:new/class-1
 rt:new/class-2
 rt:new/class-5
-rt:new/class-10
 rt:alloc_class/1
 rt:alloc_class/2
 rt:alloc_class/5
-rt:alloc_class/10
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -585,21 +530,10 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame
-rt:frame_ensure
-rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:entry_cancel#0
-rt:entry_cancel#1
 == @build: release checked
 std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
-std/rt.cycle/marking#0
 std/rt.cycle/push#0
 std/rt.checked/observe_unique#0
 std/rt.checked/free#0
@@ -621,10 +555,6 @@ std/rt.checked/retain#0
 std/rt.checked/allocate#0
 std/rt.alloc/block_of#0
 app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
-app/main/main#0
 std/rt.alloc/full#0
 std/rt.checked/known_payload#0
 std/rt.alloc/move_table#0
@@ -633,7 +563,6 @@ std/collections.deque/impl[T] Deque[T].pop_front#0 [std.net.ScriptedConnection]
 std/rt.checked/skipped_test#0
 std/rt.checked/release_known#0
 std/rt.alloc/unlink#0
-std/rt.cycle/opaque#0
 std/rt.cycle/sweep#0
 std/collections.deque/impl[T] Deque[T].push_back#0 [std.net.ScriptedConnection]
 std/rt.checked/unique_checks#0
@@ -699,7 +628,6 @@ rt:collect
 rt:cycle_trace
 rt:cycle_release
 rt:cycle_free
-rt:opaque
 rt:panic#0
 rt:panic#1
 rt:panic#2
@@ -712,10 +640,6 @@ rt:panic#8
 rt:panic#9
 rt:panic#10
 rt:panic#11
-rt:panic#12
-rt:panic#13
-rt:panic#14
-rt:panic#15
 rt:panic_str
 rt:loan_share
 rt:loan_unshare
@@ -778,13 +702,3 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame
-rt:frame_ensure
-rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:entry_cancel#0
-rt:entry_cancel#1

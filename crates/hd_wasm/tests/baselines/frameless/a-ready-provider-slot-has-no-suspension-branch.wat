@@ -49,11 +49,9 @@
       local.set $t0
       block
     ;; 23 |         println(read!())
-        i32.const 0
         local.get $t3
         local.get $t1
         call $read
-        drop
         local.set $t1
         local.get $t1
         local.get $provider0
@@ -69,122 +67,36 @@
       local.set $t1
     end
   )
-  (func $"impl Read for Ready.read" (param $frame i32) (param $self i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl Read for Ready.read" (param $self i32) (result i32)
     ;; 15 |         self.value
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $self
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $t2
-      local.get $frame
-      i32.load $heap offset=8
-      local.set $t0
-    else
-    end
     block
       local.get $self
       i32.load $heap
       local.set $self
     end
-    local.get $t2
+    i32.const 0
     call $rt:release_ref'2
     local.get $self
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $t3
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
-  (func $read (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $read (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 19 |     $.use(Read).read!()
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $provider0
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $provider0.vtable
-      local.get $frame
-      i32.load $heap offset=8
-      local.set $t0
-    else
-    end
     block
       local.get $provider0
       local.get $provider0.vtable
       local.set $t0
-      local.set $t2
+      local.set $t1
       i32.const 0
       local.set $provider0
       i32.const 0
       local.set $provider0.vtable
-      local.get $t2
+      local.get $t1
       local.get $t0
       local.set $provider0
       local.set $provider0.vtable
       local.get $provider0.vtable
       call $retain
       i32.const 0
-      local.set $t2
+      local.set $t1
       i32.const 0
       local.set $t0
       local.get $provider0.vtable
@@ -201,38 +113,6 @@
       local.set $provider0
     end
     local.get $t0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $t3
-    if (result i32)
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -17
-      i32.and
-      i32.store $heap offset=12
-      local.get $frame
-    else
-      i32.const 0
-    end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
 )
 == @build: release program
@@ -275,14 +155,10 @@
         call $rt:release_ref'1
       end
     end
-    ;; 23 |         println(read!())
-    i32.const 0
-    ;; 22 |     $.with(Read=box(Ready { value: 7 })):
     local.get $t0
     i32.const 344 ;; &vtable[rt:dyn_trap, rt:drive]
     ;; 23 |         println(read!())
     call $read
-    drop
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -293,87 +169,13 @@
       call $rt:release_ref'2
     end
   )
-  (func $"impl Read for Ready.read" (param $frame i32) (param $self i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl Read for Ready.read" (param $self i32) (result i32)
     ;; 15 |         self.value
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $self
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $t2
-    end
     local.get $self
     i32.load $heap
-    local.set $self
-    local.get $t2
-    if
-      local.get $t2
-      call $rt:release_ref'2
-    end
-    local.get $self
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    i32.const 0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
-  (func $read (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $read (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 19 |     $.use(Read).read!()
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $t0
-      i32.const 128
-      i32.and
-      local.set $t1
-      local.get $t0
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $provider0
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $provider0.vtable
-    end
     local.get $provider0
     if
       local.get $provider0
@@ -391,26 +193,5 @@
       call $rt:release_ref'2
     end
     local.get $provider0.vtable
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    i32.const 0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t1
-      i32.or
-      i32.store $heap offset=12
-    end
   )
 )

@@ -5,7 +5,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
-  (import "fixture" "impl Workers for LoopbackWorkers.send" (func $"impl Workers for LoopbackWorkers.send" (param i32 i32 i32) (result i32 i32 i32 i32)))
+  (import "fixture" "impl Workers for LoopbackWorkers.send" (func $"impl Workers for LoopbackWorkers.send" (param i32 i32) (result i32 i32 i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
@@ -275,18 +275,12 @@
     ;; 20 |         self.inner.send!(frame)
           local.get $t1
           i32.load $heap
-          local.set $self
           local.get $t1
           i32.load $heap offset=4
-          local.set $t4
           local.get $t1
           i32.const 0
           i32.store $heap offset=4
-          i32.const 0
-          local.get $self
-          local.get $t4
           call $"impl Workers for LoopbackWorkers.send"
-          drop
     ;; 19 |         pause!()
           local.get $t1
           i32.const 0

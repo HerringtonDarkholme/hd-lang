@@ -3,7 +3,6 @@
 std/rt.cycle/compact#0
 app/main/value#0
 app/main/value#0.poll
-app/main/value#0.cancel
 app/main/value#0.drop
 app/main/value#0
 std/rt.alloc/class_of#0
@@ -38,7 +37,6 @@ std/rt.cycle/item#0
 std/rt.alloc/full#0
 app/main/impl Read for Ready.read#0
 app/main/impl Read for Ready.read#0.poll
-app/main/impl Read for Ready.read#0.cancel
 app/main/impl Read for Ready.read#0.drop
 app/main/impl Read for Ready.read#0
 std/rt.alloc/move_table#0
@@ -146,11 +144,11 @@ rt:wake_mark
 rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel
 == @build: checked
 std/rt.cycle/compact#0
 app/main/value#0
 app/main/value#0.poll
-app/main/value#0.cancel
 app/main/value#0.drop
 app/main/value#0
 std/rt.alloc/class_of#0
@@ -191,7 +189,6 @@ std/rt.alloc/full#0
 std/rt.checked/known_payload#0
 app/main/impl Read for Ready.read#0
 app/main/impl Read for Ready.read#0.poll
-app/main/impl Read for Ready.read#0.cancel
 app/main/impl Read for Ready.read#0.drop
 app/main/impl Read for Ready.read#0
 std/rt.alloc/move_table#0
@@ -303,11 +300,11 @@ rt:wake_mark
 rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel
 == @build: release
 std/rt.cycle/compact#0
 app/main/value#0
 app/main/value#0.poll
-app/main/value#0.cancel
 app/main/value#0.drop
 app/main/value#0
 std/rt.alloc/class_of#0
@@ -336,7 +333,6 @@ app/main/main#0
 std/rt.alloc/full#0
 app/main/impl Read for Ready.read#0
 app/main/impl Read for Ready.read#0.poll
-app/main/impl Read for Ready.read#0.cancel
 app/main/impl Read for Ready.read#0.drop
 app/main/impl Read for Ready.read#0
 std/rt.alloc/move_table#0
@@ -435,11 +431,11 @@ rt:cancel_child
 rt:wake_mark
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel
 == @build: release checked
 std/rt.cycle/compact#0
 app/main/value#0
 app/main/value#0.poll
-app/main/value#0.cancel
 app/main/value#0.drop
 app/main/value#0
 std/rt.alloc/class_of#0
@@ -474,7 +470,6 @@ std/rt.alloc/full#0
 std/rt.checked/known_payload#0
 app/main/impl Read for Ready.read#0
 app/main/impl Read for Ready.read#0.poll
-app/main/impl Read for Ready.read#0.cancel
 app/main/impl Read for Ready.read#0.drop
 app/main/impl Read for Ready.read#0
 std/rt.alloc/move_table#0
@@ -577,3 +572,4 @@ rt:cancel_child
 rt:wake_mark
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel
