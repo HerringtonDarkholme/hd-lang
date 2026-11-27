@@ -2,6 +2,7 @@
 //! one module per source file they test, and `support` for the shared
 //! warm std store.
 
+mod contexts;
 mod count_audit_tests;
 mod count_ops_tests;
 mod diagnostics;

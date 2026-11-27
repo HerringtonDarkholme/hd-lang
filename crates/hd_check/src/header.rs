@@ -139,12 +139,7 @@ impl<'n, 'a> InterfaceCheck<'n, 'a> {
     /// declaration it carries only for a dependent's `Copy` and marker
     /// walks (`hd_resolve::interface_items`) is checked with its module.
     fn holds(&self, d: DefId) -> bool {
-        d == DefId::NONE
-            || self
-                .lookup
-                .ifaces
-                .iter()
-                .any(|f| f.item(d).is_some_and(api_item))
+        d == DefId::NONE || self.lookup.interface_satisfies(d, api_item)
     }
 
     /// Whether `HeaderCheck(F)` checks `it`.

@@ -69,3 +69,17 @@ pub(crate) fn layout_probe() {
         }
     });
 }
+
+#[cfg(feature = "testing")]
+#[path = "../tests/support/context_work.rs"]
+mod contexts;
+#[cfg(feature = "testing")]
+pub use contexts::{ContextWork, count_context_work};
+#[cfg(feature = "testing")]
+pub(crate) use contexts::{context_graph_step, context_item_step};
+#[cfg(not(feature = "testing"))]
+#[inline]
+pub(crate) fn context_graph_step() {}
+#[cfg(not(feature = "testing"))]
+#[inline]
+pub(crate) fn context_item_step() {}

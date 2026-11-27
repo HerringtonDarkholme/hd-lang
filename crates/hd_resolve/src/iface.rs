@@ -1350,6 +1350,20 @@ impl IfaceIndex {
         }
     }
 
+    /// The sole registered location, without granting visibility to it.
+    /// Missing and recovery-duplicate IDs have no unique location.
+    #[must_use]
+    pub fn unique_location(&self, def: DefId) -> Option<(UnitId, usize)> {
+        let location = self.location(def);
+        if matches!(location, Self::MISSING | Self::AMBIGUOUS) {
+            return None;
+        }
+        Some((
+            UnitId::from_raw(u32::try_from(location >> 32).ok()?),
+            usize::try_from(location & u64::from(u32::MAX)).ok()?,
+        ))
+    }
+
     fn location(&self, def: DefId) -> u64 {
         self.rows
             .get(def.raw())
@@ -1357,15 +1371,28 @@ impl IfaceIndex {
     }
 }
 
+/// An immutable checking context. The driver shares its dependency set
+/// and reads interfaces from its once-published unit table; lookup does
+/// not copy a closure or allocate a slot for every visible unit.
+pub trait InterfaceContext: Sync {
+    fn unit(&self, unit: UnitId) -> Option<&UnitIface>;
+    fn iter(&self) -> Box<dyn Iterator<Item = &UnitIface> + '_>;
+}
+
+pub type Interfaces<'a> = dyn InterfaceContext + 'a;
+
+#[cfg(any(test, feature = "testing"))]
+#[path = "../tests/support/interface_context.rs"]
+mod context_fixtures;
+
 /// Finds items by `DefId` across one module's own items and the
 /// interfaces of its closure.
 pub struct Lookup<'a> {
     pub own: &'a [Item],
     pub own_index: HashMap<DefId, usize>,
-    pub ifaces: Vec<&'a UnitIface>,
+    pub ifaces: &'a Interfaces<'a>,
     index: &'a IfaceIndex,
     import_hints: ImportHints<'a>,
-    by_unit: Vec<Option<&'a UnitIface>>,
     /// The own items' derivation templates by trait, made on the first
     /// derivation that asks.
     templates: std::sync::OnceLock<HashMap<DefId, DefId>>,
@@ -1389,29 +1416,20 @@ fn templates_by_trait<'i>(items: impl Iterator<Item = &'i Item>) -> HashMap<DefI
 }
 
 impl<'a> Lookup<'a> {
+    /// Own items over a persistent dependency context. Only the own
+    /// declarations are indexed here; inherited metadata stays shared.
     #[must_use]
     pub fn new(
         own: &'a [Item],
-        ifaces: impl IntoIterator<Item = (UnitId, &'a UnitIface)>,
+        context: &'a dyn InterfaceContext,
         index: &'a IfaceIndex,
         import_hints: ImportHints<'a>,
     ) -> Self {
-        let own_index = own.iter().enumerate().map(|(i, it)| (it.def, i)).collect();
-        let mut visible = Vec::new();
-        let mut by_unit = Vec::new();
-        for (unit, iface) in ifaces {
-            if by_unit.len() <= unit.idx() {
-                by_unit.resize(unit.idx() + 1, None);
-            }
-            by_unit[unit.idx()] = Some(iface);
-            visible.push(iface);
-        }
         Self {
             own,
-            own_index,
-            ifaces: visible,
+            own_index: own.iter().enumerate().map(|(i, it)| (it.def, i)).collect(),
+            ifaces: context,
             index,
-            by_unit,
             import_hints,
             templates: std::sync::OnceLock::new(),
         }
@@ -1437,27 +1455,44 @@ impl<'a> Lookup<'a> {
     /// The interface of `unit`, when the closure holds it.
     #[must_use]
     pub fn unit(&self, unit: UnitId) -> Option<&'a UnitIface> {
-        self.by_unit.get(unit.idx()).copied().flatten()
+        self.ifaces.unit(unit)
     }
     #[must_use]
     pub fn item(&self, d: DefId) -> Option<&'a Item> {
         if let Some(&i) = self.own_index.get(&d) {
             return self.own.get(i);
         }
+        self.interface_item(d)
+    }
+
+    /// An interface item only, preserving first-interface recovery order.
+    #[must_use]
+    pub fn interface_item(&self, d: DefId) -> Option<&'a Item> {
         match self.index.location(d) {
             IfaceIndex::AMBIGUOUS => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING if d == DefId::NONE => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING => None,
             location => {
-                // A location whose unit does not fit `usize` names no
-                // item, as a missing unit or slot does.
-                let unit = usize::try_from(location >> 32).ok()?;
-                let slot =
-                    usize::try_from(location & u64::from(u32::MAX)).expect("interface item slot");
-                self.by_unit.get(unit)?.as_ref()?.items.get(slot)
+                let unit = u32::try_from(location >> 32).ok()?;
+                let slot = usize::try_from(location & u64::from(u32::MAX)).ok()?;
+                self.unit(UnitId::from_raw(unit))?.items.get(slot)
             }
         }
     }
+
+    /// Whether any visible interface's item satisfies `test`. Recovery
+    /// duplicates keep the old ordered scan; ordinary IDs use one index
+    /// read rather than walking every interface of every caller.
+    pub fn interface_satisfies(&self, d: DefId, test: impl Fn(&Item) -> bool) -> bool {
+        match self.index.location(d) {
+            IfaceIndex::AMBIGUOUS => self.ifaces.iter().any(|f| f.item(d).is_some_and(&test)),
+            IfaceIndex::MISSING if d == DefId::NONE => {
+                self.ifaces.iter().any(|f| f.item(d).is_some_and(&test))
+            }
+            _ => self.interface_item(d).is_some_and(test),
+        }
+    }
+
     /// Failed trait declarations whose target still needs error recovery.
     #[must_use]
     pub fn poisoned_impls(&self) -> Vec<&'a Item> {
@@ -1471,7 +1506,7 @@ impl<'a> Lookup<'a> {
             )
         };
         let mut out: Vec<&Item> = self.own.iter().filter(poisoned).collect();
-        for f in &self.ifaces {
+        for f in self.ifaces.iter() {
             out.extend(f.items.impls().filter(poisoned));
         }
         out
@@ -3792,9 +3827,10 @@ mod tests {
         let index = super::IfaceIndex::default();
         index.insert(UnitId::from_raw(2), &first);
         let visible = [(UnitId::from_raw(2), &first)];
+        let interfaces = visible;
         let lookup = super::Lookup::new(
             &[],
-            visible,
+            &interfaces,
             &index,
             crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
@@ -3823,9 +3859,10 @@ mod tests {
         );
         assert!(lookup.item(DefId::NONE).is_none());
         let own = vec![indexed_item(shared, 3), indexed_item(shared, 4)];
+        let interfaces = [(UnitId::from_raw(2), &first), (UnitId::from_raw(7), &later)];
         let lookup = super::Lookup::new(
             &own,
-            [(UnitId::from_raw(2), &first), (UnitId::from_raw(7), &later)],
+            &interfaces,
             &index,
             crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
@@ -3857,12 +3894,13 @@ mod tests {
         index.insert(UnitId::from_raw(4), &second);
         index.insert(UnitId::from_raw(1), &first);
         index.insert(UnitId::from_raw(7), &missing);
+        let interfaces = [
+            (UnitId::from_raw(1), &first),
+            (UnitId::from_raw(4), &second),
+        ];
         let lookup = super::Lookup::new(
             &[],
-            [
-                (UnitId::from_raw(1), &first),
-                (UnitId::from_raw(4), &second),
-            ],
+            &interfaces,
             &index,
             crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
@@ -3870,12 +3908,13 @@ mod tests {
             lookup.item(shared).unwrap(),
             first.item(shared).unwrap()
         ));
+        let interfaces = [
+            (UnitId::from_raw(7), &missing),
+            (UnitId::from_raw(4), &second),
+        ];
         let lookup = super::Lookup::new(
             &[],
-            [
-                (UnitId::from_raw(7), &missing),
-                (UnitId::from_raw(4), &second),
-            ],
+            &interfaces,
             &index,
             crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
@@ -3916,9 +3955,10 @@ mod tests {
         let iface = indexed_unit("app", lazy);
         let index = super::IfaceIndex::default();
         index.insert(UnitId::from_raw(0), &iface);
+        let interfaces = [(UnitId::from_raw(0), &iface)];
         let lookup = super::Lookup::new(
             &[],
-            [(UnitId::from_raw(0), &iface)],
+            &interfaces,
             &index,
             crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );

@@ -1,0 +1,2 @@
+pub fn picked() -> Product:
+    Receiver { n: 1 }.pick()
