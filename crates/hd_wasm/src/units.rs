@@ -29,6 +29,13 @@ pub(crate) struct Keys<'i, 'a> {
     /// Each instance's content, by id, made on first use; `None` for an
     /// instance whose body has no wire form, whose unit is not stored.
     contents: Vec<OnceLock<Option<Hash128>>>,
+    /// Each instance's body, by number: the instances of one item's
+    /// sub-bodies share their body, which is hashed once
+    /// ([`Keys::body_hash`]), so n closures of one body hash it once, not
+    /// n times.
+    body_of: Vec<u32>,
+    /// Each distinct body's hash, made on first use.
+    bodies: Vec<OnceLock<Option<Hash128>>>,
     /// Each instance's kept loans and crossed objects (`Facts::kept`,
     /// `Facts::crossed`), hashed.
     loans: HashMap<InstId, Hash128>,
@@ -175,7 +182,19 @@ impl<'i, 'a> Keys<'i, 'a> {
                 hd_base::HashSet::default()
             }
         };
+        // Number the distinct bodies: one pass over the instances.
+        let mut body_of = vec![u32::MAX; input.collected.table.key.len()];
+        let mut seen: HashMap<usize, u32> = HashMap::default();
+        for &id in input.order {
+            if let Some(b) = (input.body)(id) {
+                let next = u32::try_from(seen.len()).unwrap_or(u32::MAX);
+                body_of[id.idx()] = *seen.entry(std::ptr::from_ref(b).addr()).or_insert(next);
+            }
+        }
+        let bodies = (0..seen.len()).map(|_| OnceLock::new()).collect();
         Keys {
+            body_of,
+            bodies,
             input,
             store,
             link,
@@ -199,7 +218,7 @@ impl<'i, 'a> Keys<'i, 'a> {
             let env = input.env;
             let item = t.item[id.idx()];
             let mut h = StableHasher::new("emit-unit-content-v1");
-            h.hash(self.store.body_hash(id)?);
+            h.hash(self.body_hash(id)?);
             h.str(&format!("{:?}", t.sub[id.idx()]));
             h.u64(hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]));
             h.u64(env.lends(item, t.args[id.idx()]));
@@ -224,6 +243,15 @@ impl<'i, 'a> Keys<'i, 'a> {
             }
             Some(h.finish())
         })
+    }
+
+    /// The hash of instance `id`'s body, once per distinct body.
+    fn body_hash(&self, id: InstId) -> Option<Hash128> {
+        let at = *self.body_of.get(id.idx())? as usize;
+        *self
+            .bodies
+            .get(at)?
+            .get_or_init(|| self.store.body_hash(id))
     }
 
     /// The content of the instance keyed `key`; for a key the link has
