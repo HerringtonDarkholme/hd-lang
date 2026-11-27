@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import { closeSync, openSync, writeSync, unlinkSync, fstatSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -320,5 +321,92 @@ test(
       { timeout: 5000 },
     );
     assert.equal(output.toString(), "pipe\r\n");
+  },
+);
+
+test(
+  "stdin worker close preserves a borrowed regular-file descriptor",
+  { timeout: 3000 },
+  async (context) => {
+    const root = fixture(context, { input: "borrowed" });
+    const fd = openSync(join(root, "input"), "r");
+    const original = fstatSync(fd);
+    context.after(() => {
+      try {
+        const current = fstatSync(fd);
+        if (current.dev === original.dev && current.ino === original.ino) {
+          closeSync(fd);
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EBADF") {
+          throw error;
+        }
+      }
+    });
+    const call = netWorker(context, { url: new URL("./input.ts", import.meta.url) });
+    const exited = once(call.worker, "exit");
+    const operation = call({ op: "wait_start", fd, kind: "all" }).ok;
+    assert.deepEqual(await inputResult(call, operation), { ok: "borrowed" });
+    call({ op: "wait_finish", operation });
+    assert.deepEqual(call({ op: "close" }), { ok: null });
+    await exited;
+    assert.equal(
+      fstatSync(fd).ino,
+      original.ino,
+      "the caller still owns its descriptor after worker exit",
+    );
+  },
+);
+
+test(
+  "regular-file fd0 remains open without warnings after stdin worker exit",
+  { timeout: 5000 },
+  (context) => {
+    const script = String.raw`
+    import assert from "node:assert/strict";
+    import {fstatSync} from "node:fs";
+    import {once} from "node:events";
+    import {Worker,MessageChannel} from "node:worker_threads";
+    import {setTimeout as delay} from "node:timers/promises";
+    import {receiveReply} from ${JSON.stringify(new URL("./worker-control.ts", import.meta.url).href)};
+    const {port1,port2}=new MessageChannel();
+    const flag=new Int32Array(new SharedArrayBuffer(4));
+    const worker=new Worker(new URL(${JSON.stringify(new URL("./input.ts", import.meta.url).href)}),{workerData:{port:port2,flag},transferList:[port2]});
+    const exited=once(worker,"exit");
+    let next=1;
+    const deadline=performance.now()+2000;
+    const call=request=>{
+      const id=next++;
+      Atomics.store(flag,0,0);port1.postMessage({id,request});
+      return receiveReply(port1,flag,id,()=>deadline-performance.now()).result;
+    };
+    const original=fstatSync(0);
+    const operation=call({op:"wait_start",fd:0,kind:"all"}).ok;
+    let result;
+    do {
+      assert.ok(performance.now()<deadline,"stdin result deadline");
+      result=call({op:"wait_poll",operation});
+      if(result.pending) await delay(5);
+    } while(result.pending);
+    assert.equal(result.ok,"borrowed fd0");
+    call({op:"wait_finish",operation});call({op:"close"});port1.close();
+    await exited;
+    assert.equal(fstatSync(0).ino,original.ino);
+    process.stdout.write(result.ok);
+  `;
+    const root = fixture(context, { input: "borrowed fd0", "reader.mjs": script });
+    const fd = openSync(join(root, "input"), "r");
+    try {
+      const output = spawnSync(process.execPath, [join(root, "reader.mjs")], {
+        stdio: [fd, "pipe", "pipe"],
+        timeout: 3000,
+      });
+      assert.equal(output.error, undefined);
+      assert.equal(output.status, 0, output.stderr.toString());
+      assert.equal(output.stdout.toString(), "borrowed fd0");
+      assert.equal(output.stderr.toString(), "");
+    } finally {
+      closeSync(fd);
+    }
   },
 );
