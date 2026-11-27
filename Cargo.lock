@@ -706,6 +706,7 @@ dependencies = [
  "hd_base",
  "hd_check",
  "hd_diag",
+ "hd_host_abi",
  "hd_intern",
  "hd_project",
  "hd_resolve",

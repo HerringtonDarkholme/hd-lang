@@ -11911,6 +11911,55 @@ impl Run<'_> {
             })
     }
 
+    /// The C table of the package host trait `d` when its `[host]` entry
+    /// names a C provider: each method in declaration order, with its C
+    /// value table rows (`hd_check::header::c_param`, `c_result`, the
+    /// mapping the checker held the trait to). `None` for another trait,
+    /// and for a row the checker refused, whose error stops the build.
+    /// Cost: one visit per method and parameter.
+    fn package_c_table(
+        &self,
+        env: &dyn hd_mono::ProgramEnv,
+        d: DefId,
+    ) -> Option<hd_host_abi::c::Table> {
+        if !self.package_host_c(d) {
+            return None;
+        }
+        let identity = self.package_host_identity(d)?;
+        let names = self.names();
+        let name = |def: DefId| {
+            let path = names.path(def);
+            path.rsplit(['.', '/']).next().unwrap_or("").to_owned()
+        };
+        let mut methods = Vec::new();
+        for m in env.trait_methods(d) {
+            let suspends = env.suspends(m);
+            let params = env.params(m)?;
+            let names_of = env.parameter_names(m).unwrap_or_default();
+            let params = params
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(k, t)| {
+                    let row = hd_check::header::c_param(&names, *t, suspends).ok()?;
+                    Some((names_of.get(k).cloned().unwrap_or_else(|| "_".into()), row))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let result = hd_check::header::c_result(&names, env.ret(m)?, suspends).ok()?;
+            methods.push(hd_host_abi::c::Method {
+                name: name(m),
+                params,
+                result,
+                suspends,
+            });
+        }
+        Some(hd_host_abi::c::Table {
+            module: hd_wasm::package_module(&identity, false),
+            trait_name: name(d),
+            methods,
+        })
+    }
+
     fn package_host_selectors(&self, def: DefId) -> Vec<String> {
         let names = self.names();
         let mut selectors = BTreeSet::new();
@@ -12195,6 +12244,7 @@ impl Run<'_> {
             let package_host = |d| self.package_host_identity(d);
             let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
             let package_selectors = |d| self.package_host_selectors(d);
+            let package_c = |d| self.package_c_table(env, d);
             let dev_units = self.dev_units(&body);
             let instances = hd_opt::whole::Instances {
                 table: &c.collected.table,
@@ -12282,6 +12332,7 @@ impl Run<'_> {
                 package_host: &package_host,
                 package_trait: &package_trait,
                 package_selectors: &package_selectors,
+                package_c: &package_c,
                 collected: &c.collected,
                 order: &c.order,
                 body: &body,

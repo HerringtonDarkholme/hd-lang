@@ -1,8 +1,8 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; phase step 1 built (the
-`{ c, js }` manifest form and the [C value table](../../spec/lang/10-modules.md#c-value-table)
-check), the rest not yet (P3);
+Status: accepted by the owner, 2026-11-27; phase steps 1 and 2 built
+(the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
+check, and the C lowering with its table section), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 
@@ -106,10 +106,13 @@ token carries the host's completion table, so `hd_complete_*` are inline
 functions of the header, and a library links against nothing in `hd`.
 `TermHost`'s header is in [Appendix E](#the-c-header).
 
-**Wasm.** A C-bound trait's methods lower like any package host import,
-under the same contract: scalars are import parameters, and a `!` method
-is the `.start` and `.finish` pair. New: a pointer argument passes its
-address and length, and the contract records slots and the trait's hash.
+**Wasm.** A C-bound trait's methods are package host imports under the
+same contract, and a `!` method is the `.start` and `.finish` pair. New:
+each argument is an import parameter, with no exchange buffer, and a
+pointer argument passes its address and length. A plain package method
+encodes every argument in the buffer instead. The module records each
+C-bound trait's slots and hash in an `hd.c` section beside the
+contract, which JavaScript hosts do not read.
 
 **Binding on Wasmtime.** Before the guest starts, the host opens each
 package library from `native/<triple>/`, looks up its entry symbol,
@@ -384,9 +387,10 @@ pinned 26.13.1 (`dlopen(null)` called `getpid`, with an
 - **Native providers** (built, #2077 to #2083): `NAME.host.rs`, a custom
   embedder's registry, pending calls, abort at most once, late completion
   ignored, and the handle registry (`crates/hd_run_wasmtime/src/native.rs`).
-- **Import lowering**: a package method's scalars are import parameters;
-  strings and structured values go through the exchange buffer
-  (`push_args`, `crates/hd_wasm/src/boundary.rs`).
+- **Import lowering**: a package method's arguments all go through the
+  exchange buffer (`rt::profile_tree`, `push_args` in
+  `crates/hd_wasm/src/boundary.rs`); a std ABI row may pass scalars as
+  import parameters.
 - **The contract** lists reachable methods only, in source order
   (`hd_host_abi::schema::Interface`).
 - **A provider bridge**: `Http` is std code over the public `@host`
@@ -414,8 +418,9 @@ Language tier, Package Host Traits and Runtime Profiles in
 1. r[module.host.package.c-types] A package host trait bound to a C provider declares only methods whose parameter and result types are rows of the C value table. Error: `boundary-not-safe`.
 2. r[module.host.package.c-references] In such a trait, a local reference to a number or to a list of numbers is boundary-safe. The C function may use it only until the call returns.
 3. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
-4. r[module.host.package.c-parity] A C provider and a JavaScript provider of the same trait observe the same hd values.
-5. r[module.profile.bridge] A profile may bind a public std trait to std code over a std host trait. Grants name the public trait.
+4. r[module.host.package.c-no-supertraits] Such a trait declares no supertraits: its C function table holds its own methods, in source order. Error: `boundary-not-safe` (decision 14).
+5. r[module.host.package.c-parity] A C provider and a JavaScript provider of the same trait observe the same hd values.
+6. r[module.profile.bridge] A profile may bind a public std trait to std code over a std host trait. Grants name the public trait.
 
 ```text
 @host
@@ -613,3 +618,17 @@ Owner, 2026-11-26, on the rewrite's questions:
 13. **Abort after completion:** a cancel runs the abort slot whenever the
     guest did not take the result, even after C completed, with
     `completed` true; `hd_term` returns those bytes on the next `read!`.
+
+Owner, 2026-11-27, on phase step 1's questions:
+
+14. **Supertraits:** a C-bound trait declares no supertraits, since its
+    table holds its own methods in source order; `hd check` refuses one
+    with `boundary-not-safe` (built in step 1).
+15. **Node glue:** from step 2, a C-bound trait's imports take C
+    arguments, so Node and the web refuse it at startup, `{ c, js }` as a
+    C-only trait, with `native-provider-missing`. The generic JavaScript
+    glue (typed-array views for pointers, scalar parameters) follows as
+    step 2b and lifts the refusal for `{ c, js }`.
+
+A third answer, on returned handles, takes effect in step 4 and is
+recorded there.

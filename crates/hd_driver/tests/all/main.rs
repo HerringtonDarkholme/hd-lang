@@ -11,6 +11,7 @@ mod all_wakes;
 mod allocator_init;
 mod ascii_case_work;
 mod block_decorator;
+mod c_tables;
 mod checker;
 mod claim_order;
 mod closure_exit_rows;

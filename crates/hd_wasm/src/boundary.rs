@@ -951,6 +951,123 @@ pub fn host_slot(
     })
 }
 
+/// One vtable slot of a trait bound to a C provider
+/// (`module.host.package.c-types`, `docs/future-work/FFI.md`, "Wasm"), for
+/// method `m` at row `cm` of its C table: each argument is an import
+/// parameter, with no exchange buffer. A number or `bool` is its value, a
+/// reference to a number its address, a `string` its bytes' address and
+/// length, and a reference to a list its elements' address and length
+/// ([`HostArg::List`]). A method that returns at once answers its number
+/// as the import's result; a suspending one is the `.start` and
+/// `.finish` pair, whose completion crosses in the buffer as any
+/// suspending host result does.
+///
+/// Cost: one pass over the method's parameters.
+pub fn c_slot(
+    input: &Input<'_>,
+    mm: &mut Module,
+    key: &str,
+    cm: &hd_host_abi::c::Method,
+    m: DefId,
+    at: AtProfile<'_>,
+) -> StageResult<Helper> {
+    use hd_host_abi::c::{Param, Ret};
+    let (pool, env) = (input.pool, input.env);
+    let (params, ret) = signature(pool, env, m, None);
+    // ruled out: the driver's C table and this signature both come from
+    // the method's declaration, parameter by parameter after `self`.
+    debug_assert_eq!(
+        params.len(),
+        cm.params.len(),
+        "the C method `{}`'s parameters",
+        cm.name
+    );
+    let one = |t: Ty| -> StageResult<Val> {
+        let vals = layout::vals(pool, env, t)?;
+        // ruled out: a C value table row of a number, `bool` or a
+        // reference to a number is one Wasm value.
+        debug_assert_eq!(vals.len(), 1, "a C scalar of other values");
+        Ok(vals.first().copied().unwrap_or(Val::I32))
+    };
+    let mut args = Vec::with_capacity(params.len());
+    for (pt, (_, p)) in params.iter().zip(&cm.params) {
+        match *p {
+            Param::Bool | Param::Num(_) | Param::Ref { .. } => {
+                args.push(HostArg::Scalar(one(*pt)?));
+            }
+            Param::Str => args.extend([HostArg::Scalar(Val::I32), HostArg::Scalar(Val::I32)]),
+            Param::List { num, mutable } => {
+                args.push(HostArg::List(mutable.then(|| num_elem(num))));
+            }
+        }
+    }
+    let module = format!("hd:{key}");
+    let method = cm.name.clone();
+    if !cm.suspends {
+        let result = match cm.result {
+            Ret::Void => CallRes::Void,
+            Ret::Bool | Ret::Num(_) => CallRes::Scalar(one(ret)?),
+            // ruled out: module.host.package.c-types (hd_check
+            // header::c_result) gives a method that returns at once no
+            // bytes or `Result` row.
+            Ret::Bytes | Ret::Result(_) => {
+                debug_assert!(
+                    false,
+                    "a C method that returns at once with a completion row"
+                );
+                CallRes::Void
+            }
+        };
+        return Ok(Helper::HostCall {
+            module,
+            method,
+            args,
+            result,
+            owned: synchronous_owned_arguments(input, mm, &params)?,
+        });
+    }
+    let b = result_type(input, mm, m, ret, Some(at))?;
+    let res = if b.is_tags() && layout::vals(pool, env, ret)? == [Val::I32, Val::I32] {
+        HostRes::Tags
+    } else {
+        HostRes::Buf(b)
+    };
+    let (area, counts) = args_area(input, mm, &params, m)?;
+    Ok(Helper::HostCold {
+        module,
+        method,
+        args,
+        area,
+        counts: Box::new(counts),
+        res,
+    })
+}
+
+/// The element of a `List` of the C number `num`: its bytes, uncounted.
+fn num_elem(num: hd_host_abi::c::Num) -> Elem {
+    use hd_host_abi::c::Num;
+    let (val, signed) = match num {
+        Num::I8 | Num::I16 | Num::I32 => (Val::I32, true),
+        Num::U8 | Num::U16 | Num::U32 | Num::Usize => (Val::I32, false),
+        Num::I64 => (Val::I64, true),
+        Num::U64 => (Val::I64, false),
+        Num::F32 => (Val::F32, false),
+        Num::F64 => (Val::F64, false),
+    };
+    Elem {
+        size: u32::from(num.bytes()),
+        leaves: vec![Leaf {
+            offset: 0,
+            val,
+            bytes: num.bytes(),
+            signed,
+        }],
+        counted: crate::rt::Counted::None,
+        parts: Vec::new(),
+        cyclic: false,
+    }
+}
+
 /// Whether `ty`, a host method's result, is `never`
 /// (`module.boundary.never-result`).
 fn never(input: &Input<'_>, ty: Ty) -> bool {
@@ -1657,7 +1774,7 @@ pub fn push_args(f: &mut Func, args: &[HostArg], get: &dyn Fn(&mut Func, u32)) -
     let mut structured = false;
     // Each scalar argument's first value index, for the import's
     // parameters after the buffer is written.
-    let mut scalars = Vec::new();
+    let mut scalars: Vec<(u32, Result<Val, &Option<Elem>>)> = Vec::new();
     let mut k = 0;
     for a in args {
         let n = u32::try_from(a.vals().len()).expect("values");
@@ -1678,14 +1795,42 @@ pub fn push_args(f: &mut Func, args: &[HostArg], get: &dyn Fn(&mut Func, u32)) -
                 f.set(len);
                 structured = true;
             }
-            HostArg::Scalar(v) => scalars.push((k, *v)),
+            HostArg::Scalar(v) => scalars.push((k, Ok(*v))),
+            HostArg::List(unique) => scalars.push((k, Err(unique))),
         }
         k += n;
     }
     let mut params = Vec::new();
-    for (k, v) in scalars {
-        get(f, k);
-        params.push(v);
+    let buffer = scalars
+        .iter()
+        .any(|(_, a)| a.is_err())
+        .then(|| f.local(Val::I32));
+    for (k, a) in scalars {
+        match a {
+            Ok(v) => {
+                get(f, k);
+                params.push(v);
+            }
+            Err(unique) => {
+                // ruled out: `buffer` is made when any argument is a list.
+                let b = buffer.unwrap_or(len);
+                if let Some(elem) = unique {
+                    get(f, k);
+                    get(f, k);
+                    f.op(I::I32Load(mem(HEAP, 0, 2)));
+                    f.helper(Helper::ListUnique { elem: elem.clone() });
+                    f.op(I::I32Store(mem(HEAP, 0, 2)));
+                }
+                get(f, k);
+                f.op(I::I32Load(mem(HEAP, 0, 2)));
+                f.op(I::LocalTee(b));
+                f.u32(LIST_ELEMS);
+                f.op(I::I32Add);
+                f.get(b);
+                f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+                params.extend([Val::I32, Val::I32]);
+            }
+        }
     }
     if structured {
         f.get(len);

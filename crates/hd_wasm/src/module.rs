@@ -1518,6 +1518,9 @@ pub(crate) enum Edit {
     /// [`Module::package_contract`] records this host interface once
     /// (`boundary::record_package_interface`).
     PackageInterface(hd_host_abi::schema::Interface),
+    /// [`Module::c_tables`] records the C table of this C-bound root
+    /// interface once (`rt::c_vtable`).
+    CTable(hd_host_abi::c::Table),
 }
 
 /// What the link prepares before it emits the instances, which their
@@ -1620,6 +1623,9 @@ pub struct Module {
     pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
+    /// The C table of each C-bound root interface, by its import module,
+    /// written as the [`hd_host_abi::c::SECTION`].
+    pub c_tables: std::collections::BTreeMap<String, hd_host_abi::c::Table>,
     /// Interface lookup during construction; finish sorts the contract only
     /// after all recording is complete.
     pub package_interface_at: hd_base::HashMap<String, usize>,
@@ -1760,6 +1766,7 @@ impl Module {
             }),
             row_key_graphs: hd_base::HashMap::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
+            c_tables: std::collections::BTreeMap::new(),
             package_interface_at: hd_base::HashMap::default(),
             #[cfg(feature = "testing")]
             package_interface_probes: 0,
@@ -2112,6 +2119,17 @@ impl Module {
             }
             Edit::PackageInterface(interface) => {
                 crate::boundary::add_package_interface(self, interface);
+            }
+            Edit::CTable(table) => {
+                // ruled out: `rt::c_vtable` records a trait's table once
+                // per provider key, from the trait's own declaration.
+                debug_assert!(
+                    self.c_tables
+                        .get(&table.module)
+                        .is_none_or(|known| *known == table),
+                    "two C tables for one module"
+                );
+                self.c_tables.entry(table.module.clone()).or_insert(table);
             }
         }
     }
@@ -3838,6 +3856,13 @@ impl Module {
             module.section(&wasm_encoder::CustomSection {
                 name: hd_host_abi::schema::SECTION.into(),
                 data: self.package_contract.encode().into(),
+            });
+        }
+        if !self.c_tables.is_empty() {
+            let tables: Vec<_> = self.c_tables.values().cloned().collect();
+            module.section(&wasm_encoder::CustomSection {
+                name: hd_host_abi::c::SECTION.into(),
+                data: hd_host_abi::c::encode(&tables).into(),
             });
         }
         if session {
