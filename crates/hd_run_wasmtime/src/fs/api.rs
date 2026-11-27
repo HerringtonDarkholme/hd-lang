@@ -8,13 +8,14 @@ use crate::abi::{self, Entry, EntryKind, FsError};
 use crate::codec::{Dec, Enc, Wire, encode};
 use crate::runtime::reactor::Done;
 
-use super::io::{open, read, write};
+use super::io::{open, open_read, read, write};
 use super::ops::{Env, at, run};
 use super::sandbox::{Place, Sandbox, Stat, is_escape};
 
 /// The methods that open the path, so that a special file can make them
 /// wait. The others never open it, or fail at once on it.
 const OPENING: &[&str] = &[
+    "open",
     "read_bytes",
     "read_text",
     "write_bytes",
@@ -30,6 +31,9 @@ pub enum Start {
     /// A special file (`std-fs.special-file`): the call waits on the
     /// blocking pool, and `.finish` delivers its result.
     Run(Box<Job>),
+    /// `open` of a regular file or a directory, run inline: the file, or
+    /// the encoded error.
+    Opened(Result<std::fs::File, Enc>),
 }
 
 /// A call on a special file, ready to run off the program thread.
@@ -54,6 +58,13 @@ impl Job {
     /// beyond "other tasks run" (`std-fs.special-file.deadline`), and a
     /// cancelled write may have happened (`std-fs.cancel.write`).
     pub async fn run(self: Box<Self>) -> Done {
+        if self.method == "open" {
+            return match tokio::task::spawn_blocking(move || self.opened(None)).await {
+                Ok(Some(opened)) => Done::Opened(opened),
+                Ok(None) => Done::Opened(Err(error_text("the open ran past a deadline"))),
+                Err(error) => Done::Opened(Err(error_text(&format!("the open failed: {error}")))),
+            };
+        }
         match tokio::task::spawn_blocking(move || self.run_blocking()).await {
             Ok(encoded) => Done::Fs(encoded),
             Err(error) => Done::Fs(error_text(&format!("the file operation failed: {error}"))),
@@ -125,6 +136,17 @@ impl Job {
         }
         check_deadline(deadline).ok()?;
         Some(ok(()))
+    }
+
+    /// `open`: the file opened for reading, or the encoded error as
+    /// `read_bytes` reports it; `None` once the deadline passed.
+    fn opened(&self, deadline: Option<Instant>) -> Option<Result<std::fs::File, Enc>> {
+        match open_read(&self.place, deadline) {
+            Ok((file, _)) => Some(Ok(file)),
+            Err(Failure::Deadline) => None,
+            Err(Failure::NotGranted) => Some(Err(not_granted_at(&self.path, &self.cwd, true))),
+            Err(err) => Some(Err(failure(&self.path, "open", &self.path, &err))),
+        }
     }
 
     /// The encoded result, or `None` once the deadline passed.
@@ -280,6 +302,12 @@ pub fn start(
     if special {
         return Ok(Start::Run(Box::new(job)));
     }
+    if method == "open" {
+        return match job.opened(deadline) {
+            Some(opened) => Ok(Start::Opened(opened)),
+            None => Err(crate::host::Stop::TimeLimit.into()),
+        };
+    }
     match job.execute(deadline, Some(sandbox)) {
         Some(encoded) => Ok(Start::Ready(encoded)),
         None => Err(crate::host::Stop::TimeLimit.into()),
@@ -299,7 +327,9 @@ pub fn call_until_at(
     let sandbox = Sandbox::default();
     Ok(
         match start(key, method, bytes, grants, &sandbox, deadline, cwd)? {
-            Start::Ready(encoded) => encoded,
+            Start::Ready(encoded) | Start::Opened(Err(encoded)) => encoded,
+            // A test's call registers no handle: the file closes here.
+            Start::Opened(Ok(_)) => ok(crate::codec::Handle(0)),
             Start::Run(job) => job.run_blocking(),
         },
     )

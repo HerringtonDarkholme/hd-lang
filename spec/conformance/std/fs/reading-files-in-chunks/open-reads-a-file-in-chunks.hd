@@ -1,0 +1,40 @@
+# fixture-test-layout: integration
+# test: open! reads a host file and a MemoryFs file in chunks, and reports what read_bytes! reports
+# Spec std/fs Reading Files In Chunks: std-fs.open.decl, std-fs.open.chunks, std-fs.open.errors, std-fs.open.default.
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, create_dir_all, open, write_bytes}
+use std.io.{IoError, Read}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+fn chunks!(path: Path, max: usize) -> Result[List[List[u8]], FsError] $ FsRead:
+    let mut file = open!(path)?
+    let mut found: List[List[u8]] = []
+    while true:
+        match file.read!(max):
+            .Ok(chunk) =>
+                if chunk.len() == 0:
+                    break
+                found.push(chunk)
+            .Err(error) => return .Err(FsError.Other(message="$error"))
+    .Ok(found)
+
+fn exercise!(root: Path) -> void $ FsRead + FsWrite:
+    file := root.join("data.bin")
+    write_bytes!(file, [104, 13, 10, 105, 255, 0, 33]).expect("seed the file")
+    assert_equal(
+        chunks!(file, 3),
+        .Ok([[104, 13, 10], [105, 255, 0], [33]]),
+        reason="three-byte chunks, the bytes as written",
+    )
+    assert_equal(chunks!(file, 100), .Ok([[104, 13, 10, 105, 255, 0, 33]]), reason="one chunk")
+    missing := root.join("missing.bin")
+    assert_equal(chunks!(missing, 3), .Err(FsError.NotFound(path=missing)), reason="a missing file")
+    dir := root.join("dir")
+    create_dir_all!(dir).expect("make the directory")
+    assert_equal(chunks!(dir, 3), .Err(FsError.IsADirectory(path=dir)), reason="a directory")
+
+it("the host and MemoryFs read a file in the same chunks"):
+    exercise!(temp_dir())
+    files := MemoryFs::new()
+    $.with(FsRead=files, FsWrite=files):
+        exercise!(Path("/"))

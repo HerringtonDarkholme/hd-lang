@@ -64,6 +64,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/convert.md": "std-convert",
   "std/host.md": "std-host",
   "std/fs.md": "std-fs",
+  "std/io.md": "std-io",
   "std/path.md": "std-path",
   "std/random.md": "std-random",
   "std/option.md": "std-option",

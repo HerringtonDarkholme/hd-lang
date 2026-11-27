@@ -6,6 +6,7 @@
 # binds a host `ConsoleInput` to standard input. `println` calls the
 # covering provider's `write_sync` directly, so a `MemoryConsole` records
 # `println` lines too.
+use std.io.{Cursor, IoError, Read}
 use std.text.StringBuilder
 
 # The host console capability; `write_sync` takes `&mut self`, so it is a
@@ -46,6 +47,33 @@ pub trait ConsoleInput:
                     out.push("\n")
                 .None => break
         .Ok(out.build())
+
+    # The input's bytes as `Read` chunks, kept exactly as read
+    # (spec/std/console.md#r-std-console.stdin.exact).
+    fn stdin(&mut self) -> *mut dyn StdinHandle
+
+# The host's handle is a host handle (hd_host_abi::HANDLES): each `read!`
+# is one host call that takes the next bytes the input has, at most `max`.
+## The input's byte reader, as a provider's `stdin` returns it.
+## See [std-console.stdin.handle](../../spec/std/console.md#r-std-console.stdin.handle).
+pub trait StdinHandle < Read
+
+impl StdinHandle for Cursor
+
+## Standard input as a `Read` source, returned by `stdin()`.
+## See [std-console.stdin.decl](../../spec/std/console.md#r-std-console.stdin.decl).
+pub struct Stdin:
+    handle: *mut dyn StdinHandle
+
+impl Read for Stdin:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        self.handle.read!(max)
+
+## Returns the covering provider's input as a `Read` source of its exact bytes.
+## See [std-console.stdin.decl](../../spec/std/console.md#r-std-console.stdin.decl).
+pub fn stdin() -> Stdin $ ConsoleInput:
+    input := $.use(ConsoleInput)
+    Stdin { handle: input.stdin() }
 
 # The next line of the covering provider's input
 # (spec/std/console.md#r-std-console.input.helper).
@@ -165,6 +193,17 @@ impl ConsoleInput for ScriptedInput:
             out.push("\n")
             self.next = self.next + 1
         .Ok(out.build())
+
+    # The remaining lines' bytes, each ended by `\n`; the lines are taken
+    # (spec/std/console.md#r-std-console.scripted.stdin).
+    fn stdin(&mut self) -> *mut dyn StdinHandle:
+        let mut bytes: List[u8] = []
+        while self.next < self.lines.len():
+            bytes.extend(self.lines[self.next].to_utf8())
+            bytes.push(10)
+            self.next = self.next + 1
+        # Boxed because the returned handle outlives this call.
+        box(Cursor::new(bytes))
 
 # A console stream named by an access error.
 ## The standard output, standard error, and standard input streams.

@@ -7,7 +7,11 @@
 //! entries: the instance is the owner, as its reactor's inbox is the
 //! owner of its pending calls (#2081). An entry records the contract
 //! interface of its generated handle trait, that trait's dispatch, and the
-//! trait object.
+//! trait object. The host's own handles that a std handle trait names
+//! (`hd_host_abi::HANDLES` rows with a release row, as `std.fs.FileHandle`)
+//! live here too, under an interface number no contract issues and with no
+//! dispatch: their methods are host methods, which reach the value with
+//! [`Handles::host`].
 //!
 //! The table follows slotmap's `SlotMap`: a vector of slots, each with a
 //! generation, and a free list of the vacant ones. A handle number is the
@@ -35,12 +39,12 @@ pub(crate) const SLOTS: u32 = (1 << Handle::SLOT_BITS) - 1;
 /// Generations per slot; a slot whose generations are spent retires.
 pub(crate) const GENERATIONS: u32 = 1 << Handle::GEN_BITS;
 
-/// A live entry: its generated handle trait, that trait's dispatch, and
-/// its trait object, which is out of its slot while one of its methods
-/// runs.
+/// A live entry: its generated handle trait, that trait's dispatch (none
+/// for a host handle), and its trait object, which is out of its slot
+/// while one of its methods runs.
 struct Entry {
     interface: u32,
-    dispatch: Dispatch,
+    dispatch: Option<Dispatch>,
     value: Option<Box<dyn Any>>,
 }
 
@@ -106,6 +110,36 @@ impl Handles {
         dispatch: Dispatch,
         value: Box<dyn Any>,
     ) -> Result<u32, HostError> {
+        self.issue(interface, Some(dispatch), value)
+    }
+
+    /// Issues a number for a host handle's `value`, under `interface`,
+    /// one of the host's numbers above every contract's interfaces.
+    pub(crate) fn insert_host(
+        &mut self,
+        interface: u32,
+        value: Box<dyn Any>,
+    ) -> Result<u32, HostError> {
+        self.issue(interface, None, value)
+    }
+
+    /// The value of the live host handle `number` of `interface`, if it is
+    /// one and holds a `T`.
+    pub(crate) fn host<T: 'static>(&mut self, number: u32, interface: u32) -> Option<&mut T> {
+        self.entry(number, interface)?
+            .entry
+            .as_mut()?
+            .value
+            .as_mut()?
+            .downcast_mut::<T>()
+    }
+
+    fn issue(
+        &mut self,
+        interface: u32,
+        dispatch: Option<Dispatch>,
+        value: Box<dyn Any>,
+    ) -> Result<u32, HostError> {
         let entry = Entry {
             interface,
             dispatch,
@@ -156,12 +190,15 @@ impl Handles {
             .entry(number, interface)
             .and_then(|slot| slot.entry.as_mut())
             .ok_or_else(invalid)?;
+        // A host handle has no dispatch: its interface is the host's, so
+        // no contract method names it; refused rather than assumed.
+        let dispatch = entry.dispatch.ok_or_else(invalid)?;
         // ruled out: no guest code runs while a method is lent, so no call
         // reaches a lent handle; refused rather than assumed.
         let value = entry.value.take().ok_or_else(invalid)?;
         Ok(Lent {
             number,
-            dispatch: entry.dispatch,
+            dispatch,
             value,
         })
     }

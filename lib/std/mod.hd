@@ -19,6 +19,7 @@ pub use std.{
     hash,
     host,
     http,
+    io,
     iter,
     meta,
     net,

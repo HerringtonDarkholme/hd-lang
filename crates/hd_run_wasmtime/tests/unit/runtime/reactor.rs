@@ -289,7 +289,7 @@ mod tests {
         };
         // The aborted read took no line: the next read gets the first, and
         // the line read for it is kept for the read after.
-        assert!(matches!(op.work, Work::Read(Some(Ok(Some(ref l)))) if l == "a"));
+        assert!(matches!(op.work, Work::Read(Some(Ok(Some(ref l)))) if l == b"a"));
         let third = r.read_line();
         let mut done = Vec::new();
         while done.is_empty() {
@@ -298,7 +298,7 @@ mod tests {
         }
         assert_eq!(done, [third]);
         let op = r.remove(third).expect("read");
-        assert!(matches!(op.work, Work::Read(Some(Ok(Some(ref l)))) if l == "b"));
+        assert!(matches!(op.work, Work::Read(Some(Ok(Some(ref l)))) if l == b"b"));
         assert!(!r.wait(), "nothing pending");
     }
 
@@ -319,9 +319,9 @@ mod tests {
             Some(Work::Read(Some(Ok(text)))) => text,
             _ => panic!("read {h} has no result"),
         };
-        assert_eq!(text(&mut r, first).as_deref(), Some("a"));
-        assert_eq!(text(&mut r, rest).as_deref(), Some("b\n\nc\n"));
-        assert_eq!(text(&mut r, again).as_deref(), Some(""));
+        assert_eq!(text(&mut r, first).as_deref(), Some(&b"a"[..]));
+        assert_eq!(text(&mut r, rest).as_deref(), Some(&b"b\n\nc\n"[..]));
+        assert_eq!(text(&mut r, again).as_deref(), Some(&b""[..]));
     }
 
     #[test]
@@ -343,8 +343,37 @@ mod tests {
             let Some(Work::Read(Some(Ok(Some(got))))) = r.remove(h).map(|op| op.work) else {
                 panic!("no result");
             };
-            assert_eq!(got, want, "{input:?}");
+            assert_eq!(got, want.as_bytes(), "{input:?}");
         }
+    }
+
+    /// `StdinHandle.read`: each read takes the buffered bytes exactly as
+    /// read, at most `max`, sharing the input with line reads; an empty
+    /// result is the end, and `max` 0 takes nothing at once
+    /// (`std-console.stdin.exact`, `std-console.stdin.shared`).
+    #[test]
+    fn byte_reads_take_the_bytes_as_read() {
+        let input: &'static [u8] = b"a\r\nb\r\n\xffc";
+        let mut r = Reactor::new(Some(Box::new(input)));
+        let line = r.read_line();
+        let none = r.read_bytes(0);
+        let two = r.read_bytes(2);
+        let rest = r.read_bytes(64);
+        let end = r.read_bytes(64);
+        let mut done = Vec::new();
+        while done.len() < 5 {
+            assert!(r.wait());
+            done.extend(r.due());
+        }
+        let bytes = |r: &mut Reactor, h| match r.remove(h).map(|op| op.work) {
+            Some(Work::Read(Some(Ok(bytes)))) => bytes,
+            _ => panic!("read {h} has no result"),
+        };
+        assert_eq!(bytes(&mut r, line).as_deref(), Some(&b"a"[..]));
+        assert_eq!(bytes(&mut r, none).as_deref(), Some(&b""[..]));
+        assert_eq!(bytes(&mut r, two).as_deref(), Some(&b"b\r"[..]));
+        assert_eq!(bytes(&mut r, rest).as_deref(), Some(&b"\n\xffc"[..]));
+        assert_eq!(bytes(&mut r, end).as_deref(), Some(&b""[..]));
     }
 
     #[test]

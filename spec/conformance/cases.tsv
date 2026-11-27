@@ -3348,6 +3348,7 @@ std/console/console-errors/console-error-traits.hd	runtime	accept	std/console.md
 std/console/buffer-console/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output-text-sync
 std/console/buffer-console/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-text-sync
 std/console/scripted-input/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
+std/console/standard-input-bytes/scripted-input-stdin.hd	runtime	accept	std/console.md#r-std-console.scripted.stdin
 std/contract/require/contract-require-custom-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.debug-fail
 std/contract/require/contract-require-default-message.hd	runtime	panic:explicit-panic	std/contract.md#r-std-contract.require.debug-fail
 std/contract/require/contract-require-pass.hd	runtime	accept	std/contract.md#r-std-contract.require.debug-pass
@@ -5548,6 +5549,9 @@ std/error/cause-chain/error-chain-free-function-removed.hd	type	reject:unknown-i
 std/error/error-context/error-context-private-type.hd	type	reject:private-import	std/error.md#r-std-error.context.result-private-wrapper
 std/error/error-context/error-context-private-field.hd	type	reject:unknown-field	std/error.md#r-std-error.context.result-private-wrapper
 std/fs/memory-file-system/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
+std/fs/reading-files-in-chunks/dropped-files-are-released.hd	runtime	accept	std/fs.md#r-std-fs.open.released
+std/fs/reading-files-in-chunks/open-reads-a-file-in-chunks.hd	runtime	accept	std/fs.md#r-std-fs.open.chunks
+std/io/reading-in-chunks/cursor-reads-in-chunks.hd	runtime	accept	std/io.md#r-std-io.read.at-most
 std/http/sending/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#r-std-http.helper.get-post
 std/collections/heap/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-collections.heap.collect.linear
 std/collections/deque/deque-heap-properties.hd	runtime	accept	std/collections.md#deque

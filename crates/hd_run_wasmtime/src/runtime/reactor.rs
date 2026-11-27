@@ -30,9 +30,22 @@ pub fn now_ns() -> i128 {
 
 pub const NS_PER_MS: i128 = 1_000_000;
 
-/// One line of standard input without its ending: `Ok(None)` at the end
-/// of input (and every time after), `Err(code)` when it cannot be read.
-pub type Line = Result<Option<String>, i32>;
+/// One read of standard input: a line without its ending, all the rest,
+/// or the next bytes as read; `Ok(None)` at the end of input (and every
+/// time after), `Err(code)` when it cannot be read.
+pub type Line = Result<Option<Vec<u8>>, i32>;
+
+/// What a read of standard input takes from the buffered input.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Want {
+    /// `read_line`: up to and without the next line ending.
+    Line,
+    /// `read_all`: all the rest, once the input ends, with `\r\n` as `\n`.
+    All,
+    /// `StdinHandle.read`: the bytes buffered, at most this many, exactly
+    /// as read (`std-console.stdin.exact`).
+    Bytes(usize),
+}
 
 /// What an offloaded operation delivers, for its `.finish` to encode.
 /// Each capability that moves onto the `hd-io` runtime adds its variant.
@@ -48,6 +61,10 @@ pub enum Done {
     Http(crate::http::client::Sent),
     /// An `Fs` call on a special file: its encoded result.
     Fs(crate::codec::Enc),
+    /// `FsRead.open` of a special file: the file, or the encoded error.
+    Opened(Result<std::fs::File, crate::codec::Enc>),
+    /// `FileHandle.read` of a special file: the bytes read.
+    Read(std::io::Result<Vec<u8>>),
     /// `Workers.send!`: the encoded reply or `CrossError`.
     Workers(crate::codec::Enc),
     /// The reactor tests' offloaded operation.
@@ -234,8 +251,8 @@ pub struct Reactor {
     input: Option<Box<dyn BufRead + Send>>,
     /// Asks the reader thread for one more chunk.
     requests: Option<Sender<()>>,
-    /// The reads waiting for input, oldest first; `true` for a `read_all`.
-    reads: VecDeque<(i32, bool)>,
+    /// The reads waiting for input, oldest first, with what each takes.
+    reads: VecDeque<(i32, Want)>,
     /// What the reader thread delivered and no read has taken yet, so an
     /// aborted read loses no input.
     buffered: Vec<u8>,
@@ -413,18 +430,24 @@ impl Reactor {
 
     /// A read of the next line of standard input.
     pub fn read_line(&mut self) -> i32 {
-        self.read(false)
+        self.read(Want::Line)
     }
 
     /// A read of all the rest of standard input as read, with `\r\n` read
     /// as `\n`.
     pub fn read_all(&mut self) -> i32 {
-        self.read(true)
+        self.read(Want::All)
     }
 
-    fn read(&mut self, all: bool) -> i32 {
+    /// A read of the next bytes of standard input, at most `max`, as soon
+    /// as any are buffered. cost: O(the bytes taken) per read.
+    pub fn read_bytes(&mut self, max: usize) -> i32 {
+        self.read(Want::Bytes(max))
+    }
+
+    fn read(&mut self, want: Want) -> i32 {
         let h = self.start(None, Work::Read(None));
-        self.reads.push_back((h, all));
+        self.reads.push_back((h, want));
         self.serve();
         h
     }
@@ -432,28 +455,35 @@ impl Reactor {
     /// Completes the oldest waiting reads that the buffered input answers,
     /// then asks the reader thread for more when a read still waits.
     fn serve(&mut self) {
-        while let Some(&(h, all)) = self.reads.front() {
-            let line = if all {
+        while let Some(&(h, want)) = self.reads.front() {
+            let line = if want == Want::All {
                 if !self.at_end {
                     break;
                 }
                 Some(normalize_crlf(&std::mem::take(&mut self.buffered)))
+            } else if let Want::Bytes(max) = want {
+                // Bytes as soon as any are buffered; empty only at the end.
+                if self.buffered.is_empty() && !self.at_end && max > 0 {
+                    break;
+                }
+                let n = max.min(self.buffered.len());
+                Some(self.buffered.drain(..n).collect())
             } else if let Some(at) = self.buffered.iter().position(|&b| b == b'\n') {
                 let mut line: Vec<u8> = self.buffered.drain(..=at).collect();
                 line.pop();
                 if line.last() == Some(&b'\r') {
                     line.pop();
                 }
-                Some(String::from_utf8_lossy(&line).into_owned())
+                Some(line)
             } else if self.at_end {
                 // A last line with no ending, or the end of input.
                 let rest = std::mem::take(&mut self.buffered);
-                (!rest.is_empty()).then(|| String::from_utf8_lossy(&rest).into_owned())
+                (!rest.is_empty()).then_some(rest)
             } else {
                 break;
             };
             self.reads.pop_front();
-            self.deliver(h, Ok(line.or_else(|| all.then(String::new))));
+            self.deliver(h, Ok(line.or_else(|| (want == Want::All).then(Vec::new))));
         }
         if !self.reads.is_empty() && !self.asked && !self.at_end {
             self.request();
@@ -836,7 +866,7 @@ fn read_chunk(input: &mut dyn BufRead) -> Result<Vec<u8>, i32> {
 }
 
 /// All the input that is left, as read, with `\r\n` read as `\n`.
-fn normalize_crlf(input: &[u8]) -> String {
+fn normalize_crlf(input: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(input.len());
     for (i, &b) in input.iter().enumerate() {
         if b == b'\r' && input.get(i + 1) == Some(&b'\n') {
@@ -844,5 +874,5 @@ fn normalize_crlf(input: &[u8]) -> String {
         }
         out.push(b);
     }
-    String::from_utf8_lossy(&out).into_owned()
+    out
 }

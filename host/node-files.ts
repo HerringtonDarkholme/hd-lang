@@ -11,6 +11,7 @@ const {
   closeSync,
   copyFileSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -291,8 +292,42 @@ const readBytes = (path: string, size?: number): Uint8Array => {
   }
 };
 
+// The most bytes one `readSync` of an open file asks for; a read of more
+// makes more calls, so a chunk is never allocated ahead of its bytes.
+const READ_CHUNK = 65536;
+
+// `FileHandle.read`: the next bytes of the open file `fd`, at most `max`,
+// all that are left when fewer, as the Rust host reads a regular file.
+// cost: one host call per chunk, ceil(n / READ_CHUNK) `readSync` calls,
+// and O(n) memory for the n bytes read.
+export const readOpen = (fd: number, max: number): Uint8Array => {
+  const parts: Buffer[] = [];
+  let left = max;
+  while (left > 0) {
+    const chunk = Buffer.allocUnsafe(Math.min(left, READ_CHUNK));
+    const count = readSync(fd, chunk, 0, chunk.length, null);
+    if (count === 0) {
+      break;
+    }
+    parts.push(chunk.subarray(0, count));
+    left -= count;
+  }
+  return parts.length === 1 ? parts[0]! : Buffer.concat(parts);
+};
+
 export const fileOperations = {
   "hd:FsRead": {
+    // A file opened for reading: its descriptor is the handle's number
+    // until `FileHandle.$release` closes it (std-fs.open.released). A
+    // directory is `IsADirectory`, as its read would be.
+    open: (path: string) => {
+      const fd = opening(path, () => openSync(path, "r"));
+      if (fstatSync(fd).isDirectory()) {
+        closeSync(fd);
+        return fsErr(path, "IsADirectory");
+      }
+      return Ok(fd);
+    },
     read_bytes: (path: string, size?: number) => Ok(readBytes(path, size)),
     read_text: (path: string, size?: number) => {
       const bytes = readBytes(path, size);

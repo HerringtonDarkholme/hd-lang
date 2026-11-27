@@ -1,0 +1,31 @@
+# test: a Cursor reads at most max bytes per read!, then an empty list at the end
+# Spec std/io Reading In Chunks: std-io.read.at-most, std-io.read.end, std-io.read.zero, std-io.cursor.read, std-io.cursor.position.
+use std.io.{Cursor, IoError, Read}
+
+fn drain![R < Read](source: &mut R, max: usize) -> Result[List[List[u8]], IoError]:
+    let mut chunks: List[List[u8]] = []
+    while true:
+        chunk := source.read!(max)?
+        if chunk.len() == 0:
+            break
+        chunks.push(chunk)
+    .Ok(chunks)
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads two at a time, the last chunk short"):
+        let mut source = Cursor::new([1, 2, 3, 4, 5])
+        assert_equal(drain!(&mut source, 2), .Ok([[1, 2], [3, 4], [5]]), reason="chunks of two")
+        assert_equal(source.position(), 5, reason="every byte read")
+        assert_equal(source.read!(2), .Ok([]), reason="the end, again")
+
+    it("reads nothing for max 0"):
+        let mut source = Cursor::new([7])
+        assert_equal(source.read!(0), .Ok([]), reason="max 0")
+        assert_equal(source.position(), 0, reason="nothing read")
+        assert_equal(source.read!(9), .Ok([7]), reason="the byte is still there")
+
+    it("an empty source ends at once"):
+        let mut source = Cursor::new([])
+        assert_equal(source.read!(4), .Ok([]), reason="the end")

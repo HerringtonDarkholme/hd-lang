@@ -135,6 +135,39 @@ fn whole_input!() -> string $ ConsoleInput:
 > **Why.** Input is its own trait, apart from `Console`, so a program
 > that only prints gains no authority to read.
 
+## Standard Input Bytes
+
+`stdin()` reads standard input as bytes, a chunk at a time, as they
+arrive:
+
+```text
+use std.console.{ConsoleInput, stdin}
+use std.io.Read
+
+fn first_chunk!() -> List[u8] $ ConsoleInput:
+    let mut input = stdin()
+    input.read!(4096).unwrap_or([])
+```
+
+```text
+pub trait StdinHandle < Read
+
+pub struct Stdin:
+    handle: *mut dyn StdinHandle
+
+pub fn stdin() -> Stdin $ ConsoleInput
+```
+
+1. r[std-console.stdin.decl] `std.console` declares `Stdin`, with private fields, which implements [`Read`](io.md#reading-in-chunks), and `pub fn stdin() -> Stdin $ ConsoleInput`, which returns the covering provider's `stdin()`. Code imports them, as in `use std.console.{Stdin, stdin}`.
+2. r[std-console.stdin.handle] `ConsoleInput` declares `fn stdin(&mut self) -> *mut dyn StdinHandle`, and `std.console` declares the handle trait `StdinHandle < Read`. A provider defines `stdin`; it has no default body.
+3. r[std-console.stdin.exact] A host `Stdin` returns the input's bytes exactly as read: a `\r\n` stays two bytes, and bytes that are not UTF-8 stay as they are.
+4. r[std-console.stdin.chunks] Each `read!(max)` of the host's `Stdin` is one host call. It returns the bytes that have arrived, at most `max`, as soon as there is one, and an empty list at the end of input.
+5. r[std-console.stdin.shared] The host's `Stdin`, `read_line!`, and `read_all!` read one buffered input, so each byte goes to exactly one of them, in the order the calls ask.
+
+> **Why.** A line read decodes text and drops line endings. A filter that
+> copies its input, or a decoder that frames values its own way, needs
+> the bytes as they are.
+
 ## Console Errors
 
 `ConsoleError` is a prelude enum with closed, denied, and other failures:
@@ -204,6 +237,7 @@ tests:
 4. r[std-console.scripted.end] Once every line is read, `read_line!` returns `.Ok(.None)`, on every later call too.
 5. r[std-console.scripted.read-all] `ScriptedInput` overrides `read_all!`: it returns each unread line followed by `\n`, then has read every line. A scripted line has no ending of its own, so this is the text a host gives for input whose every line ends.
 6. r[std-console.scripted.no-host] A `ScriptedInput` reads nothing from the host's standard input.
+7. r[std-console.scripted.stdin] `ScriptedInput`'s `stdin` takes every unread line: its handle reads each line followed by `\n`, as UTF-8 bytes, and later reads of lines return `.Ok(.None)`.
 
 > **Why.** Every host capability trait has a deterministic provider
 > beside it, so a test never touches the host.

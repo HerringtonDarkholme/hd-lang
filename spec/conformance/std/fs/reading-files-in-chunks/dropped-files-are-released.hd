@@ -1,0 +1,22 @@
+# fixture-test-layout: integration
+# test: a File's last drop releases its host file, so a program opens more files than the OS lets one hold at once
+# Spec std/fs Reading Files In Chunks: std-fs.open.released.
+use std.fs.{FsRead, FsWrite, open, write_text}
+use std.io.Read
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+fn first_byte!(path: Path) -> u8 $ FsRead:
+    let mut file = open!(path).expect("open the file")
+    file.read!(1).expect("read a byte")[0]
+
+it("opens a file 4096 times, each File dropped after one read"):
+    path := temp_dir().join("one.txt")
+    write_text!(path, "x").expect("seed the file")
+    # More than the usual per-process descriptor limit (256 on macOS, 1024
+    # on Linux): without release, an open past it fails.
+    opens := usize(4096)
+    let total: usize = 0
+    for _ in 0..opens:
+        total = total + usize(first_byte!(path))
+    assert_equal(total, opens * 120, reason="every open read its byte")

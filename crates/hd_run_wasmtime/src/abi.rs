@@ -280,6 +280,9 @@ impl Wire for EntryKind {
     }
 }
 
+/// `FileHandle`, a host handle: its handle number.
+pub type FileHandle = Handle;
+
 /// `FormError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormError {
@@ -455,6 +458,45 @@ impl Wire for HostError {
             },
             _ => Self::Missing {
                 name: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
+/// `IoError` of `lib/std/io.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum IoError {
+    Closed,
+    NotGranted,
+    InvalidUtf8,
+    Other { message: String },
+}
+
+impl Wire for IoError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Closed => {
+                e.leb(0);
+            }
+            Self::NotGranted => {
+                e.leb(1);
+            }
+            Self::InvalidUtf8 => {
+                e.leb(2);
+            }
+            Self::Other { message } => {
+                e.leb(3);
+                message.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(4)? {
+            0 => Self::Closed,
+            1 => Self::NotGranted,
+            2 => Self::InvalidUtf8,
+            _ => Self::Other {
+                message: Wire::dec(d)?,
             },
         })
     }
@@ -842,6 +884,9 @@ impl Wire for Signal {
     }
 }
 
+/// `StdinHandle`, a host handle: its handle number.
+pub type StdinHandle = Handle;
+
 /// `TcpListener`, a host handle: its handle number.
 pub type TcpListener = Handle;
 
@@ -1089,6 +1134,7 @@ pub enum Id {
     ConsoleWriteErrorSync,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
+    ConsoleInputStdin,
     ClockNow,
     ClockMonotonic,
     ClockSleep,
@@ -1096,6 +1142,7 @@ pub enum Id {
     FsReadReadText,
     FsReadListDir,
     FsReadStat,
+    FsReadOpen,
     FsWriteWriteBytes,
     FsWriteWriteText,
     FsWriteAppendText,
@@ -1130,6 +1177,9 @@ pub enum Id {
     PropertyRunnerStart,
     PropertyRunnerRecord,
     PropertyRunnerShow,
+    FsReadFileHandleRead,
+    FsReadFileHandleRelease,
+    ConsoleInputStdinHandleRead,
     NetTcpStreamRead,
     NetTcpStreamWrite,
     NetTcpStreamSetTimeout,
@@ -1205,6 +1255,15 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Buffer("Result[string, ConsoleError]"),
     },
     HostMethod {
+        id: Id::ConsoleInputStdin,
+        module: "hd:ConsoleInput",
+        name: "stdin",
+        wait: Wait::Never,
+        resource: None,
+        params: &[],
+        result: Codec::Buffer("StdinHandle"),
+    },
+    HostMethod {
         id: Id::ClockNow,
         module: "hd:Clock",
         name: "now",
@@ -1266,6 +1325,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: Some(ResourceArg::Path),
         params: &[Codec::Buffer("Path")],
         result: Codec::Buffer("Result[Entry?, FsError]"),
+    },
+    HostMethod {
+        id: Id::FsReadOpen,
+        module: "hd:FsRead",
+        name: "open",
+        wait: Wait::May,
+        resource: Some(ResourceArg::Path),
+        params: &[Codec::Buffer("Path")],
+        result: Codec::Buffer("Result[FileHandle, FsError]"),
     },
     HostMethod {
         id: Id::FsWriteWriteBytes,
@@ -1576,6 +1644,33 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Void,
+    },
+    HostMethod {
+        id: Id::FsReadFileHandleRead,
+        module: "hd:FsRead",
+        name: "FileHandle.read",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[List[u8], IoError]"),
+    },
+    HostMethod {
+        id: Id::FsReadFileHandleRelease,
+        module: "hd:FsRead",
+        name: "FileHandle.$release",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Void,
+    },
+    HostMethod {
+        id: Id::ConsoleInputStdinHandleRead,
+        module: "hd:ConsoleInput",
+        name: "StdinHandle.read",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[List[u8], IoError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamRead,

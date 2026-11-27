@@ -9,9 +9,13 @@ use std::time::Instant;
 use super::api::{Failure, check_deadline};
 use super::sandbox::{Place, below_a_file};
 
-/// The whole file.
-pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
-    let mut file = open(place, false, false, deadline)?;
+/// The file at `place`, opened for reading, with its metadata: a
+/// directory is `IsADirectory`, as its read would be.
+pub(crate) fn open_read(
+    place: &Place,
+    deadline: Option<Instant>,
+) -> Result<(File, std::fs::Metadata), Failure> {
+    let file = open(place, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
     if st.is_dir() {
@@ -19,6 +23,12 @@ pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, 
         // OS is asked, so every OS reports the same `IsADirectory`.
         return Err(Failure::new("read", ErrorKind::IsADirectory.into()));
     }
+    Ok((file, st))
+}
+
+/// The whole file.
+pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
+    let (mut file, st) = open_read(place, deadline)?;
     if st.is_file() && st.len() > 0x7fff_ffff {
         return Err(Failure::Message(format!(
             "File size ({}) is greater than 2 GiB",

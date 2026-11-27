@@ -40,7 +40,9 @@ fn host(
         Id::ConsoleWriteSync
         | Id::ConsoleWriteErrorSync
         | Id::ConsoleInputReadLine
-        | Id::ConsoleInputReadAll => console::call(method, finish, caller, params),
+        | Id::ConsoleInputReadAll
+        | Id::ConsoleInputStdin
+        | Id::ConsoleInputStdinHandleRead => console::call(method, finish, caller, params),
         Id::ClockNow
         | Id::ClockMonotonic
         | Id::ClockSleep
@@ -59,6 +61,9 @@ fn host(
         | Id::FsReadReadText
         | Id::FsReadListDir
         | Id::FsReadStat
+        | Id::FsReadOpen
+        | Id::FsReadFileHandleRead
+        | Id::FsReadFileHandleRelease
         | Id::FsWriteWriteBytes
         | Id::FsWriteWriteText
         | Id::FsWriteAppendText

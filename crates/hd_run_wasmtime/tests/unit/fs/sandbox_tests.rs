@@ -42,6 +42,7 @@ fn call(
     match start(key(method), method, args.done(), grants, sandbox, None, cwd).expect("host call") {
         Start::Ready(encoded) => encoded,
         Start::Run(_) => panic!("{method} of {path} was offloaded"),
+        Start::Opened(_) => panic!("{method} of {path} opened a file"),
     }
 }
 

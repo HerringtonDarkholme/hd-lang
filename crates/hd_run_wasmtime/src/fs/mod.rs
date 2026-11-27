@@ -14,16 +14,17 @@
 //!
 //! `call` is the provider of `FsRead` and `FsWrite`; `api` decodes and
 //! checks each call, `ops` and `io` do it, and `sandbox` holds the granted
-//! directories' handles.
+//! directories' handles. `open`'s files and their reads are `file`'s.
 
 use wasmtime::{Caller, Val};
 
-use crate::abi::HostMethod;
+use crate::abi::{HostMethod, Id};
 use crate::host::offload::{finished, not_completed, pending};
 use crate::host::{Host, Ret, Stop, bytes, int_arg};
 use crate::runtime::reactor::Done;
 
 pub(crate) mod api;
+pub(crate) mod file;
 pub(crate) mod io;
 pub(crate) mod ops;
 pub(crate) mod sandbox;
@@ -39,11 +40,19 @@ pub(crate) fn call(
     caller: &mut Caller<'_, Host>,
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
+    if matches!(
+        method.id,
+        Id::FsReadFileHandleRead | Id::FsReadFileHandleRelease
+    ) {
+        return file::call(method.id, finish, caller, params);
+    }
     if finish {
-        let Done::Fs(encoded) = finished(caller, params)? else {
-            return Err(not_completed());
+        return match finished(caller, params)? {
+            Done::Fs(encoded) => Ok(Ret::encoded(encoded)),
+            // A special file's `open`, done on the blocking pool.
+            Done::Opened(opened) => Ok(Ret::encoded(file::issue(caller.data_mut(), opened, true)?)),
+            _ => Err(not_completed()),
         };
-        return Ok(Ret::encoded(encoded));
     }
     let key = method.module.strip_prefix("hd:").unwrap_or(method.module);
     let b = bytes(caller, int_arg(params, 0)?)?;
@@ -62,6 +71,7 @@ pub(crate) fn call(
         &cwd,
     )? {
         api::Start::Ready(e) => Ret::ready(e),
+        api::Start::Opened(opened) => Ret::ready(file::issue(host, opened, false)?),
         api::Start::Run(job) => pending(host.reactor.offload(job.run()), api::not_run),
     }
 }

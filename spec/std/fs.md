@@ -8,6 +8,7 @@ over the language tier:
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` value that describes a file;
 - a free helper for each method of `FsRead` and `FsWrite`;
+- `File`, a file opened to read in chunks, with the helper `open!`;
 - `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
 
@@ -65,6 +66,7 @@ pub trait FsRead:
     fn read_text!(self, path: Path) -> Result[string, FsError]
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
     fn stat!(self, path: Path) -> Result[Entry?, FsError]
+    fn open!(self, path: Path) -> Result[*mut dyn FileHandle, FsError]
 ```
 
 1. r[std-fs.read.decl] `std.fs` declares the host capability trait `FsRead` with the methods above. Code imports it, as in `use std.fs.FsRead`.
@@ -72,6 +74,7 @@ pub trait FsRead:
 3. r[std-fs.read.text] `read_text!` returns that content as a string. Content that is not valid UTF-8 is `.Err(FsError.InvalidUtf8(path))`.
 4. r[std-fs.read.list-dir] `list_dir!` returns one `Entry` for each entry of the directory at `path`.
 5. r[std-fs.read.stat] `stat!` returns the `Entry` for `path`, or `.None` when nothing is there.
+6. r[std-fs.read.open] `open!` opens the file at `path` for reading in chunks, as [Reading Files In Chunks](#reading-files-in-chunks) defines.
 
 ## Writing
 
@@ -183,6 +186,45 @@ fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
 > **No `exists!`.** `stat!` already answers a missing path with `.None`, so
 > `stat!(path)?.is_some()` says whether anything is there, and keeps a failed
 > check, such as a denied path, apart from "missing". One atom, not two.
+
+## Reading Files In Chunks
+
+`open!` opens a file to read it a chunk at a time, so a filter holds one
+chunk and can stop before the end:
+
+```text
+use std.fs.{FsRead, open}
+use std.io.Read
+use std.path.Path
+
+fn first_bytes!(path: Path) -> List[u8] $ FsRead:
+    match open!(path):
+        .Ok(file) =>
+            let mut file = file
+            file.read!(16).unwrap_or([])
+        .Err(_) => []
+```
+
+```text
+pub trait FileHandle < Read
+
+pub struct File:
+    handle: *mut dyn FileHandle
+
+pub fn open!(path: Path) -> Result[File, FsError] $ FsRead
+```
+
+1. r[std-fs.open.decl] `std.fs` declares `File`, with private fields, which implements [`Read`](io.md#reading-in-chunks), and `pub fn open!(path: Path) -> Result[File, FsError] $ FsRead`, which calls `open!(path)` on the covering `FsRead` provider. Code imports them, as in `use std.fs.{File, open}`.
+2. r[std-fs.open.handle] `std.fs` declares the handle trait `FileHandle < Read`. A provider's `open!` returns a `*mut dyn FileHandle`, which `File` holds.
+3. r[std-fs.open.errors] `open!` reports what `read_bytes!` of the same path reports: `NotGranted` outside the grant, `NotFound`, `PermissionDenied`, and `IsADirectory` for a directory.
+4. r[std-fs.open.chunks] Each `read!(max)` of a host `File` returns the file's next bytes, at most `max`, with one host call. A regular file's chunk is `max` bytes, or all that are left when fewer.
+5. r[std-fs.open.special-file] A read of a special file, such as a FIFO, returns the bytes it has, at most `max`, and lets other tasks run while it waits for any.
+6. r[std-fs.open.released] A file is released, and its host descriptor closed, when the last copy of its `File` is dropped. A program may open any number of files one after another.
+7. r[std-fs.open.default] `FsRead.open!` has a default body: it calls `read_bytes!(path)` and serves those bytes from memory, as a [`Cursor`](io.md#cursor). `MemoryFs` uses it.
+
+> **Why.** Release on drop, as Rust's `File` and Python's `with open`
+> give, needs no `close` call that a program could forget. The handle is
+> a counted box, so copies of a `File` share one open file.
 
 ## Walking And Globbing
 

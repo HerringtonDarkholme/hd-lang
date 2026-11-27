@@ -11,8 +11,11 @@ interface Available {
   offset: number;
   bytes: Buffer;
 }
+// "bytes": the next bytes as read, at most `max`, as soon as any arrive
+// (std-console.stdin.exact); "line" and "all" decode text.
 interface InputState {
-  kind: "line" | "all";
+  kind: "line" | "all" | "bytes";
+  max: number;
   parts: Available[];
   result: Dynamic | null;
 }
@@ -38,6 +41,10 @@ const take = (state: InputState, length: number): void => {
 };
 const complete = (state: InputState, newline: boolean): void => {
   let bytes = Buffer.concat(state.parts.map((part: Available) => part.bytes));
+  if (state.kind === "bytes") {
+    state.result = { ok: new Uint8Array(bytes) };
+    return;
+  }
   if (state.kind === "line") {
     if (newline) {
       bytes = bytes.subarray(0, bytes.length - 1);
@@ -57,6 +64,22 @@ const serve = (): void => {
       break;
     }
     let newline = false;
+    if (state.kind === "bytes") {
+      // cost: O(the bytes taken); a read never waits once any are buffered.
+      let left = state.max;
+      while (available.length && left > 0) {
+        const length = Math.min(left, available[0].bytes.length);
+        take(state, length);
+        left -= length;
+      }
+      if (failure !== null && !state.parts.length) {
+        state.result = { error: failure };
+      } else {
+        complete(state, false);
+      }
+      waiting.delete(state);
+      continue;
+    }
     while (available.length) {
       const bytes = available[0].bytes;
       const nl = state.kind === "line" ? bytes.indexOf(10) : -1;
@@ -129,7 +152,7 @@ const run = (request: Dynamic): Dynamic => {
       open(request.fd);
       const operation = nextOperation++;
       const state = notifyResult<InputState>(
-        { kind: request.kind, parts: [], result: null },
+        { kind: request.kind, max: request.max ?? 0, parts: [], result: null },
         workerData as Dynamic,
         `wait:${operation}`,
       );

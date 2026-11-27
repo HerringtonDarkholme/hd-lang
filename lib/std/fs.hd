@@ -1,7 +1,8 @@
 # std.fs: the host capability traits `FsRead` and `FsWrite`, `FsError`,
-# `Entry`, and the deterministic provider `MemoryFs` (spec/std/fs.md). The
-# default profile binds the host's file system
+# `Entry`, `File`, and the deterministic provider `MemoryFs`
+# (spec/std/fs.md). The default profile binds the host's file system
 # (src/commands/default-profile.ts).
+use std.io.{Cursor, IoError, Read}
 use std.path.Path
 use std.time.Timestamp
 
@@ -52,13 +53,44 @@ pub struct Entry:
     ## See [std-fs.entry.modified](../../spec/std/fs.md#r-std-fs.entry.modified).
     pub modified: Timestamp? = .None
 
-## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
+## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, `stat!`, and `open!`.
 ## See [std-fs.read.decl](../../spec/std/fs.md#r-std-fs.read.decl).
 pub trait FsRead:
     fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]
     fn read_text!(self, path: Path) -> Result[string, FsError]
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
     fn stat!(self, path: Path) -> Result[Entry?, FsError]
+
+    # A provider with no handles of its own, `MemoryFs` among them, serves
+    # the file's bytes from memory (r-std-fs.open.default). The host's
+    # provider opens the file and reads each chunk with one host call.
+    fn open!(self, path: Path) -> Result[*mut dyn FileHandle, FsError]:
+        bytes := self.read_bytes!(path)?
+        # Boxed because the returned handle outlives this call.
+        .Ok(box(Cursor::new(bytes)))
+
+# The host's file handles are host handles (hd_host_abi::HANDLES): each
+# method is one host call with the handle's number, and the last release
+# of the box releases the host's file (r-std-fs.open.released).
+## An open file's reader, as a provider's `open!` returns it.
+## See [std-fs.open.handle](../../spec/std/fs.md#r-std-fs.open.handle).
+pub trait FileHandle < Read
+
+impl FileHandle for Cursor
+
+## A file opened for reading. It implements `Read`, and its file is released when the last copy of it is dropped.
+## See [std-fs.open.decl](../../spec/std/fs.md#r-std-fs.open.decl).
+pub struct File:
+    handle: *mut dyn FileHandle
+
+impl Read for File:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        self.handle.read!(max)
+
+## Opens the file at `path` for reading in chunks, through the covering `FsRead` provider.
+## See [std-fs.open.decl](../../spec/std/fs.md#r-std-fs.open.decl).
+pub fn open!(path: Path) -> Result[File, FsError] $ FsRead:
+    .Ok(File { handle: $.use(FsRead).open!(path)? })
 
 ## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, and `copy!`.
 ## See [std-fs.write.copy-decl](../../spec/std/fs.md#r-std-fs.write.copy-decl).

@@ -90,6 +90,7 @@ export const Entry = data({
   size: unsigned64,
   modified: option(Timestamp),
 });
+export const FileHandle = handle;
 export const FsError = variants({
   NotFound: { path: Path },
   PermissionDenied: { path: Path },
@@ -106,6 +107,12 @@ export const HostError = variants({
   Other: { message: str },
   InvalidValue: { name: str, reason: str },
   Missing: { name: str },
+});
+export const IoError = variants({
+  Closed: {},
+  NotGranted: {},
+  InvalidUtf8: {},
+  Other: { message: str },
 });
 export const Method = variants({
   Get: {},
@@ -150,6 +157,7 @@ export const Signal = variants({
   Terminate: {},
   Hangup: {},
 });
+export const StdinHandle = handle;
 export const TcpListener = handle;
 export const TcpStream = handle;
 export const UdpSocket = handle;
@@ -227,6 +235,18 @@ export const METHODS = {
       params: [],
       result: result(str, ConsoleError),
     },
+    stdin: {
+      wait: "never",
+      resource: null,
+      params: [],
+      result: StdinHandle,
+    },
+    "StdinHandle.read": {
+      wait: "may",
+      resource: null,
+      params: ["i32", "i32"],
+      result: result(bytes, IoError),
+    },
   },
   "hd:Clock": {
     now: {
@@ -272,6 +292,24 @@ export const METHODS = {
       resource: "path",
       params: [Path],
       result: result(option(Entry), FsError),
+    },
+    open: {
+      wait: "may",
+      resource: "path",
+      params: [Path],
+      result: result(FileHandle, FsError),
+    },
+    "FileHandle.read": {
+      wait: "may",
+      resource: null,
+      params: ["i32", "i32"],
+      result: result(bytes, IoError),
+    },
+    "FileHandle.$release": {
+      wait: "never",
+      resource: null,
+      params: ["i32"],
+      result: "void",
     },
   },
   "hd:FsWrite": {

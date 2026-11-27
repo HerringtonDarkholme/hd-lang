@@ -643,6 +643,94 @@ pub fn main!() -> void $ Console + ConsoleInput:
     }
 }
 
+/// `stdin()` reads standard input as bytes, on both engines, exactly as
+/// they arrive: a read returns the first chunk before the writer sends the
+/// second, and `\r\n` stays two bytes (`std-console.stdin.chunks`,
+/// `std-console.stdin.exact`).
+#[test]
+fn stdin_reads_bytes_as_they_arrive() {
+    use std::io::{BufRead as _, BufReader};
+    let dir = program(
+        "stdin-bytes",
+        include_str!("programs/wasmtime_engine/stdin_reads_bytes_as_they_arrive.hd"),
+    );
+    let mut outputs = Vec::new();
+    for engine in ["node", "wasmtime"] {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = c.spawn().expect("run hd");
+        let mut stdin = child.stdin.take().expect("stdin");
+        let mut lines = BufReader::new(child.stdout.take().expect("stdout"));
+        stdin.write_all(b"a\r\n").expect("first chunk");
+        stdin.flush().expect("flush");
+        // The program prints the first chunk while its input is still open.
+        let mut first = String::new();
+        lines.read_line(&mut first).expect("first line");
+        stdin.write_all(b"b\xff").expect("second chunk");
+        drop(stdin);
+        let mut rest = String::new();
+        std::io::Read::read_to_string(&mut lines, &mut rest).expect("rest");
+        let out = child.wait_with_output().expect("wait");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        outputs.push(format!("{first}{rest}"));
+    }
+    assert_eq!(outputs[0], "[97, 13, 10]\n[98, 255]\nend\n");
+    assert_eq!(outputs[0], outputs[1], "node and wasmtime");
+}
+
+/// `open!` reads a file larger than any whole read may be, 3 GiB, one
+/// chunk at a time, and stops after 1 MiB and 16 bytes: those are the
+/// only bytes that cross into the program, so its memory stays O(chunk)
+/// while `read_bytes!` of the same file is refused (`std-fs.open.chunks`,
+/// `std-io.read.one-call`).
+#[test]
+fn open_stops_early_on_a_large_file() {
+    let dir = program(
+        "open-large",
+        include_str!("programs/wasmtime_engine/open_stops_early_on_a_large_file.hd"),
+    );
+    std::fs::File::create(dir.join("big.bin"))
+        .and_then(|f| f.set_len(3 << 30))
+        .expect("sparse file");
+    let out = both(&dir, &["main.hd"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(
+        text(&out.stdout),
+        "read 1048592 bytes in 17 calls\nwhole read refused\n"
+    );
+}
+
+/// A `File`'s last drop releases its descriptor, on both engines: under a
+/// limit of 128 descriptors the program opens a file 2048 times
+/// (`std-fs.open.released`).
+#[cfg(unix)]
+#[test]
+fn dropped_files_release_their_descriptors() {
+    let dir = program(
+        "open-release",
+        include_str!("programs/wasmtime_engine/dropped_files_release_their_descriptors.hd"),
+    );
+    std::fs::write(dir.join("one.txt"), "x").expect("seed");
+    let hd_bin = env!("CARGO_BIN_EXE_hd");
+    for engine in ["node", "wasmtime"] {
+        let c = hd(&dir);
+        // The limit applies to the hd process alone, through `sh`.
+        let mut limited = Command::new("sh");
+        limited
+            .current_dir(&dir)
+            .envs(c.get_envs().filter_map(|(k, v)| Some((k, v?))))
+            .env("HD_ENGINE", engine)
+            .args(["-c", "ulimit -n 128 && exec \"$0\" main.hd", hd_bin]);
+        let out = limited.output().expect("run hd");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "read 2048\n", "{engine}");
+    }
+}
+
 /// The existing file sample now runs on both engines.
 #[test]
 fn fs_read_is_available_on_both_engines() {

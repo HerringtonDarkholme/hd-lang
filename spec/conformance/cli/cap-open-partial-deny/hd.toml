@@ -1,0 +1,6 @@
+[package]
+name = "opener"
+
+[capabilities]
+Console = true
+FsRead = ["data/"]

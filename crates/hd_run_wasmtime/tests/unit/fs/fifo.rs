@@ -41,7 +41,7 @@ fn begin(method: &str, path: &str, payload: Option<&[u8]>) -> Start {
 fn job(method: &str, path: &str, payload: Option<&[u8]>) -> Box<Job> {
     match begin(method, path, payload) {
         Start::Run(job) => job,
-        Start::Ready(_) => panic!("{method} of a FIFO ran inline"),
+        Start::Ready(_) | Start::Opened(_) => panic!("{method} of a FIFO ran inline"),
     }
 }
 
@@ -49,6 +49,7 @@ fn ready(method: &str, path: &str, payload: Option<&[u8]>) -> Enc {
     match begin(method, path, payload) {
         Start::Ready(encoded) => encoded,
         Start::Run(_) => panic!("{method} of {path} was offloaded"),
+        Start::Opened(_) => panic!("{method} of {path} opened a file"),
     }
 }
 

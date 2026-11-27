@@ -6,7 +6,8 @@
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
       { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },
-      { "name": "read_all", "wait": "may", "resource": null, "params": [], "result": "Result[string, ConsoleError]" }
+      { "name": "read_all", "wait": "may", "resource": null, "params": [], "result": "Result[string, ConsoleError]" },
+      { "name": "stdin", "wait": "never", "resource": null, "params": [], "result": "StdinHandle" }
     ]},
     { "key": "Clock", "std": "std.time.Clock", "methods": [
       { "name": "now", "wait": "never", "resource": null, "params": [], "result": "i64" },
@@ -17,7 +18,8 @@
       { "name": "read_bytes", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[List[u8], FsError]" },
       { "name": "read_text", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[string, FsError]" },
       { "name": "list_dir", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[List[Entry], FsError]" },
-      { "name": "stat", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[Entry?, FsError]" }
+      { "name": "stat", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[Entry?, FsError]" },
+      { "name": "open", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[FileHandle, FsError]" }
     ]},
     { "key": "FsWrite", "std": "std.fs.FsWrite", "methods": [
       { "name": "write_bytes", "wait": "may", "resource": "path", "params": ["Path", "List[u8]"], "result": "Result[void, FsError]" },
@@ -83,6 +85,13 @@
     ]}
   ],
   "handles": [
+    { "key": "FsRead", "std": "std.fs.FileHandle", "methods": [
+      { "name": "FileHandle.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], IoError]" },
+      { "name": "FileHandle.$release", "wait": "never", "resource": null, "params": ["i32"], "result": "void" }
+    ]},
+    { "key": "ConsoleInput", "std": "std.console.StdinHandle", "methods": [
+      { "name": "StdinHandle.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], IoError]" }
+    ]},
     { "key": "Net", "std": "std.net.TcpStream", "methods": [
       { "name": "TcpStream.read", "wait": "may", "resource": null, "params": ["i32", "i32"], "result": "Result[List[u8], NetError]" },
       { "name": "TcpStream.write", "wait": "may", "resource": null, "params": ["i32", "List[u8]"], "result": "Result[void, NetError]" },
@@ -139,6 +148,7 @@
       { "name": "Directory", "fields": [] },
       { "name": "Symlink", "fields": [] }
     ] },
+    "FileHandle": { "kind": "handle" },
     "FormError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "Unsupported", "fields": [{ "name": "field", "type": "string" }] },
       { "name": "Missing", "fields": [{ "name": "field", "type": "string" }] },
@@ -160,6 +170,12 @@
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
       { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] },
       { "name": "Missing", "fields": [{ "name": "name", "type": "string" }] }
+    ] },
+    "IoError": { "kind": "enum", "module": "lib/std/io.hd", "generics": [], "variants": [
+      { "name": "Closed", "fields": [] },
+      { "name": "NotGranted", "fields": [] },
+      { "name": "InvalidUtf8", "fields": [] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },
     "JsonError": { "kind": "enum", "module": "lib/std/encoding/json.hd", "generics": [], "variants": [
       { "name": "UnexpectedEnd", "fields": [{ "name": "position", "type": "usize" }] },
@@ -208,6 +224,7 @@
       { "name": "Terminate", "fields": [] },
       { "name": "Hangup", "fields": [] }
     ] },
+    "StdinHandle": { "kind": "handle" },
     "TcpListener": { "kind": "handle" },
     "TcpStream": { "kind": "handle" },
     "Timestamp": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },

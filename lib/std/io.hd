@@ -1,0 +1,51 @@
+# std.io: `Read`, the trait of every byte source read in chunks, its error
+# `IoError`, and `Cursor`, the in-memory source (spec/std/io.md). A file
+# (`std.fs.File`) and standard input (`std.console.Stdin`) implement `Read`.
+
+## The error of a read from a byte source: closed, not granted, invalid UTF-8 text, or another failure.
+## See [std-io.error.decl](../../spec/std/io.md#r-std-io.error.decl).
+@error
+@derive(Debug, Eq)
+pub enum IoError:
+    @error("the reader is closed")
+    Closed
+    @error("input access is not granted")
+    NotGranted
+    @error("invalid UTF-8")
+    InvalidUtf8
+    @error("$message")
+    Other(message: string)
+
+# One call reads one chunk: a host source makes one host call per `read!`
+# (r-std-io.read.one-call).
+## A source of bytes read in chunks: `read!` returns at most `max` bytes, at least one before the end, and an empty list at the end of input.
+## See [std-io.read.decl](../../spec/std/io.md#r-std-io.read.decl).
+pub trait Read:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]
+
+## The `Read` source over bytes in memory: each `read!` returns the next bytes, at most `max`, then an empty list.
+## See [std-io.cursor.decl](../../spec/std/io.md#r-std-io.cursor.decl).
+@derive(Debug)
+pub struct Cursor:
+    bytes: List[u8]
+    at: usize
+
+impl Cursor:
+    ## Returns the source that reads `bytes` from the start.
+    ## See [std-io.cursor.decl](../../spec/std/io.md#r-std-io.cursor.decl).
+    pub fn new(bytes: List[u8]) -> Cursor:
+        Cursor { bytes: bytes, at: 0 }
+
+    ## The number of bytes read so far.
+    ## See [std-io.cursor.position](../../spec/std/io.md#r-std-io.cursor.position).
+    pub fn position(&self) -> usize:
+        self.at
+
+# cost: O(the chunk) per call; the source's bytes are shared, never copied whole.
+impl Read for Cursor:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        size := self.bytes.len()
+        end := if size - self.at < max: size else: self.at + max
+        chunk := self.bytes.slice(self.at, end)
+        self.at = end
+        .Ok(chunk)

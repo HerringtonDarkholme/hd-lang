@@ -124,6 +124,7 @@ cap-total-deny	cli.cap.table.required-builtins,cli.json.run,cli.json.diagnostic.
 policy-untimed-clock-denied	cli.cap.value.false,cli.cap.order.deny,cli.cap.flag.value,cli.engine.same-behavior
 cap-flag-overrides-table	cli.cap.order.flag,cli.cap.order.table,cli.cap.flag,cli.cap.scope.path,cli.cap.scope.path.relative,cli.cap.partial.refuse,cli.cap.table,cli.cap.table.keys.with-package-host,cli.cap.value.list,cli.cap.flag.value,cli.cap.flag.commands,cli.cap.no-prompt,cli.cap.source.hd-run.entry,cli.cap.scope.path.resolved
 cap-partial-deny	cli.cap.value.list,cli.cap.partial.refuse,cli.cap.scope.path,cli.cap.order.default,cli.cap.table,cli.cap.table.keys.with-package-host,cli.cap.value.unscoped,cli.cap.no-prompt,cli.cap.source.hd-run.entry,cli.cap.scope.write-not-read,cli.cap.partial.not-os
+cap-open-partial-deny	cli.cap.partial.refuse,cli.cap.scope.path,cli.cap.table,cli.cap.value.list
 cap-env-notice	cli.cap.env.get,cli.cap.env.notice,cli.cap.env.notice.text,cli.cap.source.flags-only,cli.cap.order.default,cli.host.default-profile,cli.host.default-profile.other.with-package-host,cli.host.default-profile.granted,cli.cap.flag.value,cli.cap.flag.commands,cli.cap.no-prompt,cli.cap.scope.env,cli.cap.env.names
 wasm-run-built	cli.wasm.run,cli.wasm.mode,cli.wasm.host,cli.wasm.host.imports,cli.wasm.args,cli.wasm.status,cli.build.output.artifact,cli.run.file,cli.args.separator,cli.args.pass,cli.args.extra-word
 wasm-cap-flags-only	cli.wasm.grant.builtin-only,cli.wasm.total-deny,cli.cap.total.needs,cli.cap.total.refuse,cli.cap.total.status,cli.cap.total.any-module

@@ -34,6 +34,7 @@ import {
   fileOperation,
   fileOperations,
   fsErr,
+  readOpen,
   resolvePath,
   validHost,
 } from "./node-files.ts";
@@ -393,11 +394,12 @@ export function lineReader(fd: number | null): LineReader {
 // of the input worker (the REPL keeps its framed control reader).
 function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): DynamicRecord {
   if (env.readLine === undefined && env.stdin !== null) {
-    const read = (kind: string): Dynamic => {
+    const read = (kind: string, max = 0): Dynamic => {
       flush();
       const { ok: operation } = inputClient.call({
         op: "wait_start",
         kind,
+        max,
         fd: env.stdin ?? 0,
       });
       let result: Dynamic = null;
@@ -415,7 +417,9 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
       };
       const output = () => {
         if (result.error !== undefined) {
-          return Err({ tag: "Other", code: result.error });
+          return kind === "bytes"
+            ? Err({ tag: "Other", message: `standard input read error ${result.error}` })
+            : Err({ tag: "Other", code: result.error });
         }
         return result.closed ? Err({ tag: "Closed" }) : Ok(result.ok);
       };
@@ -431,7 +435,14 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
         (ready) => inputClient.subscribe(operation, ready),
       );
     };
-    return { read_line: () => read("line"), read_all: () => read("all") };
+    // Standard input's one handle; its reads share the worker's buffered
+    // input with `read_line` and `read_all` (std-console.stdin.exact).
+    return {
+      read_line: () => read("line"),
+      read_all: () => read("all"),
+      stdin: () => 1,
+      "StdinHandle.read": (_handle: number, max: number) => read("bytes", max >>> 0),
+    };
   }
   // The REPL's framed control reader and a test's explicitly closed stdin.
 
@@ -451,7 +462,27 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
       }
       return text;
     });
+  // A line reader has no bytes of its own: its lines, each ended by "\n",
+  // are the handle's bytes.
+  let unread = Buffer.alloc(0);
   return {
+    stdin: () => 1,
+    "StdinHandle.read": (_handle: number, max: number) => {
+      flush();
+      while (unread.length === 0 && max > 0) {
+        const line = readLine();
+        if (line === false) {
+          return Err({ tag: "Closed" });
+        }
+        if (line === null) {
+          break;
+        }
+        unread = Buffer.from(`${line}\n`);
+      }
+      const taken = unread.subarray(0, Math.min(max >>> 0, unread.length));
+      unread = unread.subarray(taken.length);
+      return Ok(new Uint8Array(taken));
+    },
     read_line: () => {
       // A completed prompt must reach the sink before this read blocks.
       flush();
@@ -774,6 +805,8 @@ function envProvider({ grant, sink, st, flush }: DynamicRecord): DynamicRecord {
 
 // Only methods that open a path can wait for a special-file peer. A
 // missing or uninspectable path stays inline and reports its ordinary error.
+// `open` stays on this thread at any file: its descriptor is the handle,
+// which the helper process that a special-file call runs in cannot share.
 const fileOpening = new Set([
   "read_bytes",
   "read_text",
@@ -877,9 +910,25 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
         return [name, provider];
       }),
     );
-  return Object.fromEntries(
+  const providers = Object.fromEntries(
     Object.entries(fileOperations).map(([module, ops]) => [module, fsOps(module, ops)]),
   );
+  // An open file's handle is its descriptor (fileOperations' `open`).
+  return {
+    ...providers,
+    "hd:FsRead": {
+      ...providers["hd:FsRead"],
+      "FileHandle.read": (fd: number, max: number) => {
+        flush();
+        try {
+          return Ok(readOpen(fd, max >>> 0));
+        } catch (error) {
+          return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
+        }
+      },
+      "FileHandle.$release": (fd: number) => closeSync(fd),
+    },
+  };
 }
 
 // The checks the Rust host makes before it starts a child

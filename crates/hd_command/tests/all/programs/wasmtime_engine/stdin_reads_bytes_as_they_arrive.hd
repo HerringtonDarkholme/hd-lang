@@ -1,0 +1,15 @@
+use std.console.{ConsoleInput, stdin}
+use std.io.Read
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    let mut input = stdin()
+    while true:
+        match input.read!(64):
+            .Ok(chunk) =>
+                if chunk.len() == 0:
+                    println("end")
+                    break
+                println(debug(chunk))
+            .Err(error) =>
+                println("error: $error")
+                break

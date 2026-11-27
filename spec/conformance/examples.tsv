@@ -1069,9 +1069,11 @@ std/console.md	4	complete	-
 std/console.md	5	type-fragment	-
 std/console.md	6	complete	std/console/console-input/console-input-helper.hd
 std/console.md	7	complete	std/console/console-input/console-read-all.hd
-std/console.md	8	complete	std/console/console-errors/console-error-traits.hd
-std/console.md	9	complete	std/console/buffer-console/buffer-console.hd
-std/console.md	10	complete	std/console/scripted-input/scripted-input.hd
+std/console.md	8	complete	-
+std/console.md	9	type-fragment	-
+std/console.md	10	complete	std/console/console-errors/console-error-traits.hd
+std/console.md	11	complete	std/console/buffer-console/buffer-console.hd
+std/console.md	12	complete	std/console/scripted-input/scripted-input.hd
 std/contract.md	1	complete	std/contract/require/contract-require-trailing-block.hd
 std/crypto.md	1	complete	std/crypto/sha-256/digest-sha256-vectors.hd
 std/crypto.md	2	type-fragment	-
@@ -1106,8 +1108,10 @@ std/fs.md	3	type-fragment	-
 std/fs.md	4	complete	std/fs/file-helpers/fs-helpers.hd
 std/fs.md	5	complete	std/fs/file-helpers/fs-helpers.hd
 std/fs.md	6	type-fragment	-
-std/fs.md	7	complete	std/fs/walking-and-globbing/fs-walk.hd|std/fs/walking-and-globbing/fs-glob.hd
-std/fs.md	8	complete	std/fs/memory-file-system/memory-fs.hd
+std/fs.md	7	complete	-
+std/fs.md	8	type-fragment	-
+std/fs.md	9	complete	std/fs/walking-and-globbing/fs-walk.hd|std/fs/walking-and-globbing/fs-glob.hd
+std/fs.md	10	complete	std/fs/memory-file-system/memory-fs.hd
 std/hash.md	1	complete	std/hash/derived-hashing/derived-hash.hd
 std/hash.md	2	complete	lang/traits/trait-implementations/implementation-targets/tuple-derived-traits.hd
 std/hash.md	3	complete	lang/types/map-key-types/list-map-key.hd
@@ -1371,3 +1375,7 @@ std/crypto-sha512.md	2	complete	std/crypto-sha512/streaming.hd
 std/crypto-aes.md	1	complete	std/crypto-aes/vectors.hd
 std/crypto-cipher.md	1	complete	std/crypto-cipher/gcm.hd
 std/crypto-rand.md	1	complete	std/crypto-rand/fill.hd
+std/io.md	1	type-fragment	-
+std/io.md	2	complete	-
+std/io.md	3	type-fragment	-
+std/io.md	4	complete	std/io/reading-in-chunks/cursor-reads-in-chunks.hd

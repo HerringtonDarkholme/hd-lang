@@ -196,9 +196,11 @@ pub struct LEnum {
 pub struct LHandle {
     pub vtable: usize,
     pub wrap: Option<Hash128>,
-    /// Package handles release the JS registry record on the last HD count.
-    /// This drops a binding, without invoking a provider's resource methods.
-    pub release: Option<String>,
+    /// The import, module and name, that the last HD count calls with the
+    /// number: a package handle's `$release` drops its registry record,
+    /// without invoking a provider's resource methods, and a std handle's
+    /// release row (`hd_host_abi::release_row`) releases its host resource.
+    pub release: Option<(String, String)>,
 }
 
 /// A private-field data type's host codec: the std instance that makes
@@ -586,10 +588,12 @@ fn handle_of(
         }
     };
     let release = match host {
-        HandleHost::Profile(at) if at.package => {
-            (input.package_trait)(def).map(|i| package_module(&i, true))
+        HandleHost::Profile(at) if at.package => (input.package_trait)(def)
+            .map(|i| (package_module(&i, true), hd_host_abi::RELEASE.to_owned())),
+        HandleHost::Abi(abi) => {
+            hd_host_abi::release_row(abi).map(|name| (format!("hd:{}", abi.key), name.to_owned()))
         }
-        HandleHost::Profile(_) | HandleHost::Abi(_) => None,
+        HandleHost::Profile(_) => None,
     };
     Ok(LHandle {
         vtable: handle_vtable(input, m, def, host)?,
@@ -2532,9 +2536,10 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             f.i32(4);
             crate::rt::push_desc(
                 f,
-                h.release.as_ref().map(|module| {
-                    Sym::Helper(Helper::PackageHandleRelease {
+                h.release.as_ref().map(|(module, name)| {
+                    Sym::Helper(Helper::HandleRelease {
                         module: module.clone(),
+                        name: name.clone(),
                     })
                 }),
                 false,

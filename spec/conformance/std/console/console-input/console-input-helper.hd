@@ -1,7 +1,8 @@
 # test: read_line!() reads through the covering ConsoleInput provider, which advances through its lines
 # Spec std/console Console Input: std-console.input.read-line, std-console.input.mut-ref.reference-values, and
 # std-console.input.helper (batch 64, STD-2 and STD-3; INPUT-MUT).
-use std.console.{ConsoleInput, read_line}
+use std.console.{ConsoleInput, StdinHandle, read_line}
+use std.io.Cursor
 struct ScriptedInput:
     lines: List[string]
     at: usize
@@ -13,6 +14,10 @@ impl ConsoleInput for ScriptedInput:
         line := self.lines[self.at]
         self.at = self.at + 1
         .Ok(.Some(line))
+
+    # This provider has no bytes of its own (std-console.stdin.handle).
+    fn stdin(&mut self) -> *mut dyn StdinHandle:
+        box(Cursor::new([]))
 
 fn first_line!() -> string $ ConsoleInput:
     match read_line!():
