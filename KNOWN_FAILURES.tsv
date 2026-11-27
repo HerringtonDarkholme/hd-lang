@@ -1,1 +1,5 @@
 path	issue	engine	reason
+lang/modules/public-uses-and-visibility/public-binding-import.hd	#2405		`use` cannot name a public binding yet: the resolver and the checker's cross-module read are the rest of #2405
+lang/modules/public-uses-and-visibility/public-binding-reexport.hd	#2405		`pub use` cannot name a public binding yet: the resolver and the checker's cross-module read are the rest of #2405
+lang/modules/public-uses-and-visibility/public-binding-written-elsewhere.hd	#2405		`use` cannot name a public binding yet, so its write is not reached: the rest of #2405
+lang/modules/public-uses-and-visibility/public-binding-read-before-init.hd	#2405		`use` cannot name a public binding yet, so the cycle's read set misses it: the rest of #2405

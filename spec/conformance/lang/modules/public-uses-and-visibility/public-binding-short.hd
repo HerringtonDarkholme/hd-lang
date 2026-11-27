@@ -1,0 +1,3 @@
+# test: pub takes a let binding, not a := binding
+# Spec 10 Public Bindings: module.vis.pub.binding.one-name.
+pub ANSWER := 42 # diagnostic: syntax-error

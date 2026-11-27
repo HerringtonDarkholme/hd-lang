@@ -1,0 +1,7 @@
+# test: another module cannot assign an imported public binding
+# Spec 10 Public Bindings: module.vis.pub.binding.read-only.
+# fixture-package-tree: public-bindings/src/reset.hd
+use pkg.codes.{EXIT_USAGE}
+
+pub fn reset() -> void:
+    EXIT_USAGE = 64 # diagnostic: not-writable

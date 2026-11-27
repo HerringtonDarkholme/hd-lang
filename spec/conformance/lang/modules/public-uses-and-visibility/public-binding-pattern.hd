@@ -1,0 +1,3 @@
+# test: a public binding binds one name, not a pattern
+# Spec 10 Public Bindings: module.vis.pub.binding.one-name.
+pub let (lo, hi) = (0, 9) # diagnostic: syntax-error

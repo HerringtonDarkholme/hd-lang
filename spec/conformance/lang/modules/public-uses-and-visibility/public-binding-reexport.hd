@@ -1,0 +1,10 @@
+# test: a facade re-exports a public binding with pub use
+# Spec 10 Public Bindings: module.vis.pub.binding.uses. src/exits/mod.hd re-exports EXIT_OK.
+# fixture-package-tree: public-bindings/src/report.hd
+use pkg.exits.{EXIT_OK}
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the binding through the facade"):
+        assert_equal(EXIT_OK, 0, reason="the facade names codes.EXIT_OK")

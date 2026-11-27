@@ -196,12 +196,34 @@ impl Parser<'_> {
                 self.impl_decl(marker);
             }
             Some(TokenKind::KwType) => self.type_decl(marker, decorated),
+            Some(TokenKind::KwLet) if public => self.pub_let(marker),
             _ => {
                 self.expected("a declaration");
                 self.recover_line();
                 self.complete(marker, SyntaxKind::Error);
             }
         }
+    }
+
+    /// `pub let NAME [: T] = value` (`module.vis.pub.binding`): a `LetStmt`
+    /// that `pub` opens, of one name, never `mut`, which other modules read.
+    fn pub_let(&mut self, marker: Marker) {
+        let at = self.pos() + 1;
+        match self.nth(1) {
+            Some(TokenKind::KwMut) => self.error_at(
+                Code::PubMutableBinding,
+                at,
+                "a public binding cannot be 'mut': other modules only read it; expose a function that changes it",
+            ),
+            Some(TokenKind::Ident | TokenKind::RawIdent)
+                if matches!(self.nth(2), Some(TokenKind::Colon | TokenKind::Eq)) => {}
+            _ => self.error_at(
+                Code::SyntaxError,
+                at,
+                "'pub let' binds one name: write 'pub let NAME = value'",
+            ),
+        }
+        self.let_rest(marker, Ctx::Stmt);
     }
 
     /// Decorator lines, each `@ closed_expression NEWLINE`. True if any.

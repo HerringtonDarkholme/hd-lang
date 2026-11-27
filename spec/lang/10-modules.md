@@ -2163,6 +2163,40 @@ pub struct User:
 1. r[module.vis.private-default] Declarations are module-private by default.
 2. r[module.vis.pub] Prefix `pub` makes a declaration available to other modules.
 
+### Public Bindings
+
+A public binding is a top-level `let` binding that other modules import and read:
+
+```text
+# src/codes.hd
+pub let EXIT_OK = 0
+pub let EXIT_USAGE: i64 = 2
+
+# src/main.hd
+use pkg.codes.{EXIT_OK, EXIT_USAGE}
+```
+
+1. r[module.vis.pub.binding] `pub let NAME = value` and `pub let NAME: T = value` make a top-level binding available to other modules.
+2. r[module.vis.pub.binding.one-name] A public binding binds one name, with `let`. `pub` before a pattern or before `NAME := value` is an error. Error: `syntax-error`.
+3. r[module.vis.pub.binding.immutable] `pub let mut` is an error. Error: `pub-mutable-binding`.
+4. r[module.vis.pub.binding.read-only] Another module reads a public binding and never writes it. An assignment to an imported binding is an error. Error: `not-writable`.
+5. r[module.vis.pub.binding.uses] `use` and `pub use` name a public binding as they name a declaration.
+6. r[module.vis.pub.binding.init] A read of an imported binding follows [`module.init.binding`](#r-module.init.binding): its module's statement initializes it. In a module cycle, a read before that statement is an error. Error: `top-level-read-before-initialization`.
+
+```text
+pub let mut count = 0     # error: pub-mutable-binding
+pub ANSWER := 42          # error: syntax-error
+pub let (lo, hi) = (0, 9) # error: syntax-error
+
+# src/main.hd
+use pkg.codes.{EXIT_OK}
+fn reset() -> void:
+    EXIT_OK = 1           # error: not-writable
+```
+
+> **Why.** A module's state changes only through its own code. A module
+> that lets others change a value exposes a function that changes it.
+
 ### Public Uses
 
 Use `pub use` in a `mod.hd` file to expose a package-facing API:
