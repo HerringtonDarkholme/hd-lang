@@ -10,7 +10,7 @@ This chapter defines the numeric APIs of `std.num`:
 - `to_u64` and `from_u64`, the conversions of `Integer` to and from `u64`;
 - the bit counts `count_ones`, `leading_zeros`, and `trailing_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
-- `is_nan` and `is_finite` on `f32` and `f64`;
+- `is_nan`, `is_finite` and `is_infinite` on `f32` and `f64`;
 - `min` and `max`, which ignore a single NaN;
 - `total_cmp`, the total order of floats;
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
@@ -226,6 +226,7 @@ fn bounded(ratio: f64) -> bool:
 
 1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is a NaN.
 2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
+3. r[std-num.is-infinite] `std.num` declares `fn is_infinite(self) -> bool` on `f32` and on `f64`, returning `true` exactly for positive or negative infinity.
 
 ## Float Bit Patterns
 
@@ -780,6 +781,7 @@ Here `F` is either `f32` or `f64`:
 20. r[std-num.float-math.no-panic] None of these methods panics for any floating-point input or `i32` exponent.
 21. r[std-num.float-math.constant.pi] The associated functions `f32::pi() -> f32` and `f64::pi() -> f64` return π rounded to the named width.
 22. r[std-num.float-math.constant.e] The associated functions `f32::e() -> f32` and `f64::e() -> f64` return Euler's number rounded to the named width.
+23. r[std-num.float-math.powf-even-unit] For a finite even integer exponent, `(-1.0).powf(exponent)` returns `1.0`, including exponent magnitudes at least 2^53.
 
 The signs below are the sign of `y`, including the sign of zero:
 
