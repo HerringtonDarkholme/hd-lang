@@ -244,22 +244,12 @@ fn reps_named(all: &[(String, hd_base::Hash128)], name: &str) -> hd_base::Hash12
 /// no trait value, keeps its own.
 #[test]
 fn dropping_another_instances_call_changes_a_dyn_callers_reps() {
-    let program = |b: &str| {
-        format!(
-            "trait T:\n    fn a(&self) -> i32\n    fn b(&self) -> i32\n    fn c(&self) -> i32\n\n\
-             struct S: pass\n\n\
-             impl T for S:\n    fn a(&self) -> i32: 1\n    fn b(&self) -> i32: 2\n    \
-             fn c(&self) -> i32: 3\n\n\
-             fn call_a(x: &dyn T) -> i32: x.a()\n\n\
-             fn call_b(x: &dyn T) -> i32: x.{b}()\n\n\
-             fn call_c(x: &dyn T) -> i32: x.c()\n\n\
-             fn plain(n: i32) -> i32: n + 1\n\n\
-             pub fn main() -> void $ Console:\n    s := S {{}}\n    \
-             println(call_a(&s) + call_b(&s) + call_c(&s) + plain(1))\n"
-        )
-    };
-    let with_b = reps_of(&program("b"));
-    let without_b = reps_of(&program("a"));
+    let with_b = include_str!("programs/dyn_diamond_work/three_dyn_callers.hd");
+    // `call_b` calls `a` instead: `b` loses its only call through `dyn T`.
+    let without_b = with_b.replacen("x.b()", "x.a()", 1);
+    assert_ne!(with_b, without_b, "the edit applies");
+    let with_b = reps_of(with_b);
+    let without_b = reps_of(&without_b);
     assert_ne!(
         reps_named(&with_b, "/call_c"),
         reps_named(&without_b, "/call_c"),

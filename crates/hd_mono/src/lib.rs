@@ -2836,7 +2836,22 @@ impl Cx<'_> {
                     }
                 }
             }
-            _ => {}
+            // A value of any other type is neither a trait value nor a
+            // function value, so code reads no trait table through it.
+            // `Ref` is stripped above.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Adt(..)
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Ref { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
     }
 
