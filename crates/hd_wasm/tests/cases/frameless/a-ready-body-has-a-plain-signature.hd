@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: dev program | checked program | release program
+# @helpers: app/main/ready app/main/caller
+# A ready body has only its source parameters/results; no frame parameter or branches.
+use std.meta.inline
+
+@inline(.Never)
+fn ready!(x: i32) -> i32:
+    x + 1
+
+@inline(.Never)
+fn caller!(x: i32) -> i32:
+    ready!(x)
+
+pub fn main!() -> void $ Console:
+    println(caller!(41))

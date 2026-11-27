@@ -549,7 +549,12 @@ fn frame(key: Hash128, m: &Module) -> Func {
     f.get(at);
     f.table_slot(Sym::Part(key, Part::Poll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
-    cancel_slot(&mut f, m, at, Sym::Part(key, Part::Cancel));
+    let cancel = if m.ready.contains(&key) {
+        Sym::Helper(Helper::PendingCancel)
+    } else {
+        Sym::Part(key, Part::Cancel)
+    };
+    cancel_slot(&mut f, m, at, cancel);
     f.get(at);
     f
 }

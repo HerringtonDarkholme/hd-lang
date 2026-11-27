@@ -3459,17 +3459,22 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::ForbidCheck);
         self.f.at = at;
         self.f.origin_at = origin;
-        self.f.i32(0);
+        let complete = self.input.ready.contains(&target.key);
+        if !complete {
+            self.f.i32(0);
+        }
         self.push_cold_args(i, args, target.item, target.args, None)?;
         let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
+        if complete {
+            self.f.i32(0);
+        }
         self.f.set(frame);
         for value in values.iter().rev() {
             self.f.set(*value);
         }
         self.release_call_ctx(i, context);
         // A body that completes at once (#2419) never hands back a frame.
-        let complete = self.input.ready.contains(&target.key);
         self.driven.insert(
             on,
             Driven {
