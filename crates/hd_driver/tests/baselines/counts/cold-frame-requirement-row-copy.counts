@@ -6,8 +6,34 @@ trait Value:
     fn value(&self) -> i32
 
 fn read!() -> i32 $ Value:
-    $.use(Value).value()
+    pause!()
 > app/main/read
+>   release counted reference (last use)
+>   release counted reference (last use)
+> app/main/read
+>   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/read
 >   retain counted reference (stored)
+> app/main/read
+>   retain counted reference (stored)
+    $.use(Value).value()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

@@ -13,13 +13,17 @@ fn read(value: (&i32, i32)) -> i32:
 
 @cold
 fn read_cold!(value: (&i32, i32)) -> i32:
-    *value._0 + value._1
+    pause!()
 > app/main/read_cold
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/read_cold
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read_cold
 >   retain counted reference (by design)
+    *value._0 + value._1
 
 @cold
 fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> i32:
@@ -40,3 +44,22 @@ fn escaped(value: *i32) -> Suspend[i32]:
 
 fn main_like() -> bool:
     invoke(read, box(+7)) == 10
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

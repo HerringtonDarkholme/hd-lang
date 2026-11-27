@@ -227,15 +227,32 @@ fn fixture_cache_cannot_change_executable_entry_validation() {
 
 #[test]
 fn uncalled_suspending_functions_keep_every_generated_part() {
-    let out = fixture("fn ready!() -> i32: 42\n", OptLevel::Optimized);
-    let bodies = bodies(&out);
+    let out = fixture(
+        include_str!("programs/fixture_roots/uncalled_suspending.hd"),
+        OptLevel::Optimized,
+    );
+    let framed = bodies(&out);
+    for name in [
+        "app/main/waiting#0",
+        "app/main/waiting#0.poll",
+        "app/main/waiting#0.cancel",
+        "app/main/waiting#0.drop",
+    ] {
+        assert!(framed.contains_key(name), "{name}");
+    }
+    let out = fixture(
+        include_str!("programs/fixture_roots/uncalled_ready.hd"),
+        OptLevel::Optimized,
+    );
+    let ready = bodies(&out);
     for name in [
         "app/main/ready#0",
         "app/main/ready#0.poll",
-        "app/main/ready#0.cancel",
+        "app/main/ready#0.drop",
     ] {
-        assert!(bodies.contains_key(name), "{name}: {bodies:?}");
+        assert!(ready.contains_key(name), "{name}");
     }
+    assert!(!ready.contains_key("app/main/ready#0.cancel"));
 }
 
 #[test]

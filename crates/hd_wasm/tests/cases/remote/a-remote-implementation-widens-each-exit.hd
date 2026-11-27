@@ -27,7 +27,13 @@ fn checked(n: i64) -> Result[i64, Fault]:
 
 impl Counter for Fixed:
     fn count!(&mut self, n: i64) -> Result[i64, Fault]:
+        pause!()
         # subject
         match checked(n)?:
             7 => return .Ok(self.base)
             k => .Err(Fault.Odd(k))
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

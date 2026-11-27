@@ -15,9 +15,14 @@ impl Update[string] for Sink:
 >   release string (last use)
 
 fn helper!() -> string:
-    let mut sink = Sink { text: "" }
+    pause!()
 > app/main/helper
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+> app/main/helper
+>   release counted reference (last use)
+    let mut sink = Sink { text: "" }
     sink() = "helper"
     sink.text
 >   retain string (stored)
@@ -29,3 +34,22 @@ pub fn main!() -> void $ Console:
     sink() = "kept"
     println(sink.text)
     _ := helper()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

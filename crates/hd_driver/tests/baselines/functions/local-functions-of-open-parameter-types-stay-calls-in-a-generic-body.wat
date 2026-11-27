@@ -9,9 +9,6 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
-  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
@@ -35,78 +32,55 @@
     ;; 45 |         read(self)
     local.get $self
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $value'2 i64) (local $t8 i32) (local $text.0'2 i32) (local $t9 i64) (local $value'3 i64) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32) (local $t0 i32) (local $text.0'1 i32)
+  (func $main'1 (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $text.0'1 i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $value'2 i64) (local $t7 i32) (local $text.0'2 i32) (local $t8 i64) (local $value'3 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t22 i32) (local $t21 i32)
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      local.tee $text.0'1
-      i32.const 128
-      i32.and
-      local.set $t0
-      local.get $text.0'1
-      i32.const 128
-      i32.or
-      i32.store $heap offset=12
-    end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $provider0
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $provider0.vtable
-    end
     i32.const 7
     call $"plain[usize]"
     i64.extend_i32_u
-    local.tee $t1
+    local.tee $t0
     call $unsigned_width
     local.set $text.0'1
     i32.const 7
     call $"held[usize]"
     i64.extend_i32_u
-    local.tee $t2
+    local.tee $t1
     call $unsigned_width
-    local.set $t3
+    local.set $t2
     i32.const 7
     call $"borrowed[usize]"
     i64.extend_i32_s
-    local.tee $t4
+    local.tee $t3
     local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
-    local.set $t5
+    local.set $t4
     local.get $value'1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t6
+      local.set $t5
     end
+    local.get $t4
     local.get $t5
-    local.get $t6
     i32.add
-    local.set $t6
+    local.set $t5
     i32.const 7
     call $"tupled[usize]"
     i64.extend_i32_u
     local.tee $value'1
     call $unsigned_width
-    local.set $t5
+    local.set $t4
     i32.const 7
     i32.const 3
     i32.const 0
     call $"counted[i32]"
     i64.extend_i32_s
-    local.tee $t7
+    local.tee $t6
     local.tee $value'2
     call $signed_magnitude
     call $unsigned_width
-    local.set $t8
+    local.set $t7
     local.get $value'2
     i64.const 0
     i64.lt_s
@@ -114,7 +88,7 @@
       i32.const 1
       local.set $text.0'2
     end
-    local.get $t8
+    local.get $t7
     local.get $text.0'2
     i32.add
     local.set $text.0'2
@@ -123,239 +97,243 @@
     i64.extend_i32_u
     local.tee $value'2
     call $unsigned_width
-    local.set $t8
+    local.set $t7
     i32.const 7
     call $"Named.twice[P]"
     i64.extend_i32_s
-    local.tee $t9
+    local.tee $t8
     local.tee $value'3
     call $signed_magnitude
     call $unsigned_width
-    local.set $t10
+    local.set $t9
     local.get $value'3
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t11
+      local.set $t10
     end
+    local.get $t9
     local.get $t10
-    local.get $t11
     i32.add
-    local.set $t11
+    local.set $t10
     local.get $text.0'1
     i32.const 1
     i32.add
-    local.tee $t10
-    local.get $t3
+    local.tee $t9
+    local.get $t2
+    i32.add
+    local.tee $t11
+    i32.const 1
     i32.add
     local.tee $t12
-    i32.const 1
-    i32.add
-    local.tee $t13
-    local.get $t6
-    i32.add
-    local.tee $t14
-    i32.const 1
-    i32.add
-    local.tee $t15
     local.get $t5
     i32.add
-    local.tee $t16
+    local.tee $t13
     i32.const 1
     i32.add
-    local.tee $t17
+    local.tee $t14
+    local.get $t4
+    i32.add
+    local.tee $t15
+    i32.const 1
+    i32.add
+    local.tee $t16
     local.get $text.0'2
     i32.add
-    local.tee $t18
+    local.tee $t17
     i32.const 1
+    i32.add
+    local.tee $t18
+    local.get $t7
     i32.add
     local.tee $t19
-    local.get $t8
-    i32.add
-    local.tee $t20
     i32.const 1
     i32.add
-    local.tee $t21
-    local.get $t11
-    i32.add
-    local.tee $t22
-    i32.const 16
-    local.set $t23
-    if
-      local.get $t22
-      call $rt:str
-      local.set $t23
-    end
-    local.get $t1
-    local.get $t23
-    local.get $text.0'1
-    call $write_unsigned_sized
-    local.get $t23
-    local.get $text.0'1
-    i32.add
-    i32.const 32
-    i32.store8 $heap
-    local.get $t2
-    local.get $t23
+    local.tee $t20
     local.get $t10
     i32.add
-    local.get $t3
+    local.tee $t21
+    i32.const 16
+    local.set $t22
+    if
+      local.get $t21
+      call $rt:str
+      local.set $t22
+    end
+    local.get $t0
+    local.get $t22
+    local.get $text.0'1
     call $write_unsigned_sized
-    local.get $t23
-    local.get $t12
+    local.get $t22
+    local.get $text.0'1
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t4
-    local.get $t23
-    local.get $t13
+    local.get $t1
+    local.get $t22
+    local.get $t9
     i32.add
-    local.get $t6
+    local.get $t2
+    call $write_unsigned_sized
+    local.get $t22
+    local.get $t11
+    i32.add
+    i32.const 32
+    i32.store8 $heap
+    local.get $t3
+    local.get $t22
+    local.get $t12
+    i32.add
+    local.get $t5
     call $write_signed_sized
-    local.get $t23
-    local.get $t14
+    local.get $t22
+    local.get $t13
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $value'1
-    local.get $t23
-    local.get $t15
+    local.get $t22
+    local.get $t14
     i32.add
-    local.get $t5
+    local.get $t4
     call $write_unsigned_sized
-    local.get $t23
-    local.get $t16
+    local.get $t22
+    local.get $t15
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t7
-    local.get $t23
-    local.get $t17
+    local.get $t6
+    local.get $t22
+    local.get $t16
     i32.add
     local.get $text.0'2
     call $write_signed_sized
-    local.get $t23
-    local.get $t18
+    local.get $t22
+    local.get $t17
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $value'2
-    local.get $t23
-    local.get $t19
+    local.get $t22
+    local.get $t18
     i32.add
-    local.get $t8
+    local.get $t7
     call $write_unsigned_sized
-    local.get $t23
-    local.get $t20
+    local.get $t22
+    local.get $t19
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t9
-    local.get $t23
-    local.get $t21
-    i32.add
-    local.get $t11
-    call $write_signed_sized
-    local.get $t23
+    local.get $t8
     local.get $t22
+    local.get $t20
+    i32.add
+    local.get $t10
+    call $write_signed_sized
+    local.get $t22
+    local.get $t21
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t23
+    local.get $t22
     if
-      local.get $t23
+      local.get $t22
       call $rt:release_ref
     end
     ;; 56 |     println("${held("a")} ${literal("b")}")
     i32.const 114 ;; &"a"
     i32.const 1
     call $"held[string]"
-    local.set $t6
+    local.set $t5
     local.set $text.0'2
     i32.const 115 ;; &"b"
     i32.const 1
     call $"literal[string]"
-    local.set $t11
+    local.set $t10
     local.set $text.0'1
-    local.get $t6
+    local.get $t5
     i32.const 1
     i32.add
-    local.tee $t3
-    local.get $t11
+    local.tee $t2
+    local.get $t10
     i32.add
-    local.tee $t5
+    local.tee $t4
     i32.const 16
-    local.set $t8
+    local.set $t7
     if
-      local.get $t5
+      local.get $t4
       call $rt:str
-      local.set $t8
+      local.set $t7
     end
-    local.get $t8
+    local.get $t7
     local.get $text.0'2
-    local.get $t6
+    local.get $t5
     call $rt:memory_copy/0/0
     local.get $text.0'2
     if
       local.get $text.0'2
       call $rt:release_ref
     end
-    local.get $t8
-    local.get $t6
+    local.get $t7
+    local.get $t5
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t8
-    local.get $t3
+    local.get $t7
+    local.get $t2
     i32.add
     local.get $text.0'1
-    local.get $t11
+    local.get $t10
     call $rt:memory_copy/0/0
     local.get $text.0'1
     if
       local.get $text.0'1
       call $rt:release_ref
     end
-    local.get $t8
-    local.get $t5
+    local.get $t7
+    local.get $t4
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
-    local.get $t8
+    local.get $t7
     if
-      local.get $t8
+      local.get $t7
       call $rt:release_ref
     end
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const 64
-      i32.or
-      i32.store $heap offset=12
-    end
-    i32.const 0
-    local.get $frame
-    if
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
-      i32.const -129
-      i32.and
-      local.get $t0
-      i32.or
-      i32.store $heap offset=12
-    end
   )
-  (func $main.poll (param $t0 i32) (result i32)
+  (func $main.poll (param $t0 i32) (result i32) (local $t2 i32) (local $t1 i32)
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
     local.get $t0
     call $rt:poll_check
     if
       i32.const 0
+      local.get $t0
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
       return
     end
     local.get $t0
@@ -365,8 +343,9 @@
     i32.or
     i32.store $heap offset=12
     local.get $t0
-    i32.const 0
-    i32.const 0
+    i32.load $heap offset=24
+    local.get $t0
+    i32.load $heap offset=28
     call $main'1
     local.get $t0
     local.get $t0
@@ -374,56 +353,24 @@
     i32.const -2
     i32.and
     i32.store $heap offset=12
-    i32.eqz
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 68
+    i32.or
+    i32.store $heap offset=12
+    i32.const 1
+    local.get $t0
     if
       local.get $t0
       local.get $t0
       i32.load $heap offset=12
-      i32.const 4
+      i32.const -129
+      i32.and
+      local.get $t2
       i32.or
       i32.store $heap offset=12
-      i32.const 1
-      return
     end
-    i32.const 0
-    return
-  )
-  (func $main.cancel (param $t1 i32) (local $t0 i32)
-    ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
-    call $rt:cancel_enter
-    local.set $t0
-    block
-      local.get $t1
-      call $rt:cancel_check
-      i32.eqz
-      br_if 0
-      local.get $t1
-      i32.load $heap offset=8
-      i32.eqz
-      br_if 0
-      local.get $t1
-      local.get $t1
-      i32.load $heap offset=12
-      i32.const 16
-      i32.or
-      i32.store $heap offset=12
-      local.get $t1
-      i32.const 0
-      i32.const 0
-      call $main'1
-      i32.eqz
-      if
-        local.get $t1
-        local.get $t1
-        i32.load $heap offset=12
-        i32.const -17
-        i32.and
-        i32.store $heap offset=12
-      end
-    end
-    local.get $t1
-    local.get $t0
-    call $rt:cancel_leave
   )
   (func $main.drop (param $t0 i32)
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")

@@ -8,7 +8,6 @@ std/collections.list/impl[T] List[T].take#0 [string]
 std/fs/memory_key#0
 std/fs/impl FsRead for MemoryFs.read_text#0
 std/fs/impl FsRead for MemoryFs.read_text#0.poll
-std/fs/impl FsRead for MemoryFs.read_text#0.cancel
 std/fs/impl FsRead for MemoryFs.read_text#0.drop
 std/fs/impl FsRead for MemoryFs.read_text#0
 std/rt.cycle/scan#0
@@ -221,3 +220,4 @@ rt:wake_mark
 rt:wake_notify
 rt:entry_cancel#0
 rt:entry_cancel#1
+rt:pending_cancel

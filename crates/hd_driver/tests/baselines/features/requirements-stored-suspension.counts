@@ -5,7 +5,7 @@
 # Suspension Values, Discarding A Suspension, Construction-Time
 # Requirement Binding (spec/lang/11-requirements-and-suspension.md, #1364).
 # expected: `later` builds one frame holding `key` (moved, no retain)
-# and drives it; `blocking` drives the body without a cold frame; `discard`
+# and drives it; `blocking` starts the body without its cold constructor; `discard`
 # frees the cold frame and `key` with no poll; `bound` captures the
 # provider at construction (one count, #1355).
 use std.task.{BlockOn, block_on}
@@ -21,22 +21,34 @@ impl Tag for Named:
         self.label
 
 fn fetch!(key: string) -> string:
-    key + "?"
+    pause!()
 > app/main/fetch
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release string (last use)
+>   release string (last use)
 >   release string (last use)
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
 >   release string (cancelled)
+>   release counted reference (last use)
+    key + "?"
 
 fn tagged!() -> usize $ Tag:
-    $.use(Tag).name().len()
+    pause!()
 > app/main/tagged
->   release string (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/tagged
+>   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/tagged
 >   retain counted reference (stored)
+> app/main/tagged
+>   retain counted reference (stored)
+    $.use(Tag).name().len()
 
 fn later!(key: string) -> usize:
     let mut pending = fetch(key)
@@ -86,3 +98,22 @@ fn bound!(s: string) -> usize:
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release string (last use)
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

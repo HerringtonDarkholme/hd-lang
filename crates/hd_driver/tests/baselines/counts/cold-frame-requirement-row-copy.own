@@ -6,17 +6,50 @@ trait Value:
     fn value(&self) -> i32
 
 fn read!() -> i32 $ Value:
-    $.use(Value).value()
+    pause!()
 > app/main/read
->   %0 = Retain %10 Cold row #0 : ()
->   %1 = Retain %10 Materialize row #0 : ()
->   %2 = Release %10 FrameDrop row #2 : ()
->   %3 = ProviderGet #0 : Value
->   %4 = Coerce %3 [ProviderAsRef -] : &dyn Value
->   %5 = Read borrow [*%4] : Value
->   %6 = Drop [%4] : ()
->   %7 = LoanBegin %5 #0 : ()
->   %8 = Call app/main/Value.value for Value [] via TraitValue (%5) : i32
->   %9 = LoanClose %7 : ()
->   %10 = Block %8 : i32
+>   %0 = Retain %13 Cold row #0 : ()
+>   %1 = Retain %13 Materialize row #0 : ()
+>   %2 = Release %13 FrameDrop row #2 : ()
+>   %3 = Release %13 FrameDrop child #2 : ()
+>   %4 = Await app/main/pause[] () : ()
+>   %5 = Release %4 Operation child #2 : ()
+>   %13 = Block %11 : i32
+>   %14 = Return - #2 : never
+    $.use(Value).value()
+>   %6 = ProviderGet #8 : Value
+>   %7 = Coerce %6 [ProviderAsRef -] : &dyn Value
+>   %8 = Read borrow [*%7] : Value
+>   %9 = Drop [%7] : ()
+>   %10 = LoanBegin %8 #0 : ()
+>   %11 = Call app/main/Value.value for Value [] via TraitValue (%8) : i32
+>   %12 = LoanClose %10 : ()
 >   summary none
+>   cancel %4 releases [%4294967295]
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

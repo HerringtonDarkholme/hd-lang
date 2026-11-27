@@ -35,15 +35,18 @@ fn local!() -> i32:
     let child: &dyn Child = fresh()
     let base: &dyn Base = child
     #^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    pause!()
     read_base(base)
 
 fn addressed!() -> i32:
     let child: &dyn Child = &*fresh()
+    pause!()
     read_base(child)
 
 fn counted_local!() -> i32:
     let child: *dyn Child = fresh()
     let base: &dyn Base = child
+    pause!()
     read_base(base)
 
 @cold
@@ -55,6 +58,7 @@ fn addressed_counted!() -> i32:
     if observe(&child) != 14:
         panic("addressed counted trait binding lost its payload")
     let base: &dyn Base = child
+    pause!()
     read_base(base)
 
 @cold
@@ -65,6 +69,7 @@ fn mut_to_shared!() -> i32:
     let child: &mut dyn Child = fresh_mut()
     let shared: &dyn Child = child
     let base: &dyn Base = shared
+    pause!()
     read_base(base)
 
 @cold
@@ -74,6 +79,7 @@ fn fresh_payload() -> *mut Payload:
 fn thin_mut_to_shared!() -> i32:
     let child: &mut Payload = fresh_payload()
     let shared: &Payload = child
+    pause!()
     shared.number + i32(shared.label.len())
 
 struct Holder['a]:
@@ -88,11 +94,13 @@ fn generic_field!() -> i32:
     let local: &dyn Child = &*child
     holder := Holder { value: local }
     base := generic_view::[&dyn Child](&holder.value)
+    pause!()
     read_base(base)
 
 fn generic_counted_field!() -> i32:
     let child: *dyn Child = fresh()
     base := generic_view::[*dyn Child](&child)
+    pause!()
     read_base(base)
 
 pub fn main!() -> void $ Console:
@@ -113,3 +121,8 @@ pub fn main!() -> void $ Console:
     if generic_counted_field!() != 17:
         panic("a borrowed counted trait field lost or retained its owner")
     println("ok")
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

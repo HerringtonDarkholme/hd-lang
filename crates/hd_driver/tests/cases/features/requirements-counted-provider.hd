@@ -18,4 +18,10 @@ fn holder() -> Holder $ Store:
     Holder { store: $.use(Store) }
 
 fn fetch!() -> usize $ Store:
+    pause!()
     $.use(Store).get().len()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

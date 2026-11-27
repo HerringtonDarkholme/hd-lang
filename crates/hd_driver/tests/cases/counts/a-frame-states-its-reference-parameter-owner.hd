@@ -2,7 +2,13 @@
 # @build: v8 release
 # expected: cold, exit and teardown state the parameter's object counts; an ordinary call has none.
 fn read!(value: &i32) -> i32:
+    pause!()
     *value
 
 fn plain(value: &i32) -> i32:
     *value
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

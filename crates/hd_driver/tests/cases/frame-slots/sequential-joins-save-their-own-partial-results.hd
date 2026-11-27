@@ -5,9 +5,15 @@
 use std.task.join
 
 fn ready!(value: string) -> string:
+    pause!()
     value
 
 fn sequential!(left: string, right: string) -> string:
     let (a, b) = join!(ready(left), ready(right))
     let (c, d) = join!(ready(a), ready(b))
     a + c + d
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

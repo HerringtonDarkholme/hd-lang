@@ -1,8 +1,7 @@
 # @dump: own counts wat
 # @build: v8 release
-# expected: `helper!` runs over a frame though it has no suspension point, so
-# `sink` lies in a heap cell. Its reference is no frame slot's, and moving
-# `sink.text` out still releases the cell.
+# expected: the ready `helper!` uses the plain body ABI, and moving
+# `sink.text` into the result still releases its addressable local.
 struct Sink:
     text: string
 

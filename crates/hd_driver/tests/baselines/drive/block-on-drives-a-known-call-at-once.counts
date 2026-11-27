@@ -14,13 +14,10 @@ fn fetch!(key: string) -> string:
 >   release string (last use)
 > app/main/fetch
 >   release string (cancelled)
-> app/main/fetch
->   release string (cancelled)
 
 fn direct(key: string) -> usize:
     match block_on(fetch(key)):
 > app/main/direct
->   release Suspend[string] (last use)
 >   release std.task.BlockOn[string] (last use)
         .Completed(value) => value.len()
         _ => 0
@@ -30,7 +27,6 @@ fn stored(key: string) -> usize:
 > app/main/stored
 >   release std.task.BlockOn[string] (last use)
     match block_on(pending):
->   release Suspend[string] (last use)
         .Completed(value) => value.len()
         _ => 0
 

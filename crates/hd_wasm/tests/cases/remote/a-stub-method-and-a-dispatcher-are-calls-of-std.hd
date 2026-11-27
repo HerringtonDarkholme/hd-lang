@@ -22,6 +22,7 @@ struct Table:
 
 impl Users for Table:
     fn count!(&mut self, since: i64) -> Result[i64, string]:
+        pause!()
         .Ok(self.rows - since)
 
 fn answer!(home: &mut Home[Table, string], rooted: &mut Rooted[Table], frame: List[u8]) -> List[u8]:
@@ -31,3 +32,8 @@ fn connect!(transport: *mut dyn Transport) -> Result[i64, string | CrossError]:
     users := remote::[Users](transport)
     users.count!(3)
     #^^^^^^^^^^^^^^
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

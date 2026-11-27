@@ -9,12 +9,14 @@
 use std.task.join
 
 fn fetch!(key: string) -> string:
-    key + "?"
+    pause!()
 > app/main/fetch
 >   local $0 key: string [param read]
->   %0 = Read [$0] : string
->   %1 = Intrinsic StrConcat [%0 "?"] : string
->   %2 = Block %1 : string
+>   %0 = Await app/main/pause[] () : ()
+>   %3 = Block %2 : string
+    key + "?"
+>   %1 = Read [$0] : string
+>   %2 = Intrinsic StrConcat [%1 "?"] : string
 
 fn all!(keys: List[string]) -> usize:
     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
@@ -107,3 +109,17 @@ fn all!(keys: List[string]) -> usize:
 >   %58 = Store [$9] %57 : ()
     n
 >   %70 = Read [$9] : usize
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned]
+>   %0 = Block - : ()
+>   %1 = Closure #1 : fn!() -> ()
+>   %2 = Store [$0] %1 : ()
+>   %6 = Block - : ()
+    step!()
+>   %3 = Read [$0] : fn!() -> ()
+>   %4 = CallValue %3 [] : Suspend[()]
+>   %5 = AwaitValue %4 : ()
