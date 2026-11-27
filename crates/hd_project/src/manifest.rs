@@ -77,13 +77,73 @@ pub struct HostDeclarations {
     pub line: u32,
 }
 
-/// One `[host]` entry. The path is relative to the declaring package.
+/// One `[host]` entry: a JavaScript provider file, a C library, or both
+/// (`cli.host.declaration.kinds`). The file is relative to the declaring
+/// package.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostProvider {
     pub trait_path: String,
-    /// `None` preserves a non-string value for a located diagnostic.
+    /// The JavaScript provider file: the string value, or a table's `js`.
     pub path: Option<String>,
+    /// A table's `c` library name (`cli.host.c.file`).
+    pub c: Option<String>,
+    /// Why the value is neither a string nor a `{ c, js }` table, kept for
+    /// a located diagnostic.
+    pub malformed: Option<String>,
     pub line: u32,
+}
+
+impl HostProvider {
+    /// One `[host]` value: a provider-file string, or a table with a `c`
+    /// library name, a `js` provider file, or both.
+    fn of(trait_path: &str, value: &toml::Value, line: u32) -> Self {
+        let mut entry = HostProvider {
+            trait_path: trait_path.to_owned(),
+            path: None,
+            c: None,
+            malformed: None,
+            line,
+        };
+        match value {
+            toml::Value::String(file) => entry.path = Some(file.clone()),
+            toml::Value::Table(t) => {
+                for (key, v) in t {
+                    let slot = match key.as_str() {
+                        "c" => &mut entry.c,
+                        "js" => &mut entry.path,
+                        _ => {
+                            entry.malformed = Some(format!(
+                                "the `[host]` entry for `{trait_path}` has the key `{key}`; an entry table takes `c`, a library name, and `js`, a provider file"
+                            ));
+                            continue;
+                        }
+                    };
+                    match v.as_str() {
+                        Some(text) => *slot = Some(text.to_owned()),
+                        None => {
+                            entry.malformed = Some(format!(
+                                "`{key}` of the `[host]` entry for `{trait_path}` must be a string"
+                            ));
+                        }
+                    }
+                }
+                if entry.malformed.is_none() && entry.c.is_none() && entry.path.is_none() {
+                    entry.malformed = Some(format!(
+                        "the `[host]` entry for `{trait_path}` names no provider; write `c = \"NAME\"`, `js = \"FILE\"`, or both"
+                    ));
+                }
+            }
+            _ => {}
+        }
+        entry
+    }
+
+    /// Whether the entry names a C provider, which holds the trait's
+    /// methods to the C value table (`module.host.package.c-types`).
+    #[must_use]
+    pub fn binds_c(&self) -> bool {
+        self.c.is_some()
+    }
 }
 
 impl HostDeclarations {
@@ -424,10 +484,12 @@ pub fn parse_manifest(text: &str) -> Result<Manifest, ManifestError> {
                 m.host = Some(HostDeclarations {
                     providers: Some(
                         h.iter()
-                            .map(|(trait_path, value)| HostProvider {
-                                trait_path: trait_path.clone(),
-                                path: value.as_str().map(str::to_owned),
-                                line: at(&format!("host.{trait_path}")),
+                            .map(|(trait_path, value)| {
+                                HostProvider::of(
+                                    trait_path,
+                                    value,
+                                    at(&format!("host.{trait_path}")),
+                                )
                             })
                             .collect(),
                     ),
@@ -629,6 +691,16 @@ pub fn compatibility_line(v: &Version) -> String {
     } else {
         format!("0.{}", v.minor)
     }
+}
+
+/// Whether `name` is a C identifier: an ASCII letter or `_`, then ASCII
+/// letters, digits or `_` (`cli.host.c.name`).
+fn c_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// A host path split into the repository it names and the package's
@@ -908,16 +980,37 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                         ),
                     );
                 }
-                if !entry.path.as_deref().is_some_and(|file| {
+                if let Some(why) = &entry.malformed {
+                    report(entry.line, why.clone());
+                    continue;
+                }
+                let relative = |file: &str| {
                     !file.is_empty()
                         && !file.contains('\0')
                         && !file.starts_with(['/', '\\'])
                         && file.as_bytes().get(1) != Some(&b':')
-                }) {
+                };
+                // The string form always names a file; a table may name a
+                // C library alone.
+                if (entry.c.is_none() || entry.path.is_some())
+                    && !entry.path.as_deref().is_some_and(relative)
+                {
                     report(
                         entry.line,
                         format!(
                             "provider for host trait `{path}` must be a nonempty package-relative file path, such as \"providers/http.mjs\""
+                        ),
+                    );
+                }
+                // The entry symbol is `NAME_TRAIT` (`cli.host.c.entry`).
+                if let Some(name) = &entry.c
+                    && !c_identifier(name)
+                {
+                    report(
+                        entry.line,
+                        format!(
+                            "C library `{name}` for host trait `{path}` must be a C identifier, such as \"hd_sqlite\": the library exports `{name}_{}`",
+                            path.rsplit('.').next().unwrap_or(path)
                         ),
                     );
                 }
@@ -1147,6 +1240,42 @@ mod tests {
         assert!(problems(&parse_manifest("[host]").unwrap(), "0.1.0").is_empty());
     }
 
+    /// `cli.host.declaration.kinds`: a string names a JavaScript file, and
+    /// a table names a C library, a JavaScript file, or both.
+    #[test]
+    fn host_entries_name_a_c_library_a_javascript_file_or_both() {
+        let m = parse_manifest(
+            "[host]\n\"a.Both\" = { c = \"hd_term\", js = \"providers/term.mjs\" }\n\"a.C\" = { c = \"_x9\" }\n\"a.Js\" = { js = \"p.mjs\" }\n\"a.Str\" = \"p.mjs\"\n",
+        )
+        .unwrap();
+        let entries = m.host.as_ref().unwrap().providers.as_ref().unwrap();
+        let kinds: Vec<_> = entries
+            .iter()
+            .map(|e| {
+                (
+                    e.trait_path.as_str(),
+                    e.c.as_deref(),
+                    e.path.as_deref(),
+                    e.binds_c(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                ("a.Both", Some("hd_term"), Some("providers/term.mjs"), true),
+                ("a.C", Some("_x9"), None, true),
+                ("a.Js", None, Some("p.mjs"), false),
+                ("a.Str", None, Some("p.mjs"), false),
+            ]
+        );
+        assert!(
+            problems(&m, "0.1.0").is_empty(),
+            "{:?}",
+            problems(&m, "0.1.0")
+        );
+    }
+
     #[test]
     fn package_capability_grants_use_source_paths_and_only_booleans() {
         for key in [
@@ -1186,6 +1315,14 @@ mod tests {
             "[host]\nServer = \"\"",
             "[host]\nServer = \"/provider.mjs\"",
             "[host]\nServer = \"C:/provider.mjs\"",
+            "[host]\nServer = {}",
+            "[host]\nServer = { c = 1 }",
+            "[host]\nServer = { js = true }",
+            "[host]\nServer = { c = \"hd_x\", rust = \"x.rs\" }",
+            "[host]\nServer = { c = \"\" }",
+            "[host]\nServer = { c = \"lib/x\" }",
+            "[host]\nServer = { c = \"9x\" }",
+            "[host]\nServer = { c = \"hd_x\", js = \"\" }",
         ] {
             let m = parse_manifest(text).unwrap();
             let errors = problems(&m, "0.1.0");

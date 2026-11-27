@@ -50,6 +50,9 @@ pub struct Program {
     /// The `@host` traits the case's package declares in its manifest's
     /// `[host]` (`# @host: main.Surface`), each package-relative.
     pub hosts: Vec<String>,
+    /// The `@host` traits its manifest binds to a C provider
+    /// (`# @c-host: main.Disk`, an entry `{ c = "stage" }`).
+    pub c_hosts: Vec<String>,
     /// For a REPL session case (`# @repl: N`): the number of the input the
     /// case's own text is. Its earlier inputs are the `@input` modules.
     pub repl: Option<u32>,
@@ -126,6 +129,7 @@ impl Program {
             profile: None,
             helpers: Vec::new(),
             hosts: Vec::new(),
+            c_hosts: Vec::new(),
             repl: None,
             fuel: None,
             main: None,
@@ -179,7 +183,8 @@ impl Program {
 /// `@profile` names a conformance runtime profile
 /// ([`crate::profile_traits`]) whose traits the case's main module
 /// declares; `@host` lists the package host traits its manifest declares
-/// (`module.host.package.marker`); `@helpers` selects functions the `wat`
+/// (`module.host.package.marker`), and `@c-host` those it binds to a C
+/// provider (`module.host.package.c-types`); `@helpers` selects functions the `wat`
 /// view prints whole, by short runtime name or exact ordinary item path,
 /// without following their calls, and `@helper` selects one item path
 /// that holds spaces, as a method's does. `@file` begins a virtual module;
@@ -225,6 +230,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
+    let mut c_hosts = Vec::new();
     let mut modules = BTreeMap::<String, String>::new();
     let mut current = "main.hd".to_owned();
     let mut declared = Vec::new();
@@ -245,6 +251,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "build"
                         | "profile"
                         | "host"
+                        | "c-host"
                         | "helpers"
                         | "helper"
                         | "repl"
@@ -336,6 +343,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     current = hd_project::repl_file(next);
                 }
                 "host" => hosts.extend(value.split_whitespace().map(str::to_owned)),
+                "c-host" => c_hosts.extend(value.split_whitespace().map(str::to_owned)),
                 "main" => {
                     if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
@@ -462,6 +470,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.profile = profile;
     program.helpers = helpers;
     program.hosts = hosts;
+    program.c_hosts = c_hosts;
     program.repl = repl;
     program.fuel = fuel;
     if (main_path.is_some()
@@ -853,7 +862,7 @@ pub fn tir(p: &Program) -> String {
 /// inspection builds. One manifest over the header bytes, parsed once; an
 /// empty header allocates nothing.
 fn host_packages(p: &Program, package: &str) -> Vec<hd_driver::HostPackage> {
-    if p.hosts.is_empty() {
+    if p.hosts.is_empty() && p.c_hosts.is_empty() {
         Vec::new()
     } else {
         let manifest: String = std::iter::once("[host]\n".to_owned())
@@ -861,6 +870,11 @@ fn host_packages(p: &Program, package: &str) -> Vec<hd_driver::HostPackage> {
                 p.hosts
                     .iter()
                     .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
+            )
+            .chain(
+                p.c_hosts
+                    .iter()
+                    .map(|t| format!("\"{t}\" = {{ c = \"stage\" }}\n")),
             )
             .collect();
         vec![hd_driver::HostPackage {

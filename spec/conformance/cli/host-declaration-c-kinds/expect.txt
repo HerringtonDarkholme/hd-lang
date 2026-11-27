@@ -1,0 +1,4 @@
+# A [host] value is a provider-file string or a table of `c` and `js`; a `c` name is a C identifier.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":6,"column":null},{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":7,"column":null},{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":8,"column":null},{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":9,"column":null},{"kind":"summary","errors":4,"warnings":0,"status":101}]

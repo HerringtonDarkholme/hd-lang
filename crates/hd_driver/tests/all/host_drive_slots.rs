@@ -233,6 +233,8 @@ fn package_host_routes_with_provider(
                         providers: Some(vec![hd_project::HostProvider {
                             trait_path: "main.Child".into(),
                             path: Some("provider.ts".into()),
+                            c: None,
+                            malformed: None,
                             line: 5,
                         }]),
                         line: 4,

@@ -1,0 +1,9 @@
+pub struct Row:
+    pub id: i32
+
+@host
+pub trait Disk:
+    fn write(&mut self, path: string, data: &List[u8], at: &mut u64) -> i32
+    fn wait!(&mut self, ms: u32) -> Result[List[u8], i32]
+    fn read!(&mut self, into: &mut List[u8]) -> i64
+    fn put(&mut self, row: Row) -> i32

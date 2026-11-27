@@ -1,6 +1,8 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; not yet implemented (P3);
+Status: accepted by the owner, 2026-11-27; phase step 1 built (the
+`{ c, js }` manifest form and the [C value table](../../spec/lang/10-modules.md#c-value-table)
+check), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 

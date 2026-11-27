@@ -1,0 +1,4 @@
+# A trait bound to a C provider takes the C value table's rows, and a suspending method takes scalars only.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"boundary-not-safe","severity":"error","message":null,"file":"src/main.hd","line":8,"column":null},{"kind":"diagnostic","code":"boundary-not-safe","severity":"error","message":null,"file":"src/main.hd","line":9,"column":null},{"kind":"summary","errors":2,"warnings":0,"status":101}]

@@ -2389,12 +2389,19 @@ enum Fault {
 ///
 /// Cost: each trait the walk reaches once, and each signature's distinct
 /// types once per signature.
+///
+/// A package host trait that `c_bound` names has a C provider: its
+/// methods are held to the C value table instead ([`c_fault`],
+/// `module.host.package.c-types`).
 pub fn boundary(
     cx: &HeaderCx<'_>,
     roots: &[(DefId, bool)],
     returned: &dyn Fn(DefId, bool) -> Returned,
+    c_bound: &dyn Fn(DefId) -> bool,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
+    let (c_roots, roots): (Vec<_>, Vec<_>) = roots.iter().partition(|&&(def, _)| c_bound(def));
+    let roots: &[(DefId, bool)] = &roots;
     let serialize = cx.names.known.serialize;
     let deserialize = cx.names.known.deserialize;
     let mut traits = roots.to_vec();
@@ -2504,6 +2511,13 @@ pub fn boundary(
         }
         shape(def, "host capability", &mut out);
     }
+    for &(def, package) in &c_roots {
+        if !package {
+            generic(def, "host capability", &mut out);
+        }
+        shape(def, "host capability", &mut out);
+        c_trait(cx, def, &mut out);
+    }
     let mut bound = queued.clone();
     let mut next = 0;
     while let Some(&(def, package)) = traits.get(next) {
@@ -2574,6 +2588,154 @@ pub fn boundary(
         }
     }
     Ok(out)
+}
+
+/// Where a type stands in a C-bound method's signature.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CPlace {
+    /// A parameter of a method that returns at once.
+    Param,
+    /// A parameter of a suspending method (`module.host.package.c-suspend`).
+    SuspendParam,
+    /// The result of a method that returns at once.
+    Result,
+    /// The result of a suspending method, completed through its token.
+    SuspendResult,
+}
+
+/// The C value table check of the package host trait `def`, which its
+/// package's `[host]` table binds to a C provider
+/// (`module.host.package.c-types`, `c-references`, `c-suspend`): the
+/// first type of each method's signature outside the table is an error
+/// there, once per signature. Its table holds its own methods in source
+/// order, so a supertrait, whose methods have no place in it, is an error
+/// at the trait.
+///
+/// Cost: each method once, and each signature type once; no type is
+/// walked deeper than a reference to a list of numbers.
+fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) {
+    let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
+        return;
+    };
+    if !t.supers.is_empty() {
+        out.push(Finding {
+            item: def,
+            slot: 0,
+            code: Code::BoundaryNotSafe,
+            message: "a trait bound to a C provider has no supertraits: its function table holds its own methods, in source order".to_owned(),
+            ref_fix: Vec::new(),
+            visibility_fix: Vec::new(),
+        });
+    }
+    for &(_, m) in &t.methods {
+        let Some(mi) = cx.lookup.item(m) else {
+            continue;
+        };
+        let Some(sig) = mi.sig() else {
+            continue;
+        };
+        let (param, result) = if sig.suspends {
+            (CPlace::SuspendParam, CPlace::SuspendResult)
+        } else {
+            (CPlace::Param, CPlace::Result)
+        };
+        let fault = sig
+            .params
+            .iter()
+            .filter(|p| cx.names.text(p.0) != "self")
+            .map(|p| (p.1, param))
+            .chain([(sig.ret, result)])
+            .find_map(|(t, place)| c_fault(cx, t, place).map(|why| (t, place, why)));
+        if let Some((t, place, why)) = fault {
+            let way = if matches!(place, CPlace::Result | CPlace::SuspendResult) {
+                "from"
+            } else {
+                "to"
+            };
+            out.push(Finding {
+                item: m,
+                slot: 0,
+                code: Code::BoundaryNotSafe,
+                message: format!(
+                    "{} cannot cross {way} a C provider here: {why}",
+                    hd_resolve::show_ty(&cx.names, t)
+                ),
+                ref_fix: Vec::new(),
+                visibility_fix: Vec::new(),
+            });
+        }
+    }
+}
+
+/// Why `t` at `place` is no row of the C value table, or `None` when it
+/// is one (`module.host.package.c-types`): `bool`, an integer, `f32` or
+/// `f64`; as a parameter, also `string` and a local reference to a number
+/// or to a list of numbers (`c-references`); a suspending method takes
+/// numbers and `bool` only, and its result is a number, `List[u8]`, or a
+/// `Result` of one of them with an `i32` error (`c-suspend`).
+fn c_fault(cx: &HeaderCx<'_>, t: Ty, place: CPlace) -> Option<&'static str> {
+    use hd_types::Prim;
+    let pool = cx.names.pool.types();
+    let known = cx.names.known;
+    let prim = |t: Ty| match pool.get(t) {
+        TyData::Prim(p) => Some(p),
+        _ => None,
+    };
+    let number =
+        |t: Ty| prim(t).is_some_and(|p| !matches!(p, Prim::Bool | Prim::Char | Prim::String));
+    let list_of = |t: Ty| match pool.get(t) {
+        TyData::Adt(AdtId::Declared(def), args) if def == known.list => {
+            pool.list_items(args).first().copied()
+        }
+        _ => None,
+    };
+    let bytes = |t: Ty| list_of(t).and_then(prim) == Some(Prim::U8);
+    match place {
+        CPlace::Param | CPlace::Result if prim(t) == Some(Prim::Bool) || number(t) => None,
+        CPlace::Result if t == Ty::VOID => None,
+        CPlace::Result
+            if matches!(pool.get(t), TyData::Ref { inner, .. }
+                if matches!(pool.get(inner), TyData::TraitValue { .. })) =>
+        {
+            Some(
+                "a C provider returns no host handle: no function table for a returned handle is defined",
+            )
+        }
+        CPlace::Result => Some(
+            "a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion",
+        ),
+        CPlace::Param if t == Ty::STRING => None,
+        CPlace::Param => match pool.get(t) {
+            TyData::Ref {
+                inner,
+                counted: false,
+                ..
+            } if number(inner) || list_of(inner).is_some_and(number) => None,
+            TyData::Ref { counted: false, .. } => {
+                Some("a local reference crosses to C only to a number or to a list of numbers")
+            }
+            _ => Some(
+                "a C function takes `bool`, numbers, `string`, and local references to numbers and to lists of numbers",
+            ),
+        },
+        CPlace::SuspendParam if prim(t) == Some(Prim::Bool) || number(t) => None,
+        CPlace::SuspendParam => Some(
+            "a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works",
+        ),
+        CPlace::SuspendResult => {
+            let completed = |t: Ty| number(t) || bytes(t);
+            let ok = completed(t)
+                || match pool.get(t) {
+                    TyData::Adt(AdtId::Declared(def), args) if def == known.result => {
+                        matches!(pool.list_items(args), [value, error] if completed(*value) && *error == Ty::I32)
+                    }
+                    _ => false,
+                };
+            (!ok).then_some(
+                "a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error",
+            )
+        }
+    }
 }
 
 impl ItemCheck<'_, '_> {

@@ -1364,8 +1364,12 @@ fn build_programs(
         .for_module(contract.as_ref())
         .map_err(|e| rep.fail(&e))?;
         let providers = if kind == crate::engine::EngineKind::Node {
-            crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants)
-                .map_err(|e| rep.fail(&e))?
+            crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants).map_err(
+                |refusal| {
+                    rep.diag(&refusal.diag());
+                    rep.finish(crate::HD_FAILURE)
+                },
+            )?
         } else {
             Vec::new()
         };

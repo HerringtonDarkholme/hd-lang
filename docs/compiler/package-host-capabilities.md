@@ -282,6 +282,7 @@ Those cannot be inferred from a successful local Request/Response call.
 ## The Decided Surface
 
 The decided surface is `[host] "server.HttpServer" = "providers/http.mjs"`, paired exactly with bare `@host` on an owned public trait.
+An entry may instead be a table naming a C library, a JavaScript file or both, `{ c = "hd_sqlite", js = "providers/sqlite.mjs" }`; a `c` entry holds the trait to the [C value table](../../spec/lang/10-modules.md#c-value-table) ([native FFI](../future-work/FFI.md), #2388).
 `traits = [...]`, `javascript = ...`, `--host` and `defineProvider` are superseded.
 Library manifests never grant root consent.
 An app continues using ordinary rows, `$.use` and `$.with` fakes.
