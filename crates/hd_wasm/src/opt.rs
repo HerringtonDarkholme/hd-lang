@@ -326,21 +326,13 @@ pub fn static_values(
                 .map_or_else(Vec::new, |f| vec![false; f.results.len()])
         })
         .collect();
-    let joins: Vec<_> = funcs
-        .iter()
-        .map(|f| {
-            f.as_ref()
-                .map_or_else(Vec::new, |f| constant_joins(&f.body))
+    // A function's facts read only its body and the arities, so they are
+    // built on the task's threads (#2392).
+    let mut facts: Vec<Facts> = hd_sched::par_map(funcs, |f| {
+        f.as_ref().map_or_else(Facts::default, |f| {
+            Facts::new(f, arity, &constant_joins(&f.body))
         })
-        .collect();
-    let mut facts: Vec<Facts> = funcs
-        .iter()
-        .zip(&joins)
-        .map(|(f, joins)| {
-            f.as_ref()
-                .map_or_else(Facts::default, |f| Facts::new(f, arity, joins))
-        })
-        .collect();
+    });
     let mut waiting: Vec<Vec<usize>> = params.iter().map(|p| vec![0; p.len()]).collect();
     let mut callers: Vec<Vec<usize>> = vec![Vec::new(); funcs.len()];
     let mut called = vec![false; funcs.len()];

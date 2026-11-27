@@ -2777,13 +2777,17 @@ impl Module {
         if let Some(c) = self.runtime.checked {
             self.retain_instances(&[c.skipped_test]);
         }
-        for f in self.funcs.iter_mut().flatten() {
+        // The per-function steps of the link below read only their function,
+        // the symbols and the static data, so they run on the task's threads
+        // (#2392); each leaves its function the same at any thread count.
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             f.origins_before_opt = f
                 .origins
                 .as_ref()
                 .map(|os| os.iter().map(|o| f.source_origin(*o)).collect())
                 .unwrap_or_default();
-        }
+        });
         let mut seen = self.reached();
         self.cancellable = session
             || seen.iter().any(|s| {
@@ -2843,14 +2847,15 @@ impl Module {
             }
         }
         self.drain_glues = glues;
-        for f in self.funcs.iter_mut().flatten() {
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             for k in (0..f.body.len()).rev() {
                 if matches!(f.body[k], Ins::DrainGlue(_)) {
                     f.remove(k);
                 }
             }
             f.rebuild_callees();
-        }
+        });
         if self.fixed_allocations || self.wakers || self.idle || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
@@ -2900,7 +2905,9 @@ impl Module {
                 })
             })
             .collect();
-        for f in self.funcs.iter_mut().flatten() {
+        let (symbols, cancellable) = (&self.symbols, self.cancellable);
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             let body = std::mem::take(&mut f.body);
             let origins = f.origins.as_mut().map(std::mem::take);
             let outer = f.origin_at;
@@ -2914,7 +2921,7 @@ impl Module {
                     continue;
                 }
                 let helper = match ins {
-                    Ins::Call(id, _) => match &*self.symbols.get(id) {
+                    Ins::Call(id, _) => match &*symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
                         Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
@@ -2922,19 +2929,24 @@ impl Module {
                     _ => 0,
                 };
                 match helper {
-                    3 => f.i32(i32::from(self.cancellable)),
+                    3 => f.i32(i32::from(cancellable)),
                     4 => {}
                     _ => f.push(ins),
                 }
             }
             f.origin_at = outer;
             f.rebuild_callees();
-        }
+        });
         self.reach();
         let init_keys: hd_base::HashSet<_> = self.init_insts.iter().copied().collect();
-        for (id, f) in self.funcs.iter_mut().enumerate() {
+        let base = previous.map(|_| Global::SessionData);
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                f.resolve_statics(base);
+            }
+        });
+        for (id, f) in self.funcs.iter().enumerate() {
             let Some(f) = f else { continue };
-            f.resolve_statics(previous.map(|_| Global::SessionData));
             // Constant storage can forward an init's address to another
             // function and delete the init. Keep its literal dependencies.
             // ruled out: every function was registered under a u32 SymId.
@@ -2958,28 +2970,28 @@ impl Module {
                 }
             });
         }
-        for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f, |at, len| {
-                if session {
-                    None
-                } else {
-                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
-                }
-            });
-        }
+        let (data, chunks) = (&self.data, &self.data_chunks);
+        let static_bytes = |at, len| {
+            if session {
+                None
+            } else {
+                crate::static_data::bytes(data, chunks, at, len)
+            }
+        };
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::bulk::lower(f, static_bytes);
+            }
+        });
         crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
         // Wide storage introduces a frame fill after the ordinary lowering.
         // Its only new scalar scratch is bounded; all earlier scratch locals
         // participate in wide lowering with the body's other locals.
-        for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f, |at, len| {
-                if session {
-                    None
-                } else {
-                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
-                }
-            });
-        }
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::bulk::lower(f, static_bytes);
+            }
+        });
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();
         #[cfg(feature = "checked-report")]
@@ -3003,9 +3015,11 @@ impl Module {
         // final ones for the stack heights of rule 18, an optional rewrite.
         if self.optimized {
             let arity = self.symbols.call_arities(&self.funcs);
-            for f in self.funcs.iter_mut().flatten() {
-                crate::opt::blocks(f, &arity);
-            }
+            hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+                if let Some(f) = f {
+                    crate::opt::blocks(f, &arity);
+                }
+            });
         }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.
