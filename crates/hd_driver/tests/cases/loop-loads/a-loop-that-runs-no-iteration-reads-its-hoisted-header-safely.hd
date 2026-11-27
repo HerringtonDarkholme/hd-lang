@@ -1,0 +1,26 @@
+# @dump: wat stdout
+# @build: release
+# #2374: the buffer pointer is read before the loop even when the list
+# is empty and the loop runs no iteration; the read is of the live
+# list's header, never of an element, so it cannot trap.
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Never)
+fn mix(s: i64, x: i64) -> i64:
+    s * 31 + x
+
+@inline(.Never)
+fn fold(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 7
+    for i in 0..xs.len():
+        s = mix(s, xs[i])
+    s
+
+pub fn main() -> void $ Console:
+    let empty: UniqList[i64] = UniqList.new()
+    println("${fold(&empty)}")
+    let mut some: UniqList[i64] = UniqList.new()
+    some.push(1)
+    some.push(2)
+    println("${fold(&some)}")

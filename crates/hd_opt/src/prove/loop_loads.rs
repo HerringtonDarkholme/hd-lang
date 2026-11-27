@@ -3,8 +3,10 @@
 //!
 //! A load through a reference, `[*$xs .buffer .ptr]`, gives the same value
 //! on every iteration of a loop that writes no memory: the loop's stores go
-//! only to unaddressed locals, and it calls nothing but pure intrinsics
-//! and panics, which leave the loop. Writes from elsewhere are what alias
+//! only to unaddressed locals, and it calls nothing but pure intrinsics,
+//! panics, which leave the loop, and functions whose whole-program write
+//! summary says they write nothing their caller reaches
+//! ([`super::Cx::call_writes`], #2374). Writes from elsewhere are what alias
 //! analysis must rule out in LLVM's LICM (`promoteLoopAccessesToScalars`)
 //! and Cranelift's alias-analysis load elimination. Here the place a live
 //! reference refers to has no writer outside the loop either: while a
@@ -14,9 +16,16 @@
 //! other use (`ref.excl.mut`). So no other task or thread writes it while
 //! the loop runs, and the only possible writers are the loop's own
 //! instructions. Raw writes (`Ptr.write`, a `mem_store_*`, a `Store` into a
-//! `ptr` place) take no loan, so any of them, any other call, any count or
-//! drop that may free, and any suspension point make the loop not
-//! read-only, and nothing in it is hoisted.
+//! `ptr` place) take no loan, so any of them, any other call (a `dyn` or
+//! function value call included), any count or drop that may free, and
+//! any suspension point make the loop not read-only, and nothing in it is
+//! hoisted.
+//!
+//! A load's key names its place from a local that keeps its value: the
+//! root its definitions reach ([`super::places`]) is not stored from where
+//! the chain read it to the loop's end, nor is memory the chain read
+//! through a reference written there. A copy `k = r` of a reference
+//! followed by `r = ys` keeps `k`'s loads in the loop.
 //!
 //! The load is read once before the loop into a new local. That read runs
 //! even when the loop runs no iteration, which is safe: each step of its
@@ -37,18 +46,17 @@
 //! the guard.
 //!
 //! Cost: one census of the body's instructions, then per loop one walk of
-//! its body, which nesting repeats per enclosing loop: O(n × depth). A
-//! place's key follows at most [`DEPTH`] definitions.
+//! its body, which nesting repeats per enclosing loop: O(n × depth). Each
+//! definition a key follows is computed once ([`super::places`]).
 
+use super::places::{Def, Defs, Key};
 use super::{Induction, Lists, Nest, Sets, Topology, scans};
 use hd_base::LocalId;
 use hd_tir::ir::{
-    Body, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, local_flags, place, u32_of,
+    Body, Callee, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, local_flags, place,
+    u32_of,
 };
 use hd_types::Ty;
-
-/// How many definitions a place's key follows.
-pub(super) const DEPTH: usize = 16;
 
 /// The intrinsic calls that write no memory and always return.
 const PURE: &[&str] = &[
@@ -78,27 +86,20 @@ const PURE: &[&str] = &[
     "mem_load_u64",
 ];
 
-/// A place through a reference: a local and the fields and dereferences
-/// from it, at least one a dereference.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(super) struct Key {
-    pub(super) local: u32,
-    pub(super) path: Vec<Proj>,
-}
-
 /// A load group leaving its loop: the loop, the block and position its
-/// read goes to, its place, its type and its loads.
-type Hoist = (u32, (u32, u32), Key, Ty, Vec<u32>);
+/// read goes to, its place's root local and steps, its type and its loads.
+type Hoist = (u32, (u32, u32), (u32, Vec<Proj>), Ty, Vec<u32>);
 
 /// One loop's facts.
-pub(super) struct LoopFacts<'a, 'b> {
-    pub(super) lists: &'a Lists<'b>,
+struct LoopFacts<'a, 'b> {
+    lists: &'a Lists<'b>,
+    defs: &'a Defs<'b>,
     /// Instructions that may write memory, before each index.
-    pub(super) kills: &'a [u32],
-    /// The last instruction a key's locals must keep their values to.
-    pub(super) l: u32,
+    kills: &'a [u32],
+    /// The loop.
+    l: u32,
     /// The loop's first instruction.
-    pub(super) first: u32,
+    first: u32,
 }
 
 /// Hoists `b`'s invariant loads and decides its guards.
@@ -127,6 +128,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
             .binary_search_by(|&(s, x, _)| (s.idx(), x.idx()).cmp(&(sub as usize, local)))
             .is_ok()
     };
+    let defs = Defs::new(b, &topo, &nest, &sets, &stored);
     // `kills[i]`: how many instructions before `i` may write memory.
     let mut kills = vec![0u32; b.len() + 1];
     let mut decided = Vec::new();
@@ -175,6 +177,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
             }
             let facts = LoopFacts {
                 lists: &lists,
+                defs: &defs,
                 kills: &kills,
                 l: u32_of(l),
                 first,
@@ -187,14 +190,15 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
             let from = first.saturating_sub(1);
             let written: Option<Vec<Key>> = checks
                 .iter()
-                .map(|&u| facts.place_key(b.data[u as usize][0], u, from, DEPTH))
+                .map(|&u| facts.place_key(b.data[u as usize][0], u, from))
                 .collect();
             for (key, ty, loads) in facts.invariant_loads(&body, &mut claimed) {
                 if written
                     .as_ref()
-                    .is_some_and(|w| w.iter().all(|c| apart(c, &key)))
+                    .is_some_and(|w| w.iter().all(|&c| defs.apart(c, key)))
                 {
-                    hoists.push((u32_of(l), at, key, ty, loads));
+                    let place = (defs.local(key), defs.proj(key));
+                    hoists.push((u32_of(l), at, place, ty, loads));
                 } else {
                     // An inner loop's own position may still take it.
                     for x in loads {
@@ -216,16 +220,16 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
     }
     let n = b.len();
     let mut inserts = Vec::new();
-    for (l, (block, pos), key, ty, loads) in hoists {
+    for (l, (block, pos), (root, proj), ty, loads) in hoists {
         let local = u32_of(b.local_ty.len());
         b.local_ty.push(ty);
         b.local_name.push(cx.load_name());
-        b.local_syn.push(b.local_syn[key.local as usize]);
+        b.local_syn.push(b.local_syn[root as usize]);
         b.local_flags
             .push(local_flags::ASSIGNED | local_flags::READ);
         let words = hd_tir::ir::Place {
-            root: PlaceRoot::Local(LocalId::from_raw(key.local)),
-            proj: key.path,
+            root: PlaceRoot::Local(LocalId::from_raw(root)),
+            proj,
         }
         .words()
         .ok_or("a hoisted load's place is a bare local")?;
@@ -257,23 +261,24 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
     hd_tir::own::insert_batch(b, &topo, &inserts).map(|_| ())
 }
 
-/// Whether places `a` and `b` are provably apart: through one local,
-/// they part at two fields. A place through another local may be reached
-/// by both, so it is not.
-fn apart(a: &Key, b: &Key) -> bool {
-    a.local == b.local
-        && a.path
-            .iter()
-            .zip(&b.path)
-            .find(|(x, y)| x != y)
-            .is_some_and(|steps| matches!(steps, (Proj::Field(_), Proj::Field(_))))
+/// The first instruction of the outermost loop around `at` that loop
+/// `l` is outside of, or `at`: where a value read at `at` may last have
+/// been read before `l` ends.
+fn reach(topo: &Topology, at: u32, l: u32) -> u32 {
+    let mut out = at;
+    let mut lp = topo.loop_of[at as usize];
+    while lp != NONE && !(topo.first[lp as usize] <= l && l <= lp) {
+        out = topo.first[lp as usize];
+        lp = topo.loop_of[lp as usize];
+    }
+    out
 }
 
 impl Lists<'_> {
     /// Whether instruction `i` may write memory a reference reaches, or
     /// run code that does: anything but a value, a control instruction, a
-    /// loan marker, a store to an unaddressed local, a pure intrinsic, or
-    /// a panic.
+    /// loan marker, a store to an unaddressed local, a pure intrinsic, a
+    /// panic, or a call whose callee writes nothing its caller reaches.
     pub(super) fn writes_memory(&self, i: usize) -> bool {
         let b = self.b;
         match b.tags[i] {
@@ -316,9 +321,14 @@ impl Lists<'_> {
                     && !(self.cell)(l.idx())
                     && b.local_flags[l.idx()] & local_flags::CAPTURED_ASSIGNED == 0
             }),
+            // A callee whose write summary says it writes nothing its
+            // caller reaches (#2374). A `dyn` or function value call is
+            // `CallDyn` or `CallValue`: any code may run.
             Tag::Call => {
                 let s = u32_of(i);
                 !(self.calls_panic(s) || self.intrinsic(s).is_some_and(|n| PURE.contains(&&*n)))
+                    && Callee::from_words(b.record(b.data[i][0]))
+                        .is_none_or(|c| self.cx.call_writes(&c))
             }
             Tag::Intrinsic => !matches!(
                 IntrinsicOp::from_u32(b.data[i][0]),
@@ -337,112 +347,30 @@ impl Lists<'_> {
 }
 
 impl LoopFacts<'_, '_> {
-    /// Whether local `k` keeps its value from `from` to the loop's end.
-    fn steady(&self, k: usize, from: u32) -> bool {
+    /// Definition `d`'s key, where its root local keeps the value it had
+    /// where the chain read it, from there or `from`, whichever is
+    /// earlier, to the loop's end, and nothing writes the memory read on
+    /// its way in that range.
+    fn holds(&self, d: Def, from: u32) -> Option<Key> {
         let lists = self.lists;
-        !(lists.cell)(k)
-            && lists.b.local_flags[k] & local_flags::CAPTURED_ASSIGNED == 0
-            && !lists.sets.referenced[k]
-            && !lists.sets.stores[k]
-                .iter()
-                .any(|&(s, _)| s > from && s <= self.l)
+        let r = self.defs.local(d.key) as usize;
+        let lo = |at: u32| reach(lists.topo, at, self.l).min(from);
+        let stores = &lists.sets.stores[r];
+        let next = stores.partition_point(|&(s, _)| s <= lo(d.root_at));
+        let steady = !(lists.cell)(r)
+            && lists.b.local_flags[r] & local_flags::CAPTURED_ASSIGNED == 0
+            && !lists.sets.referenced[r]
+            && stores.get(next).is_none_or(|&(s, _)| s > self.l);
+        let read = d.mem_at == NONE
+            || self.kills[self.l as usize + 1] == self.kills[lo(d.mem_at) as usize + 1];
+        (steady && read).then_some(d.key)
     }
 
-    /// The value local `k`'s one store gives it where `at` reads it.
-    fn single_value(&self, k: usize, at: u32) -> Option<u32> {
-        let lists = self.lists;
-        let [(set, value)] = lists.sets.stores[k].as_slice() else {
-            return None;
-        };
-        (*value != NONE
-            && !(lists.cell)(k)
-            && lists.b.local_flags[k] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
-                == 0
-            && lists.dominates(*set, at))
-        .then_some(*value)
-    }
-
-    /// The key of the place `word` names at instruction `at`, where no
-    /// local on its way changes after `from`.
-    fn place_key(&self, word: u32, at: u32, from: u32, depth: usize) -> Option<Key> {
+    /// The key of the place `word` names at instruction `at`, where its
+    /// definition holds from `from` to the loop's end.
+    fn place_key(&self, word: u32, at: u32, from: u32) -> Option<Key> {
         let p = self.lists.b.decode_place(word)?;
-        self.key_of(&p, at, from, depth)
-    }
-
-    /// [`Self::place_key`] of a decoded place.
-    pub(super) fn key_of(
-        &self,
-        p: &hd_tir::ir::Place,
-        at: u32,
-        from: u32,
-        depth: usize,
-    ) -> Option<Key> {
-        // A reference local set once is keyed by what it refers to, so two
-        // copies of one reference (an inlined `self` each) name one place.
-        let through = |k: LocalId| {
-            (p.proj.first() == Some(&Proj::Deref))
-                .then(|| self.single_value(k.idx(), at))
-                .flatten()
-                .and_then(|v| self.target(v, from, depth))
-        };
-        let (mut key, rest) = match p.root {
-            PlaceRoot::Local(k) if let Some(key) = through(k) => (key, &p.proj[1..]),
-            PlaceRoot::Local(k) if self.steady(k.idx(), from) => (
-                Key {
-                    local: k.raw(),
-                    path: Vec::new(),
-                },
-                &p.proj[..],
-            ),
-            PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
-                (self.target(v.0, from, depth)?, &p.proj[1..])
-            }
-            _ => return None,
-        };
-        for step in rest {
-            match step {
-                Proj::Field(_) | Proj::Deref => key.path.push(*step),
-                Proj::Elem(_) | Proj::Variant(_) => return None,
-            }
-        }
-        Some(key)
-    }
-
-    /// The key of the place reference value `v` refers to.
-    fn target(&self, v: u32, from: u32, depth: usize) -> Option<Key> {
-        let depth = depth.checked_sub(1)?;
-        let b = self.lists.b;
-        let i = Ref(v).as_inst()?.0 as usize;
-        match b.tags[i] {
-            Tag::Read if let Some(k) = b.local_read(i) => self
-                .single_value(k.idx(), v)
-                .and_then(|w| self.target(w, from, depth))
-                .or_else(|| {
-                    self.steady(k.idx(), from).then(|| Key {
-                        local: k.raw(),
-                        path: vec![Proj::Deref],
-                    })
-                }),
-            Tag::Read => {
-                let mut key = self.place_key(b.data[i][0], v, from, depth)?;
-                key.path.push(Proj::Deref);
-                Some(key)
-            }
-            Tag::Ref => self.place_key(b.data[i][0], v, from, depth),
-            Tag::Coerce
-                if b.record(b.data[i][1]).first()
-                    == Some(&(hd_tir::ir::Coercion::Identity as u32)) =>
-            {
-                self.target(b.data[i][0], from, depth)
-            }
-            Tag::Scope
-                if let Some(w) = b.wrapper_value(i)
-                    && self.lists.sets.breaks.get(b.data[i][0] as usize) == Some(&1) =>
-            {
-                self.target(w, from, depth)
-            }
-            _ => None,
-        }
+        self.holds(self.defs.place(&p, at)?, from)
     }
 
     /// The key of copy load `x` through a reference, read where no local
@@ -459,8 +387,8 @@ impl LoopFacts<'_, '_> {
         {
             return None;
         }
-        self.place_key(b.data[i][0], x, from, DEPTH)
-            .filter(|k| k.path.contains(&Proj::Deref))
+        self.place_key(b.data[i][0], x, from)
+            .filter(|&k| self.defs.derefs(k) != 0)
     }
 
     /// The loop's copy loads through a reference whose place nothing in
@@ -477,7 +405,7 @@ impl LoopFacts<'_, '_> {
             let Some(key) = self.load_key(x, self.first.saturating_sub(1)) else {
                 continue;
             };
-            let k = key.local as usize;
+            let k = self.defs.local(key) as usize;
             let ready = b.local_flags[k] & local_flags::PARAM != 0
                 || lists.sets.stores[k]
                     .iter()

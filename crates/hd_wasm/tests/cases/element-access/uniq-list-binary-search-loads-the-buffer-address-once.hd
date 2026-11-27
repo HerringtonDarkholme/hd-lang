@@ -1,11 +1,9 @@
 # @dump: wat
 # @build: v8 release
 # @helper: std/collections.uniq_list/impl[T < ?Copy & Ord] UniqList[T].binary_search
-# expected: an unchanged field read through a reference loads once, not
-# per read or per iteration (issue: a loop reloads an unchanged struct
-# field read through a reference on every iteration)
 # `binary_search` takes the list as `&self`: its loop calls the element
-# comparison, yet loads the buffer address once, before the loop (#1706).
+# comparison, yet loads the buffer address once, before the loop (#1706):
+# the comparison's write summary says it writes nothing (#2374).
 use std.collections.UniqList
 
 fn run(xs: &UniqList[u32], x: u32) -> bool:

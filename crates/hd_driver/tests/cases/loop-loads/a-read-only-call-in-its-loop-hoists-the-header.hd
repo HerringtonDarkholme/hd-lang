@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: wasmtime release
+# #2374: `mix` is never inlined, but its write summary says it writes
+# nothing its caller reaches, so the loop stays read-only: the buffer
+# pointer loads once before it, and the test `i < xs.len()` decides the
+# index's bounds check.
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Never)
+fn mix(s: i64, x: i64) -> i64:
+    s * 31 + x
+
+pub fn fold(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s = mix(s, xs[i])
+    s

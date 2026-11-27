@@ -40,6 +40,7 @@ use hd_types::{Prim, Ty};
 
 mod load_reuse;
 mod loop_loads;
+mod places;
 
 /// The type and call facts the proofs read, which the backend's layout
 /// decides: the driver answers them from `hd_layout` and the call record.
@@ -2098,6 +2099,94 @@ mod tests {
         // Twice the loops, at most twice the work: no loop rescans another.
         assert!(work[1] <= 2 * work[0], "{work:?}");
     }
+    /// A chain of `n` copies of a reference, `c1 = xs`, `c2 = c1`, ..,
+    /// then `for i in 0..*cn .0`, whose body loads `*cj .1` through every
+    /// copy `cj`, and after it `*cj .1` again through every copy.
+    fn copy_chain(n: usize) -> Body {
+        let mut b = build();
+        let root = b.open_block();
+        let xs = local(&mut b, REF_LIST);
+        let mut copies = Vec::new();
+        let mut from = xs;
+        for _ in 0..n {
+            let copy = b.local(REF_LIST, Symbol::NONE, 0, AT);
+            let value = b.get(from, REF_LIST, AT);
+            b.set(copy, value, AT);
+            copies.push(copy);
+            from = copy;
+        }
+        let load = |b: &mut TirBuilder, via: hd_base::LocalId, field: u32| {
+            let word = b.place(&Place {
+                root: PlaceRoot::Local(via),
+                proj: vec![Proj::Deref, Proj::Field(field)],
+            });
+            b.emit(Tag::Read, word, ReadMode::Copy as u32, usize_ty(), AT)
+        };
+        let zero = b.const_value(usize_ty(), 0);
+        let one = b.const_value(usize_ty(), 1);
+        let index = b.local(usize_ty(), Symbol::NONE, 0, AT);
+        let bound = b.local(usize_ty(), Symbol::NONE, 0, AT);
+        b.set(index, zero, AT);
+        let length = load(&mut b, from, 0);
+        b.set(bound, length, AT);
+        let lp = b.open_loop();
+        let block = b.open_block();
+        let current = b.get(index, usize_ty(), AT);
+        let end = b.get(bound, usize_ty(), AT);
+        let condition = b.prim(PrimOp::Lt as u32, &[current, end], Ty::BOOL, AT);
+        test_branch(&mut b, lp.0.raw(), condition);
+        for &copy in &copies {
+            load(&mut b, copy, 1);
+        }
+        let before = b.get(index, usize_ty(), AT);
+        let step = b.prim(PrimOp::Add as u32, &[before, one], usize_ty(), AT);
+        b.set(index, step, AT);
+        let block = b.close_block(block, None, Ty::VOID, AT);
+        b.close_loop(lp, block, Ty::VOID, AT);
+        for &copy in &copies {
+            load(&mut b, copy, 1);
+        }
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        finish(b, root)
+    }
+
+    #[test]
+    fn a_long_copy_chain_hoists_and_reuses_in_linear_work() {
+        let mut work = Vec::new();
+        for n in [40, 80] {
+            let mut body = copy_chain(n);
+            let ((), scanned) =
+                count_scans(|| run(&mut body, &Facts, true).expect("hoisted loads splice"));
+            work.push(scanned);
+            let loads = |body: &Body, field: u32| {
+                (0..body.len())
+                    .filter(|&i| {
+                        body.tags[i] == Tag::Read
+                            && body.decode_place(body.data[i][0]).is_some_and(|p| {
+                                p.proj == [Proj::Deref, Proj::Field(field)]
+                                    && p.root == PlaceRoot::Local(hd_base::LocalId::from_raw(0))
+                            })
+                    })
+                    .count()
+            };
+            // Every copy names `*xs .1`, more than 16 definitions deep: the
+            // loop's `n` loads leave it as one read of `*xs .1`, and the
+            // `n` loads after it reuse that read. The bound's load stays.
+            assert_eq!(loads(&body, 1), 1, "{n} copies");
+            let through_copies = (0..body.len())
+                .filter(|&i| {
+                    body.tags[i] == Tag::Read
+                        && body
+                            .decode_place(body.data[i][0])
+                            .is_some_and(|p| p.proj.first() == Some(&Proj::Deref))
+                })
+                .count();
+            assert_eq!(through_copies, 2, "{n} copies");
+        }
+        // Twice the chain, at most twice the work: each definition once.
+        assert!(work[1] <= 2 * work[0], "{work:?}");
+    }
+
     #[test]
     fn read_only_loop_follows_identity_reference_conversions() {
         let mut body = read_only_loops_with_base(1, true, false);

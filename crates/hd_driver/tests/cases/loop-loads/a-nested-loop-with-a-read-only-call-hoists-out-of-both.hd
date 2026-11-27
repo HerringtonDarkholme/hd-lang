@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: wasmtime release
+# #2374: both loops call only `mix`, which writes nothing its caller
+# reaches, so the buffer pointer leaves the outer loop: it loads once,
+# before both.
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Never)
+fn mix(s: i64, x: i64) -> i64:
+    s * 31 + x
+
+pub fn rounds(xs: &UniqList[i64], n: i64) -> i64:
+    let mut s: i64 = 0
+    for _ in 0..n:
+        for i in 0..xs.len():
+            s = mix(s, xs[i])
+    s

@@ -36,8 +36,6 @@
 //!
 //! A place through a reference read from memory has no class: an earlier
 //! read of that reference may have seen another value than a later one.
-//! What #2374 needs for a loop is the same kill test with the range a
-//! loop's body: [`Cx::call_writes`] is the per-function write summary.
 //!
 //! Instructions come in evaluation order, a loop after its body, so the
 //! instructions between two loads in index order cover every path from
@@ -45,13 +43,13 @@
 //! a second load in a loop the first is outside of, the range runs to that
 //! loop's end.
 //!
-//! Cost: one pass for the kill counts and the candidates, each place's key
-//! through at most [`DEPTH`] definitions, then per candidate a hash lookup,
-//! an amortized O(1) pop of its key's stack of dominating leaders, a walk
-//! of the loops around it, and binary searches over its root's keyed
-//! stores: O(n × (depth + log n)).
+//! Cost: one pass for the kill counts and the candidates, each definition
+//! a key follows computed once ([`super::places`]), then per candidate a
+//! hash lookup, an amortized O(1) pop of its key's stack of dominating
+//! leaders, a walk of the loops around it, and binary searches over its
+//! root's keyed stores: O(n × log n) plus the places' lengths.
 
-use super::loop_loads::{DEPTH, Key, LoopFacts};
+use super::places::{Defs, Key};
 use super::{Cx, Lists, Sets, Topology, scans};
 use hd_tir::ir::{Body, Callee, NONE, Nest, Place, PlaceRoot, Proj, ReadMode, Tag, local_flags};
 use hd_tir::ir::{place, u32_of};
@@ -107,6 +105,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             .binary_search_by(|&(s, x, _)| (s.idx(), x.idx()).cmp(&(sub as usize, local)))
             .is_ok()
     };
+    let defs = Defs::new(b, &topo, &nest, &sets, &stored);
     // `any[i]` and `frozen[i]`: the writes before `i` that kill an apart
     // or deeper key, and a frozen one. `keyed`: the stores of an uncounted
     // value to a field of a referent, by root local and by root and field.
@@ -127,47 +126,33 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             cell: &cell,
             sets: &sets,
         };
-        let facts = LoopFacts {
-            lists: &lists,
-            kills: &[],
-            l: x,
-            first: x,
-        };
         // A store that drops nothing: of an uncounted value, or into a
         // `Ptr` place (`module.rt.ptr.write.over`).
         let plain_store = b.tags[i] == Tag::Store
             && (!cx.tracked(stored_ty(b, i))
                 || b.decode_place(b.data[i][0])
                     .is_some_and(|p| matches!(p.root, PlaceRoot::Ptr(_))));
-        let writes = match b.tags[i] {
-            // A count's header word is no place's byte.
-            Tag::Retain => false,
-            Tag::Call => {
-                lists.writes_memory(i)
-                    && Callee::from_words(b.record(b.data[i][0])).is_none_or(|c| cx.call_writes(&c))
-            }
-            _ => lists.writes_memory(i),
-        };
+        // A count's header word is no place's byte.
+        let writes = b.tags[i] != Tag::Retain && lists.writes_memory(i);
         any[i + 1] = any[i] + u32::from(writes);
         frozen[i + 1] = frozen[i] + u32::from(writes && !plain_store && !raw_write(b, i, cx));
         if writes
             && plain_store
-            && let Some(s) = b
-                .decode_place(b.data[i][0])
-                .and_then(|p| facts.key_of(&p, x, x, DEPTH))
-            && let Some(class) = class_of(b, cx, &s)
+            && let Some(s) = b.decode_place(b.data[i][0]).and_then(|p| key(&defs, &p, x))
+            && let Some(class) = class_of(b, cx, &defs, s)
             && let Class::Apart(field) = class
         {
-            keyed.entry((s.local, field)).or_default().push(x);
-            keyed_root.entry(s.local).or_default().push(x);
+            let root = defs.local(s);
+            keyed.entry((root, field)).or_default().push(x);
+            keyed_root.entry(root).or_default().push(x);
         }
         if awaits[sub as usize] {
             continue;
         }
         if let Some((part, place)) = candidate(b, cx, i)
-            && let Some(key) = facts.key_of(&place, x, x, DEPTH)
-            && let Some(class) = class_of(b, cx, &key)
-            && fixed(b, &sets, &cell, key.local as usize)
+            && let Some(key) = key(&defs, &place, x)
+            && let Some(class) = class_of(b, cx, &defs, key)
+            && fixed(b, &sets, &cell, defs.local(key) as usize)
         {
             loads.push((x, part, key, class));
         }
@@ -179,7 +164,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
     let mut open: hd_base::HashMap<Key, Vec<usize>> = hd_base::HashMap::default();
     for (x, part, key, class) in loads {
         let sub = topo.sub[x as usize];
-        let stack = open.entry(key.clone()).or_default();
+        let stack = open.entry(key).or_default();
         while let Some(&g) = stack.last() {
             let l = groups[g].leader;
             if topo.sub[l as usize] == sub && nest.dominates(&topo, l, x) {
@@ -200,10 +185,11 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
                 Class::Frozen => count(&frozen) != 0,
                 // A store to another field of the same referent is apart.
                 Class::Apart(field) => {
+                    let root = defs.local(key);
                     let apart = field.map_or(0, |f| {
-                        within(keyed_root.get(&key.local))
-                            - within(keyed.get(&(key.local, Some(f))))
-                            - within(keyed.get(&(key.local, None)))
+                        within(keyed_root.get(&root))
+                            - within(keyed.get(&(root, Some(f))))
+                            - within(keyed.get(&(root, None)))
                     });
                     count(&any) != apart
                 }
@@ -217,7 +203,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
         let Some(ty) = part_ty(b, cx, x as usize, part) else {
             continue;
         };
-        open.entry(key.clone()).or_default().push(groups.len());
+        open.entry(key).or_default().push(groups.len());
         groups.push(Group {
             leader: x,
             part,
@@ -230,8 +216,11 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
     if groups.is_empty() {
         return Ok(());
     }
+    let places: Vec<(u32, Vec<Proj>)> = (groups.iter())
+        .map(|g| (defs.local(g.key), defs.proj(g.key)))
+        .collect();
     let mut inserts = Vec::new();
-    for g in groups {
+    for (g, (root, proj)) in groups.into_iter().zip(places) {
         let at = g.leader as usize;
         let mode = if cx.tracked(g.ty) {
             ReadMode::Borrow
@@ -239,8 +228,8 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             ReadMode::Copy
         } as u32;
         let words = Place {
-            root: PlaceRoot::Local(hd_base::LocalId::from_raw(g.key.local)),
-            proj: g.key.path.clone(),
+            root: PlaceRoot::Local(hd_base::LocalId::from_raw(root)),
+            proj,
         }
         .words()
         .ok_or("a reused load's place is a bare local")?;
@@ -258,7 +247,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             local = u32_of(b.local_ty.len());
             b.local_ty.push(g.ty);
             b.local_name.push(cx.load_name());
-            b.local_syn.push(b.local_syn[g.key.local as usize]);
+            b.local_syn.push(b.local_syn[root as usize]);
             b.local_flags
                 .push(local_flags::ASSIGNED | local_flags::READ);
             new.push((Tag::Store, [local | place::BARE_LOCAL, read], Ty::VOID));
@@ -343,20 +332,30 @@ fn fixed(b: &Body, sets: &Sets, cell: &dyn Fn(usize) -> bool, k: usize) -> bool 
 /// holds and fields: `[*$r .f ..]`. A key through a reference read from
 /// memory has none: an earlier read of that reference may have seen
 /// another value than a later one.
-fn class_of(b: &Body, cx: &dyn Cx, key: &Key) -> Option<Class> {
-    let [Proj::Deref, rest @ ..] = key.path.as_slice() else {
-        return None;
-    };
-    if rest.contains(&Proj::Deref) {
+fn class_of(b: &Body, cx: &dyn Cx, defs: &Defs, key: Key) -> Option<Class> {
+    if defs.derefs(key) != 1 {
         return None;
     }
-    if cx.shared_ref(b.local_ty[key.local as usize]) {
+    let path = defs.proj(key);
+    if path.first() != Some(&Proj::Deref) {
+        return None;
+    }
+    if cx.shared_ref(b.local_ty[defs.local(key) as usize]) {
         return Some(Class::Frozen);
     }
-    Some(Class::Apart(match key.path.get(1) {
+    Some(Class::Apart(match path.get(1) {
         Some(Proj::Field(f)) => Some(*f),
         _ => None,
     }))
+}
+
+/// The key of place `p` that instruction `at` names, when no memory read
+/// on its way: then a key with a [`fixed`] root names one place for the
+/// whole body.
+fn key(defs: &Defs, p: &Place, at: u32) -> Option<Key> {
+    defs.place(p, at)
+        .filter(|d| d.mem_at == NONE)
+        .map(|d| d.key)
 }
 
 /// The last instruction whose writes may reach load `x` from load `l`:

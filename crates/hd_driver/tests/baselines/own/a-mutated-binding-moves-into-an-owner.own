@@ -342,59 +342,63 @@ impl Record:
         size := self.size
 > std/rt_tests.stage_case/impl Record.mutate
 >   local $0 self: &mut Record [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %7 lend, %38 lend last
+>     uses $0: entry -> %0 lend, %2 lend, %4 lend, %40 lend last
 >   local $1 size: usize [:= read assigned] value
->     uses $1: %1 -> %5 lend
+>     uses $1: %1 -> %7 lend
 >   local $2 index: usize [read assigned mutated] place
 >   local $3 byte: u8 [:= read assigned] value
->     uses $3: %10 -> %11 lend, %13 lend, %17 lend, %21 lend last
+>     uses $3: %12 -> %13 lend, %15 lend, %19 lend, %23 lend last
+>   local $4 $load: string [read assigned] value
+>     uses $4: entry -> %9 lend
 >   %0 = Read copy [*$0 .size] : usize
 >   %1 = Store [$1] %0 : ()
->   %39 = Block - : ()
+>   %41 = Block - : ()
         let index = self.at
 >   %2 = Read copy [*$0 .at] : usize
 >   %3 = Store [$2] %2 : ()
         while index < size:
->   %4 = Read copy [$2] : usize
->   %5 = Read copy [$1] : usize
->   %6 = Prim Lt [%4 %5] : bool
->   %32 = Break L0 - : never
->   %33 = Block - : ()
->   %34 = If %6 [%31 %33] : ()
+>   %4 = Read borrow [*$0 .text] : string
+>   %5 = Store [$4] %4 : ()
+>   %6 = Read copy [$2] : usize
+>   %7 = Read copy [$1] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %34 = Break L0 - : never
 >   %35 = Block - : ()
->   %36 = Loop %35 - : ()
+>   %36 = If %8 [%33 %35] : ()
+>   %37 = Block - : ()
+>   %38 = Loop %37 - : ()
             byte := bytes_at(self.text, index)
->   %7 = Read borrow [*$0 .text] : string
->   %8 = Read copy [$2] : usize
->   %9 = Call std/rt.bytes/bytes_at[] (%7, %8) : u8
->   %10 = Store [$3] %9 : ()
->   %31 = Block - : ()
+>   %9 = Read borrow [$4] : string
+>   %10 = Read copy [$2] : usize
+>   %11 = Call std/rt.bytes/bytes_at[] (%9, %10) : u8
+>   %12 = Store [$3] %11 : ()
+>   %33 = Block - : ()
             if byte != 32 && byte != 9 && byte != 10 && byte != 13:
->   %11 = Read copy [$3] : u8
->   %12 = Prim Ne [%11 32:u8] : bool
 >   %13 = Read copy [$3] : u8
->   %14 = Prim Ne [%13 9:u8] : bool
->   %15 = Block %14 : bool
->   %16 = And %12 %15 : bool
->   %17 = Read copy [$3] : u8
->   %18 = Prim Ne [%17 10:u8] : bool
->   %19 = Block %18 : bool
->   %20 = And %16 %19 : bool
->   %21 = Read copy [$3] : u8
->   %22 = Prim Ne [%21 13:u8] : bool
->   %23 = Block %22 : bool
->   %24 = And %20 %23 : bool
->   %27 = If %24 [%26 -] : ()
+>   %14 = Prim Ne [%13 32:u8] : bool
+>   %15 = Read copy [$3] : u8
+>   %16 = Prim Ne [%15 9:u8] : bool
+>   %17 = Block %16 : bool
+>   %18 = And %14 %17 : bool
+>   %19 = Read copy [$3] : u8
+>   %20 = Prim Ne [%19 10:u8] : bool
+>   %21 = Block %20 : bool
+>   %22 = And %18 %21 : bool
+>   %23 = Read copy [$3] : u8
+>   %24 = Prim Ne [%23 13:u8] : bool
+>   %25 = Block %24 : bool
+>   %26 = And %22 %25 : bool
+>   %29 = If %26 [%28 -] : ()
                 break
->   %25 = Break L0 - : never
->   %26 = Block - : never
+>   %27 = Break L0 - : never
+>   %28 = Block - : never
             index = index + 1
->   %28 = Read copy [$2] : usize
->   %29 = Prim Add [%28 1:usize] : usize
->   %30 = Store [$2] %29 : ()
+>   %30 = Read copy [$2] : usize
+>   %31 = Prim Add [%30 1:usize] : usize
+>   %32 = Store [$2] %31 : ()
         self.at = index
->   %37 = Read copy [$2] : usize
->   %38 = Store [*$0 .at] %37 : ()
+>   %39 = Read copy [$2] : usize
+>   %40 = Store [*$0 .at] %39 : ()
 >   summary kept [] writes
 
 fn own_after_mutation(p: Record, root: usize) -> Owner:

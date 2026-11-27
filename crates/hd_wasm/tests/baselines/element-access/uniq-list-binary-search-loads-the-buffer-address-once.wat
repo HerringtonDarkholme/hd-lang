@@ -9,6 +9,9 @@
     local.get $t0
     i32.load $heap offset=8
     local.set $t1
+    local.get $t0
+    i32.load $heap
+    local.set $t0
     block
       loop
         local.get $t2
@@ -16,6 +19,7 @@
         i32.lt_u
         i32.eqz
         br_if 1
+        local.get $t0
         local.get $t2
         local.get $t1
         local.get $t2
@@ -23,10 +27,7 @@
         i32.const 1
         i32.shr_u
         i32.add
-        local.set $t3
-        local.get $t0
-        i32.load $heap
-        local.get $t3
+        local.tee $t3
         i32.const 4
         i32.mul
         i32.add
@@ -74,7 +75,7 @@
     local.get $t2
   )
   (func $run (param $xs i32) (param $t1 i32) (result i32) (local $x i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     xs.binary_search(&x).is_ok()
+    ;; 10 |     xs.binary_search(&x).is_ok()
     global.get $stack
     global.get $stack_limit
     i32.sub
