@@ -1,0 +1,10 @@
+[package]
+name = "reader_app"
+
+[host]
+"main.Reader" = { c = "hd_reader" }
+
+[capabilities]
+Console = true
+Clock = true
+"pkg.main.Reader" = true

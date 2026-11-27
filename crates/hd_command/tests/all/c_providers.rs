@@ -264,3 +264,81 @@ fn a_c_provider_returns_handles_and_hd_test_reaches_it() {
         text(&test.stdout)
     );
 }
+
+/// Builds the reader library into `dir`'s `native/<triple>/` folder from
+/// `c_providers/reader.rs`, with its `read` and `read_abort` slots.
+fn build_reader(dir: &Path, read: &str, read_abort: &str) {
+    let header = std::fs::read_to_string(dir.join("native/include/reader_app.h")).expect("header");
+    let line = header
+        .lines()
+        .find_map(|l| l.strip_prefix("#define HD_CONTRACT_HASH_hd_reader_Reader { "))
+        .expect("the contract hash macro");
+    let source = include_str!("c_providers/reader.rs")
+        .replace("__HASH__", &format!("[{}]", line.trim_end_matches(" }")))
+        .replace("__READ__", read)
+        .replace("__READ_ABORT__", read_abort);
+    let src = dir.join("reader-src");
+    std::fs::create_dir_all(&src).expect("library source");
+    std::fs::write(src.join("lib.rs"), source).expect("library source");
+    let out = library(dir).with_file_name(if cfg!(windows) {
+        "hd_reader.dll"
+    } else if cfg!(target_vendor = "apple") {
+        "libhd_reader.dylib"
+    } else {
+        "libhd_reader.so"
+    });
+    std::fs::create_dir_all(out.parent().expect("folder")).expect("native folder");
+    hd_testkit::cdylib::build(&src.join("lib.rs"), &out);
+}
+
+/// A C provider's `!` methods complete from threads of the library's own
+/// (`cli.host.c.thread`): a `List[u8]` and a `Result`'s `i32` error
+/// (`cli.host.c.bytes`), and an `i64`. A `race!` whose timer wins cancels a
+/// pending C read: its abort slot runs once, before the guest goes on, with
+/// `completed` false, and the provider is destroyed after it
+/// (`cli.host.c.abort`, `cli.host.c.token`). Before that, a library that
+/// leaves a called method's slot or its abort slot empty refuses the run
+/// before the guest starts or any `create` runs (`cli.host.c.slot`,
+/// `cli.host.c.abort-slot`).
+#[test]
+fn a_race_cancels_a_c_read_and_runs_its_abort_slot_once() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "c-provider-suspends");
+    let dir = root.path();
+    std::fs::create_dir_all(dir.join("src")).expect("folder");
+    for (path, text) in [
+        ("hd.toml", include_str!("c_providers/reader_app/hd.toml")),
+        (
+            "src/main.hd",
+            include_str!("c_providers/reader_app/src/main.hd"),
+        ),
+    ] {
+        std::fs::write(dir.join(path), text).expect("package file");
+    }
+    let built = hd(dir, &["build"]);
+    assert!(built.status.success(), "{}", text(&built.stdout));
+    for (read, abort, empty) in [
+        ("None", "Some(abort)", "slot"),
+        ("Some(read)", "None", "abort slot"),
+    ] {
+        build_reader(dir, read, abort);
+        let run = hd(dir, &["run"]);
+        let stderr = text(&run.stderr);
+        assert_eq!(run.status.code(), Some(101), "{stderr}");
+        assert!(run.stdout.is_empty(), "the guest started: {stderr}");
+        for needle in [
+            format!("`hd_reader` of package `reader_app` leaves the {empty} of"),
+            "main.Reader\"'s method `read` empty".to_owned(),
+        ] {
+            assert!(stderr.contains(&needle), "{needle}: {stderr}");
+        }
+        assert!(!stderr.contains("reader destroyed"), "created: {stderr}");
+    }
+    build_reader(dir, "Some(read)", "Some(abort)");
+    let run = hd(dir, &["run"]);
+    assert!(run.status.success(), "{}", text(&run.stderr));
+    assert_eq!(
+        text(&run.stdout),
+        "ok 2 [104, 105]\nerror 5\ntotal 400000000000\nerror -1\naborts 1 discarded 0\n"
+    );
+    assert_eq!(text(&run.stderr), "read aborted\nreader destroyed\n");
+}

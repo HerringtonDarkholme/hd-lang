@@ -129,10 +129,13 @@ trampoline each per run, as Deno's do. The base cannot move mid-call: a
 shared memory's never does, and only the calling instance grows its own.
 
 **Completions.** As for a native provider's pending call:
-`hd_complete_*` may run on any thread and wakes the reactor, the first
-completion wins, and a later one is ignored. A cancel before the guest
-takes the result runs the abort slot at most once, even after C
-completed, and its `completed` flag says the result was discarded. A token lives until completed or aborted. Bytes
+`hd_complete_*` may run on any thread and wakes the reactor. It returns
+true when hd accepted the value, and false when the call was already
+aborting or completed, so the library keeps the value (decision 18). A
+cancel before the guest takes the result runs the abort slot at most
+once, even after C completed, and its `completed` flag says the result
+was discarded. A library completes a token at most once and uses it only
+until that completion or its abort slot returns (decision 19). Bytes
 are copied at once, then into a new `List[u8]` on the instance's thread.
 
 **Engines.** Wasmtime binds `c`; Node and the web load `js`, with
@@ -417,12 +420,49 @@ Rules this design revises, quoted:
 | Part | As built |
 | --- | --- |
 | calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers, or a target other than x86-64 or arm64, is refused at startup (decision 16) |
-| `!` methods | a module that calls a C provider's suspending method is refused at startup until step 5 binds its token |
+| `!` methods | step 5 binds them; see [Step 5 As Built](#step-5-as-built) |
 | pointer arguments | a reference to a number, or to a list of numbers, must lie in the guest heap at a multiple of its number type's size; otherwise the call fails with `host-contract`, "misaligned C pointer argument", as the JavaScript glue words it ([`module.host.package.c-aligned`](../../spec/lang/10-modules.md#r-module.host.package.c-aligned)) |
 | `hd test` | from step 4b, a Wasmtime test run binds the C providers of the programs its tests run by name; a Node run, and a test case's own module, bind none |
 | workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
 | returned handles | step 4b binds them (decision 17) |
 | entry and library conflicts | errors at check time: two `[host]` traits sharing `NAME_TRAIT` in one library, a handle trait from two libraries, a handle trait taking another trait's entry symbol; a conflict between modules checked apart refuses at startup |
+
+### Step 5 As Built
+
+A `!` slot gets `(self, token, args…)` and returns at once; its call
+waits in the instance's reactor as a native provider's pending call does,
+and `.finish` takes the completion. Built as `cli.host.c.slot`,
+`abort-slot`, `complete`, `abort`, `token`, `bytes`, `complete-types` and
+`complete-kind` in
+[C Providers](../../spec/cli/command-line.md#c-providers), with decisions
+18 and 19.
+
+A token is shared by two references, the library's (the token pointer)
+and the host's (the call's abort hook). Its states:
+
+| State | Library holds | Left by |
+| --- | --- | --- |
+| issued | yes | the library's completion, accepted (to completed); a cancel (to aborting) |
+| completed | no | the guest's `.finish` (to taken); a cancel (to aborting, `completed` true) |
+| aborting | until its completion or the abort slot returns | the abort slot's return (to dead) |
+| taken, dead | no | none: the token is freed |
+
+Each call is decided once, under the pending call's lock: the guest takes
+an accepted completion, the abort slot sees `completed` true, or the
+completion returns false and the library keeps its value. A completion
+releases the library's reference as its last step; the abort slot's
+return releases it when no completion did. The model is Tokio's task
+state (`tokio/src/runtime/task/state.rs`): a reference per party, the
+last release frees, and one transition tells a racing party the outcome.
+hd keeps the lifecycle under the pending call's mutex, where Tokio uses
+one compare-and-swap word.
+
+| Part | As built |
+| --- | --- |
+| memory per call | four fixed-size heap blocks whatever the arguments: the token, the slot it shares with the pending call, the abort hook, and the reactor's boxed call; plus the reactor's one map entry |
+| a completion of the wrong kind | accepted, so it returns true; it fails the call at `.finish` with `host-contract` |
+| completion widths | a narrow integer is cut to its width as C converts it; an `f32` is rounded from the `double` |
+| instance close | cancels every pending call; the reactor drops before the providers and handles, so each abort slot runs before `destroy` |
 
 ### Proposed Spec Rules
 
@@ -456,9 +496,9 @@ CLI tier, Package Host Declarations and a new C Providers section:
 5. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
 6. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
 7. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
-8. r[cli.host.c.complete] The first completion of a token decides the call's result, and the host ignores later ones.
-9. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot at most once, also after the library completed it; `completed` is then true.
-10. r[cli.host.c.token] A library uses a token until it completes it or the token's abort slot returns.
+8. r[cli.host.c.complete] `hd_complete_*` returns true when the host accepts the value, which then decides the call's result, and false when the call is already aborting or completed; the library then keeps the value (decision 18).
+9. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot once, also after the library completed it; `completed` is true when the host accepted a completion.
+10. r[cli.host.c.token] A library completes a token at most once, and uses it only until that completion returns or its abort slot returns (decision 19).
 11. r[cli.host.c.bytes] `hd_complete_bytes` copies the bytes before it returns, and the guest receives them as a new `List[u8]`.
 12. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
 13. r[cli.host.terminal] The default profile binds `Terminal` to std's provider over `TermHost`, and `Terminal` is a boolean capability key.
@@ -489,7 +529,8 @@ const hd_TermHost *hd_term_TermHost(void);        /* the one entry symbol */
 
 `hd_complete_i32`, `hd_complete_i64`, `hd_complete_f64`,
 `hd_complete_bytes(t, ptr, len)` and `hd_complete_error(t, errno)` are
-inline functions that call through the token's table.
+inline functions that call through the token's table, and return
+whether the host accepted the value (decision 18).
 
 As built (step 3), the header also has these parts. The fixture
 `spec/conformance/cli/host-c-header/expected.h` shows one whole header.
@@ -672,3 +713,18 @@ Owner, 2026-11-27, on phase step 4's questions:
     Wasmtime refuses at startup a C slot that needs more than 16 stack
     words past the registers, and C providers on any target other than
     x86-64 or arm64. Step 6's trampolines remove both limits.
+
+Owner, 2026-11-27, on phase step 5's questions:
+
+18. **Race result:** every `hd_complete_*` returns `bool`: true when hd
+    accepted the value, false when the call was already aborting or had
+    already completed. A library that gets false keeps its value; a
+    terminal-style library keeps its bytes for the next read. For each
+    call exactly one holds: an accepted completion was taken, the abort
+    saw `completed` true, or the completion returned false (built in step
+    5: [`cli.host.c.complete`](../../spec/cli/command-line.md#r-cli.host.c.complete),
+    [`cli.host.c.abort`](../../spec/cli/command-line.md#r-cli.host.c.abort)).
+19. **Double completion:** a library completes a token at most once, and
+    uses it only until that completion returns or its abort slot returns;
+    no later completion is promised to be ignored (built in step 5:
+    [`cli.host.c.token`](../../spec/cli/command-line.md#r-cli.host.c.token)).

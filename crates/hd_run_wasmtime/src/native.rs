@@ -31,6 +31,7 @@ use crate::runtime::reactor::Wake;
 
 pub mod c;
 pub(crate) mod c_call;
+pub(crate) mod c_token;
 pub mod handles;
 pub mod wire;
 
@@ -132,7 +133,8 @@ impl<T> Slot<T> {
 /// (`cli.host.package.native-abort`).
 pub struct PendingCall<T> {
     slot: Arc<Slot<T>>,
-    abort: Option<Box<dyn FnOnce()>>,
+    /// The abort hook, given whether a delivered value was discarded.
+    abort: Option<Box<dyn FnOnce(bool)>>,
 }
 
 /// The one-shot completion sender of a [`PendingCall`]: `Send` when its
@@ -145,6 +147,15 @@ pub struct Completion<T> {
 /// [`PendingCall::abort`] or when the call is dropped undelivered
 /// (`cli.host.package.native-abort`).
 pub fn pending<T>(abort: impl FnOnce() + 'static) -> (PendingCall<T>, Completion<T>) {
+    pending_discarding(move |_| abort())
+}
+
+/// [`pending`], whose `abort` is told whether a value had been delivered
+/// and is discarded with the call: a C provider's abort slot takes it as
+/// `completed` (`cli.host.c.abort`).
+pub(crate) fn pending_discarding<T>(
+    abort: impl FnOnce(bool) + 'static,
+) -> (PendingCall<T>, Completion<T>) {
     let slot = Arc::new(Slot(Mutex::new(State::Waiting(None))));
     (
         PendingCall {
@@ -160,6 +171,13 @@ impl<T> Completion<T> {
     /// abort or its instance's close, the value is dropped and nothing
     /// wakes (`cli.host.package.native-late-completion`).
     pub fn complete(self, value: HostResult<T>) {
+        self.deliver(value);
+    }
+
+    /// [`Completion::complete`] by reference: whether the call accepted
+    /// the value. Only a pending call does; once it completed or ended,
+    /// the value is dropped and the delivery is refused.
+    pub(crate) fn deliver(&self, value: HostResult<T>) -> bool {
         let mut state = self.slot.lock();
         if let State::Waiting(wake) = &*state {
             // The wake is sent under the slot's lock, so an abort cannot
@@ -168,9 +186,11 @@ impl<T> Completion<T> {
                 wake.wake();
             }
             *state = State::Done(value);
+            true
         } else {
             drop(state);
             drop(value);
+            false
         }
     }
 }
@@ -196,8 +216,10 @@ impl<T> PendingCall<T> {
     /// are released. A second abort, or one after `take`, does nothing.
     pub fn abort(&mut self) {
         if let Some(hook) = self.abort.take() {
-            drop(self.slot.end());
-            hook();
+            let ended = self.slot.end();
+            let discarded = matches!(ended, State::Done(_));
+            drop(ended);
+            hook(discarded);
         }
     }
 
