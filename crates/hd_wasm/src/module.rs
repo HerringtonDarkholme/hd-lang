@@ -222,11 +222,16 @@ fn next_index(len: usize, local: u32) -> u32 {
 }
 
 /// What [`Symbols::absorb`] gave a local view's entries: the module ids
-/// of its symbols, globals and signatures, by local index.
+/// of its symbols, globals and signatures, by local index; and where the
+/// unit's static data landed ([`Module::place_statics`]).
+#[derive(Default)]
 pub(crate) struct Remap {
     syms: Vec<SymId>,
     globals: Vec<GlobalId>,
     signatures: Vec<SigId>,
+    /// Each static request's local offset and its module address, in
+    /// request order, so in offset order.
+    statics: Vec<(u32, u32)>,
 }
 /// Id `id`, whose bits are `bits`: the module's own, or `table`'s entry.
 fn remapped<T: Copy>(table: &[T], bits: u32, id: T) -> T {
@@ -238,7 +243,29 @@ fn remapped<T: Copy>(table: &[T], bits: u32, id: T) -> T {
 }
 impl Remap {
     fn is_empty(&self) -> bool {
-        self.syms.is_empty() && self.globals.is_empty() && self.signatures.is_empty()
+        self.syms.is_empty()
+            && self.globals.is_empty()
+            && self.signatures.is_empty()
+            && self.statics.is_empty()
+    }
+    /// Static address `at`: the module's own, or one inside a unit
+    /// request, at the same offset in the request's module copy. Cost:
+    /// one binary search.
+    fn addr(&self, at: u32) -> u32 {
+        if at & LOCAL == 0 {
+            return at;
+        }
+        let off = at & !LOCAL;
+        // ruled out: the first request starts at local offset 0, and a
+        // unit's address is one a request of that unit returned.
+        let k = crate::emit::required(
+            self.statics
+                .partition_point(|&(start, _)| start <= off)
+                .checked_sub(1),
+            "a unit static address",
+        );
+        let (start, placed) = self.statics[k];
+        placed + (off - start)
     }
     fn sym(&self, id: SymId) -> SymId {
         remapped(&self.syms, id.0, id)
@@ -253,7 +280,8 @@ impl Remap {
             | Ins::Descriptor(s, _) => *s = self.sym(*s),
             Ins::GlobalGet(g) | Ins::GlobalSet(g) => *g = remapped(&self.globals, g.0, *g),
             Ins::CallIndirect(sig, _) => *sig = remapped(&self.signatures, sig.0, *sig),
-            Ins::Op(_) | Ins::Static(_) | Ins::VTable(_) | Ins::LoadAll | Ins::SpillBase => {}
+            Ins::Static(at) => *at = self.addr(*at),
+            Ins::Op(_) | Ins::VTable(_) | Ins::LoadAll | Ins::SpillBase => {}
         }
     }
 }
@@ -350,6 +378,7 @@ impl Symbols {
     pub(crate) fn absorb(&self, local: &Self) -> Remap {
         let added = std::mem::take(&mut *local.live_mut());
         Remap {
+            statics: Vec::new(),
             syms: added.names.into_iter().map(|s| self.intern(s)).collect(),
             globals: added
                 .globals
@@ -913,12 +942,20 @@ impl Func {
         }
     }
     /// Moves this function, emitted against a local view of `symbols`,
-    /// into `symbols`' ids. Cost: one pass over the body when the view
-    /// added any entry.
+    /// into `symbols`' ids and the module's static addresses. Cost: one
+    /// pass over the body when the unit added any entry.
     fn remap(&mut self, remap: &Remap, symbols: &Symbols) {
         self.symbols = symbols.clone();
         if !remap.is_empty() {
             self.body.iter_mut().for_each(|ins| remap.ins(ins));
+        }
+        if !remap.statics.is_empty() {
+            self.data_refs
+                .iter_mut()
+                .for_each(|at| *at = remap.addr(*at));
+            if let Some(statics) = &mut self.statics {
+                *statics = statics.iter().map(|&at| remap.addr(at)).collect();
+            }
         }
     }
     pub fn rebuild_callees(&mut self) {
@@ -1401,6 +1438,24 @@ struct Unit {
     shim_queue: Vec<(Hash128, ShimRequest)>,
     /// Its edits of the tables emission only writes, in order.
     edits: Vec<Edit>,
+    /// Its static data requests, each at the local offset its address
+    /// names ([`LOCAL`] set), in request order.
+    statics: Vec<(u32, Static)>,
+    /// The local offset of its next static request.
+    static_len: u32,
+}
+
+/// A static data request of a unit, which the merge makes of the module
+/// in order ([`Module::place_statics`]).
+enum Static {
+    /// [`Module::static_bytes`].
+    Bytes(Vec<u8>, u32),
+    /// [`Module::static_record`], its pointer words still unit addresses.
+    Record(Vec<u8>, u32, Vec<u32>),
+    /// [`Module::static_slot`].
+    Slot(u32, u32),
+    /// [`Module::label_static`] of a unit address.
+    Label(String),
 }
 
 /// An edit of a table that emission writes and never reads, applied in
@@ -1825,7 +1880,8 @@ impl Module {
         let emitted = emit(self);
         let local = std::mem::replace(&mut self.symbols, module);
         let unit = std::mem::take(&mut self.unit);
-        let remap = self.symbols.absorb(&local);
+        let mut remap = self.symbols.absorb(&local);
+        self.place_statics(unit.statics, &mut remap);
         let mut f = emitted?;
         // A shim another unit asked for first is already queued.
         for (shape, request) in unit.shim_queue {
@@ -1834,7 +1890,19 @@ impl Module {
                 self.shim_queue.push(request);
             }
         }
-        unit.edits.into_iter().for_each(|edit| self.edit(edit));
+        for mut edit in unit.edits {
+            if let Edit::Stored(
+                _,
+                Stored {
+                    slot: Some((Address::Static(at), _)),
+                    ..
+                },
+            ) = &mut edit
+            {
+                *at = remap.addr(*at);
+            }
+            self.edit(edit);
+        }
         for (id, mut g) in unit.defines {
             g.remap(&remap, &self.symbols);
             self.place(remap.sym(id), g);
@@ -1926,6 +1994,9 @@ impl Module {
     /// The heap address of `bytes` in static data, placed on first use
     /// and aligned to `align`.
     pub fn static_bytes(&mut self, bytes: &[u8], align: u32) -> u32 {
+        if self.symbols.is_local() {
+            return self.unit_static(bytes.len(), Static::Bytes(bytes.to_vec(), align));
+        }
         if let Some(at) = self.data_at.get(bytes) {
             return *at;
         }
@@ -1966,6 +2037,10 @@ impl Module {
         if pointers.is_empty() {
             return self.static_bytes(bytes, align);
         }
+        if self.symbols.is_local() {
+            let record = Static::Record(bytes.to_vec(), align, pointers.to_vec());
+            return self.unit_static(bytes.len(), record);
+        }
         if let Some(at) = self.record_at.get(bytes) {
             return *at;
         }
@@ -1989,7 +2064,11 @@ impl Module {
 
     /// Names static data address `at` for development tools.
     pub fn label_static(&mut self, at: u32, label: &str) {
-        if self.track_origins {
+        if self.track_origins && at & LOCAL != 0 && self.symbols.is_local() {
+            self.unit
+                .statics
+                .push((at & !LOCAL, Static::Label(label.to_owned())));
+        } else if self.track_origins {
             self.static_labels
                 .insert(at, crate::StaticData::Named(label.to_owned()));
         }
@@ -1998,6 +2077,9 @@ impl Module {
     /// The heap address of `size` new zero bytes of static data, aligned
     /// to `align`, which no other use shares: a slot the program writes.
     pub fn static_slot(&mut self, size: u32, align: u32) -> u32 {
+        if self.symbols.is_local() {
+            return self.unit_static(size as usize, Static::Slot(size, align));
+        }
         let align = align.max(1) as usize;
         while !self.data.len().is_multiple_of(align) {
             self.data.push(0);
@@ -2005,6 +2087,47 @@ impl Module {
         let at = self.static_end();
         self.data.resize(self.data.len() + size.max(1) as usize, 0);
         at
+    }
+
+    /// Unit request `request` of `len` bytes, at a fresh unit address:
+    /// the merge places it ([`Module::place_statics`]).
+    fn unit_static(&mut self, len: usize, request: Static) -> u32 {
+        let at = self.unit.static_len;
+        // ruled out: one instance's static data is far below 2 GiB, as the
+        // module's is (`static_end`).
+        let len = crate::emit::required(u32::try_from(len.max(1)).ok(), "unit static data");
+        self.unit.static_len = crate::emit::required(
+            at.checked_add(len).filter(|end| end & LOCAL == 0),
+            "unit static data",
+        );
+        self.unit.statics.push((at, request));
+        at | LOCAL
+    }
+
+    /// Makes `unit`'s static requests of the module in their order, as
+    /// its emission would have made them, into `remap`. A record's
+    /// pointer words move to the module's addresses first, so it
+    /// deduplicates as it would have. Cost: the requests' own work.
+    fn place_statics(&mut self, statics: Vec<(u32, Static)>, remap: &mut Remap) {
+        for (start, request) in statics {
+            let placed = match request {
+                Static::Bytes(bytes, align) => self.static_bytes(&bytes, align),
+                Static::Record(mut bytes, align, pointers) => {
+                    for &p in &pointers {
+                        let word = &mut bytes[p as usize..p as usize + 4];
+                        let at = u32::from_le_bytes([word[0], word[1], word[2], word[3]]);
+                        word.copy_from_slice(&remap.addr(at).to_le_bytes());
+                    }
+                    self.static_record(&bytes, align, &pointers)
+                }
+                Static::Slot(size, align) => self.static_slot(size, align),
+                Static::Label(label) => {
+                    self.label_static(remap.addr(start | LOCAL), &label);
+                    continue;
+                }
+            };
+            remap.statics.push((start, placed));
+        }
     }
 
     /// The number of a static vtable whose slots are `slots`' table

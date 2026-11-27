@@ -332,8 +332,14 @@ impl Em<'_, '_, '_> {
             self.f.zero(ls[k]);
         }
         for (slot, value) in repairs {
-            let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
-            self.f.u32(value);
+            if let Some(value) = value {
+                self.f.u32(value);
+            } else {
+                // A static address, which the merge relocates; the plain
+                // constant keeps no data label (`Func::static_addr`).
+                let at = crate::rt::empty_buffer(self.m);
+                self.f.push(crate::module::Ins::Static(at));
+            }
             self.f.set(ls[slot]);
         }
         Ok(())
