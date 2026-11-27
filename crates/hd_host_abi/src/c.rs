@@ -21,19 +21,21 @@ const SECTION_VERSION: u32 = 1;
 pub const ABI_VERSION: u32 = 1;
 
 /// A number type of the C value table, by its hd name.
+/// Its discriminant is its code in the `hd.c` section and the hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
 pub enum Num {
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    Usize,
-    F32,
-    F64,
+    I8 = 0,
+    I16 = 1,
+    I32 = 2,
+    I64 = 3,
+    U8 = 4,
+    U16 = 5,
+    U32 = 6,
+    U64 = 7,
+    Usize = 8,
+    F32 = 9,
+    F64 = 10,
 }
 
 impl Num {
@@ -81,8 +83,7 @@ impl Num {
     }
 
     fn code(self) -> u8 {
-        // ruled out: `ALL` lists every variant once.
-        u8::try_from(Self::ALL.iter().position(|n| *n == self).unwrap_or(0)).unwrap_or(0)
+        self as u8
     }
 
     fn of(code: u8) -> Result<Self, &'static str> {
@@ -723,6 +724,16 @@ const hd_Dätä *hd_disk_Dätä(void) { return &odd; }
             "{}\n{text}",
             String::from_utf8_lossy(&out.stderr)
         );
+    }
+
+    /// A number type's code is its discriminant, and `of` reads it back:
+    /// the codes `hd.c` and the hash use, unchanged.
+    #[test]
+    fn a_number_types_code_is_its_discriminant() {
+        for (k, num) in Num::ALL.into_iter().enumerate() {
+            assert_eq!(usize::from(num.code()), k);
+            assert_eq!(Num::of(num.code()), Ok(num));
+        }
     }
 
     /// The hash covers signatures, not parameter names.
