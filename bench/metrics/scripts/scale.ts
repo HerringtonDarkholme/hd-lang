@@ -82,10 +82,10 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * first run's findings name the issue that tracks each one.
  */
 export const KNOWN: ReadonlyMap<string, string> = new Map([
-  // Every nested tuple type a release walks in place keys its by-value
-  // count shims too (`rt::counted_of_portion`), each O(its leaves); and
-  // the borrow pass's source walk stops at 8 roots (`derive` `DEPTH`), so
-  // the ninth column copies.
+  // The borrow pass's source walk stops at 8 roots (`derive` `DEPTH`), so
+  // the ninth column copies the whole suffix, whose O(depth) leaves stay
+  // live while each moves out: the dev link's local coalescing then works
+  // O(depth^2) (`link: finish`).
   ["tuple-nest-string build", "#2402"],
 ]);
 

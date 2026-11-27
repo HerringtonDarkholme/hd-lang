@@ -119,7 +119,7 @@ pub fn project_reference(
     fat: bool,
 ) {
     if fat {
-        for local in rt::ref_lend(function, at, value) {
+        for local in rt::ref_lend(function, at, &value.leaves) {
             function.get(local);
         }
     } else {
@@ -752,23 +752,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The rest of `Ref` `i` of the part at `off` of the value at address
-    /// `at`: the address there, or the trait value a fat reference reads
-    /// at it.
-    fn ref_projection(
-        &mut self,
-        i: u32,
-        at: u32,
-        field: &RefLayout,
-        off: u32,
-        fat: bool,
-    ) -> StageResult<()> {
-        let at = self.offset_local(at, off);
-        project_reference(&mut self.f, at, field, fat);
-        self.store(i)?;
-        Ok(())
-    }
-
     /// The rest of `Ref` `i` from where its place's head lies (`base`, of
     /// type `ty`, in memory or in locals): the address of the struct field
     /// `path` reaches there, with a count of its own.
@@ -794,19 +777,26 @@ impl Em<'_, '_, '_> {
             ty = ft;
         }
         let m = mem_of(self.pool(), self.env(), ty)?;
+        // Only a trait value's reference reads its referent's layout
+        // (`rt::ref_lend`); a thin one is the field's address, and asks
+        // nothing of its type's count shims (#2402).
         if let ValueAt::Mem(at, _) = value
-            && has_path
+            && (has_path || fat)
         {
-            let field = self.ref_layout(ty)?;
-            return self.ref_projection(i, at, &field, off, fat);
-        }
-        match value {
-            ValueAt::Mem(at, _) if fat => {
+            let at = if has_path {
+                self.offset_local(at, off)
+            } else {
+                at
+            };
+            if fat {
                 let value = self.ref_layout(ty)?;
                 project_reference(&mut self.f, at, &value, true);
-                self.store(i)?;
-                return Ok(());
+            } else {
+                self.f.get(at);
             }
+            return self.store(i);
+        }
+        match value {
             ValueAt::Mem(at, _) => {
                 self.f.get(at);
                 if off != 0 {
@@ -882,7 +872,10 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             let r = self.at_i32(&at);
-            let value = self.ref_layout(target)?;
+            // The referent's leaves only: a read through a reference counts
+            // by its own statements, so it asks nothing of the referent
+            // type's count shims (#2402).
+            let leaves = mem_of(self.pool(), self.env(), target)?.leaves;
             if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, or, for an enum a
                 // match only decides on and binds parts of, the place.
@@ -908,14 +901,14 @@ impl Em<'_, '_, '_> {
                     return Ok(());
                 }
                 // A copy's count is its stated `Retain` (`Em::own_retain`).
-                for l in rt::ref_lend(&mut self.f, r, &value) {
+                for l in rt::ref_lend(&mut self.f, r, &leaves) {
                     self.f.get(l);
                 }
                 self.store(i)?;
             } else if let Some(fields) = fields {
                 let declared = self.declared_referent(&p, d)?;
                 let (_, part) = self.fold_path(declared, &fields)?;
-                self.read_part(i, r, &value, part)?;
+                self.read_part(i, r, &leaves, part)?;
             } else {
                 let declared = self.declared_referent(&p, d)?;
                 // ruled out: steps follow last_through's final Elem/Deref.
@@ -1027,9 +1020,9 @@ impl Em<'_, '_, '_> {
     /// Reads only `part` of the value that the reference in local `at`
     /// names, into instruction `dest`'s value: the part's leaves at the
     /// address.
-    fn read_part(&mut self, dest: u32, at: u32, value: &RefLayout, part: Part) -> StageResult<()> {
+    fn read_part(&mut self, dest: u32, at: u32, leaves: &[Leaf], part: Part) -> StageResult<()> {
         self.f
-            .push_leaves(at, &value.leaves[part.first..part.first + part.count]);
+            .push_leaves(at, &leaves[part.first..part.first + part.count]);
         self.store(dest)
     }
 

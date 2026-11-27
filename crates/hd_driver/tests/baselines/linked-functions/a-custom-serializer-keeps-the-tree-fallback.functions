@@ -64,16 +64,16 @@ std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/rt.bytes/impl TextSink for TextRoom.append_text#0
 std/rt.alloc/release_value#0 [std.encoding.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.encoding.json.TextWriter]
 std/rt.alloc/release_value#0 [(string, std.encoding.json.Json)?]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry]
 std/rt.alloc/retain_value#0 [std.encoding.json.ObjectEntry]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry?]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
-std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.encoding.json.Json]
 std/rt.alloc/retain_value#0 [std.encoding.json.Json]
-std/rt.alloc/release_value#0 [std.encoding.json.TextWriter]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 rt:memory_copy/0/0
 rt:memory_copy/0/1

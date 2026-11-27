@@ -4678,6 +4678,45 @@ fn nested_tuple_pattern_columns_copy_no_suffix() {
     });
 }
 
+/// A tuple of `string`s nested `n` deep, built and dropped whole: the
+/// scale check's `tuple-nest-string` without its pattern.
+fn string_tuple_nest(n: usize) -> String {
+    let ty = format!("{}string{}", "(string, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = \"s\"\n    let x: {ty} = {value}\n    println(\"ok\")\n"
+    )
+}
+
+// Emit: #2402, the release of a tuple kept by address counts each nested
+// tuple in place, calling that type's in-place shim. Emitting the call
+// asked for the part type's whole count layout, which queued its by-value
+// shims too, each O(its leaves), though no call site uses them: O(depth^2)
+// instructions emitted. rustc's `drop_in_place::<(String, (String, ..))>`
+// calls the inner tuple's glue and nothing else, as the in-place shims do.
+#[test]
+fn a_nested_tuple_release_emits_no_unused_count_shims() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_wasm::work::count_use_facts(|| compile(&string_tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        // Each size's work over the one 4x smaller: the program's own
+        // emission, std's common part cancelling out.
+        let (k4, k16, k64) = (work(4), work(16), work(64));
+        let (small, large) = (k16 - k4, k64 - k16);
+        assert!(
+            small > 0 && large <= 5 * small,
+            "emitted body instructions from 4 to 16 and from 16 to 64 levels: {small} and {large}"
+        );
+    });
+}
+
 /// A `!Copy` struct held `n` tuples deep through named aliases
 /// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
 /// depth, deepest first: each copy question's answer is a blocker below

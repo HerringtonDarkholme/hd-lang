@@ -651,7 +651,7 @@ impl Em<'_, '_, '_> {
         self.f.set(at);
         let value = self.ref_layout(mt)?;
         // A map is one header word.
-        let m = crate::rt::ref_lend(&mut self.f, at, &value)[0];
+        let m = crate::rt::ref_lend(&mut self.f, at, &value.leaves)[0];
         // A local reference takes no count of its table (`ref.count.local`):
         // the map's root lives until its last use.
         self.map_probe_refs.insert(i, (m, false));

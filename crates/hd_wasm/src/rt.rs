@@ -1013,6 +1013,35 @@ pub(crate) fn counted_of_portion(
     })
 }
 
+/// The symbol of `t`'s in-place retain (`retain`) or release shim, when a
+/// count of a `t` where it lives calls it: queued alone. A shim counting
+/// a part in place (`hd_layout::shims`, `IN_PLACE`) calls only this, so
+/// asking [`counted_of_portion`] there would queue the part type's other
+/// forms too, each O(its values) for a nest of by-address tuples (#2402),
+/// as rustc's `drop_in_place::<(String, (String, ..))>` glue calls the
+/// inner type's glue and nothing else. `None` when the count is not in
+/// place.
+pub(crate) fn in_place_shim(
+    input: &Input<'_>,
+    m: &mut Module,
+    t: Ty,
+    portion: hd_layout::shims::Portion,
+    retain: bool,
+) -> StageResult<Option<Sym>> {
+    use hd_layout::shims::{Count, Shim, hooked, in_place};
+    let kind = if retain { Shim::Retain } else { Shim::Release };
+    if !in_place(input.pool, input.env, t, kind, portion) {
+        return Ok(None);
+    }
+    let (count, shape, _) = (input.shim)(t, Shim::Release, portion, false)?;
+    if !matches!(count, Count::Parts | Count::Call) {
+        return Ok(None);
+    }
+    let hooked = !retain && hooked(input.pool, input.env, t, Shim::Release, portion);
+    let key = m.shim_key(t, shape, kind, portion, false);
+    Ok(Some(Sym::Shim(key, retain, 1, hooked)))
+}
+
 /// The most counted addresses of a struct or tuple whose counts runtime
 /// glue states inline ([`ShimSyms::small`]), measured on the release
 /// bench: past 5, no module changes.
@@ -4647,7 +4676,7 @@ fn ref_count(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout, retain: bo
 /// value of any width stays in locals and never crosses a function's
 /// parameters or results.
 pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> Vec<u32> {
-    let ls = ref_lend(f, at, value);
+    let ls = ref_lend(f, at, &value.leaves);
     ref_count(f, m, &ls, value, true);
     ls
 }
@@ -4655,9 +4684,9 @@ pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> 
 /// The leaves of the concrete value that the reference in local `at`
 /// names, lent with no count of their own: the place's own. Never a copy,
 /// so it reads a value that may not copy.
-pub(crate) fn ref_lend(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
-    f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
-    f.load_locals(at, &value.leaves)
+pub(crate) fn ref_lend(f: &mut Func, at: u32, leaves: &[Leaf]) -> Vec<u32> {
+    f.stack_values |= leaves.len() > crate::wide::WIDTH;
+    f.load_locals(at, leaves)
 }
 
 /// Moves the value that the reference in local `at` names out of its

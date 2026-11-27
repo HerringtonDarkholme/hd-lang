@@ -117,14 +117,14 @@ std/rt.cycle/init.init#0
 std/fs/impl MemoryFs.missing_parent#0
 std/text/plain_windows#0
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
-std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
+std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [Result[(), std.fs.FsError]]
 std/rt.alloc/release_value#0 [std.fs.FsError]
-std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [Result[string, std.fs.FsError]]
 std/rt.alloc/release_value#0 [std.fs.MemoryFs]
 std/rt.alloc/retain_value#0 [std.fs.MemoryFs]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
+std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 rt:memory_copy/0/0
 rt:memory_copy/0/1
