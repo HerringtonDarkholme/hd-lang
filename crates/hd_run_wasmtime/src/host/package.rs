@@ -380,9 +380,17 @@ fn define_c(
             let mut args = Vec::with_capacity(plan_len(&params_of) + 1);
             args.push(Arg::Int(provider.this() as u64));
             let int = |k: usize| params.get(k).and_then(wasmtime::Val::i32).unwrap_or(0);
-            // An offset `at` and a byte length inside the heap, as an address.
-            let place = |at: i32, bytes: u64| -> Result<u64, Stop> {
+            // An offset `at` of `bytes` bytes of a number `align` bytes wide,
+            // aligned for it and inside the heap, as an address: C may not
+            // read a misaligned number (`module.host.package.c-references`).
+            // The message is the JavaScript glue's (`c-parity`).
+            let place = |at: i32, bytes: u64, align: u8| -> Result<u64, Stop> {
                 let at = u64::from(at.cast_unsigned());
+                if !at.is_multiple_of(u64::from(align)) {
+                    return Err(Stop::Contract(
+                        crate::native::wire::fail("misaligned C pointer argument").0,
+                    ));
+                }
                 at.checked_add(bytes)
                     .filter(|end| *end <= size as u64)
                     .map(|_| base as u64 + at)
@@ -411,20 +419,24 @@ fn define_c(
                     )),
                     Param::Num(num) => args.push(Arg::Int(extend(num, int(k)))),
                     Param::Ref { num, .. } => {
-                        args.push(Arg::Int(place(int(k), u64::from(num.bytes()))?));
+                        args.push(Arg::Int(place(
+                            int(k),
+                            u64::from(num.bytes()),
+                            num.bytes(),
+                        )?));
                     }
                     Param::List { num, .. } => {
                         let len = u64::from(int(k + 1).cast_unsigned());
                         let bytes = len
                             .checked_mul(u64::from(num.bytes()))
                             .ok_or_else(|| fail("a list argument leaves the guest heap"))?;
-                        args.push(Arg::Int(place(int(k), bytes)?));
+                        args.push(Arg::Int(place(int(k), bytes, num.bytes())?));
                         args.push(Arg::Int(len));
                         k += 1;
                     }
                     Param::Str => {
                         let len = u64::from(int(k + 1).cast_unsigned());
-                        args.push(Arg::Int(place(int(k), len)?));
+                        args.push(Arg::Int(place(int(k), len, 1)?));
                         args.push(Arg::Int(len));
                         k += 1;
                     }
