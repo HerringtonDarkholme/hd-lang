@@ -2379,8 +2379,8 @@ mod origin_tests {
 
     /// [`live_after`] and [`Live`] against the search on structured
     /// bodies drawn at random: loops, blocks and ifs nested to depth
-    /// five, reads and writes of six locals, and branches to every
-    /// enclosing label.
+    /// six, reads and writes of six locals, and `br_if`, `br` and
+    /// `br_table` to every enclosing label, out of several loops at once.
     #[test]
     fn live_after_matches_a_search_on_random_bodies() {
         let symbols = Symbols::default();
@@ -2391,35 +2391,51 @@ mod origin_tests {
             seed ^= seed << 17;
             u32::try_from(seed % u64::from(n)).unwrap()
         };
-        for _ in 0..300 {
+        for _ in 0..600 {
             let mut body = Vec::new();
+            let mut labels = Vec::new();
             let mut depth = 0u32;
-            for _ in 0..40 {
+            for _ in 0..48 {
                 let l = next(6);
-                match next(10) {
-                    0 if depth < 5 => {
+                match next(13) {
+                    0 | 1 if depth < 6 => {
                         body.push(Ins::Op(I::Loop(BlockType::Empty)));
                         depth += 1;
                     }
-                    1 if depth < 5 => {
+                    2 if depth < 6 => {
                         body.push(Ins::Op(I::Block(BlockType::Empty)));
                         depth += 1;
                     }
-                    2 if depth < 5 => {
+                    3 if depth < 6 => {
                         body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::If(BlockType::Empty))]);
                         depth += 1;
                     }
-                    3 if depth > 0 => {
+                    4 if depth > 0 => {
                         body.push(Ins::Op(I::End));
                         depth -= 1;
                     }
-                    4 => body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::BrIf(next(depth + 1)))]),
-                    5 | 6 => body.extend([Ins::Op(I::I32Const(1)), Ins::Op(I::LocalSet(l))]),
+                    5 | 6 => {
+                        body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::BrIf(next(depth + 1)))]);
+                    }
+                    7 => body.push(Ins::Op(I::Br(next(depth + 1)))),
+                    8 => {
+                        let list = (0..=next(3)).map(|_| next(depth + 1)).collect();
+                        labels.push(list);
+                        body.extend([
+                            Ins::Op(I::LocalGet(l)),
+                            Ins::Op(I::BrTable(
+                                LabelListId(u32::try_from(labels.len() - 1).unwrap()),
+                                next(depth + 1),
+                            )),
+                        ]);
+                    }
+                    9 | 10 => body.extend([Ins::Op(I::I32Const(1)), Ins::Op(I::LocalSet(l))]),
                     _ => body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::Drop)]),
                 }
             }
             body.extend((0..depth).map(|_| Ins::Op(I::End)));
-            let f = tracked(&symbols, 1, 5, body);
+            let mut f = tracked(&symbols, 1, 5, body);
+            f.labels = labels;
             assert_live_after_everywhere(&f);
             assert_live_sets_everywhere(&f);
         }
@@ -2522,6 +2538,93 @@ mod origin_tests {
                 assert!(
                     (0..2).all(|i| deep[i] * 10 <= shallow[i] * 12),
                     "{n} values, {d} loops: {deep:?} against {shallow:?}"
+                );
+            }
+        }
+    }
+
+    /// `k` nested loops in a body of about `size` instructions, a run of
+    /// forward blocks inside the innermost: each loop's header reads its
+    /// counter and a block after it may write it, so the counter is live
+    /// in the run only across the loop's backedge, past every inner
+    /// loop's tail. The run
+    /// ends in a `br_if` out of all `k` loops, and with `every_tail` in
+    /// one more to each loop's tail, as a labelled `continue` lowers.
+    fn exits_out_of_loops(symbols: &Symbols, k: u32, every_tail: bool, size: u32) -> Func {
+        let op = Ins::Op;
+        let mut body = vec![op(I::Block(BlockType::Empty))];
+        for m in 0..k {
+            body.extend([
+                op(I::I32Const(0)),
+                op(I::LocalSet(1 + m)),
+                op(I::Loop(BlockType::Empty)),
+                op(I::LocalGet(1 + m)),
+                op(I::Drop),
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(0)),
+                op(I::I32Const(1)),
+                op(I::LocalSet(1 + m)),
+                op(I::End),
+                op(I::Block(BlockType::Empty)),
+            ]);
+        }
+        // Loop `m`'s tail is past its `block`, `2 (k - 1 - m)` labels out;
+        // past every loop is `2k`.
+        let mut exits = vec![2 * k];
+        if every_tail {
+            exits.extend((0..k).map(|m| 2 * (k - 1 - m)));
+        }
+        let fixed = 1 + 16 * k + 2 * u32::try_from(exits.len()).unwrap() + 1;
+        for _ in 0..(size - fixed) / 4 {
+            body.extend([
+                op(I::Block(BlockType::Empty)),
+                op(I::LocalGet(0)),
+                op(I::BrIf(0)),
+                op(I::End),
+            ]);
+        }
+        for depth in exits {
+            body.extend([op(I::LocalGet(0)), op(I::BrIf(depth))]);
+        }
+        for _ in 0..k {
+            body.extend([op(I::End), op(I::LocalGet(0)), op(I::BrIf(0)), op(I::End)]);
+        }
+        body.push(op(I::End));
+        tracked(symbols, 1, k as usize, body)
+    }
+
+    /// #2454: a branch out of several loops costs no visit of the loops'
+    /// blocks per level: step 2 carried each loop's written set back
+    /// from its backedge through every inner loop whose tail leads
+    /// there, so the run inside the innermost loop was visited once per
+    /// loop. The body keeps its size from 2 to 20 loops.
+    #[test]
+    fn liveness_work_has_no_exit_depth_factor() {
+        let symbols = Symbols::default();
+        let work = |k: u32, every_tail: bool| {
+            let f = exits_out_of_loops(&symbols, k, every_tail, 4000);
+            let ((), sets) = hd_wasm::work::count_liveness(|| {
+                let live = Live::new(&f, Sets::default()).unwrap();
+                // Every counter is live in the run, read at its header
+                // after the backedge.
+                let run = live.starts.len() / 2;
+                assert!((1..=k).all(|c| live.sets.contains(live.into[run], c)));
+            });
+            let (dead, rows) = hd_wasm::work::count_liveness(|| Live::dead_accesses(&f, None));
+            assert!(dead.is_some());
+            let mut live = Live::blocks(&f, None, Sets::default()).unwrap();
+            let mut visits = 0u64;
+            live.settle_with(&f, || visits += 1);
+            [sets, rows, visits]
+        };
+        for every_tail in [false, true] {
+            let shallow = work(2, every_tail);
+            for k in [5, 10, 20] {
+                let deep = work(k, every_tail);
+                assert!(
+                    (0..3).all(|i| deep[i] * 10 <= shallow[i] * 13),
+                    "every tail {every_tail}, {k} loops: {deep:?} against {shallow:?}"
                 );
             }
         }

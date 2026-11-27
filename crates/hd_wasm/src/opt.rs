@@ -1358,8 +1358,6 @@ pub struct Live {
     /// `firsts[first[p]..first[p + 1]]`: the local, and whether it reads.
     first: Vec<usize>,
     firsts: Vec<(u32, bool)>,
-    /// The body's parameters and locals.
-    locals: usize,
 }
 
 impl Drop for Live {
@@ -1370,20 +1368,22 @@ impl Drop for Live {
 
 /// Where [`Live::solve`] keeps its sets, by slot: block `p`'s live-in
 /// set in slot `p` and its live-out set in slot `B + p`, for `B` blocks,
-/// then two per loop ([`Forest::slots`]). Persistent sets
-/// ([`Persistent`]) and dense bit rows ([`Rows`]) both keep them, so one
-/// pass serves both.
+/// then one per loop and one per loop exit ([`Forest::slots`]).
+/// Persistent sets ([`Persistent`]) and dense bit rows ([`Rows`]) both
+/// keep them, so one pass serves both.
 trait Slots {
-    /// Adds slot `from`'s locals to slot `to`'s; whether `to` grew.
-    fn union(&mut self, to: usize, from: usize) -> bool;
+    /// Adds slot `from`'s locals to slot `to`'s.
+    fn union(&mut self, to: usize, from: usize);
     fn insert(&mut self, slot: usize, l: u32);
     fn remove(&mut self, slot: usize, l: u32);
     fn clear(&mut self, slot: usize);
-    /// Fills empty slot `slot` with `keys`, ascending and distinct.
-    fn assign(&mut self, slot: usize, keys: &[u32]);
-    /// Puts in slot `rest` the locals of slot `a` that slot `b` lacks,
-    /// and keeps in `b` only those `a` holds too.
-    fn split(&mut self, a: usize, b: usize, rest: usize);
+    fn has(&self, slot: usize, l: u32) -> bool;
+    /// Keeps in slot `to` only the locals slot `from` holds too.
+    fn intersect(&mut self, to: usize, from: usize);
+    /// Keeps in slot `to` only the locals slot `a` or slot `b` holds.
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize);
+    /// Adds to slot `to` the locals of slot `a` that slot `b` lacks.
+    fn union_minus(&mut self, to: usize, a: usize, b: usize);
 }
 
 /// Persistent sets in slots: their arena, and each slot's set.
@@ -1393,11 +1393,8 @@ struct Persistent {
 }
 
 impl Slots for Persistent {
-    fn union(&mut self, to: usize, from: usize) -> bool {
-        let before = self.slots[to];
-        self.slots[to] = self.sets.union(before, self.slots[from]);
-        // A union keeps a superset, so a new size is a change.
-        self.sets.len(self.slots[to]) != self.sets.len(before)
+    fn union(&mut self, to: usize, from: usize) {
+        self.slots[to] = self.sets.union(self.slots[to], self.slots[from]);
     }
 
     fn insert(&mut self, slot: usize, l: u32) {
@@ -1412,14 +1409,22 @@ impl Slots for Persistent {
         self.slots[slot] = Set::EMPTY;
     }
 
-    fn assign(&mut self, slot: usize, keys: &[u32]) {
-        self.slots[slot] = self.sets.of_sorted(keys);
+    fn has(&self, slot: usize, l: u32) -> bool {
+        self.sets.contains(self.slots[slot], l)
     }
 
-    fn split(&mut self, a: usize, b: usize, rest: usize) {
-        let (x, y) = (self.slots[a], self.slots[b]);
-        self.slots[rest] = self.sets.subtract(x, y);
-        self.slots[b] = self.sets.intersection(x, y);
+    fn intersect(&mut self, to: usize, from: usize) {
+        self.slots[to] = self.sets.intersection(self.slots[to], self.slots[from]);
+    }
+
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize) {
+        let either = self.sets.union(self.slots[a], self.slots[b]);
+        self.slots[to] = self.sets.intersection(self.slots[to], either);
+    }
+
+    fn union_minus(&mut self, to: usize, a: usize, b: usize) {
+        let rest = self.sets.subtract(self.slots[a], self.slots[b]);
+        self.slots[to] = self.sets.union(self.slots[to], rest);
     }
 }
 
@@ -1436,11 +1441,6 @@ struct Rows {
 }
 
 impl Rows {
-    fn has(&self, slot: usize, l: u32) -> bool {
-        let l = l as usize;
-        self.bits[slot * self.words + l / 64] >> (l % 64) & 1 != 0
-    }
-
     fn row(&mut self, slot: usize) -> &mut [u64] {
         self.work += self.words;
         &mut self.bits[slot * self.words..][..self.words]
@@ -1456,17 +1456,12 @@ impl Rows {
 }
 
 impl Slots for Rows {
-    fn union(&mut self, to: usize, from: usize) -> bool {
+    fn union(&mut self, to: usize, from: usize) {
         let words = self.words;
         self.work += words;
-        let mut grew = false;
         for i in 0..words {
-            let x = self.bits[from * words + i];
-            let out = &mut self.bits[to * words + i];
-            grew |= x & !*out != 0;
-            *out |= x;
+            self.bits[to * words + i] |= self.bits[from * words + i];
         }
-        grew
     }
 
     fn insert(&mut self, slot: usize, l: u32) {
@@ -1483,19 +1478,32 @@ impl Slots for Rows {
         self.row(slot).fill(0);
     }
 
-    fn assign(&mut self, slot: usize, keys: &[u32]) {
-        for &l in keys {
-            self.insert(slot, l);
-        }
+    fn has(&self, slot: usize, l: u32) -> bool {
+        let l = l as usize;
+        self.bits[slot * self.words + l / 64] >> (l % 64) & 1 != 0
     }
 
-    fn split(&mut self, a: usize, b: usize, rest: usize) {
+    fn intersect(&mut self, to: usize, from: usize) {
         let words = self.words;
         self.work += words;
         for i in 0..words {
-            let (x, y) = (self.bits[a * words + i], self.bits[b * words + i]);
-            self.bits[rest * words + i] = x & !y;
-            self.bits[b * words + i] = x & y;
+            self.bits[to * words + i] &= self.bits[from * words + i];
+        }
+    }
+
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] &= self.bits[a * words + i] | self.bits[b * words + i];
+        }
+    }
+
+    fn union_minus(&mut self, to: usize, a: usize, b: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] |= self.bits[a * words + i] & !self.bits[b * words + i];
         }
     }
 }
@@ -1505,7 +1513,7 @@ const NO_LOOP: usize = usize::MAX;
 
 /// The loops of a body's blocks ([`Live::forest`]): each a header and
 /// its natural loop, the blocks that reach one of its backedges without
-/// passing the header, nested as a forest.
+/// passing the header, nested as a forest; and their exits.
 struct Forest {
     /// Each loop's header block, ascending. A loop's header comes after
     /// the headers of the loops around it, so a loop comes after them.
@@ -1514,21 +1522,56 @@ struct Forest {
     loop_of: Vec<usize>,
     /// The loop around each loop, or [`NO_LOOP`].
     parent: Vec<usize>,
-    /// Each block's predecessors: those of block `p` are
-    /// `list[first[p]..first[p + 1]]`.
-    first: Vec<usize>,
-    list: Vec<usize>,
+    /// The target block of each exit, an edge and a loop it leaves: by
+    /// source block, then edge, then loop, innermost first
+    /// ([`Forest::left`]).
+    exits: Vec<usize>,
+    /// Each loop's exits.
+    of_loop: Vec<Vec<usize>>,
 }
 
 impl Forest {
     /// The slots [`Live::solve`] uses for a body of `blocks` blocks: a
-    /// live-in and a live-out set per block, and two sets per loop.
+    /// live-in and a live-out set per block, one set per loop and per
+    /// exit, and what any header holds.
     fn slots(&self, blocks: usize) -> usize {
-        2 * blocks + 2 * self.headers.len()
+        2 * blocks + self.headers.len() + self.exits.len() + 1
     }
 
-    fn preds(&self, p: usize) -> &[usize] {
-        &self.list[self.first[p]..self.first[p + 1]]
+    /// The loop whose header step 2 measures block `b`'s paths from: its
+    /// innermost loop, or for a header, the loop around the loop it heads.
+    fn frame(&self, b: usize) -> usize {
+        match self.loop_of[b] {
+            k if k != NO_LOOP && self.headers[k] == b => self.parent[k],
+            k => k,
+        }
+    }
+
+    /// Calls `each` with each loop that holds block `q` and not block
+    /// `b`, innermost first: the loops an edge from `q` to `b` leaves.
+    /// A forward edge to a block measured from no loop, such as a
+    /// suspension's `return` inside many loops, leaves none that matter:
+    /// step 1 settled that block along forward edges, and so found what
+    /// it holds at every header with a forward path to it. The walk climbs
+    /// from both blocks' innermost loops to the loop holding both, the
+    /// later loop first, as Cooper, Harvey and Kennedy's dominator
+    /// `intersect` climbs: a loop comes after the loops around it, so the
+    /// later of two is not around the other. The target's side climbs at
+    /// most once, out of the loop it heads.
+    fn left(&self, q: usize, b: usize, mut each: impl FnMut(usize)) {
+        if b > q && self.frame(b) == NO_LOOP {
+            return;
+        }
+        // [`NO_LOOP`] holds every loop, so it comes first.
+        let (mut x, mut y) = (self.loop_of[q], self.loop_of[b]);
+        while x != y {
+            if x.wrapping_add(1) > y.wrapping_add(1) {
+                each(x);
+                x = self.parent[x];
+            } else {
+                y = self.parent[y];
+            }
+        }
     }
 }
 
@@ -1592,11 +1635,12 @@ impl Live {
                 headers: Vec::new(),
                 loop_of: vec![NO_LOOP; blocks],
                 parent: Vec::new(),
-                first: vec![0; blocks + 1],
-                list: Vec::new(),
+                exits: Vec::new(),
+                of_loop: Vec::new(),
             };
         }
         let (first, list) = self.predecessors(len);
+        crate::work::liveness(list.len());
         let preds = |p: usize| &list[first[p]..first[p + 1]];
         let headers: Vec<usize> = (0..blocks)
             .filter(|&p| preds(p).iter().any(|&q| q >= p))
@@ -1623,73 +1667,77 @@ impl Live {
                 stack.extend(preds(x).iter().copied().filter(|&q| q < x));
             }
         }
-        Forest {
+        let mut forest = Forest {
+            of_loop: vec![Vec::new(); headers.len()],
             headers,
             loop_of,
             parent,
-            first,
-            list,
+            exits: Vec::new(),
+        };
+        let (mut exits, mut of_loop) = (Vec::new(), std::mem::take(&mut forest.of_loop));
+        for q in (0..blocks).filter(|&q| forest.loop_of[q] != NO_LOOP) {
+            self.succs(q, len, |b| {
+                forest.left(q, b, |k| {
+                    of_loop[k].push(exits.len());
+                    exits.push(b);
+                });
+            });
         }
+        forest.exits = exits;
+        forest.of_loop = of_loop;
+        forest
     }
 
     /// The locals live into and out of each block, exactly, into
-    /// `slots`, with each block visited at most twice, and a few more
-    /// times by step 2, not once more per level of loops around it.
+    /// `slots`, with each block visited at most three times, not once
+    /// more per loop around it.
     ///
     /// A worklist fixed point (regalloc2's `compute_liveness`, a FIFO
     /// seeded in postorder) finds a local read at an outer loop's header
     /// live in an inner loop's blocks one level per round, so each level
     /// walks the inner body again (#2453). The pass here settles the
-    /// headers first, as the loop-forest liveness of Brandner et al. does
-    /// ("Computing Liveness Sets for SSA-Form Programs", INRIA RR-7503,
-    /// 2011), extended to locals written inside loops:
+    /// headers first, outer loops first, as the loop-forest liveness of
+    /// Brandner et al. does ("Computing Liveness Sets for SSA-Form
+    /// Programs", INRIA RR-7503, 2011), and takes each header from its
+    /// loop's exits, as elimination methods summarise a loop by its exits
+    /// (Sharir, "Structural Analysis", 1980), so no walk of a loop's body
+    /// repeats per loop around it (#2454):
     ///
     /// 1. One backward pass over the forward edges, blocks last to first,
     ///    so each block's successors are final when it is visited: what
     ///    is live along paths that take no backedge.
-    /// 2. Each loop, outer first, takes what the loop around it never
-    ///    writes into its header's set, which is then final, and splits
-    ///    it. What the loop never writes (`N`: no block of it writes the
-    ///    local first) is live in every block of the loop, as each
-    ///    reaches a backedge inside it: RR-7503's propagation, which
-    ///    holds there for the whole header set because an SSA value is
-    ///    never written in a loop it is live into. What the loop writes
-    ///    (`C`) is live in a block exactly when some path along forward
-    ///    edges from it to a backedge of the loop writes it nowhere
-    ///    first. Those blocks are visited from the backedges back, last
-    ///    to first, carrying `C` less each block's first writes, and the
-    ///    search stops at a block whose set does not grow: what that
-    ///    block held came from a path its predecessors' sets hold
-    ///    already, or from a header that holds it too.
-    /// 3. One more backward pass over the blocks inside loops, every
-    ///    edge: each block's successors are final when it is visited, a
-    ///    header since step 2, so each set is exact, and built from its
-    ///    successors' sets as a worklist builds them, sharing their
-    ///    nodes. A block outside every loop reaches no backedge, so step
-    ///    1 settled it.
+    /// 2. One forward pass over the blocks inside loops, first to last:
+    ///    what every forward path from the header of a block's loop to the
+    ///    block's end writes first, a must-write set met by intersection
+    ///    as [`live_after`] carries it, of the locals step 1 found live
+    ///    into some header, the only ones live into any. An edge out of
+    ///    loops keeps that set for each loop it leaves, an outer loop's
+    ///    being the inner one's and what every path from the outer header
+    ///    to the inner header writes.
+    /// 3. Each loop, outer first, visits its own blocks last to first,
+    ///    every edge, and takes each inner loop's header as it passes it:
+    ///    its step 1 set and, for each exit of the inner loop, what the
+    ///    exit's target holds less the exit's must-write set. Each
+    ///    block's successors are then final when it is visited.
     ///
-    /// Exact: take a shortest path from a header `h` to a read of a
-    /// local that writes it nowhere first. If it takes no backedge, step
-    /// 1 finds it. Otherwise its first backedge leads to a header `g`
-    /// the path did not pass before (cutting the cycle would shorten
-    /// it), so `h` is in `g`'s loop and the local is live into `g`, an
-    /// outer loop's header, settled first. If `g`'s loop never writes the
-    /// local, `h` took it in with `g`'s `N`. Otherwise step 2 walks the
-    /// path from `g`'s backedge back to `h`, or stops at a block that
-    /// holds the local: through step 1 (then `h` does, along the path),
-    /// a header's `N` (then the header's loop holds `h`, which took that
-    /// `N` in, or the path enters that loop at its header, an earlier
-    /// stop), or an earlier walk, which went on to the predecessors.
-    /// Every fact a step adds is a path's, so nothing more is live.
+    /// Exact: take a shortest path from the header `h` of a loop `L` to a
+    /// read of a local that writes it nowhere first. Inside `L` it takes
+    /// no backedge: one of `L` or of a loop inside `L` returns to a header
+    /// the path passed. So either it stays inside `L`, and step 1 finds
+    /// it, or it leaves `L` along an exit whose target holds the local,
+    /// after a forward path that writes it nowhere, so the exit's set
+    /// lacks it. Conversely an exit's set lacks only locals that some
+    /// forward path from `h` leaves unwritten. An exit's target is
+    /// settled before `h` is: it lies in a loop around `L`, whose visit
+    /// took its blocks after `h` first and whose own header came earlier,
+    /// or it is the header of a loop beside `L`, taken there too, or it
+    /// lies outside every loop, which step 1 settled.
     ///
-    /// Cost: two visits per block in a loop and one per other block, a
-    /// union per loop and one per first
-    /// write in a loop for `C` and `N`, and in step 2 a visit per block
-    /// whose set grows, and its predecessors, per loop whose backedge it
-    /// reaches by forward edges: its own loop's, and one more per loop
-    /// that a branch out of it leaves for that loop's tail. A local read
-    /// at every header of `d` nested `for` loops costs no visit of an
-    /// inner body per outer level.
+    /// Cost: three visits per block in a loop and one per other block, a
+    /// step per edge, and a set per loop an edge leaves toward a block
+    /// some loop's paths reach first ([`Forest::left`]): a branch out of
+    /// `k` loops keeps `k` sets, and no block is visited once per loop
+    /// around it.
     fn solve(&self, len: usize, forest: &Forest, slots: &mut impl Slots, visit: &mut impl FnMut()) {
         let blocks = self.starts.len();
         let firsts = |p: usize| &self.firsts[self.first[p]..self.first[p + 1]];
@@ -1721,111 +1769,121 @@ impl Live {
             headers,
             loop_of,
             parent,
+            exits,
+            of_loop,
             ..
         } = forest;
         if headers.is_empty() {
             return;
         }
-        // Each loop's slots: first what its blocks write first, then what
-        // of its header's set it writes (`C`); and what it never writes
-        // (`N`).
-        let (written, kept) = (
-            |k: usize| 2 * blocks + 2 * k,
-            |k: usize| 2 * blocks + 2 * k + 1,
-        );
-        let mut work = forest.list.len();
-        // What each loop's own blocks write first, each set made at once
-        // from its keys in order ([`Sets::of_sorted`], `2k` nodes, where
-        // an insert per write copied a path): the writes bucketed by
-        // local, then read out by local, so each loop's come ascending.
-        let mut by_local = vec![0usize; self.locals + 1];
-        let writes = || {
-            loop_of.iter().enumerate().flat_map(move |(p, &k)| {
-                firsts(p)
-                    .iter()
-                    .filter(move |&&(_, reads)| k != NO_LOOP && !reads)
-                    .map(move |&(l, _)| (l as usize, k))
-            })
-        };
-        for (l, _) in writes() {
-            by_local[l + 1] += 1;
+        // Step 2's sets: a block's in its live-out slot, until step 3
+        // settles it; what every path from the loop around a header to the
+        // header writes, in the header's loop slot; and each exit's, in its
+        // slot. They keep only the locals step 1 found live into some
+        // header (`headed`), as only those are live into any header: a
+        // shortest path from one to a read either takes no backedge or
+        // first takes one to an outer header that holds the local.
+        let entry = |k: usize| 2 * blocks + k;
+        let exit = |e: usize| 2 * blocks + headers.len() + e;
+        let headed = exit(exits.len());
+        for &h in headers {
+            slots.union(headed, h);
         }
-        for l in 0..self.locals {
-            by_local[l + 1] += by_local[l];
-        }
-        let mut loops = vec![0usize; by_local[self.locals]];
-        work += self.locals + loops.len();
-        let mut next = by_local.clone();
-        for (l, k) in writes() {
-            loops[next[l]] = k;
-            next[l] += 1;
-        }
-        let mut own: Vec<Vec<u32>> = vec![Vec::new(); headers.len()];
-        for (key, l) in (0u32..).zip(0..self.locals) {
-            for &k in &loops[by_local[l]..by_local[l + 1]] {
-                if own[k].last() != Some(&key) {
-                    own[k].push(key);
-                }
+        // Whether some forward path reaches a block from the header of its
+        // loop, or a header from the header of the loop around it; and
+        // whether one reaches each exit from its loop's header.
+        let mut reached = vec![false; blocks];
+        let mut open = vec![false; exits.len()];
+        let mut e = 0;
+        for q in (0..blocks).filter(|&q| loop_of[q] != NO_LOOP) {
+            visit();
+            let out = blocks + q;
+            let from = headers[loop_of[q]] == q || reached[q];
+            if headers[loop_of[q]] == q {
+                slots.clear(out);
             }
-        }
-        for (k, keys) in own.iter().enumerate() {
-            slots.assign(written(k), keys);
-        }
-        for (k, &up) in parent.iter().enumerate().rev() {
-            if up != NO_LOOP {
-                slots.union(written(up), written(k));
-            }
-        }
-        // Step 2's visits, last block first; `at[p]`: the loop whose walk
-        // queued `p`, whose live-out slot then holds what the walk
-        // carries out of `p`.
-        let mut pending = BinaryHeap::new();
-        let mut at = vec![NO_LOOP; blocks];
-        for (k, &h) in headers.iter().enumerate() {
-            if parent[k] != NO_LOOP {
-                slots.union(h, kept(parent[k]));
-            }
-            slots.split(h, written(k), kept(k));
-            for &q in forest.preds(h) {
-                if q > h && at[q] != k {
-                    at[q] = k;
-                    pending.push(q);
-                }
-            }
-            while let Some(b) = pending.pop() {
-                visit();
-                let carried = blocks + b;
-                slots.clear(carried);
-                self.succs(b, len, |q| {
-                    if q == h {
-                        slots.union(carried, written(k));
-                    } else if q > b && at[q] == k {
-                        slots.union(carried, blocks + q);
-                    }
-                });
-                for &(l, reads) in firsts(b) {
-                    if !reads {
-                        slots.remove(carried, l);
+            if from {
+                for &(l, reads) in firsts(q) {
+                    if !reads && slots.has(headed, l) {
+                        slots.insert(out, l);
                     }
                 }
-                if slots.union(b, carried) {
-                    for &q in forest.preds(b) {
-                        work += 1;
-                        if q < b && q != h && at[q] != k {
-                            at[q] = k;
-                            pending.push(q);
+            }
+            self.succs(q, len, |b| {
+                let (mut held, mut outer) = (from, NO_LOOP);
+                forest.left(q, b, |k| {
+                    if outer != NO_LOOP {
+                        held &= reached[headers[outer]];
+                    }
+                    if held {
+                        slots.clear(exit(e));
+                        if outer == NO_LOOP {
+                            slots.union(exit(e), out);
+                        } else {
+                            slots.union(exit(e), exit(e - 1));
+                            slots.union(exit(e), entry(outer));
                         }
                     }
+                    open[e] = held;
+                    e += 1;
+                    outer = k;
+                });
+                if b <= q || forest.frame(b) == NO_LOOP || !held {
+                    return;
+                }
+                let to = match loop_of[b] {
+                    k if headers[k] == b => entry(k),
+                    _ => blocks + b,
+                };
+                // What every path from the frame's header writes: the last
+                // exit's set and what reaching the loop it leaves writes.
+                let (last, reach) = match outer {
+                    NO_LOOP => (out, out),
+                    k if reached[headers[k]] => (exit(e - 1), entry(k)),
+                    _ => return,
+                };
+                if std::mem::replace(&mut reached[b], true) {
+                    slots.intersect_union(to, last, reach);
+                } else {
+                    slots.clear(to);
+                    slots.union(to, last);
+                    slots.union(to, reach);
+                }
+            });
+        }
+        // Step 3's visits: each loop's own blocks and its inner loops'
+        // headers, last to first.
+        let mut visits = vec![Vec::new(); headers.len()];
+        for p in (0..blocks).rev().filter(|&p| loop_of[p] != NO_LOOP) {
+            let k = loop_of[p];
+            visits[k].push(p);
+            if headers[k] == p && parent[k] != NO_LOOP {
+                visits[parent[k]].push(p);
+            }
+        }
+        for (k, own) in visits.iter().enumerate() {
+            for &p in own {
+                let inner = loop_of[p];
+                if inner == k {
+                    visit();
+                    settle(&mut *slots, p, true);
+                    continue;
+                }
+                let mut grew = false;
+                for &x in &of_loop[inner] {
+                    if open[x] {
+                        slots.union_minus(p, exits[x], exit(x));
+                        grew = true;
+                    }
+                }
+                // An exit's set lacks the locals no header holds, which
+                // its target may hold.
+                if grew {
+                    slots.intersect(p, headed);
                 }
             }
         }
-        for p in (0..blocks).rev() {
-            if loop_of[p] != NO_LOOP {
-                visit();
-                settle(&mut *slots, p, true);
-            }
-        }
-        crate::work::liveness(work);
+        crate::work::liveness(exits.len() + blocks);
     }
 
     /// Calls `to` with each successor block of block `p`.
@@ -1905,7 +1963,6 @@ impl Live {
             sets,
             first,
             firsts,
-            locals: n,
         })
     }
 
