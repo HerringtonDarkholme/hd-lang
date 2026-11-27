@@ -1,5 +1,5 @@
 # test: each CliError variant, its Display text, and the first error in argument order winning
-# Spec std/cli Parse Errors: std-cli.error.required-argument, std-cli.error.traits, std-cli.error.unknown, std-cli.error.missing-value, std-cli.error.unexpected-value, std-cli.error.missing-argument, std-cli.error.first-required, std-cli.form.no-clusters (task #242).
+# Spec std/cli Parse Errors: std-cli.error.required-argument, std-cli.error.traits, std-cli.error.unknown, std-cli.error.missing-value, std-cli.error.unexpected-value, std-cli.error.missing-argument, std-cli.error.first-required, std-cli.form.short-group-unknown (task #242).
 use std.cli.{Arg, ArgParser, CliError}
 fn tool() -> *mut ArgParser:
     ArgParser::new("count")
@@ -28,19 +28,9 @@ tests:
             reason="a short name",
         )
         assert_equal(
-            tool().parse(["-vo", "a", "b"]),
-            .Err(CliError.UnknownOption("-vo")),
-            reason="no clusters",
-        )
-        assert_equal(
-            tool().parse(["-ofile", "a", "b"]),
-            .Err(CliError.UnknownOption("-ofile")),
-            reason="no attached short value",
-        )
-        assert_equal(
-            tool().parse(["-o=file", "a", "b"]),
-            .Err(CliError.UnknownOption("-o=file")),
-            reason="no = after a short name",
+            tool().parse(["-vx", "a", "b"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="the undeclared short in the group",
         )
 
     it("an option at the end has no value"):

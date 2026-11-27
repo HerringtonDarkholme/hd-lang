@@ -113,18 +113,23 @@ Each argument is read by its form:
 | r[std-cli.form.long-option] Long option | `--name VALUE` | the next argument is the value of the option `name` |
 | r[std-cli.form.attached] Attached value | `--name=VALUE` | the text after the first `=` is the value of the option `name` |
 | r[std-cli.form.short-option] Short option | `-c VALUE` | the next argument is the value of the option whose short name is `c` |
+| r[std-cli.form.short-group] Grouped short flags | `-nr` | short flags `n` and `r` are read in order |
+| r[std-cli.form.short-attached] Attached short value | `-Ldir` or `-L=dir` | `dir` is the value of short option `L` |
 | r[std-cli.form.end-scope] End of options | `--` | dropped; later arguments in this parser are plain arguments |
 | r[std-cli.form.dash-scope] Lone dash | `-` | a plain argument |
 | r[std-cli.form.plain-argument] Positional | an argument that does not start with `-` | a plain argument |
 
 1. r[std-cli.form.interleaved] Flags, options, and positionals may come in any order before `--`.
-2. r[std-cli.form.no-clusters] Only the forms in the table name a flag or an option. So `-vq`, `-ofile`, and `-o=file` are each one unknown option.
-3. r[std-cli.form.value-dash] An option's value is the next argument even when that argument starts with `-` or is `--`.
-4. r[std-cli.form.attached.text] An attached value may be empty, and may hold `=`: `--out=a=b` gives `a=b`.
-5. r[std-cli.form.repeat-user-flag] A non-help flag given more than once is set once.
-6. r[std-cli.form.repeat-declared] An option with `repeated: true` retains every supplied value in argument order, and `value` returns the last.
-7. r[std-cli.form.repeat-refused] A second occurrence of a value-taking option with `repeated: false` returns `InvalidValue`.
-8. r[std-cli.form.plain-command] In a parser with commands, the first plain argument selects a command; otherwise, plain arguments are positionals.
+2. r[std-cli.form.short-group-value] The first value-taking short option ends its group and takes the remaining text, removing one leading `=`, or the next argument when no text remains.
+3. r[std-cli.form.short-group-help] A short help flag `h` in a group returns `Help` immediately, without reading the remaining characters.
+4. r[std-cli.form.short-group-unknown] An undeclared short name returns `UnknownOption` containing that character preceded by `-`.
+5. r[std-cli.form.short-attached-empty] An attached short value may be empty after `=`, and any further `=` belongs to the value.
+6. r[std-cli.form.value-dash] An option's value is the next argument even when that argument starts with `-` or is `--`.
+7. r[std-cli.form.attached.text] An attached value may be empty, and may hold `=`: `--out=a=b` gives `a=b`.
+8. r[std-cli.form.repeat-user-flag] A non-help flag given more than once is set once.
+9. r[std-cli.form.repeat-declared] An option with `repeated: true` retains every supplied value in argument order, and `value` returns the last.
+10. r[std-cli.form.repeat-refused] A second occurrence of a value-taking option with `repeated: false` returns `InvalidValue`.
+11. r[std-cli.form.plain-command] In a parser with commands, the first plain argument selects a command; otherwise, plain arguments are positionals.
 
 ```text
 use std.cli.{Arg, ArgParser}
@@ -143,9 +148,9 @@ fn demo() -> List[string]:
      out_of(["--", "--out"])]            # after --, a positional: "stdout"
 ```
 
-> **Why.** Clusters and attached short values make `-ofile` ambiguous
-> beside a flag `-f`. Go's `flag` package leaves them out too, and a script
-> rarely misses them.
+> **Why.** POSIX short groups and clap-style attached values let existing
+> Unix command lines keep their spelling. The first value-taking short
+> owns the remainder, so `-ofile` means option `o` with value `file`.
 
 ### Parse Errors
 

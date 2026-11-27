@@ -1,0 +1,63 @@
+# test: builder short groups end at a value-taking option and preserve attached values
+# Spec std/cli Argument Forms: std-cli.form.short-group, std-cli.form.short-attached, std-cli.form.short-group-value, std-cli.form.short-group-help, std-cli.form.short-group-unknown, std-cli.form.short-attached-empty.
+use std.cli.{Arg, ArgParser, CliError}
+
+fn tool() -> *mut ArgParser:
+    ArgParser::new("jq")
+        .arg(Arg { name: "null", kind: .Flag, short: 'n' })
+        .arg(Arg { name: "raw", kind: .Flag, short: 'r' })
+        .arg(Arg { name: "unicode", kind: .Flag, short: 'é' })
+        .arg(Arg { name: "library", short: 'L', repeated: true })
+
+tests:
+    it("groups flags and preserves repetitions"):
+        parsed := tool().parse(["-nnr"]).expect("group")
+        assert(parsed.flag("null"), reason="n")
+        assert(parsed.flag("raw"), reason="r")
+
+    it("the first value-taking short owns the remainder or the next argument"):
+        for args in [["-nrLdir"], ["-nrL=dir"], ["-nrL", "dir"], ["-n", "-r", "-Ldir"]]:
+            parsed := tool().parse(args).expect("group with a value")
+            assert(parsed.flag("null"), reason="leading n")
+            assert(parsed.flag("raw"), reason="leading r")
+            assert_equal(parsed.value("library"), .Some("dir"), reason="L value")
+        parsed := tool().parse(["-Lnr"]).expect("value")
+        assert(!parsed.flag("null"), reason="value is not a group")
+        assert_equal(parsed.value("library"), .Some("nr"), reason="whole remainder")
+
+    it("attached values keep emptiness, equals, Unicode and leading dashes"):
+        parsed := tool()
+            .parse(["-L=", "-La=b", "-L==x", "-néL=λ", "-L-r", "-L", "--"])
+            .expect("attached values")
+        assert_equal(
+            parsed.values("library"),
+            ["", "a=b", "=x", "λ", "-r", "--"],
+            reason="exact values",
+        )
+        assert(parsed.flag("unicode"), reason="Unicode short consumes its complete scalar")
+        assert(!parsed.flag("raw"), reason="dash-leading value is not flags")
+
+    it("short groups retain help, missing-value and unknown-option errors"):
+        assert_equal(
+            tool().parse(["-nrL"]),
+            .Err(CliError.MissingValue("library")),
+            reason="missing final value",
+        )
+        assert_equal(
+            tool().parse(["-nx"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="unknown member",
+        )
+        assert_equal(
+            tool().parse(["-xn"]),
+            .Err(CliError.UnknownOption("-x")),
+            reason="first member",
+        )
+        match tool().parse(["-nhx"]):
+            .Err(.Help(_)) => pass
+            _ => panic("grouped help must finish immediately")
+
+    it("end of options leaves later groups and attached values as positionals"):
+        parsed := tool().parse(["--", "-nr", "-Ldir"]).expect("positionals")
+        assert_equal(parsed.positionals(), ["-nr", "-Ldir"], reason="after --")
+        assert(!parsed.flag("null"), reason="not a group")
