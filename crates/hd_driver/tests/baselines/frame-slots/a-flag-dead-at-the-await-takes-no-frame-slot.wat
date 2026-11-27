@@ -25,7 +25,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $wait'1 (param $frame i32) (param $kept.name.0 i32) (param $kept.name.1 i32) (param $bag i32) (param $ready i32) (param $early i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t7 i32) (local $value.name.0 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $count i64) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 25 |     if ready:
     global.get $stack

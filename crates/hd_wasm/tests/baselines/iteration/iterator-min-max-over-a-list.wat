@@ -7,7 +7,7 @@
   (import "fixture" "release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, fn(i64) -> i64]]" (func $"release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, fn(i64) -> i64]]" (param i32 i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"Iterator.max[std.iter.ListIter[i64], i64]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i64) (local $t7 i32) (local $t6 i64) (local $t1 i32) (local $t0 i32) (local $t5 i64)
     ;; (no span)
     global.get $stack

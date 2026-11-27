@@ -7,7 +7,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $through_mut (param $g.0 i32) (param $g.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32)
     ;; 30 |     g.rename(n)

@@ -15,7 +15,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 17 |     forward(callback)

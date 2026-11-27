@@ -3,7 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]" (param $t0 i32) (param $t5 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32)
     ;; (no span)
     local.get $t0

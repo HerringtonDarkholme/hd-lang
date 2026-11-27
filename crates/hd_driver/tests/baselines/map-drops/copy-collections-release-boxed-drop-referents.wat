@@ -3,7 +3,7 @@
 (module
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $rt:drop_elems (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; (no span)
     local.get $t0
@@ -108,7 +108,7 @@
 (module
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $rt:drop_elems (param $t0 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0

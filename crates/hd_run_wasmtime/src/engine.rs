@@ -43,7 +43,9 @@ impl EngineConfig {
                 hd_base::OptLevel::Optimized => OptLevel::Speed,
             },
             compilation_jobs: 1,
-            max_wasm_stack: 4 << 20,
+            // 16 MiB (#2396): reserved address space, touched only as
+            // frames grow, so deep recursion costs nothing until it runs.
+            max_wasm_stack: 16 << 20,
         }
     }
 }

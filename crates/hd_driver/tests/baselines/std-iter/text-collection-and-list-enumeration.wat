@@ -12,7 +12,7 @@
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $text (param $values i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     values.iter().collect()
     local.get $values
@@ -352,7 +352,7 @@
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $text (param $values i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     values.iter().collect()
     local.get $values

@@ -29,7 +29,7 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 | memory | linear memory, reference counts and the cycle collector of crates/hd_wasm/DESIGN.md §23 | same |
 | `epoch_interruption` | on | on |
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
-| `max_wasm_stack` | 4 MiB, on a thread with 8 MiB more native stack | same |
+| `max_wasm_stack` | 16 MiB, on a thread with 8 MiB more native stack | same |
 | allocation strategy | pooling for `hd test` (§18.3); on-demand otherwise | same |
 | parallel compilation | caller-selected, within `--jobs` | caller-selected, within `--jobs` |
 

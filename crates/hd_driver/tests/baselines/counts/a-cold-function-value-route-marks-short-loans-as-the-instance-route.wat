@@ -22,7 +22,7 @@
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 19 funcref))
   (func $main'1 (param $frame i32) (result i32) (local $t4 i32) (local $t10 i32) (local $f.1 i32) (local $t5 i32) (local $f.0 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 27 |     values := box({ "key": "payload" })

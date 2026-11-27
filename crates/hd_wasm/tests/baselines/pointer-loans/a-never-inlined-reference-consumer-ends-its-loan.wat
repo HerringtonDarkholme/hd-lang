@@ -16,7 +16,7 @@
   (import "fixture" "impl[T] List[T].swap[string]" (func $"impl[T] List[T].swap[string]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl[T] List[T].remove[string]" (func $"impl[T] List[T].remove[string]" (param i32 i32) (result i32 i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $slots (param $first.0 i32) (param $first.1 i32) (param $last.0 i32) (param $last.1 i32) (result i32) (local $t3 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 65 |     Slots { items: [first, last] }

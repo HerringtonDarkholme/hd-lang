@@ -8,7 +8,7 @@
   (import "fixture" "impl[T < Ord] List[T].sort[i32]" (func $"impl[T < Ord] List[T].sort[i32]" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $projected (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32)
     ;; 17 |     value.map(fn(entry: (i32, i32)) -> i32: entry._0)
     block

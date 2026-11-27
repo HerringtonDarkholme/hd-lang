@@ -70,7 +70,7 @@
 )
 == @build: checked
 (module
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"recorded[*Score]" (param $value.0 i32) (param $value.1 i32) (result i32) (local $erased.0 i32) (local $t0 i32)
     block
     ;; 18 |     let erased: *dyn Inspectable = box(value)

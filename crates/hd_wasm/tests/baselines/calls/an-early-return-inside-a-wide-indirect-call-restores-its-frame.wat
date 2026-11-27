@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $invoke (param $callback.0 i32) (param $callback.1 i32) (param $result.0.1.1.1.1.1.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     result := callback(value)

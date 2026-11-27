@@ -8,7 +8,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $t2 i64)
     ;; 20 |     let mut xs = [1i64, 2, 3, 4]

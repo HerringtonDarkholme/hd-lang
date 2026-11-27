@@ -41,6 +41,7 @@ import {
   CANCEL_STATUS,
   entryCancel,
   exitPast,
+  PROGRAM_STACK,
   PROGRAM_TIME_LIMIT,
   reportIn,
 } from "./run-support.ts";
@@ -141,6 +142,7 @@ function supervise({
         signalFlag,
       },
       transferList: [port2, outputConnection.port, workerSignals],
+      resourceLimits: PROGRAM_STACK,
     });
     let status: number | null = null;
     let ended = false;

@@ -7,7 +7,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $names (param $xs i32) (result i32 i32 i32) (local $t0 i32)
     ;; 9 |     xs.iter()
     local.get $xs

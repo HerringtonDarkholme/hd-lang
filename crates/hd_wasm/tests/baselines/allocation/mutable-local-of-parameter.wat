@@ -3,7 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $value i64)
     ;; 13 |         if self.at >= self.end:
     local.get $self

@@ -13,7 +13,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $b i32) (local $t2 i32) (local $t3 i32) (local $go i32) (local $value'1 i64) (local $value'2 i64) (local $value'3 i64) (local $t4 i64) (local $t5 i64) (local $offset'1 i32) (local $offset'2 i32) (local $offset'3 i32) (local $size i32) (local $result.0 i32) (local $offset'4 i32)
     ;; 68 |     let b = keep(make(1))
     global.get $stack

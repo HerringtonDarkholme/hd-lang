@@ -7,6 +7,7 @@ const { MessageChannel, Worker, receiveMessageOnPort, workerData } =
   process.getBuiltinModule("node:worker_threads");
 import type { MessagePort } from "node:worker_threads";
 import { Frames, type Link, workerSends } from "./worker-link.ts";
+import { PROGRAM_STACK } from "./run-support.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type Flag = Int32Array<SharedArrayBuffer>;
@@ -126,7 +127,10 @@ export function startThread(
   if (!module || !heap) {
     return false;
   }
-  new Worker(new URL(import.meta.url), { workerData: { hdThread: { module, heap, block } } });
+  new Worker(new URL(import.meta.url), {
+    workerData: { hdThread: { module, heap, block } },
+    resourceLimits: PROGRAM_STACK,
+  });
   return true;
 }
 

@@ -9,7 +9,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width i32) (local $value i64) (local $t0 i64) (local $size i32) (local $t1 i64) (local $result.0 i32) (local $offset i32)
     ;; 36 |     println("${copy(+1)}")
     block

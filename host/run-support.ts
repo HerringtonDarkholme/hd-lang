@@ -4,6 +4,11 @@
 
 export class HostContract extends Error {}
 
+// A worker thread that runs the program's Wasm gets a 16 MiB stack, as the
+// main thread's V8 stack (`hd`'s `--stack-size`) and wasmtime's
+// `max_wasm_stack` (#2396). Node sizes the thread and its V8 limit from it.
+export const PROGRAM_STACK = { stackSizeMb: 16 };
+
 export interface EntryCancel {
   boundMs: number;
   request(): void;

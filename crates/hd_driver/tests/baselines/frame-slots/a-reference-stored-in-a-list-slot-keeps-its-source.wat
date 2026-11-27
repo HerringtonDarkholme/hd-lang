@@ -16,7 +16,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $replaced (param $d i32) (result i32) (local $k i32) (local $t0 i32) (local $ps i32) (local $p i32) (local $q i32) (local $offset'1 i32) (local $size i32) (local $value i64) (local $t1 i64) (local $t2 i64) (local $result.0 i32) (local $offset'2 i32) (local $text.0 i32) (local $text.1 i32)
     ;; 14 |     p := make(k)
     global.get $stack

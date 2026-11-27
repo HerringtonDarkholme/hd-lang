@@ -9,7 +9,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32 i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
     local.get $s.1

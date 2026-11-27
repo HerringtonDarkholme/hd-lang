@@ -12,7 +12,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "heap" (memory $heap 19))
+  (import "fixture" "heap" (memory $heap 131))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $sum i32) (local $out i32) (local $t1 i32) (local $t0 i32) (local $g.1 i32) (local $g.0 i32) (local $result.0 i32) (local $value'1 i64) (local $value'2 i64) (local $t2 i64) (local $t3 i64) (local $offset i32)
     ;; ...
     block

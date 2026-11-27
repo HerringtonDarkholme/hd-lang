@@ -7,7 +7,7 @@
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $fields (param $line.0 i32) (param $line.1 i32) (result i32) (local $n i32) (local $t0 i32) (local $f.1 i32)
     ;; 18 |     for f in line.split(","):
     local.get $line.0

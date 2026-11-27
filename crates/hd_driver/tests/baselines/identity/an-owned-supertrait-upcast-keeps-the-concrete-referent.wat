@@ -70,7 +70,7 @@
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $make (result i32 i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $original.0 i32) (local $t2 i32)
     ;; 13 |     let original: *dyn Error = box(UserError { count: 3 })
     block

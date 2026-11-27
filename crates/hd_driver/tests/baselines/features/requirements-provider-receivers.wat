@@ -15,7 +15,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $run (param $n i64) (result i64) (local $t0 i32) (local $t1 i32)
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })

@@ -5,7 +5,7 @@
   (import "fixture" "impl[T < ?Copy & UnionType] Display for T by Structure.to_string[i32 | string]" (func $"impl[T < ?Copy & UnionType] Display for T by Structure.to_string[i32 | string]" (param i32) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $show (param $t1 i32) (param $t2 i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 9 |     value.to_string()
     global.get $stack
@@ -48,7 +48,7 @@
   (import "fixture" "impl[T < ?Copy & UnionType] Display for T by Structure.to_string[i32 | string]" (func $"impl[T < ?Copy & UnionType] Display for T by Structure.to_string[i32 | string]" (param i32) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $show (param $t1 i32) (param $t2 i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 9 |     value.to_string()
     global.get $stack

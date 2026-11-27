@@ -5,7 +5,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $through_ptr (param $u i32) (result i32)
     ;; 22 |     name_of(u).len()
     local.get $u

@@ -9,7 +9,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), string]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), string]" (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), i32]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), i32]" (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl[S] Describer[S] for Layout.member[(string, i32), string]" (param $self i32) (param $h i32) (local $s i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):

@@ -18,7 +18,7 @@
   (import "fixture" "waker" (global $waker (mut i32)))
   (import "fixture" "wake_bit" (global $wake_bit (mut i32)))
   (import "fixture" "all_polls" (global $all_polls (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $later (result i32) (local $t3 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 9 |     join(ready())

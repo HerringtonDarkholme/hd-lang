@@ -13,7 +13,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $s i64) (local $t2 i32) (local $t3 i32) (local $destination i32) (local $value'1 i64) (local $value'2 i64) (local $t4 i32)
     ;; 7 |     let mut xs = [1i64, 2, 3]
     global.get $stack

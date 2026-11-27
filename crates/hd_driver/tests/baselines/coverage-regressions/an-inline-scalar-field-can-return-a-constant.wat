@@ -2,7 +2,7 @@
 == @build: dev
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $make (param $counter i32) (param $n i32) (param $t2 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 32 |         f0: scalar(counter),
@@ -41,7 +41,7 @@
 == @build: checked
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $make (param $counter i32) (param $n i32) (param $t2 i32) (local $t0 i32) (local $t1 i32)
     block
     ;; 32 |         f0: scalar(counter),
@@ -79,7 +79,7 @@
 )
 == @build: release
 (module
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $make (param $counter i32) (param $n i32) (param $t0 i32)
     ;; 32 |         f0: scalar(counter),
     local.get $counter
@@ -96,7 +96,7 @@
 )
 == @build: release checked
 (module
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $make (param $counter i32) (param $n i32) (param $t0 i32)
     ;; 32 |         f0: scalar(counter),
     local.get $counter

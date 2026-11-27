@@ -26,7 +26,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $local#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i64 i32) (local $t4 i32) (local $t6 i32) (local $t5 i64) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 14 |     run := fn!() -> i64:

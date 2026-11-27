@@ -9,7 +9,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $mk_inner (param $x i32) (param $t0 i32)
     ;; 30 | fn mk_inner(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: x }
     local.get $t0

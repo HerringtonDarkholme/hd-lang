@@ -5,7 +5,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i64]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i64]" (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $build (param $n i64) (result i32 i32 i32) (local $xs.buffer.ptr i32) (local $xs.buffer.capacity i32) (local $xs.len i32) (local $i i64) (local $t1 i32) (local $xs i32) (local $t0 i32)
     ;; 9 |     let mut xs: UniqList[i64] = UniqList::[i64].new()
     global.get $stack

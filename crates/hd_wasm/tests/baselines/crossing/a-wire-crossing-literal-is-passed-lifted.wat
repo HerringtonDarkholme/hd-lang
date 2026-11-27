@@ -7,7 +7,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "crossing_frame[(u32, Image)]" (func $"crossing_frame[(u32, Image)]" (param i64 i32 i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 26 |     println(demo(Image { width: 4, pixels: [1, 2, 3] }, 64))

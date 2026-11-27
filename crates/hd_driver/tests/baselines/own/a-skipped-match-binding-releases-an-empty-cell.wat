@@ -13,7 +13,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $$test0 (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 f64) (local $t0 i32) (local $value i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i64) (local $t10 f64)
     ;; ...
     block
@@ -307,7 +307,7 @@
   (import "fixture" "impl JsonObject.get" (func $"impl JsonObject.get" (param i32 i32 i32) (result i32 i32 i32 i64 f64 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 13 funcref))
   (func $$test0 (local $value.2'1 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $reason.0'2 i32) (local $t1 i64) (local $t0 f64) (local $value i32) (local $value.2'2 i32) (local $value.3 i64) (local $value.4 f64) (local $value.5 i32) (local $reason.0'1 i32) (local $t2 i32) (local $t7 i32)
     ;; ...

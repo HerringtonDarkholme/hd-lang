@@ -7,7 +7,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 14 funcref))
   (func $list_size (param $t1 i32) (result i32) (local $items i32) (local $t0 i32) (local $t2 i32)
     ;; 12 |     read := fn() -> usize: items.len()

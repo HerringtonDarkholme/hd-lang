@@ -22,7 +22,7 @@
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 87 funcref))
   (func $"serve[Table]" (param $frame i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $t6 i32) (param $t7 i32) (param $t8 i64) (param $t9 i32) (param $t10 i32) (param $t11 i32) (param $t12 i32) (result i32 i32) (local $t13 i32) (local $t14 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; (no span)

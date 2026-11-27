@@ -5,7 +5,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $name_of (param $a.0 i32) (param $a.1 i32) (result i32)
     ;; 26 |     a.name().len()

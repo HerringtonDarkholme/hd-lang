@@ -17,7 +17,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 15 funcref))
   (func $counter#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $count i32) (local $t0 i32)
     ;; 15 |     fn!() -> usize:
