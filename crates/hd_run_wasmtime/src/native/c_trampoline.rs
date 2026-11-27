@@ -18,6 +18,10 @@
 //!   executable memory and the instruction cache, where Deno maps its own
 //!   pages with `memmap2`.
 //!
+//! Preflight asks for every bound slot's trampoline before any provider
+//! is created, so a host Cranelift cannot target, or a failed compile,
+//! refuses the run first; linking then finds each one in the cache.
+//!
 //! Cost. Compiling one signature is one Cranelift compile of a function
 //! of `n` loads and one call, linear in `n`. A run compiles at most one
 //! trampoline per distinct signature among the C slots it binds, which is
@@ -80,9 +84,25 @@ struct Cache {
     /// How many times each signature was compiled, for the tests.
     #[cfg(feature = "testing")]
     compiles: HashMap<Sig, usize>,
+    /// The signatures whose compile the tests make fail.
+    #[cfg(feature = "testing")]
+    refused: hd_base::HashSet<Sig>,
 }
 
 static CACHE: Mutex<Option<Cache>> = Mutex::new(None);
+
+impl Cache {
+    fn new() -> Self {
+        Self {
+            module: None,
+            by_sig: HashMap::default(),
+            #[cfg(feature = "testing")]
+            compiles: HashMap::default(),
+            #[cfg(feature = "testing")]
+            refused: hd_base::HashSet::default(),
+        }
+    }
+}
 
 impl Trampoline {
     /// The trampoline of `sig`, compiled once per process.
@@ -92,12 +112,13 @@ impl Trampoline {
     /// When Cranelift has no back end for this host.
     pub fn of(sig: &Sig) -> Result<Arc<Trampoline>, String> {
         let mut cache = CACHE.lock().unwrap_or_else(PoisonError::into_inner);
-        let cache = cache.get_or_insert_with(|| Cache {
-            module: None,
-            by_sig: HashMap::default(),
-            #[cfg(feature = "testing")]
-            compiles: HashMap::default(),
-        });
+        let cache = cache.get_or_insert_with(Cache::new);
+        #[cfg(feature = "testing")]
+        if cache.refused.contains(sig) {
+            return Err(format!(
+                "the C call trampoline of {sig:?}: a compile failure the test asked for"
+            ));
+        }
         if let Some(t) = cache.by_sig.get(sig) {
             return Ok(Arc::clone(t));
         }
@@ -144,6 +165,14 @@ pub fn compiles(sig: &Sig) -> usize {
         .as_ref()
         .and_then(|c| c.compiles.get(sig).copied())
         .unwrap_or(0)
+}
+
+/// Makes every later compile of `sig` fail, as a host Cranelift cannot
+/// target or a failed compile would.
+#[cfg(feature = "testing")]
+pub fn refuse(sig: Sig) {
+    let mut cache = CACHE.lock().unwrap_or_else(PoisonError::into_inner);
+    cache.get_or_insert_with(Cache::new).refused.insert(sig);
 }
 
 /// The host's JIT module.

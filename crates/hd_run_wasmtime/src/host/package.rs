@@ -256,8 +256,9 @@ pub(crate) fn preflight(
 /// interface order (`cli.host.c.entry`, `cli.host.c.check`,
 /// `cli.host.c.create`). A provider runs only with the app manifest's
 /// consent to its trait (`native-two-keys`). Each method must have a slot
-/// the library filled, and a suspending one its abort slot too. Every
-/// check comes before any `create` runs.
+/// the library filled, and a suspending one its abort slot too, and each
+/// slot's C signature gets its trampoline. Every check comes before any
+/// `create` runs.
 ///
 /// Cost: one library open, one symbol probe and one `create` per C-bound
 /// root, and one slot probe per called method.
@@ -308,6 +309,21 @@ pub(crate) fn c_preflight(
                 "the C provider `{}` of package `{}` leaves the {what} of {name:?}'s method `{}` empty",
                 library.name, library.package, m.member
             )));
+        }
+        // Each called slot's trampoline, and the abort slots' one, now: a
+        // host Cranelift cannot target, or a failed compile, refuses the
+        // run before any `create`. Linking finds them in the cache.
+        let mut suspends = false;
+        for m in &interface.methods {
+            let Some(&(_, row)) = c.slots.get(&m.name) else {
+                continue;
+            };
+            let row = &c.table.methods[row];
+            suspends |= row.suspends;
+            Trampoline::of(&c_sig(row)).map_err(|why| refused(format!("{name:?}: {why}")))?;
+        }
+        if suspends {
+            Trampoline::of(&abort_sig()).map_err(|why| refused(format!("{name:?}: {why}")))?;
         }
         Ok(())
     };

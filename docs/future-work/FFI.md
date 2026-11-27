@@ -421,7 +421,7 @@ Rules this design revises, quoted:
 
 | Part | As built |
 | --- | --- |
-| calls | from step 6, each slot is called through a Cranelift trampoline of its C signature, compiled once per process (`native/c_trampoline.rs`); there is no limit on arguments and no target list beyond Cranelift's (decision 16, resolved) |
+| calls | from step 6, each slot is called through a Cranelift trampoline of its C signature, compiled once per process (`native/c_trampoline.rs`) and planned in preflight, so a host Cranelift cannot target refuses the run before any `create`; there is no limit on arguments and no target list beyond Cranelift's (decision 16, resolved) |
 | `!` methods | step 5 binds them; see [Step 5 As Built](#step-5-as-built) |
 | pointer arguments | a reference to a number, or to a list of numbers, must lie in the guest heap at a multiple of its number type's size; otherwise the call fails with `host-contract`, "misaligned C pointer argument", as the JavaScript glue words it ([`module.host.package.c-aligned`](../../spec/lang/10-modules.md#r-module.host.package.c-aligned)) |
 | `hd test` | from step 4b, a Wasmtime test run binds the C providers of the programs its tests run by name; a Node run, and a test case's own module, bind none |
