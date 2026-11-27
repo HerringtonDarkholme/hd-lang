@@ -33,10 +33,16 @@ fn indexed_names(extra: &UniverseImpls, at: TableAt, name: Symbol) -> Vec<DefId>
         hidden: Unseen::default(),
         plans: None,
     };
+    let codes = [Some(HeadKey::Any.code()), None, None];
+    // No own table and no unit's: only the universe's tables have rows.
+    assert_eq!(
+        Impls::Owned(&view).tables_at(codes),
+        [TableAt::Unowned, TableAt::Directory]
+    );
     let mut found = Vec::new();
     Impls::Owned(&view).traits_named(
         at,
-        [Some(HeadKey::Any.code()), None, None],
+        codes,
         name,
         &|_, _| panic!("indexed contributions must not rebuild a name index"),
         &mut found,

@@ -2941,4 +2941,64 @@ mod origin_tests {
         assert_eq!(mapped.1, 0);
         validate_void_block_fixture(&f);
     }
+
+    /// `x %u 2^k` is `x & (2^k - 1)`; `x /u 2^k` stays a shift.
+    #[test]
+    fn fold_turns_an_unsigned_remainder_by_a_power_of_two_into_a_mask() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let mut f = tracked(
+            &symbols,
+            1,
+            0,
+            vec![op(I::LocalGet(0)), op(I::I32Const(8)), op(I::I32RemU)],
+        );
+        assert!(fold(&mut f));
+        assert_eq!(
+            format!("{:?}", f.body),
+            format!(
+                "{:?}",
+                [op(I::LocalGet(0)), op(I::I32Const(7)), op(I::I32And)]
+            )
+        );
+        assert!(!fold(&mut f));
+    }
+
+    /// A dropped `select` of three reads leaves no code: it takes three
+    /// operands and has no other effect.
+    #[test]
+    fn drops_take_back_a_discarded_select_and_its_operands() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let mut f = tracked(
+            &symbols,
+            2,
+            0,
+            vec![
+                op(I::LocalGet(0)),
+                op(I::LocalGet(1)),
+                op(I::LocalGet(0)),
+                op(I::Select),
+                op(I::Drop),
+            ],
+        );
+        assert!(drops(&mut f));
+        assert!(f.body.is_empty(), "{:?}", f.body);
+    }
+
+    /// A cell's drop is called before the drain defines it: its declared
+    /// shape is its payload's address; once defined, its own signature.
+    #[test]
+    fn call_arities_know_a_cell_drop_before_its_definition() {
+        let symbols = Symbols::default();
+        let drop = symbols.intern(Sym::CellDrop(Hash128(3)));
+        assert_eq!(symbols.call_arities(&[])[drop.idx()], Some((1, 0)));
+        let mut functions = vec![None; symbols.len()];
+        functions[drop.idx()] = Some(hd_wasm::testing::module::Module::default().func(
+            "cell",
+            vec![Val::I32, Val::I32],
+            vec![Val::I32],
+        ));
+        assert_eq!(symbols.call_arities(&functions)[drop.idx()], Some((2, 1)));
+    }
 }

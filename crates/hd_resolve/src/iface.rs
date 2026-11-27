@@ -1486,9 +1486,6 @@ impl<'a> Lookup<'a> {
     pub fn interface_satisfies(&self, d: DefId, test: impl Fn(&Item) -> bool) -> bool {
         match self.index.location(d) {
             IfaceIndex::AMBIGUOUS => self.ifaces.iter().any(|f| f.item(d).is_some_and(&test)),
-            IfaceIndex::MISSING if d == DefId::NONE => {
-                self.ifaces.iter().any(|f| f.item(d).is_some_and(&test))
-            }
             _ => self.interface_item(d).is_some_and(test),
         }
     }
@@ -2653,7 +2650,11 @@ impl Items {
         self.defs.len()
     }
 
+    /// Out of line, so its coverage counters are this crate's: a copy
+    /// inlined into a caller's crate (a release build's small functions)
+    /// counts apart.
     #[must_use]
+    #[inline(never)]
     pub fn is_empty(&self) -> bool {
         self.defs.is_empty()
     }

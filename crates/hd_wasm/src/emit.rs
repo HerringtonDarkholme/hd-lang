@@ -104,7 +104,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         // A promoted copy borrows what it takes by value (§23.40).
         lends: input.env.lends(item, args)
             | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
-        indirect: indirect::params(input, m, id),
+        indirect: indirect::params(m, id),
     };
     let Some(abi) = own.indirect.clone() else {
         return body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b);

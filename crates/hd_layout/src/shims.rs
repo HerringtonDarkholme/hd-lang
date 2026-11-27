@@ -759,11 +759,8 @@ impl Writer<'_> {
                 if self.counts.of(self.pool, self.env, f)? != Count::None {
                     let p = self.b.payload(v, k, j, f, n);
                     self.borrow(p);
-                    self.part(
-                        f,
-                        Src::Val(p),
-                        &step(path, &[Proj::Variant(k), Proj::Field(j)]),
-                    )?;
+                    let at = step(path, &[Proj::Variant(k), Proj::Field(j)]);
+                    self.part(f, Src::Val(p), &at)?;
                 }
             }
             let arm = self.b.close_block(arm, None, Ty::VOID, n);
