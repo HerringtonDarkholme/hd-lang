@@ -330,9 +330,12 @@ impl Wire for ValType {
             ValType::I64 => 1,
             ValType::F32 => 2,
             ValType::F64 => 3,
-            // ruled out: hd's bodies hold no vector or reference value
-            // (`hd_layout::Val` has the four scalars only).
-            ValType::V128 | ValType::Ref(_) => unreachable!("a vector or reference value type"),
+            // The listing has the four scalars `hd_layout::Val` has: a
+            // unit that names another type is emitted again each link.
+            ValType::V128 | ValType::Ref(_) => {
+                o.unstorable = true;
+                4
+            }
         });
     }
     fn get(i: &mut In<'_>) -> Option<Self> {

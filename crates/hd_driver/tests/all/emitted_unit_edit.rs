@@ -142,6 +142,11 @@ fn the_merge_of_units_is_linear_in_the_program() {
     assert_eq!(b - a, c - b, "{a} {b} {c}");
 }
 
+/// The one file of `source`, as `main.hd`.
+fn main_file(source: &str) -> Vec<(String, String)> {
+    vec![("main.hd".to_owned(), source.to_owned())]
+}
+
 /// `use_a` calls `a` through a trait value and `use_b` calls `b`, a later
 /// method of the same trait. Once a vtable keeps only the slots some call
 /// through a trait value names (#2415, #2420), `b`'s slot index depends
@@ -150,27 +155,20 @@ fn the_merge_of_units_is_linear_in_the_program() {
 /// build's of the edited source.
 #[test]
 fn removing_the_only_dyn_call_of_a_method_emits_the_dyn_calls_of_its_trait() {
-    let files = |use_a: &str| {
-        vec![(
-            "main.hd".to_owned(),
-            format!(
-                "trait Shape:\n    fn a(&self) -> i64\n    fn b(&self) -> i64\n\n\
-                 struct Sq:\n    k: i64\n\n\
-                 impl Shape for Sq:\n    fn a(&self) -> i64:\n        self.k\n    fn b(&self) -> i64:\n        self.k + 1\n\n\
-                 fn use_a(s: &dyn Shape) -> i64:\n    {use_a}\n\n\
-                 fn use_b(s: &dyn Shape) -> i64:\n    s.b()\n\n\
-                 pub fn main() -> void $ Console:\n    s := Sq {{ k: 2 }}\n    println(\"${{use_a(&s)}} ${{use_b(&s)}}\")\n"
-            ),
-        )]
-    };
+    let source = include_str!("programs/emitted_unit_edit/two_dyn_callers.hd");
+    // `use_a` returns 1: `a` loses its only call through `dyn Shape`.
+    let edited = source.replacen("    s.a()", "    1", 1);
+    assert_ne!(source, edited, "the edit applies");
     let store = MemoryStore::default();
-    build(&store, &files("s.a()"));
-    let edited = files("1");
-    let warm = build(&store, &edited);
+    build(&store, &main_file(source));
+    let warm = build(&store, &main_file(&edited));
     let emitted = own_emitted(&warm);
     assert!(emitted.contains(&"own/main/use_a"), "{emitted:?}");
     assert!(emitted.contains(&"own/main/use_b"), "{emitted:?}");
-    assert_eq!(warm.wasm, build(&MemoryStore::default(), &edited).wasm);
+    assert_eq!(
+        warm.wasm,
+        build(&MemoryStore::default(), &main_file(&edited)).wasm
+    );
 }
 
 /// `widen` makes no dyn call: it reads `Base`'s table from a `dyn Child`
@@ -180,27 +178,17 @@ fn removing_the_only_dyn_call_of_a_method_emits_the_dyn_calls_of_its_trait() {
 /// slot facts, `Collected::slot_facts`).
 #[test]
 fn dropping_a_child_traits_only_called_slot_emits_its_widenings_again() {
-    let files = |use_extra: &str| {
-        vec![(
-            "main.hd".to_owned(),
-            format!(
-                "trait Base:\n    fn read(&self) -> i64\n\n\
-                 trait Child < Base:\n    fn extra(&self) -> i64\n\n\
-                 struct Sq:\n    k: i64\n\n\
-                 impl Base for Sq:\n    fn read(&self) -> i64:\n        self.k\n\n\
-                 impl Child for Sq:\n    fn extra(&self) -> i64:\n        self.k + 1\n\n\
-                 fn widen(c: &dyn Child) -> &dyn Base:\n    c\n\n\
-                 fn use_extra(c: &dyn Child) -> i64:\n    {use_extra}\n\n\
-                 pub fn main() -> void $ Console:\n    s := Sq {{ k: 2 }}\n    \
-                 println(\"${{widen(&s).read()}} ${{use_extra(&s)}}\")\n"
-            ),
-        )]
-    };
+    let source = include_str!("programs/emitted_unit_edit/child_widening.hd");
+    // `use_extra` returns 1: `extra` loses its only call.
+    let edited = source.replacen("    c.extra()", "    1", 1);
+    assert_ne!(source, edited, "the edit applies");
     let store = MemoryStore::default();
-    build(&store, &files("c.extra()"));
-    let edited = files("1");
-    let warm = build(&store, &edited);
+    build(&store, &main_file(source));
+    let warm = build(&store, &main_file(&edited));
     let emitted = own_emitted(&warm);
     assert!(emitted.contains(&"own/main/widen"), "{emitted:?}");
-    assert_eq!(warm.wasm, build(&MemoryStore::default(), &edited).wasm);
+    assert_eq!(
+        warm.wasm,
+        build(&MemoryStore::default(), &main_file(&edited)).wasm
+    );
 }

@@ -1,0 +1,28 @@
+## `widen` widens `&dyn Child` to `&dyn Base` with no dyn call; `use_extra`
+## makes the only call of `Child.extra`.
+trait Base:
+    fn read(&self) -> i64
+
+trait Child < Base:
+    fn extra(&self) -> i64
+
+struct Sq:
+    k: i64
+
+impl Base for Sq:
+    fn read(&self) -> i64:
+        self.k
+
+impl Child for Sq:
+    fn extra(&self) -> i64:
+        self.k + 1
+
+fn widen(c: &dyn Child) -> &dyn Base:
+    c
+
+fn use_extra(c: &dyn Child) -> i64:
+    c.extra()
+
+pub fn main() -> void $ Console:
+    s := Sq { k: 2 }
+    println("${widen(&s).read()} ${use_extra(&s)}")
