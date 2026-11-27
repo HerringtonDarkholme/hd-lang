@@ -2986,126 +2986,23 @@ pub fn drops(f: &mut Func) -> bool {
 /// else (it cannot trap, a load aside, which rule 15 covers); `None` for
 /// any other instruction.
 fn pure_operands(i: &I) -> Option<usize> {
-    Some(match i {
-        I::LocalGet(_)
-        | I::I32Const(_)
-        | I::I64Const(_)
-        | I::F32Const(_)
-        | I::F64Const(_)
-        | I::MemorySize(_) => 0,
-        _ if is_load(i) => 1,
-        I::I32Eqz
-        | I::I64Eqz
-        | I::I32Clz
-        | I::I32Ctz
-        | I::I32Popcnt
-        | I::I64Clz
-        | I::I64Ctz
-        | I::I64Popcnt
-        | I::I32Extend8S
-        | I::I32Extend16S
-        | I::I32WrapI64
-        | I::I64ExtendI32S
-        | I::I64ExtendI32U
-        | I::I32ReinterpretF32
-        | I::I64ReinterpretF64
-        | I::F32ReinterpretI32
-        | I::F64ReinterpretI64
-        | I::I32TruncSatF32S
-        | I::I32TruncSatF32U
-        | I::I32TruncSatF64S
-        | I::I32TruncSatF64U
-        | I::I64TruncSatF32S
-        | I::I64TruncSatF32U
-        | I::I64TruncSatF64S
-        | I::I64TruncSatF64U
-        | I::F32ConvertI32S
-        | I::F32ConvertI32U
-        | I::F32ConvertI64S
-        | I::F32ConvertI64U
-        | I::F64ConvertI32S
-        | I::F64ConvertI32U
-        | I::F64ConvertI64S
-        | I::F64ConvertI64U
-        | I::F32DemoteF64
-        | I::F64PromoteF32
-        | I::F32Neg
-        | I::F64Neg
-        | I::F32Abs
-        | I::F64Abs
-        | I::F32Trunc
-        | I::F64Trunc
-        | I::F32Floor
-        | I::F64Floor
-        | I::F32Ceil
-        | I::F64Ceil
-        | I::F32Nearest
-        | I::F64Nearest
-        | I::F32Sqrt
-        | I::F64Sqrt => 1,
-        I::I32Add
-        | I::I32Sub
-        | I::I32Mul
-        | I::I32And
-        | I::I32Or
-        | I::I32Xor
-        | I::I32Shl
-        | I::I32ShrS
-        | I::I32ShrU
-        | I::I32Eq
-        | I::I32Ne
-        | I::I32LtS
-        | I::I32LtU
-        | I::I32GtS
-        | I::I32GtU
-        | I::I32LeS
-        | I::I32LeU
-        | I::I32GeS
-        | I::I32GeU
-        | I::I64Add
-        | I::I64Sub
-        | I::I64Mul
-        | I::I64And
-        | I::I64Or
-        | I::I64Xor
-        | I::I64Shl
-        | I::I64ShrS
-        | I::I64ShrU
-        | I::I64Eq
-        | I::I64Ne
-        | I::I64LtS
-        | I::I64LtU
-        | I::I64GtS
-        | I::I64GtU
-        | I::I64LeS
-        | I::I64LeU
-        | I::I64GeS
-        | I::I64GeU
-        | I::F32Add
-        | I::F32Sub
-        | I::F32Mul
-        | I::F32Div
-        | I::F32Copysign
-        | I::F32Eq
-        | I::F32Ne
-        | I::F32Lt
-        | I::F32Gt
-        | I::F32Le
-        | I::F32Ge
-        | I::F64Add
-        | I::F64Sub
-        | I::F64Mul
-        | I::F64Div
-        | I::F64Copysign
-        | I::F64Eq
-        | I::F64Ne
-        | I::F64Lt
-        | I::F64Gt
-        | I::F64Le
-        | I::F64Ge => 2,
-        I::Select => 3,
-        _ => return None,
-    })
+    let traps_or_writes = matches!(
+        i,
+        I::I32DivS
+            | I::I32DivU
+            | I::I32RemS
+            | I::I32RemU
+            | I::I64DivS
+            | I::I64DivU
+            | I::I64RemS
+            | I::I64RemU
+            | I::LocalTee(_)
+            | I::MemoryGrow(_)
+    );
+    match op_effect(i)? {
+        (pops, 1) if !traps_or_writes => Some(pops),
+        _ => None,
+    }
 }
 
 /// Rules 8 and 9 operate on straight-line stack effects. Schedule the
@@ -3395,137 +3292,143 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             let signature = symbols.signature(*id);
             (signature.0.len() + 1, signature.1.len())
         }
-        Ins::Op(op) => match op {
-            I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_) => {
-                (0, 1)
-            }
-            I::LocalTee(_) => (1, 1),
-            I::LocalSet(_) | I::Drop => (1, 0),
-            I::Select => (3, 1),
-            I::I32Eqz
-            | I::I64Eqz
-            | I::I32WrapI64
-            | I::I64ExtendI32S
-            | I::I64ExtendI32U
-            | I::I32Clz
-            | I::I64Clz
-            | I::I32Ctz
-            | I::I64Ctz
-            | I::I32Popcnt
-            | I::I64Popcnt
-            | I::I32Extend8S
-            | I::I32Extend16S
-            | I::I32ReinterpretF32
-            | I::I64ReinterpretF64
-            | I::F32ReinterpretI32
-            | I::F64ReinterpretI64
-            | I::I32TruncSatF32S
-            | I::I32TruncSatF32U
-            | I::I32TruncSatF64S
-            | I::I32TruncSatF64U
-            | I::I64TruncSatF32S
-            | I::I64TruncSatF32U
-            | I::I64TruncSatF64S
-            | I::I64TruncSatF64U
-            | I::F32ConvertI32S
-            | I::F32ConvertI32U
-            | I::F32ConvertI64S
-            | I::F32ConvertI64U
-            | I::F64ConvertI32S
-            | I::F64ConvertI32U
-            | I::F64ConvertI64S
-            | I::F64ConvertI64U
-            | I::F32DemoteF64
-            | I::F64PromoteF32
-            | I::F32Neg
-            | I::F64Neg
-            | I::F32Abs
-            | I::F64Abs
-            | I::F32Trunc
-            | I::F64Trunc
-            | I::F32Floor
-            | I::F64Floor
-            | I::F32Ceil
-            | I::F64Ceil
-            | I::F32Nearest
-            | I::F64Nearest
-            | I::F32Sqrt
-            | I::F64Sqrt
-            | I::MemoryGrow(_) => (1, 1),
-            I::MemorySize(_) => (0, 1),
-            I::MemoryCopy { .. } | I::MemoryFill(_) => (3, 0),
-            I::I32Add
-            | I::I32Sub
-            | I::I32Mul
-            | I::I32And
-            | I::I32Or
-            | I::I32Xor
-            | I::I32Shl
-            | I::I32ShrU
-            | I::I32ShrS
-            | I::I32Eq
-            | I::I32Ne
-            | I::I32LtU
-            | I::I32LtS
-            | I::I32GtU
-            | I::I32GtS
-            | I::I32LeU
-            | I::I32LeS
-            | I::I32GeU
-            | I::I32GeS
-            | I::I64Add
-            | I::I64Sub
-            | I::I64Mul
-            | I::I64And
-            | I::I64Or
-            | I::I64Xor
-            | I::I64Shl
-            | I::I64ShrU
-            | I::I64ShrS
-            | I::I64Eq
-            | I::I64Ne
-            | I::I64LtU
-            | I::I64LtS
-            | I::I64GtU
-            | I::I64GtS
-            | I::I64LeU
-            | I::I64LeS
-            | I::I64GeU
-            | I::I64GeS
-            | I::I32DivS
-            | I::I32DivU
-            | I::I32RemS
-            | I::I32RemU
-            | I::I64DivS
-            | I::I64DivU
-            | I::I64RemS
-            | I::I64RemU
-            | I::F32Add
-            | I::F32Sub
-            | I::F32Mul
-            | I::F32Div
-            | I::F32Copysign
-            | I::F32Eq
-            | I::F32Ne
-            | I::F32Lt
-            | I::F32Gt
-            | I::F32Le
-            | I::F32Ge
-            | I::F64Add
-            | I::F64Sub
-            | I::F64Mul
-            | I::F64Div
-            | I::F64Copysign
-            | I::F64Eq
-            | I::F64Ne
-            | I::F64Lt
-            | I::F64Gt
-            | I::F64Le
-            | I::F64Ge => (2, 1),
-            other if is_load(other) => (1, 1),
-            other if with_offset(other, 0).is_some() => (2, 0),
-            _ => return None,
-        },
+        Ins::Op(op) => op_effect(op)?,
+        _ => return None,
+    })
+}
+
+/// What plain instruction `op` pops and pushes; `None` for control and
+/// for anything this table does not know.
+fn op_effect(op: &I) -> Option<(usize, usize)> {
+    Some(match op {
+        I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_) => {
+            (0, 1)
+        }
+        I::LocalTee(_) => (1, 1),
+        I::LocalSet(_) | I::Drop => (1, 0),
+        I::Select => (3, 1),
+        I::I32Eqz
+        | I::I64Eqz
+        | I::I32WrapI64
+        | I::I64ExtendI32S
+        | I::I64ExtendI32U
+        | I::I32Clz
+        | I::I64Clz
+        | I::I32Ctz
+        | I::I64Ctz
+        | I::I32Popcnt
+        | I::I64Popcnt
+        | I::I32Extend8S
+        | I::I32Extend16S
+        | I::I32ReinterpretF32
+        | I::I64ReinterpretF64
+        | I::F32ReinterpretI32
+        | I::F64ReinterpretI64
+        | I::I32TruncSatF32S
+        | I::I32TruncSatF32U
+        | I::I32TruncSatF64S
+        | I::I32TruncSatF64U
+        | I::I64TruncSatF32S
+        | I::I64TruncSatF32U
+        | I::I64TruncSatF64S
+        | I::I64TruncSatF64U
+        | I::F32ConvertI32S
+        | I::F32ConvertI32U
+        | I::F32ConvertI64S
+        | I::F32ConvertI64U
+        | I::F64ConvertI32S
+        | I::F64ConvertI32U
+        | I::F64ConvertI64S
+        | I::F64ConvertI64U
+        | I::F32DemoteF64
+        | I::F64PromoteF32
+        | I::F32Neg
+        | I::F64Neg
+        | I::F32Abs
+        | I::F64Abs
+        | I::F32Trunc
+        | I::F64Trunc
+        | I::F32Floor
+        | I::F64Floor
+        | I::F32Ceil
+        | I::F64Ceil
+        | I::F32Nearest
+        | I::F64Nearest
+        | I::F32Sqrt
+        | I::F64Sqrt
+        | I::MemoryGrow(_) => (1, 1),
+        I::MemorySize(_) => (0, 1),
+        I::MemoryCopy { .. } | I::MemoryFill(_) => (3, 0),
+        I::I32Add
+        | I::I32Sub
+        | I::I32Mul
+        | I::I32And
+        | I::I32Or
+        | I::I32Xor
+        | I::I32Shl
+        | I::I32ShrU
+        | I::I32ShrS
+        | I::I32Eq
+        | I::I32Ne
+        | I::I32LtU
+        | I::I32LtS
+        | I::I32GtU
+        | I::I32GtS
+        | I::I32LeU
+        | I::I32LeS
+        | I::I32GeU
+        | I::I32GeS
+        | I::I64Add
+        | I::I64Sub
+        | I::I64Mul
+        | I::I64And
+        | I::I64Or
+        | I::I64Xor
+        | I::I64Shl
+        | I::I64ShrU
+        | I::I64ShrS
+        | I::I64Eq
+        | I::I64Ne
+        | I::I64LtU
+        | I::I64LtS
+        | I::I64GtU
+        | I::I64GtS
+        | I::I64LeU
+        | I::I64LeS
+        | I::I64GeU
+        | I::I64GeS
+        | I::I32DivS
+        | I::I32DivU
+        | I::I32RemS
+        | I::I32RemU
+        | I::I64DivS
+        | I::I64DivU
+        | I::I64RemS
+        | I::I64RemU
+        | I::F32Add
+        | I::F32Sub
+        | I::F32Mul
+        | I::F32Div
+        | I::F32Copysign
+        | I::F32Eq
+        | I::F32Ne
+        | I::F32Lt
+        | I::F32Gt
+        | I::F32Le
+        | I::F32Ge
+        | I::F64Add
+        | I::F64Sub
+        | I::F64Mul
+        | I::F64Div
+        | I::F64Copysign
+        | I::F64Eq
+        | I::F64Ne
+        | I::F64Lt
+        | I::F64Gt
+        | I::F64Le
+        | I::F64Ge => (2, 1),
+        other if is_load(other) => (1, 1),
+        other if with_offset(other, 0).is_some() => (2, 0),
         _ => return None,
     })
 }
