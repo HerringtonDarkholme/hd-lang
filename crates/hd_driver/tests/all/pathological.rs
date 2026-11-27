@@ -4717,6 +4717,84 @@ fn a_nested_tuple_release_emits_no_unused_count_shims() {
     });
 }
 
+/// `n` functions, each called once from `main` as `t = f0000(t)`: the
+/// scale check's `fn-items`.
+fn fn_items(n: usize) -> String {
+    let mut s = String::new();
+    for k in 0..n {
+        let _ = writeln!(s, "fn f{k:04}(x: i32) -> i32: x + 3\n");
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    t = f{k:04}(t)");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` closures of `main`, each capturing `t` and called once: the scale
+/// check's `closures`.
+fn closure_items(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    c{k} := fn(x: i32) -> i32: x + t\n    t = c{k}(+1)");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Verifier: #2444, the read-after-move walk kept one state bit per move
+// site, so each `Store` of a local refilled, and each read of it checked,
+// every move of that local in the body: `main`'s n `t = f0000(t)` cost
+// O(n^2). The walk now keeps one bit per moved place, as rustc's
+// `MaybeUninitializedPlaces` keeps one per `MovePathIndex`. Its place
+// index was one for the body, so each of n closures' reads of `t` visited
+// every closure's path of `t`: it is now one per sub-body.
+#[test]
+fn moves_of_one_place_verify_in_linear_place_work() {
+    use hd_driver::{Packages, build_packages};
+    on_test_stack(|| {
+        let work = |program: fn(usize) -> String, n: usize| {
+            let mut src = MemorySources::default();
+            let text = program(n);
+            src.insert("main.hd", &text);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let packages = Packages {
+                verify_own: true,
+                ..Packages::default()
+            };
+            let goal = Goal::Program {
+                entry: "main".into(),
+            };
+            let (out, work) = hd_tir::work::count_empty_place_work(|| {
+                build_packages(&host, "app", &packages, &goal)
+            });
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        // The first build verifies std's bodies into the shared store.
+        work(fn_items, 0);
+        for (name, program) in [
+            ("functions", fn_items as fn(usize) -> String),
+            ("closures", closure_items),
+        ] {
+            let (n1, n4, n16) = (work(program, 25), work(program, 100), work(program, 400));
+            let (small, large) = (n4 - n1, n16 - n4);
+            assert!(
+                small > 0 && large <= 5 * small,
+                "place-verifier work from 25 to 100 and from 100 to 400 {name}: {small} and {large}"
+            );
+        }
+    });
+}
+
 // Emit: #2402, a tuple literal stored each part in fresh locals, so a
 // nest of `n` literals copied each level's whole suffix again: O(n^2)
 // locals and instructions before the link's coalescing removed them,
