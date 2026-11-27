@@ -1,0 +1,35 @@
+# @dump: functions stdout
+# @build: dev | checked | release | release checked
+# An unknown stored await in the second provider keeps the drive slot pending-capable.
+use std.meta.inline
+
+trait Read:
+    fn read!(&self) -> i32
+
+struct Ready:
+    value: i32
+
+impl Read for Ready:
+    fn read!(&self) -> i32:
+        self.value
+
+@inline(.Never)
+fn read!() -> i32 $ Read:
+    $.use(Read).read!()
+
+struct Pending:
+    job: Suspend[i32]
+
+impl Read for Pending:
+    fn read!(&self) -> i32:
+        work := self.job
+        work!()
+
+fn value!() -> i32:
+    9
+
+pub fn main!() -> void $ Console:
+    $.with(Read=box(Ready { value: 7 })):
+        println(read!())
+    $.with(Read=box(Pending { job: value() })):
+        println(read!())

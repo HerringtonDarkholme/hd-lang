@@ -2839,6 +2839,9 @@ impl Em<'_, '_, '_> {
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
                 match susp::ready_callee(self.input, self.calls, self.b, i) {
                     Some(t) => self.await_ready(i, t.key, t.item, t.args)?,
+                    None if susp::ready_slot(self.input, self.calls, self.b, i) => {
+                        self.await_ready_slot(i, a)?;
+                    }
                     None => self.point(i, a, bw)?,
                 }
             }
