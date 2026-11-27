@@ -4,7 +4,7 @@
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
 //! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
 //! package host trait selects Node before startup unless `--engine` names
-//! Wasmtime, which needs an embedding native provider. Tests use shared
+//! Wasmtime, or every one has a C provider, which selects Wasmtime. Tests use shared
 //! prepared programs and typed named children on Wasmtime, while Node
 //! keeps its existing subprocess protocol.
 //!
@@ -325,30 +325,45 @@ impl Choice {
 
     /// The engine that runs a module whose package host contract is
     /// `contract`, decided once before the module loads
-    /// (`cli.host.package.native-cli-startup`). `hd` registers no native
-    /// provider, so a module with a root host interface runs on Node unless
-    /// `--engine` named Wasmtime, which is refused, naming the trait
-    /// (`native-cli`, `native-cli-explicit`). Cost: one pass over the
-    /// contract's interfaces, which the caller decoded once for the run.
+    /// (`cli.host.package.native-cli-startup`); `c` holds the import
+    /// modules of its C-bound root interfaces (`hd_host_abi::c`). With no
+    /// `--engine`, a module whose every root interface has a C provider
+    /// runs on Wasmtime, in a build that has it, and any other module with
+    /// a root interface on Node (`native-cli-node`). A named Wasmtime
+    /// refuses a root interface no C provider serves, naming the trait:
+    /// `hd` registers no other native provider (`native-cli`,
+    /// `native-cli-explicit`). Cost: one pass over the contract's
+    /// interfaces, which the caller decoded once for the run, with one
+    /// probe of `c` each.
     pub(crate) fn for_module(
         self,
         contract: Option<&hd_host_abi::schema::Contract>,
+        c: &std::collections::BTreeSet<String>,
     ) -> Result<EngineKind, String> {
-        if self.kind == EngineKind::Node {
-            return Ok(EngineKind::Node);
-        }
-        let Some(root) = contract.and_then(|c| c.interfaces.iter().find(|i| !i.handle)) else {
+        let mut roots = contract
+            .into_iter()
+            .flat_map(|c| &c.interfaces)
+            .filter(|i| !i.handle)
+            .peekable();
+        if roots.peek().is_none() {
             return Ok(self.kind);
-        };
-        if !self.named {
-            return Ok(EngineKind::Node);
         }
-        Err(format!(
-            "no native provider registered for package host trait {:?}: `hd` registers none, \
-             so `--engine wasmtime` cannot run this program; a native provider needs a Rust \
-             program that embeds `hd_run_wasmtime`, and without `--engine`, `hd` runs it on Node",
-            root.identity.to_string()
-        ))
+        let uncovered = roots.find(|i| !c.contains(&i.module));
+        if !self.named {
+            return Ok(match uncovered {
+                None if cfg!(feature = "wasmtime") => EngineKind::Wasmtime,
+                _ => EngineKind::Node,
+            });
+        }
+        match (self.kind, uncovered) {
+            (EngineKind::Node, _) | (EngineKind::Wasmtime, None) => Ok(self.kind),
+            (EngineKind::Wasmtime, Some(root)) => Err(format!(
+                "no native provider registered for package host trait {:?}: it has no C provider, \
+                 so `--engine wasmtime` cannot run this program; another native provider needs a Rust \
+                 program that embeds `hd_run_wasmtime`, and without `--engine`, `hd` runs it on Node",
+                root.identity.to_string()
+            )),
+        }
     }
 }
 
@@ -375,7 +390,7 @@ pub(crate) fn run(
     level: OptLevel,
     image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
-    providers: &[crate::node::HostProvider],
+    (providers, c): (&[crate::node::HostProvider], &[crate::node::CLibrary]),
     sampling: Option<&Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
@@ -396,8 +411,9 @@ pub(crate) fn run(
             Ok((outcome, frames))
         }
         EngineKind::Wasmtime => {
-            // The native engine refuses reachable package traits before guest start.
-            wasmtime::run_program(level, image, host, sampling)
+            // The native engine binds the C providers `c` and refuses any
+            // other reachable package trait before guest start.
+            wasmtime::run_program(level, image, host, c, sampling)
         }
     }
 }
@@ -1009,28 +1025,55 @@ mod tests {
         };
         let env = |kind| Choice { kind, named: false };
         let named = Choice::named;
+        let none = std::collections::BTreeSet::new();
         for choice in [env(EngineKind::Wasmtime), named(EngineKind::Wasmtime)] {
-            assert_eq!(choice.for_module(None), Ok(EngineKind::Wasmtime));
-            assert_eq!(choice.for_module(Some(&handles)), Ok(EngineKind::Wasmtime));
+            assert_eq!(choice.for_module(None, &none), Ok(EngineKind::Wasmtime));
+            assert_eq!(
+                choice.for_module(Some(&handles), &none),
+                Ok(EngineKind::Wasmtime)
+            );
         }
         for choice in [env(EngineKind::Node), named(EngineKind::Node)] {
-            assert_eq!(choice.for_module(None), Ok(EngineKind::Node));
-            assert_eq!(choice.for_module(Some(&rooted)), Ok(EngineKind::Node));
+            assert_eq!(choice.for_module(None, &none), Ok(EngineKind::Node));
+            assert_eq!(
+                choice.for_module(Some(&rooted), &none),
+                Ok(EngineKind::Node)
+            );
         }
         // Unnamed: Node, decided from the contract alone.
         assert_eq!(
-            env(EngineKind::Wasmtime).for_module(Some(&rooted)),
+            env(EngineKind::Wasmtime).for_module(Some(&rooted), &none),
             Ok(EngineKind::Node)
         );
         // Named: refused, naming the root trait and how to provide it.
         let error = named(EngineKind::Wasmtime)
-            .for_module(Some(&rooted))
+            .for_module(Some(&rooted), &none)
             .unwrap_err();
         assert!(error.contains("\"sdk@1.2.0/Server\""), "{error}");
         assert!(error.contains("embeds `hd_run_wasmtime`"), "{error}");
         assert_eq!(Choice::default(), env(EngineKind::default()));
         assert_eq!(
-            Choice::default().for_module(Some(&rooted)),
+            Choice::default().for_module(Some(&rooted), &none),
+            Ok(EngineKind::Node)
+        );
+        // `native-cli-node`, as decision 7 revises it: unnamed, a module whose
+        // every root has a C provider runs on Wasmtime in a build that has
+        // it, whatever `HD_ENGINE` says; a named Wasmtime runs it too.
+        let c: std::collections::BTreeSet<String> = ["pkg:Server".to_owned()].into();
+        let wasmtime = if cfg!(feature = "wasmtime") {
+            EngineKind::Wasmtime
+        } else {
+            EngineKind::Node
+        };
+        for kind in [EngineKind::Node, EngineKind::Wasmtime] {
+            assert_eq!(env(kind).for_module(Some(&rooted), &c), Ok(wasmtime));
+        }
+        assert_eq!(
+            named(EngineKind::Wasmtime).for_module(Some(&rooted), &c),
+            Ok(EngineKind::Wasmtime)
+        );
+        assert_eq!(
+            named(EngineKind::Node).for_module(Some(&rooted), &c),
             Ok(EngineKind::Node)
         );
     }

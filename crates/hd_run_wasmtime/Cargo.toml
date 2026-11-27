@@ -40,6 +40,9 @@ ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "=1.0.9"
 serde_json = "1"
+# C providers (#2388): opens a package's `native/<target-triple>/` library
+# and takes its entry symbol, on every platform `hd` ships for.
+libloading = "=0.9.1"
 # Scoped compiler workers inherit the current module's function-cache session.
 rayon = "1"
 # The `hd-io` runtime that offloaded host operations run on

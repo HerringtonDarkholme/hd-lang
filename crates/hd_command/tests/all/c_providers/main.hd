@@ -1,0 +1,29 @@
+@host
+pub trait Probe:
+    fn ints(&mut self, a: i8, b: i16, c: i32, d: i64, e: u8, f: u16, g: u32, h: u64, n: usize) -> i64
+    fn floats(&self, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, g: f64, h: f64, i: f32, j: f64) -> f64
+    fn half(&self, x: f32) -> f32
+    fn flag(&self, on: bool) -> bool
+    fn narrow(&self) -> i8
+    fn wide(&self) -> u64
+    fn text(&self, s: string) -> usize
+    fn sum(&self, xs: &List[u8]) -> u32
+    fn fill(&mut self, into: &mut List[i32], at: &mut u64, v: &f64) -> void
+    fn count(&mut self) -> u32
+
+pub fn main() -> void $ Console + Probe:
+    probe := $.use(Probe)
+    println("ints ${probe.ints(-1, -2, -3, -4, 5, 6, 4000000000, 8, 9)}")
+    println("floats ${probe.floats(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.5, 10.25)}")
+    println("half ${probe.half(1.5)} flag ${probe.flag(true)} ${probe.flag(false)}")
+    println("narrow ${probe.narrow()} wide ${probe.wide()}")
+    println("text ${probe.text("héllo")}")
+    let xs: List[u8] = [1, 2, 3, 250]
+    println("sum ${probe.sum(&xs)}")
+    let mut into: List[i32] = [0, 0, 0]
+    let kept = into
+    let mut at: u64 = 1
+    let v = 2.5
+    probe.fill(&mut into, &mut at, &v)
+    println("fill ${into[0]} ${into[1]} ${into[2]} kept ${kept[0]} at ${at}")
+    println("count ${probe.count()} ${probe.count()}")

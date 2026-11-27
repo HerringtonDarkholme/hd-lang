@@ -1,10 +1,10 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; phase steps 1, 2, 2b and 3
-built (the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
+Status: accepted by the owner, 2026-11-27; phase steps 1 to 4 built
+(the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
 check, the C lowering with its table section, the JavaScript glue for a
-C-bound trait's `js` provider, and the [header](../../spec/cli/command-line.md#c-providers)
-`hd build` writes), the rest not yet (P3);
+C-bound trait's `js` provider, the [header](../../spec/cli/command-line.md#c-providers)
+`hd build` writes, and Wasmtime's binding), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 
@@ -411,6 +411,16 @@ Rules this design revises, quoted:
 | [`native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node) | "Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node" | "Without an `--engine` flag, they run on Wasmtime when every required package host trait has a C provider, and else on Node." |
 
 ## Appendix E. Details
+
+### Step 4 As Built
+
+| Part | As built |
+| --- | --- |
+| calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers is refused at startup |
+| `!` methods | a module that calls a C provider's suspending method is refused at startup until step 5 binds its token |
+| `hd test` | binds no C provider yet: a C-bound trait's test runs on Node through its `js` provider |
+| workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
+| returned handles | still refused by the check; step 4b binds them (decision 1 of the step 1 answers) |
 
 ### Proposed Spec Rules
 

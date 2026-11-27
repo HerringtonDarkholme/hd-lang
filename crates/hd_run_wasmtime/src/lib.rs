@@ -83,4 +83,4 @@ pub use test_engine::{
 };
 
 pub use precompiled::{load as load_native, precompile, precompile_key};
-pub use run::{run_native, run_native_sampled};
+pub use run::{run_native, run_native_sampled, run_with_c_providers};

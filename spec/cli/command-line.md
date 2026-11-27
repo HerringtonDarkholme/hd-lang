@@ -2452,11 +2452,11 @@ hd build --engine wasmtime
 3. r[cli.host.package.native-deterministic] Building the same module twice writes byte-identical Rust companion text.
 4. r[cli.host.package.native-portable-identity] Writing the Rust companion does not alter the portable Wasm module.
 5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
-6. r[cli.host.package.native-no-discovery] An implementation never discovers or loads a dynamic library for a package host trait.
-7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that a native provider needs a Rust program that embeds the Wasmtime host.
-8. r[cli.host.package.native-cli-node] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node, whichever engine `HD_ENGINE` or the default names.
+6. r[cli.host.package.native-no-discovery] An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder.
+7. r[cli.host.package.native-cli] On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that another native provider needs a Rust program that embeds the Wasmtime host.
+8. r[cli.host.package.native-cli-node] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Wasmtime when every required package host trait has a C provider, and else on Node, whichever engine `HD_ENGINE` or the default names.
 9. r[cli.host.package.native-cli-startup] That choice is made from the module's package host contract before the module loads, and the run never changes engine afterwards, by [`cli.host.package.no-fallback`](#r-cli.host.package.no-fallback).
-10. r[cli.host.package.native-cli-explicit] `hd --engine wasmtime` still refuses such a module, by [`cli.host.package.native-cli`](#r-cli.host.package.native-cli).
+10. r[cli.host.package.native-cli-explicit] `hd --engine wasmtime` still refuses a module with a required trait that no C provider serves, by [`cli.host.package.native-cli`](#r-cli.host.package.native-cli).
 11. r[cli.host.package.native-cli-no-node] When Node cannot be started, a run that chose it this way fails before the guest starts, with a message naming the Node engine.
 12. r[cli.host.package.native-two-keys] A native provider runs only when the app's root manifest consents to its trait and the embedder registered it.
 13. r[cli.host.package.native-reachable] Native startup requires a registered provider only for each root interface in the module's contract, not for every consented trait.
@@ -2477,9 +2477,10 @@ hd build --engine wasmtime
 > process's authority. Registration selects native code and grants the guest
 > nothing; root consent still decides what the guest may use.
 
-> **Why.** Only an embedder can register a native provider, and `hd` is
-> not one. A user who names no engine gets the engine that can run the
-> module; a user who names Wasmtime gets the refusal, not a silent switch.
+> **Why.** Only an embedder can register a Rust native provider, and `hd`
+> is not one; `hd` binds only C providers. A user who names no engine gets
+> the engine that can run the module; a user who names Wasmtime gets the
+> refusal, not a silent switch.
 
 > **Why.** Checking registrations against the module's reachable contract,
 > not every dependency's declarations, lets a native entry skip a renderer it
@@ -2499,8 +2500,14 @@ the `c` key of the trait's `[host]` entry:
 
 1. r[cli.host.c.name] A `c` library name is a C identifier: an ASCII letter or `_`, then ASCII letters, digits or `_`. Error: `invalid-manifest`.
 2. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
-3. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
-4. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+3. r[cli.host.c.file] `c = "NAME"` names the file `libNAME.so`, `libNAME.dylib` or `NAME.dll` in the package's `native/<target-triple>/` folder.
+4. r[cli.host.c.target-missing] A missing file for the running target refuses the run before the guest starts, naming the package and the triple. Error: `native-provider-missing`.
+5. r[cli.host.c.entry] The library exports one function per trait, named `NAME_TRAIT`, that returns the trait's table.
+6. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
+7. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
+8. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
+9. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+10. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
 
 > **Why.** The library's entry symbol joins its name and the trait's, so
 > the name is a C identifier.

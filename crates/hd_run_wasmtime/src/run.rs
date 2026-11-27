@@ -292,6 +292,43 @@ struct RunOptions<'a> {
     read: Option<&'a str>,
     cancel: Option<(&'a HostInterrupt, Duration)>,
     sample: Option<&'a Path>,
+    /// The libraries of the module's C-bound root traits.
+    c: &'a [crate::native::c::Library],
+}
+
+/// Runs `image` as the entry points above do, with `c`, the libraries the
+/// invoker selected for the module's C-bound root traits
+/// (`cli.host.c.file`): before the guest starts, each is opened, its entry
+/// symbol checked and its provider created, and the instance's close
+/// destroys it (`crate::native::c`).
+///
+/// # Safety
+/// A native image must meet [`run_native`]'s conditions. Each library runs
+/// with the process's authority, which the app's root consent granted.
+#[allow(unsafe_code)]
+pub unsafe fn run_with_c_providers(
+    config: EngineConfig,
+    image: hd_run::artifact::Image<'_>,
+    setup: &HostSetup,
+    io: HostIo,
+    c: &[crate::native::c::Library],
+    cancel: Option<(&HostInterrupt, Duration)>,
+    sample: Option<&Path>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        config,
+        RuntimeProfile::Default,
+        image,
+        setup,
+        io,
+        RunOptions {
+            cancel,
+            sample,
+            c,
+            ..RunOptions::default()
+        },
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
 }
 
 #[allow(unsafe_code)]
@@ -347,6 +384,7 @@ fn run_image(
                     sampling
                         .as_ref()
                         .map(|sampling| std::sync::Arc::clone(&sampling.profiler)),
+                    options.c,
                 );
                 let mut inst = started.map_err(|e| match e {
                     StartError::Refused(m) | StartError::Engine(m) => m,

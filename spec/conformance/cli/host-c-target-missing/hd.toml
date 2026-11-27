@@ -1,0 +1,9 @@
+[package]
+name = "host_c_missing"
+
+[host]
+"main.Probe" = { c = "hd_probe" }
+
+[capabilities]
+Console = true
+"pkg.main.Probe" = true

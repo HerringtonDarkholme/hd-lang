@@ -211,11 +211,14 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
 
 /// Runs a built program to its end with the process's standard streams.
 /// With a cleanup bound, each Ctrl-C is a request to cancel its entry
-/// (`cli.cancel.unhandled-ctrl-c`).
+/// (`cli.cancel.unhandled-ctrl-c`). The C providers `c` are bound before
+/// the guest starts (`hd_run_wasmtime::run_with_c_providers`).
+#[allow(unsafe_code)]
 pub(crate) fn run_program(
     level: hd_driver::OptLevel,
     image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
+    c: &[crate::node::CLibrary],
     sampling: Option<&std::path::Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     let _code = match image {
@@ -240,6 +243,32 @@ pub(crate) fn run_program(
         .as_ref()
         .zip(host.limits.cleanup_ms)
         .map(|(interrupt, ms)| (interrupt, std::time::Duration::from_millis(ms)));
+    if !c.is_empty() {
+        let libraries: Vec<hd_run_wasmtime::native::c::Library> = c
+            .iter()
+            .map(|l| hd_run_wasmtime::native::c::Library {
+                module: l.module.clone(),
+                path: l.path.clone(),
+                name: l.name.clone(),
+                package: l.package.clone(),
+                triple: l.triple.clone(),
+            })
+            .collect();
+        let config = match image {
+            hd_run::artifact::Image::Wasm(_) => config,
+            hd_run::artifact::Image::Native(_) => {
+                hd_run_wasmtime::EngineConfig::pipeline(hd_base::OptLevel::Optimized)
+            }
+        };
+        // SAFETY: as `run_native_image`: the CLI passes only an explicitly
+        // selected native artifact or its own build output, held open for
+        // this run; each library is one the root manifest consented to.
+        return unsafe {
+            hd_run_wasmtime::run_with_c_providers(
+                config, image, host, io, &libraries, cancel, sampling,
+            )
+        };
+    }
     match image {
         hd_run::artifact::Image::Wasm(wasm) => match (sampling, cancel) {
             (Some(output), cancel) => {

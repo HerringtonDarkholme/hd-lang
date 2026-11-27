@@ -7,8 +7,8 @@
 //! here, and its `Bindings::builder()...build()` yields a [`Bindings`]: the
 //! one registry, passed by value, that
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
-//! takes. Hd never discovers or loads a library
-//! (`cli.host.package.native-no-discovery`).
+//! takes. Hd loads a library only for a C provider that a package's
+//! `[host]` table names ([`c`], `cli.host.package.native-no-discovery`).
 //!
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
 //! resolves the registrations by nominal identity and links each root
@@ -29,6 +29,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::runtime::reactor::Wake;
 
+pub mod c;
+pub(crate) mod c_call;
 pub mod handles;
 pub mod wire;
 

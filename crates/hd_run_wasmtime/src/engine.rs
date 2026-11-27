@@ -94,9 +94,12 @@ impl WasmtimeEngine {
     pub(crate) fn package(&self, wasm: &[u8]) -> Result<Option<Arc<package::Package>>, LoadError> {
         // The package imports the contract describes are resolved at
         // instantiation, against the embedder's registry, if any.
-        let package = hd_host_abi::schema::from_wasm(wasm)
-            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
-            .map(|contract| Arc::new(package::Package::new(contract)));
+        let metadata = hd_host_abi::schema::module_metadata(wasm)
+            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?;
+        let c_tables = metadata.c_tables;
+        let package = metadata
+            .contract
+            .map(|contract| Arc::new(package::Package::new(contract, c_tables)));
         let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
         if let Some((m, n)) = imports.iter().find(|(m, n)| {
             !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
@@ -148,9 +151,11 @@ impl WasmtimeEngine {
         io: HostIo,
         cancel: Option<(&crate::HostInterrupt, std::time::Duration)>,
         sampling: Option<crate::sampling::Collector>,
+        c: &[crate::native::c::Library],
     ) -> Result<WasmtimeInstance, StartError> {
         let mut host = host_of(setup, io);
         host.sampling = sampling;
+        host.c_libraries = Arc::from(c);
         if let Some((interrupt, _)) = cancel {
             host.interrupt = Some(Arc::clone(&interrupt.flag));
         }
@@ -207,6 +212,8 @@ impl WasmtimeEngine {
         });
         let package = m.2.as_deref();
         host.natives = package::preflight(package, bindings, &host.grants.consent)?;
+        host.c_providers = package::c_preflight(package, &host.c_libraries, &host.grants.consent)?;
+        let c_bound = host.c_providers.iter().any(Option::is_some);
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
         let mut defined = HashSet::default();
@@ -225,6 +232,10 @@ impl WasmtimeEngine {
             }
             Err(error) => return Err(StartError::Engine(error.to_string())),
         };
+        if c_bound {
+            // A C call's pointer arguments address the guest heap.
+            store.data_mut().c_heap = instance.get_export(&mut store, "hd.heap");
+        }
         let mut run = WasmtimeInstance::from_instance(
             store,
             Arc::clone(&self.engine),

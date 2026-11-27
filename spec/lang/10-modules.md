@@ -2764,10 +2764,11 @@ fn demo() -> i32:
 hd build --release src/main.hd   # the official compiler targets Wasm
 ```
 
-> **Note.** hd has no `extern` declaration and no FFI capability. A Wasm
-> module can call only its imports, so a custom host trait that an
-> embedder binds is hd's foreign function interface, by
-> [`module.register.application`](#r-module.register.application).
+> **Note.** hd has no `extern` declaration. A host trait is hd's foreign
+> function interface: its provider is JavaScript, C that a package ships,
+> or Rust that an embedder registers, by
+> [`module.register.application`](#r-module.register.application) and
+> [Package Host Traits](#package-host-traits).
 
 ### Package Host Traits
 

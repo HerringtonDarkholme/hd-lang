@@ -68,7 +68,8 @@ selects it as the optimized binary's default. Explicit `--engine node`
 still works. The measured macOS arm64 binary is 26,193,872 bytes
 (25.0 MiB), including Wasmtime and the embedded Node host. Package host
 traits select Node before startup unless an
-explicit `--engine` names an engine.
+explicit `--engine` names an engine, or every one has a C provider, which
+selects Wasmtime.
 
 Developer and test builds default to Node, including optimized builds
 with only the `wasmtime` feature and debug builds with all features.
