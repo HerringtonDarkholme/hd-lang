@@ -83,15 +83,7 @@ std/rt.alloc/init.init#0
 std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
-std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
-std/fs/read_text#0
-std/fs/read_text#0.poll
-std/fs/read_text#0.cancel
-std/fs/read_text#0.drop
 std/text/impl StringBuilder.build#0
 std/rt.cycle/drop_root#0
 std/text/scalar_end#0
@@ -152,13 +144,11 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5#0
-rt:new/class-5#1
+rt:new/class-4
+rt:new/class-8
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
+rt:alloc_class/8
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -206,11 +196,7 @@ rt:dec#2
 rt:dec#3
 rt:frame#0
 rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame_ensure
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter

@@ -18,7 +18,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (func $moved_cell'1 (param $frame i32) (param $early i32) (result i32 i32) (local $t4 i32) (local $t7 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -111,7 +111,7 @@
             i32.load $heap offset=4
             i32.const 1
             i32.store $heap offset=8
-    ;; 35 |     _ := read(&value)
+    ;; 37 |     _ := read(&value)
             local.get $t1
             i32.load $heap offset=4
             local.set $t5
@@ -120,15 +120,15 @@
             local.set $t5
             i32.const 0
             local.set $t5
-    ;; 36 |     other := relayed!(Token { id: 2 })
+    ;; 38 |     other := relayed!(Token { id: 2 })
             i32.const 2
             local.set $t5
             local.get $t1
             local.get $t5
             i32.store $heap offset=8
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
           end
-    ;; 36 |     other := relayed!(Token { id: 2 })
+    ;; 38 |     other := relayed!(Token { id: 2 })
           block
             block
               local.get $t4
@@ -253,7 +253,7 @@
           local.get $t1
           local.get $t5
           i32.store $heap offset=12
-    ;; 37 |     _ := read(&value)
+    ;; 39 |     _ := read(&value)
           local.get $t1
           i32.load $heap offset=4
           local.set $t4
@@ -262,13 +262,13 @@
           local.set $t4
           i32.const 0
           local.set $t4
-    ;; 38 |     if early:
+    ;; 40 |     if early:
           local.get $t1
           i32.load $heap
           local.set $t4
           local.get $t4
           if
-    ;; 39 |         return take(value)
+    ;; 41 |         return take(value)
             local.get $t1
             i32.load $heap offset=4
             i32.const 0
@@ -291,7 +291,7 @@
             local.set $t4
             i32.const 0
             local.set $t5
-    ;; 38 |     if early:
+    ;; 40 |     if early:
             local.get $t1
             i32.load $heap offset=4
             call $rt:release_ref'2
@@ -303,9 +303,9 @@
               local.get $early
               call $rt:release_spilled
             end
-    ;; 39 |         return take(value)
+    ;; 41 |         return take(value)
             br 1
-    ;; 38 |     if early:
+    ;; 40 |     if early:
           end
           local.get $t1
           i32.load $heap offset=4
@@ -315,10 +315,10 @@
           local.get $t1
           local.get $t5
           i32.store $heap offset=4
-    ;; 40 |     other.id
+    ;; 42 |     other.id
           local.get $early
           local.set $t4
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
           local.get $t1
           i32.load $heap offset=12
           local.set $t5
@@ -468,7 +468,7 @@
     global.set $stack
   )
   (func $moved_cell.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     local.get $t0
     call $rt:poll_check
     if
@@ -511,7 +511,7 @@
     return
   )
   (func $moved_cell.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     call $rt:cancel_enter
     local.set $t0
     block
@@ -550,7 +550,7 @@
     call $rt:cancel_leave
   )
   (func $moved_cell.drop (param $t0 i32)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -567,7 +567,7 @@
     end
   )
   (func $moved_cell'2 (param $t1 i32) (result i32) (local $t0 i32)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     call $rt:frame
     local.set $t0
     local.get $t0
@@ -576,7 +576,7 @@
     local.get $t0
   )
   (func $rt:frame_ensure (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
-    ;; 34 |     value := Token { id: 1 }
+    ;; 36 |     value := Token { id: 1 }
     local.get $t0
     i32.eqz
     if

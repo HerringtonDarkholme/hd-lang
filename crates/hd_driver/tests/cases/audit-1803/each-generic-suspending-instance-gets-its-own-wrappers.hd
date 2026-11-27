@@ -4,9 +4,13 @@
 # function `relay` gets its own body, `.poll` and `.drop`: three functions per
 # instance, four instances here. The wrappers depend only on the frame layout,
 # so instances of one layout should share them.
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
 use std.task.{block_on}
 use std.time.{Clock, s, sleep}
 
+@inline(.Never)
 fn relay![T](x: T) -> T $ Clock:
     sleep!(s(0))
     x

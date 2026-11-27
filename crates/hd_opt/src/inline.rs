@@ -679,6 +679,11 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            // A bang Call constructs a cold suspension; only Await runs its
+            // body here. Preserve constructors even when inlining is preferred.
+            if lifted.is_none() && body.tags[c] != Tag::Await && self.suspends(def) {
+                continue;
+            }
             let in_loop =
                 topo.get_or_init(|| hd_tir::ir::Topology::new(body)).loop_of[c] != hd_tir::ir::NONE;
             let key = Key::new(def, targs, lifted.is_some());
@@ -1398,8 +1403,9 @@ impl dyn InlineEnv + '_ {
     /// change, and its hash, when a call of it may inline: a function
     /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
-    /// not suspend or call itself. Dev builds consider std functions and
-    /// explicitly decorated user functions; release builds consider all
+    /// not call itself. Driven bang calls use this same body copy before
+    /// ownership and suspension planning. Dev builds consider std functions
+    /// plus explicitly decorated user functions; release builds consider all
     /// user functions. `fits` applies the selected hint's size and
     /// reference policy.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
@@ -1415,10 +1421,7 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        let (_, suspends, _) = self.signature(def)?;
-        if suspends {
-            return None;
-        }
+        let _ = self.signature(def)?;
         let (body, hash) = self.checked_body(def)?;
         // A With can hold many keys in very few instructions. The same
         // metadata bound as literal consumers prevents record width from
@@ -1503,6 +1506,10 @@ impl dyn InlineEnv + '_ {
             return None;
         };
         if !body.is_instantiation(made as usize)
+            || matches!(
+                self.pool().get(body.ty[made as usize]),
+                TyData::Fn { suspends: true, .. }
+            )
             || body.call_providers(c) != hd_tir::ir::Providers::None
             || (count > 0 && made != body.data[c][0])
         {

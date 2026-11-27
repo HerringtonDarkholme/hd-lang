@@ -3,10 +3,14 @@
 # `close!` has no suspension point, so it completes at once: `main!`
 # calls its body as a plain call and links no `.poll`, `.cancel` or
 # `.drop` for it (#2419).
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
 struct Mem:
     closed: bool
 
 impl Mem:
+    @inline(.Never)
     fn close!(&mut self) -> void:
         self.closed = true
 

@@ -2,6 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: a direct row-polymorphic call or await states its temporary context's copy and release; an empty row forwards nothing.
+# Keep the call boundary under test when small bang bodies can inline.
 use std.meta.inline
 
 trait Tag:
@@ -11,6 +12,7 @@ trait Tag:
 fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
+@inline(.Never)
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     pause!()
 > app/main/later

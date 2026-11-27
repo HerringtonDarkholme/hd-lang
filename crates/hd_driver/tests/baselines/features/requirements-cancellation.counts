@@ -26,13 +26,19 @@ fn stop!(key: string) -> bool:
     let mut job = fetch(key)
 > app/main/stop
 >   release string (last use)
+>   release Suspend[string] (last use)
 > app/main/stop
 >   release string (cancelled)
 >   release counted reference (last use)
     end := job.cancel!()
+>   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release Suspend[bool] (cancelled)
 >   release string (last use)
+>   release Suspend[string] (last use)
+>   release Suspend[bool] (last use)
+>   release Suspend[string] (last use)
     match end:
         .Finished => true
         .Abandoned => false

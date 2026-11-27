@@ -5,6 +5,7 @@
 # branch releases the cell, so its `FlagClear` stands before the
 # `Read move` and writes the cell before it can be freed. Its `Drop`
 # releases the cell, so it clears nothing, and no flag local is read.
+# Keep the call boundary under test when small bang bodies can inline.
 use std.meta.inline
 use std.rt.Drop
 
@@ -25,6 +26,7 @@ fn read(value: &Token) -> usize:
 fn take(value: Token) -> usize:
     value.id
 
+@inline(.Never)
 fn relayed!(value: Token) -> Token:
     pause!()
     value

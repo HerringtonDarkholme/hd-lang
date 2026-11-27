@@ -36,12 +36,18 @@ fn take![T < 'static](value: T) -> T $ Clock:
 > std/rt_tests.stage_case/take
 >   retain counted reference (stored)
     sleep!(ms(1))
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
+>   release counted reference (last use)
+>   release std.time.Clock (last use)
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release counted reference (last use)
->   release counted reference (last use)
+>   release std.time.Clock (last use)
     value
 
 @cold

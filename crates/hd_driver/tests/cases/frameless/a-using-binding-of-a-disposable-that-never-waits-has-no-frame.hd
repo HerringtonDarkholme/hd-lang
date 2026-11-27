@@ -3,12 +3,16 @@
 # A `using!` binding's `dispose!` that completes at once is a plain call
 # at the scope's end: neither it nor `main!` links a `.poll`, `.cancel`
 # or `.drop` (#2419).
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
 use std.ops.AsyncDisposable
 
 struct Handle:
     id: i32
 
 impl AsyncDisposable for Handle:
+    @inline(.Never)
     fn dispose!(&mut self) -> void:
         self.id = 0
 

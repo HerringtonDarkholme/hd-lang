@@ -13,8 +13,11 @@ use std.time.{Clock, ms, sleep}
 fn size!(text: &string) -> usize $ Clock:
     sleep!(ms(1))
 > app/main/size
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
+>   release std.time.Clock (last use)
 >   release counted reference (by design)
 > app/main/size
 >   release counted reference (last use)
@@ -79,6 +82,9 @@ fn both!(n: usize) -> usize $ Clock:
 fn first!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
 > app/main/first
+>   release List[Suspend[usize]] (last use)
+>   release List[Suspend[usize]] (last use)
+> app/main/first
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/first
@@ -87,8 +93,11 @@ fn first!(n: usize) -> usize $ Clock:
 >   retain counted reference (stored)
     let b = "b".repeat(n)
     race!(size(&a), size(&b))
-> app/main/first
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release Suspend[usize] (cancelled)
+>   release List[Suspend[usize]] (last use)
+>   release Suspend[usize] (last use)

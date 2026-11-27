@@ -5,12 +5,16 @@
 # expected: `construct` allocates one suspension and frees it unrun;
 # `closure_bang` and `stored` hold `key` in the suspending frame (by
 # design, #1355) and build one string per `fetch`.
-fn fetch!(key: string) -> string:
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
+@inline(.Never)
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %5 lend last
 >   %0 = Retain %10 Cold local $0 #0 : ()
 >   %1 = Retain %10 Entry local $0 #0 : ()
+fn fetch!(key: string) -> string:
     pause!()
 >   %2 = Release %10 FrameDrop child #2 : ()
 >   %3 = Await app/main/pause[] () : ()
@@ -55,7 +59,7 @@ fn construct(key: string) -> usize:
 >   %8 = Scope %7 [] : usize
 >   summary kept [] borrows [$0] writes
 
-fn run_twice!(body: fn!() -> string) -> usize:
+@inline(.Never)
 > app/main/run_twice
 >   local $0 body: fn!() -> string [param read] value
 >     uses $0: entry -> %3 lend, %15 lend last
@@ -63,6 +67,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   local $2 $ref: string [read assigned captured captured-assigned] place
 >   %0 = Retain %31 Cold local $0 #0 : ()
 >   %1 = Retain %31 Entry local $0 #0 : ()
+fn run_twice!(body: fn!() -> string) -> usize:
     body!().len() + body!().len()
 >   %2 = Release %31 FrameDrop child #2 : ()
 >   %3 = Read borrow [$0] : fn!() -> string

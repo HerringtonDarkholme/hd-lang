@@ -37,9 +37,6 @@ fn local!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/local
->   release counted reference (last use)
->   release counted reference (last use)
-> app/main/local
 >   retain counted reference (stored)
 > app/main/local
 >   release Suspend[i64] (last use)
@@ -50,7 +47,7 @@ fn local!() -> i64:
 >   retain counted reference (stored)
         let mut tally = Tally { n: 0 }
         bump!(&mut tally)
->   release counted reference (last use)
+> app/main/local
 >   release counted reference (last use)
 >   release counted reference (last use)
         tally.n

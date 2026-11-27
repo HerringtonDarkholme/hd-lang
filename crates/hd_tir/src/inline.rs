@@ -1,5 +1,5 @@
 //! The inliner's body copy (`docs/compiler/tir-v2.md`, "The inliner"): a
-//! `Call` of a small body becomes a copy of that body, run before the
+//! `Call` or driven `Await` of a small body becomes a copy, run before the
 //! ownership passes so they see the combined body. The copy's locals,
 //! labels, constants, strings and records move past the caller's; its
 //! used parameters are bound by a `Store` of the call's argument (an
@@ -27,8 +27,8 @@ pub use closures::{
 };
 
 /// The statically known callee of call `i` when its requirement context
-/// needs no copying: a `Call` with no providers. Its argument record may
-/// still contain an omitted argument's `DefaultCall`.
+/// needs no copying: a `Call` or driven `Await` with no providers. Its
+/// argument record may still contain an omitted argument's `DefaultCall`.
 #[must_use]
 pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
     if b.call_providers(i) != crate::ir::Providers::None {
@@ -43,7 +43,7 @@ pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
             targs: TyList(*targs),
         });
     }
-    if b.tags[i] != Tag::Call {
+    if !matches!(b.tags[i], Tag::Call | Tag::Await) {
         return None;
     }
     Callee::from_words(b.record(b.data[i][0]))
@@ -102,7 +102,7 @@ impl Chosen {
 pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>) {
     for i in 0..k.len() {
         let at = k.data[i][0] as usize;
-        if k.tags[i] == Tag::Call
+        if matches!(k.tags[i], Tag::Call | Tag::Await)
             && let Some(Callee::TraitMethod {
                 trait_,
                 self_ty,
@@ -121,11 +121,12 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>
 }
 
 /// Whether `c` may be copied structurally: a function of one sub-body, its
-/// root block last, with no suspension, `defer`, closure, escaping context or
+/// root block last, with no `defer`, closure, escaping context or
 /// ownership statement, and no call with explicit providers. A generic
 /// local function's instantiation, which names its item's sub-body, is
 /// not a closure here: only that item's bodies copy one. A copied `With`
-/// retains its lexical scope; copied `ProviderGet`s resolve there, exactly
+/// retains its lexical scope; awaits stay awaits for ownership and resume
+/// planning. Copied `ProviderGet`s resolve there, exactly
 /// as they resolved at the call. Context construction keeps its call boundary.
 #[must_use]
 pub fn copyable(c: &Body) -> bool {
@@ -135,15 +136,13 @@ pub fn copyable(c: &Body) -> bool {
         .map(|i| c.record(c.data[i][1])[1] as usize)
         .sum();
     let refused = |i: usize| match c.tags[i] {
-        Tag::Call => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
+        Tag::Call | Tag::Await | Tag::AwaitValue => {
+            c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0)
+        }
         Tag::Closure => !c.is_instantiation(i),
         t => matches!(
             t,
-            Tag::Await
-                | Tag::AwaitValue
-                | Tag::AwaitAll
-                | Tag::AwaitRace
-                | Tag::Hook
+            Tag::Hook
                 | Tag::Defer
                 | Tag::Closure
                 | Tag::ContextFor
@@ -190,7 +189,15 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
         }
         if matches!(
             tag,
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+            Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
         ) {
             slots(c, i, |_, _, word| {
                 if matches!(
@@ -216,7 +223,15 @@ pub fn leaf(c: &Body) -> bool {
     !c.tags.iter().any(|t| {
         matches!(
             t,
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+            Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
         )
     })
 }

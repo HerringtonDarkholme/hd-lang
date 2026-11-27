@@ -2,6 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: a direct row-polymorphic call or await states its temporary context's copy and release; an empty row forwards nothing.
+# Keep the call boundary under test when small bang bodies can inline.
 use std.meta.inline
 
 trait Tag:
@@ -25,7 +26,7 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 >   %9 = Block %1 : i32
 >   summary kept [] borrows [$0] writes
 
-fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+@inline(.Never)
 > app/main/later
 >   local $0 callback: fn() -> i32 [param read] value
 >     uses $0: entry -> %11 lend last
@@ -34,6 +35,7 @@ fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 >   %5 = Retain %18 Cold referent $0 #8 : ()
 >   %6 = Release %18 FrameDrop referent $0 #2 : ()
 >   %7 = Release %18 Exit referent $0 #8 : ()
+fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     pause!()
 >   %2 = Retain %18 Cold row #0 : ()
 >   %3 = Retain %18 Materialize row #0 : ()

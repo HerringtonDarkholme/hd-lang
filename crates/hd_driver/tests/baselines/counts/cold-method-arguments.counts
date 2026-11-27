@@ -15,9 +15,12 @@ impl Measure for Reader:
     fn measure!(&self, values: List[string]) -> usize $ Clock:
         sleep!(ms(1))
 > app/main/impl Measure for Reader.measure
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release List[string] (last use)
+>   release std.time.Clock (last use)
 >   release List[string] (last use)
 >   release List[string] (last use)
 >   release counted reference (by design)

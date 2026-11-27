@@ -3,6 +3,9 @@
 # A suspending root's local that only an await of a known body takes lives
 # in a slot of its frame; one a trait value's method awaits keeps its cell,
 # as that await's cold frame counts the reference.
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
 use std.time.{Clock, ms, sleep}
 
 trait Sizer:
@@ -15,6 +18,7 @@ impl Sizer for Plain:
         sleep!(ms(1))
         text.len()
 
+@inline(.Never)
 fn known!(text: &string) -> usize $ Clock:
     sleep!(ms(1))
     text.len()

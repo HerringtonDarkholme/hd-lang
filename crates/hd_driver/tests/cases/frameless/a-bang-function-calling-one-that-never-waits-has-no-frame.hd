@@ -2,9 +2,14 @@
 # @build: dev | release
 # `outer!` waits only on `inner!`, which never waits: both complete at
 # once, so neither links a `.poll`, `.cancel` or `.drop` (#2419).
+# Keep the call boundary under test when small bang bodies can inline.
+use std.meta.inline
+
+@inline(.Never)
 fn inner!(x: i32) -> i32:
     x * 2
 
+@inline(.Never)
 fn outer!(x: i32) -> i32:
     inner!(x) + inner!(x + 1)
 

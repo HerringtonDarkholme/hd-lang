@@ -18,10 +18,6 @@ std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
-std/fs/open#0
-std/fs/open#0.poll
-std/fs/open#0.cancel
-std/fs/open#0.drop
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 std/fs/impl FsRead for MemoryFs.read_bytes#0
@@ -92,10 +88,6 @@ std/rt.alloc/init.init#0
 std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
-std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
 std/text/impl StringBuilder.build#0
 std/rt.cycle/drop_root#0
@@ -116,15 +108,15 @@ std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/fs/impl MemoryFs.missing_parent#0
 std/text/plain_windows#0
+std/rt.alloc/release_value#0 [Result[*mut std.fs.File, std.fs.FsError]]
+std/rt.alloc/release_value#0 [std.fs.FsError]
 std/rt.alloc/release_value#0 [Result[List[u8], std.io.IoError]]
 std/rt.alloc/release_value#0 [std.io.IoError]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [Result[(), std.fs.FsError]]
-std/rt.alloc/release_value#0 [std.fs.FsError]
 std/rt.alloc/release_value#0 [std.fs.MemoryFs]
 std/rt.alloc/retain_value#0 [std.fs.MemoryFs]
-std/rt.alloc/release_value#0 [Result[*mut std.fs.File, std.fs.FsError]]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
@@ -159,14 +151,11 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5
-rt:new/class-9
+rt:new/class-4
+rt:new/class-10
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
-rt:alloc_class/9
+rt:alloc_class/10
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -222,11 +211,7 @@ rt:dec#2
 rt:dec#3
 rt:frame#0
 rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame_ensure
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter
@@ -251,10 +236,6 @@ std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
-std/fs/open#0
-std/fs/open#0.poll
-std/fs/open#0.cancel
-std/fs/open#0.drop
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 std/fs/impl FsRead for MemoryFs.read_bytes#0
@@ -316,10 +297,6 @@ std/format/Display.write#0 [std.path.Path]
 std/path/impl Path.parent#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
-std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
 std/text/impl StringBuilder.build#0
 std/rt.cycle/mark#0
@@ -335,14 +312,14 @@ std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/fs/impl MemoryFs.missing_parent#0
 std/text/plain_windows#0
+std/rt.alloc/release_value#0 [Result[*mut std.fs.File, std.fs.FsError]]
+std/rt.alloc/release_value#0 [std.fs.FsError]
 std/rt.alloc/release_value#0 [Result[List[u8], std.io.IoError]]
 std/rt.alloc/release_value#0 [std.io.IoError]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [Result[(), std.fs.FsError]]
-std/rt.alloc/release_value#0 [std.fs.FsError]
 std/rt.alloc/release_value#0 [std.fs.MemoryFs]
 std/rt.alloc/retain_value#0 [std.fs.MemoryFs]
-std/rt.alloc/release_value#0 [Result[*mut std.fs.File, std.fs.FsError]]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
@@ -375,14 +352,11 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5
-rt:new/class-9
+rt:new/class-4
+rt:new/class-10
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
-rt:alloc_class/9
+rt:alloc_class/10
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -439,11 +413,7 @@ rt:dec#2
 rt:dec#3
 rt:frame#0
 rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame_ensure
 rt:poll_check
 rt:cancel_check
 rt:cancel_enter

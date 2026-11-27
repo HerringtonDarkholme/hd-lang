@@ -21,7 +21,10 @@ fn make() -> (fn!(string) -> usize $ Clock):
 > app/main/make
 >   retain counted reference (stored)
         sleep!(ms(1))
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release counted reference (last use)
+>   release std.time.Clock (last use)
         text.len()

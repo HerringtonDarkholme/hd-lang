@@ -17,51 +17,71 @@ impl Measure for Reader:
 >   local $0 self: &Reader [param] value
 >     uses $0: none
 >   local $1 values: List[string] [param read] value
->     uses $1: entry -> %20 lend last
->   local $2 count: i64 [read] value
->     uses $2: %12 -> %13 lend last
->   %0 = Retain %26 Cold local $0 #0 : ()
->   %1 = Retain %26 Entry local $0 #0 : ()
->   %2 = Retain %26 Cold local $1 #0 : ()
->   %3 = Retain %26 Entry local $1 #0 : ()
->   %7 = Retain %26 Cold referent $0 #8 : ()
->   %8 = Release %26 FrameDrop referent $0 #2 : ()
->   %9 = Release %26 Exit referent $0 #8 : ()
+>     uses $1: entry -> %35 lend last
+>   local $2 duration: Duration [read] value
+>     uses $2: %18 -> %25 lend last
+>   local $3 clock: &mut dyn Clock [:= read assigned] value
+>     uses $3: %21 -> %22 lend last
+>   local $4 count: i64 [read] value
+>     uses $4: %12 -> %13 lend last
+>   %0 = Retain %42 Cold local $0 #0 : ()
+>   %1 = Retain %42 Entry local $0 #0 : ()
+>   %2 = Retain %42 Cold local $1 #0 : ()
+>   %3 = Retain %42 Entry local $1 #0 : ()
+>   %7 = Retain %42 Cold referent $0 #8 : ()
+>   %8 = Release %42 FrameDrop referent $0 #2 : ()
+>   %9 = Release %42 Exit referent $0 #8 : ()
         sleep!(ms(1))
->   %4 = Retain %26 Cold row #0 : ()
->   %5 = Retain %26 Materialize row #0 : ()
->   %6 = Release %26 FrameDrop row #2 : ()
->   %10 = Release %26 FrameDrop child #2 : ()
+>   %4 = Retain %42 Cold row #0 : ()
+>   %5 = Retain %42 Materialize row #0 : ()
+>   %6 = Release %42 FrameDrop row #2 : ()
+>   %10 = Release %42 FrameDrop child #2 : ()
 >   %11 = Drop [$0] : ()
->   %12 = Store [$2] 1:i64 : ()
->   %13 = Read copy [$2] : i64
+>   %12 = Store [$4] 1:i64 : ()
+>   %13 = Read copy [$4] : i64
 >   %14 = Call std/time/impl Duration.milliseconds[] (%13) : Duration
->   %15 = Break L0 %14 : never
+>   %15 = Break L1 %14 : never
 >   %16 = Block - : Duration
 >   %17 = Scope %16 [] : Duration
->   %18 = Await std/time/sleep[] (%17) : ()
->   %19 = Release %18 Operation child #2 : ()
->   %24 = Drop [$0] : ()
->   %25 = Drop [$1] : ()
->   %26 = Block %22 : usize
->   %31 = Intrinsic ParamOwned [0:i32] : bool
->   %32 = Drop [$0] : ()
+>   %18 = Store [$2] %17 : ()
+>   %19 = ProviderGet #25 : Clock
+>   %20 = Coerce %19 [ProviderAsRef -] : &mut dyn Clock
+>   %21 = Store [$3] %20 : ()
+>   %22 = Read copy [*$3] : Clock
+>   %23 = Retain %22 Value #0 : ()
+>   %24 = LoanBegin %22 #0 : ()
+>   %25 = Read copy [$2] : Duration
+>   %26 = LoanBegin %22 #2 : ()
+>   %27 = Await std/time/Clock.sleep for Clock [] via TraitValue (%22, %25) : ()
+>   %28 = Release %27 Operation child #2 : ()
+>   %29 = LoanClose %24 : ()
+>   %30 = Drop [%22] : ()
+>   %31 = Drop [$3] : ()
+>   %32 = Break L0 - : never
 >   %33 = Block - : ()
->   %34 = If %31 [%33 -] : ()
->   %35 = Intrinsic ParamOwned [1:i32] : bool
->   %36 = Drop [$1] : ()
->   %37 = Block - : ()
->   %38 = If %35 [%37 -] : ()
->   %39 = Block - : ()
+>   %34 = Scope %33 [] : ()
+>   %39 = Drop [$0] : ()
+>   %40 = Drop [$1] : ()
+>   %41 = Drop [$3] : ()
+>   %42 = Block %37 : usize
+>   %49 = Intrinsic ParamOwned [0:i32] : bool
+>   %50 = Drop [$0] : ()
+>   %51 = Block - : ()
+>   %52 = If %49 [%51 -] : ()
+>   %53 = Intrinsic ParamOwned [1:i32] : bool
+>   %54 = Drop [$1] : ()
+>   %55 = Block - : ()
+>   %56 = If %53 [%55 -] : ()
+>   %57 = Block - : ()
         values.len()
->   %20 = Read move [$1] : List[string]
->   %21 = Intrinsic Empty [] : ()
->   %22 = Intrinsic ListLen [%20] : usize
->   %23 = Drop [%20] : ()
->   exit sub 0 drops [$0 $1]
+>   %35 = Read move [$1] : List[string]
+>   %36 = Intrinsic Empty [] : ()
+>   %37 = Intrinsic ListLen [%35] : usize
+>   %38 = Drop [%35] : ()
+>   exit sub 0 drops [$0 $1 $3]
 >   summary none
->   cancel %18 releases [%2147483648 %2147483649 %4294967295]
->   cancel %26 releases [%16 %31 %16 %35]
+>   cancel %27 releases [%22 %2147483648 %2147483649 %2147483651 %4294967295]
+>   cancel %42 releases [%16 %49 %16 %53]
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known

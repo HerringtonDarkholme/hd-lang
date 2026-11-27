@@ -29,13 +29,19 @@ fn all!(keys: List[string]) -> usize:
 >   retain string (stored)
 >   release List[string] (last use)
 >   release List[string] (last use)
+>   release List[Suspend[string]] (last use)
 > app/main/all
 >   release List[string] (cancelled)
 >   release counted reference (last use)
     results := join!(tasks...)
+>   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release Suspend[List[string]] (cancelled)
 >   release List[string] (last use)
+>   release List[Suspend[string]] (last use)
+>   release Suspend[List[string]] (last use)
+>   release List[Suspend[string]] (last use)
     let mut n = 0
     for r in &results:
 >   release List[string] (last use)

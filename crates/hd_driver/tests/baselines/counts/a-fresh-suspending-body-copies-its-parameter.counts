@@ -7,9 +7,12 @@ use std.time.{Clock, ms, sleep}
 fn after!(text: string) -> usize $ Clock:
     sleep!(ms(1))
 > app/main/after
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release counted reference (last use)
+>   release std.time.Clock (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/after

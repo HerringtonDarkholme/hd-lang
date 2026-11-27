@@ -220,9 +220,12 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 > std/rt_tests.stage_case/delayed_size
 >   retain counted reference (stored)
     sleep!(ms(1))
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release counted reference (last use)
+>   release std.time.Clock (last use)
     value.owned.len()
 
 @inline(.Never)
@@ -250,9 +253,12 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   retain counted reference (stored)
             cold_starts += 1
             sleep!(ms(1))
+>   retain std.time.Clock (conservative: copy read)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release std.time.Clock (cancelled)
 >   release counted reference (last use)
+>   release std.time.Clock (last use)
             value.owned.len()
     let mut owned: UniqList[usize] = UniqList::new()
     owned.push(23)
