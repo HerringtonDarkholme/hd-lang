@@ -204,9 +204,12 @@ struct Shared {
     /// The tables as they stood when the link froze them.
     frozen: OnceLock<SymbolData>,
     /// A local view's module table, which it reads through: the module's
-    /// own, or its [`Symbols::snapshot`]. The view's own entries take ids
-    /// with [`LOCAL`] set.
+    /// own, for a unit the merge emits again in order. The view's own
+    /// entries take ids with [`LOCAL`] set.
     base: Option<Symbols>,
+    /// A unit's own tables ([`Symbols::unit`]): every entry its emission
+    /// names, with [`LOCAL`] set, and no base.
+    unit: bool,
 }
 
 /// The bit of a local view's own ids ([`Symbols::local`]): one instance's
@@ -338,10 +341,13 @@ impl Symbols {
     /// the view's own by its [`LOCAL`] bit; else the frozen one's when it
     /// was made before the freeze, else the live one's under the lock.
     fn entry<T>(&self, id: u32, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
-        if let Some(base) = &self.0.base {
-            if id & LOCAL == 0 {
+        if self.0.unit || self.0.base.is_some() {
+            if let Some(base) = self.0.base.as_ref().filter(|_| id & LOCAL == 0) {
                 return base.entry(id, of);
             }
+            // ruled out: a unit's tables number every id its emission
+            // names, so each has LOCAL set.
+            debug_assert!(id & LOCAL != 0, "a unit names a module id");
             return Entry {
                 at: At::Live(self.live(), of, (id & !LOCAL) as usize),
             };
@@ -357,17 +363,7 @@ impl Symbols {
     }
     /// [`LOCAL`] in a local view, else nothing.
     fn local_bit(&self) -> u32 {
-        if self.0.base.is_some() { LOCAL } else { 0 }
-    }
-    /// A copy of the tables as they stand, all of it frozen, which local
-    /// views read without a lock while the instances emit at once. Cost:
-    /// one copy of the tables, once per link.
-    #[must_use]
-    pub(crate) fn snapshot(&self) -> Self {
-        Self(Arc::new(Shared {
-            frozen: OnceLock::from(self.live().clone()),
-            ..Shared::default()
-        }))
+        if self.is_local() { LOCAL } else { 0 }
     }
     /// What `look` finds in the tables: the frozen copy's, when there is
     /// one, as a local view's base is frozen whole or not at all.
@@ -377,10 +373,10 @@ impl Symbols {
             None => look(&self.live()),
         }
     }
-    /// A local view of `base` for one instance's emission: it reads
-    /// `base`, which stays as it is while the view lives, and numbers what
-    /// it adds with [`LOCAL`] set, in first-use order. Cost: one empty
-    /// table.
+    /// A local view of `base` for one instance's emission against the
+    /// module, in order: it reads `base`, which stays as it is while the
+    /// view lives, and numbers what it adds with [`LOCAL`] set, in
+    /// first-use order. Cost: one empty table.
     #[must_use]
     pub(crate) fn local(base: &Self) -> Self {
         Self(Arc::new(Shared {
@@ -388,13 +384,27 @@ impl Symbols {
             ..Shared::default()
         }))
     }
+    /// A unit's own tables, apart from any module, as wasm-ld's object
+    /// file has its own symbol table: every symbol, global and signature
+    /// its emission names, with [`LOCAL`] set, in first-use order. Nothing
+    /// in them depends on the module or the run, so the unit can be stored
+    /// and merged into a later link. Cost: one empty table.
+    #[must_use]
+    pub(crate) fn unit() -> Self {
+        Self(Arc::new(Shared {
+            unit: true,
+            ..Shared::default()
+        }))
+    }
     #[must_use]
     pub(crate) fn is_local(&self) -> bool {
-        self.0.base.is_some()
+        self.0.unit || self.0.base.is_some()
     }
     /// Interns local view `local`'s entries into this table in their
-    /// first-use order, as the emission would have interned them here.
-    /// Cost: one intern per entry the view added.
+    /// first-use order, as the emission would have interned them here:
+    /// an entry the module has keeps its id, and the others are added in
+    /// the order the emission first named them.
+    /// Cost: one intern per entry the view holds.
     pub(crate) fn absorb(&self, local: &Self) -> Remap {
         let added = std::mem::take(&mut *local.live_mut());
         Remap {
@@ -1916,19 +1926,18 @@ impl Module {
         self.funcs[id.idx()] = Some(f);
     }
     /// Runs `emit`, instance `id`'s emission, on a module of its own: it
-    /// reads `facts` and, through a local view, the symbol snapshot
-    /// `base`, and keeps what it adds in its [`Unit`] for
+    /// reads `facts`, numbers what it names in tables of its own
+    /// ([`Symbols::unit`]) and keeps what it adds in its [`Unit`] for
     /// [`Module::merge`]. Units emit at once on the task's threads.
     /// Cost: one empty module, and the cell of the instance's body facts.
     pub(crate) fn emit_unit<E>(
         facts: &Arc<Facts>,
-        base: &Symbols,
         cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
         emit: impl FnOnce(&mut Self) -> Result<Func, E>,
     ) -> Emitted<E> {
         let mut unit = Self::new(&facts.runtime);
         unit.facts = Arc::clone(facts);
-        unit.symbols = Symbols::local(base);
+        unit.symbols = Symbols::unit();
         unit.body_facts.extend(cell);
         let f = emit(&mut unit);
         Emitted {
