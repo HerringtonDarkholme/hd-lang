@@ -385,21 +385,23 @@ pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "marking"
 /// The ordinary std functions that implement floating operators absent
 /// from Wasm. The driver roots them so emission can call them directly.
 pub const FLOAT_MODULE: &str = "std.num";
-pub const FLOAT_FNS: [&str; 2] = ["float_pow_f64", "float_rem_f64"];
+pub const FLOAT_FNS: [&str; 3] = ["float_pow_f64", "float_rem_f64", "libm_powf"];
 
 /// The instance keys of [`FLOAT_FNS`], in declaration order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FloatOps {
     pub pow: Hash128,
     pub rem: Hash128,
+    pub pow_f32: Hash128,
 }
 
 impl FloatOps {
     #[must_use]
-    pub fn from_keys(keys: [Option<Hash128>; 2]) -> Option<FloatOps> {
+    pub fn from_keys(keys: [Option<Hash128>; 3]) -> Option<FloatOps> {
         Some(FloatOps {
             pow: keys[0]?,
             rem: keys[1]?,
+            pow_f32: keys[2]?,
         })
     }
 }

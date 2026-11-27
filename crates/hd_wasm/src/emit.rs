@@ -4865,18 +4865,26 @@ impl Em<'_, '_, '_> {
     fn float_value(&mut self, op: PrimOp, ops: &[u32], v: Val) -> StageResult<()> {
         let single = v == Val::F32;
         if matches!(op, PrimOp::Pow | PrimOp::Rem) {
+            // Power uses its operand width's libm, as the inherent powf does.
+            // Only remainder widens: f64's exact significand subtraction also
+            // gives the exact f32 remainder before narrowing.
+            let widen = single && op == PrimOp::Rem;
             for r in ops {
                 self.comp(*r, 0)?;
-                if single {
+                if widen {
                     self.f.op(I::F64PromoteF32);
                 }
             }
             self.f.call(Sym::Inst(if op == PrimOp::Pow {
-                self.input.float_ops.pow
+                if single {
+                    self.input.float_ops.pow_f32
+                } else {
+                    self.input.float_ops.pow
+                }
             } else {
                 self.input.float_ops.rem
             }));
-            if single {
+            if widen {
                 self.f.op(I::F32DemoteF64);
             }
             return Ok(());

@@ -1,0 +1,5 @@
+# @dump: wat
+# @build: v8 release | wasmtime release
+# Power calls the existing f32 libm directly; remainder keeps exact f64 fmod.
+fn operators(left: f32, right: f32) -> (f32, f32):
+    (left ** right, left % right)
