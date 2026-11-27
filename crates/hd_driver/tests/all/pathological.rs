@@ -4649,6 +4649,35 @@ fn nested_pattern_copy_questions_walk_each_type_once() {
     });
 }
 
+// Emitter: #2400, a nested tuple pattern reads each column from the one
+// above (`Read [%c .1]`), and each read copied the suffix tuple into
+// locals of its own: O(depth^2) locals, whose liveness the link's
+// coalescing then walked: a dev link with no `opt::locals` before it went
+// 30,379 -> 181,676 steps at 32 -> 128 levels. A field read that counts
+// nothing (or borrows) now names its part of the value's locals: 22,576
+// -> 27,916.
+#[test]
+fn nested_tuple_pattern_columns_copy_no_suffix() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) = hd_wasm::work::count_liveness(|| compile(&tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        work(0);
+        let zero = work(0);
+        let small = work(32) - zero;
+        let large = work(128) - zero;
+        assert!(
+            small > 0 && large <= 5 * small,
+            "liveness work over the empty body at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
 /// A `!Copy` struct held `n` tuples deep through named aliases
 /// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
 /// depth, deepest first: each copy question's answer is a blocker below

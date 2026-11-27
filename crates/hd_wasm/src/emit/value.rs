@@ -424,6 +424,19 @@ impl Em<'_, '_, '_> {
         // A field read of a value reads a struct's field; one through a
         // reference is a `DerefField` step.
         let p = crate::layout::members(self.pool(), self.env(), t)?.parts[idx as usize];
+        self.part_read(i, a, p)
+    }
+
+    /// Read `i` of part `p` of `a`'s values: those of its locals
+    /// ([`Em::names_part`]), else a copy of them.
+    fn part_read(&mut self, i: u32, a: u32, p: crate::layout::Part) -> StageResult<()> {
+        if let Some(ls) = self.vals.get(&a)
+            && self.names_part(i, self.ty_of(a))
+        {
+            let ls = ls[p.first..p.first + p.count].to_vec();
+            self.vals.insert(i, ls);
+            return Ok(());
+        }
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
         }
@@ -446,10 +459,7 @@ impl Em<'_, '_, '_> {
     /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let p = crate::layout::members(self.pool(), self.env(), self.ty_of(a))?.parts[idx as usize];
-        for k in p.first..p.first + p.count {
-            self.comp(a, k)?;
-        }
-        self.store(i)
+        self.part_read(i, a, p)
     }
 
     /// `a is b` (`expr.is.*`): two values refer to the same object.

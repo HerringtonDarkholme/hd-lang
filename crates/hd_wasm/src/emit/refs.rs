@@ -923,9 +923,34 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let (at, ty) = self.walk_place(i, &p, p.proj.len(), start)?;
+        if let (At::Vals(ls), PlaceRoot::Value(r)) = (&at, p.root)
+            && r.as_inst().is_some()
+            && p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+            && self.names_part(i, self.ty_of(r.0))
+        {
+            self.vals.insert(i, ls.clone());
+            return Ok(());
+        }
         self.push_at(&at, ty)?;
         self.store(i)?;
         Ok(())
+    }
+
+    /// Whether `Read` `i` of fields of an instruction's value of type
+    /// `whole` is that part of the value's own locals, with nothing
+    /// emitted. A value's locals are set once where it is made, and change
+    /// only when a release zeroes them all: a borrow outlives no part of
+    /// its value, and a value that counts nothing is never released. In a
+    /// suspending body a moved value's locals are zeroed for its cancel
+    /// block, so it copies. A nested tuple pattern reads each column from
+    /// the one above (`hd_check` `expand_tuple`): a copy per level would
+    /// cost O(depth^2) leaves (#2400).
+    pub(super) fn names_part(&self, i: u32, whole: Ty) -> bool {
+        self.susp.is_none()
+            && !self.input_transferred.contains_key(&i)
+            && (self.b.is_borrow(i)
+                || !self.cx().tracked(whole)
+                    && !crate::layout::holds_drop(self.pool(), self.env(), whole))
     }
 
     /// Whether read `i` of a whole `target` through reference type
