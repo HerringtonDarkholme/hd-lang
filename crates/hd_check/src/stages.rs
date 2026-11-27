@@ -69,8 +69,15 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
     };
     let mut reach: HashMap<Node, BTreeSet<usize>> = HashMap::default();
     let mut callers: HashMap<Node, Vec<Node>> = HashMap::default();
-    for (m, sum) in modules.iter().enumerate() {
+    // No initializer call roots means no transitive function reads.
+    // O(statements) root checks; unrelated function graphs are not visited.
+    let has_calls = modules
+        .iter()
+        .flat_map(|sum| &sum.stmts)
+        .any(|st| !st.facts.calls.is_empty() || !st.facts.dispatch.is_empty());
+    for (m, sum) in modules.iter().enumerate().filter(|_| has_calls) {
         for (d, f) in &sum.fns {
+            crate::work::scan_work(1);
             let set = hd_base::btree_set(f.reads.iter().filter_map(|g| binding.get(g)).copied());
             reach.entry(Node::Body(*d)).or_default().extend(set);
             for c in f.callees() {
@@ -79,6 +86,7 @@ pub fn cycle_order(modules: &[&InitSummary]) -> CycleOrder {
         }
         for (k, methods) in &sum.dispatch {
             for d in methods {
+                crate::work::scan_work(1);
                 (callers.entry(Node::Body(*d)).or_default()).push(Node::Dispatch(m, *k));
             }
         }
