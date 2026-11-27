@@ -22,7 +22,6 @@ sloppy-expect	hd_types	8
 sloppy-expect	hd_wasm	185
 sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
-sloppy-std-path	hd_driver	1
 sloppy-std-path	hd_wasm	7
 sloppy-unreachable	hd_check	1
 sloppy-unreachable	hd_tir	1
