@@ -8,7 +8,7 @@ import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { byteOrder, fileOperations, resolvePath } from "./node-files.ts";
-import { fixture, netHost } from "./node-test-support.ts";
+import { fixture, netHost, positivePid, signalProcess } from "./node-test-support.ts";
 import { Err, Ok } from "./wire.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
@@ -415,6 +415,7 @@ test(
         .filter(([, parent]) => parent === process.pid).map(([pid]) => pid);
       // Exclude the ps command itself: it has already exited now.
       const alive = children.filter(pid => {
+        if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error("invalid child pid");
         try { process.kill(pid, 0); return true; } catch { return false; }
       });
       console.log(JSON.stringify(alive));
@@ -437,13 +438,14 @@ test(
     const [code] = await once(child, "close");
     assert.equal(code, 0, Buffer.concat(errors).toString());
     const pids: number[] = JSON.parse(Buffer.concat(bytes).toString());
+    pids.forEach(positivePid);
     assert.equal(pids.length, 1, "one blocked file helper was started");
     // The old helper orphaned its synchronous FIFO open here. Clean up on
     // failure too, so a regression cannot leave a blocked process behind.
     const alive = () =>
       pids.filter((pid) => {
         try {
-          process.kill(pid, 0);
+          signalProcess(pid, 0);
           return true;
         } catch {
           return false;
@@ -451,7 +453,7 @@ test(
       });
     testContext.after(() => {
       for (const pid of alive()) {
-        process.kill(pid, "SIGKILL");
+        signalProcess(pid, "SIGKILL");
       }
     });
     const until = performance.now() + 3000;

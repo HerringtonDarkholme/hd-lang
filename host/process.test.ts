@@ -9,9 +9,41 @@ import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { Err, Ok } from "./wire.ts";
 import { syncClient } from "./node.ts";
-import { netHost } from "./node-test-support.ts";
+import { netHost, readPid, signalProcess } from "./node-test-support.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
+
+test("Process signals reject empty readiness files and invalid pids", (testContext) => {
+  const root = fixture(testContext);
+  const ready = join(root, "pid");
+  const signals: [number, NodeJS.Signals | number | undefined][] = [];
+  testContext.mock.method(process, "kill", (pid: number, signal?: NodeJS.Signals | number) => {
+    signals.push([pid, signal]);
+    return true;
+  });
+  for (const text of ["", " ", "0", "-42", "NaN", "Infinity", "1.5", "9007199254740992"]) {
+    writeFileSync(ready, text);
+    for (const signal of [0, "SIGKILL"] as const) {
+      assert.throws(() => signalProcess(readPid(ready), signal), /positive process id/);
+    }
+  }
+  assert.deepEqual(signals, [], "no invalid target reaches process.kill");
+  writeFileSync(ready, "123\n");
+  signalProcess(readPid(ready), 0);
+  signalProcess(readPid(ready), "SIGKILL");
+  assert.deepEqual(signals, [
+    [123, 0],
+    [123, "SIGKILL"],
+  ]);
+});
+
+test("Process readiness waits for PID contents after file creation", async (testContext) => {
+  const root = fixture(testContext);
+  const ready = join(root, "pid");
+  writeFileSync(ready, "");
+  setImmediate(() => writeFileSync(ready, String(process.pid)));
+  await testContext.waitFor(() => assert.equal(readPid(ready), process.pid), { timeout: 1000 });
+});
 
 // Exercise the Windows worker branch on every OS without changing the
 // production worker's API or loading a replacement process implementation.
@@ -173,12 +205,12 @@ test(
     testContext.after(() => {
       if (existsSync(ready)) {
         try {
-          process.kill(Number(readFileSync(ready, "utf8")), "SIGKILL");
+          signalProcess(readPid(ready), "SIGKILL");
         } catch {}
       }
     });
     const operation = start({ launcher });
-    await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
+    await testContext.waitFor(() => assert.ok(readPid(ready)), { timeout: 5000 });
     await testContext.waitFor(
       () =>
         assert.deepEqual(call({ op: "wait_poll", operation }), {
@@ -186,7 +218,7 @@ test(
         }),
       { timeout: 5000 },
     );
-    process.kill(Number(readFileSync(ready, "utf8")), 0);
+    signalProcess(readPid(ready), 0);
     call({ op: "wait_finish", operation });
     writeFileSync(release, "");
   },
@@ -244,20 +276,20 @@ for (const phase of ["running", "leader-exited", "detached"]) {
     await testContext.waitFor(
       () => {
         assert.ok(peer);
-        assert.ok(existsSync(root + ".awake"));
-        assert.ok(existsSync(root + ".parent"));
+        assert.ok(readPid(root + ".awake"));
+        assert.ok(readPid(root + ".parent"));
       },
       { timeout: 10_000 },
     );
-    const pid = Number(readFileSync(root + ".awake", "utf8"));
+    const pid = readPid(root + ".awake");
     testContext.after(() => {
       try {
-        process.kill(pid, "SIGKILL");
+        signalProcess(pid, "SIGKILL");
       } catch {}
     });
-    const parentPid = Number(readFileSync(root + ".parent", "utf8"));
+    const parentPid = readPid(root + ".parent");
     if (phase !== "running") {
-      await testContext.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), {
+      await testContext.waitFor(() => assert.throws(() => signalProcess(parentPid, 0)), {
         timeout: 5000,
       });
     }
@@ -267,7 +299,7 @@ for (const phase of ["running", "leader-exited", "detached"]) {
         Ok({ stdout: "", stderr: "", status: 0, program: process.execPath }),
       );
       // A normally completed call does not kill detached descendants.
-      process.kill(pid, 0);
+      signalProcess(pid, 0);
       peer!.write("release");
       await testContext.waitFor(() => assert.ok(existsSync(root + ".released")), { timeout: 5000 });
     } else {
@@ -276,7 +308,9 @@ for (const phase of ["running", "leader-exited", "detached"]) {
       host.imports["hd:rt"].abort(child.operation);
       await closed;
       assert.equal(existsSync(root + ".released"), false);
-      await testContext.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+      await testContext.waitFor(() => assert.throws(() => signalProcess(pid, 0)), {
+        timeout: 5000,
+      });
       // Cancellation does not poison a sibling/successor command.
       assert.equal(take("run", run("process.stdout.write('next')")).value.stdout, "next");
     }

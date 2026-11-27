@@ -629,10 +629,10 @@ pub(crate) struct NodeSession {
 
 impl NodeSession {
     fn new(io: HostIo, cwd: &std::path::Path) -> Result<Self, String> {
-        use std::process::{Command, Stdio};
+        use std::process::Stdio;
         let scratch = crate::node::Scratch::new(&[])?;
         // cost: one Node process per session.
-        let mut child = Command::new(crate::node::node_program())
+        let mut child = crate::node::node_command()
             .args(["--input-type=module", "--eval", "import { pathToFileURL } from 'node:url'; const { driveNodeSession } = await import(pathToFileURL(process.argv[1])); await driveNodeSession(); process.exit(0);"])
             .arg(scratch.0.join("node.js"))
             .current_dir(cwd)

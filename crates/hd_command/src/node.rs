@@ -871,9 +871,15 @@ fn grants_json(g: &Grants) -> String {
 const NODE_STACK_KIB: u64 = 16 << 10;
 
 /// `node` with the program's stack ([`NODE_STACK_KIB`]).
-fn node_command() -> Command {
+pub(crate) fn node_command() -> Command {
     // cost: one getrlimit and at most one setrlimit per `hd` process.
     let mut command = Command::new(node_program());
+    // A host must never inherit ownership of its caller's process group.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        command.process_group(0);
+    }
     if node_stack_raised() {
         command.arg(format!("--stack-size={NODE_STACK_KIB}"));
     }
@@ -1300,6 +1306,56 @@ pub(crate) fn json_str(s: &str) -> Option<(String, &str)> {
 
 #[cfg(test)]
 mod tests {
+
+    #[cfg(unix)]
+    #[test]
+    fn node_hosts_own_their_process_groups() -> Result<(), Box<dyn std::error::Error>> {
+        use std::os::unix::process::{CommandExt as _, ExitStatusExt as _};
+        const GUARD: &str = "HD_NODE_GROUP_TEST_GUARD";
+        if std::env::var_os(GUARD).is_some() {
+            for mut node in [super::node_command(), hd_testkit::node::command()] {
+                let mut child = node
+                    .args([
+                        "-e",
+                        "require('node:fs').readFileSync(0); process.kill(0, 'SIGKILL')",
+                    ])
+                    .stdin(std::process::Stdio::piped())
+                    // cost: one child for each of two fixed constructors.
+                    .spawn()?;
+                let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id())?);
+                let group = nix::unistd::getpgid(Some(pid))?;
+                if group != pid {
+                    child.kill()?;
+                    child.wait()?;
+                }
+                assert_eq!(group, pid, "Node did not create its own process group");
+                drop(child.stdin.take());
+                assert_eq!(child.wait()?.signal(), Some(9));
+            }
+            println!("Node host caller survived");
+        } else {
+            // The disposable outer group contains a regression too: a
+            // broken Node constructor kills this child, never our harness.
+            // cost: one disposable test process, running one named test.
+            let output = std::process::Command::new(std::env::current_exe()?)
+                .args([
+                    "--exact",
+                    "node::tests::node_hosts_own_their_process_groups",
+                    "--nocapture",
+                ])
+                .env(GUARD, "1")
+                .process_group(0)
+                .output()?;
+            assert!(
+                output.status.success(),
+                "a Node host did not preserve its caller: {}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8(output.stdout)?.contains("Node host caller survived"));
+        }
+        Ok(())
+    }
     use super::read_batch_results;
     use std::fmt::Write as _;
     use std::path::{Path, PathBuf};
