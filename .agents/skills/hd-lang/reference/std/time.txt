@@ -1,0 +1,39 @@
+# std.time: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.time` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.time.NAME` inside any package.
+std.time.Duration  pub struct Duration  -- A distance in time, as a count of whole milliseconds, never negative.
+std.time.Duration.milliseconds  pub fn milliseconds(count: i64) -> Duration  -- Returns a `Duration` of that many milliseconds. A negative count panics.
+std.time.Duration.seconds  pub fn seconds(count: i64) -> Duration  -- Returns a `Duration` of that many seconds. A negative count panics.
+std.time.Duration.checked_sub  pub fn checked_sub(self, rhs: Duration) -> Duration?  -- The duration minus `rhs`, or `.None` when `rhs` is the longer one.
+std.time.Duration.saturating_sub  pub fn saturating_sub(self, rhs: Duration) -> Duration  -- The duration minus `rhs`, or zero when `rhs` is the longer one.
+std.time.Duration.as_milliseconds  pub fn as_milliseconds(self) -> i64  -- The milliseconds since the origin that the instant holds.
+std.time.ms  pub fn ms(count: i64) -> Duration  -- The `ms` suffix: a `Duration` of that many milliseconds, as in `250ms`.
+std.time.s  pub fn s(count: i64) -> Duration  -- The `s` suffix: a `Duration` of that many seconds, as in `5s`.
+std.time.minutes  pub fn minutes(count: i64) -> Duration  -- A `Duration` of `count` minutes; the `90min` literal uses this constructor.
+std.time.h  pub fn h(count: i64) -> Duration  -- The `h` suffix: a `Duration` of that many hours, as in `2h`.
+std.time.Clock  pub trait Clock  -- The host capability to read the clock and to wait: `now`, `monotonic`, and `sleep!`.
+std.time.now  pub fn now() -> Timestamp $ Clock  -- Returns the current wall-clock time as a `Timestamp`.
+std.time.monotonic  pub fn monotonic() -> Instant $ Clock  -- Returns the current reading of the monotonic clock as an `Instant`.
+std.time.elapsed  pub fn elapsed(since: Instant) -> Duration $ Clock  -- Returns the time that has passed on the monotonic clock since `since`.
+std.time.sleep  pub fn sleep!(duration: Duration) -> void $ Clock  -- Completes once `duration` has passed on the clock.
+std.time.Timestamp  pub struct Timestamp  -- A point in UTC time, held as whole milliseconds since the Unix epoch.
+std.time.Timestamp.from_unix_milliseconds  pub fn from_unix_milliseconds(millis: i64) -> Timestamp  -- Returns the timestamp that holds `millis` milliseconds since the Unix epoch.
+std.time.Timestamp.unix_milliseconds  pub fn unix_milliseconds(self) -> i64  -- The milliseconds since the Unix epoch that the timestamp holds.
+std.time.Timestamp.checked_since  pub fn checked_since(self, earlier: Timestamp) -> Duration?  -- The time from `earlier` to the timestamp, or `.None` when `earlier` is the later one.
+std.time.Timestamp.since  pub fn since(self, earlier: Timestamp) -> Duration  -- The time from `earlier` to the timestamp, or zero when `earlier` is the later one.
+std.time.Timestamp.date  pub fn date(self) -> Date  -- The calendar day of the timestamp in UTC.
+std.time.Timestamp.to_rfc3339  pub fn to_rfc3339(self) -> string  -- The timestamp as RFC 3339 text in UTC.
+std.time.Timestamp.format  pub fn format(self, layout: string) -> string  -- The timestamp as text in UTC, laid out by `%Y %m %d %H %M %S %z %%`.
+std.time.Date  pub struct Date  -- A calendar day in UTC, in the proleptic Gregorian calendar.
+std.time.Date.year  pub year: i32  -- The year, with a year 0.
+std.time.Date.month  pub month: i32  -- The month, from 1 to 12.
+std.time.Date.day  pub day: i32  -- The day of the month.
+std.time.Date.to_iso8601  pub fn to_iso8601(self) -> string  -- The date as ISO 8601 text, as `2026-10-17`.
+std.time.ParseTimeError  pub enum ParseTimeError  -- Why time text failed to parse: the kind, and the byte position.
+std.time.Instant  pub struct Instant  -- A reading of the monotonic clock, for measuring intervals.
+std.time.Instant.from_milliseconds  pub fn from_milliseconds(millis: i64) -> Instant  -- Returns the instant that holds `millis` milliseconds since the provider's origin.
+std.time.Instant.as_milliseconds  pub fn as_milliseconds(self) -> i64
+std.time.Instant.checked_since  pub fn checked_since(self, earlier: Instant) -> Duration?  -- The time from `earlier` to the instant, or `.None` when `earlier` is the later one.
+std.time.Instant.since  pub fn since(self, earlier: Instant) -> Duration  -- The time from `earlier` to the instant, or zero when `earlier` is the later one.
+std.time.ManualClock  pub struct ManualClock  -- The deterministic `Clock` provider: virtual time that a test advances.
+std.time.ManualClock.new  pub fn new(start: Timestamp) -> *mut ManualClock  -- Returns a `ManualClock` whose current time starts at `start`.

@@ -1,0 +1,35 @@
+# std.task: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.task` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.task.NAME` inside any package.
+std.task.Layer  pub trait Layer[W]  -- A configuration that wraps work and declares the resulting type.
+std.task.apply  pub fn apply![T, U, $ R, $ S, P < Layer[fn!() -> T $ R, Wrapped = fn!() -> U $ S]](  -- Wraps work with a policy and invokes the returned function once.
+std.task.race  pub fn race![T](tasks...: List[Suspend[T]]) -> T  -- Drives the tasks together and returns the first one's value; the losers are cancelled. A compiler intrinsic.
+std.task.BlockOn  pub enum BlockOn[T]  -- How a `block_on` drive ended: `Completed` with the suspension's value, or `Cancelled` or `Abandoned` when the suspension was cancelled and its cleanup ran to its end or was cut short.
+std.task.block_on  pub fn block_on[T](s: Suspend[T]) -> BlockOn[T]  -- Drives `s` from code that does not suspend, and returns how the drive ended. A compiler intrinsic.
+std.task.CleanupEnd  pub enum CleanupEnd  -- How a job's cleanup ended: `Finished` when it ran to its end, `Abandoned` when a part of it was cut short.
+std.task.Backoff  pub struct Backoff  -- How many times to try, how long to wait, and the wait's cap.
+std.task.TimedOut  pub struct TimedOut  -- The error when a TimeLimit deadline wins; cleanup says how the work’s cleanup ended.
+std.task.TimeLimit  pub struct TimeLimit  -- A deadline configuration; wrapping Result work adds Clock and converts TimedOut into its error type.
+std.task.Retry  pub struct Retry  -- A retry configuration whose error type is selected when work is applied.
+std.task.Retry.when  pub fn when[E, F < FnMut(E) -> bool](self, predicate: F) -> SelectiveRetry[E, F]  -- Selects which errors allow another attempt.
+std.task.SelectiveRetry  pub struct SelectiveRetry[E, F < FnMut(E) -> bool = fn(E) -> bool]  -- A retry configuration with a predicate for one concrete error type.
+std.task.Fallback  pub struct Fallback[F]  -- A backup configuration that retains its concrete work function and row.
+std.task.CircuitOpen  pub struct CircuitOpen  -- A marker converted into the work's error type when a guard refuses it.
+std.task.Breaker  pub struct Breaker  -- Caller-owned state for a consecutive-failure circuit breaker.
+std.task.Guard  pub struct Guard  -- A guard retaining shared mutable breaker state across applications.
+std.task.Hedge  pub struct Hedge  -- A delay configuration for racing an immediate invocation against a later copy.
+std.task.retry  pub fn retry(backoff: Backoff) -> Retry  -- Builds a retry configuration without acquiring a provider.
+std.task.timeout  pub fn timeout(limit: Duration, cleanup: Duration? = .None) -> TimeLimit  -- Builds a deadline configuration without starting work.
+std.task.with_timeout  pub fn with_timeout[I](limit: Duration, inner: I, cleanup: Duration? = .None) -> (I, TimeLimit)  -- Places a deadline outside an inner policy.
+std.task.fallback  pub fn fallback[F, I](other: F, inner: I) -> (I, Fallback[F])  -- Places a backup outside an inner policy without starting work.
+std.task.guarded  pub fn guarded(state: *mut Breaker) -> Guard  -- Builds a guard retaining the caller's shared mutable breaker state.
+std.task.hedged  pub fn hedged(delay: Duration) -> Hedge  -- Builds a hedge configuration without acquiring a clock or starting work.
+std.task.map_join  pub fn map_join![T < 'static, U < 'static, F < Fn(T) -> Suspend[U] $ R, $ R](  -- Runs `work` on every item, at most `limit` at a time, and returns the values in item order.
+std.task.Sender  pub struct Sender[T < 'static]  -- The sending handle of a channel; copies send into the same channel.
+std.task.Sender.send  pub fn send!(&self, value: T) -> void  -- Puts `value` at the back of the channel, waiting while it is full.
+std.task.Sender.close  pub fn close(&self) -> void  -- Closes the channel: receivers drain what it holds, then get `.None`.
+std.task.Receiver  pub struct Receiver[T < 'static]  -- The receiving handle of a channel; copies receive from the same channel.
+std.task.Receiver.recv  pub fn recv!(&self) -> T?  -- The item at the front of the channel, waiting while it is empty and open; `.None` once it is closed and drained.
+std.task.channel  pub fn channel[T < 'static](capacity: usize) -> (Sender[T], Receiver[T])  -- A new channel that holds at most `capacity` items, as its two handles.
+std.task.Suspend.cancel  pub fn cancel!(self) -> CleanupEnd  -- Stops the job, waits until its cleanup has ended, and returns how it ended.
+std.task.Suspend.abandon  pub fn abandon(self) -> void  -- Stops the job and unwinds it at once: its `defer` blocks run, and each `dispose!` is cut short at its suspension point.

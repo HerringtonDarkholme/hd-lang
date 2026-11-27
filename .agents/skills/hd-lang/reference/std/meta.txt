@@ -1,0 +1,71 @@
+# std.meta: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.meta` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.meta.NAME` inside any package.
+std.meta.Marker  pub trait Marker < ?Copy  -- A trait with no members that says what may cross into one kind of domain.
+std.meta.Send  pub trait Send < Marker  -- A value that may be copied, moved or lent to another thread of the same memory.
+std.meta.Sync  pub trait Sync < Marker  -- A value that threads may read at once: it holds no counted buffer, so
+std.meta.Wire  pub trait Wire < Marker  -- A value that crosses into separate memory as a self-contained tree.
+std.meta.facts_of  pub fn facts_of[F](f: F) -> Facts  -- The facts attached to the module-level function `f`; a compiler intrinsic.
+std.meta.Target  pub enum Target  -- The kind of declaration a fact value may be attached to.
+std.meta.Annotate  pub struct Annotate
+std.meta.Annotate.kinds  pub kinds: List[Target]  -- The target kinds the fact type allows.
+std.meta.annotate  pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate  -- The `@annotate` decorator: it attaches an `Annotate` fact listing the target `kinds`.
+std.meta.Inspectable  pub trait Inspectable < ?Copy  -- The sealed trait of types with a runtime identity, which the compiler supplies.
+std.meta.TypeId  pub struct TypeId  -- The runtime identity of an inspectable type.
+std.meta.TypeId.of  pub fn of[T < Inspectable]() -> TypeId  -- The `TypeId` of `T`.
+std.meta.Facts  pub struct Facts  -- The facts attached to one type, member, variant, or module-level function, in source order.
+std.meta.Facts.items  pub items: List[*dyn Inspectable]  -- The fact values.
+std.meta.Facts.find  pub fn find[F < Inspectable](self) -> F?  -- Returns the fact whose concrete type is `F`, or `.None`.
+std.meta.Member  pub struct Member  -- What the compiler tells a template about one member: name, position, facts, doc comment, and shape.
+std.meta.Member.name  pub name: string  -- The member's declared name.
+std.meta.Member.position  pub position: usize  -- The member's position in its type.
+std.meta.Member.facts  pub facts: Facts  -- The member's facts.
+std.meta.Member.doc  pub doc: string?  -- The member's doc comment, in `.Some`, or `.None`.
+std.meta.Member.embedded  pub embedded: bool  -- Whether the member is embedded.
+std.meta.Member.positional  pub positional: bool  -- Whether the member is positional.
+std.meta.Member.self_ref  pub self_ref: SelfRef  -- How the member's type refers to the type being derived, which the compiler computes.
+std.meta.VariantInfo  pub struct VariantInfo  -- What the compiler tells a template about one variant.
+std.meta.VariantInfo.name  pub name: string  -- The variant's name.
+std.meta.VariantInfo.index  pub index: usize  -- The variant's index in its enum.
+std.meta.VariantInfo.facts  pub facts: Facts  -- The variant's facts.
+std.meta.VariantInfo.doc  pub doc: string?  -- The variant's doc comment, in `.Some`, or `.None`.
+std.meta.VariantInfo.type_doc  pub type_doc: string? = .None  -- The owning type's documentation, identical for all its variants.
+std.meta.VariantInfo.of_data  pub of_data: bool  -- Whether the variant belongs to a data type.
+std.meta.VariantInfo.positional  pub positional: usize = 0  -- The variant's number of positional payload members.
+std.meta.VariantInfo.named  pub named: usize = 0  -- The variant's number of named payload members.
+std.meta.VariantInfo.included_positional  pub included_positional: usize = 0  -- The positional payload members included in this derivation's view.
+std.meta.VariantInfo.shared  pub shared: List[(string, *dyn Inspectable)]  -- The facts the variants share.
+std.meta.VariantInfo.self_ref  pub self_ref: SelfRef  -- How the variant's fields refer to the type being derived, which the compiler computes.
+std.meta.SelfRef  pub enum SelfRef  -- How a member or variant refers to the type being derived: `Absent`, `Optional`, or `Required`.
+std.meta.Field  pub type Field[HdS < ?Copy, HdF < ?Copy] = *FieldRecord[HdS, HdF]  -- A member's handle: a reference to its `FieldRecord`, which holds its `Member` information plus the calls a template needs.
+std.meta.FieldRecord  pub struct FieldRecord[HdS < ?Copy, HdF < ?Copy]  -- What a member's handle refers to: its `Member` information plus the calls a template needs.
+std.meta.FieldRecord.info  pub info: Member  -- The member's information.
+std.meta.FieldRecord.get  pub fn get['a](&self, s: &'a HdS) -> &'a HdF  -- Reads the member's value from `s`.
+std.meta.FieldRecord.has_default  pub fn has_default(&self) -> bool  -- Whether the member has a default value.
+std.meta.FieldRecord.default  pub fn default(&self) -> HdF?  -- The member's default value, in `.Some`, or `.None`.
+std.meta.FieldRecord.fact  pub fn fact[HdM < Inspectable](&self) -> HdM?  -- The member's fact whose concrete type is `HdM`, or `.None`.
+std.meta.Variant  pub type Variant[HdS < ?Copy] = *VariantRecord[HdS]  -- A variant's handle: a reference to its `VariantRecord`, which holds its `VariantInfo` plus the check that a value holds it.
+std.meta.VariantRecord  pub struct VariantRecord[HdS < ?Copy]  -- What a variant's handle refers to: its `VariantInfo` plus the check that a value holds it.
+std.meta.VariantRecord.info  pub info: VariantInfo  -- The variant's information.
+std.meta.VariantRecord.holds  pub fn holds(&self, s: &HdS) -> bool  -- Whether `s` holds this variant.
+std.meta.Key  pub type Key[HdS < ?Copy] = *KeyRecord[HdS]  -- A found member's key: a reference to its `KeyRecord`.
+std.meta.KeyRecord  pub struct KeyRecord[HdS < ?Copy]  -- What a member's key refers to: the member's information and target type.
+std.meta.Members  pub type Members[HdS < ?Copy] = *MembersRecord[HdS]  -- The members of the type being derived: a reference to their `MembersRecord`.
+std.meta.MembersRecord  pub struct MembersRecord[HdS < ?Copy]  -- What a member directory refers to: the members, which a template looks up by position or by a match.
+std.meta.MembersRecord.infos  pub infos: List[Member]  -- The members' information, in order.
+std.meta.MembersRecord.id  pub fn id(&self) -> usize  -- The directory's id: one `usize` per member directory in the program, the same at every use of it, which a reader keys its per-type tables by.
+std.meta.MembersRecord.at  pub fn at(&self, position: usize) -> Key[HdS]?  -- The key of the member at `position`, or `.None`.
+std.meta.MembersRecord.find  pub fn find(&self, matches: fn(Member) -> bool) -> Key[HdS]?  -- The key of the first member that `matches` accepts, or `.None`.
+std.meta.Walker  pub trait Walker[S < ?Copy] < ?Copy  -- The protocol that walks a value variant and member by member.
+std.meta.Describer  pub trait Describer[S < ?Copy] < ?Copy  -- The protocol that describes a type variant and member by member, without a value.
+std.meta.Source  pub trait Source[S < ?Copy] < ?Copy  -- The protocol that builds a value: it chooses a variant and supplies each member.
+std.meta.FillsDefaults  pub struct FillsDefaults  -- A source implementation's fact: `build` fills each member that declares a default from that default.
+std.meta.fills_defaults  pub fn fills_defaults() -> FillsDefaults  -- Marks a source implementation whose `build` fills each member that declares a default from it.
+std.meta.Skips  pub struct Skips[F]  -- A walker's, describer's, or source's fact: a member that carries a fact of type `F` is omitted.
+std.meta.skips  pub fn skips[F]() -> Skips[F]  -- Marks a walker, describer, or source implementation that omits each member carrying a fact of type `F`.
+std.meta.Location  pub struct Location  -- Where a call begins in source: the file as diagnostics name it, and the
+std.meta.Location.caller  pub fn caller() -> Location  -- The location of the call of the enclosing `@track_caller` function.
+std.meta.Location.caller_args  pub fn caller_args() -> List[CallArg]  -- The source text and span of each argument of the call of the
+std.meta.Location.in_root_package  pub fn in_root_package(self) -> bool  -- Whether the call site is in the user's own code.
+std.meta.CallArg  pub struct CallArg  -- One argument of a call: its source text, where it starts and ends, and
+std.meta.CallArg.name  pub name: string?

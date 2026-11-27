@@ -1,0 +1,16 @@
+# std.sync: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.sync` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.sync.NAME` inside any package.
+std.sync.Arc  pub struct Arc[T < ?Copy]  -- An owner of a `T` that several threads may hold at once. A clone shares the value and adds to its count; the drop of the last one drops the value.
+std.sync.Arc.new  pub fn new(value: T) -> Arc[T]  -- A new `Arc` that owns `value`, with a strong count of one.
+std.sync.Arc.clone  pub fn clone(&self) -> Arc[T]  -- Another `Arc` that owns the same value.
+std.sync.Arc.get  pub fn get(&self) -> &T  -- The value, lent for as long as this `Arc` is.
+std.sync.Arc.strong_count  pub fn strong_count(this: &Arc[T]) -> usize  -- How many `Arc`s own the value; another thread may change it at any time.
+std.sync.Arc.weak_count  pub fn weak_count(this: &Arc[T]) -> usize  -- How many `Weak`s refer to the value; another thread may change it at any time.
+std.sync.Arc.ptr_eq  pub fn ptr_eq(a: &Arc[T], b: &Arc[T]) -> bool  -- Whether `a` and `b` own the same value.
+std.sync.Arc.downgrade  pub fn downgrade(this: &Arc[T]) -> Weak[T]  -- A `Weak` to the value.
+std.sync.Arc.get_mut  pub fn get_mut(this: &mut Arc[T]) -> (&mut T)?  -- The value to change, when no other `Arc` or `Weak` holds it.
+std.sync.Arc.try_unwrap  pub fn try_unwrap(this: Arc[T]) -> Result[T, Arc[T]]  -- The value, when this is the only `Arc` that owns it; else `.Err` gives the `Arc` back.
+std.sync.Weak  pub struct Weak[T < ?Copy]  -- A reference to an `Arc`'s value that does not keep it alive.
+std.sync.Weak.upgrade  pub fn upgrade(&self) -> Arc[T]?  -- A new `Arc` to the value while an `Arc` still owns it, and `.None` after the value was dropped.
+std.sync.Weak.clone  pub fn clone(&self) -> Weak[T]  -- Another `Weak` to the same value.

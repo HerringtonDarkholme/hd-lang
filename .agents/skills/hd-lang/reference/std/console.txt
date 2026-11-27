@@ -1,0 +1,18 @@
+# std.console: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.console` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.console.NAME` inside any package.
+std.console.Console  pub trait Console  -- The host capability to write unchanged output text and error text.
+std.console.ConsoleInput  pub trait ConsoleInput  -- The host capability to read a line of input.
+std.console.read_line  pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput  -- Returns the next line of input without its line ending, or `.None` at the end of input.
+std.console.read_all  pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput  -- Returns all the input that is left, as text, with `\r\n` read as `\n`.
+std.console.MemoryConsole  pub struct MemoryConsole  -- The recording `Console` provider: it keeps exact text chunks for a test to read.
+std.console.MemoryConsole.new  pub fn new() -> *mut MemoryConsole  -- Returns an empty recording provider.
+std.console.MemoryConsole.output  pub fn output(&self) -> List[string]  -- The exact text chunks written through `write_sync`, in order.
+std.console.MemoryConsole.error_output  pub fn error_output(&self) -> List[string]  -- The exact text chunks written through `write_error_sync`, in order.
+std.console.println  pub fn println[T < Display](value: T) -> void $ Console  -- Writes `value`'s `Display` text and a line ending to the `Console` provider that covers the call; it panics when the write fails.
+std.console.print  pub fn print[T < Display](value: T) -> void $ Console  -- Writes Display text without a newline to the covering Console provider; it panics when the write fails.
+std.console.eprintln  pub fn eprintln[T < Display](value: T) -> void $ Console  -- Like `println`, but it writes the line as error output.
+std.console.ScriptedInput  pub struct ScriptedInput  -- The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
+std.console.ScriptedInput.new  pub fn new(lines: List[string]) -> *mut ScriptedInput  -- Returns the provider that answers `lines` in order, then the end of input.
+std.console.ConsoleStream  pub enum ConsoleStream  -- The standard output, standard error, and standard input streams.
+std.console.ConsoleError  pub enum ConsoleError  -- The console's heap-free errors: closed, not granted, or another failure code.

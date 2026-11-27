@@ -1,0 +1,18 @@
+# std.collections.map: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.collections.map` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.collections.map.NAME` inside any package.
+std.collections.map.MapKeys  pub struct MapKeys[K < Eq & Hash, V]  -- A snapshot cursor over a map's keys.
+std.collections.map.MapValues  pub struct MapValues[K < Eq & Hash, V]  -- A snapshot cursor over a map's values.
+std.collections.map.MapDrain  pub struct MapDrain[K < Eq & Hash, V, 'a]  -- A borrowed cursor over the entries removed by `Map.drain`.
+std.collections.map.Map.retain  pub fn retain[F < ?Copy & FnMut(&K, &mut V) -> bool](&mut self, mut keep: F) -> void  -- Keeps entries selected by `keep`, which may change their values.
+std.collections.map.Map.extend  pub fn extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void  -- Inserts entries in order, replacing values of equal keys.
+std.collections.map.Map.drain  pub fn drain['a](&'a mut self) -> MapDrain[K, V, 'a]  -- Empties this map and yields its entries while borrowing it.
+std.collections.map.Map.get_or_insert  pub fn get_or_insert(&mut self, key: K, default: V) -> &mut V  -- Returns a mutable reference to the value for `key`; when the map has no equal key, inserts `default` first.
+std.collections.map.Map.contains_key  pub fn contains_key(&self, key: K) -> bool  -- True when the map has an entry for `key`.
+std.collections.map.Map.keys  pub fn keys(&self) -> MapKeys[K, V]  -- A lazy cursor over a snapshot of the map's keys, in iteration order.
+std.collections.map.Map.values  pub fn values(&self) -> MapValues[K, V]  -- A lazy cursor over a snapshot of the map's values, in iteration order.
+std.collections.map.Map.is_empty  pub fn is_empty(&self) -> bool  -- True exactly when the map has no entries.
+std.collections.map.Map.entries  pub fn entries(&self) -> List[(K, V)]  -- A new list of the `(key, value)` pairs, in the map's iteration order.
+std.collections.map.Map.most_common  pub fn most_common(&self, n: usize) -> List[(K, usize)]  -- Returns the `n` pairs with the largest counts, largest first; equal counts keep the map's order.
+std.collections.map.Map.insert  pub fn insert(&mut self, key: K, value: V) -> V?  -- Inserts a value and returns the previous value, if any, without replacing an equal stored key.
+std.collections.map.Map.clear  pub fn clear(&mut self) -> void  -- Removes all entries from this map, leaving other copies unchanged.

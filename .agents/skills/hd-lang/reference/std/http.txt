@@ -1,0 +1,120 @@
+# std.http: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.http` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.http.NAME` inside any package.
+std.http.HttpStatus  pub enum HttpStatus  -- A standard HTTP status or another numeric code.
+std.http.HttpStatus.code  pub fn code(&self) -> u16
+std.http.HttpStatus.from_code  pub fn from_code(code: u16) -> HttpStatus
+std.http.HttpStatus.is_success  pub fn is_success(&self) -> bool
+std.http.HeaderName  pub enum HeaderName  -- A header name; equality and hashing use its lowercase wire name.
+std.http.HeaderName.wire_name  pub fn wire_name(&self) -> string
+std.http.HeaderError  pub enum HeaderError
+std.http.Body  pub struct Body  -- A shared read-once message body. Copying the value shares consumption.
+std.http.Body.from_bytes  pub fn from_bytes(bytes: List[u8]) -> Body
+std.http.Body.bytes  pub fn bytes(&self) -> Result[List[u8], BodyError]
+std.http.Body.text  pub fn text(&self) -> Result[string, BodyError]
+std.http.Body.json  pub fn json[T < Deserialize](&self) -> Result[T, BodyError]
+std.http.Body.form  pub fn form[T < Deserialize](&self) -> Result[T, BodyError]
+std.http.BodyError  pub enum BodyError  -- A typed message-body read failure.
+std.http.FormError  pub enum FormError  -- A typed query or form conversion failure.
+std.http.UrlError  pub enum UrlError
+std.http.Headers  pub struct Headers  -- Ordered header pairs. Repeated names retain their individual values.
+std.http.Headers.new  pub fn new() -> Headers
+std.http.Headers.get  pub fn get(&self, name: HeaderName) -> string?  -- Joins repeated values, except Set-Cookie, whose first line is returned.
+std.http.Headers.set  pub fn set(&mut self, name: HeaderName, value: string) -> void  -- Replaces all values for this name. Wire validation happens at send.
+std.http.Headers.remove  pub fn remove(&mut self, name: HeaderName) -> void
+std.http.Headers.entries  pub fn entries(&self) -> List[(HeaderName, string)]
+std.http.Headers.request_cookie  pub fn request_cookie(&self, name: string) -> string?  -- The first value for this request cookie name.
+std.http.Headers.request_cookies  pub fn request_cookies(&self) -> List[(string, string)]  -- Cookie header pairs in received order, including repeated names.
+std.http.Headers.set_request_cookie  pub fn set_request_cookie(&mut self, name: string, value: string) -> void  -- Merges request cookies into one Cookie field, replacing this name.
+std.http.Headers.response_cookies  pub fn response_cookies(&self) -> List[Cookie]  -- Parses all Set-Cookie lines without combining them.
+std.http.Headers.set_response_cookie  pub fn set_response_cookie(&mut self, cookie: Cookie) -> void  -- Replaces earlier Set-Cookie lines for exactly this cookie name.
+std.http.MultipartPart  pub struct MultipartPart  -- One named part of a buffered multipart/form-data message.
+std.http.Multipart  pub struct Multipart  -- Ordered buffered multipart/form-data parts.
+std.http.Multipart.new  pub fn new() -> Multipart
+std.http.Multipart.add  pub fn add(mut self, part: MultipartPart) -> Multipart  -- Adds an arbitrary part without changing its headers or body.
+std.http.Multipart.text  pub fn text(mut self, name: string, value: string) -> Multipart  -- Adds one UTF-8 text field.
+std.http.Multipart.file  pub fn file( mut self, name: string, filename: string, content_type: string, bytes: List[u8], ) -> Multipart  -- Adds one in-memory file field. The caller supplies its media type.
+std.http.MultipartError  pub enum MultipartError  -- Why a buffered multipart message could not be built or read.
+std.http.SameSite  pub enum SameSite  -- The SameSite policy of a response cookie.
+std.http.Cookie  pub struct Cookie  -- A response cookie. Outgoing defaults are secure; parsed defaults reflect the wire.
+std.http.Cookie.expired  pub fn expired(name: string) -> Cookie
+std.http.Url  pub struct Url  -- Parsed absolute HTTP URL. Public components are values, not references.
+std.http.Url.parse  pub fn parse(text: string) -> Result[Url, UrlError]
+std.http.Url.resolve  pub fn resolve(&self, reference: string) -> Result[Url, UrlError]
+std.http.Url.query_as  pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]
+std.http.Url.set_query_as  pub fn set_query_as[T < Serialize](&mut self, value: T) -> void
+std.http.Url.param  pub fn param(&self, name: string) -> string?
+std.http.Url.add_param  pub fn add_param[T < Display](&mut self, name: string, value: T) -> void
+std.http.Method  pub enum Method  -- An HTTP method: a standard one, or `Other(name)`.
+std.http.Request  pub struct Request  -- A request used for both incoming and outgoing messages.
+std.http.Request.new  pub fn new(method: Method, url: Url) -> Request
+std.http.Request.get  pub fn get(url: Url) -> Request
+std.http.Request.post  pub fn post(url: Url) -> Request
+std.http.Request.set_json  pub fn set_json[T < Serialize](mut self, value: T) -> Request
+std.http.Request.set_text  pub fn set_text(mut self, text: string) -> Request
+std.http.Request.set_bytes  pub fn set_bytes(mut self, bytes: List[u8]) -> Request
+std.http.Request.set_form  pub fn set_form[T < Serialize](mut self, value: T) -> Request
+std.http.Request.set_multipart  pub fn set_multipart(mut self, form: Multipart) -> Result[Request, MultipartError]  -- Encodes ordered multipart parts once, replacing this request's body and Content-Type.
+std.http.Request.set_query_as  pub fn set_query_as[T < Serialize](mut self, value: T) -> Request
+std.http.Request.set_header  pub fn set_header(mut self, name: HeaderName, value: string) -> Request
+std.http.Request.set_cookie  pub fn set_cookie(mut self, name: string, value: string) -> Request
+std.http.Request.json  pub fn json[T < Deserialize](&self) -> Result[T, BodyError]
+std.http.Request.text  pub fn text(&self) -> Result[string, BodyError]
+std.http.Request.bytes  pub fn bytes(&self) -> Result[List[u8], BodyError]
+std.http.Request.form  pub fn form[T < Deserialize](&self) -> Result[T, BodyError]
+std.http.Request.multipart  pub fn multipart(&self) -> Result[Multipart, MultipartError]  -- Claims this request body and parses its multipart/form-data parts.
+std.http.Request.query_as  pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]
+std.http.Request.header  pub fn header(&self, name: HeaderName) -> string?
+std.http.Request.cookie  pub fn cookie(&self, name: string) -> string?
+std.http.Request.send  pub fn send!(&self, redirects: usize = 10) -> Result[Response, HttpError] $ Http
+std.http.CookieJar  pub struct CookieJar  -- Plain cookie data; time is supplied explicitly rather than read implicitly.
+std.http.CookieJar.new  pub fn new() -> CookieJar
+std.http.CookieJar.cookies_for  pub fn cookies_for(&self, url: &Url, now: Timestamp) -> List[(string, string)]
+std.http.CookieJar.store  pub fn store(&mut self, url: &Url, response: &Response, now: Timestamp) -> void
+std.http.CookieJar.clear_expired  pub fn clear_expired(&mut self, now: Timestamp) -> void
+std.http.Client  pub struct Client  -- Sends through Http with one serializable jar and one Clock read per send.
+std.http.Client.new  pub fn new() -> Client
+std.http.Client.with_jar  pub fn with_jar(jar: CookieJar) -> Client
+std.http.Client.send  pub fn send!( &mut self, request: &Request, redirects: usize = 10, ) -> Result[Response, HttpError] $ Http + Clock
+std.http.Response  pub struct Response  -- A response used for both incoming and outgoing messages.
+std.http.Response.status  pub fn status(code: HttpStatus) -> Response
+std.http.Response.set_json  pub fn set_json[T < Serialize](mut self, value: T) -> Response
+std.http.Response.set_text  pub fn set_text(mut self, text: string) -> Response
+std.http.Response.set_bytes  pub fn set_bytes(mut self, bytes: List[u8]) -> Response
+std.http.Response.set_header  pub fn set_header(mut self, name: HeaderName, value: string) -> Response
+std.http.Response.set_cookie  pub fn set_cookie(mut self, cookie: Cookie) -> Response
+std.http.Response.json  pub fn json[T < Deserialize](&self) -> Result[T, BodyError]
+std.http.Response.text  pub fn text(&self) -> Result[string, BodyError]
+std.http.Response.bytes  pub fn bytes(&self) -> Result[List[u8], BodyError]
+std.http.Response.header  pub fn header(&self, name: HeaderName) -> string?
+std.http.Response.cookies  pub fn cookies(&self) -> List[Cookie]
+std.http.Response.ok  pub fn ok(&self) -> Result[Response, HttpError]
+std.http.HttpError  pub enum HttpError  -- Why a request failed, including transport, content-decoding and response-size failures.
+std.http.HttpError.is_transient  pub fn is_transient(&self) -> bool  -- Whether a timeout, connection failure or retryable status may succeed on retry.
+std.http.DnsResolver  pub struct DnsResolver  -- A validated list of literal DNS server addresses for a derived host provider.
+std.http.dns_servers  pub fn dns_servers(servers: List[string]) -> Result[DnsResolver, HttpConfigError]  -- Validates each server as a literal IPv4 or IPv6 address.
+std.http.Certificate  pub struct Certificate  -- One PEM certificate that extends the host's trusted roots.
+std.http.Certificate.from_pem  pub fn from_pem(pem: string) -> Result[Certificate, HttpConfigError]  -- Checks that the text is exactly one PEM `CERTIFICATE` block.
+std.http.Identity  pub struct Identity  -- A PEM client certificate chain and its PEM private key, for mutual TLS.
+std.http.Identity.from_pem  pub fn from_pem( certificate_chain: string, private_key: string, ) -> Result[Identity, HttpConfigError]  -- Checks a PEM certificate chain and one PEM private key.
+std.http.HttpConfigError  pub enum HttpConfigError  -- Why a transport setting could not be constructed.
+std.http.Http  pub trait Http  -- The host capability to send an HTTP request and complete with the whole response.
+std.http.Http.resolver  fn resolver(&self, _resolver: DnsResolver) -> *mut dyn Http  -- A new provider that resolves host names with these DNS servers.
+std.http.Http.tls  fn tls(&self, roots: List[Certificate] = [], identity: Identity? = .None) -> *mut dyn Http  -- A new provider whose TLS adds these trusted roots and presents this client identity.
+std.http.Http.connect_timeout  fn connect_timeout(&self, _limit: Duration) -> *mut dyn Http  -- A new provider that bounds DNS lookup and TCP connection on each redirect hop.
+std.http.Http.tls_handshake_timeout  fn tls_handshake_timeout(&self, _limit: Duration) -> *mut dyn Http  -- A new provider that bounds the TLS handshake on each HTTPS redirect hop.
+std.http.Http.response_header_timeout  fn response_header_timeout(&self, _limit: Duration) -> *mut dyn Http  -- A new provider that bounds the wait for complete response headers on each redirect hop.
+std.http.Http.body_read_timeout  fn body_read_timeout(&self, _limit: Duration) -> *mut dyn Http  -- A new provider that bounds reading the whole response body on each redirect hop.
+std.http.request_from_wire  pub fn request_from_wire(request: WireRequest) -> Result[Request, HttpError]  -- Host adapter: builds a public incoming message from its byte DTO.
+std.http.response_to_wire  pub fn response_to_wire(response: &Response) -> Result[WireResponse, HttpError]  -- Host adapter: validates fields, then claims the outgoing body once.
+std.http.get  pub fn get!(url: string) -> Result[Response, HttpError] $ Http  -- Sends a GET and checks its response for a 400–599 failure.
+std.http.post  pub fn post![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http
+std.http.ScriptedHttp  pub struct ScriptedHttp  -- A deterministic Http provider with queued replies and a log of received requests.
+std.http.ScriptedHttp.new  pub fn new() -> *mut ScriptedHttp  -- Returns a new provider with no replies or received requests.
+std.http.ScriptedHttp.reply  pub fn reply(&mut self, url: string, result: Result[Response, HttpError]) -> void  -- Appends a result to this URL's reply queue.
+std.http.ScriptedHttp.received  pub fn received(&self) -> List[Request]  -- The received requests in order, including requests without a reply.
+std.http.WireIdentity  pub struct WireIdentity  -- A wire request's PEM certificate chain and PEM private key.
+std.http.WireRequest  pub struct WireRequest  -- The request bytes and transport settings exchanged with a host.
+std.http.WireResponse  pub struct WireResponse  -- The response bytes exchanged with a host.
+std.http.WireHttpError  pub enum WireHttpError  -- A host transport failure, including its typed payload.
+std.http.WireHttp  pub trait WireHttp  -- The host-supplied HTTP transport over wire request and response values.

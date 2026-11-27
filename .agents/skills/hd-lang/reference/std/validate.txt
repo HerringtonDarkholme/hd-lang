@@ -1,0 +1,44 @@
+# std.validate: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.validate` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.validate.NAME` inside any package.
+std.validate.PathStep  pub enum PathStep  -- One structural step in the path to an invalid value.
+std.validate.Problem  pub struct Problem  -- A stable validation code and its human-facing explanation.
+std.validate.Violation  pub struct Violation  -- One validation problem at a structural path.
+std.validate.Violation.display_with  pub fn display_with(&self, name: fn(&PathStep) -> string) -> string  -- Renders this issue with names chosen by the reader that produced the value.
+std.validate.ValidationError  pub enum ValidationError
+std.validate.ValidationError.issues  pub fn issues(self) -> List[Violation]  -- The collected value violations; definition errors have none.
+std.validate.ValidationContext  pub struct ValidationContext  -- Mutable state passed to record-level validation callbacks.
+std.validate.ValidationContext.reject  pub fn reject(&mut self, code: string, message: string) -> void  -- Records one value problem at the current path.
+std.validate.Validate  pub trait Validate  -- A value that can validate itself and its nested values.
+std.validate.Validate.record  fn record(&self, context: &mut ValidationContext) -> void  -- Runs checks that require the completed record. It is skipped after the positive issue cap.
+std.validate.Validate.validated  fn validated(self, max_errors: usize = 64) -> Result[Self, ValidationError]  -- Returns the same value when valid, without coercion or normalization.
+std.validate.Rule  pub trait Rule[F]  -- Applies one statically dispatched rule. Concrete built-in facts contain only rule data.
+std.validate.HasLength  pub trait HasLength  -- Strings count Unicode scalars; collections count elements or entries.
+std.validate.Range  pub struct Range[F]
+std.validate.Min  pub struct Min[F]
+std.validate.Max  pub struct Max[F]
+std.validate.Length  pub struct Length[F]
+std.validate.MinLength  pub struct MinLength[F]
+std.validate.MaxLength  pub struct MaxLength[F]
+std.validate.ByteLength  pub struct ByteLength[F]
+std.validate.Pattern  pub struct Pattern[F]
+std.validate.Email  pub struct Email[F]
+std.validate.Url  pub struct Url[F]
+std.validate.Uuid  pub struct Uuid[F]
+std.validate.OneOf  pub struct OneOf[F]
+std.validate.Unique  pub struct Unique[F]
+std.validate.Check  pub struct Check[F]
+std.validate.range  pub fn range[F < PartialOrd](low: F, high: F, message: string? = .None) -> Range[F]  -- An inclusive lower and upper bound.
+std.validate.at_least  pub fn at_least[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]  -- An inclusive lower bound.
+std.validate.max  pub fn max[F < PartialOrd](bound: F, message: string? = .None) -> Max[F]  -- An inclusive upper bound.
+std.validate.length  pub fn length[F < HasLength](minimum: usize, maximum: usize, message: string? = .None) -> Length[F]  -- An inclusive character or collection length range.
+std.validate.min_length  pub fn min_length[F < HasLength](minimum: usize, message: string? = .None) -> MinLength[F]  -- An inclusive minimum character or collection length.
+std.validate.max_length  pub fn max_length[F < HasLength](maximum: usize, message: string? = .None) -> MaxLength[F]  -- An inclusive maximum character or collection length.
+std.validate.byte_length  pub fn byte_length(minimum: usize, maximum: usize, message: string? = .None) -> ByteLength[string]  -- An inclusive UTF-8 byte-length range.
+std.validate.pattern  pub fn pattern(source: string, message: string? = .None) -> Pattern[string]  -- A regular expression that must match the text.
+std.validate.email  pub fn email(message: string? = .None) -> Email[string]  -- A WHATWG HTML valid email address.
+std.validate.url  pub fn url(message: string? = .None) -> Url[string]  -- An absolute HTTP(S) URL accepted by `std.http.Url.parse`.
+std.validate.uuid  pub fn uuid(message: string? = .None) -> Uuid[string]  -- A hyphenated 8-4-4-4-12 hexadecimal UUID.
+std.validate.one_of  pub fn one_of[F < Eq](values: List[F], message: string? = .None) -> OneOf[F]  -- Membership in the listed values.
+std.validate.unique  pub fn unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List[F]]  -- No two list elements compare equal.
+std.validate.check  pub fn check[F, G < 'static & Fn(&F) -> Result[void, Problem]](  -- A custom field check; it runs after every built-in fact on the field.
