@@ -761,6 +761,7 @@ function consoleProvider({
 }: DynamicRecord): Record<string, ProviderFunction> {
   const denied = (stream: string): Dynamic => Err({ tag: "NotGranted", stream: { tag: stream } });
   return {
+    is_terminal: () => false,
     write_sync: (text: string) => {
       if (!grant.allows("Console")) {
         return denied("Stdout");

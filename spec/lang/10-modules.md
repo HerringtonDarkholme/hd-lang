@@ -1195,6 +1195,7 @@ pub enum ProcessError:
 
 pub trait Process:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]
 ```
 
 1. r[module.process.decl-struct] `Process` is a host capability trait that `std.process` declares, with the struct types `Command` and `ProcessOutput` and the enum `ProcessError`. `run!` takes its `Command` as a value and returns a `ProcessOutput` value.
@@ -1231,6 +1232,10 @@ struct ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]:
+        output := self.run!(command)?
+        .Ok(output.status)
+
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(command.program):
             .Some(output) =>

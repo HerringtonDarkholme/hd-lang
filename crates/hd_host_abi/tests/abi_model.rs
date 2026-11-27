@@ -427,6 +427,7 @@ fn js_codec(
         }
         Ty::Named(name, args) => match (name.as_str(), args.as_slice()) {
             ("void", []) => wire(used, "unit"),
+            ("bool", []) => wire(used, "boolean"),
             ("string", []) => wire(used, "str"),
             ("u8" | "u16" | "u32" | "usize", []) => wire(used, "unsigned"),
             ("u64", []) => wire(used, "unsigned64"),

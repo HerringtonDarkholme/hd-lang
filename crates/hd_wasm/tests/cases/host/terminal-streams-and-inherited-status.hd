@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release | wasmtime release
+# Terminal queries return a bool; inherited child calls keep the existing
+# i32/ProcessError result and the existing Process suspension machinery.
+use std.console.{ConsoleStream, is_terminal}
+use std.process.{Command, Process, ProcessError}
+
+fn terminal(stream: ConsoleStream) -> bool $ Console:
+    is_terminal(stream)
+
+fn inherited!(command: Command) -> Result[i32, ProcessError] $ Process:
+    command.status!()

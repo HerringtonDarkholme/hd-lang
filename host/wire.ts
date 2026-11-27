@@ -333,3 +333,11 @@ export const variant = (codec: VariantCodec, tag: string, ...values: unknown[]):
   }
   return Object.fromEntries([["tag", tag], ...names.map((name, i) => [name, values[i]])]);
 };
+
+// Boolean values use the language ABI tags 0 and 1.
+export const boolean: Codec<boolean> = {
+  enc: (encoder, value) => {
+    encoder.leb(value ? 1 : 0);
+  },
+  dec: (decoder) => decoder.tag(2) === 1,
+};

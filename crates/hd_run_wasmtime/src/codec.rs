@@ -288,3 +288,12 @@ impl<A: Wire, B: Wire> Wire for (A, B) {
 fn decode_error() -> wasmtime::Error {
     crate::host::Stop::Contract("an argument does not decode".into()).into()
 }
+
+impl Wire for bool {
+    fn enc(&self, e: &mut Enc) {
+        e.leb(u64::from(*self));
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(d.tag(2)? == 1)
+    }
+}

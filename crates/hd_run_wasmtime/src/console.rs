@@ -8,9 +8,12 @@
 //! other operations go on while it waits for input. `stdin`'s handle reads
 //! the next bytes the same way, as soon as any arrive.
 
+use std::io::IsTerminal as _;
+
 use wasmtime::{Caller, Val};
 
 use crate::abi::{ConsoleError, ConsoleStream, HostMethod, Id, IoError, StdinHandle};
+use crate::codec::{Dec, Wire};
 use crate::host::{Host, OutputError, Ret, Stop, bytes, count_arg, handle, int_arg};
 use crate::runtime::reactor::{Stream, Work};
 
@@ -26,6 +29,17 @@ pub(crate) fn call(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     Ok(match method.id {
+        Id::ConsoleIsTerminal => {
+            let data = bytes(caller, int_arg(params, 0)?)?;
+            let stream = ConsoleStream::dec(&mut Dec::new(&data))?;
+            let terminal = caller.data().grants.allows("Console")
+                && match stream {
+                    ConsoleStream::Stdout => std::io::stdout().is_terminal(),
+                    ConsoleStream::Stderr => std::io::stderr().is_terminal(),
+                    ConsoleStream::Stdin => std::io::stdin().is_terminal(),
+                };
+            Ret::value(&terminal)
+        }
         Id::ConsoleWriteSync | Id::ConsoleWriteErrorSync => {
             let line = bytes(caller, int_arg(params, 0)?)?;
             let out = method.id == Id::ConsoleWriteSync;

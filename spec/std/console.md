@@ -209,7 +209,7 @@ tests:
         assert_equal(console.output(), ["hello, Ada", "\n"], reason="text and newline writes")
 ```
 
-1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
+1. r[std-console.buffer.recording-provider] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private recording fields. Code imports it, as in `use std.console.MemoryConsole`.
 2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-counted`](../lang/11-requirements-and-suspension.md#r-req.ref.install-counted), and the code that installed it reads what was written.
 3. r[std-console.buffer.output-text-sync] `c.output() -> List[string]` returns each `write_sync` text unchanged, in call order, including any newline supplied by the caller.
 4. r[std-console.buffer.error-text-sync] `c.error_output() -> List[string]` returns each `write_error_sync` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error_sync`, so error lines are not in `output()`.
@@ -251,3 +251,13 @@ tests:
 
 See also: [Console](../lang/10-modules.md#console),
 [Host Capabilities](../cli/command-line.md#host-capabilities).
+
+## Terminal streams
+
+1. r[std-console.terminal.query] `pub fn is_terminal(stream: ConsoleStream) -> bool $ Console` calls the covering provider's `is_terminal(&self, stream: ConsoleStream) -> bool` method.
+2. r[std-console.terminal.default] The default `Console.is_terminal` body returns `false`.
+3. r[std-console.terminal.host] A host provider returns whether the named standard stream is a terminal; the browser returns `false`.
+4. r[std-console.terminal.memory] `MemoryConsole` exposes `stdout_is_terminal`, `stderr_is_terminal`, and `stdin_is_terminal` as public `bool` fields, initially `false`, and answers from the named field.
+
+> **Why.** Programs select colors for terminals and plain text for pipes;
+> Rust's `std::io::IsTerminal` asks the same question without changing the device.

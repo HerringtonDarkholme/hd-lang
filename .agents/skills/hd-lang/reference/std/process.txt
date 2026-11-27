@@ -23,9 +23,13 @@ std.process.Command.env  pub fn env(*mut self, name: string, value: string) -> *
 std.process.Command.current_dir  pub fn current_dir(*mut self, dir: Path) -> *mut Command  -- Sets the directory the child starts in and returns the command.
 std.process.Command.stdin  pub fn stdin(*mut self, text: string) -> *mut Command  -- Sets the text written to the child's standard input and returns the command.
 std.process.Command.run  pub fn run!(self) -> Result[ProcessOutput, ProcessError] $ Process  -- Starts the program through the covering `Process` provider, waits for it to exit, and returns its output.
+std.process.Command.status  pub fn status!(self) -> Result[i32, ProcessError] $ Process  -- Runs with inherited standard streams and returns the exit status.
 std.process.Process  pub trait Process  -- The host capability to start a program, and wait for it to exit.
+std.process.status  pub fn status!(command: Command) -> Result[i32, ProcessError] $ Process  -- Runs a command with inherited standard streams and returns its exit status.
 std.process.run  pub fn run!(command: Command) -> Result[ProcessOutput, ProcessError] $ Process  -- Runs a command and rejects a nonzero exit while preserving its complete output.
 std.process.ScriptedProcess  pub struct ScriptedProcess  -- The deterministic `Process` provider: it answers each program from queued results and records each command, with no host access.
 std.process.ScriptedProcess.new  pub fn new() -> *mut ScriptedProcess  -- Returns a provider with no replies and no recorded commands.
 std.process.ScriptedProcess.reply  pub fn reply(&mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void  -- Queues `result` as the next answer for `program`; once the queue runs out, its last answer repeats.
+std.process.ScriptedProcess.reply_status  pub fn reply_status(&mut self, program: string, result: Result[i32, ProcessError]) -> void  -- Queues an inherited-stdio status answer, repeating the last answer.
+std.process.ScriptedProcess.received_status  pub fn received_status(&self) -> List[Command]  -- The inherited-stdio commands, including failed starts, in call order.
 std.process.ScriptedProcess.received  pub fn received(&self) -> List[Command]  -- The commands the provider ran, in order, including those it answered with `NotFound`.

@@ -77,6 +77,9 @@ fn process_captures_both_streams_exit_code_and_signal() {
     assert_eq!(status, 7);
     let (_, _, status) = run(request("/bin/sh", &shell("kill -TERM $$"), &[])).unwrap();
     assert_eq!(status, 143);
+    let mut inherited = request("/bin/sh", &shell("kill -TERM $$"), &[]);
+    inherited.inherit = true;
+    assert_eq!(run(inherited).unwrap().2, 143);
     let (_, _, status) = run(request("/bin/sh", &shell("kill -KILL $$"), &[])).unwrap();
     assert_eq!(status, 137);
     let (_, _, status) = run(request("/bin/sh", &shell("exit 3"), &[])).unwrap();
@@ -109,29 +112,33 @@ fn process_drains_output_while_writing_input_and_preserves_early_exit() {
 /// ignores SIGTERM, and its descendant, and reaps the child.
 #[test]
 fn abort_kills_the_process_group_and_reaps_the_child() {
-    let path = pid_path("abort-group");
-    let script = "trap '' TERM; sleep 30 & \
+    for inherit in [false, true] {
+        let path = pid_path("abort-group");
+        let script = "trap '' TERM; sleep 30 & \
                   printf '%s %s' \"$$\" \"$!\" > \"$1\"; wait";
-    let args = vec![
-        "-c".into(),
-        script.into(),
-        "hd-abort-test".into(),
-        path.to_str().unwrap().into(),
-    ];
-    let mut reactor = Reactor::new(None);
-    let h = offload(&mut reactor, request("/bin/sh", &args, &[]));
-    let pids = read_pids(&path, 2);
-    let started = Instant::now();
-    assert!(reactor.remove(h).is_some(), "the abort ends the run");
-    let aborted = started.elapsed();
-    let (child, descendant) = (gone(pids[0]), gone(pids[1]));
-    release(&pids);
-    std::fs::remove_file(&path).unwrap();
-    assert!(child, "the child is still running or not reaped");
-    assert!(descendant, "the descendant outlived the abort");
-    assert!(!reactor.waiting(), "nothing pending");
-    // Generous: the abort waits only for the task's drop.
-    assert!(aborted < Duration::from_secs(5), "{aborted:?}");
+        let args = vec![
+            "-c".into(),
+            script.into(),
+            "hd-abort-test".into(),
+            path.to_str().unwrap().into(),
+        ];
+        let mut reactor = Reactor::new(None);
+        let mut command = request("/bin/sh", &args, &[]);
+        command.inherit = inherit;
+        let h = offload(&mut reactor, command);
+        let pids = read_pids(&path, 2);
+        let started = Instant::now();
+        assert!(reactor.remove(h).is_some(), "the abort ends the run");
+        let aborted = started.elapsed();
+        let (child, descendant) = (gone(pids[0]), gone(pids[1]));
+        release(&pids);
+        std::fs::remove_file(&path).unwrap();
+        assert!(child, "the child is still running or not reaped");
+        assert!(descendant, "the descendant outlived the abort");
+        assert!(!reactor.waiting(), "nothing pending");
+        // Generous: the abort waits only for the task's drop.
+        assert!(aborted < Duration::from_secs(5), "{aborted:?}");
+    }
 }
 
 /// The child exits while its descendant keeps the quiet pipes open, so

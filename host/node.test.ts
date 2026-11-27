@@ -23,7 +23,7 @@ import {
   signalProcess,
   tcpHost,
 } from "./node-test-support.ts";
-import { browserSend } from "./web.ts";
+import { browserSend, createWebHost } from "./web.ts";
 import { failed as failedOutput } from "./output-worker.ts";
 import { postReply, postReady } from "./worker-control.ts";
 
@@ -1441,4 +1441,11 @@ test("Process long deadline does not overflow the worker timer", async (testCont
     { timeout: 5000 },
   );
   call({ op: "wait_finish", operation });
+});
+
+test("Console terminal queries are false in the browser", (context) => {
+  const { call } = netHost(context, "hd:Console", {}, createWebHost);
+  for (const tag of ["Stdout", "Stderr", "Stdin"]) {
+    assert.equal(call("is_terminal", { tag }).result, false);
+  }
 });

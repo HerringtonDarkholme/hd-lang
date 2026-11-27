@@ -618,3 +618,101 @@ fn node_stdin_reader_keeps_copy_and_search_work_linear() {
         text(&out.stderr)
     );
 }
+
+/// Inherited streams reach the real child on both engines, including piped stdin.
+#[test]
+fn process_status_inherits_streams_and_console_detects_pipes() {
+    let dir = work("host-process-status");
+    write(
+        &dir.join("main.hd"),
+        include_str!("programs/host_traits/process_status_inherits_streams.hd"),
+    );
+    let engines = [
+        "node",
+        #[cfg(feature = "wasmtime")]
+        "wasmtime",
+    ];
+    for engine in engines {
+        let mut child = hd(
+            &dir,
+            &[
+                "main.hd",
+                "--engine",
+                engine,
+                "--time-limit",
+                "5s",
+                "--",
+                hd_testkit::node::binary().to_str().unwrap(),
+            ],
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(b"parent input\n")
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(
+            text(&output.stderr),
+            "child error\n",
+            "{engine}: {}",
+            text(&output.stdout)
+        );
+        assert!(
+            output.status.success(),
+            "{engine}: {}",
+            text(&output.stderr)
+        );
+        assert_eq!(
+            text(&output.stdout),
+            "false false false\nchild:parent input\nstatus=7\nrun=captured\n",
+            "{engine}"
+        );
+    }
+}
+
+/// A terminal child can read inherited stdin and /dev/tty; the parent regains it.
+#[cfg(unix)]
+#[test]
+fn process_status_hands_off_and_restores_the_controlling_terminal() {
+    let dir = work("host-process-terminal");
+    write(
+        &dir.join("main.hd"),
+        include_str!("programs/host_traits/process_status_terminal.hd"),
+    );
+    write(
+        &dir.join("terminal.py"),
+        include_str!("programs/host_traits/process_status_terminal.py"),
+    );
+    let engines = [
+        "node",
+        #[cfg(feature = "wasmtime")]
+        "wasmtime",
+    ];
+    for engine in engines {
+        let output = Command::new("python3")
+            .arg(dir.join("terminal.py"))
+            .arg(env!("CARGO_BIN_EXE_hd"))
+            .arg(dir.join("main.hd"))
+            .arg(engine)
+            .arg(hd_testkit::node::binary())
+            .env(
+                "HD_CACHE",
+                crate::shared_objects(dir.with_extension("cache")),
+            )
+            .env("PATH", hd_testkit::node::path_env())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{engine}: {}{}",
+            text(&output.stdout),
+            text(&output.stderr)
+        );
+    }
+}

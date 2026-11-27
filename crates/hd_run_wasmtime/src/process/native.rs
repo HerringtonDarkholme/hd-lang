@@ -52,6 +52,7 @@ pub enum Start {
 /// pairs added to its environment, and the working directory it starts in
 /// (the process's own when `None`).
 pub struct Request {
+    pub inherit: bool,
     pub name: String,
     pub program: String,
     pub argv: Vec<String>,
@@ -67,6 +68,7 @@ pub type Output = (Vec<u8>, Vec<u8>, i32);
 /// run ended.
 pub struct Ran {
     name: String,
+    inherit: bool,
     result: io::Result<Output>,
 }
 
@@ -91,6 +93,7 @@ pub fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Res
         Err(message) => return Ok(Start::Refused(failed(ProcessError::Other { message }))),
     };
     Ok(Start::Run(Request {
+        inherit: false,
         program: call.program.clone(),
         name: call.program,
         argv: call.args,
@@ -134,6 +137,7 @@ impl Request {
     pub async fn run(self) -> Done {
         let result = run_child(&self).await;
         Done::Process(Ran {
+            inherit: self.inherit,
             name: self.name,
             result,
         })
@@ -144,6 +148,7 @@ impl Request {
 #[must_use]
 pub fn finish(ran: Ran) -> Enc {
     match ran.result {
+        Ok((_, _, status)) if ran.inherit => encode(&Ok::<_, ProcessError>(status)),
         Ok((out, err, status)) => encode(&Ok::<_, ProcessError>(ProcessOutput {
             stdout: String::from_utf8_lossy(&out).into_owned(),
             stderr: String::from_utf8_lossy(&err).into_owned(),
@@ -211,6 +216,12 @@ async fn run_child(request: &Request) -> io::Result<Output> {
         .stderr(Stdio::piped())
         // A backstop: `Group` kills and reaps the child itself.
         .kill_on_drop(true);
+    if request.inherit {
+        command
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+    }
     #[cfg(unix)]
     command.process_group(0);
     if let Some(cwd) = &request.cwd {
@@ -235,6 +246,16 @@ async fn run_child(request: &Request) -> io::Result<Output> {
     #[cfg(not(windows))]
     let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
     let mut group = Group::new(child);
+    #[cfg(unix)]
+    if request.inherit {
+        group.foreground = group
+            .child
+            .as_ref()
+            .and_then(Child::id)
+            .map(hd_run::foreground::Foreground::give_to)
+            .transpose()?
+            .flatten();
+    }
     let piped = pipes(feed(stdin, &request.input), drain(stdout), drain(stderr)).await;
     match piped {
         Ok((written, out, err)) => {
@@ -323,6 +344,8 @@ async fn pipes(
 /// reaped. Dropping it before then, as an abort drops the task, kills the
 /// tree and leaves the child to a task that reaps it.
 struct Group {
+    #[cfg(unix)]
+    foreground: Option<hd_run::foreground::Foreground>,
     child: Option<ProcessChild>,
     tree: Tree,
 }
@@ -331,6 +354,8 @@ impl Group {
     fn new(child: ProcessChild) -> Group {
         let tree = Tree::of(&child);
         Group {
+            #[cfg(unix)]
+            foreground: None,
             child: Some(child),
             tree,
         }

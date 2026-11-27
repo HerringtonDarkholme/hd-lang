@@ -2,9 +2,10 @@
 # Generated from `hd doc std.console` by scripts/gen-std-api.mjs. For one item's full
 # text and examples, run `hd doc std.console.NAME` inside any package.
 std.console.Console  pub trait Console  -- The host capability to write unchanged output text and error text.
+std.console.Console.is_terminal  fn is_terminal(&self, stream: ConsoleStream) -> bool  -- Whether this stream is a terminal; custom providers default to false.
 std.console.ConsoleInput  pub trait ConsoleInput  -- The host capability to read a line of input.
 std.console.read_line  pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput  -- Returns the next line of input without its line ending, or `.None` at the end of input.
-std.console.read_all  pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput  -- Returns all the input that is left, as text, with `\r\n` read as `\n`.
+std.console.read_all  pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput  -- Returns all remaining input as text without newline translation.
 std.console.MemoryConsole  pub struct MemoryConsole  -- The recording `Console` provider: it keeps exact text chunks for a test to read.
 std.console.MemoryConsole.new  pub fn new() -> *mut MemoryConsole  -- Returns an empty recording provider.
 std.console.MemoryConsole.output  pub fn output(&self) -> List[string]  -- The exact text chunks written through `write_sync`, in order.
@@ -16,3 +17,7 @@ std.console.ScriptedInput  pub struct ScriptedInput  -- The deterministic `Conso
 std.console.ScriptedInput.new  pub fn new(lines: List[string]) -> *mut ScriptedInput  -- Returns the provider that answers `lines` in order, then the end of input.
 std.console.ConsoleStream  pub enum ConsoleStream  -- The standard output, standard error, and standard input streams.
 std.console.ConsoleError  pub enum ConsoleError  -- The console's heap-free errors: closed, not granted, or another failure code.
+std.console.StdinHandle  pub trait StdinHandle < Read  -- The input's byte reader, as a provider's `stdin` returns it.
+std.console.Stdin  pub struct Stdin  -- Standard input as a `Read` source, returned by `stdin()`.
+std.console.stdin  pub fn stdin() -> Stdin $ ConsoleInput  -- Returns the covering provider's input as a `Read` source of its exact bytes.
+std.console.is_terminal  pub fn is_terminal(stream: ConsoleStream) -> bool $ Console  -- Whether the covering console stream is a terminal.

@@ -13,6 +13,11 @@ use std.text.StringBuilder
 ## The host capability to write unchanged output text and error text.
 ## See [module.console.host-trait](../../spec/lang/10-modules.md#r-module.console.host-trait).
 pub trait Console:
+    ## Whether this stream is a terminal; custom providers default to false.
+    ## See [std-console.terminal.query](../../spec/std/console.md#r-std-console.terminal.query).
+    fn is_terminal(&self, stream: ConsoleStream) -> bool:
+        false
+
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]
 
     # Error text. A provider that does not override it
@@ -69,11 +74,14 @@ pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
 # box: `new` returns `*mut MemoryConsole`, so the test that installs it reads
 # the lines it recorded (r-std-console.buffer.install-ref).
 ## The recording `Console` provider: it keeps exact text chunks for a test to read.
-## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
+## See [std-console.buffer.recording-provider](../../spec/std/console.md#r-std-console.buffer.recording-provider).
 @derive(Debug)
 pub struct MemoryConsole:
     lines: List[string]
     error_lines: List[string]
+    pub stdout_is_terminal: bool = false
+    pub stderr_is_terminal: bool = false
+    pub stdin_is_terminal: bool = false
 
 impl MemoryConsole:
     ## Returns an empty recording provider.
@@ -98,6 +106,12 @@ impl MemoryConsole:
 # The `*mut MemoryConsole` that `new` returns, installed as the provider,
 # records into this object (r-req.ref.install-counted).
 impl Console for MemoryConsole:
+    fn is_terminal(&self, stream: ConsoleStream) -> bool:
+        match stream:
+            .Stdout => self.stdout_is_terminal
+            .Stderr => self.stderr_is_terminal
+            .Stdin => self.stdin_is_terminal
+
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
@@ -233,3 +247,9 @@ impl Read for Stdin:
 pub fn stdin() -> Stdin $ ConsoleInput:
     input := $.use(ConsoleInput)
     Stdin { handle: input.stdin() }
+
+## Whether the covering console stream is a terminal.
+## See [std-console.terminal.query](../../spec/std/console.md#r-std-console.terminal.query).
+pub fn is_terminal(stream: ConsoleStream) -> bool $ Console:
+    console := $.use(Console)
+    console.is_terminal(stream)

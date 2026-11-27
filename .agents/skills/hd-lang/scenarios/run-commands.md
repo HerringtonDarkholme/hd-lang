@@ -58,6 +58,7 @@ tests:
 - **Run it**: `.run!()` gives `Result[ProcessOutput, ProcessError]`. The
   output has `stdout`, `stderr` and `status`. The program runs to its end;
   its output is captured, not streamed.
+- **Interactive children**: `.status!()` inherits the parent's stdin, stdout and stderr and returns only `Result[i32, ProcessError]`. Use it for an editor or pager; `Command.stdin` is ignored. The free `std.process.status!(command)` does the same.
 - **Check the status**: a program that ran and exited non-zero is still
   `.Ok`. Call `.ok()` on the output to make that an
   `.Err(.Exited(output))`.
@@ -68,4 +69,5 @@ tests:
   programs in `hd.toml`: `Process = ["git"]`
   ([capabilities](../design/capabilities.md)).
 - **Testing**: `ScriptedProcess::new()`, `reply(program, result)`, and
-  `received()` for the commands that were run.
+  `received()` for captured commands; `reply_status(program, result)` and
+  `received_status()` separately script and record inherited-stdio calls.

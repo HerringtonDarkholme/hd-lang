@@ -13,6 +13,7 @@ mod windows;
 /// A request for `name` with `argv` and `input`.
 fn request(name: &str, argv: &[String], input: &[u8]) -> Request {
     Request {
+        inherit: false,
         program: name.to_owned(),
         name: name.into(),
         argv: argv.to_vec(),

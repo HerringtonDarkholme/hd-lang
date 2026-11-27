@@ -230,14 +230,14 @@ function fixture(testContext: TestContext): string {
   return root;
 }
 
-function processHost(testContext: TestContext): Dynamic {
+function processHost(testContext: TestContext, method = "run"): Dynamic {
   const api = netHost(testContext, "hd:Process", {
     processLauncher: process.env.HD_PROCESS_LAUNCHER,
   });
   return {
     ...api,
     run: (script: string, options: Dynamic = {}) =>
-      api.call("run", {
+      api.call(method, {
         program: process.execPath,
         args: ["-e", script],
         env: [],
@@ -250,71 +250,95 @@ function processHost(testContext: TestContext): Dynamic {
 
 // The maintained fixture is also driven by the CLI wrapper on Windows,
 // with the exact CARGO_BIN_EXE_hd launcher supplied explicitly.
-for (const phase of ["running", "leader-exited", "detached"]) {
-  test(`Process Job ${phase} preserves cancellation and normal completion`, async (testContext) => {
-    const root = join(fixture(testContext), "descendant");
-    let peer: Socket | undefined;
-    const server = net.createServer((socket) => {
-      peer = socket;
-      socket.on("error", () => {});
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    testContext.after(() => {
-      peer?.destroy();
-      server.close();
-    });
-    const { host, run, take } = processHost(testContext);
-    host.core.st.deadline = performance.now() + 20_000;
-    const child = run("", {
-      args: [
-        fileURLToPath(new URL("./fixtures/process-descendant.ts", import.meta.url)),
-        phase,
-        root,
-        String((server.address() as net.AddressInfo).port),
-      ],
-    });
-    await testContext.waitFor(
-      () => {
-        assert.ok(peer);
-        assert.ok(readPid(root + ".awake"));
-        assert.ok(readPid(root + ".parent"));
-      },
-      { timeout: 10_000 },
-    );
-    const pid = readPid(root + ".awake");
-    testContext.after(() => {
-      try {
-        signalProcess(pid, "SIGKILL");
-      } catch {}
-    });
-    const parentPid = readPid(root + ".parent");
-    if (phase !== "running") {
-      await testContext.waitFor(() => assert.throws(() => signalProcess(parentPid, 0)), {
-        timeout: 5000,
+for (const [method, phase] of [
+  ["run", "running"],
+  ["run", "leader-exited"],
+  ["run", "detached"],
+  ["status", "running"],
+  ["status", "detached"],
+]) {
+  test(
+    `Process Job ${method} ${phase} preserves cancellation and normal completion`,
+    { skip: method === "status" && !process.env.HD_PROCESS_LAUNCHER },
+    async (testContext) => {
+      const root = join(fixture(testContext), "descendant");
+      let peer: Socket | undefined;
+      const server = net.createServer((socket) => {
+        peer = socket;
+        socket.on("error", () => {});
       });
-    }
-    if (phase === "detached") {
-      assert.deepEqual(
-        take("run", child),
-        Ok({ stdout: "", stderr: "", status: 0, program: process.execPath }),
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      testContext.after(() => {
+        peer?.destroy();
+        server.close();
+      });
+      const { host, run, take } = processHost(testContext, method);
+      host.core.st.deadline = performance.now() + 20_000;
+      const child = run("", {
+        args: [
+          fileURLToPath(new URL("./fixtures/process-descendant.ts", import.meta.url)),
+          phase,
+          root,
+          String((server.address() as net.AddressInfo).port),
+        ],
+      });
+      await testContext.waitFor(
+        () => {
+          assert.ok(peer);
+          assert.ok(readPid(root + ".awake"));
+          assert.ok(readPid(root + ".parent"));
+        },
+        { timeout: 10_000 },
       );
-      // A normally completed call does not kill detached descendants.
-      signalProcess(pid, 0);
-      peer!.write("release");
-      await testContext.waitFor(() => assert.ok(existsSync(root + ".released")), { timeout: 5000 });
-    } else {
-      assert.equal(host.core.st.ops.get(child.operation).completed, false);
-      const closed = new Promise<void>((resolve) => peer!.once("close", resolve));
-      host.imports["hd:rt"].abort(child.operation);
-      await closed;
-      assert.equal(existsSync(root + ".released"), false);
-      await testContext.waitFor(() => assert.throws(() => signalProcess(pid, 0)), {
-        timeout: 5000,
+      const pid = readPid(root + ".awake");
+      testContext.after(() => {
+        try {
+          signalProcess(pid, "SIGKILL");
+        } catch {}
       });
-      // Cancellation does not poison a sibling/successor command.
-      assert.equal(take("run", run("process.stdout.write('next')")).value.stdout, "next");
-    }
-  });
+      const parentPid = readPid(root + ".parent");
+      if (method === "status" && phase === "running" && process.platform !== "win32") {
+        // Signal 0 only probes this positively validated helper's own group.
+        assert.doesNotThrow(() => process.kill(-readPid(root + ".helper"), 0));
+      }
+      if (phase !== "running") {
+        await testContext.waitFor(() => assert.throws(() => signalProcess(parentPid, 0)), {
+          timeout: 5000,
+        });
+      }
+      if (phase === "detached") {
+        assert.deepEqual(
+          take(method, child),
+          Ok(
+            method === "status"
+              ? 0
+              : { stdout: "", stderr: "", status: 0, program: process.execPath },
+          ),
+        );
+        // A normally completed call does not kill detached descendants.
+        signalProcess(pid, 0);
+        peer!.write("release");
+        await testContext.waitFor(() => assert.ok(existsSync(root + ".released")), {
+          timeout: 5000,
+        });
+      } else {
+        assert.equal(host.core.st.ops.get(child.operation).completed, false);
+        const closed = new Promise<void>((resolve) => peer!.once("close", resolve));
+        host.imports["hd:rt"].abort(child.operation);
+        await closed;
+        assert.equal(existsSync(root + ".released"), false);
+        await testContext.waitFor(() => assert.throws(() => signalProcess(pid, 0)), {
+          timeout: 5000,
+        });
+        // Cancellation does not poison a sibling/successor command.
+        const next = take(
+          method,
+          run(method === "status" ? "process.exit(9)" : "process.stdout.write('next')"),
+        ).value;
+        assert.equal(method === "status" ? next : next.stdout, method === "status" ? 9 : "next");
+      }
+    },
+  );
 }
 
 test(
@@ -351,3 +375,53 @@ test("Process cancellation during helper startup leaves the worker usable", (tes
     "after startup aborts",
   );
 });
+
+test(
+  "Windows inherited Process separates its Job protocol from standard streams",
+  protocol,
+  async (context) => {
+    const { root, call, start, helper } = windowsWorker(context);
+    const requestFile = join(root, "inherited-request.json");
+    const launcher = helper(
+      `const fs=require('node:fs');const socket=require('node:net').connect(process.argv[3]);let text='';socket.on('data',bytes=>{text+=bytes; if(text.includes('\\n')) { fs.writeFileSync(${JSON.stringify(requestFile)},text);socket.write(JSON.stringify({ok:{stdout:'',stderr:'',status:17}})+'\\n',()=>process.exit(0)); }});`,
+    );
+    const operation = start({ launcher, inherit: true });
+    await context.waitFor(
+      () =>
+        assert.deepEqual(call({ op: "wait_poll", operation }), {
+          ok: { stdout: "", stderr: "", status: 17 },
+        }),
+      { timeout: 5000 },
+    );
+    assert.equal(JSON.parse(readFileSync(requestFile, "utf8")).inherit, true);
+    call({ op: "wait_finish", operation });
+  },
+);
+
+test(
+  "Windows inherited Process cancellation closes its separate lifetime pipe",
+  protocol,
+  async (context) => {
+    const { root, call, start, helper } = windowsWorker(context);
+    const marker = join(root, "inherited-cancelled");
+    const launcher = helper(
+      `const socket=require('node:net').connect(process.argv[3]);socket.resume();socket.on('end',()=>{require('node:fs').writeFileSync(${JSON.stringify(marker)},'closed');process.exit(130);});`,
+    );
+    const operation = start({ launcher, inherit: true, timeout: 250 });
+    await context.waitFor(
+      () => assert.deepEqual(call({ op: "wait_poll", operation }), { timeout: true }),
+      { timeout: 5000 },
+    );
+    assert.equal(readFileSync(marker, "utf8"), "closed");
+    call({ op: "wait_finish", operation });
+  },
+);
+
+test(
+  "Process inherited status preserves signal exits",
+  { skip: process.platform === "win32" || !process.env.HD_PROCESS_LAUNCHER },
+  (context) => {
+    const { run, take } = processHost(context, "status");
+    assert.deepEqual(take("status", run("process.kill(process.pid,'SIGTERM')")), Ok(143));
+  },
+);
