@@ -940,25 +940,19 @@ impl Em<'_, '_, '_> {
     /// locals, with nothing emitted. A value's locals are set once where
     /// it is made, and change only when a release zeroes them all or an
     /// `Empty` zeroes a moved part: a borrow outlives no part of its
-    /// value; a value that counts nothing is never released; and a move
-    /// with no `Empty` after it takes a part of a value that nothing
-    /// releases or reads again (`drop_flags::part_read_only`). In a
-    /// suspending body a moved value's locals are zeroed for its cancel
-    /// block, so it copies. A nested tuple pattern reads each column from
+    /// value; a value that counts nothing is never released. A nested
+    /// tuple pattern reads each column from
     /// the one above (`hd_check` `expand_tuple`): a copy per level would
     /// cost O(depth^2) leaves (#2400, #2402).
     pub(super) fn names_part(&self, i: u32, whole: u32) -> bool {
         let t = self.ty_of(whole);
-        let unemptied_move = || {
-            self.b.tags[i as usize] == Tag::Read
-                && self.b.data[i as usize][1] == hd_tir::ir::ReadMode::Move as u32
-                && !hd_tir::own::drop_flags::emptied(self.b, &self.topo, i as usize)
-        };
+        // ruled out: a move here. instance dispatch handles field-only
+        // Read moves with own_move_part before place_read; part_read's
+        // other caller is a Field instruction, never a Read move.
         self.susp.is_none()
             && !self.input_transferred.contains_key(&i)
             && (self.b.is_borrow(i)
-                || !self.cx().tracked(t) && !crate::layout::holds_drop(self.pool(), self.env(), t)
-                || unemptied_move())
+                || !self.cx().tracked(t) && !crate::layout::holds_drop(self.pool(), self.env(), t))
     }
 
     /// Whether read `i` of a whole `target` through reference type

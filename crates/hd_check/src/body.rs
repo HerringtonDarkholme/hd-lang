@@ -185,7 +185,8 @@ impl TryFrom<Answer> for ProofAnswer {
 }
 
 /// Whether a check stopped because its body's fuel ran out.
-pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
+#[must_use]
+pub fn is_out_of_fuel(e: &NotImplemented) -> bool {
     e.stage == Stage::Body && e.out_of_fuel
 }
 

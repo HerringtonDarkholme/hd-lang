@@ -1,0 +1,17 @@
+# @dump: diagnostics
+use pkg.codes.VALUE
+
+struct Record:
+    value: i32
+
+fixed := Record { value: 1 }
+
+fn write() -> void:
+    VALUE.value = 2
+    fixed.value = 3
+
+# @file: src/codes.hd
+pub struct Record:
+    pub value: i32
+
+pub let VALUE: Record = Record { value: 1 }

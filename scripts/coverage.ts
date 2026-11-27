@@ -152,6 +152,21 @@ const RUNS: Run[] = [
     env: {},
     conformance: "filtered",
   },
+  // Trace names are lazy: exercise one traced dev link in its own CLI
+  // process, without enabling tracing for the other coverage test sets.
+  {
+    name: "cli-trace",
+    args: [
+      "-p",
+      "hd_command",
+      "--test",
+      "all",
+      "--",
+      "--exact",
+      "work_report::a_trace_names_each_task_and_the_serial_phases",
+    ],
+    env: {},
+  },
 ];
 const SET_NAMES = ["core", ...CORE, ...RUNS.map((run) => run.name)];
 

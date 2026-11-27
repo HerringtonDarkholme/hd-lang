@@ -218,3 +218,8 @@ pub fn locate_layout_error(
 ) -> hd_base::NotImplemented {
     crate::locate_layout_error(error, span)
 }
+
+/// Round-trip every emitted-unit record and reject truncated forms.
+pub use crate::module::wire::tests::round_trip_records as unit_wire_records;
+
+pub use crate::units::place_root;

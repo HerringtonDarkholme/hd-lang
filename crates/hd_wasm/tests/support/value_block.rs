@@ -99,6 +99,13 @@ pub fn view(
     p: &hd_testkit::stages::Program,
 ) -> Option<String> {
     if p.text
+        .contains("# Hand-built borrowed value-place fixture (#2441).")
+    {
+        hd_wasm::testing::emit::with_body_transform(borrowed_place, || {
+            hd_testkit::stages::view(name, build, p)
+        })
+    } else if p
+        .text
         .contains("# Hand-built emitter value-block fixture (#2373).")
     {
         hd_wasm::testing::emit::with_body_transform(transform, || {
@@ -107,4 +114,36 @@ pub fn view(
     } else {
         hd_testkit::stages::view(name, build, p)
     }
+}
+
+/// Equivalent lowered Read/Field forms: the borrowed field aliases the
+/// tuple's locals, without a second set of locals or copy instructions.
+fn borrowed_place(path: &str, original: &Body) -> Option<Body> {
+    if !path.ends_with("/borrow_field") {
+        return None;
+    }
+    let mut b = Body::new(original.item, original.kind);
+    b.phase = Phase::Lowered;
+    b.local_ty.clone_from(&original.local_ty);
+    b.local_name.clone_from(&original.local_name);
+    b.local_syn.clone_from(&original.local_syn);
+    b.local_flags.clone_from(&original.local_flags);
+    b.sub_params.clone_from(&original.sub_params);
+    b.sub_parent.clone_from(&original.sub_parent);
+    b.sub_flags.clone_from(&original.sub_flags);
+    let pair_ty = b.local_ty[0];
+    let whole = inst(
+        &mut b,
+        Tag::Read,
+        place::BARE_LOCAL,
+        ReadMode::Borrow as u32,
+        pair_ty,
+    );
+    let p = b.push_record(&[place::ROOT_VALUE, whole, place::PROJ_FIELD]);
+    let field = inst(&mut b, Tag::Read, p, ReadMode::Borrow as u32, Ty::I32);
+    let root = block(&mut b, &[whole, field], field, Ty::I32);
+    b.sub_root.push(root);
+    let errors = hd_tir::ir::verify(&b);
+    assert!(errors.is_empty(), "{errors:?}");
+    Some(b)
 }

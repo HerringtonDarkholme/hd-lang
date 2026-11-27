@@ -1,0 +1,15 @@
+# @dump: stdout
+use pkg.codes
+use pkg.codes.ITEM
+
+pub fn main() -> void $ Console:
+    println(codes.VALUE)
+    println(ITEM.value)
+
+# @file: src/codes.hd
+pub let VALUE: i32 = 7
+
+pub struct Record:
+    pub value: i32
+
+pub let ITEM: Record = Record { value: 9 }

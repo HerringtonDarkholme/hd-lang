@@ -1278,3 +1278,7 @@ pub(crate) fn decode<E>(bytes: &[u8], tys: &[Ty]) -> Option<Emitted<E>> {
         f: Ok(f),
     })
 }
+
+#[cfg(feature = "testing")]
+#[path = "../../tests/support/unit_wire.rs"]
+pub(crate) mod tests;

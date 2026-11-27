@@ -1452,9 +1452,6 @@ struct PendingSlot {
     self_ty: Ty,
     /// The instance whose coercion built the table.
     parent: InstId,
-    /// A reference-receiver slot of a payload that is no reference:
-    /// only a compiler-supplied body may fill it.
-    builtin_only: bool,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2740,16 +2737,16 @@ impl Cx<'_> {
         reps.u64(methods.len() as u64);
         for (slot, m) in methods.into_iter().enumerate() {
             work::dyn_collect(1);
-            let (self_ty, r, builtin_only) = match inner {
+            let (self_ty, r) = match inner {
                 // The slot ABI follows the trait declaration. An impl for
                 // a reference can lower a value receiver to that reference
                 // type without making the slot a reference receiver.
-                Some(s) if takes_ref(m) => (s, SlotRecv::Payload, false),
-                Some(s) => (s, SlotRecv::ReadThrough, false),
+                Some(s) if takes_ref(m) => (s, SlotRecv::Payload),
+                Some(s) => (s, SlotRecv::ReadThrough),
                 // A slot whose body the compiler supplies, such as
                 // `runtime_type`'s `RuntimeType` helper, reads no payload,
                 // so a reference receiver needs none.
-                None => (from, SlotRecv::Payload, takes_ref(m)),
+                None => (from, SlotRecv::Payload),
             };
             let at = PendingSlot {
                 vtable: VTableId(usize::MAX),
@@ -2758,7 +2755,6 @@ impl Cx<'_> {
                 trait_args,
                 self_ty,
                 parent,
-                builtin_only,
             };
             reps.u8(r as u8);
             recv.push(r);
@@ -2794,11 +2790,9 @@ impl Cx<'_> {
     fn slot_target(&mut self, m: DefId, at: &PendingSlot) -> StageResult<CallTarget> {
         let pool = self.pool;
         let targs = pool.list_items(at.trait_args);
-        let t = self.method_target(at.trait_, m, at.self_ty, targs, None, at.parent)?;
-        if at.builtin_only && !matches!(t.kind, TargetKind::Builtin { .. }) {
-            return err("a reference-receiver vtable without a reference payload");
-        }
-        Ok(t)
+        // ruled out: a user reference receiver without a reference payload,
+        // by trait.dyn.ref.written. Sealed compiler-supplied methods need none.
+        self.method_target(at.trait_, m, at.self_ty, targs, None, at.parent)
     }
 
     /// Records that scanned code calls trait method `m` through a trait
@@ -2914,9 +2908,9 @@ impl Cx<'_> {
         }
         self.out.slot_facts = vec![Hash128(0); self.out.callee_reps.len()];
         for (id, fold) in folds {
-            let Some(reps) = self.out.callee_reps.get_mut(id.idx()) else {
-                continue;
-            };
+            // ruled out: an absent instance; collect extends callee_reps to
+            // table.len() immediately before folding these recorded users.
+            let reps = &mut self.out.callee_reps[id.idx()];
             let facts = fold.finish();
             self.out.slot_facts[id.idx()] = facts;
             let mut h = StableHasher::new("callee-reps-folded");
@@ -2934,10 +2928,9 @@ impl Cx<'_> {
         let (pool, env) = (self.pool, self.env);
         let supers = |d: DefId| -> Vec<DefId> {
             (env.decls().supertraits(d).iter())
-                .filter_map(|&s| match pool.get(s) {
-                    TyData::TraitValue { def, .. } => Some(def),
-                    _ => None,
-                })
+                // ruled out: a non-trait supertype. Resolver::supers_of
+                // produces only trait-value types (trait.super.bound).
+                .map(|&s| pool.trait_value_parts(s).0)
                 .collect()
         };
         // ruled out: a cycle, by `trait.super.acyclic` in hd_resolve.

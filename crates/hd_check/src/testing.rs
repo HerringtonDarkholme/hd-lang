@@ -22,7 +22,7 @@
 use std::cell::{Cell, OnceCell, RefCell};
 use std::sync::Arc;
 
-use hd_base::{DefId, FileId, Fuel, HashMap, InferVar, LocalId, NotImplemented, StageResult};
+use hd_base::{DefId, FileId, Fuel, HashMap, InferVar, LocalId, StageResult};
 use hd_diag::DiagBuf;
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::error_type::ErrorShape;
@@ -519,10 +519,7 @@ pub fn proof_answer(answer: Answer) -> StageResult<Proof> {
     })
 }
 
-#[must_use]
-pub fn is_out_of_fuel(e: &NotImplemented) -> bool {
-    crate::body::is_out_of_fuel(e)
-}
+pub use crate::body::is_out_of_fuel;
 
 /// `n` units of join work (`crate::work::count_join_work`).
 pub fn join_work(n: usize) {

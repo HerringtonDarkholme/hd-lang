@@ -1,0 +1,8 @@
+# @dump: diagnostics
+use pkg.codes.VALUE
+
+fn write() -> void:
+    _ := &mut VALUE
+
+# @file: src/codes.hd
+pub let VALUE: i32 = 7

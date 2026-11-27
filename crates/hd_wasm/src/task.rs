@@ -467,6 +467,7 @@ pub fn abandon_by(f: &mut Func, by: i32) {
 }
 
 /// Scalar storage after the stable addressable-cell region of a task.
+#[cfg_attr(feature = "testing", derive(Debug))]
 pub(crate) struct FrameSpill {
     pub start: u32,
     pub size: u32,
