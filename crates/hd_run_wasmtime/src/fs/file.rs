@@ -21,7 +21,7 @@ use wasmtime::{Caller, Val};
 use crate::abi::{FileHandle, FsError, Id, IoError};
 use crate::codec::{Enc, encode};
 use crate::host::offload::{finished, not_completed, pending};
-use crate::host::{Host, Ret, Stop, int_arg};
+use crate::host::{Host, Ret, Stop, count_arg, int_arg};
 use crate::runtime::reactor::Done;
 
 /// The handle registry interface of an open file: a host number above
@@ -40,25 +40,21 @@ struct Open {
 }
 
 /// The `Result[FileHandle, FsError]` of an `open`: `file` gets its number.
-pub(crate) fn issue(
-    host: &mut Host,
-    opened: Result<std::fs::File, Enc>,
-    special: bool,
-) -> wasmtime::Result<Enc> {
+pub(crate) fn issue(host: &mut Host, opened: Result<std::fs::File, Enc>, special: bool) -> Enc {
     let file = match opened {
         Ok(file) => file,
-        Err(encoded) => return Ok(encoded),
+        Err(encoded) => return encoded,
     };
     let value = Box::new(Open {
         file: Arc::new(file),
         special,
     });
-    Ok(match host.handles.insert_host(FILE, value) {
+    match host.handles.insert_host(FILE, value) {
         Ok(number) => encode(&Ok::<FileHandle, FsError>(crate::codec::Handle(u64::from(
             number,
         )))),
         Err(error) => encode(&Err::<FileHandle, _>(FsError::Other { message: error.0 })),
-    })
+    }
 }
 
 /// A `FileHandle.read` `.start` or `.finish`, or `FileHandle.$release`.
@@ -82,8 +78,7 @@ pub(crate) fn call(
             .map_err(|error| Stop::Contract(error.0))?;
         return Ok(Ret::void());
     }
-    // `usize` crosses as an `i32`; its bits are the count.
-    let max = int_arg(params, 1)? as u32 as usize;
+    let max = count_arg(params, 1)?;
     let Some(open) = host.handles.host::<Open>(number, FILE) else {
         return Err(Stop::Contract("a read of a file handle that is not open".into()).into());
     };

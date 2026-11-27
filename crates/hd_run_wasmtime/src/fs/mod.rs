@@ -50,7 +50,7 @@ pub(crate) fn call(
         return match finished(caller, params)? {
             Done::Fs(encoded) => Ok(Ret::encoded(encoded)),
             // A special file's `open`, done on the blocking pool.
-            Done::Opened(opened) => Ok(Ret::encoded(file::issue(caller.data_mut(), opened, true)?)),
+            Done::Opened(opened) => Ok(Ret::encoded(file::issue(caller.data_mut(), opened, true))),
             _ => Err(not_completed()),
         };
     }
@@ -71,7 +71,7 @@ pub(crate) fn call(
         &cwd,
     )? {
         api::Start::Ready(e) => Ret::ready(e),
-        api::Start::Opened(opened) => Ret::ready(file::issue(host, opened, false)?),
+        api::Start::Opened(opened) => Ret::ready(file::issue(host, opened, false)),
         api::Start::Run(job) => pending(host.reactor.offload(job.run()), api::not_run),
     }
 }

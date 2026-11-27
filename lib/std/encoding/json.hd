@@ -3746,7 +3746,8 @@ impl[R < Read] JsonStream[R]:
                 return .Some(.Err(StreamError.Read(error)))
         let (bytes, start) = found
         let result = match string::from_utf8(bytes):
-            .Ok(text) => decode::[T](text).map_err(fn(error: JsonError) -> JsonError: shifted(error, start))
+            .Ok(text) =>
+                decode::[T](text).map_err(fn(error: JsonError) -> JsonError: shifted(error, start))
             .Err(error) => .Err(JsonError.UnexpectedCharacter(start + utf8_position(error)))
         match result:
             .Ok(value) => .Some(.Ok(value))

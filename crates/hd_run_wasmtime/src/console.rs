@@ -11,7 +11,7 @@
 use wasmtime::{Caller, Val};
 
 use crate::abi::{ConsoleError, ConsoleStream, HostMethod, Id, IoError, StdinHandle};
-use crate::host::{Host, OutputError, Ret, Stop, bytes, handle, int_arg};
+use crate::host::{Host, OutputError, Ret, Stop, bytes, count_arg, handle, int_arg};
 use crate::runtime::reactor::{Stream, Work};
 
 /// The number of standard input's one handle (`ConsoleInput.stdin`).
@@ -107,13 +107,12 @@ pub(crate) fn call(
         Id::ConsoleInputStdin => Ret::value::<StdinHandle>(&crate::codec::Handle(STDIN)),
         // `(handle, max)`: pending until any input is buffered, or it ends.
         Id::ConsoleInputStdinHandleRead => {
-            if int_arg(params, 0)? != STDIN as i64 {
+            if u64::try_from(int_arg(params, 0)?).ok() != Some(STDIN) {
                 return Err(
                     Stop::Contract("a read of an unknown standard input handle".into()).into(),
                 );
             }
-            // `usize` crosses as an `i32`; its bits are the count.
-            let max = int_arg(params, 1)? as u32 as usize;
+            let max = count_arg(params, 1)?;
             let host = caller.data_mut();
             host.flush();
             Ret::pair(1, host.reactor.read_bytes(max))

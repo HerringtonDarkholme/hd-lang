@@ -154,6 +154,16 @@ pub(crate) fn int_arg(params: &[Val], i: usize) -> wasmtime::Result<i64> {
     }
 }
 
+/// Argument `i`, a `usize` count, which crosses as an `i32`: its bits are
+/// the count.
+pub(crate) fn count_arg(params: &[Val], i: usize) -> wasmtime::Result<usize> {
+    match params.get(i) {
+        Some(Val::I32(v)) => usize::try_from(v.cast_unsigned())
+            .map_err(|_| Stop::Contract(format!("argument {i} does not fit a usize")).into()),
+        _ => Err(Stop::Contract(format!("argument {i} is not a usize")).into()),
+    }
+}
+
 pub(crate) fn float_arg(params: &[Val], i: usize) -> wasmtime::Result<f64> {
     match params.get(i) {
         Some(Val::F64(bits)) => Ok(f64::from_bits(*bits)),
