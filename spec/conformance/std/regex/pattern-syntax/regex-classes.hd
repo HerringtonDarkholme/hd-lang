@@ -1,5 +1,5 @@
 # test: bracketed classes, negated classes, ranges, a leading ] or -, and \d \w \s inside a class
-# Spec std/regex Classes: std-regex.syntax.class, std-regex.syntax.class.negated, std-regex.syntax.class.item, std-regex.syntax.class.char, std-regex.syntax.class.range, std-regex.syntax.class.close-first, std-regex.syntax.class.dash (task #243).
+# Spec std/regex Classes: std-regex.syntax.class, std-regex.syntax.class.negated, std-regex.syntax.class.items-with-properties, std-regex.syntax.class.char, std-regex.syntax.class.range, std-regex.syntax.class.close-first, std-regex.syntax.class.dash (task #243).
 use std.regex.{Regex, Match}
 use std.text.r
 

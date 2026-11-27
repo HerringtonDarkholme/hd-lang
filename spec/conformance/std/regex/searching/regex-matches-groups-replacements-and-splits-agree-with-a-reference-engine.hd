@@ -355,7 +355,8 @@ fn item_matches(item: ClassItem, c: char) -> bool:
         .Range(low, high) => c >= low && c <= high
         .Digit(negated) => (c >= '0' && c <= '9') != negated
         .Word(negated) => word_char(c) != negated
-        .Space(negated) => c.is_whitespace() != negated
+        .Space(negated) =>
+            (c == '\t' || c == '\n' || c == '\u{c}' || c == '\r' || c == ' ') != negated
 
 fn word_char(c: char) -> bool:
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
