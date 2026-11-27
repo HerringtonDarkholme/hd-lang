@@ -2014,7 +2014,17 @@ mod packed {
                     .disk
                     .iter()
                     .filter(|(key, _)| head.bucket(key.1) != bucket && !page.rows.contains_key(key))
-                    .map(|(k, l)| (*k, *l))
+                    // A committed log can have replaced and removed the
+                    // disk pack. Preserve the row's current destination,
+                    // never its obsolete disk location. A disk-only row
+                    // absent there was deleted or belongs to a superset
+                    // from an older fold; it need not be preserved again.
+                    .filter_map(|(key, _)| {
+                        self.pages
+                            .get(&head.bucket(key.1))
+                            .and_then(|target| target.rows.get(key))
+                            .map(|location| (*key, *location))
+                    })
                     .collect();
                 let bytes = if moved.is_empty() {
                     page_encode(&page.rows, epoch)
@@ -2048,7 +2058,14 @@ mod packed {
                     change(-(HEAD_LEN as i128));
                     Vec::new()
                 })
-            } else if self.head_dirty() {
+            } else if self.head_dirty()
+                || self
+                    .stored
+                    .is_some_and(|stored| stored.generation != u128::from(epoch))
+            {
+                // A location-only fold still advances page epochs. Torn
+                // log headers recover this epoch from the head, so it
+                // must advance even when row counts and buckets do not.
                 self.head.generation = u128::from(epoch);
                 change(i128::from(self.stored.map_or(HEAD_LEN as u64, |_| 0)));
                 Some(self.head.encode())
@@ -2680,6 +2697,8 @@ mod packed {
             let Ok(Some(bytes)) = read_small(&self.log_path(shard), MAX_INDEX) else {
                 return View::default();
             };
+            #[cfg(test)]
+            self.pause("view-read");
             let log = log_decode(&bytes);
             // A header read while a writer rewrites it is torn: the head
             // file names the last fold, and the batches, checksummed on
@@ -2857,8 +2876,12 @@ mod packed {
                 }
                 let fresh = self.read_view(shard);
                 if fresh.epoch == view.epoch {
+                    // Appends can replace locations without advancing the
+                    // fold epoch. The refreshed log, not this older view,
+                    // supplies the changes while the next fold writes pages.
+                    *view = fresh;
                     *epoch = view.epoch;
-                    return change.flatten();
+                    return view.overlay.rows.get(&key).copied().flatten();
                 }
                 *view = fresh;
                 pages.retain(|(s, _), _| *s != shard);
@@ -5211,6 +5234,169 @@ mod packed {
                 .collect()
         }
 
+        /// A moved pack can disappear while the cached page still names
+        /// it. One torn total-header read must recover the latest fold's
+        /// epoch, rather than letting that old page hide the log overlay.
+        #[test]
+        fn a_torn_header_after_a_location_only_fold_keeps_a_merged_key_readable()
+        -> Result<(), Box<dyn std::error::Error>> {
+            let root = scratch("location-fold-torn-header");
+            let writer = Store::new(&root);
+            let key = (EntryKind::Check as u16, 1);
+            writer.publish(&[item(1, b"first")])?;
+            writer.open_shard(0)?.fold()?;
+            writer.publish(&[item(1, b"replacement")])?;
+            writer.open_shard(0)?.fold()?;
+            let location = load(&writer).get(&key).copied().ok_or("published key")?;
+
+            // Cache the old page without retaining an open pack descriptor.
+            let mut reader = Store::new(&root);
+            {
+                let mut guard = reader.state();
+                let snapshot = Store::snapshot(&mut guard);
+                assert_eq!(reader.locate(snapshot, key), Some(location));
+            }
+            writer.rewrite(&[Source {
+                id: location.pack,
+                copy: vec![(key, location.offset, location.len)],
+                keys: vec![key],
+            }])?;
+            assert!(!writer.path(location.pack).try_exists()?);
+
+            let log_path = writer.log_path(0);
+            let bytes = read_small(&log_path, MAX_INDEX)?.ok_or("published log")?;
+            let stable_header = bytes[..LOG_HEADER].to_vec();
+            let mut torn_header = stable_header.clone();
+            torn_header[LOG_HEADER - 1] ^= 1;
+            OpenOptions::new()
+                .write(true)
+                .open(&log_path)?
+                .write_all(&torn_header)?;
+            let restored = Arc::new(AtomicBool::new(false));
+            let restoring = Arc::clone(&restored);
+            reader.on_pause = Some(Arc::new(move |at| {
+                if at == "view-read" && !restoring.swap(true, Ordering::Relaxed) {
+                    // Complete the header write after one reader captured
+                    // its torn bytes, so every later read is consistent.
+                    let written = (|| -> io::Result<()> {
+                        OpenOptions::new()
+                            .write(true)
+                            .open(&log_path)?
+                            .write_all(&stable_header)
+                    })();
+                    assert!(written.is_ok(), "restore stable log header: {written:?}");
+                }
+            }));
+            cost::take();
+            let got = reader.get(EntryKind::Check, &Hash128(1));
+            let work = cost::take();
+            assert!(
+                restored.load(Ordering::Relaxed),
+                "one torn read was captured"
+            );
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(1))
+                    .as_deref(),
+                Some(b"replacement".as_slice()),
+                "the committed pack and index remain intact",
+            );
+            assert_eq!(got.as_deref(), Some(b"replacement".as_slice()));
+            assert_eq!(work.views_read, 1, "one vanished-pack refresh");
+            assert_eq!(work.packs_opened, 1);
+            assert_eq!(work.writer_locks, 0);
+            assert_eq!(work.dirs_listed, 0);
+            Ok(())
+        }
+
+        /// Appends do not change the fold epoch. A reader older than those
+        /// appends must use the refreshed overlay while a split is publishing.
+        #[test]
+        fn a_reader_before_an_append_finds_its_key_during_the_next_split()
+        -> Result<(), Box<dyn std::error::Error>> {
+            let root = scratch("append-before-split");
+            let mut writer = Store::new(&root);
+            let batch = |from: u128, to: u128| -> Vec<_> {
+                (from..to).map(|k| item(k, &k.to_le_bytes())).collect()
+            };
+            writer.publish(&batch(0, 30))?;
+            writer.open_shard(0)?.fold()?;
+            let reader = Store::new(&root);
+            let view = reader.read_view(0);
+            Store::snapshot(&mut reader.state()).views.insert(0, view);
+            writer.publish(&batch(30, 60))?;
+            let visited = Arc::new(AtomicBool::new(false));
+            let visiting = Arc::clone(&visited);
+            writer.on_pause = Some(Arc::new(move |at| {
+                if at == "paged" {
+                    visiting.store(true, Ordering::Relaxed);
+                    cost::take();
+                    assert_eq!(
+                        reader.get(EntryKind::Check, &Hash128(31)).as_deref(),
+                        Some(31_u128.to_le_bytes().as_slice()),
+                        "the refreshed same-epoch log contains the published key",
+                    );
+                    let work = cost::take();
+                    assert_eq!(work.views_read, 1);
+                    assert_eq!(work.packs_opened, 1);
+                    assert_eq!(work.writer_locks, 0);
+                    assert_eq!(work.dirs_listed, 0);
+                }
+            }));
+            writer.open_shard(0)?.fold()?;
+            assert!(visited.load(Ordering::Relaxed));
+            Ok(())
+        }
+
+        /// A split's old-head page must retain the moved row's current
+        /// location, since a merge can already have removed its disk pack.
+        #[test]
+        fn a_split_retains_current_pack_locations_for_readers_of_its_old_head()
+        -> Result<(), Box<dyn std::error::Error>> {
+            for (before, after, key) in [(30_u128, 60, 1_u128), (60, 90, 18)] {
+                let root = scratch("split-after-pack-move");
+                let mut writer = Store::new(&root);
+                let batch = |from: u128, to: u128| -> Vec<_> {
+                    (from..to).map(|k| item(k, &k.to_le_bytes())).collect()
+                };
+                writer.publish(&batch(0, before))?;
+                writer.open_shard(0)?.fold()?;
+                let rows = load(&writer);
+                let source = Source {
+                    id: rows.values().next().ok_or("published pack")?.pack,
+                    copy: rows.iter().map(|(k, l)| (*k, l.offset, l.len)).collect(),
+                    keys: rows.keys().copied().collect(),
+                };
+                let old = source.id;
+                writer.rewrite(&[source])?;
+                assert!(!writer.path(old).try_exists()?);
+                let visited = Arc::new(AtomicBool::new(false));
+                let visiting = Arc::clone(&visited);
+                let reader_root = root.clone();
+                writer.on_pause = Some(Arc::new(move |at| {
+                    if at == "paged" {
+                        visiting.store(true, Ordering::Relaxed);
+                        let reader = Store::new(&reader_root);
+                        cost::take();
+                        assert_eq!(
+                            reader.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                            Some(key.to_le_bytes().as_slice()),
+                            "the old-head bucket retains the committed replacement location",
+                        );
+                        let work = cost::take();
+                        assert_eq!(work.views_read, 1);
+                        assert_eq!(work.packs_opened, 1);
+                        assert_eq!(work.writer_locks, 0);
+                        assert_eq!(work.dirs_listed, 0);
+                    }
+                }));
+                writer.publish(&batch(before, after))?;
+                writer.open_shard(0)?.fold()?;
+                assert!(visited.load(Ordering::Relaxed));
+            }
+            Ok(())
+        }
+
         /// Cold, then warm with another process's merge between (#1538):
         /// every indexed pack exists after each step, and a reader whose
         /// page predates the merge reads the index again once and hits.
@@ -5504,7 +5690,7 @@ mod packed {
             let mut collector = Store::new(&root);
             collector.on_pause = Some(Arc::new(move |stop| {
                 // Its folds stop inside the writer lock.
-                if matches!(stop, "paged" | "headed") {
+                if matches!(stop, "paged" | "headed" | "view-read") {
                     return;
                 }
                 at.send(stop).unwrap();
@@ -6102,7 +6288,9 @@ mod packed {
             let mut b = DiskStore::new(root.clone()).with_claims();
             let (waiting, waits) = std::sync::mpsc::channel();
             b.packed.on_pause = Some(Arc::new(move |at| {
-                let _ = waiting.send(at);
+                if at != "view-read" {
+                    let _ = waiting.send(at);
+                }
             }));
             drop(b.packed.join());
             // cost: one test thread, one miss.
