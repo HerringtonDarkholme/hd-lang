@@ -12,6 +12,7 @@ use hd_host_abi::c::{Method as CMethod, Ret, Table};
 use hd_host_abi::schema::{Contract, Interface, Method, Value};
 use hd_run::{Consent, GrantValue, Grants, HostSetup, Limits, Outcome};
 use hd_run_wasmtime::internals::Shared;
+use hd_run_wasmtime::internals::native::c_trampoline::{CType, Sig, compiles};
 use hd_run_wasmtime::native::c::Library;
 use hd_run_wasmtime::{EngineConfig, HostIo};
 use wasm_encoder::{
@@ -258,7 +259,8 @@ fn run(library: &Library, init: &[I<'_>]) -> (Outcome, String) {
 }
 
 /// `open` twice issues 1 and 2; `next` on each reaches its own object;
-/// releasing both runs `destroy` twice.
+/// releasing both runs `destroy` twice. A signature's trampoline compiles
+/// once per process.
 #[test]
 fn a_returned_c_handle_is_called_and_destroyed_at_its_release() {
     let (file, library) = library("round-trip");
@@ -283,6 +285,20 @@ fn a_returned_c_handle_is_called_and_destroyed_at_its_release() {
     );
     assert_eq!(outcome, Outcome::Exit(0), "{error}");
     assert_eq!(file.counts(), (2, 2), "two calls, two destroys");
+    // Every run binds `next`, `int32_t (*)(void *)`, and `open` and
+    // `destroy` share no signature with it: its trampoline compiled once
+    // in this process, however many instances bound it.
+    let next = Sig {
+        params: vec![CType::Ptr],
+        result: Some(CType::I32),
+    };
+    let (again, _) = run(&library, &[I::Call(0), I::Drop]);
+    assert_eq!(again, Outcome::Exit(0));
+    assert_eq!(
+        compiles(&next),
+        1,
+        "one compile for every slot of the signature"
+    );
 }
 
 /// A number this instance never issued, one already released, and one of

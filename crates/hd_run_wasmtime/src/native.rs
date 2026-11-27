@@ -30,8 +30,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use crate::runtime::reactor::Wake;
 
 pub mod c;
-pub(crate) mod c_call;
 pub(crate) mod c_token;
+pub(crate) mod c_trampoline;
 pub mod handles;
 pub mod wire;
 

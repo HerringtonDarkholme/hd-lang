@@ -111,7 +111,7 @@ fn a_c_provider_binds_every_value_table_row_and_destroys_at_close() {
     assert!(run.status.success(), "{}", text(&run.stderr));
     assert_eq!(
         text(&run.stdout),
-        "ints -123343511\nfloats 11236.0\nhalf 0.75 flag false true\nnarrow -7 wide 18446744073709551614\ntext 506\nsum 256\nfill 1 2 3 kept 0 at 44\ncount 1 2\n"
+        "ints -123343511\nfloats 11236.0\nhalf 0.75 flag false true\nnarrow -7 wide 18446744073709551614\ntext 506\nsum 256\nfill 1 2 3 kept 0 at 44\ncount 1 2\nmany 13860.0\n"
     );
     assert_eq!(text(&run.stderr), "probe destroyed\n");
     // The same module prebuilt, on a named Wasmtime.

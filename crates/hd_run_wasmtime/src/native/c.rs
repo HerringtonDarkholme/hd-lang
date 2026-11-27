@@ -5,7 +5,8 @@
 //! table, and calls `create`; the instance's close calls `destroy` once,
 //! trap or not (`cli.host.c.entry`, `cli.host.c.check`, `cli.host.c.create`).
 //! Each called slot is linked to its import with the C arguments the
-//! guest passes ([`super::c_call`]). Every slot runs on the instance's
+//! guest passes, through the trampoline of the slot's C signature
+//! ([`super::c_trampoline`]). Every slot runs on the instance's
 //! thread (`cli.host.c.thread`); a suspending method's slot takes a token,
 //! which the library completes from any thread ([`super::c_token`]).
 //!

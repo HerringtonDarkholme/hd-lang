@@ -72,7 +72,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use hd_host_abi::c::{Num, Ret};
 
 use super::c::CTable;
-use super::c_call::{Arg, Kind, Plan};
+use super::c_trampoline::Trampoline;
 use super::{Completion, HostError, HostResult, Suspension};
 use crate::codec::Enc;
 
@@ -312,18 +312,14 @@ unsafe extern "C" fn complete_error(token: *const Call, error: i32) -> bool {
     unsafe { complete(token, Got::Error(error)) }
 }
 
-/// The plan of every abort slot, `(self, token, completed)`.
-static ABORT_PLAN: std::sync::LazyLock<Option<Plan>> = std::sync::LazyLock::new(|| {
-    let pointer = Kind::Int(u8::try_from(std::mem::size_of::<usize>()).unwrap_or(8));
-    Plan::new(&[pointer, pointer, Kind::Int(1)], false)
-});
-
-/// A `!` method's slots on one `self`, and the table that keeps their
-/// library loaded while a call is pending.
+/// A `!` method's slots on one `self`, the trampoline of its abort slot,
+/// `(self, token, completed)`, and the table that keeps their library
+/// loaded while a call is pending.
 pub(crate) struct Slots {
     pub(crate) this: *mut c_void,
     pub(crate) call: *const c_void,
     pub(crate) abort: *const c_void,
+    pub(crate) abort_trampoline: Arc<Trampoline>,
     pub(crate) keep: Option<Arc<CTable>>,
 }
 
@@ -334,6 +330,7 @@ struct Abort {
     token: *const Call,
     this: *mut c_void,
     slot: *const c_void,
+    trampoline: Arc<Trampoline>,
     _keep: Option<Arc<CTable>>,
 }
 
@@ -342,18 +339,13 @@ impl Abort {
     /// if no completion did; the host's goes as `self` drops.
     #[allow(unsafe_code)]
     fn run(self, completed: bool) {
-        if let Some(plan) = ABORT_PLAN.as_ref() {
-            let args = [
-                Arg::Int(self.this as u64),
-                Arg::Int(self.token as u64),
-                Arg::Int(u64::from(completed)),
-            ];
-            // SAFETY: `abort` is the method's abort slot from a table whose
-            // hash matched, `void (*)(void *self, hd_token, bool)`, and
-            // its `self` lives: the reactor, which holds every pending
-            // call, drops before the instance's providers and handles.
-            unsafe { super::c_call::call(self.slot, plan, &args) };
-        }
+        let args = [self.this as u64, self.token as u64, u64::from(completed)];
+        // SAFETY: `slot` is the method's abort slot from a table whose hash
+        // matched, `void (*)(void *self, hd_token, bool)`, the signature of
+        // `trampoline`, and its `self` lives: the reactor, which holds
+        // every pending call, drops before the instance's providers and
+        // handles.
+        unsafe { self.trampoline.call(self.slot, &args) };
         // SAFETY: the host's own reference keeps the token alive here.
         unsafe { release_library(self.token) };
     }
@@ -366,14 +358,14 @@ impl Abort {
 ///
 /// # Safety
 ///
-/// `slots.call` is a `!` method's slot whose parameters are `plan`'s kinds
-/// (`self`, the token, then the method's own), and `slots.abort` its abort
-/// slot; `slots.this` stays alive until the call is taken or aborted.
+/// `slots.call` is a `!` method's slot of `trampoline`'s signature
+/// (`self`, the token, then the method's own), `slots.abort` its abort
+/// slot, and `slots.this` stays alive until the call is taken or aborted.
 #[allow(unsafe_code)]
 pub(crate) unsafe fn start(
     slots: Slots,
-    plan: &Plan,
-    mut args: Vec<Arg>,
+    trampoline: &Trampoline,
+    mut args: Vec<u64>,
     expect: Expect,
 ) -> Suspension {
     // The hook is set once the token exists, which holds the completion.
@@ -392,13 +384,14 @@ pub(crate) unsafe fn start(
         token,
         this: slots.this,
         slot: slots.abort,
+        trampoline: slots.abort_trampoline,
         _keep: slots.keep,
     };
     pending.abort = Some(Box::new(move |completed| hook.run(completed)));
-    args.insert(1, Arg::Int(token as u64));
+    args.insert(1, token as u64);
     // SAFETY: the caller's contract; the slot returns at once and keeps
     // the token, which stays alive until its completion or abort.
-    unsafe { super::c_call::call(slots.call, plan, &args) };
+    unsafe { trampoline.call(slots.call, &args) };
     let encode: super::Encode<Value> = |value, _| value;
     Suspension::new(pending, encode)
 }

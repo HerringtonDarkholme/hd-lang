@@ -10,6 +10,7 @@ pub trait Probe:
     fn sum(&self, xs: &List[u8]) -> u32
     fn fill(&mut self, into: &mut List[i32], at: &mut u64, v: &f64) -> void
     fn count(&mut self) -> u32
+    fn many(&self, a0: i8, a1: u16, a2: i32, a3: i64, a4: f32, a5: f64, a6: u8, a7: i16, a8: u32, a9: usize, a10: i8, a11: u16, a12: i32, a13: i64, a14: f32, a15: f64, a16: u8, a17: i16, a18: u32, a19: usize, a20: i8, a21: u16, a22: i32, a23: i64, a24: f32, a25: f64, a26: u8, a27: i16, a28: u32, a29: usize, a30: i8, a31: u16, a32: i32, a33: i64, a34: f32, a35: f64, a36: u8, a37: i16, a38: u32, a39: usize) -> f64
 
 pub fn main() -> void $ Console + Probe:
     probe := $.use(Probe)
@@ -27,3 +28,4 @@ pub fn main() -> void $ Console + Probe:
     probe.fill(&mut into, &mut at, &v)
     println("fill ${into[0]} ${into[1]} ${into[2]} kept ${kept[0]} at ${at}")
     println("count ${probe.count()} ${probe.count()}")
+    println("many ${probe.many(-1, 2, 3, 4, 5.0, 6.0, 7, -8, 9, 10, -11, 12, 13, 14, 15.0, 16.0, 17, -18, 19, 20, -21, 22, 23, 24, 25.0, 26.0, 27, -28, 29, 30, -31, 32, 33, 34, 35.0, 36.0, 37, -38, 39, 40)}")

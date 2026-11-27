@@ -29,7 +29,7 @@ use wasmtime::Linker;
 use super::reply::{bytes, handle, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
 use crate::native::c::{CTable, Library, Provider};
-use crate::native::c_call::{Arg, Kind, Plan};
+use crate::native::c_trampoline::{CType, Sig, Trampoline};
 use crate::native::{Answer, Bindings, Dispatch, HostError, Unregistered};
 use hd_host_abi::c::{Num, Param, Ret, Table};
 use std::sync::Arc;
@@ -269,11 +269,6 @@ pub(crate) fn c_preflight(
     let Some(package) = package.filter(|p| p.has_c()) else {
         return Ok(CBound::default());
     };
-    if !crate::native::c_call::supported() {
-        return Err(refused(
-            "this target has no C call bridge: C providers run on x86-64 and arm64".into(),
-        ));
-    }
     let by_module: HashMap<&str, &Library> =
         libraries.iter().map(|l| (l.module.as_str(), l)).collect();
     let interfaces = &package.contract.interfaces;
@@ -435,23 +430,58 @@ pub(crate) struct CBound {
     pub(crate) handles: Vec<Option<Arc<CTable>>>,
 }
 
-/// The C call kinds of a slot's parameters, `self` first, as its row of the
-/// C value table passes them (`module.host.package.c-references`).
-fn c_kinds(row: &hd_host_abi::c::Method) -> Vec<Kind> {
-    let pointer = Kind::Int(u8::try_from(std::mem::size_of::<usize>()).unwrap_or(8));
-    let mut kinds = vec![pointer];
+/// The C type of the number `n`.
+fn c_num(n: Num) -> CType {
+    match n {
+        Num::I8 => CType::I8,
+        Num::I16 => CType::I16,
+        Num::I32 => CType::I32,
+        Num::I64 => CType::I64,
+        Num::U8 => CType::U8,
+        Num::U16 => CType::U16,
+        Num::U32 => CType::U32,
+        Num::U64 => CType::U64,
+        Num::Usize => CType::Ptr,
+        Num::F32 => CType::F32,
+        Num::F64 => CType::F64,
+    }
+}
+
+/// A slot's C signature, `self` first, then a suspending slot's token, as
+/// its row of the C value table passes them
+/// (`module.host.package.c-references`). A suspending slot returns nothing.
+fn c_sig(row: &hd_host_abi::c::Method) -> Sig {
+    let mut params = vec![CType::Ptr];
+    if row.suspends {
+        params.push(CType::Ptr);
+    }
     for (_, p) in &row.params {
         match *p {
-            Param::Bool => kinds.push(Kind::Int(1)),
-            Param::Num(Num::F32) => kinds.push(Kind::F32),
-            Param::Num(Num::F64) => kinds.push(Kind::F64),
-            Param::Num(Num::Usize) => kinds.push(pointer),
-            Param::Num(n) => kinds.push(Kind::Int(n.bytes())),
-            Param::Ref { .. } => kinds.push(pointer),
-            Param::List { .. } | Param::Str => kinds.extend([pointer, pointer]),
+            Param::Bool => params.push(CType::Bool),
+            Param::Num(n) => params.push(c_num(n)),
+            Param::Ref { .. } => params.push(CType::Ptr),
+            Param::List { .. } | Param::Str => params.extend([CType::Ptr, CType::Ptr]),
         }
     }
-    kinds
+    let result = match &row.result {
+        _ if row.suspends => None,
+        Ret::Void => None,
+        Ret::Bool => Some(CType::Bool),
+        Ret::Num(n) => Some(c_num(*n)),
+        Ret::Handle(_) => Some(CType::Ptr),
+        // ruled out: module.host.package.c-types gives a method that
+        // returns at once no bytes or `Result` row.
+        Ret::Bytes | Ret::Result(_) => None,
+    };
+    Sig { params, result }
+}
+
+/// The signature of every abort slot, `(self, token, completed)`.
+fn abort_sig() -> Sig {
+    Sig {
+        params: vec![CType::Ptr, CType::Ptr, CType::Bool],
+        result: None,
+    }
 }
 
 /// The guest heap's base address and size, which a C call's pointer
@@ -488,27 +518,22 @@ fn define_c(
     (interface, index, on_handle, slot, label): (usize, usize, bool, usize, String),
     (row, returned): (&hd_host_abi::c::Method, Option<usize>),
 ) -> Result<(), StartError> {
-    let mut kinds = c_kinds(row);
-    // A suspending slot's completion, and its token after `self`.
-    let expect = if row.suspends {
+    let sig = c_sig(row);
+    // A suspending slot's completion, and its abort slot's trampoline.
+    let suspends = if row.suspends {
         let Some(expect) = crate::native::c_token::Expect::of(&row.result) else {
             unreachable!("ruled out: module.host.package.c-suspend (hd_check header::c_result)")
         };
-        kinds.insert(1, kinds[0]);
-        Some(expect)
+        Some((expect, Trampoline::of(&abort_sig()).map_err(refused)?))
     } else {
         None
     };
-    let float = !row.suspends && matches!(row.result, Ret::Num(Num::F32 | Num::F64));
-    let plan = Plan::new(&kinds, float).ok_or_else(|| {
-        refused(format!(
-            "{label} takes more arguments than this hd passes to a C provider: past the registers, at most {} stack words until #2388 step 6",
-            crate::native::c_call::STACK_WORDS
-        ))
-    })?;
+    // One trampoline per distinct signature, compiled at most once per
+    // process (`native::c_trampoline`).
+    let trampoline = Trampoline::of(&sig).map_err(refused)?;
     // A handle method's import takes the handle's number first; a
     // `.start` gives its status and the pending call's number.
-    let wasm_params = kinds.len() - 1 - usize::from(row.suspends) + usize::from(on_handle);
+    let wasm_params = sig.params.len() - 1 - usize::from(row.suspends) + usize::from(on_handle);
     let gives = if row.suspends {
         2
     } else {
@@ -554,12 +579,15 @@ fn define_c(
                 (provider.table(), provider.this())
             };
             // A suspending method's abort slot follows its own.
-            let (f, keep) = (table.slot(slot), expect.map(|_| Arc::clone(table)));
+            let (f, keep) = (
+                table.slot(slot),
+                suspends.as_ref().map(|_| Arc::clone(table)),
+            );
             let Some(f) = f else {
                 unreachable!("ruled out: c_preflight refused an empty slot of a called method")
             };
-            let mut args = Vec::with_capacity(plan_len(&params_of) + 1);
-            args.push(Arg::Int(this as u64));
+            let mut args = Vec::with_capacity(plan_len(&params_of) + 2);
+            args.push(this as u64);
             let int = |k: usize| int(k + usize::from(on_handle));
             // An offset `at` of `bytes` bytes of a number `align` bytes wide,
             // aligned for it and inside the heap, as an address: C may not
@@ -580,51 +608,47 @@ fn define_c(
             let mut k = 0;
             for p in &params_of {
                 match *p {
-                    Param::Bool => args.push(Arg::Int(u64::from(int(k) != 0))),
+                    Param::Bool => args.push(u64::from(int(k) != 0)),
                     Param::Num(Num::F32) => {
-                        args.push(Arg::F32(
-                            params.get(k).and_then(wasmtime::Val::f32).unwrap_or(0.0),
-                        ));
+                        // `Val::f32` gives the value; the trampoline reads
+                        // its bits from the low half of the word.
+                        let x = params.get(k).and_then(wasmtime::Val::f32).unwrap_or(0.0);
+                        args.push(u64::from(x.to_bits()));
                     }
                     Param::Num(Num::F64) => {
-                        args.push(Arg::F64(
-                            params.get(k).and_then(wasmtime::Val::f64).unwrap_or(0.0),
-                        ));
+                        let x = params.get(k).and_then(wasmtime::Val::f64).unwrap_or(0.0);
+                        args.push(x.to_bits());
                     }
-                    Param::Num(Num::I64 | Num::U64) => args.push(Arg::Int(
+                    Param::Num(Num::I64 | Num::U64) => args.push(
                         params
                             .get(k)
                             .and_then(wasmtime::Val::i64)
                             .unwrap_or(0)
                             .cast_unsigned(),
-                    )),
-                    Param::Num(num) => args.push(Arg::Int(extend(num, int(k)))),
+                    ),
+                    Param::Num(num) => args.push(extend(num, int(k))),
                     Param::Ref { num, .. } => {
-                        args.push(Arg::Int(place(
-                            int(k),
-                            u64::from(num.bytes()),
-                            num.bytes(),
-                        )?));
+                        args.push(place(int(k), u64::from(num.bytes()), num.bytes())?);
                     }
                     Param::List { num, .. } => {
                         let len = u64::from(int(k + 1).cast_unsigned());
                         let bytes = len
                             .checked_mul(u64::from(num.bytes()))
                             .ok_or_else(|| fail("a list argument leaves the guest heap"))?;
-                        args.push(Arg::Int(place(int(k), bytes, num.bytes())?));
-                        args.push(Arg::Int(len));
+                        args.push(place(int(k), bytes, num.bytes())?);
+                        args.push(len);
                         k += 1;
                     }
                     Param::Str => {
                         let len = u64::from(int(k + 1).cast_unsigned());
-                        args.push(Arg::Int(place(int(k), len, 1)?));
-                        args.push(Arg::Int(len));
+                        args.push(place(int(k), len, 1)?);
+                        args.push(len);
                         k += 1;
                     }
                 }
                 k += 1;
             }
-            if let (Some(expect), Some(keep)) = (expect, keep) {
+            if let (Some((expect, abort_trampoline)), Some(keep)) = (&suspends, keep) {
                 let Some(abort) = keep.slot(slot + 1) else {
                     unreachable!("ruled out: c_preflight refused an empty abort slot")
                 };
@@ -632,13 +656,15 @@ fn define_c(
                     this,
                     call: f,
                     abort,
+                    abort_trampoline: Arc::clone(abort_trampoline),
                     keep: Some(keep),
                 };
                 // SAFETY: as the call below; a suspending slot takes only
                 // numbers (`module.host.package.c-suspend`), and its `self`
                 // lives until the call ends, since the reactor that holds
                 // the call drops before the providers and handles.
-                let call = unsafe { crate::native::c_token::start(slots, &plan, args, expect) };
+                let call =
+                    unsafe { crate::native::c_token::start(slots, &trampoline, args, *expect) };
                 let h = caller
                     .data_mut()
                     .reactor
@@ -654,7 +680,7 @@ fn define_c(
             // table (`c_preflight`), so the slot takes these parameters and
             // returns this result; each pointer lies inside the guest heap,
             // which only this instance's thread grows (`cli.host.c.thread`).
-            let raw = unsafe { crate::native::c_call::call(f, &plan, &args) };
+            let raw = unsafe { trampoline.call(f, &args) };
             if let Some(handle) = returned {
                 // A returned handle object joins the registry under its
                 // trait; its last release runs its table's `destroy`.

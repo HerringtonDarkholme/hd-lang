@@ -3,7 +3,7 @@
 //! most once with its `completed` flag (`cli.host.c.thread`,
 //! `cli.host.c.complete`, `cli.host.c.abort`, `cli.host.c.token`,
 //! `cli.host.c.bytes`). The library is this file's own C-ABI functions,
-//! called through the engine's C call bridge as a loaded library's are.
+//! called through the engine's C call trampolines as a loaded library's are.
 mod tests {
     use std::ffi::c_void;
     use std::sync::atomic::{AtomicUsize, Ordering};

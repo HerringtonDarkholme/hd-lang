@@ -234,8 +234,8 @@ pub mod native {
         use std::ffi::c_void;
 
         use crate::native::Suspension;
-        use crate::native::c_call::{Arg, Kind, Plan};
         use crate::native::c_token as token;
+        use crate::native::c_trampoline::{CType, Sig, Trampoline};
 
         /// How many tokens are alive.
         #[must_use]
@@ -261,22 +261,36 @@ pub mod native {
             args: &[i64],
             result: &hd_host_abi::c::Ret,
         ) -> Suspension {
-            let pointer = Kind::Int(u8::try_from(std::mem::size_of::<usize>()).unwrap_or(8));
-            let mut kinds = vec![pointer, pointer];
-            kinds.extend(args.iter().map(|_| Kind::Int(8)));
-            let plan = Plan::new(&kinds, false).expect("a bridged target");
-            let mut values = vec![Arg::Int(this as u64)];
-            values.extend(args.iter().map(|a| Arg::Int(a.cast_unsigned())));
+            let mut params = vec![CType::Ptr, CType::Ptr];
+            params.extend(args.iter().map(|_| CType::I64));
+            let trampoline = Trampoline::of(&Sig {
+                params,
+                result: None,
+            })
+            .expect("a Cranelift host");
+            let abort_trampoline = Trampoline::of(&Sig {
+                params: vec![CType::Ptr, CType::Ptr, CType::Bool],
+                result: None,
+            })
+            .expect("a Cranelift host");
+            let mut values = vec![this as u64];
+            values.extend(args.iter().map(|a| a.cast_unsigned()));
             let expect = token::Expect::of(result).expect("a completion row");
             let slots = token::Slots {
                 this,
                 call,
                 abort,
+                abort_trampoline,
                 keep: None,
             };
             // SAFETY: the caller's contract, passed on.
-            unsafe { token::start(slots, &plan, values, expect) }
+            unsafe { token::start(slots, &trampoline, values, expect) }
         }
+    }
+
+    /// The C call trampolines (`native::c_trampoline`).
+    pub mod c_trampoline {
+        pub use crate::native::c_trampoline::{CType, Sig, Trampoline, compiles};
     }
 
     /// The handle table's engine-side operations and its bounds.
