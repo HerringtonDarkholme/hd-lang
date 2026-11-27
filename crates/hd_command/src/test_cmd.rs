@@ -1335,7 +1335,7 @@ fn imports(wasm: &[u8], module: &str) -> bool {
 /// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
 /// the package's `[capabilities]` table and no flags, as `hd run NAME`
 /// would (`cli.cap.source.hd-run.entry`). Each child's contract chooses its
-/// engine independently of the test module (`cli.host.package.native-cli-node`).
+/// engine independently of the test module (`cli.host.package.native-cli-choice`).
 fn build_programs(
     root: &Path,
     package: &str,

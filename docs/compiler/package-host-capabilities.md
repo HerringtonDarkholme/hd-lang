@@ -358,7 +358,7 @@ Resource cleanup remains an explicit operation, such as `dispose!`; release does
 
 The native host refuses a required package capability with no registered native provider and no C provider before entering the guest.
 The `hd` command registers no Rust provider; it binds a trait's C provider from its package's `native/<target-triple>/` folder ([C Providers](../../spec/cli/command-line.md#c-providers)).
-Without `--engine`, `hd run` and `hd FILE.wasm` choose Wasmtime for a module whose every root trait has a C provider, and Node for any other module with one, whatever `HD_ENGINE` says: `engine::Choice::for_module` reads the contract and the C tables that `execute` decodes for the run, after the capability refusal and before the module loads, so there is still no engine fallback mid-run ([`cli.host.package.native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node)).
+Without `--engine`, `hd run` and `hd FILE.wasm` choose Wasmtime for a module whose every root trait has a C provider, and Node for any other module with one, whatever `HD_ENGINE` says: `engine::Choice::for_module` reads the contract and the C tables that `execute` decodes for the run, after the capability refusal and before the module loads, so there is still no engine fallback mid-run ([`cli.host.package.native-cli-choice`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-choice)).
 [Native Package Providers](../../spec/cli/command-line.md#native-package-providers) specifies embedder registration, built by #2077 to #2083.
 General exported functions remain deferred.
 

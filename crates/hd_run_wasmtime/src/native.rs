@@ -8,7 +8,7 @@
 //! one registry, passed by value, that
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
 //! takes. Hd loads a library only for a C provider that a package's
-//! `[host]` table names ([`c`], `cli.host.package.native-no-discovery`).
+//! `[host]` table names ([`c`], `cli.host.package.native-library-scope`).
 //!
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
 //! resolves the registrations by nominal identity and links each root

@@ -176,7 +176,7 @@ impl WasmtimeEngine {
 
     /// Instantiates `m` with no native package provider: a module whose
     /// contract requires a root trait is refused before the guest starts
-    /// (`cli.host.package.native-cli`).
+    /// (`cli.host.package.native-cli-binds-c`).
     pub(crate) fn instantiate_host(
         &self,
         m: &Module,

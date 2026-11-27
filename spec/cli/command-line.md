@@ -1040,7 +1040,7 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 
 > **Note.** Without the flag, a module requiring a package host trait runs
 > on Node, by
-> [`cli.host.package.native-cli-node`](#r-cli.host.package.native-cli-node).
+> [`cli.host.package.native-cli-choice`](#r-cli.host.package.native-cli-choice).
 
 > **Why.** Engines differ in speed and in what they cost, not in what a
 > program means. So a user, CI, or an agent picks one by name, and a
@@ -2452,11 +2452,11 @@ hd build --engine wasmtime
 3. r[cli.host.package.native-deterministic] Building the same module twice writes byte-identical Rust companion text.
 4. r[cli.host.package.native-portable-identity] Writing the Rust companion does not alter the portable Wasm module.
 5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
-6. r[cli.host.package.native-no-discovery] An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder.
-7. r[cli.host.package.native-cli] On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that another native provider needs a Rust program that embeds the Wasmtime host.
-8. r[cli.host.package.native-cli-node] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Wasmtime when every required package host trait has a C provider, and else on Node, whichever engine `HD_ENGINE` or the default names.
+6. r[cli.host.package.native-library-scope] An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder.
+7. r[cli.host.package.native-cli-binds-c] On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that another native provider needs a Rust program that embeds the Wasmtime host.
+8. r[cli.host.package.native-cli-choice] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Wasmtime when every required package host trait has a C provider, and else on Node, whichever engine `HD_ENGINE` or the default names.
 9. r[cli.host.package.native-cli-startup] That choice is made from the module's package host contract before the module loads, and the run never changes engine afterwards, by [`cli.host.package.no-fallback`](#r-cli.host.package.no-fallback).
-10. r[cli.host.package.native-cli-explicit] `hd --engine wasmtime` still refuses a module with a required trait that no C provider serves, by [`cli.host.package.native-cli`](#r-cli.host.package.native-cli).
+10. r[cli.host.package.native-cli-named] `hd --engine wasmtime` still refuses a module with a required trait that no C provider serves, by [`cli.host.package.native-cli-binds-c`](#r-cli.host.package.native-cli-binds-c).
 11. r[cli.host.package.native-cli-no-node] When Node cannot be started, a run that chose it this way fails before the guest starts, with a message naming the Node engine.
 12. r[cli.host.package.native-two-keys] A native provider runs only when the app's root manifest consents to its trait and the embedder registered it.
 13. r[cli.host.package.native-reachable] Native startup requires a registered provider only for each root interface in the module's contract, not for every consented trait.
