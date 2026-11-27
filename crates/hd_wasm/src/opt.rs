@@ -1631,18 +1631,101 @@ impl Rows {
 /// The locals of suspending body `f` live just after its instruction at
 /// `at`, ascending, where a `Save`, which returns at once, reads none:
 /// what a run from there may read before it writes. `None` when the
-/// body's branches are not analysed. Only `at`'s block is walked, back
-/// from its live-out set.
-pub(crate) fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
-    let mut me = Live::new(f, Sets::unconsed())?;
-    let p = me.point_at[at];
-    let mut live = me.outs[p];
-    for ins in f.body[at + 1..me.end(p, f.body.len())].iter().rev() {
-        live = Live::step(&mut me.sets, ins, live);
+/// body's branches are not analysed.
+///
+/// One query needs no live set per block. A local is live after `at`
+/// exactly when some block reachable from there reads it first while
+/// some path to that block leaves it unwritten. So one forward pass from
+/// `at`, blocks in body order, carries what every path to a block wrote
+/// (a must-write set, met by intersection), and a block's first reads
+/// outside that set are live. Structured Wasm is reducible and every
+/// edge but a loop's backedge leads forward, so a block's forward
+/// predecessors are final when it is visited. A backedge to a loop
+/// entered at its header after `at` brings nothing: the run through the
+/// loop wrote at least what the header's entry facts hold, and a meet
+/// with a superset changes nothing (a "fast" framework, Graham and
+/// Wegman 1976: a loop's closure of a write-only transfer is the
+/// identity). Only a loop holding `at` re-enters at its header with new
+/// facts, what every path to its backedges wrote; it is walked once
+/// more from its header, innermost first, each header once.
+///
+/// So the query costs one pass over the blocks after `at` and one per
+/// loop holding `at`, with no depth factor for the loops after it,
+/// where the full backward fixed point ([`Live::settle`]) visits a
+/// loop's blocks once more per level of loops around them (#2401), as
+/// regalloc2's `compute_liveness` does: a FIFO worklist seeded in
+/// postorder, as many rounds as the loops nest. The SSA loop-forest
+/// pass (Brandner et al., INRIA RR-7503) settles in two passes, but
+/// only because an SSA value live into a header is live in its whole
+/// loop; a Wasm local written inside the loop is not.
+#[must_use]
+pub fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
+    let edges = zero_edges(&f.body, &f.labels)?;
+    let len = f.body.len();
+    let (point_at, starts) = basic_blocks(&edges, len);
+    let blocks = starts.len();
+    let end = |p: usize| starts.get(p + 1).copied().unwrap_or(len);
+    let mut sets = Sets::unconsed();
+    let meet = |sets: &mut Sets, slot: &mut Option<Set>, w: Set| {
+        *slot = Some(slot.map_or(w, |known| sets.intersection(known, w)));
+    };
+    let mut live = vec![false; f.params.len() + f.locals.len()];
+    // What every path from the source to a block's entry wrote; `None`:
+    // not reached from the source.
+    let mut written: Vec<Option<Set>> = vec![None; blocks];
+    // A loop holding the source: what every path to its backedges
+    // wrote, by header block, and the headers still to walk from.
+    let mut seeds: Vec<Option<Set>> = vec![None; blocks];
+    let mut headers = std::collections::BinaryHeap::new();
+    let mut work = 0;
+    let mut source = Some((*point_at.get(at)?, at + 1, Set::EMPTY));
+    while let Some((first, from, entry)) = source {
+        written[first..].fill(None);
+        written[first] = Some(entry);
+        for p in first..blocks {
+            let Some(mut w) = written[p] else {
+                continue;
+            };
+            let start = if p == first { from } else { starts[p] };
+            work += 1 + end(p) - start;
+            for ins in &f.body[start..end(p)] {
+                if let Ins::Op(I::LocalGet(l)) = *ins
+                    && !live[l as usize]
+                {
+                    live[l as usize] = !sets.contains(w, l);
+                } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = *ins {
+                    w = sets.insert(w, l);
+                }
+            }
+            edges[end(p) - 1].each(end(p), |to| {
+                let Some(&t) = point_at.get(to) else {
+                    return; // The function's exit.
+                };
+                if t > p {
+                    meet(&mut sets, &mut written[t], w);
+                } else if t < first || (t == first && from != starts[first]) {
+                    // A backedge of a loop holding the source.
+                    if seeds[t].is_none() {
+                        headers.push(t);
+                    }
+                    meet(&mut sets, &mut seeds[t], w);
+                }
+            });
+        }
+        // A pass from header `t` seeds only the loops around it, whose
+        // headers come before it: the latest header first sees each of
+        // its seeds final.
+        source = headers
+            .pop()
+            .and_then(|t| seeds[t].map(|seed| (t, starts[t], seed)));
     }
-    let mut members = Vec::new();
-    me.sets.members(live, &mut members);
-    Some(members)
+    crate::work::liveness(work + sets.work());
+    Some(
+        (0u32..)
+            .zip(live)
+            .filter_map(|(l, x)| x.then_some(l))
+            .collect(),
+    )
 }
 
 /// How a local is defined at a position, for [`coalesce`]'s bundles: a

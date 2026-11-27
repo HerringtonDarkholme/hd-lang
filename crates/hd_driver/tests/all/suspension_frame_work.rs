@@ -103,8 +103,10 @@ fn suspension_module_size_is_linear_even_when_all_results_stay_live() {
     });
 }
 
-/// The `optimizer` phase is the optimized link's liveness work, so the
-/// programs build optimized.
+/// The `optimizer` phase is liveness work: the resume entry's query and
+/// dev's local sharing. The programs build in dev, so the optimized
+/// link's rule passes do not hide the query's depth factor (#2401); the
+/// loops nest 2 to 20 deep.
 #[test]
 fn resident_spill_work_is_linear_in_width_and_depth_together() {
     on_worker_stack(|| {
@@ -112,7 +114,7 @@ fn resident_spill_work_is_linear_in_width_and_depth_together() {
             let ((out, work), optimizer) = hd_wasm::work::count_liveness(|| {
                 hd_wasm::suspension_work::count(|| {
                     let source = program(width, true, depth, true);
-                    compile(&source, EngineTarget::V8, false, OptLevel::Optimized)
+                    compile(&source, EngineTarget::V8, false, OptLevel::Dev)
                 })
             });
             assert!(out.wasm.is_some());
@@ -121,30 +123,33 @@ fn resident_spill_work_is_linear_in_width_and_depth_together() {
             );
             (work, optimizer)
         };
-        let ((small, small_optimizer), (wide, wide_optimizer), (nested, nested_optimizer)) =
-            (work(100, 2), work(1000, 2), work(1000, 20));
-        for (phase, a, b, c) in [
-            (
-                "instructions",
-                small.instructions,
-                wide.instructions,
-                nested.instructions,
-            ),
-            ("accesses", small.accesses, wide.accesses, nested.accesses),
-            ("slots", small.slots, wide.slots, nested.slots),
-            ("points", small.points, wide.points, nested.points),
-            ("dispatch", small.dispatch, wide.dispatch, nested.dispatch),
-            (
-                "optimizer",
-                small_optimizer,
-                wide_optimizer,
-                nested_optimizer,
-            ),
-        ] {
-            assert!(a > 0 && b <= 14 * a, "{phase}: {a}, {b}");
-            // Growing both dimensions catches a per-point walk of every
-            // ancestor, not just the per-point scan of every live value.
-            assert!(c <= 14 * a, "{phase}: {a}, {c}");
+        let (small, small_optimizer) = work(100, 2);
+        let (wide, wide_optimizer) = work(1000, 2);
+        for depth in [5, 10, 20] {
+            let (nested, nested_optimizer) = work(1000, depth);
+            for (phase, a, b, c) in [
+                (
+                    "instructions",
+                    small.instructions,
+                    wide.instructions,
+                    nested.instructions,
+                ),
+                ("accesses", small.accesses, wide.accesses, nested.accesses),
+                ("slots", small.slots, wide.slots, nested.slots),
+                ("points", small.points, wide.points, nested.points),
+                ("dispatch", small.dispatch, wide.dispatch, nested.dispatch),
+                (
+                    "optimizer",
+                    small_optimizer,
+                    wide_optimizer,
+                    nested_optimizer,
+                ),
+            ] {
+                assert!(a > 0 && b <= 14 * a, "{phase}: {a}, {b}");
+                // Growing both dimensions catches a per-point walk of every
+                // ancestor, not just the per-point scan of every live value.
+                assert!(c <= 14 * a, "{phase}: {a}, {c}");
+            }
         }
     });
 }

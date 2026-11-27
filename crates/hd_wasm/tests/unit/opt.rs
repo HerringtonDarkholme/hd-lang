@@ -2085,6 +2085,324 @@ mod origin_tests {
         Ok(())
     }
 
+    /// The locals a run from just after `at`, along each of its edges,
+    /// reads before it writes, by a search per local over the
+    /// instructions: the definition
+    /// [`live_after`] is checked against, with edges found here, not
+    /// from the pass's own CFG.
+    fn live_after_by_search(f: &Func, at: usize) -> Vec<u32> {
+        let body = &f.body;
+        let (mut opens, mut ends, mut elses) =
+            (Vec::new(), vec![0; body.len()], vec![None; body.len()]);
+        let mut labels_at = Vec::with_capacity(body.len());
+        for (i, ins) in body.iter().enumerate() {
+            labels_at.push(opens.clone());
+            match ins {
+                Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => opens.push(i),
+                Ins::Op(I::Else) => elses[*opens.last().unwrap()] = Some(i),
+                Ins::Op(I::End) => {
+                    if let Some(open) = opens.pop() {
+                        ends[open] = i;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let succs = |i: usize| -> Vec<usize> {
+            let labels = &labels_at[i];
+            let target = |d: u32| match labels.len().checked_sub(d as usize + 1) {
+                None => body.len(),
+                Some(k) if matches!(body[labels[k]], Ins::Op(I::Loop(_))) => labels[k] + 1,
+                Some(k) => ends[labels[k]] + 1,
+            };
+            match &body[i] {
+                Ins::Op(I::If(_)) => vec![i + 1, elses[i].map_or(ends[i], |e| e) + 1],
+                Ins::Op(I::Else) => vec![ends[*labels.last().unwrap()] + 1],
+                Ins::Op(I::Br(d)) => vec![target(*d)],
+                Ins::Op(I::BrIf(d)) => vec![i + 1, target(*d)],
+                Ins::Op(I::BrTable(t, d)) => f
+                    .label_list(*t)
+                    .iter()
+                    .chain([d])
+                    .map(|d| target(*d))
+                    .collect(),
+                Ins::Op(I::Return | I::Unreachable) => vec![],
+                _ => vec![i + 1],
+            }
+        };
+        let n = u32::try_from(f.params.len() + f.locals.len()).unwrap();
+        (0..n)
+            .filter(|&l| {
+                let mut seen = vec![false; body.len()];
+                let mut stack = succs(at);
+                while let Some(i) = stack.pop() {
+                    if i >= body.len() || std::mem::replace(&mut seen[i], true) {
+                        continue;
+                    }
+                    match body[i] {
+                        Ins::Op(I::LocalGet(x)) if x == l => return true,
+                        Ins::Op(I::LocalSet(x) | I::LocalTee(x)) if x == l => {}
+                        _ => stack.extend(succs(i)),
+                    }
+                }
+                false
+            })
+            .collect()
+    }
+
+    fn assert_live_after_everywhere(f: &Func) {
+        for at in 0..f.body.len() {
+            assert_eq!(
+                live_after(f, at),
+                Some(live_after_by_search(f, at)),
+                "after {at} of {:?}",
+                f.body
+            );
+        }
+    }
+
+    /// #2401's shapes, the query asked after every instruction, inside
+    /// loops too: nested loops with a suspension (a `return`) inside the
+    /// innermost; a `br` out of several levels; a `br_if` from an inner
+    /// loop back to an outer header; a `block` inside a `loop`.
+    #[test]
+    fn live_after_answers_the_shapes_of_nested_loops() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let (get, set, tee) = (
+            |l| op(I::LocalGet(l)),
+            |l| op(I::LocalSet(l)),
+            |l| op(I::LocalTee(l)),
+        );
+        let (lp, bl, end) = (
+            op(I::Loop(BlockType::Empty)),
+            op(I::Block(BlockType::Empty)),
+            op(I::End),
+        );
+        let (drop, one) = (op(I::Drop), op(I::I32Const(1)));
+        let bodies = [
+            // A resume entry, then three loops, the innermost suspending
+            // between a value's write and its read.
+            vec![
+                get(0),
+                op(I::If(BlockType::Empty)),
+                one,
+                set(1),
+                op(I::Else),
+                one,
+                set(2),
+                end,
+                lp,
+                get(1),
+                drop,
+                lp,
+                lp,
+                get(2),
+                set(3),
+                get(0),
+                op(I::If(BlockType::Empty)),
+                op(I::Return),
+                end,
+                get(3),
+                drop,
+                get(4),
+                op(I::BrIf(0)),
+                end,
+                get(5),
+                op(I::BrIf(0)),
+                end,
+                one,
+                set(5),
+                get(1),
+                tee(1),
+                op(I::BrIf(0)),
+                end,
+            ],
+            // A `br` out of three levels, past a read after the loop.
+            vec![
+                bl,
+                bl,
+                lp,
+                get(0),
+                op(I::BrIf(2)),
+                get(1),
+                set(2),
+                get(3),
+                op(I::BrIf(0)),
+                end,
+                get(2),
+                drop,
+                end,
+                get(4),
+                drop,
+                end,
+                get(1),
+                drop,
+            ],
+            // A `br_if` from the inner loop back to the outer header,
+            // which reads what the inner loop wrote.
+            vec![
+                lp,
+                get(2),
+                drop,
+                lp,
+                one,
+                set(2),
+                get(0),
+                op(I::BrIf(1)),
+                get(3),
+                set(4),
+                get(1),
+                op(I::BrIf(0)),
+                end,
+                get(4),
+                drop,
+                end,
+            ],
+            // A `block` inside a `loop`: a write the branch skips.
+            vec![
+                lp,
+                bl,
+                get(0),
+                op(I::BrIf(0)),
+                one,
+                set(1),
+                end,
+                get(1),
+                drop,
+                one,
+                set(1),
+                get(2),
+                op(I::BrIf(0)),
+                end,
+            ],
+            // A `br_table` to a loop header and out of it.
+            vec![
+                bl,
+                lp,
+                get(1),
+                drop,
+                get(0),
+                op(I::BrTable(LabelListId(0), 1)),
+                end,
+                end,
+                get(2),
+                drop,
+            ],
+        ];
+        for body in bodies {
+            let mut f = tracked(&symbols, 1, 5, body);
+            f.labels = vec![vec![0, 1]];
+            assert_live_after_everywhere(&f);
+        }
+    }
+
+    /// [`live_after`] against the search on structured bodies drawn at
+    /// random: loops, blocks and ifs nested to depth five, reads and
+    /// writes of six locals, and branches to every enclosing label.
+    #[test]
+    fn live_after_matches_a_search_on_random_bodies() {
+        let symbols = Symbols::default();
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move |n: u32| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            u32::try_from(seed % u64::from(n)).unwrap()
+        };
+        for _ in 0..300 {
+            let mut body = Vec::new();
+            let mut depth = 0u32;
+            for _ in 0..40 {
+                let l = next(6);
+                match next(10) {
+                    0 if depth < 5 => {
+                        body.push(Ins::Op(I::Loop(BlockType::Empty)));
+                        depth += 1;
+                    }
+                    1 if depth < 5 => {
+                        body.push(Ins::Op(I::Block(BlockType::Empty)));
+                        depth += 1;
+                    }
+                    2 if depth < 5 => {
+                        body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::If(BlockType::Empty))]);
+                        depth += 1;
+                    }
+                    3 if depth > 0 => {
+                        body.push(Ins::Op(I::End));
+                        depth -= 1;
+                    }
+                    4 => body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::BrIf(next(depth + 1)))]),
+                    5 | 6 => body.extend([Ins::Op(I::I32Const(1)), Ins::Op(I::LocalSet(l))]),
+                    _ => body.extend([Ins::Op(I::LocalGet(l)), Ins::Op(I::Drop)]),
+                }
+            }
+            body.extend((0..depth).map(|_| Ins::Op(I::End)));
+            assert_live_after_everywhere(&tracked(&symbols, 1, 5, body));
+        }
+    }
+
+    /// #2401: the query's work is linear in width and depth together.
+    /// `n` values written and read inside `d` nested loops, each loop's
+    /// counter read at its header and written at its end, as the
+    /// lowered `for` loops are: the full fixed point walked the inner
+    /// body once more per level.
+    #[test]
+    fn live_after_work_has_no_loop_depth_factor() {
+        let symbols = Symbols::default();
+        let op = Ins::Op;
+        let work = |n: u32, d: u32| {
+            let mut body = vec![
+                op(I::LocalGet(0)),
+                op(I::If(BlockType::Empty)),
+                op(I::I32Const(0)),
+                op(I::Drop),
+                op(I::End),
+            ];
+            for c in 0..d {
+                body.extend([
+                    op(I::Loop(BlockType::Empty)),
+                    op(I::LocalGet(1 + c)),
+                    op(I::Drop),
+                ]);
+            }
+            let values = 1 + d;
+            for v in 0..n {
+                body.extend([op(I::I32Const(1)), op(I::LocalSet(values + v))]);
+                body.extend([
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::Return),
+                    op(I::End),
+                ]);
+            }
+            body.extend((0..n).flat_map(|v| [op(I::LocalGet(values + v)), op(I::Drop)]));
+            for c in (0..d).rev() {
+                body.extend([
+                    op(I::LocalGet(1 + c)),
+                    op(I::I32Const(1)),
+                    op(I::I32Add),
+                    op(I::LocalTee(1 + c)),
+                    op(I::BrIf(0)),
+                    op(I::End),
+                ]);
+            }
+            let f = tracked(&symbols, 1, (values + n) as usize, body);
+            let (live, work) = hd_wasm::work::count_liveness(|| live_after(&f, 2));
+            // Every counter is read before written; no value is.
+            assert_eq!(live, Some((0..=d).collect::<Vec<_>>()));
+            work
+        };
+        let shallow = work(1000, 2);
+        for d in [5, 10, 20] {
+            let deep = work(1000, d);
+            assert!(
+                deep <= shallow + shallow / 10,
+                "depth {d}: {deep} against {shallow}"
+            );
+        }
+    }
+
     #[test]
     fn liveness_revisits_only_the_blocks_a_backedge_reaches() {
         let symbols = Symbols::default();
