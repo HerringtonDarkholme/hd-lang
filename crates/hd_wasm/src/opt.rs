@@ -957,10 +957,11 @@ impl ZeroFacts for ZeroRow {
 
     fn write(&mut self, local: u32, zero: bool) {
         let l = local as usize;
-        if let Some(w) = self.0.get_mut(l / 64) {
-            let bit = 1u64 << (l % 64);
-            *w = if zero { *w | bit } else { *w & !bit };
-        }
+        let Some(w) = self.0.get_mut(l / 64) else {
+            return;
+        };
+        let bit = 1u64 << (l % 64);
+        *w = if zero { *w | bit } else { *w & !bit };
     }
 }
 
@@ -4173,15 +4174,30 @@ fn producer(
     arity: &Arity,
     symbols: &Symbols,
 ) -> Option<(usize, usize)> {
+    producer_with(body, at, depth, arity, symbols, |_, _| false)
+}
+
+/// One backward walk shared by straight-line queries and scalar joins.
+/// A join callback stops the walk after recording the arms to visit.
+fn producer_with(
+    body: &[Ins],
+    at: usize,
+    depth: usize,
+    arity: &Arity,
+    symbols: &Symbols,
+    mut join: impl FnMut(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
     let mut above = depth;
     for j in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
+        if join(j, above) {
+            return None;
+        }
         let (pops, pushes) = effect(&body[j], arity, symbols)?;
         if above >= pushes {
             above = above - pushes + pops;
         } else if matches!(body[j], Ins::Op(I::LocalTee(_))) {
-            if above != 0 {
-                return None;
-            }
+            // ruled out: a nonzero depth here; LocalTee pushes one and
+            // this branch requires above < pushes.
             above = 0;
         } else {
             return Some((j, pushes - 1 - above));
@@ -4262,35 +4278,19 @@ fn sources(
     let start = out.len();
     let mut work = vec![(at, depth)];
     while let Some((at, depth)) = work.pop() {
-        if let Some(found) = producer(&f.body, at, depth, arity, &f.symbols) {
-            out.push(found);
-            continue;
-        }
-        let mut above = depth;
         let mut joined = false;
-        for p in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
-            if joins.is_empty() {
-                break;
-            }
+        let found = producer_with(&f.body, at, depth, arity, &f.symbols, |p, above| {
             if above == 0
                 && let Some(Some(otherwise)) = joins.get(p)
             {
                 work.extend([(*otherwise, 0), (p, 0)]);
                 joined = true;
-                break;
             }
-            let Some((pops, pushes)) = effect(&f.body[p], arity, &f.symbols) else {
-                break;
-            };
-            if above >= pushes {
-                above = above - pushes + pops;
-            } else if matches!(f.body[p], Ins::Op(I::LocalTee(_))) {
-                above = 0;
-            } else {
-                break;
-            }
-        }
-        if !joined {
+            joined
+        });
+        if let Some(found) = found {
+            out.push(found);
+        } else if !joined {
             out.truncate(start);
             return false;
         }

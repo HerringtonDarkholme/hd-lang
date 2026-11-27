@@ -85,14 +85,53 @@ enum Layout {
     Stored,
 }
 
-/// [`layout`] of each tag, by its number, made at compile time as LLVM's
+/// The layout of each tag, by its number, made at compile time as LLVM's
 /// `TableGen` makes its operand tables: [`slots`] runs per instruction in
 /// every pass, so it reads the table rather than matching the tag again.
 const LAYOUTS: [[Layout; 2]; Tag::ALL.len()] = {
     let mut out = [[L::Opaque; 2]; Tag::ALL.len()];
     let mut k = 0;
     while k < out.len() {
-        out[Tag::ALL[k] as usize] = layout(Tag::ALL[k]);
+        let tag = Tag::ALL[k];
+        let ops = [tag.operands().0, tag.operands().1];
+        let mut plain = [L::Opaque; 2];
+        let mut word = 0;
+        while word < 2 {
+            plain[word] = match ops[word] {
+                Op::Inst => L::One(Word::Inst),
+                Op::Value => L::One(Word::Value(Role::Lend)),
+                Op::Block => L::One(Word::Block),
+                Op::Place => L::Place(Role::Lend),
+                Op::Values => L::Each(Word::Value(Role::Lend)),
+                Op::Blocks => L::Each(Word::Block),
+                _ => L::Opaque,
+            };
+            word += 1;
+        }
+        let [a, b] = plain;
+        let consume = Word::Value(Role::Consume);
+        out[tag as usize] = match tag {
+            Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
+            Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
+            // A drop flag writes its flag local, not its path's root.
+            Tag::FlagSet | Tag::FlagClear => [L::Opaque, b],
+            Tag::Store | Tag::Break => [a, L::One(consume)],
+            Tag::Return => [L::One(consume), b],
+            Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {
+                [a, L::Call]
+            }
+            Tag::CallDyn => [a, L::DynCall],
+            Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::NewList => [a, L::Each(consume)],
+            Tag::NewTuple => [L::One(consume), L::Each(consume)],
+            Tag::CopyStruct => [a, L::Pairs(consume)],
+            Tag::With | Tag::ContextNew => [L::Pairs(Word::Provider), b],
+            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => [a, L::Cases],
+            Tag::Intrinsic => [a, L::Stored],
+            // A defer suite and Hook instruction sit in metadata words.
+            Tag::Defer => [L::One(Word::Block), b],
+            Tag::Hook => [a, L::One(Word::Inst)],
+            _ => [a, b],
+        };
         k += 1;
     }
     out
@@ -111,48 +150,6 @@ pub(crate) const RUNS_BLOCKS: [bool; Tag::ALL.len()] = {
     }
     out
 };
-
-/// The layout of each data word of `tag`: its [`Op`]'s, but where the
-/// tag's role or record says more.
-const fn layout(tag: Tag) -> [Layout; 2] {
-    const fn plain(op: Op) -> Layout {
-        match op {
-            Op::Inst => L::One(Word::Inst),
-            Op::Value => L::One(Word::Value(Role::Lend)),
-            Op::Block => L::One(Word::Block),
-            Op::Place => L::Place(Role::Lend),
-            Op::Values => L::Each(Word::Value(Role::Lend)),
-            Op::Blocks => L::Each(Word::Block),
-            _ => L::Opaque,
-        }
-    }
-    let (a, b) = (plain(tag.operands().0), plain(tag.operands().1));
-    let consume = Word::Value(Role::Consume);
-    match tag {
-        Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
-        Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
-        // A drop flag statement writes its flag local, not its path's
-        // root: it uses no value.
-        Tag::FlagSet | Tag::FlagClear => [L::Opaque, b],
-        Tag::Store | Tag::Break => [a, L::One(consume)],
-        Tag::Return => [L::One(consume), b],
-        Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {
-            [a, L::Call]
-        }
-        Tag::CallDyn => [a, L::DynCall],
-        Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::NewList => [a, L::Each(consume)],
-        Tag::NewTuple => [L::One(consume), L::Each(consume)],
-        Tag::CopyStruct => [a, L::Pairs(consume)],
-        Tag::With | Tag::ContextNew => [L::Pairs(Word::Provider), b],
-        Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => [a, L::Cases],
-        Tag::Intrinsic => [a, L::Stored],
-        // A `defer`'s suite and a `Hook`'s observed instruction sit in
-        // meta words.
-        Tag::Defer => [L::One(Word::Block), b],
-        Tag::Hook => [a, L::One(Word::Inst)],
-        _ => [a, b],
-    }
-}
 
 /// Calls `f` with each slot of instruction `i`: its position, its word and
 /// what the word names, data word `a`'s slots before `b`'s (a tuple's

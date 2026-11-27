@@ -218,6 +218,7 @@ pub struct DeclView<'v> {
 
 impl<'v> DeclView<'v> {
     #[must_use]
+    #[cfg_attr(feature = "testing", inline(never))]
     pub const fn new(
         names: Names<'v>,
         unit: UnitId,

@@ -99,6 +99,7 @@ impl Sets {
 
     /// The nodes made so far: the pass's storage.
     #[cfg(feature = "testing")]
+    #[inline(never)]
     pub fn made(&self) -> usize {
         self.nodes.len()
     }

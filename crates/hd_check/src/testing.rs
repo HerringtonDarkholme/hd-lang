@@ -159,6 +159,7 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
     }
 
     #[must_use]
+    #[inline(never)]
     pub fn pool(&self) -> Types<'c> {
         self.ck.pool()
     }
@@ -202,6 +203,7 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         &mut self.ck.env
     }
 
+    #[inline(never)]
     pub fn strict_rets(&mut self) -> &mut Vec<Ty> {
         &mut self.ck.strict_rets
     }

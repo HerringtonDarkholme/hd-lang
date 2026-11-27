@@ -262,6 +262,7 @@ impl Solution {
 
     /// The number of solved components (feature `testing`).
     #[cfg(feature = "testing")]
+    #[inline(never)]
     #[must_use]
     pub fn components(&self) -> usize {
         self.values.len()

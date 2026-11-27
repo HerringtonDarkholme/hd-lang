@@ -1401,6 +1401,31 @@ mod origin_tests {
     }
 
     #[test]
+    fn static_values_distinguish_arguments_below_a_tee_and_missing_operands() {
+        let symbols = Symbols::default();
+        let callee = symbols.intern(Sym::Inst(Hash128(7)));
+        let entry = symbols.intern(Sym::Inst(Hash128(8)));
+        let arity = vec![Some((2, 0)), Some((1, 0))];
+        let target = tracked(&symbols, 2, 0, vec![]);
+        for (body, expected) in [
+            (
+                vec![
+                    Ins::Op(I::I32Const(7)),
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Op(I::LocalTee(1)),
+                    Ins::Call(callee, None),
+                ],
+                [true, false],
+            ),
+            (vec![Ins::Call(callee, None)], [false, false]),
+        ] {
+            let f = tracked(&symbols, 1, 1, body);
+            let facts = static_values(&[Some(target.clone()), Some(f)], [entry], &arity);
+            assert_eq!(facts[0], expected);
+        }
+    }
+
+    #[test]
     fn static_values_require_every_closed_world_call_to_be_constant() {
         let symbols = Symbols::default();
         let callee = symbols.intern(Sym::Inst(Hash128(7)));
@@ -1561,6 +1586,24 @@ mod origin_tests {
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)))
             })
             .count()
+    }
+
+    #[test]
+    fn zero_facts_keep_malformed_labels_and_out_of_range_locals_unchanged() {
+        let symbols = Symbols::default();
+        for body in [
+            vec![
+                Ins::Op(I::I32Const(0)),
+                Ins::Op(I::LocalSet(0)),
+                Ins::Op(I::Else),
+            ],
+            vec![Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(64))],
+        ] {
+            let mut f = tracked(&symbols, 0, 1, body);
+            let before = format!("{:?}", f.body);
+            assert!(!zero_releases(&mut f, &mut None, &mut || {}));
+            assert_eq!(format!("{:?}", f.body), before);
+        }
     }
 
     #[test]
