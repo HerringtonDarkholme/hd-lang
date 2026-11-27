@@ -49,7 +49,7 @@ mod tables;
 mod task;
 #[cfg(feature = "testing")]
 pub mod testing;
-mod units;
+use module::units;
 pub mod views;
 mod wide;
 pub mod work;
