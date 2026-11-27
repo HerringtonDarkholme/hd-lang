@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn operation_bookkeeping_preserves_both_proofs_but_a_value_retain_breaks_them() {
+    fn operation_bookkeeping_preserves_both_proofs_but_an_earlier_value_retain_breaks_them() {
         for through in [false, true] {
             let (mut b, word) = body(Ty::STRING, through);
             run(&mut b);
@@ -189,6 +189,15 @@ mod tests {
             );
             let retain = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
             b.data[retain][1] = Info::new(At::Value, Part::Result, 0).write(&mut b);
+            // A count of a value made between the checks adds no owner of
+            // the buffer; one of a value from before the first may be it.
+            let set = b.tags.iter().position(|&t| t == Tag::Intrinsic).unwrap();
+            b.data[retain][0] = u32_of(set);
+            assert!(
+                hoist::repeats(&b, &Topology::new(&b), check),
+                "through={through}"
+            );
+            b.data[retain][0] = b.record(b.data[set][1])[0];
             assert!(
                 !hoist::repeats(&b, &Topology::new(&b), check),
                 "through={through}"

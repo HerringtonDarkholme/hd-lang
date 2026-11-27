@@ -657,7 +657,9 @@ fn exclusive_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 /// constructions, drops and intrinsics other than a std call's, none of
 /// them naming all of the local (no whole read, store or drop of it: an
 /// element or field access is fine), so no copy, call or block between
-/// makes a second owner of the buffer the first check left unique.
+/// makes a second owner of the buffer the first check left unique. A
+/// `Retain` of a value made between the checks counts that value, which
+/// names none of the local ([`retained_between`]).
 pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
     let p = b.view(b.data[i][0]);
     let (Some(l), true) = (p.local(), p.whole()) else {
@@ -669,16 +671,18 @@ pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
     }
     let list = b.record(b.data[blk as usize][0]);
     let pos = topo.pos[i] as usize;
+    let mut retained = Vec::new();
     for k in (0..pos).rev() {
         let m = list[k] as usize;
         let q = b.view(b.data[m][0]);
         let names_all = q.whole() && q.local() == Some(l);
         match b.tags[m] {
+            Tag::Retain if value_retain(b, m) => retained.push(b.data[m][0]),
             Tag::Retain
                 if crate::ir::count::Info::read(b, m)
                     .is_some_and(|c| c.at == crate::ir::count::At::Operation) => {}
             Tag::Release | Tag::FlagSet | Tag::FlagClear => {}
-            Tag::IsUnique if names_all => return true,
+            Tag::IsUnique if names_all => return retained_between(topo, blk, k, &retained),
             Tag::Read | Tag::Store | Tag::Drop | Tag::IsUnique if !names_all => {}
             Tag::Prim | Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => {}
             Tag::Intrinsic if IntrinsicOp::from_u32(b.data[m][0]) != Some(IntrinsicOp::Item) => {}
@@ -717,8 +721,9 @@ pub(crate) fn param_place(b: &Body, word: u32, out: &mut Vec<u32>) -> Option<u32
 /// temporary's own storage. A read or store through any other dereference,
 /// a pointer or a global may alias the place, so it stops the search, as
 /// does a call, a block, a copy or move of the place or of what holds it,
-/// and a store over either. No second owner of the buffer the first check
-/// left unique can appear.
+/// and a store over either. A `Retain` of a value made between the checks
+/// counts only that value ([`retained_between`]). No second owner of the
+/// buffer the first check left unique can appear.
 fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
     let mut ts = Vec::new();
     let Some(pl) = param_place(b, b.data[i][0], &mut ts) else {
@@ -731,11 +736,16 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
     let list = b.record(b.data[blk as usize][0]);
     let pos = topo.pos[i] as usize;
     let (mut qs, mut raw, mut lent) = (Vec::new(), Vec::new(), Vec::new());
+    let mut retained = Vec::new();
     let mut start = None;
     for k in (0..pos).rev() {
         let m = list[k] as usize;
         let tag = b.tags[m];
         match tag {
+            Tag::Retain if value_retain(b, m) => {
+                retained.push(b.data[m][0]);
+                continue;
+            }
             Tag::Retain
                 if crate::ir::count::Info::read(b, m)
                     .is_some_and(|c| c.at == crate::ir::count::At::Operation) =>
@@ -793,6 +803,9 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
     let Some(start) = start else {
         return false;
     };
+    if !retained_between(topo, blk, start, &retained) {
+        return false;
+    }
     if lent.is_empty() {
         return true;
     }
@@ -811,6 +824,29 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
         }
     }
     true
+}
+
+/// Whether `Retain` `m` counts its value's own result (`At::Value`): the
+/// count a copy read takes, which retains planning places after hoisting.
+fn value_retain(b: &Body, m: usize) -> bool {
+    crate::ir::count::Info::read(b, m).is_some_and(|c| {
+        c.at == crate::ir::count::At::Value && c.part == crate::ir::count::Part::Result
+    })
+}
+
+/// Whether each value in `retained` is an instruction of block `blk` after
+/// position `start`, the first check: a value the scan between the checks
+/// let through, which holds no header of the checked place, so its count
+/// adds no owner of that buffer. A value made before the first check may
+/// be that buffer, uncounted until its `Retain`, which would then share
+/// what the check left unique.
+fn retained_between(topo: &Topology, blk: u32, start: usize, retained: &[u32]) -> bool {
+    retained.iter().all(|&v| {
+        Ref(v).as_inst().is_some_and(|x| {
+            let x = x.0 as usize;
+            topo.blk[x] == blk && topo.pos[x] as usize > start
+        })
+    })
 }
 
 /// [`fresh_buffers`]' levels: a buffer nothing else holds, maybe static

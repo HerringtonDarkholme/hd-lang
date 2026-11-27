@@ -1,0 +1,24 @@
+# @dump: own
+# The second store's check repeats the first (`IsUnique repeat`): the
+# element copy between them and its `Retain` add no owner of the buffer.
+# hdjq's `compile_call_internal` (#2432).
+enum Op:
+    Load
+    Push
+
+struct Code:
+    op: Op
+    v: string
+
+struct C:
+    codes: List[Code]
+
+fn code(op: Op, v: string) -> Code:
+    Code { op: op, v: v }
+
+impl C:
+    fn opt(&mut self, v: string) -> void:
+        j := self.codes.len() - 4
+        self.codes[j] = code(.Load, v)
+        self.codes[j + 1] = self.codes[j + 2]
+        self.codes.truncate(j + 2)
