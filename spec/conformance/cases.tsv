@@ -6490,6 +6490,8 @@ lang/references/dependent-results/conflicts-through-aliases/top-level-binding-ow
 std/text/joining-and-building/string-builder-owned-byte-room.hd	runtime	accept	std/text.md#r-std-text.builder.build-local
 std/json/typed-json/json-writer-copy-isolation.hd	runtime	accept	std/json.md#r-std-json.encode
 std/json/writing/integer-text-byte-room.hd	runtime	accept	std/json.md#r-std-json.display.compact
+std/json/decoding-a-stream/decode-stream-values.hd	runtime	accept	std/json.md#r-std-json.stream.next
+std/json/decoding-a-stream/decode-stream-errors.hd	runtime	accept	std/json.md#r-std-json.stream.position
 std/text/joining-and-building/string-builder-value-is-not-copyable.hd	type	reject:move-out-of-place	std/text.md#r-std-text.builder.unique-storage
 std/collections/uniqlist/uniq-list-assigned-through-pointer-in-bang-function.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.type
 lang/references/boxes/unique-list-reference-outlives-its-pointer-local.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.root

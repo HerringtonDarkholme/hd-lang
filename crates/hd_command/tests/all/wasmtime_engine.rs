@@ -682,6 +682,50 @@ fn stdin_reads_bytes_as_they_arrive() {
     assert_eq!(outputs[0], outputs[1], "node and wasmtime");
 }
 
+/// `decode_stream` over `stdin()` decodes each JSON value as soon as its
+/// bytes arrive, on both engines: the first is printed while the writer
+/// still holds the pipe open, and a value the input ends inside is its
+/// error at the input's length (`std-json.stream.next`,
+/// `std-json.stream.position`).
+#[test]
+fn stdin_json_values_arrive_one_at_a_time() {
+    use std::io::{BufRead as _, BufReader};
+    let dir = program(
+        "stdin-json",
+        include_str!("programs/wasmtime_engine/stdin_json_values_arrive_one_at_a_time.hd"),
+    );
+    let mut outputs = Vec::new();
+    for engine in ["node", "wasmtime"] {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = c.spawn().expect("run hd");
+        let mut stdin = child.stdin.take().expect("stdin");
+        let mut lines = BufReader::new(child.stdout.take().expect("stdout"));
+        stdin
+            .write_all(b"{\"a\": [1, \"]\"]}")
+            .expect("first value");
+        stdin.flush().expect("flush");
+        let mut first = String::new();
+        lines.read_line(&mut first).expect("first line");
+        stdin.write_all(b"\r\n2 [3").expect("the rest");
+        drop(stdin);
+        let mut rest = String::new();
+        std::io::Read::read_to_string(&mut lines, &mut rest).expect("rest");
+        let out = child.wait_with_output().expect("wait");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        outputs.push(format!("{first}{rest}"));
+    }
+    assert_eq!(
+        outputs[0],
+        "value {\"a\":[1,\"]\"]}\nvalue 2\nerror: unexpected end of text at position 21\n"
+    );
+    assert_eq!(outputs[0], outputs[1], "node and wasmtime");
+}
+
 /// `BufReader::lines` over `stdin()` keeps each line ending exactly as
 /// read, on both engines, across a 3-byte buffer: `\r\n` stays two bytes
 /// and a last line with no ending keeps its `\r` (`std-io.buf-reader.lines`,

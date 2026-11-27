@@ -1,0 +1,71 @@
+# test: decode_stream decodes several JSON texts one at a time, however the source splits them
+# Spec std/json Decoding A Stream: std-json.stream.decl, std-json.stream.next, std-json.stream.separators, std-json.stream.chunks.
+use std.encoding.json.{Json, StreamError, decode_stream, parse}
+use std.encoding.Deserialize
+use std.io.{Cursor, IoError, Read}
+
+@derive(Debug, Eq, Deserialize)
+struct Point:
+    x: i64
+    y: i64
+
+# A source that hands out at most `step` bytes per read.
+struct Trickle:
+    bytes: List[u8]
+    at: usize
+    step: usize
+
+impl Read for Trickle:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        let end = self.at + (if max < self.step: max else: self.step)
+        if end > self.bytes.len():
+            end = self.bytes.len()
+        chunk := self.bytes.slice(self.at, end)
+        self.at = end
+        .Ok(chunk)
+
+fn values![R < Read](source: R) -> List[Result[Json, StreamError]]:
+    let mut stream = decode_stream(source)
+    let mut found: List[Result[Json, StreamError]] = []
+    while true:
+        match stream.next!():
+            .Some(value) => found.push(value)
+            .None => break
+    found
+
+fn json(text: string) -> Json:
+    parse(text).unwrap_or(Json.Null)
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads every value, whitespace and no separator alike, at any chunk size"):
+        text := " 1 [2, {\"a\": \"x\\\"]\"}]\r\ntrue\"s\"{}null\t3.5\n"
+        let want: List[Result[Json, StreamError]] = [
+            .Ok(json("1")),
+            .Ok(json("[2, {\"a\": \"x\\\"]\"}]")),
+            .Ok(Json.Bool(true)),
+            .Ok(json("\"s\"")),
+            .Ok(json("{}")),
+            .Ok(Json.Null),
+            .Ok(json("3.5")),
+        ]
+        assert_equal(values!(Cursor::new(text.to_utf8())), want, reason="one chunk")
+        for step in [1, 2, 3, 7]:
+            source := Trickle { bytes: text.to_utf8(), at: 0, step: step }
+            assert_equal(values!(source), want, reason="chunks of $step")
+
+    it("decodes each value as the type next! asks for"):
+        let mut stream = decode_stream(
+            Cursor::new("{\"x\": 1, \"y\": 2} {\"y\": 4, \"x\": 3}".to_utf8()),
+        )
+        let first: Result[Point, StreamError]? = stream.next!()
+        assert_equal(first, .Some(.Ok(Point { x: 1, y: 2 })), reason="the first point")
+        let second: Result[Point, StreamError]? = stream.next!()
+        assert_equal(second, .Some(.Ok(Point { x: 3, y: 4 })), reason="the second point")
+        let end: Result[Point, StreamError]? = stream.next!()
+        assert_equal(end, .None, reason="the end")
+
+    it("an empty or blank source has no values"):
+        assert_equal(values!(Cursor::new([])), [], reason="empty")
+        assert_equal(values!(Cursor::new(" \r\n\t".to_utf8())), [], reason="blank")

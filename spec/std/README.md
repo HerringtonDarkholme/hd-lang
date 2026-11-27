@@ -245,7 +245,7 @@ file of its own.
 | [`crypto-aes.md`](crypto-aes.md) | `std.crypto.aes` | `std-crypto-aes` | AES-128, AES-192 and AES-256 block encryption and decryption |
 | [`crypto-sha512.md`](crypto-sha512.md) | `std.crypto.sha512` | `std-crypto-sha512` | Streaming SHA-512 and HMAC-SHA512 |
 | [`crypto.md`](crypto.md) | `std.crypto`, `std.crypto.sha256` | `std-crypto` | `Digest` with constant-time equality; in `sha256`, the streaming `Sha256` with `Sha256::hmac`, and `sha256` |
-| [`json.md`](json.md) | `std.encoding.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
+| [`json.md`](json.md) | `std.encoding.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode`; `decode_stream` over a `Read`, with `JsonStream` and `StreamError` |
 | [`serde.md`](serde.md) | `std.encoding` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | the command line: the host trait `Args`, the helper `args`, the provider `ScriptedArgs`, and argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |

@@ -3697,3 +3697,149 @@ impl StreamReader:
                     self.pending = true
             .Untagged => pass
         .Ok(index)
+
+# Decoding a stream of JSON texts (spec/std/json.md#decoding-a-stream). The
+# stream frames one top-level value's bytes at a time, tracking strings,
+# escapes and bracket depth as Go's `json.Decoder` scans, then decodes them
+# with `decode`: memory is O(the largest value) plus one chunk, and each
+# byte is scanned once to frame it and once to decode it.
+use std.io.{IoError, Read}
+use std.text.Utf8Error
+
+## The error of a JSON stream: a read of its source failed, or a value did not decode.
+## See [std-json.stream.error](../../../spec/std/json.md#r-std-json.stream.error).
+@error
+@derive(Debug, Eq)
+pub enum StreamError:
+    @error("$error")
+    Read(error: IoError)
+    @error("$error")
+    Json(error: JsonError)
+
+## Returns the cursor that decodes the JSON texts of `source` one at a time.
+## See [std-json.stream.decl](../../../spec/std/json.md#r-std-json.stream.decl).
+pub fn decode_stream[R < Read](source: R) -> JsonStream[R]:
+    JsonStream { source: source, buffer: [], at: 0, offset: 0, failed: false }
+
+## The JSON texts of a `Read` source, separated by optional whitespace; `next!` decodes the next one.
+## See [std-json.stream.decl](../../../spec/std/json.md#r-std-json.stream.decl).
+pub struct JsonStream[R < Read]:
+    source: R
+    # The chunk last read, its first unread byte, and the stream offset of
+    # its first byte.
+    buffer: List[u8]
+    at: usize
+    offset: usize
+    failed: bool
+
+impl[R < Read] JsonStream[R]:
+    ## Returns the next value as a `T`, its error, or `.None` at the end of the source or after an error.
+    ## See [std-json.stream.next](../../../spec/std/json.md#r-std-json.stream.next).
+    pub fn next![T < Deserialize](&mut self) -> Result[T, StreamError]?:
+        if self.failed:
+            return .None
+        let found = match self.frame!():
+            .Ok(.Some(value)) => value
+            .Ok(.None) => return .None
+            .Err(error) =>
+                self.failed = true
+                return .Some(.Err(StreamError.Read(error)))
+        let (bytes, start) = found
+        let result = match string::from_utf8(bytes):
+            .Ok(text) => decode::[T](text).map_err(fn(error: JsonError) -> JsonError: shifted(error, start))
+            .Err(error) => .Err(JsonError.UnexpectedCharacter(start + utf8_position(error)))
+        match result:
+            .Ok(value) => .Some(.Ok(value))
+            .Err(error) =>
+                self.failed = true
+                .Some(.Err(StreamError.Json(error)))
+
+    # Refills the buffer once it is all read: false at the end of the source.
+    fn fill!(&mut self) -> Result[bool, IoError]:
+        if self.at < self.buffer.len():
+            return .Ok(true)
+        self.offset = self.offset + self.buffer.len()
+        self.buffer = self.source.read!(65536)?
+        self.at = 0
+        .Ok(self.buffer.len() > 0)
+
+    # The bytes of the next top-level value and its stream offset, or
+    # `.None` when only whitespace is left. A container or a string ends at
+    # its closing byte; any other value at the next whitespace or
+    # structural byte, or the end. A structural byte that starts no value is
+    # framed alone, so `decode` reports it.
+    fn frame!(&mut self) -> Result[(List[u8], usize)?, IoError]:
+        while true:
+            if !self.fill!()?:
+                return .Ok(.None)
+            if !json_space(self.buffer[self.at]):
+                break
+            self.at = self.at + 1
+        start := self.offset + self.at
+        first := self.buffer[self.at]
+        scalar := first != 123 && first != 91 && first != 34
+        let mut value: List[u8] = []
+        let depth: usize = 0
+        let in_string = false
+        let escaped = false
+        let done = false
+        while !done && self.fill!()?:
+            size := self.buffer.len()
+            let end = self.at
+            while end < size && !done:
+                byte := self.buffer[end]
+                if in_string:
+                    if escaped:
+                        escaped = false
+                    else if byte == 92:
+                        escaped = true
+                    else if byte == 34:
+                        in_string = false
+                        done = depth == 0
+                    end = end + 1
+                else if scalar:
+                    delimiter := json_space(byte) || json_structural(byte)
+                    if delimiter && (value.len() > 0 || end > self.at):
+                        done = true
+                    else:
+                        end = end + 1
+                        done = delimiter
+                else:
+                    if byte == 34:
+                        in_string = true
+                    else if byte == 123 || byte == 91:
+                        depth = depth + 1
+                    else if (byte == 125 || byte == 93) && depth > 0:
+                        depth = depth - 1
+                        done = depth == 0
+                    end = end + 1
+            if value.len() == 0 && done:
+                value = self.buffer.slice(self.at, end)
+            else:
+                value.extend(self.buffer.slice(self.at, end))
+            self.at = end
+        .Ok(.Some((value, start)))
+
+fn json_space(byte: u8) -> bool:
+    byte == 32 || byte == 9 || byte == 10 || byte == 13
+
+fn json_structural(byte: u8) -> bool:
+    byte == 123 || byte == 125 || byte == 91 || byte == 93 || byte == 44 || byte == 58 || byte == 34
+
+fn utf8_position(error: Utf8Error) -> usize:
+    match error:
+        .InvalidSequence(position) => position
+        .Truncated(position) => position
+
+# A value's syntax error at a stream position: its offset in the value,
+# plus `start`, the value's offset in the stream.
+fn shifted(error: JsonError, start: usize) -> JsonError:
+    match error:
+        .UnexpectedEnd(position) => JsonError.UnexpectedEnd(start + position)
+        .UnexpectedCharacter(position) => JsonError.UnexpectedCharacter(start + position)
+        .InvalidEscape(position) => JsonError.InvalidEscape(start + position)
+        .LoneSurrogate(position) => JsonError.LoneSurrogate(start + position)
+        .ControlCharacter(position) => JsonError.ControlCharacter(start + position)
+        .NumberOutOfRange(position) => JsonError.NumberOutOfRange(start + position)
+        .NestingTooDeep(position) => JsonError.NestingTooDeep(start + position)
+        other => other

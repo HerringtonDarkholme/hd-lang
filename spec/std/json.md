@@ -789,4 +789,47 @@ fn load(text: string) -> Result[Server, JsonError]:
 > struct do, so a config file may leave out what the type already
 > settles. A `null` is a value the text wrote, so it is read.
 
-See also: [Encoding](encoding.md#decode-errors), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Serialization](../lang/14-annotations.md#serialization), [Serde](serde.md), [Derived Hashing](hash.md#derived-hashing).
+## Decoding A Stream
+
+`decode_stream` reads JSON texts one after another from a
+[`Read`](io.md#reading-in-chunks) source, as `jq` reads its input, so a
+program holds one value at a time:
+
+```text
+use std.console.{ConsoleInput, stdin}
+use std.encoding.json.{Json, StreamError, decode_stream}
+
+fn count_values!() -> usize $ ConsoleInput:
+    let mut values = decode_stream(stdin())
+    let count: usize = 0
+    while true:
+        let next: Result[Json, StreamError]? = values.next!()
+        match next:
+            .Some(.Ok(_)) => count = count + 1
+            _ => break
+    count
+```
+
+```text
+pub enum StreamError:
+    Read(error: IoError)
+    Json(error: JsonError)
+
+pub fn decode_stream[R < Read](source: R) -> JsonStream[R]
+```
+
+1. r[std-json.stream.decl] `std.encoding.json` declares `decode_stream`, `JsonStream[R < Read]` with private fields, and `StreamError`. Code imports them, as in `use std.encoding.json.{StreamError, decode_stream}`.
+2. r[std-json.stream.next] `next![T < Deserialize](&mut self) -> Result[T, StreamError]?` reads the next JSON text from the source and decodes it as `decode::[T]` would. It returns `.None` once only whitespace is left.
+3. r[std-json.stream.separators] Texts are separated by optional JSON whitespace. A container or a string ends at its closing byte; any other value ends at the next whitespace or structural byte, or at the end of the source.
+4. r[std-json.stream.chunks] How the source splits its bytes into chunks changes no result.
+5. r[std-json.stream.error] `StreamError` implements `Debug`, `Eq`, and `Display`. `Read(error)` is a failed read of the source, and `Json(error)` a value that did not decode.
+6. r[std-json.stream.position] A syntax error's `position` counts bytes from the start of the source. A value that the source ends inside is `UnexpectedEnd` at the source's length, and bytes that are not UTF-8 are `UnexpectedCharacter` at the first bad byte.
+7. r[std-json.stream.after-error] After `next!` returns an error, every later `next!` returns `.None`.
+8. r[std-json.stream.cost] The stream holds one chunk of the source and the bytes of one value. Each byte is scanned once to find where its value ends and once to decode it.
+
+> **Why.** A filter over a long stream, such as `jq`'s inputs, must not
+> hold the whole input. Go's `json.Decoder` and serde_json's
+> `StreamDeserializer` frame each value first; ending after an error is
+> serde_json's rule, since the stream's position is lost.
+
+See also: [Encoding](encoding.md#decode-errors), [Io](io.md), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Serialization](../lang/14-annotations.md#serialization), [Serde](serde.md), [Derived Hashing](hash.md#derived-hashing).
