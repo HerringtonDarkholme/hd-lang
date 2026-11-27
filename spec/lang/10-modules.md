@@ -2799,6 +2799,9 @@ pub trait Surface:
 18. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
 19. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
 20. r[module.host.package.contract-source-names] The package host contract records source names for structurally represented structs, enums and method parameters.
+21. r[module.host.package.c-types] A package host trait bound to a C provider declares only methods whose parameter and result types are rows of the [C value table](#c-value-table). Error: `boundary-not-safe`.
+22. r[module.host.package.c-references] In such a trait, a local reference to a number or to a list of numbers is boundary-safe. The C function may use it only until the call returns.
+23. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.
@@ -2826,6 +2829,33 @@ A native package provider sees each hd boundary value as an owned Rust value:
 | Optional, result | `Option<T>`, `Result<T, E>` |
 | Private-field type | Typed Serde tree |
 | Returned host handle | Generated handle trait object |
+
+#### C Value Table
+
+A package's `[host]` table binds a trait to a C provider, and each
+method's types then map to C types:
+
+| hd type | C type |
+| --- | --- |
+| `bool`, integers, `f32`, `f64` | the C type of the same width; `usize` is `size_t` |
+| `&T`, `&mut T`, `T` a number type | `const T *`, `T *` |
+| `&List[T]`, `&mut List[T]`, `T` a number type | `const T *`, `T *`, then a `size_t` length |
+| `string` | `const uint8_t *` to its UTF-8 bytes, then a `size_t` length, with no NUL |
+| a returned host handle | `void *`, the library's handle object |
+| a suspending method's result: a number, `List[u8]`, or `Result[` one of them `, i32]` | completed through the call's token |
+
+```text
+@host
+pub trait Disk:   # bound to C by its package's [host] table
+    fn read!(&mut self, into: &mut List[u8]) -> i64   # error: boundary-not-safe
+    fn put(&mut self, row: Row) -> i32                 # error: boundary-not-safe
+```
+
+> **Why.** A suspending call outlives its frame when it is cancelled, so
+> it holds no pointer into the instance. C has no layout for a struct, so
+> a C shim flattens it.
+
+See also: [C Providers](../cli/command-line.md#c-providers).
 
 ### Closable Handles
 

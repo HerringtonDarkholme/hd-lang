@@ -96,13 +96,31 @@ impl<'a> Providers<'a> {
     }
 }
 
+/// Why no provider was selected, with the refusal's diagnostic code.
+pub(crate) struct Refusal(Option<hd_diag::Code>, String);
+
+impl Refusal {
+    /// The refusal as the diagnostic `hd` reports.
+    pub(crate) fn diag(&self) -> crate::report::Diag {
+        crate::report::Diag::error(self.0, &self.1)
+    }
+}
+
+impl From<String> for Refusal {
+    fn from(message: String) -> Self {
+        Self(None, message)
+    }
+}
+
 /// Resolve only reachable package providers. A CLI flag cannot supply the
-/// missing manifest consent, and no provider module is imported here.
+/// missing manifest consent, and no provider module is imported here. A
+/// trait whose `[host]` entry names only a C library has no provider on
+/// a JavaScript host (`cli.host.c.engine`): `native-provider-missing`.
 pub(crate) fn manifest_providers(
     contract: Option<&hd_host_abi::schema::Contract>,
     program: Option<&crate::disk::Program>,
     grants: &Grants,
-) -> Result<Vec<HostProvider>, String> {
+) -> Result<Vec<HostProvider>, Refusal> {
     let Some(contract) = contract else {
         return Ok(Vec::new());
     };
@@ -127,12 +145,25 @@ pub(crate) fn manifest_providers(
         let entry = providers
             .entry(package, &identity.trait_path)
             .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
-        let file = entry.path.as_ref().ok_or_else(|| {
-            format!(
-                "{}:{}: provider for {name} must name a file",
-                package.manifest, entry.line
-            )
-        })?;
+        let file = match (&entry.path, &entry.c) {
+            (Some(file), _) => file,
+            (None, Some(library)) => {
+                return Err(Refusal(
+                    Some(hd_diag::Code::NativeProviderMissing),
+                    format!(
+                        "{}:{}: {name} has only the C provider `{library}`, which a JavaScript host cannot load; add a `js` provider to its `[host]` entry",
+                        package.manifest, entry.line
+                    ),
+                ));
+            }
+            (None, None) => {
+                return Err(format!(
+                    "{}:{}: provider for {name} must name a file",
+                    package.manifest, entry.line
+                )
+                .into());
+            }
+        };
         let root = hd_run::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
         let wanted = root.join(file);
         let path = hd_run::canonicalize(&wanted).map_err(|e| {
@@ -145,7 +176,8 @@ pub(crate) fn manifest_providers(
             return Err(format!(
                 "{}:{}: provider `{file}` for {name} must be a file inside its declaring package",
                 package.manifest, entry.line
-            ));
+            )
+            .into());
         }
         selected.push(HostProvider {
             module: interface.module.clone(),

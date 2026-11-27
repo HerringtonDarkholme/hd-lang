@@ -1,0 +1,9 @@
+[package]
+name = "host_c_engines"
+
+[host]
+"main.Both" = { c = "hd_both", js = "provider.ts" }
+
+[capabilities]
+Console = true
+"pkg.main.Both" = true

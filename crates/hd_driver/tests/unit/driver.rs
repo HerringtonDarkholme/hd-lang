@@ -224,6 +224,8 @@ mod host_declaration_tests {
                         .map(|p| hd_project::HostProvider {
                             trait_path: (*p).to_owned(),
                             path: Some("provider.mjs".into()),
+                            c: None,
+                            malformed: None,
                             line: 7,
                         })
                         .collect(),
@@ -430,6 +432,8 @@ mod package_host_abi_tests {
                     providers: Some(vec![hd_project::HostProvider {
                         trait_path: "main.Server".into(),
                         path: Some("provider.mjs".into()),
+                        c: None,
+                        malformed: None,
                         line: 4,
                     }]),
                     line: 4,
@@ -592,6 +596,8 @@ mod package_host_inheritance_tests {
                     providers: Some(vec![hd_project::HostProvider {
                         trait_path: "main.Server".into(),
                         path: Some("provider.mjs".into()),
+                        c: None,
+                        malformed: None,
                         line: 4,
                     }]),
                     line: 4,
@@ -714,6 +720,8 @@ mod package_host_reexport_tests {
                     providers: Some(vec![hd_project::HostProvider {
                         trait_path: "Server".into(),
                         path: Some("provider.mjs".into()),
+                        c: None,
+                        malformed: None,
                         line: 4,
                     }]),
                     line: 4,

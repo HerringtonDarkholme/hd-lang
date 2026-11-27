@@ -1,0 +1,6 @@
+@host
+pub trait Both:
+    fn read(&self) -> i32
+
+pub fn main() -> void $ Console + Both:
+    println("${$.use(Both).read()}")

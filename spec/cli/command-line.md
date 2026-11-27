@@ -2336,23 +2336,26 @@ See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 
 ### Package Host Declarations
 
-The SDK maps each owned host trait to its provider file:
+The SDK maps each owned host trait to its provider file, or to a C
+library and a provider file:
 
 ```toml
 [host]
 "server.HttpServer" = "providers/http.mjs"
 "ui.Surface" = "providers/ui.mjs"
+"db.Sqlite" = { c = "hd_sqlite", js = "providers/sqlite.mjs" }
 ```
 
-1. r[cli.host.declaration.map] `[host]` must be a table mapping trait paths to nonempty provider-file strings. Error: `invalid-manifest`.
-2. r[cli.host.declaration.map-key] Each key must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
-3. r[cli.host.declaration.map-unique] Each trait path must occur at most once in the table. Error: `invalid-manifest`.
-4. r[cli.host.declaration.mapped] Each key must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
-5. r[cli.host.declaration.marker-mapped] Each trait marked `@host` must have an entry in its owning package's `[host]` table. Error: `invalid-manifest`.
-6. r[cli.host.declaration.map-locations] A source/map mismatch diagnostic identifies the trait and its source and manifest locations.
-7. r[cli.host.declaration.mapping-no-consent] A dependency's host mapping does not grant consent to load its provider.
-8. r[cli.host.declaration.map-recheck] Changing the host map must recheck source/map agreement even when the source has not changed.
-9. r[cli.host.declaration.provider-relative] A provider-file value must be relative to its declaring package. Error: `invalid-manifest`.
+1. r[cli.host.declaration.map-table] `[host]` must be a table mapping trait paths to provider values, each naming a nonempty provider file or library. Error: `invalid-manifest`.
+2. r[cli.host.declaration.kinds] A `[host]` value is a provider-file string, or a table with a `c` library name, a `js` provider file, or both. Error: `invalid-manifest`.
+3. r[cli.host.declaration.map-key] Each key must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
+4. r[cli.host.declaration.map-unique] Each trait path must occur at most once in the table. Error: `invalid-manifest`.
+5. r[cli.host.declaration.mapped] Each key must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
+6. r[cli.host.declaration.marker-mapped] Each trait marked `@host` must have an entry in its owning package's `[host]` table. Error: `invalid-manifest`.
+7. r[cli.host.declaration.map-locations] A source/map mismatch diagnostic identifies the trait and its source and manifest locations.
+8. r[cli.host.declaration.mapping-no-consent] A dependency's host mapping does not grant consent to load its provider.
+9. r[cli.host.declaration.map-recheck] Changing the host map must recheck source/map agreement even when the source has not changed.
+10. r[cli.host.declaration.provider-relative] A provider-file value must be relative to its declaring package. Error: `invalid-manifest`.
 
 ### Package Host Bindings
 
@@ -2483,6 +2486,24 @@ hd build --engine wasmtime
 > never reaches.
 
 See also: [Package Host Traits](../lang/10-modules.md#package-host-traits), [Engines](#engines).
+
+#### C Providers
+
+A C provider is a library a package ships for its host trait, named by
+the `c` key of the trait's `[host]` entry:
+
+```toml
+[host]
+"db.Sqlite" = { c = "hd_sqlite" }
+```
+
+1. r[cli.host.c.name] A `c` library name is a C identifier: an ASCII letter or `_`, then ASCII letters, digits or `_`. Error: `invalid-manifest`.
+2. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
+
+> **Why.** The library's entry symbol joins its name and the trait's, so
+> the name is a C identifier.
+
+See also: [C Value Table](../lang/10-modules.md#c-value-table), [Native Package Providers](#native-package-providers).
 
 ## Synchronous Host Driver
 

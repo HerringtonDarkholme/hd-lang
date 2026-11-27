@@ -2919,16 +2919,21 @@ fn build_packages_inner(
         let Some(declarations) = p.declarations.as_ref() else {
             continue;
         };
-        let traits: Vec<_> = declarations.trait_paths().collect();
-        if traits.is_empty() {
+        let entries = declarations.providers.as_deref().unwrap_or_default();
+        if entries.is_empty() {
             continue;
         }
         has_hosts = true;
         host_key.u16(p.package);
         host_key.str(&p.identity);
         host_key.str(p.versioned_source.as_deref().unwrap_or(""));
-        for t in traits {
+        for entry in entries {
+            let t = entry.trait_path.as_str();
             host_key.str(t);
+            // A C provider holds the trait to the C value table
+            // (`module.host.package.c-types`), so binding one rechecks it
+            // (`cli.host.declaration.map-recheck`).
+            host_key.u8(u8::from(entry.binds_c()));
             let path = format!("{}.{t}", table.roots[usize::from(p.package)]);
             if !profile.contains(&path) {
                 profile.push(path);
@@ -8359,7 +8364,8 @@ impl Run<'_> {
         if roots.is_empty() {
             return;
         }
-        let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned) else {
+        let c_bound = |def| self.package_host_c(def);
+        let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned, &c_bound) else {
             return;
         };
         if findings.is_empty() {
@@ -11884,6 +11890,25 @@ impl Run<'_> {
             .trait_paths()
             .any(|path| path == identity.trait_path)
             .then_some(identity)
+    }
+
+    /// Whether the package host trait `d`'s `[host]` entry names a C
+    /// provider (`module.host.package.c-types`). Cost: one scan of its
+    /// package's entries.
+    fn package_host_c(&self, d: DefId) -> bool {
+        let Some((package, identity)) = self.package_trait_identity(d) else {
+            return false;
+        };
+        self.host_packages
+            .iter()
+            .find(|p| p.package == package)
+            .and_then(|p| p.declarations.as_ref())
+            .and_then(|d| d.providers.as_ref())
+            .is_some_and(|entries| {
+                entries
+                    .iter()
+                    .any(|e| e.trait_path == identity.trait_path && e.binds_c())
+            })
     }
 
     fn package_host_selectors(&self, def: DefId) -> Vec<String> {

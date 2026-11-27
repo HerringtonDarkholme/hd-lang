@@ -34,6 +34,8 @@ fn a_thin_client_keeps_host_contracts_without_generating_glue() {
                 providers: Some(vec![hd_project::HostProvider {
                     trait_path: "main.Service".into(),
                     path: Some("provider.mjs".into()),
+                    c: None,
+                    malformed: None,
                     line: 1,
                 }]),
                 line: 1,

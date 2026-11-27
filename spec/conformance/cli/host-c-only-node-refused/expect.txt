@@ -1,0 +1,5 @@
+# A trait whose `[host]` entry names only a C library has no provider on Node: the run is refused before the guest starts.
+run: hd run --engine node --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"native-provider-missing","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]

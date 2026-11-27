@@ -1,0 +1,3 @@
+# Node loads the `js` provider of a `{ c, js }` entry.
+run: hd run --engine node
+stdout: 7

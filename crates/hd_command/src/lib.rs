@@ -1031,7 +1031,10 @@ fn execute_with(
     let providers = if engine == engine::EngineKind::Node {
         match node::manifest_providers(contract, provider_program, &host.grants) {
             Ok(providers) => providers,
-            Err(error) => return rep.fail(&error),
+            Err(refusal) => {
+                rep.diag(&refusal.diag());
+                return rep.finish(HD_FAILURE);
+            }
         }
     } else {
         Vec::new()
