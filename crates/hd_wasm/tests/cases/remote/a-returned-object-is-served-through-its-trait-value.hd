@@ -19,6 +19,7 @@ struct Tally:
 
 impl Counter for Tally:
     fn add!(&mut self, by: i64) -> Result[i64, string]:
+        pause!()
         self.total += by
         .Ok(self.total)
 
@@ -27,8 +28,18 @@ struct Teller:
 
 impl Bank for Teller:
     fn open!(&mut self, cents: i64) -> Result[*mut dyn Counter, string]:
+        pause!()
         .Ok(box(Tally { total: cents - self.fee }))
 
-fn answer!(home: &mut Home[Teller, string], rooted: &mut Rooted[Teller], frame: List[u8]) -> List[u8]:
+fn answer!(
+    home: &mut Home[Teller, string],
+    rooted: &mut Rooted[Teller],
+    frame: List[u8],
+) -> List[u8]:
     handle_call!(home, rooted, frame)
     #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

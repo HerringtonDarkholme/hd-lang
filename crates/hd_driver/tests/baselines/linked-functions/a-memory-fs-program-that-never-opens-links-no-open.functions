@@ -8,7 +8,6 @@ std/collections.list/impl[T] List[T].take#0 [string]
 std/fs/memory_key#0
 std/fs/impl FsRead for MemoryFs.read_text#0
 std/fs/impl FsRead for MemoryFs.read_text#0.poll
-std/fs/impl FsRead for MemoryFs.read_text#0.cancel
 std/fs/impl FsRead for MemoryFs.read_text#0.drop
 std/fs/impl FsRead for MemoryFs.read_text#0
 std/rt.cycle/scan#0
@@ -33,10 +32,6 @@ std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
-app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
 app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
@@ -85,14 +80,8 @@ std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
 std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
 std/fs/read_text#0
-std/fs/read_text#0.poll
-std/fs/read_text#0.cancel
-std/fs/read_text#0.drop
 std/text/impl StringBuilder.build#0
 std/rt.cycle/drop_root#0
 std/text/scalar_end#0
@@ -147,19 +136,14 @@ rt:panic#10
 rt:panic#11
 rt:panic#12
 rt:panic#13
-rt:panic#14
 rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5#0
-rt:new/class-5#1
+rt:new/class-4
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -205,19 +189,5 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame#0
-rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame
 rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:wake_notify
-rt:entry_cancel#0
-rt:entry_cancel#1

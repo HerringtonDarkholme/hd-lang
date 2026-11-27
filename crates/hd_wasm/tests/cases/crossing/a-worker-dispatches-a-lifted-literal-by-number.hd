@@ -8,10 +8,23 @@
 # number is `crossing_unknown`.
 # expected: an arm's decode and reply are calls of std, one per literal
 # type, not inlined into the dispatcher.
-use std.remote.{LoopbackWorkers, Workers}
+use std.remote.{CrossError, LoopbackWorkers, Workers}
+
+# A real suspension point keeps the worker crossing's frame path live.
+struct PausingWorkers:
+    inner: LoopbackWorkers
+
+impl Workers for PausingWorkers:
+    fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+        pause!()
+        self.inner.send!(frame)
+
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()
 
 pub fn main!() -> void $ Console:
-    let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
     side := u32(64)
     name := "thumb"
     a := workers.run!(fn() -> u32: side * 2)
