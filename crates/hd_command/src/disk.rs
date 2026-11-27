@@ -351,6 +351,10 @@ pub type Requires = Vec<(String, u16)>;
 
 pub struct Program {
     pub host_packages: Vec<hd_driver::HostPackage>,
+    /// Whether its build gives the C tables of the root's C-bound host
+    /// traits (`Output::c_tables`), for the header `hd build` writes
+    /// (`cli.host.c.header`).
+    pub c_tables: bool,
     pub sources: DiskSources,
     pub package: String,
     /// The entry module below the package, as `main`.
@@ -425,7 +429,7 @@ impl Program {
                 .collect(),
             entry_capabilities: true,
             // Only `hd build` of a package with a C provider asks for them.
-            c_tables: false,
+            c_tables: self.c_tables,
             // `HD_WAT` names every function of the module's text.
             instruction_origins: crate::wat::requested(),
             std_leaf: None,
@@ -1010,6 +1014,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         h.finish()
     });
     Ok(Program {
+        c_tables: false,
         sources: DiskSources {
             root: root.to_path_buf(),
             files,
@@ -1060,6 +1065,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
     };
     sources.add_synthetic("main.hd", text);
     Ok(Program {
+        c_tables: false,
         sources,
         package,
         entry: module_below("main.hd"),
@@ -1089,6 +1095,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         return load_package(&root, "src/lib.hd");
     }
     Ok(Program {
+        c_tables: false,
         sources: DiskSources {
             root: cwd.to_path_buf(),
             files: Vec::new(),
@@ -1127,6 +1134,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         // Nothing else of the package can be read: the program has no
         // sources, and its one problem stops the command.
         return Ok(Program {
+            c_tables: false,
             sources: DiskSources {
                 root: root.to_path_buf(),
                 files: Vec::new(),
@@ -1205,6 +1213,7 @@ fn loaded_package(
         .map(|e| module_below(&e.file))
         .collect();
     Ok(Program {
+        c_tables: false,
         sources,
         package,
         host_packages,
