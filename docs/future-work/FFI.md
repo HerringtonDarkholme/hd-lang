@@ -1,7 +1,7 @@
 # Native FFI: C Providers For Host Traits
 
-Status: proposal, 2026-11-26; domain: runtime and host, CLI; not
-accepted. Design for #2388, first used by `std.terminal` (#2382), after
+Status: accepted by the owner, 2026-11-27; not yet implemented (P3);
+domain: runtime and host, CLI. Design for #2388, first used by `std.terminal` (#2382), after
 the owner's [decisions](#decisions). It revises
 [Package Host Traits](../../spec/lang/10-modules.md#package-host-traits)
 and [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
