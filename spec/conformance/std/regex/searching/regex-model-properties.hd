@@ -2,9 +2,9 @@
 # Spec std/regex: std-regex.syntax.literal, std-regex.syntax.escape.meta,
 # std-regex.find.leftmost, std-regex.find.chars, std-regex.is-match.find,
 # std-regex.find-all.next, std-regex.find-all.empty, std-regex.find-all.drop,
-# std-regex.find-all.anchors, std-regex.captures.whole, std-regex.captures.path,
+# std-regex.find-all.anchor-context, std-regex.captures.whole, std-regex.captures.path,
 # std-regex.captures.last, std-regex.captures.empty-loop, std-regex.error.position,
-# std-regex.syntax.group.unsupported, std-regex.time.linear.
+# std-regex.syntax.group.invalid-prefix, std-regex.time.linear.
 use std.regex.{Regex, RegexError, Match, Captures}
 use std.testing.{assert, assert_equal, it_each, it_prop}
 use std.time.s
@@ -414,15 +414,14 @@ tests:
         verify_captures(found, row.groups[0].expect("whole match"), row.text)
     )
 
-    # Flags and Unicode property escapes are intentionally unsupported by
-    # this spec. In particular (?i) must not silently promise case folding.
+    # Invalid flags and properties stay typed errors rather than literals.
     it_each(
         "invalid and unsupported patterns return typed RegexError values",
         rows=[
-            BadPattern { pattern: "(?i)é", error: .UnsupportedGroup(0) },
-            BadPattern { pattern: "(?i:é)", error: .UnsupportedGroup(0) },
-            BadPattern { pattern: "(?m)^a\$", error: .UnsupportedGroup(0) },
-            BadPattern { pattern: "\\p{L}+", error: .BadEscape(0) },
+            BadPattern { pattern: "(?q)é", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "(?q:é)", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "(?q)^a\$", error: .UnsupportedGroup(0) },
+            BadPattern { pattern: "\\p{Missing}+", error: .BadEscape(0) },
             BadPattern { pattern: "\\q", error: .BadEscape(0) },
             BadPattern { pattern: "é(", error: .MissingParen(2) },
             BadPattern { pattern: "é[", error: .MissingBracket(2) },

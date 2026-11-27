@@ -7471,6 +7471,7 @@ std/text/scalar-conversion/emoji-scalar.hd	runtime	accept	std/text.md#r-std-text
 std/num/floating-point-classification/num-is-infinite.hd	runtime	accept	std/num.md#r-std-num.is-infinite
 std/num/float-math/power-unit-magnitude-and-large-even-exponents.hd	runtime	accept	std/num.md#r-std-num.float-math.powf-even-unit
 std/text/utf-8-conversion/lossy-utf8-replaces-maximal-subparts.hd	runtime	accept	std/text.md#r-std-text.utf8.from-utf8-lossy
+std/regex/pattern-syntax/re2-flags-escapes-and-unicode.hd	runtime	accept	std/regex.md#inline-flags
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
