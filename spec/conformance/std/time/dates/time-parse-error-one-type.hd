@@ -1,5 +1,5 @@
 # test: one ParseTimeError type serves duration text and RFC 3339 text, and erases to Error
-# Spec std/time Time Parse Errors: std-time.parse-error.declared, std-time.parse-error.duration-variants, std-time.parse-error.traits (Debug is covered by std-format.debug.std-types).
+# Spec std/time Time Parse Errors: std-time.parse-error.declared-other, std-time.parse-error.duration-variants, std-time.parse-error.traits (Debug is covered by std-format.debug.std-types).
 use std.time.{Duration, ParseTimeError, Timestamp}
 use std.error.Error
 

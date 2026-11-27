@@ -1,5 +1,5 @@
 # test: each ParseTimeError case with its byte position, the order of errors, and that exact means no rounding
-# Spec std/time Duration Parse Errors: std-time.duration.parse-error.too-short, std-time.duration.parse-error.invalid-character, std-time.duration.parse-error.missing-unit, std-time.duration.parse-error.unknown-unit, std-time.duration.parse-error.range-position, std-time.duration.parse-error.order, std-time.parse-error.declared, std-time.parse-error.traits (#370, #461).
+# Spec std/time Duration Parse Errors: std-time.duration.parse-error.too-short, std-time.duration.parse-error.invalid-character, std-time.duration.parse-error.missing-unit, std-time.duration.parse-error.unknown-unit, std-time.duration.parse-error.range-position, std-time.duration.parse-error.order, std-time.parse-error.declared-other, std-time.parse-error.traits (#370, #461).
 use std.time.{Duration, ParseTimeError}
 
 fn parsed(text: string) -> Result[Duration, ParseTimeError]:

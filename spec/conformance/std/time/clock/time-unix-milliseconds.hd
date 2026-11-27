@@ -1,5 +1,5 @@
 # test: Timestamp.unix_milliseconds and Instant.as_milliseconds return the milliseconds their constructors took, and a Timestamp displays as RFC 3339
-# Spec std/time Timestamps And Instants: std-time.timestamp.unix-milliseconds, std-time.timestamp.api-milliseconds,
+# Spec std/time Timestamps And Instants: std-time.timestamp.unix-milliseconds, std-time.timestamp.api-calendar,
 # std-time.instant.api-milliseconds, std-time.instant.as-milliseconds, std-time.timestamp.display (spec pass 89, audit Q2).
 use std.time.{Instant, Timestamp, s}
 

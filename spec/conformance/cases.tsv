@@ -4852,7 +4852,12 @@ std/task/map-join/task-map-all.hd	runtime	accept	std/task.md#r-std-task.map-all.
 std/time/clock/clock-elapsed.hd	runtime	accept	std/time.md#r-std-time.helper.elapsed
 std/time/duration/duration-parse.hd	runtime	accept	std/time.md#r-std-time.duration.parse
 std/time/duration/duration-parse-errors.hd	runtime	accept	std/time.md#r-std-time.duration.parse-error.order
-std/time/dates/time-iso8601-format.hd	runtime	accept	std/time.md#r-std-time.format
+std/time/dates/time-iso8601-format.hd	runtime	accept	std/time.md#r-std-time.format.strftime
+std/time/dates/time-datetime-layouts.hd	runtime	accept	std/time.md#broken-down-time
+std/time/dates/time-datetime-conversions.hd	runtime	accept	std/time.md#broken-down-time
+std/time/dates/time-format-unknown.hd	runtime	panic:explicit-panic	std/time.md#r-std-time.format.invalid-directive
+std/time/dates/time-format-trailing.hd	runtime	panic:explicit-panic	std/time.md#r-std-time.format.invalid-directive
+std/time/dates/time-format-unicode.hd	runtime	panic:explicit-panic	std/time.md#r-std-time.format.invalid-directive
 std/text/parsing-text/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.trait
 std/text/string-methods/text-properties.hd	runtime	accept	std/text.md#r-std-text.string.split
 std/num/integer-parsing/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
@@ -4910,7 +4915,7 @@ lang/modules/entry-point/display-only-entry-error.hd	type	reject:unsatisfied-tra
 lang/modules/entry-point/main-maps-an-error-to-an-exit-code.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.err-one
 lang/modules/entry-point/main-may-return-an-exit-code-chosen-per-error.hd	type	accept	lang/10-modules.md#exit-status
 std/error/error-reports/error-report-value-copy.hd	runtime	accept	std/error.md#r-std-error.report.sources-struct
-std/time/dates/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
+std/time/dates/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared-other
 std/time/serialization/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 std/time/dates/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse
 std/option/optional-methods/option-or.hd	runtime	accept	std/option.md#r-std-option.or
