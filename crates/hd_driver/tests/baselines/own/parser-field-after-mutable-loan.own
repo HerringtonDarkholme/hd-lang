@@ -145,10 +145,10 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >     uses $0: entry -> %1 lend, %3 consume last
 >   local $1 parser: Parser [read assigned captured captured-assigned] place
 >   local $2 root: *i32 [:= read assigned] value
->     uses $2: %34 -> %49 consume last
+>     uses $2: %32 -> %47 consume last
 >   local $3 self: Chars [read] value
 >     uses $3: %9 -> %10 consume last
->   %0 = Retain %56 Entry local $0 #0 : ()
+>   %0 = Retain %54 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/core/bytes_len[] (%1) : usize
@@ -168,49 +168,47 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %16 = NewStruct [%15 0:usize] : Parser
 >   %17 = Box #1 #1 : ()
 >   %18 = Store [$1] %16 : ()
->   %53 = Drop [$0] : ()
->   %54 = Drop [$1] : ()
->   %55 = Drop [$2] : ()
->   %56 = Block %51 : Result[*i32, string]
+>   %51 = Drop [$0] : ()
+>   %52 = Drop [$1] : ()
+>   %53 = Drop [$2] : ()
+>   %54 = Block %49 : Result[*i32, string]
     root := parser.expression()?
 >   %19 = Ref mut local [$1] : &mut Parser
 >   %20 = Call app/main/impl Parser.expression[] (%19) : Result[*i32, string]
 >   %21 = LoanEnd [%19] : ()
 >   %22 = Read move [%20 as #0 .0] : *i32
->   %23 = Intrinsic Empty [] : ()
->   %24 = Block %22 : *i32
->   %25 = Read move [%20 as #1 .0] : string
->   %26 = Intrinsic Empty [] : ()
->   %27 = NewVariant #1 [%25] : Result[*i32, string]
->   %28 = Drop [$0] : ()
->   %29 = Drop [$1] : ()
->   %30 = Drop [$2] : ()
->   %31 = Return %27 : never
->   %32 = Block - : never
->   %33 = SwitchTag %20 [#0 %24 %32] : *i32
->   %34 = Store [$2] %33 : ()
+>   %23 = Block %22 : *i32
+>   %24 = Read move [%20 as #1 .0] : string
+>   %25 = NewVariant #1 [%24] : Result[*i32, string]
+>   %26 = Drop [$0] : ()
+>   %27 = Drop [$1] : ()
+>   %28 = Drop [$2] : ()
+>   %29 = Return %25 : never
+>   %30 = Block - : never
+>   %31 = SwitchTag %20 [#0 %23 %30] : *i32
+>   %32 = Store [$2] %31 : ()
     parser.whitespace()
->   %35 = Ref mut local [$1] : &mut Parser
->   %36 = Call app/main/impl Parser.whitespace[] (%35) : ()
->   %37 = LoanEnd [%35] : ()
+>   %33 = Ref mut local [$1] : &mut Parser
+>   %34 = Call app/main/impl Parser.whitespace[] (%33) : ()
+>   %35 = LoanEnd [%33] : ()
     if parser.at != parser.chars.len():
->   %38 = Read copy [$1 .at] : usize
->   %39 = Read borrow [$1 .chars] : List[char]
->   %40 = Intrinsic ListLen [%39] : usize
->   %41 = Prim Ne [%38 %40] : bool
->   %48 = If %41 [%47 -] : ()
+>   %36 = Read copy [$1 .at] : usize
+>   %37 = Read borrow [$1 .chars] : List[char]
+>   %38 = Intrinsic ListLen [%37] : usize
+>   %39 = Prim Ne [%36 %38] : bool
+>   %46 = If %39 [%45 -] : ()
         return .Err("trailing input")
->   %42 = NewVariant #1 ["trailing input"] : Result[*i32, string]
->   %43 = Drop [$0] : ()
->   %44 = Drop [$1] : ()
->   %45 = Drop [$2] : ()
->   %46 = Return %42 : never
->   %47 = Block - : never
+>   %40 = NewVariant #1 ["trailing input"] : Result[*i32, string]
+>   %41 = Drop [$0] : ()
+>   %42 = Drop [$1] : ()
+>   %43 = Drop [$2] : ()
+>   %44 = Return %40 : never
+>   %45 = Block - : never
     .Ok(root)
->   %49 = Read move [$2] : *i32
->   %50 = Intrinsic Empty [] : ()
->   %51 = NewVariant #0 [%49] : Result[*i32, string]
->   %52 = Drop [$1] : ()
+>   %47 = Read move [$2] : *i32
+>   %48 = Intrinsic Empty [] : ()
+>   %49 = NewVariant #0 [%47] : Result[*i32, string]
+>   %50 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

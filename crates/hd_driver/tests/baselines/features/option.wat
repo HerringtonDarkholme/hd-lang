@@ -59,7 +59,7 @@
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $fallback.0 i32) (local $fallback.1 i32)
     ;; 18 |     o.unwrap_or("none")
-    i32.const 105 ;; &"none"
+    i32.const 66 ;; &"none"
     i32.const 4
     local.set $fallback.1
     local.set $fallback.0

@@ -281,7 +281,6 @@
     i32.eqz
     if
     else
-      local.get $t0
       local.get $text.1
       if
         local.get $text.1
@@ -293,6 +292,7 @@
           call $rt:release_ref
         end
       end
+      local.get $t0
       local.get $text.0
       return
     end

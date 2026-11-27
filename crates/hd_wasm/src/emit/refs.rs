@@ -942,7 +942,7 @@ impl Em<'_, '_, '_> {
     /// `Empty` zeroes a moved part: a borrow outlives no part of its
     /// value; a value that counts nothing is never released; and a move
     /// with no `Empty` after it takes a part of a value that nothing
-    /// releases or reads again (`drop_flags::field_read_only`). In a
+    /// releases or reads again (`drop_flags::part_read_only`). In a
     /// suspending body a moved value's locals are zeroed for its cancel
     /// block, so it copies. A nested tuple pattern reads each column from
     /// the one above (`hd_check` `expand_tuple`): a copy per level would

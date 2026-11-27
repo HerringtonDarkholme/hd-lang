@@ -8,7 +8,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (param $fail i32) (result i32 i32 i32) (local $t2 i32) (local $t5 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
+  (func $probe (param $p i32) (param $alias i32) (param $fail i32) (result i32 i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
     ;; 29 |     .Ok(observe(p.items.at(0), later_maybe(alias, fail)?))
     block
       local.get $p
@@ -84,10 +84,6 @@
       local.get $t1
       i32.eqz
       if
-        local.get $fail
-        local.set $t3
-        i32.const 0
-        local.set $fail
       else
         local.get $t2
         if
@@ -116,18 +112,8 @@
           i32.const 0
           local.set $t2
         end
-        local.get $t1
-        local.get $fail
-        local.set $t3
-        local.set $t5
-        i32.const 0
-        local.set $t1
-        i32.const 0
-        local.set $fail
-        i32.const 176
-        local.set $t1
         i32.const 1
-        local.set $fail
+        local.set $t3
         i32.const 0
         local.set $t0
         local.get $alias
@@ -137,10 +123,10 @@
         br 1
       end
       local.get $t0
-      local.get $t3
+      local.get $fail
       call $observe
-      local.set $t3
-      local.set $t5
+      local.set $fail
+      local.set $t1
       local.get $t2
       if
         local.get $t2
@@ -171,15 +157,15 @@
       i32.const 0
       local.set $t0
       i32.const 0
-      local.set $fail
+      local.set $t3
       local.get $alias
       call $rt:release_ref
       local.get $p
       call $rt:release_ref
     end
-    local.get $fail
-    local.get $t5
     local.get $t3
+    local.get $t1
+    local.get $fail
   )
 )
 == @build: release

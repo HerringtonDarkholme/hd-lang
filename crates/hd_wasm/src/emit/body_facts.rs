@@ -38,6 +38,9 @@ pub(super) struct UseFacts {
     pub copy_reasons: Vec<Option<Reason>>,
     pub value_uses: Vec<u32>,
     pub part_only: Vec<bool>,
+    /// Each value the body reads only by parts
+    /// (`drop_flags::part_read_only`).
+    pub part_read_only: Vec<bool>,
 }
 
 impl BodyFacts {
@@ -110,6 +113,7 @@ impl UseFacts {
             copy_reasons: Vec::new(),
             value_uses: Vec::new(),
             part_only: Vec::new(),
+            part_read_only: Vec::new(),
         };
         let verify = cfg!(not(target_arch = "wasm32")) && checked;
         if origins || verify {
@@ -144,7 +148,8 @@ impl UseFacts {
                 }
             }
         }
-        crate::work::use_facts(b.len());
+        hd_tir::own::drop_flags::part_read_only(b, &mut facts.part_read_only);
+        crate::work::use_facts(2 * b.len());
         facts
     }
 }

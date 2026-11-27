@@ -273,16 +273,16 @@ impl Elab<'_> {
 pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     // Each move leaves its place empty, a statement after its counts
     // (`owned::lowered`, L3), but a move out of a value read only by
-    // fields, which nothing reads again (`drop_flags::field_read_only`).
+    // parts, which nothing reads again (`drop_flags::part_read_only`).
     let (topo, mut edits) = (Topology::new(b), super::splice::Tables::default());
-    let mut field_only = Vec::new();
-    super::drop_flags::field_read_only(b, &mut field_only);
+    let mut by_parts = Vec::new();
+    super::drop_flags::part_read_only(b, &mut by_parts);
     for i in 0..b.len() {
         let read = b.tags[i] == Tag::Read && topo.blk[i] != NONE;
         if read
             && b.data[i][1] == ReadMode::Move as u32
             && key_of(b, b.data[i][0]).is_some()
-            && !super::drop_flags::leaves_no_place(b, &field_only, i)
+            && !super::drop_flags::leaves_no_place(b, &by_parts, i)
         {
             let (blk, pos) = super::drop_flags::after(b, &topo, i);
             let args = b.push_record(&[]);

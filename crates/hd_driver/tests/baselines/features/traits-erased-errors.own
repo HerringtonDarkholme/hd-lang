@@ -67,9 +67,9 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: *FsError [read assigned captured] value
->     uses $2: %31 -> %32 lend last
+>     uses $2: %29 -> %30 lend last
 >   local $4 path: string [read captured] place
->   %0 = Retain %45 Entry local $0 #0 : ()
+>   %0 = Retain %43 Entry local $0 #0 : ()
     text := read_config(path)?
 >   %1 = Read move [$0] : string
 >   %2 = Intrinsic Empty [] : ()
@@ -94,29 +94,27 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %21 = Scope %20 [] : Result[string, FsError]
 >   %22 = Drop [$4] : ()
 >   %23 = Read move [%21 as #0 .0] : string
->   %24 = Intrinsic Empty [] : ()
->   %25 = Block %23 : string
->   %26 = Read move [%21 as #1 .0] : FsError
->   %27 = Intrinsic Empty [] : ()
->   %28 = Box #1 #1 : ()
->   %29 = Store [$1] %26 : ()
->   %30 = Ref take [$1] : *FsError
->   %31 = Store [$2] %30 : ()
->   %32 = Read move [$2] : *FsError
->   %33 = Intrinsic Empty [] : ()
->   %34 = Coerce %32 [RefToTraitValue -] : Error
->   %35 = LoanEnd [%32] : ()
->   %36 = Block %34 : Error
->   %37 = RefDyn %36 : *dyn Error
->   %38 = NewVariant #1 [%37] : Result[string, *dyn Error]
->   %39 = Drop [$0] : ()
->   %40 = Return %38 : never
->   %41 = Block - : never
->   %42 = SwitchTag %21 [#0 %25 %41] : string
->   %44 = Drop [$0] : ()
->   %45 = Block %43 : Result[string, *dyn Error]
+>   %24 = Block %23 : string
+>   %25 = Read move [%21 as #1 .0] : FsError
+>   %26 = Box #1 #1 : ()
+>   %27 = Store [$1] %25 : ()
+>   %28 = Ref take [$1] : *FsError
+>   %29 = Store [$2] %28 : ()
+>   %30 = Read move [$2] : *FsError
+>   %31 = Intrinsic Empty [] : ()
+>   %32 = Coerce %30 [RefToTraitValue -] : Error
+>   %33 = LoanEnd [%30] : ()
+>   %34 = Block %32 : Error
+>   %35 = RefDyn %34 : *dyn Error
+>   %36 = NewVariant #1 [%35] : Result[string, *dyn Error]
+>   %37 = Drop [$0] : ()
+>   %38 = Return %36 : never
+>   %39 = Block - : never
+>   %40 = SwitchTag %21 [#0 %24 %39] : string
+>   %42 = Drop [$0] : ()
+>   %43 = Block %41 : Result[string, *dyn Error]
     .Ok(text)
->   %43 = NewVariant #0 [%42] : Result[string, *dyn Error]
+>   %41 = NewVariant #0 [%40] : Result[string, *dyn Error]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

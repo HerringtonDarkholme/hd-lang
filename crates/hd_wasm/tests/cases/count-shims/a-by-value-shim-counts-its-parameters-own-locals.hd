@@ -1,0 +1,77 @@
+# @dump: wat
+# @build: release
+# @helpers: std/rt.alloc/release_value
+# A by-value release shim (`hd_layout::shims`) reads its parameter whole
+# as a borrow and counts only its parts: each field or payload read
+# names the parameter's own locals, with no copy of its values first
+# (#2403). `Rec` is a struct of several counted fields, `Outer` nests
+# two structs, `Trio[string]` is a generic instance, the tuple a tuple,
+# and `Shape` switches on its tag and counts each payload's parts.
+struct Rec:
+    a: string
+    b: string
+    c: string
+    d: string
+    e: List[i32]
+    f: string?
+    n: i32
+
+struct Inner:
+    a: string
+    b: string
+    c: List[i32]
+
+struct Outer:
+    x: Inner
+    y: string
+    z: Inner
+
+struct Trio[T]:
+    a: T
+    b: T
+    c: T
+    d: T
+
+enum Shape:
+    Empty
+    Two(string, string, string, List[i32])
+    Rec(Inner, string)
+
+fn rec(x: i32) -> Rec:
+    Rec { a: "a${x}", b: "b${x}", c: "c${x}", d: "d${x}", e: [x], f: .Some("f${x}"), n: x }
+
+fn inner(x: i32) -> Inner:
+    Inner { a: "a${x}", b: "b${x}", c: [x] }
+
+fn outer(x: i32) -> Outer:
+    Outer { x: inner(x), y: "y${x}", z: inner(x + 1) }
+
+fn trio(x: i32) -> Trio[string]:
+    Trio { a: "a${x}", b: "b${x}", c: "c${x}", d: "d${x}" }
+
+fn tuple(x: i32) -> (string, string, string, List[i32], i32):
+    ("a${x}", "b${x}", "c${x}", [x], x)
+
+fn shape(x: i32) -> Shape:
+    if x > 2: .Two("a${x}", "b${x}", "c${x}", [x]) else: .Rec(inner(x), "s${x}")
+
+fn rank(s: &Shape) -> i32:
+    match s:
+        .Empty => 0
+        .Two(_, _, _, _) => 1
+        .Rec(_, _) => 2
+
+fn pick(x: i32) -> i32:
+    let r = rec(x)
+    let o = outer(x)
+    let t = trio(x)
+    let u = tuple(x)
+    let s = shape(x)
+    # subject
+    if x > 3:
+        return 0
+    let (_, _, _, _, k) = u
+    r.n + i32(o.y.len()) + i32(t.a.len()) + k + rank(&s)
+
+pub fn main() -> void $ Console:
+    println("${pick(1)}")

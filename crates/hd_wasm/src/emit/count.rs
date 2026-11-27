@@ -1259,6 +1259,21 @@ impl Em<'_, '_, '_> {
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;
+        // A borrow read only by parts (`drop_flags::part_read_only`) is
+        // the local's own locals: its place stays while it lives, and
+        // nothing zeroes it, so each part read names the local's words
+        // ([`Em::names_part`]), as rustc's SROA and `CopyProp` read
+        // `_1.0` for `_2 = copy _1; _3 = copy (_2.0)`. A by-value count
+        // shim's parameter is one: a copy cost O(its values) (#2403).
+        if mode == Some(ReadMode::Borrow)
+            && self.susp.is_none()
+            && self.uses.part_read_only[i as usize]
+            && !self.vals.contains_key(&i)
+            && !self.input_transferred.contains_key(&i)
+        {
+            self.vals.insert(i, ls);
+            return Ok(());
+        }
         for x in &ls {
             self.f.get(*x);
         }
