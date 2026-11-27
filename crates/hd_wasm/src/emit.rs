@@ -4875,21 +4875,21 @@ impl Em<'_, '_, '_> {
                     self.f.op(I::F64PromoteF32);
                 }
             }
-            self.f.call(Sym::Inst(if op == PrimOp::Pow {
+            let key = if op == PrimOp::Pow {
                 if single {
-                    // ruled out: a missing key. Collection follows every
-                    // f32 Pow's implicit std call, including generic/closure
-                    // instances, before the emitter can reach this operator.
-                    required(
-                        self.input.float_ops.pow_f32,
-                        "collection recorded f32 power's std implementation",
-                    )
+                    self.input.float_ops.pow_f32
                 } else {
                     self.input.float_ops.pow
                 }
             } else {
                 self.input.float_ops.rem
-            }));
+            };
+            // ruled out: a missing key. Collection follows every floating
+            // operator's implicit std call after generic/closure substitution.
+            self.f.call(Sym::Inst(required(
+                key,
+                "collection recorded the floating operator's std implementation",
+            )));
             if widen {
                 self.f.op(I::F32DemoteF64);
             }

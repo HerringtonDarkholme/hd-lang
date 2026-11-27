@@ -198,11 +198,8 @@ def packed_word(value):
     return text.replace("\\", "\\\\")
 
 
-# The tables lib/std/num.hd reads as string literals, and those it holds as
-# `match` arms, because `float_pow_f64`, which reads them, is rooted in
-# every program (see `libm_exp_entry` there).
-STRING_TABLES = ["exp.tab", "log.tab", "log2.tab", "exp2f.tab", "logf.tab", "log2f.tab"]
-CODE_TABLES = {"exp.tab": ("libm_exp_entry", 2), "pow.tab": ("libm_pow_entry", 3)}
+# Every shared table is packed static text, reached only by its users.
+STRING_TABLES = ["exp.tab", "pow.tab", "log.tab", "log2.tab", "exp2f.tab", "logf.tab", "log2f.tab"]
 
 
 def musl_tables(dumper):
@@ -215,22 +212,13 @@ def musl_tables(dumper):
     if fields["log2f.tab"] != fields["powf.tab"]:
         raise SystemExit("log2f's and powf's tables differ; num.hd shares one")
     lines = []
-    blocks = []
     for name, values in fields.items():
         if not name.endswith(".tab"):
             lines.append(f"{name}: " + ", ".join(repr(from_f64(v)) for v in values))
             continue
         if name in STRING_TABLES:
             lines.append(f"{name} ({len(values)} words): \"{''.join(packed_word(v) for v in values)}\"")
-        if name in CODE_TABLES:
-            function, width = CODE_TABLES[name]
-            arms = []
-            for k in range(len(values) // width):
-                pattern = str(k) if k < len(values) // width - 1 else "_"
-                words = ", ".join(f"0x{v:016x}" for v in values[width * k:width * (k + 1)])
-                arms.append(f"        {pattern} => ({words})")
-            blocks.append((function, "\n".join(arms)))
-    return lines, blocks
+    return lines
 
 
 def f64_bits(value):
@@ -512,20 +500,15 @@ def main():
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as temp:
         binary, dumper = build(args.tarball.resolve(), Path(temp))
-        lines, blocks = musl_tables(dumper)
+        lines = musl_tables(dumper)
         if args.tables:
             print("\n".join(lines))
-            for function, arms in blocks:
-                print(f"{function} arms:\n{arms}")
             return
         if args.check:
             source = (ROOT / "lib/std/num.hd").read_text()
             for line in lines:
                 if " words): " in line and line.split(" words): ", 1)[1] not in source:
                     raise SystemExit(f"lib/std/num.hd lacks musl's table {line.split()[0]}")
-            for function, arms in blocks:
-                if f"fn {function}" not in source or arms not in source:
-                    raise SystemExit(f"lib/std/num.hd's {function} is not musl's table")
         rng = random.Random(2407)
         plan = []
         for width in ("f64", "f32"):

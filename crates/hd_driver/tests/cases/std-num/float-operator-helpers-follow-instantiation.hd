@@ -1,0 +1,18 @@
+# @dump: stdout
+# @build: dev | checked | release
+# Operators alone must collect their helpers after generic/closure substitution.
+use std.num.Float
+
+fn operators[T < Float](x: T, y: T) -> (T, T):
+    (x ** y, x % y)
+
+fn invoke[T < Float](body: fn(T, T) -> (T, T), x: T, y: T) -> (T, T):
+    body(x, y)
+
+pub fn main() -> void $ Console:
+    let (power64, rem64) = operators(2.5, 2.0)
+    let (power32, rem32) = operators(2.5f32, 2.0f32)
+    println("$power64 $rem64 $power32 $rem32")
+    let (closure64, remainder64) = invoke(fn(x: f64, y: f64): (x ** y, x % y), 3.5, 2.0)
+    let (closure32, remainder32) = invoke(fn(x: f32, y: f32): (x ** y, x % y), 3.5f32, 2.0f32)
+    println("$closure64 $remainder64 $closure32 $remainder32")
