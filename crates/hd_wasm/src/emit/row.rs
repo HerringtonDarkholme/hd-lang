@@ -19,7 +19,7 @@ impl Em<'_, '_, '_> {
                 self.env(),
                 self.input.collected,
                 supplier,
-            )?;
+            );
             self.m.row_key_graphs.insert(supplier, graph);
         }
         self.m.row_key_graphs[&supplier]

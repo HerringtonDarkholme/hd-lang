@@ -160,7 +160,9 @@ impl<'i, 'a> Keys<'i, 'a> {
             k.u32(at);
             match crossed.root {
                 None => k.u8(0),
-                Some(root) => place_root(&mut k, root, |t| canon(&mut memo, t), env),
+                Some(root) => {
+                    place_root(&mut k, root, |t| canon(&mut memo, t), |d| env.path_hash(d));
+                }
             }
             k.len(crossed.steps.len());
             for &(step, t) in &crossed.steps {
@@ -328,11 +330,11 @@ fn sorted(h: &mut StableHasher, items: impl Iterator<Item = Hash128>) {
     }
 }
 
-fn place_root(
+pub fn place_root(
     h: &mut StableHasher,
     root: hd_tir::ir::PlaceRoot,
     mut canon: impl FnMut(Ty) -> Hash128,
-    env: &dyn hd_mono::ProgramEnv,
+    path_hash: impl Fn(hd_base::DefId) -> Hash128,
 ) {
     use hd_tir::ir::PlaceRoot;
     match root {
@@ -342,7 +344,7 @@ fn place_root(
         }
         PlaceRoot::Global(d, t) => {
             h.u8(2);
-            h.hash(env.path_hash(d));
+            h.hash(path_hash(d));
             h.hash(canon(t));
         }
         PlaceRoot::Value(r) => {

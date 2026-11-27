@@ -1,0 +1,5 @@
+# @dump: diagnostics
+trait Missing:
+    @inline
+
+struct Next: pass

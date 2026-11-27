@@ -1,0 +1,9 @@
+# @dump: wat
+# @repl: 2
+# A session keeps the File slots future inputs may call, even when this
+# input only opens the handle. Uncalled slots must trap, without imports.
+file := $.use(FsRead).open!(Path("not-executed"))
+
+# @input: 1
+use std.fs.FsRead
+use std.path.Path
