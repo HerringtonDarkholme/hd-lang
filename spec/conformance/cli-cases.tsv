@@ -333,7 +333,8 @@ host-declaration-not-list	cli.host.declaration.map-table
 host-declaration-not-public	cli.host.declaration.mapped
 host-c-value-table	cli.host.declaration.kinds
 host-declaration-c-kinds	cli.host.declaration.kinds,cli.host.c.name
-host-c-provider-engines	cli.host.declaration.kinds,cli.host.package.provider-hosts
+host-c-provider-engines	cli.host.declaration.kinds,cli.host.package.provider-hosts,cli.host.c.header
+host-c-header	cli.host.c.header,cli.host.c.header-contents
 host-c-only-node-refused	cli.host.c.engine
 cap-required-main	cli.cap.table.required,cli.cap.table.required-unused,cli.cap.table.required-builtins,cli.cap.table.required-flags,cli.cap.table.required-entry-message,cli.cap.table.required-entry-fix,cli.check.fix.manifest.capabilities
 cap-required-inline	cli.cap.table.required,cli.cap.table.unused,cli.cap.value.false,cli.cap.table.required-entry-fix,cli.check.fix.manifest.capabilities

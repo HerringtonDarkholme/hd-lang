@@ -424,6 +424,8 @@ impl Program {
                 )
                 .collect(),
             entry_capabilities: true,
+            // Only `hd build` of a package with a C provider asks for them.
+            c_tables: false,
             // `HD_WAT` names every function of the module's text.
             instruction_origins: crate::wat::requested(),
             std_leaf: None,

@@ -1,9 +1,10 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; phase steps 1, 2 and 2b
+Status: accepted by the owner, 2026-11-27; phase steps 1, 2, 2b and 3
 built (the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
-check, the C lowering with its table section, and the JavaScript glue
-for a C-bound trait's `js` provider), the rest not yet (P3);
+check, the C lowering with its table section, the JavaScript glue for a
+C-bound trait's `js` provider, and the [header](../../spec/cli/command-line.md#c-providers)
+`hd build` writes), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 
@@ -477,6 +478,18 @@ const hd_TermHost *hd_term_TermHost(void);        /* the one entry symbol */
 `hd_complete_i32`, `hd_complete_i64`, `hd_complete_f64`,
 `hd_complete_bytes(t, ptr, len)` and `hd_complete_error(t, errno)` are
 inline functions that call through the token's table.
+
+As built (step 3), the header also has these parts. The fixture
+`spec/conformance/cli/host-c-header/expected.h` shows one whole header.
+
+| Part | As built |
+| --- | --- |
+| token | `typedef struct hd_call *hd_token`, whose first field points to the host's `hd_completions` table |
+| a `!` method's slot | the token comes second, after `self` and before the arguments, as in the abort slot |
+| a list or string argument | the pointer, then `size_t NAME_len` |
+| contract hash | `#define HD_CONTRACT_HASH_LIBRARY_TRAIT { ... }`, for the table's initializer |
+| shared part | guarded by `HD_HOST_ABI_VERSION`, so two packages' headers can be included together |
+| names | a C keyword or a table field name takes a trailing `_`; non-ASCII names are written as universal character names |
 
 ### The Terminal, End To End
 
