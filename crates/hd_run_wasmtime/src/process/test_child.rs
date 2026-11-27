@@ -78,6 +78,7 @@ pub fn start(
     environment: &TestEnvironment,
     env_overlay: &[(String, String)],
     deadline: Option<Instant>,
+    inherit: bool,
 ) -> wasmtime::Result<Start> {
     let call = Command::dec(&mut Dec::new(bytes))?;
     if !grants.covers_name("Process", &call.program) {
@@ -115,6 +116,7 @@ pub fn start(
             let mut arguments = prefix.clone();
             arguments.extend(args);
             return Ok(Start::Process(super::native::Request {
+                inherit,
                 name,
                 program: program.clone(),
                 argv: arguments,
@@ -135,6 +137,7 @@ pub fn start(
                 &engine,
                 &module,
                 ChildInput {
+                    inherit,
                     name,
                     args,
                     input,
@@ -155,6 +158,7 @@ pub fn start(
 }
 
 struct ChildInput {
+    inherit: bool,
     name: String,
     args: Vec<String>,
     input: Vec<u8>,
@@ -181,9 +185,21 @@ fn run(
     let result = {
         let mut host = Host::new(
             HostIo {
-                out: Box::new(out.clone()),
-                err: Box::new(err.clone()),
-                input: Some(Box::new(Cursor::new(child.input))),
+                out: if child.inherit {
+                    Box::new(std::io::stdout())
+                } else {
+                    Box::new(out.clone())
+                },
+                err: if child.inherit {
+                    Box::new(std::io::stderr())
+                } else {
+                    Box::new(err.clone())
+                },
+                input: if child.inherit {
+                    Some(Box::new(std::io::BufReader::new(std::io::stdin())))
+                } else {
+                    Some(Box::new(Cursor::new(child.input)))
+                },
             },
             child.args,
             name.clone(),

@@ -335,6 +335,7 @@ fn named_command_children_keep_arguments_input_environment_and_cwd() {
         &environment,
         &[("HD_NAMED_CHILD".into(), "parent".into())],
         None,
+        false,
     )
     .unwrap();
     let test_child::Start::Process(request) = start else {
@@ -372,6 +373,7 @@ fn start_child(
         environment,
         &[],
         deadline,
+        false,
     )
     .unwrap()
     {

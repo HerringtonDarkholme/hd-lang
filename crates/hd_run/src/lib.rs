@@ -6,6 +6,8 @@
 //! `hd_run_wasmtime`, the browser's in `hd_web`.
 
 pub mod artifact;
+#[cfg(unix)]
+pub mod foreground;
 pub mod frames;
 mod grant;
 mod imports;

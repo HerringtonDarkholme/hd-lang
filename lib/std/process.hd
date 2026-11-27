@@ -106,6 +106,7 @@ pub struct Command:
 ## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
 pub trait Process:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]
 
 impl Command:
     ## Returns a command for `program` with no arguments, no environment, the program's own directory, and no standard input.
@@ -151,6 +152,17 @@ impl Command:
         process := $.use(Process)
         process.run!(self)
 
+    ## Runs with inherited standard streams and returns the exit status.
+    ## See [std-process.command.status](../../spec/std/process.md#r-std-process.command.status).
+    pub fn status!(self) -> Result[i32, ProcessError] $ Process:
+        process := $.use(Process)
+        process.status!(self)
+
+## Runs a command with inherited standard streams and returns its exit status.
+## See [std-process.command.status](../../spec/std/process.md#r-std-process.command.status).
+pub fn status!(command: Command) -> Result[i32, ProcessError] $ Process:
+    command.status!()
+
 ## Runs a command and rejects a nonzero exit while preserving its complete output.
 ## See [std-process.helper.run-checked](../../spec/std/process.md#r-std-process.helper.run-checked).
 pub fn run!(command: Command) -> Result[ProcessOutput, ProcessError] $ Process:
@@ -165,6 +177,9 @@ pub struct ScriptedProcess:
     answers: Map[string, List[Result[ProcessOutput, ProcessError]]]
     served: Map[string, usize]
     seen: List[Command]
+    status_seen: List[Command] = []
+    status_answers: Map[string, List[Result[i32, ProcessError]]] = {}
+    status_served: Map[string, usize] = {}
 
 impl ScriptedProcess:
     # A provider that has no answer yet (r-std-process.scripted.empty-ref).
@@ -182,6 +197,18 @@ impl ScriptedProcess:
             .Some(_) => self.answers[program].push(result)
             .None => self.answers[program] = [result]
 
+    ## Queues an inherited-stdio status answer, repeating the last answer.
+    ## See [std-process.scripted.status](../../spec/std/process.md#r-std-process.scripted.status).
+    pub fn reply_status(&mut self, program: string, result: Result[i32, ProcessError]) -> void:
+        match self.status_answers.get(program):
+            .Some(_) => self.status_answers[program].push(result)
+            .None => self.status_answers[program] = [result]
+
+    ## The inherited-stdio commands, including failed starts, in call order.
+    ## See [std-process.scripted.status](../../spec/std/process.md#r-std-process.scripted.status).
+    pub fn received_status(&self) -> List[Command]:
+        self.status_seen
+
     # Every command the provider ran, in order (r-std-process.scripted.received-ref).
     ## The commands the provider ran, in order, including those it answered with `NotFound`.
     ## See [std-process.scripted.received-ref](../../spec/std/process.md#r-std-process.scripted.received-ref).
@@ -191,6 +218,16 @@ impl ScriptedProcess:
 # Records the command and serves the queued answer
 # (r-std-process.scripted.answer-program, r-std-process.scripted.unqueued).
 impl Process for ScriptedProcess:
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]:
+        self.status_seen.push(command)
+        program := command.program
+        match self.status_answers.get(program):
+            .Some(queued) =>
+                done := self.status_served.get(program).unwrap_or(0)
+                self.status_served[program] = done + 1
+                queued[if done < queued.len(): done else: queued.len() - 1]
+            .None => .Err(.NotFound(program))
+
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         self.seen.push(command)
         program := command.program

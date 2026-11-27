@@ -2,7 +2,8 @@
   "traits": [
     { "key": "Console", "std": "std.console.Console", "methods": [
       { "name": "write_sync", "wait": "never", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
-      { "name": "write_error_sync", "wait": "never", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
+      { "name": "write_error_sync", "wait": "never", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
+      { "name": "is_terminal", "wait": "never", "resource": null, "params": ["ConsoleStream"], "result": "bool" }
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
       { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },
@@ -47,7 +48,8 @@
       { "name": "bind_udp", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[UdpSocket, NetError]" }
     ]},
     { "key": "Process", "std": "std.process.Process", "methods": [
-      { "name": "run", "wait": "may", "resource": "program", "params": ["Command"], "result": "Result[ProcessOutput, ProcessError]" }
+      { "name": "run", "wait": "may", "resource": "program", "params": ["Command"], "result": "Result[ProcessOutput, ProcessError]" },
+      { "name": "status", "wait": "may", "resource": "program", "params": ["Command"], "result": "Result[i32, ProcessError]" }
     ]},
     { "key": "Sys", "std": "std.host.Sys", "methods": [
       { "name": "os", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, HostError]" },

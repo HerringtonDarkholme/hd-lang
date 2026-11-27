@@ -1,11 +1,15 @@
-//! The Windows Node host's private process helper. One request arrives on
-//! stdin; its remaining lifetime is the cancellation pipe. Never kill this
-//! helper during spawn: the child is suspended until its Job owns it.
+//! The Node host's private process-group/Job helper. One request arrives on
+//! stdin or a private socket; EOF on the control stream cancels the child.
+//! Windows assigns the suspended child to its Job before resuming it.
 
 use std::io::{self, BufRead as _, Write as _};
 use std::process::{ExitCode, Stdio};
 
-use process_wrap::tokio::{ChildWrapper, CommandWrap, JobObject};
+#[cfg(windows)]
+use process_wrap::tokio::JobObject;
+#[cfg(unix)]
+use process_wrap::tokio::ProcessGroup;
+use process_wrap::tokio::{ChildWrapper, CommandWrap};
 use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::process::{ChildStdin, Command};
@@ -41,6 +45,12 @@ fn command(request: &Value) -> io::Result<Command> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    if request["inherit"].as_bool().unwrap_or(false) {
+        command
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+    }
     Ok(command)
 }
 
@@ -99,7 +109,7 @@ async fn complete(child: &mut dyn ChildWrapper, input: &[u8]) -> io::Result<Valu
     Ok(json!({"ok": {
         "stdout": String::from_utf8_lossy(&stdout),
         "stderr": String::from_utf8_lossy(&stderr),
-        "status": status.code().unwrap_or(1),
+        "status": exit_status(status),
     }}))
 }
 
@@ -111,9 +121,26 @@ async fn execute(
         return Ok(None);
     }
     let input = request["input"].as_str().ok_or_else(|| invalid("input"))?;
-    let mut child = CommandWrap::from(command(request)?)
-        .wrap(JobObject)
-        .spawn()?;
+    let mut wrapped = CommandWrap::from(command(request)?);
+    #[cfg(windows)]
+    wrapped.wrap(JobObject);
+    #[cfg(unix)]
+    wrapped.wrap(ProcessGroup::leader());
+    // cost: one owned child per request; argument/environment setup is linear in their bytes.
+    let mut child = wrapped.spawn()?;
+    #[cfg(unix)]
+    let _foreground = match child
+        .id()
+        .map(hd_run::foreground::Foreground::from_parent)
+        .transpose()
+    {
+        Ok(guard) => guard.flatten(),
+        Err(error) => {
+            child.start_kill()?;
+            child.wait().await?;
+            return Err(error);
+        }
+    };
     let result = tokio::select! {
         biased;
         _ = &mut cancel => None,
@@ -142,6 +169,22 @@ fn failure(error: &io::Error) -> Value {
 }
 
 pub(crate) fn run() -> ExitCode {
+    // The runtime host may kill its own group during forced shutdown. Keep
+    // this helper alive to observe control EOF, kill the child group and reap it.
+    #[cfg(unix)]
+    if rustix::process::setpgid(None, None).is_err() {
+        return ExitCode::FAILURE;
+    }
+    if let Some(path) = std::env::args_os().nth(2) {
+        return match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .and_then(|runtime| runtime.block_on(run_pipe(&path)))
+        {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
     let mut input = io::BufReader::new(io::stdin());
     let mut line = String::new();
     let outcome = input
@@ -177,4 +220,47 @@ pub(crate) fn run() -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+// The Node worker keeps this duplex pipe separate from inherited fd 0/1/2.
+// Overlapped I/O permits the lifetime read and result write concurrently.
+async fn run_pipe(path: &std::ffi::OsStr) -> io::Result<()> {
+    use tokio::io::AsyncBufReadExt as _;
+    #[cfg(windows)]
+    let pipe = tokio::net::windows::named_pipe::ClientOptions::new().open(path)?;
+    #[cfg(unix)]
+    let pipe = tokio::net::UnixStream::connect(std::path::Path::new(path)).await?;
+    let (reader, mut writer) = tokio::io::split(pipe);
+    let mut reader = tokio::io::BufReader::new(reader);
+    let mut line = String::new();
+    reader.read_line(&mut line).await?;
+    let request = serde_json::from_str::<Value>(&line).map_err(|_| invalid("request"))?;
+    let (send, cancel) = tokio::sync::oneshot::channel();
+    // cost: one lifetime-read future per helper, with no polling or extra thread.
+    tokio::spawn(async move {
+        let mut control = String::new();
+        let _ = reader.read_line(&mut control).await;
+        let _ = send.send(());
+    });
+    let value = match Box::pin(execute(&request, cancel)).await {
+        Ok(Some(value)) => value,
+        Ok(None) => return Ok(()),
+        Err(error) => failure(&error),
+    };
+    let mut reply = serde_json::to_vec(&value)?;
+    reply.push(b'\n');
+    writer.write_all(&reply).await?;
+    writer.shutdown().await
+}
+
+fn exit_status(status: std::process::ExitStatus) -> i32 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt as _;
+        status
+            .code()
+            .unwrap_or_else(|| 128 + status.signal().unwrap_or(0))
+    }
+    #[cfg(not(unix))]
+    status.code().unwrap_or(1)
 }

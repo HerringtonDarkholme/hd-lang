@@ -1,0 +1,29 @@
+# test: terminal queries use the covering console and independent per-stream flags
+# expect: test
+use std.console.{ConsoleStream, MemoryConsole, is_terminal}
+
+struct PlainConsole: pass
+impl Console for PlainConsole:
+    fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+tests:
+    it("terminal flags default false and remain independent"):
+        console := MemoryConsole::new()
+        $.with(Console=console):
+            assert_equal(is_terminal(.Stdout), false, reason="stdout default")
+            assert_equal(is_terminal(.Stderr), false, reason="stderr default")
+            assert_equal(is_terminal(.Stdin), false, reason="stdin default")
+        console.stdout_is_terminal = true
+        console.stdin_is_terminal = true
+        $.with(Console=console):
+            assert_equal(is_terminal(ConsoleStream.Stdout), true, reason="stdout flag")
+            assert_equal(is_terminal(.Stderr), false, reason="independent stderr flag")
+            assert_equal(is_terminal(.Stdin), true, reason="stdin flag")
+        assert_equal(console.output(), [], reason="a query writes nothing")
+
+    it("custom console providers default to non-terminal"):
+        $.with(Console=box(PlainConsole {})):
+            assert_equal(is_terminal(.Stdout), false, reason="default stdout")
+            assert_equal(is_terminal(.Stderr), false, reason="default stderr")
+            assert_equal(is_terminal(.Stdin), false, reason="default stdin")

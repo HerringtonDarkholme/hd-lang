@@ -333,6 +333,15 @@ impl NodeInstance {
             .spawn()
             .and_then(|mut child| {
                 #[cfg(unix)]
+                let _foreground = match hd_run::foreground::Foreground::give_to(child.id()) {
+                    Ok(guard) => guard,
+                    Err(error) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(error);
+                    }
+                };
+                #[cfg(unix)]
                 {
                     relay.wait(&mut child)
                 }
@@ -776,10 +785,10 @@ impl Programs {
     }
 }
 
-/// Windows Node processes receive the launcher explicitly; the standalone
+/// Node process groups and Jobs receive the launcher explicitly; the standalone
 /// JS host never searches PATH or compiler caches for one.
 fn process_launcher() -> String {
-    #[cfg(windows)]
+    #[cfg(any(unix, windows))]
     if let Ok(executable) = std::env::current_exe() {
         return format!(
             ",\"processLauncher\":{}",
@@ -1363,7 +1372,8 @@ mod tests {
     use hd_run::{Grants, Limit};
 
     use super::{
-        HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, quote, read_results, run_host,
+        HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, process_launcher, read_results,
+        run_host,
     };
 
     /// The embedded host is plain JavaScript (#1697): its entry points are
@@ -1528,14 +1538,7 @@ mod tests {
         // `Path::join` writes the platform separator after the root, so
         // Windows has `/pkg\__snapshots__` (JSON-escaped below).
         let sep = if cfg!(windows) { r"\\" } else { "/" };
-        let launcher = if cfg!(windows) {
-            format!(
-                ",\"processLauncher\":{}",
-                quote(&std::env::current_exe().unwrap().to_string_lossy())
-            )
-        } else {
-            String::new()
-        };
+        let launcher = process_launcher();
         assert_eq!(
             host_config(&env, &cases, "26.13.1"),
             format!(

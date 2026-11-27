@@ -18,6 +18,8 @@ workspace = true
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "=0.3.18"
+nix = { version = "=0.31.3", default-features = false, features = ["signal"] }
+rustix = { version = "=1.1.5", default-features = false, features = ["process", "termios", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 # Native image mappings require an executable file handle on Windows.

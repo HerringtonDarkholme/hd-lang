@@ -1,0 +1,37 @@
+# test: inherited status has independent scripted replies, recording, and ordinary nonzero results
+# expect: test
+use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess, status}
+
+tests:
+    it("method and helper consume status replies independently of run"):
+        process := ScriptedProcess::new()
+        process.reply_status("editor", .Ok(7))
+        process.reply_status("editor", .Ok(143))
+        process.reply("editor", .Ok(ProcessOutput { status: 4 }))
+        command := Command { program: "editor", args: ["a b"], stdin: "ignored" }
+        $.with(Process=process):
+            assert_equal(command.status!(), .Ok(7), reason="nonzero is data")
+            assert_equal(status!(command), .Ok(143), reason="helper and signal convention")
+            assert_equal(command.status!(), .Ok(143), reason="last reply repeats")
+            assert_equal(command.run!().unwrap().status, 4, reason="run queue is independent")
+            assert_equal(
+                Command { program: "missing" }.status!(),
+                .Err(ProcessError.NotFound("missing")),
+                reason="no reply",
+            )
+        assert_equal(
+            process.received_status(),
+            [command, command, command, Command { program: "missing" }],
+            reason="status calls in order",
+        )
+        assert_equal(process.received(), [command], reason="captured calls remain separate")
+
+    it("status preserves scripted start errors"):
+        process := ScriptedProcess::new()
+        process.reply_status("denied", .Err(.NotGranted))
+        $.with(Process=process):
+            assert_equal(
+                status!(Command { program: "denied" }),
+                .Err(ProcessError.NotGranted),
+                reason="grant error",
+            )

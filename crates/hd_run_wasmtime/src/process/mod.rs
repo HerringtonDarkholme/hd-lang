@@ -6,7 +6,8 @@
 
 use wasmtime::{Caller, Val};
 
-use crate::abi::HostMethod;
+use crate::abi::{HostMethod, Id, ProcessError, ProcessOutput};
+use crate::codec::{Dec, Wire};
 use crate::host::offload::{finished, not_completed, pending};
 use crate::host::{Host, Ret, Stop, bytes, int_arg};
 use crate::runtime::reactor::Done;
@@ -16,16 +17,23 @@ pub(crate) mod test_child;
 
 /// `Process.run`'s `.start`, or its `.finish` when `finish`.
 pub(crate) fn call(
-    _method: &'static HostMethod,
+    method: &'static HostMethod,
     finish: bool,
     caller: &mut Caller<'_, Host>,
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
+    let inherit = method.id == Id::ProcessStatus;
     if finish {
         return Ok(match finished(caller, params)? {
             Done::Process(ran) => Ret::encoded(native::finish(ran)),
             // A test child that ran into the time limit ends the case.
             Done::Child(None) => return Err(Stop::TimeLimit.into()),
+            Done::Child(Some(encoded)) if inherit => {
+                let output = Result::<ProcessOutput, ProcessError>::dec(&mut Dec::new(
+                    &encoded.into_bytes(),
+                ))?;
+                Ret::value(&output.map(|output| output.status))
+            }
             Done::Child(Some(encoded)) => Ret::encoded(encoded),
             _ => return Err(not_completed()),
         });
@@ -40,12 +48,14 @@ pub(crate) fn call(
                 environment,
                 &host.env_overlay,
                 host.deadline(),
+                inherit,
             )? {
                 test_child::Start::Ready(e) => Ret::ready(e),
                 test_child::Start::Run(run) => {
                     pending(host.reactor.offload(run.wait()), test_child::not_run)
                 }
-                test_child::Start::Process(request) => {
+                test_child::Start::Process(mut request) => {
+                    request.inherit = inherit;
                     let name = request.name.clone();
                     pending(host.reactor.offload(request.run()), |error| {
                         native::not_run(&name, error)
@@ -57,7 +67,8 @@ pub(crate) fn call(
             let cwd = environment.as_ref().map(|e| e.cwd.as_path());
             match native::start(&b, &host.grants, cwd)? {
                 native::Start::Refused(e) => Ret::ready(e),
-                native::Start::Run(request) => {
+                native::Start::Run(mut request) => {
+                    request.inherit = inherit;
                     let name = request.name.clone();
                     pending(host.reactor.offload(request.run()), |error| {
                         native::not_run(&name, error)

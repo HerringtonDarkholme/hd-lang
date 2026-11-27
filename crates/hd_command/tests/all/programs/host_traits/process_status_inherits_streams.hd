@@ -1,0 +1,26 @@
+use std.testing.assert_equal
+use std.cli.Args
+use std.console.is_terminal
+use std.process.{Command, Process, ProcessError, status}
+
+pub fn main!() -> Result[void, ProcessError] $ Args + Console + Process:
+    println("${is_terminal(.Stdin)} ${is_terminal(.Stdout)} ${is_terminal(.Stderr)}")
+    node := $.use(Args).list()[0]
+    code := Command::new(node)
+        .args(
+            [
+                "-e",
+                "const fs=require('node:fs');process.stdout.write('child:'+fs.readFileSync(0,'utf8'));process.stderr.write('child error\\n');process.exit(7)",
+            ],
+        )
+        .stdin("ignored")
+        .status!()?
+    println("status=$code")
+    assert_equal(
+        status!(Command { program: node, args: ["-e", "process.exit(0)"] }),
+        .Ok(0),
+        reason="free helper",
+    )
+    captured := Command::new(node).args(["-e", "process.stdout.write('captured')"]).run!()?
+    println("run=${captured.stdout}")
+    .Ok(())

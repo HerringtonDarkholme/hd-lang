@@ -45,7 +45,7 @@ mod jobs_tests {
         }
     }
 }
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 mod process_job;
 mod repl;
 mod report;
@@ -132,7 +132,7 @@ pub fn main() -> ExitCode {
 }
 
 fn command_main() -> ExitCode {
-    #[cfg(windows)]
+    #[cfg(any(unix, windows))]
     if std::env::args_os()
         .nth(1)
         .is_some_and(|arg| arg == "--process-job")

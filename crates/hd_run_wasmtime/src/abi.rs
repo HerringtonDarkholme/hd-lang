@@ -1135,6 +1135,7 @@ impl Wire for WireResponse {
 pub enum Id {
     ConsoleWriteSync,
     ConsoleWriteErrorSync,
+    ConsoleIsTerminal,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
     ConsoleInputStdin,
@@ -1162,6 +1163,7 @@ pub enum Id {
     NetListen,
     NetBindUdp,
     ProcessRun,
+    ProcessStatus,
     SysOs,
     SysArch,
     SysHostname,
@@ -1238,6 +1240,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Buffer("Result[void, ConsoleError]"),
+    },
+    HostMethod {
+        id: Id::ConsoleIsTerminal,
+        module: "hd:Console",
+        name: "is_terminal",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Buffer("ConsoleStream")],
+        result: Codec::Buffer("bool"),
     },
     HostMethod {
         id: Id::ConsoleInputReadLine,
@@ -1481,6 +1492,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: Some(ResourceArg::Program),
         params: &[Codec::Buffer("Command")],
         result: Codec::Buffer("Result[ProcessOutput, ProcessError]"),
+    },
+    HostMethod {
+        id: Id::ProcessStatus,
+        module: "hd:Process",
+        name: "status",
+        wait: Wait::May,
+        resource: Some(ResourceArg::Program),
+        params: &[Codec::Buffer("Command")],
+        result: Codec::Buffer("Result[i32, ProcessError]"),
     },
     HostMethod {
         id: Id::SysOs,

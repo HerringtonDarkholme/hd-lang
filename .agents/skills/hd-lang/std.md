@@ -340,7 +340,7 @@ tests:
 Module `std.console`. `println(x)` and `print(x)` (no newline) write to standard output, `eprintln(x)` to standard error: all
 `$ Console`. `read_line!()` gives `Result[string?, ConsoleError]` without the line ending, `.Ok(.None)` at the
 end of input. `read_all!()` gives all of standard input. Both need `$ ConsoleInput`. Tests use `ScriptedInput`
-and `MemoryConsole`. A filter over lines is in [scenarios/stdin-filter.md](scenarios/stdin-filter.md).
+and `MemoryConsole`. `is_terminal(ConsoleStream.Stdout)` asks the covering Console whether a stream is a terminal; MemoryConsole exposes independent `stdout_is_terminal`, `stderr_is_terminal`, and `stdin_is_terminal` flags, initially false. A filter over lines is in [scenarios/stdin-filter.md](scenarios/stdin-filter.md).
 
 ## Files and paths
 
@@ -374,7 +374,7 @@ A bad value is an error that names the variable, as in `invalid value for APP_PO
 
 ## Processes
 
-`use std.process.{Command, Process}`, `$ Process`. `Command::new("git")` takes `.arg(x)`, `.args(list)`,
+`use std.process.{Command, Process}`, `$ Process`. `command.status!()` and `std.process.status!(command)` inherit stdin, stdout, and stderr, ignore `Command.stdin`, and return `Result[i32, ProcessError]`; nonzero status remains `.Ok`. `Command::new("git")` takes `.arg(x)`, `.args(list)`,
 `.env(name, value)`, `.current_dir(Path)` and `.stdin(text)`, each returning the command. `.run!()` gives
 `Result[ProcessOutput, ProcessError]` with `stdout`, `stderr` and `status`. A non-zero exit is still `.Ok`;
 `output.ok()` turns it into `.Err(.Exited(output))`. There is no shell. `ExitCode(n)` is a `main` return

@@ -920,6 +920,8 @@ dependencies = [
  "hd_base",
  "hd_cache",
  "hd_host_abi",
+ "nix",
+ "rustix",
  "signal-hook",
  "windows-sys 0.61.2",
 ]

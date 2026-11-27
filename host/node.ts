@@ -8,6 +8,7 @@
 
 // module.profile.panic-status).
 
+import { isatty } from "node:tty";
 import { signalSource } from "./signals.ts";
 import { receiveReply } from "./worker-control.ts";
 import type { MessagePort, Worker as NodeWorker } from "node:worker_threads";
@@ -47,7 +48,7 @@ type DynamicRecord = Record<string, Dynamic>;
 export interface HostEnv extends CoreEnv {
   /** A file descriptor, or `null` for a closed standard input. */
   stdin?: number | null;
-  /** Explicit hd executable used for Windows Process Job ownership. */
+  /** Explicit hd executable used for inherited Process groups and Windows Jobs. */
   processLauncher?: string;
   tempDir?: string;
   snapshot?: { dir: string; shown?: string; slug: string; update: boolean };
@@ -1078,13 +1079,10 @@ function processCommand({ env, name, argv, pairs, dir }: DynamicRecord): Dynamic
 // package's executables and tasks by name, the default profile's a host
 // program.
 function processProvider({ grant, env, left, processClient }: DynamicRecord): DynamicRecord {
-  const run = ({
-    program: name,
-    args: argv,
-    env: pairs,
-    current_dir: dir,
-    stdin: text,
-  }: DynamicRecord): Dynamic => {
+  const run = (
+    inherit: boolean,
+    { program: name, args: argv, env: pairs, current_dir: dir, stdin: text }: DynamicRecord,
+  ): Dynamic => {
     if (!grant.coversName("Process", name)) {
       return Err({ tag: "NotGranted" });
     }
@@ -1108,6 +1106,7 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
       cwd,
       env: childEnvironment(pairs),
       input: text,
+      inherit,
       timeout: ms,
     });
     let result: Dynamic = null;
@@ -1134,7 +1133,7 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
         }
         return Err({ tag: "Other", message });
       }
-      return Ok({ ...result.ok, program: name });
+      return Ok(inherit ? result.ok.status : { ...result.ok, program: name });
     };
     if (poll()) {
       finish();
@@ -1150,7 +1149,10 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
       (ready) => processClient.subscribe(operation, ready),
     );
   };
-  return { run };
+  return {
+    run: (command: Dynamic) => run(false, command),
+    status: (command: Dynamic) => run(true, command),
+  };
 }
 
 // The files of a test run on disk (cases.ts): the case's temporary
@@ -1367,7 +1369,26 @@ export const nodeLayer = {
     };
     let platform: Dynamic;
     const get = () => (platform ??= initialize());
-    const traits: DynamicRecord = {};
+    const traits: DynamicRecord = {
+      "hd:Console": {
+        // Worker stdio wrappers have no isTTY; query the inherited OS fd.
+        is_terminal: (stream: { tag: string }) => {
+          if (!grant.allows("Console")) {
+            return false;
+          }
+          switch (stream.tag) {
+            case "Stdout":
+              return isatty(1);
+            case "Stderr":
+              return isatty(2);
+            case "Stdin":
+              return isatty(0);
+            default:
+              throw new HostContract("unknown console stream");
+          }
+        },
+      },
+    };
     for (const module of [...NODE_PROVIDER_MODULES, ...(signalSource() ? ["hd:Signals"] : [])]) {
       Object.defineProperty(traits, module, {
         enumerable: true,

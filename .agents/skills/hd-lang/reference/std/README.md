@@ -28,12 +28,12 @@ item's full text and examples, run `hd doc std.time.sleep` inside any package.
 | `std.collections.deque` | [collections.deque.txt](collections.deque.txt) | 13 | `Deque`, `DequeIter` |
 | `std.collections.heap` | [collections.heap.txt](collections.heap.txt) | 8 | `Heap` |
 | `std.iter` | [iter.txt](iter.txt) | 53 | `Iterator`, `ByRef`, `Sum`, `Product`, `DynIterator`, `FromFn`, `from_fn`, `MapIter`, ... |
-| `std.console` | [console.txt](console.txt) | 15 | `Console`, `ConsoleInput`, `read_line`, `read_all`, `MemoryConsole`, `println`, `print`, `eprintln`, ... |
+| `std.console` | [console.txt](console.txt) | 20 | `Console`, `ConsoleInput`, `read_line`, `read_all`, `MemoryConsole`, `println`, `print`, `eprintln`, ... |
 | `std.fs` | [fs.txt](fs.txt) | 25 | `FsError`, `EntryKind`, `Entry`, `FsRead`, `FsWrite`, `read_text`, `write_text`, `copy`, ... |
 | `std.path` | [path.txt](path.txt) | 7 | `Path` |
 | `std.cli` | [cli.txt](cli.txt) | 28 | `ArgKind`, `Arg`, `ArgParser`, `Parsed`, `CliError`, `Cli`, `Short`, `short`, ... |
 | `std.host` | [host.txt](host.txt) | 14 | `Signal`, `Signals`, `ScriptedSignals`, `Env`, `env`, `env_as`, `env_decode`, `HostError`, ... |
-| `std.process` | [process.txt](process.txt) | 28 | `ExitCode`, `Termination`, `ProcessOutput`, `ProcessError`, `Command`, `Process`, `run`, `ScriptedProcess` |
+| `std.process` | [process.txt](process.txt) | 32 | `ExitCode`, `Termination`, `ProcessOutput`, `ProcessError`, `Command`, `Process`, `status`, `run`, ... |
 | `std.time` | [time.txt](time.txt) | 36 | `Duration`, `ms`, `s`, `minutes`, `h`, `Clock`, `now`, `monotonic`, ... |
 | `std.random` | [random.txt](random.txt) | 14 | `Random`, `fill`, `SeededRandom`, `Rng`, `rng` |
 | `std.error` | [error.txt](error.txt) | 6 | `Error`, `ErrorReport`, `report_of`, `message` |

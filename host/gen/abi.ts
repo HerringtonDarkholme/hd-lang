@@ -3,6 +3,7 @@
 // Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test
 // abi_model` rewrites it. host/wire.ts says how each value crosses.
 import {
+  boolean,
   bytes,
   data,
   handle,
@@ -220,6 +221,12 @@ export const METHODS = {
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),
+    },
+    is_terminal: {
+      wait: "never",
+      resource: null,
+      params: [ConsoleStream],
+      result: boolean,
     },
   },
   "hd:ConsoleInput": {
@@ -526,6 +533,12 @@ export const METHODS = {
       resource: "program",
       params: [Command],
       result: result(ProcessOutput, ProcessError),
+    },
+    status: {
+      wait: "may",
+      resource: "program",
+      params: [Command],
+      result: result(signed, ProcessError),
     },
   },
   "hd:Sys": {

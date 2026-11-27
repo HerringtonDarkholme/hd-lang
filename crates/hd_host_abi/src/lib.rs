@@ -141,6 +141,13 @@ pub static TABLE: &[HostTrait] = &[
                 Wait::Never,
                 None,
             ),
+            m(
+                "is_terminal",
+                &[B("ConsoleStream")],
+                B("bool"),
+                Wait::Never,
+                None,
+            ),
         ],
     },
     HostTrait {
@@ -336,13 +343,22 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Process",
         std_path: "std.process.Process",
-        methods: &[m(
-            "run",
-            &[B("Command")],
-            B("Result[ProcessOutput, ProcessError]"),
-            Wait::May,
-            Some(ResourceArg::Program),
-        )],
+        methods: &[
+            m(
+                "run",
+                &[B("Command")],
+                B("Result[ProcessOutput, ProcessError]"),
+                Wait::May,
+                Some(ResourceArg::Program),
+            ),
+            m(
+                "status",
+                &[B("Command")],
+                B("Result[i32, ProcessError]"),
+                Wait::May,
+                Some(ResourceArg::Program),
+            ),
+        ],
     },
     HostTrait {
         key: "Sys",

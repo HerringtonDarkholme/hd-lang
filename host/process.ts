@@ -3,10 +3,12 @@
 // commit or cancel an operation; completion never posts unsolicited replies.
 import { serve, notifyResult } from "./worker-control.ts";
 import type { Flag } from "./worker-control.ts";
+import { createServer } from "node:net";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { constants } from "node:os";
 import { workerData } from "node:worker_threads";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import type { MessagePort } from "node:worker_threads";
 
 interface SystemError extends Error {
@@ -32,6 +34,7 @@ interface ProcessStartRequest {
   cwd: string;
   env: NodeJS.ProcessEnv;
   input: string;
+  inherit?: boolean;
   timeout: number;
 }
 
@@ -42,7 +45,7 @@ type ProcessControlRequest =
 
 interface ProcessState {
   result: ProcessResult | null;
-  child: ChildProcessWithoutNullStreams | null;
+  child: ChildProcess | null;
   timer: NodeJS.Timeout | null;
   closed: Promise<void>;
   abort: () => void;
@@ -110,8 +113,8 @@ function windowsResult(output: readonly Buffer[], status: WindowsStatus): Proces
 }
 
 function begin(request: ProcessStartRequest): ProcessState {
-  if (process.platform === "win32") {
-    return beginWindows(request);
+  if (process.platform === "win32" || request.inherit) {
+    return beginOwnedProcess(request);
   }
   let reaped!: () => void;
   const state: ProcessState = {
@@ -140,9 +143,9 @@ function begin(request: ProcessStartRequest): ProcessState {
         throw error;
       }
     }
-    child.stdin.destroy();
-    child.stdout.destroy();
-    child.stderr.destroy();
+    child.stdin?.destroy();
+    child.stdout?.destroy();
+    child.stderr?.destroy();
   };
   state.abort = kill;
   try {
@@ -150,7 +153,7 @@ function begin(request: ProcessStartRequest): ProcessState {
       cwd: request.cwd,
       env: request.env,
       detached: detached(),
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: request.inherit ? "inherit" : ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
     state.child = child;
@@ -165,7 +168,7 @@ function begin(request: ProcessStartRequest): ProcessState {
       error ??= systemError(reason);
     };
     child.on("error", failed);
-    child.stdin.on("error", (reason) => {
+    child.stdin?.on("error", (reason) => {
       // A child that never started still reports its spawn error. A closed
       // reader drops remaining input, keeping the real output and status.
       if (!brokenInput.has(systemError(reason).code ?? "")) {
@@ -185,10 +188,10 @@ function begin(request: ProcessStartRequest): ProcessState {
         chunks.push(bytes);
       }
     };
-    child.stdout.on("data", collect(stdout, "stdout"));
-    child.stderr.on("data", collect(stderr, "stderr"));
-    child.stdout.on("error", failed);
-    child.stderr.on("error", failed);
+    child.stdout?.on("data", collect(stdout, "stdout"));
+    child.stderr?.on("data", collect(stderr, "stderr"));
+    child.stdout?.on("error", failed);
+    child.stderr?.on("error", failed);
     child.on("close", (status, signal) => {
       clearTimer(state);
       closed();
@@ -219,7 +222,7 @@ function begin(request: ProcessStartRequest): ProcessState {
       };
       expire();
     }
-    child.stdin.end(request.input);
+    child.stdin?.end(request.input);
   } catch (error) {
     kill();
     state.result = failure(error);
@@ -233,7 +236,7 @@ function begin(request: ProcessStartRequest): ProcessState {
 // The helper creates the child suspended and assigns its Job before resuming
 // it. Closing this lifetime pipe asks the helper to kill and reap the Job.
 // Terminating the helper during spawn could strand an unassigned child.
-function beginWindows(request: ProcessStartRequest): ProcessState {
+function beginOwnedProcess(request: ProcessStartRequest): ProcessState {
   let resolveClosed!: () => void;
   const state: ProcessState = {
     result: null,
@@ -248,6 +251,18 @@ function beginWindows(request: ProcessStartRequest): ProcessState {
     children.delete(state);
     resolveClosed();
   };
+  let control: import("node:stream").Writable | null = null;
+  let connect: (socket: import("node:net").Socket) => void = () => {};
+  const path =
+    process.platform === "win32"
+      ? `\\\\.\\pipe\\hd-process-${process.pid}-${randomUUID()}`
+      : `/tmp/hd-process-${process.pid}-${randomUUID()}`;
+  const server = request.inherit
+    ? createServer((socket) => {
+        server!.close();
+        connect(socket);
+      })
+    : null;
   let aborted = false;
   let settle = () => {};
   const abort = () => {
@@ -256,118 +271,163 @@ function beginWindows(request: ProcessStartRequest): ProcessState {
       return;
     }
     aborted = true;
-    state.child?.stdin.destroy();
+    control?.destroy();
     settle();
   };
   state.abort = abort;
   if (typeof request.launcher !== "string" || request.launcher.length === 0) {
-    state.result = failure(new Error("Windows Process requires an explicit processLauncher path"));
+    state.result = failure(
+      new Error(
+        (process.platform === "win32" ? "Windows Process" : "Inherited Process") +
+          " requires an explicit processLauncher path",
+      ),
+    );
     closed();
     return state;
   }
-  try {
-    const child = spawn(request.launcher, ["--process-job"], {
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    state.child = child;
-    children.add(state);
-    let error: SystemError | null = null,
-      timeout = false,
-      size = 0;
-    const output: Buffer[] = [];
-    let exited = false,
-      ended = false,
-      framed = false;
-    const failed = (reason: unknown) => {
-      error ??= systemError(reason);
-    };
-    child.on("error", (reason) =>
-      failed(new Error(`cannot start Windows processLauncher: ${reason.message}`)),
-    );
-    child.stdin.on("error", (reason) => {
-      if (!brokenInput.has(systemError(reason).code ?? "")) {
-        failed(reason);
-      }
-    });
-    child.stdout.on("error", failed);
-    child.stderr.on("error", failed);
-    // Each guest stream is independently bounded by the helper. JSON can
-    // expand one byte to six, on both streams; its framing is not guest data.
-    child.stdout.on("data", (bytes) => {
-      size += bytes.length;
-      if (size > 12 * MAX_BUFFER + 1024) {
-        failed(new Error("Windows processLauncher output exceeds its protocol bound"));
-        abort();
-      } else {
-        output.push(bytes);
-        framed ||= bytes.includes(10);
-        settle();
-      }
-    });
-    child.stderr.resume();
-    settle = () => {
-      if (
-        state.result !== null ||
-        !exited ||
-        (!framed && !ended && !timeout && !error && !aborted)
-      ) {
-        return;
-      }
-      clearTimer(state);
-      try {
-        state.result = windowsResult(output, { timeout, error, aborted });
-      } catch {
-        state.result = failure(new Error("invalid Windows processLauncher result"));
-      } finally {
-        // A Windows descendant can inherit the helper's protocol handles.
-        // The framed reply already contains all guest output. After the
-        // helper exits, waiting for protocol EOF would wait for unrelated
-        // detached descendants too (including a live HTTP fixture server).
-        child.stdin.destroy();
-        child.stdout.destroy();
-        child.stderr.destroy();
-        closed();
-      }
-    };
-    child.on("exit", (status, signal) => {
-      exited = true;
-      if (status !== 0 && !aborted && !timeout) {
-        failed(new Error(`Windows processLauncher exited with ${signal ?? status}`));
-      }
-      settle();
-    });
-    child.stdout.on("end", () => {
-      ended = true;
-      settle();
-    });
-    child.on("close", () => {
-      exited = true;
-      ended = true;
-      settle();
-    });
-    // Keep stdin open after the single request; EOF is cancellation, not the
-    // end of the guest's stdin (the helper owns that separately).
-    child.stdin.write(JSON.stringify(request) + "\n");
-    if (Number.isFinite(request.timeout)) {
-      const deadline = Date.now() + request.timeout;
-      const expire = () => {
-        const left = deadline - Date.now();
-        if (left <= 0) {
-          timeout = true;
+  const launch = () => {
+    if (aborted) {
+      server?.close();
+      closed();
+      return;
+    }
+    try {
+      const child = spawn(
+        request.launcher!,
+        request.inherit ? ["--process-job", path] : ["--process-job"],
+        {
+          stdio: request.inherit ? "inherit" : ["pipe", "pipe", "pipe"],
+          windowsHide: true,
+        },
+      );
+      state.child = child;
+      control = child.stdin;
+      children.add(state);
+      let error: SystemError | null = null,
+        timeout = false,
+        size = 0;
+      const output: Buffer[] = [];
+      let exited = false,
+        ended = false,
+        framed = false;
+      const failed = (reason: unknown) => {
+        error ??= systemError(reason);
+      };
+      child.on("error", (reason) =>
+        failed(new Error(`cannot start Windows processLauncher: ${reason.message}`)),
+      );
+      child.stdin?.on("error", (reason) => {
+        if (!brokenInput.has(systemError(reason).code ?? "")) {
+          failed(reason);
+        }
+      });
+      child.stdout?.on("error", failed);
+      child.stderr?.on("error", failed);
+      // Each guest stream is independently bounded by the helper. JSON can
+      // expand one byte to six, on both streams; its framing is not guest data.
+      const collect = (bytes: Buffer) => {
+        size += bytes.length;
+        if (size > 12 * MAX_BUFFER + 1024) {
+          failed(new Error("Windows processLauncher output exceeds its protocol bound"));
           abort();
         } else {
-          state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+          output.push(bytes);
+          framed ||= bytes.includes(10);
+          settle();
         }
       };
-      expire();
+      child.stdout?.on("data", collect);
+      connect = (socket) => {
+        control = socket;
+        socket.on("error", failed);
+        socket.on("data", collect);
+        socket.on("end", () => {
+          ended = true;
+          settle();
+        });
+        if (aborted) {
+          socket.destroy();
+        } else {
+          socket.write(JSON.stringify(request) + "\n");
+        }
+      };
+      child.stderr?.resume();
+      settle = () => {
+        if (
+          state.result !== null ||
+          !exited ||
+          (!framed && !ended && !timeout && !error && !aborted)
+        ) {
+          return;
+        }
+        clearTimer(state);
+        try {
+          state.result = windowsResult(output, { timeout, error, aborted });
+        } catch {
+          state.result = failure(new Error("invalid Windows processLauncher result"));
+        } finally {
+          // A Windows descendant can inherit the helper's protocol handles.
+          // The framed reply already contains all guest output. After the
+          // helper exits, waiting for protocol EOF would wait for unrelated
+          // detached descendants too (including a live HTTP fixture server).
+          control?.destroy();
+          server?.close();
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          closed();
+        }
+      };
+      child.on("exit", (status, signal) => {
+        exited = true;
+        if (status !== 0 && !aborted && !timeout) {
+          failed(new Error(`Windows processLauncher exited with ${signal ?? status}`));
+        }
+        settle();
+      });
+      child.stdout?.on("end", () => {
+        ended = true;
+        settle();
+      });
+      child.on("close", () => {
+        exited = true;
+        if (!request.inherit || error) {
+          ended = true;
+        }
+        settle();
+      });
+      // Keep stdin open after the single request; EOF is cancellation, not the
+      // end of the guest's stdin (the helper owns that separately).
+      child.stdin?.write(JSON.stringify(request) + "\n");
+      if (Number.isFinite(request.timeout)) {
+        const deadline = Date.now() + request.timeout;
+        const expire = () => {
+          const left = deadline - Date.now();
+          if (left <= 0) {
+            timeout = true;
+            abort();
+          } else {
+            state.timer = setTimeout(expire, Math.min(left, 2_147_483_647));
+          }
+        };
+        expire();
+      }
+    } catch (reason) {
+      abort();
+      state.result = failure(reason);
+      if (!state.child) {
+        closed();
+      }
     }
-  } catch (reason) {
-    abort();
-    state.result = failure(reason);
-    if (!state.child) {
+  };
+  if (server) {
+    children.add(state);
+    server.on("error", (reason) => {
+      state.result = failure(reason);
       closed();
-    }
+    });
+    server.listen(path, launch);
+  } else {
+    launch();
   }
   return state;
 }
