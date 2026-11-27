@@ -841,6 +841,11 @@ pub enum ItemData {
     /// written declaration: `List` and `Map` (`types.coll.*`) and `Suspend`
     /// (`types.suspend`). Not a struct.
     Builtin,
+    /// A public top-level binding, `pub let NAME: T = value`
+    /// (`module.vis.pub.binding`), by its written type: an importer reads
+    /// it from the header alone. Its storage is the global its module's
+    /// init stores under the same path.
+    Binding(Ty),
 }
 
 /// Attached documentation, keyed by the relative declaration path.
@@ -1019,6 +1024,7 @@ impl Item {
             ItemData::Impl { .. } => HeadKind::Impl,
             ItemData::Alias { .. } => HeadKind::Alias,
             ItemData::Newtype(..) => HeadKind::Newtype,
+            ItemData::Binding(_) => HeadKind::Binding,
             ItemData::Method { .. } | ItemData::AssocType { .. } => return None,
         })
     }
@@ -1035,10 +1041,12 @@ pub enum HeadKind {
     Impl,
     Alias,
     Newtype,
+    /// `pub let NAME: T = value` (`module.vis.pub.binding`).
+    Binding,
 }
 
 impl HeadKind {
-    const ALL: [HeadKind; 7] = [
+    const ALL: [HeadKind; 8] = [
         HeadKind::Fn,
         HeadKind::Struct,
         HeadKind::Enum,
@@ -1046,6 +1054,7 @@ impl HeadKind {
         HeadKind::Impl,
         HeadKind::Alias,
         HeadKind::Newtype,
+        HeadKind::Binding,
     ];
     /// Names a type constructor.
     #[must_use]
@@ -2188,6 +2197,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             put_type_attrs(w, t, a)?;
         }
         ItemData::Builtin => w.u8(9),
+        ItemData::Binding(ty) => {
+            w.u8(10);
+            w.u32(t.ty(*ty)?);
+        }
     }
     Ok(())
 }
@@ -2329,6 +2342,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         }
         8 => ItemData::Newtype(t.ty(r.u32())?, get_type_attrs(r, t)?),
         9 => ItemData::Builtin,
+        10 => ItemData::Binding(t.ty(r.u32())?),
         _ => return None,
     };
     Some(Item {
@@ -2973,7 +2987,9 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
             tys.extend(assoc.iter().map(|a| a.1));
         }
         ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
-        ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => tys.push(*body),
+        ItemData::Alias { body, .. } | ItemData::Newtype(body, _) | ItemData::Binding(body) => {
+            tys.push(*body);
+        }
         ItemData::Builtin => {}
     }
 }

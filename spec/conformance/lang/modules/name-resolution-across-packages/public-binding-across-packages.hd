@@ -1,0 +1,14 @@
+# fixture-package-role: root-application
+# test: a module of another package reads a public binding by the type its interface carries
+# Spec 10 Public Bindings: module.vis.pub.binding.type. dep.models declares GUEST.
+use dep.models.{GUEST, User}
+
+fn greeting(user: User) -> string:
+    "hello, ${user.name}"
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the dependency's binding"):
+        assert_equal(greeting(GUEST), "hello, guest", reason="GUEST is a User")
+        assert_equal(GUEST.name, "guest", reason="a field of the binding")

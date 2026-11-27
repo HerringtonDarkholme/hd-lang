@@ -206,7 +206,7 @@ impl Ck<'_, '_> {
                     Some(PathOwner::Type(self.ctor(def, &explicit, n)))
                 }
                 // A function's, and a name with no item kind, is a value.
-                Some(HeadKind::Fn | HeadKind::Impl) | None => None,
+                Some(HeadKind::Fn | HeadKind::Impl | HeadKind::Binding) | None => None,
             },
             None => None,
         })

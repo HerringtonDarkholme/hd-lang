@@ -278,7 +278,7 @@ pub(crate) fn collect(
                 let mut slot = 1;
                 cx.fields(h.def, Src::child(n, SyntaxKind::Block), &mut slot, n);
             }
-            HeadKind::Newtype | HeadKind::Alias => {
+            HeadKind::Newtype | HeadKind::Alias | HeadKind::Binding => {
                 if let Some(base) = n.children().find(|c| c.kind().is_type()) {
                     let a = cx.at(n, 0, base, false);
                     cx.push(h.def, 1, a);

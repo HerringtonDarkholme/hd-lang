@@ -1,7 +1,6 @@
-# test: in a module cycle, a call that reads an imported binding before its statement is an error
+# test: in a module cycle, a binding whose statement reads it through another module is an error
 # Spec 10 Public Bindings: module.vis.pub.binding.init. src/b.hd reads BASE in twice.
 # fixture-package-tree: public-binding-cycle/src/a.hd
 use pkg.b.{twice}
 
-early := twice() # diagnostic: top-level-read-before-initialization
-pub let BASE: i64 = 21
+pub let BASE: i64 = twice() # diagnostic: top-level-read-before-initialization

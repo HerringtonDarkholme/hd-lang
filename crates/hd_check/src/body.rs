@@ -1110,6 +1110,7 @@ pub(crate) fn new_ck<'a, 'c>(
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
     }
@@ -4777,6 +4778,9 @@ impl Ck<'_, '_> {
                         .map(crate::init::Global::binding)
                         .or_else(|| init.earlier.get(&name).copied())
                 };
+                if self.find_local(name).is_none() && self.imported_write(name, lhs) {
+                    return Ok(());
+                }
                 if self.find_local(name).is_none()
                     && let Some(crate::init::InputBinding { def, ty, short, .. }) = global
                 {

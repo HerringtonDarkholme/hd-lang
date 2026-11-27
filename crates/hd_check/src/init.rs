@@ -1390,7 +1390,10 @@ impl Ck<'_, '_> {
                 return GlobalRead::Error;
             }
         }
-        if own.is_none() && earlier.is_none() {
+        let imported = (own.is_none() && earlier.is_none())
+            .then(|| self.imported_binding(name))
+            .flatten();
+        if own.is_none() && earlier.is_none() && imported.is_none() {
             return GlobalRead::Other;
         }
         // A template body names no top-level binding
@@ -1404,6 +1407,14 @@ impl Ck<'_, '_> {
             return GlobalRead::Error;
         }
         let Some(g) = own else {
+            // Another module's public binding, of its written type
+            // (`module.vis.pub.binding.uses`). Its module's statement
+            // initializes it: the read joins the cycle's read set
+            // (`module.init.cycle.dependency`).
+            if let Some((def, ty)) = imported {
+                self.fact_read(def);
+                return GlobalRead::Binding(def, ty);
+            }
             // An earlier REPL input's binding (`cli.repl.declarations.bindings`)
             // is initialized already: any statement or body sees it, and
             // reading it orders nothing in this module's initialization.
@@ -1445,6 +1456,74 @@ impl Ck<'_, '_> {
             self.read_poison_name = true;
         }
         GlobalRead::Binding(g.def, g.ty)
+    }
+
+    /// The public binding of another module that `name` names here, by
+    /// `use` or `pub use` (`module.vis.pub.binding.uses`): its item and
+    /// the type its header writes. A local declaration of that name hides
+    /// it; the module's own binding is `ModuleInit::globals`'. One probe
+    /// of the scope and one of the items.
+    pub(crate) fn imported_binding(&self, name: Symbol) -> Option<(DefId, Ty)> {
+        if self.cx.locals.at(name, self.at).is_some() {
+            return None;
+        }
+        let scope = self.cx.scope_at(self.at);
+        let row = *scope.index.get(&name)? as usize;
+        let b = scope.binding[row];
+        if b.kind != hd_resolve::BindingKind::Item || scope.origin[row] == hd_resolve::Origin::Own {
+            return None;
+        }
+        let def = DefId::from_raw(b.value);
+        match self.cx.lookup.item(def)?.data {
+            ItemData::Binding(ty) => Some((def, ty)),
+            _ => None,
+        }
+    }
+
+    /// The public binding `def` of type `ty`, which a module path names
+    /// (`codes.EXIT_OK`, `module.vis.pub.binding.uses`): another module's
+    /// reads its global, as an imported name does. The module's own
+    /// binding reaches here only where its name is not visible, such as
+    /// its own initializer, which names an unknown binding.
+    pub(crate) fn binding_by_path(
+        &mut self,
+        def: DefId,
+        ty: Ty,
+        name: &str,
+        n: NodeRef<'_>,
+    ) -> (Ref, Ty) {
+        let sym = self.cx.names.syms.intern(name);
+        let scope = self.cx.scope_at(self.at);
+        let own = scope.index.get(&sym).is_some_and(|&row| {
+            scope.origin[row as usize] == hd_resolve::Origin::Own
+                && scope.binding[row as usize].value == def.raw()
+        });
+        if own {
+            self.unknown_name(name, n, crate::call::NameUse::Value);
+            return (Ref(NONE), Ty::POISON);
+        }
+        self.fact_read(def);
+        (self.b.read_global(def, ty, n.index()), ty)
+    }
+
+    /// Reports a write to `name` when it is another module's public
+    /// binding, which only its module writes
+    /// (`module.vis.pub.binding.read-only`); whether it is one.
+    pub(crate) fn imported_write(&mut self, name: Symbol, at: NodeRef<'_>) -> bool {
+        let own = {
+            let init = self.cx.init.borrow();
+            init.globals.contains_key(&name) || init.earlier.contains_key(&name)
+        };
+        let Some((def, _)) = (!own).then(|| self.imported_binding(name)).flatten() else {
+            return false;
+        };
+        let msg = format!(
+            "`{}` is a public binding of `{}`, which only its module writes; call a function of that module that changes it",
+            self.cx.names.text(name),
+            self.cx.names.module_of(def)
+        );
+        self.err(Code::NotWritable, at, &msg);
+        true
     }
 
     /// Records a call or reference of a same-module function. A call of a

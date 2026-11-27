@@ -915,13 +915,23 @@ impl Ck<'_, '_> {
     }
 
     /// A top-level binding named `s`: its own module's, else an earlier
-    /// REPL input's.
+    /// REPL input's, else another module's public binding, which is
+    /// read-only here (`module.vis.pub.binding.read-only`).
     pub(crate) fn global_binding(&self, s: Symbol) -> Option<crate::init::InputBinding> {
         let init = self.cx.init.borrow();
         init.globals
             .get(&s)
             .map(crate::init::Global::binding)
             .or_else(|| init.earlier.get(&s).copied())
+            .or_else(|| {
+                let (def, ty) = self.imported_binding(s)?;
+                Some(crate::init::InputBinding {
+                    def,
+                    ty,
+                    short: false,
+                    mutable: false,
+                })
+            })
     }
 
     /// Whether `&mut` may refer to the place `p` (`ref.place.writable`);
@@ -933,6 +943,8 @@ impl Ck<'_, '_> {
                 let g = self.global_binding(s);
                 if g.is_some_and(|g| g.mutable) {
                     true
+                } else if self.imported_write(s, at) {
+                    false
                 } else {
                     let name = self.cx.names.text(s).to_owned();
                     let short = g.is_some_and(|g| g.short);

@@ -770,6 +770,7 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<HeadKind> {
         }
         SyntaxKind::TypeDecl => HeadKind::Newtype,
         SyntaxKind::ImplDecl => HeadKind::Impl,
+        SyntaxKind::LetStmt if src.is_pub(n) => HeadKind::Binding,
         _ => return None,
     })
 }
@@ -890,7 +891,13 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
                 test: holder,
             }
         } else {
-            let t = n.name_part(&src.parse.tokens);
+            // A public binding's name is its pattern's, which the parser
+            // builds as one name (`module.vis.pub.binding.one-name`).
+            let name_node = match kind {
+                HeadKind::Binding => n.children().next().unwrap_or(n),
+                _ => n,
+            };
+            let t = name_node.name_part(&src.parse.tokens);
             let text = src.text(t);
             Head {
                 name: src.symbol(t, names.syms),
@@ -917,7 +924,12 @@ fn item_local_heads<'t>(
     top: (NodeRef<'t>, Option<NodeRef<'t>>),
     out: &mut Vec<Head<'t>>,
 ) {
-    if matches!(
+    if h.kind == HeadKind::Binding {
+        // A public binding's statement holds its local declarations as
+        // any top-level statement does: under the module.
+        let owner = DefId::from_raw(names.paths.parent(PathId::from_raw(h.def.raw())).raw());
+        local_heads(names, src, (owner, h.node), top, out);
+    } else if matches!(
         h.kind,
         HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias
     ) {
@@ -3902,7 +3914,7 @@ impl Lower<'_, '_, '_> {
                     .add_fix(message, hd_diag::FixSafety::Exact, &[(at, prefix)]);
                 Ty::POISON
             }
-            HeadKind::Fn | HeadKind::Impl => {
+            HeadKind::Fn | HeadKind::Impl | HeadKind::Binding => {
                 let msg = format!(
                     "no type named `{}`: not a type",
                     self.names.display_name(def)
@@ -7725,6 +7737,13 @@ impl Lower<'_, '_, '_> {
                 it.generics = generics;
                 out.push(it);
             }
+            // The written type alone, which the parser requires
+            // (`module.vis.pub.binding.type`): an importer reads it from
+            // the header, as Rust's metadata carries a `pub const`'s type.
+            HeadKind::Binding => {
+                let t = self.ty_in_slot(1, Src::type_child(n), &Gen::default());
+                out.push(Item::new(h.def, h.name, h.public, ItemData::Binding(t)));
+            }
         }
         if let Some(item) = out.iter_mut().rev().find(|item| item.def == h.def) {
             self.declaration_docs(n, &mut item.docs, &[]);
@@ -9736,6 +9755,7 @@ pub fn build_unit(
                     | ItemData::Method { .. }
                     | ItemData::AssocType { .. }
                     | ItemData::Alias { .. }
+                    | ItemData::Binding(_)
                     | ItemData::Builtin => {}
                 }
             }
@@ -10256,8 +10276,13 @@ pub fn body_nodes<'t>(
                     }
                 }
             }
-            // A type declaration has no body.
-            HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype => {}
+            // A type declaration has no body; a public binding's value
+            // is its module's init statement.
+            HeadKind::Struct
+            | HeadKind::Enum
+            | HeadKind::Alias
+            | HeadKind::Newtype
+            | HeadKind::Binding => {}
         }
     }
     out

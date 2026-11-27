@@ -397,6 +397,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         | ItemData::Enum { .. }
         | ItemData::Impl { .. }
         | ItemData::Newtype(..)
+        | ItemData::Binding(_)
         | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
     env
@@ -578,7 +579,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 .map(|f| f.ty)
                 .collect(),
             ItemData::Impl { self_ty, .. } => vec![*self_ty],
-            ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => vec![*body],
+            ItemData::Alias { body, .. } | ItemData::Newtype(body, _) | ItemData::Binding(body) => {
+                vec![*body]
+            }
             ItemData::Trait(_) | ItemData::AssocType { .. } | ItemData::Builtin => vec![],
         };
         // The positions that other modules can see: every position of a
@@ -790,6 +793,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Enum { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         let ItemData::Impl {
@@ -1066,6 +1070,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         match &it.data {
@@ -1080,6 +1085,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Impl { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         for t in tys {

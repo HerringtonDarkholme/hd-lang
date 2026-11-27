@@ -910,6 +910,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                         | ItemData::AssocType { .. }
                         | ItemData::Alias { .. }
                         | ItemData::Newtype(..)
+                        | ItemData::Binding(_)
                         | ItemData::Builtin,
                     )
                     | None => {}

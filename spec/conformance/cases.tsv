@@ -7479,9 +7479,12 @@ lang/modules/public-uses-and-visibility/public-binding-import.hd	runtime	accept	
 lang/modules/public-uses-and-visibility/public-binding-reexport.hd	runtime	accept	lang/10-modules.md#r-module.vis.pub.binding.uses
 lang/modules/public-uses-and-visibility/public-binding-written-elsewhere.hd	type	reject:not-writable	lang/10-modules.md#r-module.vis.pub.binding.read-only
 lang/modules/public-uses-and-visibility/public-binding-read-before-init.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.vis.pub.binding.init
+lang/modules/public-uses-and-visibility/public-binding-cycle-order.hd	runtime	accept	lang/10-modules.md#r-module.vis.pub.binding.init
 lang/modules/public-uses-and-visibility/public-binding-mut.hd	parse	reject:pub-mutable-binding	lang/10-modules.md#r-module.vis.pub.binding.immutable
 lang/modules/public-uses-and-visibility/public-binding-short.hd	parse	reject:syntax-error	lang/10-modules.md#r-module.vis.pub.binding.one-name
 lang/modules/public-uses-and-visibility/public-binding-pattern.hd	parse	reject:syntax-error	lang/10-modules.md#r-module.vis.pub.binding.one-name
+lang/modules/public-uses-and-visibility/public-binding-untyped.hd	parse	reject:missing-binding-type	lang/10-modules.md#r-module.vis.pub.binding.type
+lang/modules/name-resolution-across-packages/public-binding-across-packages.hd	runtime	accept	lang/10-modules.md#r-module.vis.pub.binding.type
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

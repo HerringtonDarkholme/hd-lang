@@ -205,8 +205,10 @@ impl Parser<'_> {
         }
     }
 
-    /// `pub let NAME [: T] = value` (`module.vis.pub.binding`): a `LetStmt`
-    /// that `pub` opens, of one name, never `mut`, which other modules read.
+    /// `pub let NAME: T = value` (`module.vis.pub.binding`): a `LetStmt`
+    /// that `pub` opens, of one name with its written type, never `mut`,
+    /// which other modules read. The type is the header an importer
+    /// checks against, as rustc's parser requires a `const` item's.
     fn pub_let(&mut self, marker: Marker) {
         let at = self.pos() + 1;
         match self.nth(1) {
@@ -215,8 +217,14 @@ impl Parser<'_> {
                 at,
                 "a public binding cannot be 'mut': other modules only read it; expose a function that changes it",
             ),
-            Some(TokenKind::Ident | TokenKind::RawIdent)
-                if matches!(self.nth(2), Some(TokenKind::Colon | TokenKind::Eq)) => {}
+            Some(TokenKind::Ident | TokenKind::RawIdent) if self.nth(2) == Some(TokenKind::Colon) => {}
+            Some(TokenKind::Ident | TokenKind::RawIdent) if self.nth(2) == Some(TokenKind::Eq) => {
+                self.error_at(
+                    Code::MissingBindingType,
+                    at,
+                    "a public binding writes its type, which other modules read: write 'pub let NAME: T = value'",
+                );
+            }
             _ => self.error_at(
                 Code::SyntaxError,
                 at,

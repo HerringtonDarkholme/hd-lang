@@ -205,6 +205,7 @@ impl MethodIndex {
                 | ItemData::AssocType { .. }
                 | ItemData::Alias { .. }
                 | ItemData::Newtype(..)
+                | ItemData::Binding(_)
                 | ItemData::Builtin => {}
             }
         }
@@ -856,6 +857,9 @@ impl Ck<'_, '_> {
             if let ItemData::Fn(sig, _) = &item.data {
                 let sig = sig.clone();
                 return self.item_value(def, &sig, &[], want, n);
+            }
+            if let ItemData::Binding(ty) = item.data {
+                return Ok(self.binding_by_path(def, ty, name, n));
             }
             if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
@@ -4525,7 +4529,7 @@ impl Ck<'_, '_> {
                     }
                     // A function's, and a name with no item kind, is a
                     // value: its method call is checked below.
-                    Some(HeadKind::Fn | HeadKind::Impl) | None => {}
+                    Some(HeadKind::Fn | HeadKind::Impl | HeadKind::Binding) | None => {}
                 },
                 None => {}
             }

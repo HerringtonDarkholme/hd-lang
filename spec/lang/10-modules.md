@@ -2165,26 +2165,29 @@ pub struct User:
 
 ### Public Bindings
 
-A public binding is a top-level `let` binding that other modules import and read:
+A public binding is a top-level `let` binding that other modules import and read.
+Its type is written, so an importer checks its uses from the declaration alone:
 
 ```text
 # src/codes.hd
-pub let EXIT_OK = 0
+pub let EXIT_OK: i32 = 0
 pub let EXIT_USAGE: i64 = 2
 
 # src/main.hd
 use pkg.codes.{EXIT_OK, EXIT_USAGE}
 ```
 
-1. r[module.vis.pub.binding] `pub let NAME = value` and `pub let NAME: T = value` make a top-level binding available to other modules.
-2. r[module.vis.pub.binding.one-name] A public binding binds one name, with `let`. `pub` before a pattern or before `NAME := value` is an error. Error: `syntax-error`.
-3. r[module.vis.pub.binding.immutable] `pub let mut` is an error. Error: `pub-mutable-binding`.
-4. r[module.vis.pub.binding.read-only] Another module reads a public binding and never writes it. An assignment to an imported binding is an error. Error: `not-writable`.
-5. r[module.vis.pub.binding.uses] `use` and `pub use` name a public binding as they name a declaration.
-6. r[module.vis.pub.binding.init] A read of an imported binding follows [`module.init.binding`](#r-module.init.binding): its module's statement initializes it. In a module cycle, a read before that statement is an error. Error: `top-level-read-before-initialization`.
+1. r[module.vis.pub.binding] `pub let NAME: T = value` makes a top-level binding available to other modules.
+2. r[module.vis.pub.binding.type] A public binding writes its type, as every public declaration does ([`module.package.annotated`](#r-module.package.annotated)). Omitting it is an error. Error: `missing-binding-type`.
+3. r[module.vis.pub.binding.one-name] A public binding binds one name, with `let`. `pub` before a pattern or before `NAME := value` is an error. Error: `syntax-error`.
+4. r[module.vis.pub.binding.immutable] `pub let mut` is an error. Error: `pub-mutable-binding`.
+5. r[module.vis.pub.binding.read-only] Another module reads a public binding and never writes it. An assignment to an imported binding is an error. Error: `not-writable`.
+6. r[module.vis.pub.binding.uses] `use` and `pub use` name a public binding as they name a declaration.
+7. r[module.vis.pub.binding.init] A read of an imported binding follows [`module.init.binding`](#r-module.init.binding): its module's statement initializes it. In a module cycle, the read is in the reading statement's read set ([`module.init.cycle.dependency`](#r-module.init.cycle.dependency)), so that statement runs after the binding's. A binding whose statement reads it is an error. Error: `top-level-read-before-initialization`.
 
 ```text
 pub let mut count = 0     # error: pub-mutable-binding
+pub let ANSWER = 42       # error: missing-binding-type
 pub ANSWER := 42          # error: syntax-error
 pub let (lo, hi) = (0, 9) # error: syntax-error
 
@@ -2328,7 +2331,7 @@ use std.encoding.json.parse
 1. r[module.package.annotated] Every public declaration is fully annotated: its complete signature is written in source.
 2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds and variance. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
-4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
+4. r[module.package.pub-binding] A top-level binding is public only as `pub let NAME: T = value` ([Public Bindings](#public-bindings)). Another `pub` binding is an error. Error: `syntax-error`.
 5. r[module.package.template-private] A private item that a [template](14-annotations.md#r-annot.template.form) body names follows the signature rules of a public declaration.
 6. r[module.package.template-private.result] So a private function a template names must declare its result type. Omitting it is an error. Error: `missing-result-type`.
 7. r[module.package.template-private.row] Such a function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.

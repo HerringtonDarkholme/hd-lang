@@ -1,4 +1,4 @@
-# test: another module imports and reads public bindings, inferred and typed
+# test: another module imports and reads public bindings by their written types
 # Spec 10 Public Bindings: module.vis.pub.binding. The tree's src/codes.hd declares them.
 # fixture-package-tree: public-bindings/src/main.hd
 use pkg.codes.{EXIT_OK, EXIT_USAGE}

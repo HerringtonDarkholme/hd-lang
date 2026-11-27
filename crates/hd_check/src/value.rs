@@ -178,6 +178,7 @@ impl<'a> ProjectionCycles<'a> {
                                 | hd_resolve::ItemData::Method { .. }
                                 | hd_resolve::ItemData::AssocType { .. }
                                 | hd_resolve::ItemData::Alias { .. }
+                                | hd_resolve::ItemData::Binding(_)
                                 | hd_resolve::ItemData::Builtin => {}
                             }
                         }
@@ -424,8 +425,10 @@ impl Ck<'_, '_> {
                 if g.mutable {
                     return true;
                 }
-                let text = self.cx.names.text(s).to_owned();
-                self.not_writable(&text, g.short, false, at);
+                if !self.imported_write(s, at) {
+                    let text = self.cx.names.text(s).to_owned();
+                    self.not_writable(&text, g.short, false, at);
+                }
                 false
             }
             // `ref.write.field`: through `&mut` only.
@@ -700,7 +703,8 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
         | hd_resolve::ItemData::Trait(_)
         | hd_resolve::ItemData::Impl { .. }
         | hd_resolve::ItemData::Method { .. }
-        | hd_resolve::ItemData::AssocType { .. } => {}
+        | hd_resolve::ItemData::AssocType { .. }
+        | hd_resolve::ItemData::Binding(_) => {}
     }
 }
 
