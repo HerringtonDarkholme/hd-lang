@@ -1,6 +1,6 @@
 ---
 name: hd-lang
-description: Write, check, test and run hd-lang (hd) code - a statically typed, indentation-based language that compiles to WebAssembly. Names the derives and std helpers to reach for first (`@derive(Cli)` for command-line parsing, `@derive(Serialize, Deserialize)` for JSON, environment and regex decoding, `@derive(Validate)` for input rules, `@error` enums, standard fakes), the edit-check loop for the `hd` command, the rules that differ from Python and Rust, and an index of focused references - how-to pages by scenario (a command-line tool, files, configuration, an HTTP API, concurrency, shared state, project layout), syntax by topic, the standard library, testing, packages, and the diagnostics agents hit most with their fixes. Use before writing or editing any `.hd` file or `hd.toml` package, and whenever running the `hd` command.
+description: Write, check, test and run hd-lang (hd) code - a statically typed, indentation-based language that compiles to WebAssembly, with value semantics and lending (`&`, `&mut`, `box`), effects declared in each signature as requirement rows (`$ Console`) that tests swap for fakes, explicit waiting with `!` functions, errors as values (`T?`, `Result`, `?`), enums with exhaustive `match`, traits and generics, derives for routine code, and `tests:` blocks next to the code. Covers what hd is and how it differs from Python and Rust, the edit-check loop for the `hd` command, and an index of focused references - how-to pages by scenario (a command-line tool, files, configuration, an HTTP API, concurrency, shared state, project layout), syntax by topic, the standard library, testing, packages, and the diagnostics agents hit most with their fixes. Use before writing or editing any `.hd` file or `hd.toml` package, and whenever running the `hd` command.
 ---
 
 # Write hd-lang Code
@@ -31,11 +31,10 @@ disagree, the compiler is right: read its message, then `hd help` or
 
 ## Steps
 
-1. **Read** before writing. Check [Derive First](#derive-first): hd
-   derives most parsers, codecs and checks. When the task matches a
-   scenario under [How to](#how-to-by-scenario), start from that page: it
-   is a complete, tested program to adapt. Otherwise open the page for the
-   topic.
+1. **Read** before writing. Skim [What hd Is](#what-hd-is) if hd is new
+   to you. When the task matches a scenario under [How to](#how-to-by-scenario),
+   start from that page: it is a complete, tested program to adapt.
+   Otherwise open the page for the topic.
 2. **Write** the code.
 3. **Check**: `hd check --format json FILE.hd`, or
    `hd check --format json --tests` inside a package. Each output line is
@@ -53,6 +52,36 @@ disagree, the compiler is right: read its message, then `hd help` or
 Two tries at most per error. When a fix does not take, stop guessing: in a
 package, `hd doc std.text.split` prints an item's signature and
 `hd doc std.text` a whole module.
+
+## What hd Is
+
+The ideas that shape every hd program, each with the page that teaches it:
+
+- **Values, lent for a call.** A struct, list, map or string is a value:
+  assigning or passing one copies it. `&x` and `&mut x` lend a variable to
+  one call, and `box(value)` makes a shared, reference-counted object.
+  There is no tracing garbage collector and no null
+  ([references](references/language/references.md)).
+- **Effects are in the signature.** What a function needs from outside
+  (printing, files, the clock, the network) is its row after `$`:
+  `fn save() -> void $ FsWrite`. A package grants them in `hd.toml`, and a
+  test swaps them for fakes with `$.with`
+  ([requirements](references/language/requirements.md)).
+- **Waiting is explicit.** A function that waits is named with `!` and
+  called with `!`. `join!` and `race!` wait for several things at once
+  ([suspension](references/language/suspension.md)).
+- **Errors are values.** `T?` for maybe-absent, `Result[T, E]` for
+  failure, `?` to pass an error up, and `@error` enums for error types
+  ([errors](references/language/errors.md)).
+- **Data first.** Structs, enums whose variants carry data, and
+  exhaustive `match`. Traits and generics for shared behavior, `dyn` for
+  trait values ([data](references/language/data.md),
+  [traits](references/language/traits.md)).
+- **Routine code is derived.** `@derive` writes equality, hashing, debug
+  text, JSON codecs, command-line parsers and input checks from a type's
+  fields ([traits](references/language/traits.md#derived-implementations)).
+- **Tests live with the code.** A `tests:` block at the end of a file,
+  run with `hd test` ([unit-tests](references/testing/unit-tests.md)).
 
 ## One Program
 
@@ -98,28 +127,6 @@ tests:
 largest: 1200 cents
 ```
 
-## Derive First
-
-hd writes from a type's fields what other languages write by hand. Before
-hand-writing a parser, a codec, a check or a mock, use these:
-
-| Job | Write |
-| --- | --- |
-| options, subcommands, `--help` | `@derive(Cli)` on a struct or enum, then `Options::parse_args()` ([cli-tool](references/how-to/cli-tool.md)) |
-| JSON in and out | `@derive(Serialize, Deserialize)`, then `decode::[T](text)` and `encode(value)` ([host](references/std/host.md#json)) |
-| configuration from environment variables | `env_decode::[T](prefix="APP_")` over the same `Deserialize` ([configuration](references/how-to/configuration.md)) |
-| fields out of a line of text | named regex groups, then `pattern.decode::[T](line)` ([text-records](references/how-to/text-records.md)) |
-| HTTP bodies | `response.json::[T]()` and `request.set_json(value)` ([http-api](references/how-to/http-api.md)) |
-| rules on input: ranges, lengths, emails | `@derive(Validate)`, `@range(1, 99)` and friends on fields, then `value.validated()` ([configuration](references/how-to/configuration.md), [domain-model](references/how-to/domain-model.md)) |
-| `==`, ordering, hashing, debug text, defaults | `@derive(Eq, PartialOrd, Ord, Hash, Debug, Default)` ([traits](references/language/traits.md#derived-implementations)) |
-| error types, messages, conversions | an `@error` enum, `@from` on a payload, then `?` ([errors](references/language/errors.md)) |
-| test doubles for console, files, clock, HTTP, processes | `MemoryConsole`, `MemoryFs`, `ManualClock`, `ScriptedHttp`, `ScriptedProcess` with `$.with` ([fakes](references/testing/fakes.md)) |
-| table and property tests | `it_each`, and `it_prop` with `@derive(Arbitrary)` ([unit-tests](references/testing/unit-tests.md)) |
-| several waits at once, retries, deadlines | `join!`, `race!`, and `std.task` policies ([concurrent-work](references/how-to/concurrent-work.md)) |
-
-The lower-level forms (`ArgParser`, `env`, `Json` trees, `captures`) are
-for shapes these do not fit.
-
 ## Rules That Surprise
 
 Syntax:
@@ -160,6 +167,19 @@ Requirements:
 - A function that waits (input, files, timers) is named with `!`, and every
   call to it is written with `!`. Such a program's entry point is `main!`.
 - Declarations are private unless `pub`. The entry point is `pub fn main`.
+
+## Reach for Std Before Writing It
+
+| Job | Use |
+| --- | --- |
+| command-line options and `--help` | `@derive(Cli)` on an options struct ([cli-tool](references/how-to/cli-tool.md)) |
+| JSON in and out | `@derive(Serialize, Deserialize)`, `decode::[T]`, `encode` ([host](references/std/host.md#json)) |
+| `==`, ordering, hashing, debug text | `@derive(Eq, Ord, Hash, Debug)` ([traits](references/language/traits.md#derived-implementations)) |
+| counting, grouping, sorting | `counts`, `most_common`, `group_by`, `sorted_by_key` ([collections](references/std/collections.md)) |
+| test doubles | `MemoryConsole`, `MemoryFs`, `ManualClock` with `$.with` ([fakes](references/testing/fakes.md)) |
+
+Each how-to page shows the std tool for its scenario, such as `env_decode`
+for configuration and `Regex.decode` for text records.
 
 ## References
 
