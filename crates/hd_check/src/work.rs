@@ -347,7 +347,8 @@ thread_local! {
 /// key index and its probes (`crate::rows`), a trait method lookup's
 /// probes and the input types constraining const slots (`crate::call`),
 /// the impl methods a call's initialization
-/// facts reach (`crate::init`), the nodes of a scope path
+/// facts reach (`crate::init`), the function and dispatch summaries
+/// cycle initialization scans (`crate::stages`), the nodes of a scope path
 /// (`crate::dep_results`), and the body scans and per-argument windows
 /// of a call's exclusivity check (`dep_results::constraints::exclusive`). Use the driver's serial executor to measure a
 /// whole build.
