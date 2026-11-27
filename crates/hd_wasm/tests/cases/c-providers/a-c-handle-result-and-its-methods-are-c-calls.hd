@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: program
+# @c-host: main.Store
+# @helpers: hd:pkg:942554bb3c1f42a00348124ac126c5cb/open hd:pkg:bdbfc8b94b6788e3df29e90ae6e11092/next
+# A C provider's handle result (module.host.package.c-handles): the import
+# returns the handle's number, which the slot puts behind its trait value
+# as a decoded handle is; each method of the handle's trait is a C call
+# that takes the number first.
+@host
+pub trait Store:
+    fn open(&mut self, from: i32) -> *mut dyn Cursor
+
+pub trait Cursor:
+    fn next(&mut self) -> i32
+
+pub fn main() -> void $ Store + Console:
+    store := $.use(Store)
+    cursor := store.open(10)
+    println("${cursor.next()}")

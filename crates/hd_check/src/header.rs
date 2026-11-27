@@ -2511,12 +2511,28 @@ pub fn boundary(
         }
         shape(def, "host capability", &mut out);
     }
-    for &(def, package) in &c_roots {
-        if !package {
-            generic(def, "host capability", &mut out);
+    // A C-bound root, then each handle trait a checked method returns
+    // (`module.host.package.c-handles`), each checked once.
+    let mut c_seen: hd_base::HashSet<DefId> = c_roots.iter().map(|r| r.0).collect();
+    // Each entry: a trait, and for a root whether its package's marker
+    // check, not this one, reports a type parameter list.
+    let mut c_todo: Vec<(DefId, Option<bool>)> =
+        c_roots.iter().map(|&(d, p)| (d, Some(p))).collect();
+    while let Some((def, root)) = c_todo.pop() {
+        let what = if root.is_some() {
+            "host capability"
+        } else {
+            "host handle"
+        };
+        if root != Some(true) {
+            generic(def, what, &mut out);
         }
-        shape(def, "host capability", &mut out);
-        c_trait(cx, def, &mut out);
+        shape(def, what, &mut out);
+        for handle in c_trait(cx, def, &mut out) {
+            if c_seen.insert(handle) {
+                c_todo.push((handle, None));
+            }
+        }
     }
     let mut bound = queued.clone();
     let mut next = 0;
@@ -2613,9 +2629,10 @@ enum CPlace {
 ///
 /// Cost: each method once, and each signature type once; no type is
 /// walked deeper than a reference to a list of numbers.
-fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) {
+fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<DefId> {
+    let mut handles = Vec::new();
     let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
-        return;
+        return handles;
     };
     if !t.supers.is_empty() {
         out.push(Finding {
@@ -2634,6 +2651,11 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) {
         let Some(sig) = mi.sig() else {
             continue;
         };
+        if !sig.suspends
+            && let Some(handle) = c_handle(&cx.names, sig.ret)
+        {
+            handles.push(handle);
+        }
         let (param, result) = if sig.suspends {
             (CPlace::SuspendParam, CPlace::SuspendResult)
         } else {
@@ -2665,6 +2687,22 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) {
             });
         }
     }
+    handles
+}
+
+/// The trait of `t` when it is a returned host handle a C provider may
+/// return (`module.host.package.c-handles`): a reference to a trait value
+/// of a program trait, not std's.
+#[must_use]
+pub fn c_handle(names: &Names<'_>, t: Ty) -> Option<DefId> {
+    let pool = names.pool.types();
+    let TyData::Ref { inner, .. } = pool.get(t) else {
+        return None;
+    };
+    let TyData::TraitValue { def, .. } = pool.get(inner) else {
+        return None;
+    };
+    (!names.path(def).starts_with("std/")).then_some(def)
 }
 
 /// Why `t` at `place` is no row of the C value table, or `None` when it
@@ -2806,12 +2844,16 @@ pub fn c_result(
     if let Some(num) = c_num(pool, t) {
         return Ok(Ret::Num(num));
     }
+    if let Some(handle) = c_handle(names, t) {
+        let path = names.path(handle);
+        return Ok(Ret::Handle(
+            path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
+        ));
+    }
     if matches!(pool.get(t), TyData::Ref { inner, .. }
         if matches!(pool.get(inner), TyData::TraitValue { .. }))
     {
-        return Err(
-            "a C provider returns no host handle: no function table for a returned handle is defined",
-        );
+        return Err("a C provider returns a handle of a program's own trait, not of std's");
     }
     Err(
         "a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion",

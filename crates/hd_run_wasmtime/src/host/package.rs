@@ -28,10 +28,11 @@ use wasmtime::Linker;
 
 use super::reply::{bytes, handle, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
-use crate::native::c::{Library, Provider};
+use crate::native::c::{CTable, Library, Provider};
 use crate::native::c_call::{Arg, Kind, Plan};
 use crate::native::{Answer, Bindings, Dispatch, HostError, Unregistered};
 use hd_host_abi::c::{Num, Param, Ret, Table};
+use std::sync::Arc;
 
 /// A module's package host contract and the imports it describes, with
 /// the C table of each C-bound root interface (`hd_host_abi::c`).
@@ -41,6 +42,9 @@ pub(crate) struct Package {
     /// Per contract interface, its C table and each method's slot by name,
     /// or `None` for an interface that no C provider serves.
     c: Vec<Option<CInterface>>,
+    /// Each C-bound handle trait's interface, by trait name, which a C
+    /// method's handle result names (`Ret::Handle`).
+    c_handles: HashMap<String, usize>,
 }
 
 /// A C-bound root interface's table, and each method's slot index and row
@@ -71,11 +75,20 @@ impl Package {
                 }
                 Some(CInterface { table, slots })
             })
+            .collect::<Vec<_>>();
+        let c_handles = c
+            .iter()
+            .enumerate()
+            .filter_map(|(n, i)| {
+                let i = i.as_ref().filter(|i| i.table.handle)?;
+                Some((i.table.trait_name.clone(), n))
+            })
             .collect();
         Self {
             contract,
             imports,
             c,
+            c_handles,
         }
     }
 
@@ -253,9 +266,9 @@ pub(crate) fn c_preflight(
     package: Option<&Package>,
     libraries: &[Library],
     consent: &Consent,
-) -> Result<Vec<Option<Provider>>, StartError> {
+) -> Result<CBound, StartError> {
     let Some(package) = package.filter(|p| p.has_c()) else {
-        return Ok(Vec::new());
+        return Ok(CBound::default());
     };
     if !crate::native::c_call::supported() {
         return Err(refused(
@@ -264,40 +277,104 @@ pub(crate) fn c_preflight(
     }
     let by_module: HashMap<&str, &Library> =
         libraries.iter().map(|l| (l.module.as_str(), l)).collect();
-    let mut providers = Vec::with_capacity(package.c.len());
-    for (index, interface) in package.contract.interfaces.iter().enumerate() {
-        let Some(c) = package.c_interface(index) else {
-            providers.push(None);
-            continue;
-        };
-        let name = interface.identity.to_string();
-        consent
-            .package(interface)
-            .map_err(|why| refused(why.message(interface)))?;
-        let library = by_module.get(interface.module.as_str()).ok_or_else(|| {
-            refused(format!(
-                "no C provider library was selected for package host trait {name:?}"
-            ))
-        })?;
+    let interfaces = &package.contract.interfaces;
+    let mut bound = CBound {
+        providers: (0..interfaces.len()).map(|_| None).collect(),
+        handles: (0..interfaces.len()).map(|_| None).collect(),
+    };
+    // Each opened library, and the handle traits to check, each with the
+    // library of the trait that returns it, which it shares (decision 1).
+    let mut opened: HashMap<&std::path::Path, Arc<libloading::Library>> = HashMap::default();
+    let mut todo: Vec<(usize, &Library)> = Vec::new();
+    let mut queued: hd_base::HashSet<usize> = hd_base::HashSet::default();
+    let check_slots = |index: usize, table: &CTable, library: &Library, name: &str| {
+        let interface = &interfaces[index];
         if let Some(m) = interface.methods.iter().find(|m| m.suspends) {
             return Err(refused(format!(
                 "the C provider of {name:?} cannot run its suspending method `{}` yet: Wasmtime binds a C provider's suspending methods from #2388 step 5",
                 m.member
             )));
         }
-        let provider = crate::native::c::open(library, &name, &c.table).map_err(refused)?;
+        let Some(c) = package.c_interface(index) else {
+            return Ok(());
+        };
         for m in &interface.methods {
             let slot = c.slots.get(&m.name).map(|&(slot, _)| slot);
-            if slot.and_then(|slot| provider.slot(slot)).is_none() {
+            if slot.and_then(|slot| table.slot(slot)).is_none() {
                 return Err(refused(format!(
                     "the C provider `{}` of package `{}` leaves the slot of {name:?}'s method `{}` empty",
                     library.name, library.package, m.member
                 )));
             }
         }
-        providers.push(Some(provider));
+        Ok(())
+    };
+    // Roots first, in contract order; each creates its provider.
+    for (index, interface) in interfaces.iter().enumerate() {
+        let Some(c) = package.c_interface(index).filter(|_| !interface.handle) else {
+            continue;
+        };
+        let name = interface.identity.to_string();
+        consent
+            .package(interface)
+            .map_err(|why| refused(why.message(interface)))?;
+        let library = *by_module.get(interface.module.as_str()).ok_or_else(|| {
+            refused(format!(
+                "no C provider library was selected for package host trait {name:?}"
+            ))
+        })?;
+        let lib = if let Some(lib) = opened.get(library.path.as_path()) {
+            Arc::clone(lib)
+        } else {
+            let lib = crate::native::c::load(library, &name).map_err(refused)?;
+            opened.insert(library.path.as_path(), Arc::clone(&lib));
+            lib
+        };
+        let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
+        check_slots(index, &table, library, &name)?;
+        for m in &c.table.methods {
+            if let Ret::Handle(handle) = &m.result
+                && let Some(&h) = package.c_handles.get(handle)
+                && queued.insert(h)
+            {
+                todo.push((h, library));
+            }
+        }
+        bound.providers[index] =
+            Some(crate::native::c::create(table, library, &name).map_err(refused)?);
     }
-    Ok(providers)
+    // Then each handle trait a checked trait returns, once, over a
+    // worklist: one visit per handle trait and per method that returns one.
+    // A handle trait no C-bound trait returns gets no table.
+    while let Some((index, library)) = todo.pop() {
+        let Some(c) = package.c_interface(index) else {
+            continue;
+        };
+        let name = interfaces[index].identity.to_string();
+        let Some(lib) = opened.get(library.path.as_path()).cloned() else {
+            unreachable!("ruled out: a handle trait's library opened with its root")
+        };
+        let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
+        check_slots(index, &table, library, &name)?;
+        for m in &c.table.methods {
+            if let Ret::Handle(handle) = &m.result
+                && let Some(&h) = package.c_handles.get(handle)
+                && queued.insert(h)
+            {
+                todo.push((h, library));
+            }
+        }
+        bound.handles[index] = Some(table);
+    }
+    Ok(bound)
+}
+
+/// The C providers of an instance's C-bound root interfaces and the checked
+/// tables of its C-bound handle interfaces, by contract interface.
+#[derive(Default)]
+pub(crate) struct CBound {
+    pub(crate) providers: Vec<Option<Provider>>,
+    pub(crate) handles: Vec<Option<Arc<CTable>>>,
 }
 
 /// The C call kinds of a slot's parameters, `self` first, as its row of the
@@ -346,8 +423,8 @@ fn define_c(
     linker: &mut Linker<Host>,
     (m, n): (&str, &str),
     ty: wasmtime::FuncType,
-    (interface, slot, label): (usize, usize, String),
-    row: &hd_host_abi::c::Method,
+    (interface, on_handle, slot, label): (usize, bool, usize, String),
+    (row, returned): (&hd_host_abi::c::Method, Option<usize>),
 ) -> Result<(), StartError> {
     let kinds = c_kinds(row);
     let float = matches!(row.result, Ret::Num(Num::F32 | Num::F64));
@@ -357,8 +434,14 @@ fn define_c(
             crate::native::c_call::STACK_WORDS
         ))
     })?;
-    let wasm_params = kinds.len() - 1;
+    // A handle method's import takes the handle's number first.
+    let wasm_params = kinds.len() - 1 + usize::from(on_handle);
     let gives = usize::from(!matches!(row.result, Ret::Void));
+    if matches!(row.result, Ret::Handle(_)) && returned.is_none() {
+        return Err(refused(format!(
+            "{label} returns a handle whose trait has no C table in this module"
+        )));
+    }
     if ty.params().len() != wasm_params || ty.results().len() != gives {
         return Err(refused(format!(
             "the import `{m}` `{n}` of C provider method {label} has an unexpected signature"
@@ -366,24 +449,43 @@ fn define_c(
     }
     let params_of = row.params.iter().map(|(_, p)| *p).collect::<Vec<_>>();
     let result = row.result.clone();
+    // The registry's interface number of this handle trait.
+    let interface_index = u32::try_from(interface).unwrap_or(u32::MAX);
     linker
         .func_new(m, n, ty, move |mut caller, params, out| {
             let fail = |why: &str| Stop::Contract(format!("{label}: {why}"));
             let (base, size) = heap(&mut caller)?;
-            let host = caller.data();
-            let Some(provider) = host.c_providers.get(interface).and_then(Option::as_ref) else {
-                unreachable!("ruled out: c_preflight created every C-bound root's provider")
+            let int = |k: usize| params.get(k).and_then(wasmtime::Val::i32).unwrap_or(0);
+            let host = caller.data_mut();
+            // The slot and its `self`: the root's provider, or the handle
+            // object of a live number this instance issued for this trait
+            // (`native-handle-check`).
+            let (f, this) = if on_handle {
+                let number = u32::try_from(int(0)).unwrap_or(0);
+                let handle = host
+                    .handles
+                    .host::<crate::native::c::Handle>(number, interface_index)
+                    .ok_or_else(|| {
+                        Stop::Contract(crate::native::handles::fail("call of an invalid handle").0)
+                    })?;
+                (handle.table.slot(slot), handle.this)
+            } else {
+                let Some(provider) = host.c_providers.get(interface).and_then(Option::as_ref)
+                else {
+                    unreachable!("ruled out: c_preflight created every C-bound root's provider")
+                };
+                (provider.slot(slot), provider.this())
             };
-            let Some(f) = provider.slot(slot) else {
+            let Some(f) = f else {
                 unreachable!("ruled out: c_preflight refused an empty slot of a called method")
             };
             let mut args = Vec::with_capacity(plan_len(&params_of) + 1);
-            args.push(Arg::Int(provider.this() as u64));
-            let int = |k: usize| params.get(k).and_then(wasmtime::Val::i32).unwrap_or(0);
+            args.push(Arg::Int(this as u64));
+            let int = |k: usize| int(k + usize::from(on_handle));
             // An offset `at` of `bytes` bytes of a number `align` bytes wide,
             // aligned for it and inside the heap, as an address: C may not
-            // read a misaligned number (`module.host.package.c-references`).
-            // The message is the JavaScript glue's (`c-parity`).
+            // read a misaligned number (`module.host.package.c-aligned`).
+            // The message is the JavaScript glue's.
             let place = |at: i32, bytes: u64, align: u8| -> Result<u64, Stop> {
                 let at = u64::from(at.cast_unsigned());
                 if !at.is_multiple_of(u64::from(align)) {
@@ -448,6 +550,32 @@ fn define_c(
             // returns this result; each pointer lies inside the guest heap,
             // which only this instance's thread grows (`cli.host.c.thread`).
             let raw = unsafe { crate::native::c_call::call(f, &plan, &args) };
+            if let Some(handle) = returned {
+                // A returned handle object joins the registry under its
+                // trait; its last release runs its table's `destroy`.
+                // The result register holds a pointer of this target's width.
+                let this = usize::try_from(raw).unwrap_or(0) as *mut std::ffi::c_void;
+                if this.is_null() {
+                    return Err(fail("the C provider returned no handle").into());
+                }
+                let host = caller.data_mut();
+                let Some(table) = host.c_handles.get(handle).and_then(Option::as_ref) else {
+                    unreachable!("ruled out: c_preflight checked every reachable handle table")
+                };
+                let value = crate::native::c::Handle {
+                    table: Arc::clone(table),
+                    this,
+                };
+                let index = u32::try_from(handle).unwrap_or(u32::MAX);
+                let number = host
+                    .handles
+                    .insert_host(index, Box::new(value))
+                    .map_err(|e| Stop::Contract(e.0))?;
+                if let Some(slot) = out.first_mut() {
+                    *slot = wasmtime::Val::I32(number.cast_signed());
+                }
+                return Ok(());
+            }
             if let Some(slot) = out.first_mut() {
                 *slot = c_result(&result, raw);
             }
@@ -507,7 +635,7 @@ fn c_result(result: &Ret, raw: u64) -> wasmtime::Val {
         // ruled out: module.host.package.c-types gives a method that
         // returns at once no bytes or `Result`, and `define_c` gives a
         // `void` method no result.
-        Ret::Void | Ret::Bytes | Ret::Result(_) => wasmtime::Val::I32(0),
+        Ret::Void | Ret::Bytes | Ret::Result(_) | Ret::Handle(_) => wasmtime::Val::I32(0),
     }
 }
 
@@ -545,16 +673,24 @@ pub(crate) fn define(
         let label = format!("{}.{}", declared.identity, method.member);
         // A C-bound method's import takes C arguments (`define_c`); a
         // suspending one refused the run in `c_preflight`.
-        if let Some(c) = package.c_interface(interface) {
+        if let Some(c) = package
+            .c_interface(interface)
+            .filter(|_| part != Part::Release)
+        {
             let Some(&(slot, row)) = c.slots.get(&method.name) else {
                 unreachable!("ruled out: a C table lists every method of its trait")
+            };
+            let row = &c.table.methods[row];
+            let returned = match &row.result {
+                Ret::Handle(name) => package.c_handles.get(name).copied(),
+                _ => None,
             };
             define_c(
                 &mut *linker,
                 (m, n),
                 ty,
-                (interface, slot, label),
-                &c.table.methods[row],
+                (interface, declared.handle, slot, label),
+                (row, returned),
             )?;
             defined.insert((m.to_owned(), n.to_owned()));
             continue;

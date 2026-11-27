@@ -2137,7 +2137,9 @@ fn c_vtable(
             slots.push(crate::boundary::uncalled_slot(input, method)?);
             continue;
         };
-        slots.push(crate::boundary::c_slot(input, m, key, row, method, at)?);
+        slots.push(crate::boundary::c_slot(
+            input, m, key, row, method, at, false,
+        )?);
         crate::boundary::add_package_method(
             methods,
             crate::boundary::package_method(input, method, def, def, None)?,
@@ -2526,6 +2528,7 @@ pub fn arity(helper: &Helper) -> (usize, usize) {
                 crate::boundary::CallRes::Void => 0,
                 crate::boundary::CallRes::Scalar(_) => 1,
                 crate::boundary::CallRes::Buf(ty) => ty.value_count(),
+                crate::boundary::CallRes::Handle(_) => 2,
             },
         ),
         H::HandleSlot {

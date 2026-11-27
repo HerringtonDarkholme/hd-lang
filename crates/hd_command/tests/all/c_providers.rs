@@ -169,3 +169,98 @@ fn a_library_that_cannot_serve_its_trait_refuses_the_run_at_startup() {
         text(&node.stderr)
     );
 }
+
+/// A C-bound trait returns handles of another C-bound trait from the same
+/// library (`module.host.package.c-handles`, decision 1): the header lists
+/// both tables, `hd run` calls each handle's own object and destroys it at
+/// its last release, and `hd test` on Wasmtime runs a task that reaches the
+/// library (`cli.host.c.create`).
+#[test]
+fn a_c_provider_returns_handles_and_hd_test_reaches_it() {
+    let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "c-provider-handles");
+    let dir = root.path();
+    for folder in ["src", "tasks", "tests"] {
+        std::fs::create_dir_all(dir.join(folder)).expect("folder");
+    }
+    for (path, text) in [
+        ("hd.toml", include_str!("c_providers/store_app/hd.toml")),
+        (
+            "src/store.hd",
+            include_str!("c_providers/store_app/src/store.hd"),
+        ),
+        (
+            "src/lib.hd",
+            include_str!("c_providers/store_app/src/lib.hd"),
+        ),
+        (
+            "tasks/walk.hd",
+            include_str!("c_providers/store_app/tasks/walk.hd"),
+        ),
+        (
+            "tests/walk.hd",
+            include_str!("c_providers/store_app/tests/walk.hd"),
+        ),
+    ] {
+        std::fs::write(dir.join(path), text).expect("package file");
+    }
+    let built = hd(dir, &["build"]);
+    assert!(built.status.success(), "{}", text(&built.stdout));
+    let header = std::fs::read_to_string(dir.join("native/include/store_app.h")).expect("header");
+    assert!(
+        header.contains("    void *(*open)(void *self, int32_t from);"),
+        "{header}"
+    );
+    assert!(
+        header.contains("const hd_Cursor *hd_store_Cursor(void);"),
+        "{header}"
+    );
+    assert!(
+        header.contains("NULL: a method's result makes each handle"),
+        "{header}"
+    );
+    let hash_of = |entry: &str| {
+        let line = header
+            .lines()
+            .find_map(|l| l.strip_prefix(&format!("#define HD_CONTRACT_HASH_{entry} {{ ")))
+            .expect("the contract hash macro");
+        format!("[{}]", line.trim_end_matches(" }"))
+    };
+    let source = include_str!("c_providers/store.rs")
+        .replace("__STORE__", &hash_of("hd_store_Store"))
+        .replace("__CURSOR__", &hash_of("hd_store_Cursor"));
+    let src = dir.join("store-src");
+    std::fs::create_dir_all(&src).expect("library source");
+    std::fs::write(src.join("lib.rs"), source).expect("library source");
+    let out = library(dir).with_file_name(if cfg!(windows) {
+        "hd_store.dll"
+    } else if cfg!(target_vendor = "apple") {
+        "libhd_store.dylib"
+    } else {
+        "libhd_store.so"
+    });
+    std::fs::create_dir_all(out.parent().expect("folder")).expect("native folder");
+    hd_testkit::cdylib::build(&src.join("lib.rs"), &out);
+    let run = hd(dir, &["run", "walk"]);
+    assert!(run.status.success(), "{}", text(&run.stderr));
+    assert_eq!(text(&run.stdout), "11 12 21\n");
+    let stderr = text(&run.stderr);
+    for line in [
+        "cursor 12 destroyed",
+        "cursor 21 destroyed",
+        "store destroyed",
+    ] {
+        assert!(stderr.contains(line), "{line}: {stderr}");
+    }
+    let test = hd(dir, &["test", "--engine", "wasmtime"]);
+    assert!(
+        test.status.success(),
+        "{}{}",
+        text(&test.stdout),
+        text(&test.stderr)
+    );
+    assert!(
+        text(&test.stdout).contains("1 passed"),
+        "{}",
+        text(&test.stdout)
+    );
+}

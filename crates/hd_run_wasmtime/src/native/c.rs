@@ -46,12 +46,50 @@ struct Head {
     destroy: Option<unsafe extern "C" fn(*mut c_void)>,
 }
 
-/// A created C provider of one root trait: its table, its `self`, and the
-/// library that holds both, kept open while the provider lives.
-pub(crate) struct Provider {
-    table: *const Head,
-    this: *mut c_void,
+/// A checked C table: its head and slots, and the library that holds it,
+/// kept open while the table is used. One per C-bound trait of an
+/// instance, root or returned handle (`cli.host.c.check`).
+pub(crate) struct CTable {
+    head: *const Head,
     _library: Arc<libloading::Library>,
+}
+
+// SAFETY: a table is read-only C data the library keeps for its life,
+// which the `Arc` holds; slots run only on the instance's thread
+// (`cli.host.c.thread`).
+#[allow(unsafe_code)]
+unsafe impl Send for CTable {}
+#[allow(unsafe_code)]
+unsafe impl Sync for CTable {}
+
+impl CTable {
+    /// The function pointer of slot `index`, or `None` when the library
+    /// left it null.
+    #[allow(unsafe_code)]
+    pub(crate) fn slot(&self, index: usize) -> Option<*const c_void> {
+        // SAFETY: `table` checked the hash, so the library built this table
+        // from the same C table: its head, then one pointer per slot.
+        let slot = unsafe { self.head.add(1).cast::<*const c_void>().add(index).read() };
+        (!slot.is_null()).then_some(slot)
+    }
+
+    /// Runs the table's `destroy` on `this`, when the library gave one.
+    #[allow(unsafe_code)]
+    fn destroy(&self, this: *mut c_void) {
+        // SAFETY: `table` checked the table, and each owner calls `destroy`
+        // once, as it drops (`cli.host.c.create`).
+        unsafe {
+            if let Some(destroy) = (*self.head).destroy {
+                destroy(this);
+            }
+        }
+    }
+}
+
+/// A created C provider of one root trait: its table and its `self`.
+pub(crate) struct Provider {
+    table: Arc<CTable>,
+    this: *mut c_void,
 }
 
 // SAFETY: a provider moves with its instance's store, and every slot,
@@ -66,71 +104,90 @@ impl Provider {
         self.this
     }
 
-    /// The function pointer of slot `index`, or `None` when the library
-    /// left it null.
-    #[allow(unsafe_code)]
+    /// The function pointer of slot `index`.
     pub(crate) fn slot(&self, index: usize) -> Option<*const c_void> {
-        // SAFETY: `open` checked the table's hash, so the library built it
-        // from the same C table: its head, then one pointer per slot.
-        let slot = unsafe { self.table.add(1).cast::<*const c_void>().add(index).read() };
-        (!slot.is_null()).then_some(slot)
+        self.table.slot(index)
     }
 }
 
 impl Drop for Provider {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
-        // SAFETY: `open` checked the table, and `destroy` runs once, as the
-        // provider drops with its instance (`cli.host.c.create`).
-        unsafe {
-            if let Some(destroy) = (*self.table).destroy {
-                destroy(self.this);
-            }
-        }
+        self.table.destroy(self.this);
     }
 }
 
-/// Opens the library of `library` for the trait `label`, takes its entry
-/// symbol, checks its table against `table`, and creates its provider; or
-/// says why the run is refused, naming the package, the triple and the
-/// trait.
+/// A returned C handle: its handle trait's table and the library's handle
+/// object, in the instance's handle registry; its last release drops it,
+/// which runs the table's `destroy` (`module.host.package.c-handles`).
+pub(crate) struct Handle {
+    pub(crate) table: Arc<CTable>,
+    pub(crate) this: *mut c_void,
+}
+
+// SAFETY: as [`Provider`]: a handle lives in its instance's registry and
+// is used only on the instance's thread.
 #[allow(unsafe_code)]
-pub(crate) fn open(library: &Library, label: &str, table: &Table) -> Result<Provider, String> {
-    let at = || {
-        format!(
-            "the C provider `{}` of package `{}` for target `{}` ({})",
-            library.name,
-            library.package,
-            library.triple,
-            library.path.display()
-        )
-    };
+unsafe impl Send for Handle {}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        self.table.destroy(self.this);
+    }
+}
+
+/// Opens the library of `library` once (`cli.host.c.file`); a library
+/// several traits share is one handle.
+#[allow(unsafe_code)]
+pub(crate) fn load(library: &Library, label: &str) -> Result<Arc<libloading::Library>, String> {
     // SAFETY: loading a library runs its initializers: a C provider has
     // the process's authority, which the app's root consent granted.
-    let lib = unsafe { libloading::Library::new(&library.path) }
-        .map_err(|why| format!("{} cannot be loaded for {label}: {why}", at()))?;
+    unsafe { libloading::Library::new(&library.path) }
+        .map(Arc::new)
+        .map_err(|why| format!("{} cannot be loaded for {label}: {why}", at(library)))
+}
+
+fn at(library: &Library) -> String {
+    format!(
+        "the C provider `{}` of package `{}` for target `{}` ({})",
+        library.name,
+        library.package,
+        library.triple,
+        library.path.display()
+    )
+}
+
+/// Takes `table`'s entry symbol `NAME_TRAIT` from `lib`, and checks its
+/// `abi_version` and `contract_hash` (`cli.host.c.entry`,
+/// `cli.host.c.check`); or says why the run is refused, naming the package,
+/// the triple and the trait `label`.
+#[allow(unsafe_code)]
+pub(crate) fn table(
+    lib: &Arc<libloading::Library>,
+    library: &Library,
+    label: &str,
+    table: &Table,
+) -> Result<Arc<CTable>, String> {
     let entry = format!("{}_{}", library.name, table.trait_name);
     // SAFETY: the entry symbol's type is the C header's,
     // `const hd_TRAIT *NAME_TRAIT(void)`.
     let head = unsafe {
         let symbol = lib
             .get::<unsafe extern "C" fn() -> *const Head>(entry.as_bytes())
-            .map_err(|_| format!("{} exports no `{entry}` for {label}", at()))?;
+            .map_err(|_| format!("{} exports no `{entry}` for {label}", at(library)))?;
         symbol()
     };
     if head.is_null() {
         return Err(format!(
             "{}'s `{entry}` returned no table for {label}",
-            at()
+            at(library)
         ));
     }
     // SAFETY: the entry returned a table, whose head every version shares.
-    let (version, hash, create) =
-        unsafe { ((*head).abi_version, (*head).contract_hash, (*head).create) };
+    let (version, hash) = unsafe { ((*head).abi_version, (*head).contract_hash) };
     if version != hd_host_abi::c::ABI_VERSION {
         return Err(format!(
             "{} has C ABI version {version} for {label}; this hd needs version {}",
-            at(),
+            at(library),
             hd_host_abi::c::ABI_VERSION
         ));
     }
@@ -138,19 +195,31 @@ pub(crate) fn open(library: &Library, label: &str, table: &Table) -> Result<Prov
     if hash != expected {
         return Err(format!(
             "{} was built for another version of {label}: its contract hash is {}, the module's is {}; rebuild it against the header `hd build` writes",
-            at(),
+            at(library),
             hex(&hash),
             hex(&expected)
         ));
     }
-    let create = create.ok_or_else(|| format!("{}'s table for {label} has no `create`", at()))?;
+    Ok(Arc::new(CTable {
+        head,
+        _library: Arc::clone(lib),
+    }))
+}
+
+/// Creates the provider of a root trait's checked `table` with its
+/// `create` (`cli.host.c.create`).
+#[allow(unsafe_code)]
+pub(crate) fn create(
+    table: Arc<CTable>,
+    library: &Library,
+    label: &str,
+) -> Result<Provider, String> {
+    // SAFETY: `table` checked the head.
+    let create = unsafe { (*table.head).create }
+        .ok_or_else(|| format!("{}'s table for {label} has no `create`", at(library)))?;
     // SAFETY: the table's hash matched, so `create` is the C header's.
     let this = unsafe { create() };
-    Ok(Provider {
-        table: head,
-        this,
-        _library: Arc::new(lib),
-    })
+    Ok(Provider { table, this })
 }
 
 fn hex(bytes: &[u8]) -> String {

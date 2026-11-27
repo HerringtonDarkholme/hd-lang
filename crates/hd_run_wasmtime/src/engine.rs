@@ -212,7 +212,9 @@ impl WasmtimeEngine {
         });
         let package = m.2.as_deref();
         host.natives = package::preflight(package, bindings, &host.grants.consent)?;
-        host.c_providers = package::c_preflight(package, &host.c_libraries, &host.grants.consent)?;
+        let c = package::c_preflight(package, &host.c_libraries, &host.grants.consent)?;
+        host.c_providers = c.providers;
+        host.c_handles = c.handles;
         let c_bound = host.c_providers.iter().any(Option::is_some);
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);

@@ -826,24 +826,30 @@ export function createPackageRuntime(
           ? sequence([err], ([error]) => ({ ok: false, error }))
           : sequence([ok], ([value]) => ({ ok: true, value })),
     });
+  // Issues a number for a provider's returned handle object `value` of
+  // the handle interface `namespace`: an encoded result's, or a C-bound
+  // method's, whose import returns the number itself.
+  const issueHandle = (namespace: string, value: Dynamic, tx: number[]): number => {
+    if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+      fail("expected provider handle object");
+    }
+    const methods = handleMethods.get(namespace);
+    if (!methods || methods.some((name) => typeof value[name] !== "function")) {
+      fail("returned handle is missing a declared method");
+    }
+    if (nextHandle > 0x7fffffff) {
+      fail("handle space exhausted");
+    }
+    const id = nextHandle++;
+    handles.set(id, { namespace, value: value });
+    tx.push(id);
+    return id;
+  };
   const handle = (namespace: string): RuntimeCodec =>
     codec(
       [15, namespace],
       (error, value, tx) => {
-        if ((typeof value !== "object" && typeof value !== "function") || value === null) {
-          fail("expected provider handle object");
-        }
-        const methods = handleMethods.get(namespace);
-        if (!methods || methods.some((name) => typeof value[name] !== "function")) {
-          fail("returned handle is missing a declared method");
-        }
-        if (nextHandle > 0x7fffffff) {
-          fail("handle space exhausted");
-        }
-        const id = nextHandle++;
-        handles.set(id, { namespace, value: value });
-        tx.push(id);
-        error.leb(id);
+        error.leb(issueHandle(namespace, value, tx));
       },
       () => fail("a handle cannot be passed as a data argument"),
     );
@@ -1203,6 +1209,10 @@ export function createPackageRuntime(
             }
             if (cMethod) {
               try {
+                const [kind, namespace] = cMethod.result;
+                if (kind === "handle") {
+                  return issueHandle(String(namespace), value, []);
+                }
                 return cReturn(cMethod.result, value);
               } catch (error) {
                 throw new HostContract(

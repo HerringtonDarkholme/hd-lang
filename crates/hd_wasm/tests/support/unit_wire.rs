@@ -1269,6 +1269,7 @@ fn emitted_units() {
         Edit::CTable(hd_host_abi::c::Table {
             module: "c:Disk".into(),
             trait_name: "Disk".into(),
+            handle: false,
             methods: vec![],
         }),
     ] {

@@ -970,6 +970,7 @@ pub fn c_slot(
     cm: &hd_host_abi::c::Method,
     m: DefId,
     at: AtProfile<'_>,
+    handle: bool,
 ) -> StageResult<Helper> {
     use hd_host_abi::c::{Param, Ret};
     let (pool, env) = (input.pool, input.env);
@@ -989,7 +990,15 @@ pub fn c_slot(
         debug_assert_eq!(vals.len(), 1, "a C scalar of other values");
         Ok(vals.first().copied().unwrap_or(Val::I32))
     };
-    let mut args = Vec::with_capacity(params.len());
+    let mut args = Vec::with_capacity(params.len() + 1);
+    // A handle method's slot takes the handle's number first
+    // (`Helper::HandleSlot`), which the host resolves to the C object.
+    let mut types = Vec::with_capacity(params.len() + 1);
+    if handle {
+        args.push(HostArg::Scalar(Val::I32));
+        types.push(Ty::I32);
+    }
+    types.extend(params.iter().copied());
     for (pt, (_, p)) in params.iter().zip(&cm.params) {
         match *p {
             Param::Bool | Param::Num(_) | Param::Ref { .. } => {
@@ -1007,6 +1016,17 @@ pub fn c_slot(
         let result = match cm.result {
             Ret::Void => CallRes::Void,
             Ret::Bool | Ret::Num(_) => CallRes::Scalar(one(ret)?),
+            Ret::Handle(_) => {
+                if let LTy::Handle(h) = of(input, mm, ret, Some(AtProfile { out: false, ..at }))? {
+                    CallRes::Handle(*h)
+                } else {
+                    // ruled out: module.host.package.c-handles (hd_check
+                    // header::c_result) gives a handle row only to a
+                    // returned trait value reference, a handle.
+                    debug_assert!(false, "a C handle row of another boundary type");
+                    CallRes::Void
+                }
+            }
             // ruled out: module.host.package.c-types (hd_check
             // header::c_result) gives a method that returns at once no
             // bytes or `Result` row.
@@ -1023,7 +1043,7 @@ pub fn c_slot(
             method,
             args,
             result,
-            owned: synchronous_owned_arguments(input, mm, &params)?,
+            owned: synchronous_owned_arguments(input, mm, &types)?,
         });
     }
     let b = result_type(input, mm, m, ret, Some(at))?;
@@ -1032,7 +1052,7 @@ pub fn c_slot(
     } else {
         HostRes::Buf(b)
     };
-    let (area, counts) = args_area(input, mm, &params, m)?;
+    let (area, counts) = args_area(input, mm, &types, m)?;
     Ok(Helper::HostCold {
         module,
         method,
@@ -1500,14 +1520,24 @@ fn handle_vtable_slots(
     // ruled out: a bridge's wire is a trait value (`ProgramEnv::host_bridge`).
     let trait_ = bridge.map_or(trait_, |b| input.pool.trait_value_parts(b.wire).0);
     let mut methods = Vec::new();
+    // A C provider's handle trait: its table, recorded with the module.
+    let c = package.then(|| (input.package_c)(trait_)).flatten();
     let tree = HandleTree {
         input,
         target: trait_,
         key: &tname,
         host,
         enabled,
+        c: c.as_ref()
+            .map(|t| t.methods.iter().map(|cm| (cm.name.as_str(), cm)).collect()),
     };
     let vtable = tree.build(m, package.then_some(&mut methods))?;
+    // The tree borrows the table by method name; end it before the table
+    // moves into the module.
+    drop(tree);
+    if let Some(table) = c {
+        m.edit(crate::module::Edit::CTable(table));
+    }
     if let (Some(identity), Some(module)) = (identity, module) {
         record_package_interface(
             m,
@@ -1532,6 +1562,10 @@ struct HandleTree<'a, 'i> {
     host: HandleHost<'a>,
     /// Whether called methods get host slots; otherwise every slot traps.
     enabled: bool,
+    /// The handle trait's C table, when a C provider's method returns it
+    /// (`module.host.package.c-handles`), by method name: each slot is then
+    /// a C call.
+    c: Option<hd_base::HashMap<&'a str, &'a hd_host_abi::c::Method>>,
 }
 
 /// A trait of a [`HandleTree`] whose vtable waits for its supertraits'.
@@ -1665,6 +1699,12 @@ impl HandleTree<'_, '_> {
                     hm.map(|hm| host_slot(input, m, abi.key, &Row::of(hm), method, true, None))
                         .transpose()?
                 }
+                HandleHost::Profile(at)
+                    if let Some(&row) = self.c.as_ref().and_then(|c| c.get(member)) =>
+                {
+                    let at = AtProfile { arguments, ..at };
+                    Some(c_slot(input, m, self.key, row, method, at, true)?)
+                }
                 HandleHost::Profile(at) => {
                     let at = AtProfile { arguments, ..at };
                     let name = if at.package {
@@ -1743,6 +1783,10 @@ pub enum CallRes {
     Void,
     Scalar(Val),
     Buf(LTy),
+    /// A returned handle's number, the import's result, which the slot
+    /// puts behind its trait value as a decoded handle is
+    /// ([`wrap_handle`]): a C provider's handle (`module.host.package.c-handles`).
+    Handle(LHandle),
 }
 
 impl CallRes {
@@ -1752,6 +1796,7 @@ impl CallRes {
             CallRes::Void => vec![],
             CallRes::Scalar(v) => vec![*v],
             CallRes::Buf(b) => b.vals(),
+            CallRes::Handle(_) => vec![Val::I32, Val::I32],
         }
     }
 
@@ -1759,7 +1804,7 @@ impl CallRes {
         match self {
             CallRes::Void => vec![],
             CallRes::Scalar(v) => vec![*v],
-            CallRes::Buf(_) => vec![Val::I32],
+            CallRes::Buf(_) | CallRes::Handle(_) => vec![Val::I32],
         }
     }
 }
@@ -1864,6 +1909,11 @@ pub fn host_call(
         f.i32(0);
         f.helper(Helper::Dec(b.clone()));
         f.op(I::Drop);
+    }
+    if let CallRes::Handle(h) = result {
+        let number = f.local(Val::I32);
+        f.set(number);
+        wrap_handle(&mut f, m, h, number);
     }
     if let Some(area) = owned {
         release_host_arguments(&mut f, m, area, &area.parts);
@@ -2670,38 +2720,10 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             }
         }
         LTy::Handle(h) => {
-            let (number, data) = (f.local(Val::I32), f.local(Val::I32));
+            let number = f.local(Val::I32);
             get_len(f, 0);
             f.set(number);
-            // The number owns one host binding. Aliases count this box;
-            // its last release drops the binding, never an I/O resource.
-            f.i32(4);
-            crate::rt::push_desc(
-                f,
-                h.release.as_ref().map(|module| {
-                    Sym::Helper(Helper::PackageHandleRelease {
-                        module: module.clone(),
-                    })
-                }),
-                false,
-            );
-            f.helper(Helper::New);
-            f.set(data);
-            f.get(data);
-            f.get(number);
-            f.op(I::I32Store(mem(HEAP, 0, 2)));
-            f.get(data);
-            f.push(Ins::VTable(h.vtable));
-            if let Some(wrap) = h.wrap {
-                // The reference arrives with a count of its own; the box's
-                // first goes. `wrap` owns its argument (`layout::Pass`),
-                // so it takes a count of the box of its own.
-                {
-                    own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
-                }
-                f.call(Sym::Inst(wrap));
-                release(f, m, &[data], &ADDRESS);
-            }
+            wrap_handle(f, m, h, number);
         }
         LTy::Codec(c) => {
             // The decoded string's count goes to the codec, which owns its
@@ -2719,6 +2741,42 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
         }
     }
     f.get(0);
+}
+
+/// Puts the handle `number` (a local) behind its trait value: a box of its
+/// own holding the number, whose last release drops the host's binding
+/// (never an I/O resource), beside the handle trait's vtable, and through
+/// its `host_provider` wrapper when it has one. Pushes the trait value's
+/// two values. A decoded handle and a C provider's returned one share it.
+fn wrap_handle(f: &mut Func, m: &Module, h: &LHandle, number: u32) {
+    let data = f.local(Val::I32);
+    // The number owns one host binding. Aliases count this box;
+    // its last release drops the binding, never an I/O resource.
+    f.i32(4);
+    crate::rt::push_desc(
+        f,
+        h.release.as_ref().map(|module| {
+            Sym::Helper(Helper::PackageHandleRelease {
+                module: module.clone(),
+            })
+        }),
+        false,
+    );
+    f.helper(Helper::New);
+    f.set(data);
+    f.get(data);
+    f.get(number);
+    f.op(I::I32Store(mem(HEAP, 0, 2)));
+    f.get(data);
+    f.push(Ins::VTable(h.vtable));
+    if let Some(wrap) = h.wrap {
+        // The reference arrives with a count of its own; the box's
+        // first goes. `wrap` owns its argument (`layout::Pass`),
+        // so it takes a count of the box of its own.
+        own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
+        f.call(Sym::Inst(wrap));
+        release(f, m, &[data], &ADDRESS);
+    }
 }
 
 /// [`dec_body`] of a map: its count, then each entry put into a table

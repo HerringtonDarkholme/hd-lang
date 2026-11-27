@@ -2506,8 +2506,10 @@ the `c` key of the trait's `[host]` entry:
 6. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
 7. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
 8. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
-9. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
-10. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+9. r[cli.host.c.handle] A returned handle's trait table comes from the same library's entry `NAME_TRAIT`, checked as a root trait's is, and the host calls its `destroy` once at the handle's last release.
+10. r[cli.host.c.test] `hd test` on Wasmtime binds the C providers of a program it runs by name.
+11. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+12. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
 
 > **Why.** The library's entry symbol joins its name and the trait's, so
 > the name is a C identifier.

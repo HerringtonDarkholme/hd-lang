@@ -40,6 +40,9 @@ pub(crate) struct TestProgram {
     pub(crate) wasm: Vec<u8>,
     pub(crate) grants: hd_run::Grants,
     pub(crate) providers: Vec<crate::node::HostProvider>,
+    /// The libraries of its C-bound root traits, when it runs on Wasmtime.
+    #[cfg_attr(not(feature = "wasmtime"), allow(dead_code))]
+    pub(crate) c: Vec<crate::node::CLibrary>,
     #[cfg(feature = "wasmtime")]
     pub(crate) engine: EngineKind,
 }
@@ -981,6 +984,7 @@ mod tests {
             wasm: vec![0, 97, 115, 109],
             grants: grants.clone(),
             providers: Vec::new(),
+            c: Vec::new(),
             engine: EngineKind::Wasmtime,
         }];
         let programs = TestPrograms::new(

@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# @c-host: main.Disk
+# A C function table holds the trait's own methods, in source order.
+pub trait Named:
+    fn name(&self) -> i32
+
+@host
+pub trait Disk < Named:
+    fn size(&self) -> i64

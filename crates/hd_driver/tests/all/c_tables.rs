@@ -90,6 +90,7 @@ fn check(level: hd_driver::OptLevel, build_profile: hd_driver::BuildProfile) {
     let expected = Table {
         module: interface.module.clone(),
         trait_name: "Disk".into(),
+        handle: false,
         methods: vec![
             Method {
                 name: "write".into(),

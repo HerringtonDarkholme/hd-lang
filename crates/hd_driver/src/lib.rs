@@ -589,9 +589,10 @@ pub struct Output {
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
     /// With [`Packages::c_tables`]: each root-package host trait bound to
-    /// a C provider, by its package-relative trait path, with its C table,
-    /// sorted by path. A trait whose check failed has none.
-    pub c_tables: Vec<(String, hd_host_abi::c::Table)>,
+    /// a C provider, and each handle trait such a trait returns, by its
+    /// package-relative trait path, with its library and C table, sorted
+    /// by path. A trait whose check failed has none.
+    pub c_tables: Vec<(String, String, hd_host_abi::c::Table)>,
     pub wasm: Option<Vec<u8>>,
     /// Generated glue when the default-enabled `host-artifacts` feature is on.
     pub host_artifacts: Option<HostArtifacts>,
@@ -2032,6 +2033,58 @@ impl HostPackage {
             trait_path: trait_path.to_owned(),
         })
     }
+}
+
+/// The C table of trait `def` from its checked items, which `item_of`
+/// finds by definition, and the handle traits its methods return
+/// (`module.host.package.c-handles`); `None` when a row is refused, whose
+/// error stops the build. The table's `module` is left for the caller.
+/// Cost: one item lookup per method, one visit per parameter.
+fn c_table_of_items(
+    names: &hd_resolve::Names<'_>,
+    def: DefId,
+    item_of: &dyn Fn(DefId) -> Option<hd_resolve::Item>,
+    handle: bool,
+) -> Option<(hd_host_abi::c::Table, Vec<DefId>)> {
+    let item = item_of(def)?;
+    let ItemData::Trait(t) = &item.data else {
+        return None;
+    };
+    let path = names.path(def);
+    let mut handles = Vec::new();
+    let mut methods = Vec::with_capacity(t.methods.len());
+    for &(name, m) in &t.methods {
+        let method = item_of(m)?;
+        let sig = method.sig()?;
+        let params = sig
+            .params
+            .iter()
+            .filter(|p| names.text(p.0) != "self")
+            .map(|p| {
+                let row = hd_check::header::c_param(names, p.1, sig.suspends).ok()?;
+                Some((names.text(p.0).to_owned(), row))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let result = hd_check::header::c_result(names, sig.ret, sig.suspends).ok()?;
+        if let hd_host_abi::c::Ret::Handle(_) = result {
+            handles.extend(hd_check::header::c_handle(names, sig.ret));
+        }
+        methods.push(hd_host_abi::c::Method {
+            name: names.text(name).to_owned(),
+            params,
+            result,
+            suspends: sig.suspends,
+        });
+    }
+    Some((
+        hd_host_abi::c::Table {
+            module: String::new(),
+            trait_name: path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
+            handle,
+            methods,
+        },
+        handles,
+    ))
 }
 
 /// Check source/manifest agreement on every build, including cache hits.
@@ -11763,7 +11816,7 @@ impl Run<'_> {
     ///
     /// Cost: one decode of each such module's items, then one visit per
     /// method and parameter of each C-bound trait.
-    fn c_header_tables(&self) -> Vec<(String, hd_host_abi::c::Table)> {
+    fn c_header_tables(&self) -> Vec<(String, String, hd_host_abi::c::Table)> {
         let Some(declarations) = self
             .host_packages
             .iter()
@@ -11772,12 +11825,11 @@ impl Run<'_> {
         else {
             return Vec::new();
         };
-        let bound: BTreeSet<&str> = declarations
+        let bound: BTreeMap<&str, &str> = declarations
             .providers
             .iter()
             .flatten()
-            .filter(|e| e.binds_c())
-            .map(|e| e.trait_path.as_str())
+            .filter_map(|e| Some((e.trait_path.as_str(), e.c.as_deref()?)))
             .collect();
         if bound.is_empty() {
             return Vec::new();
@@ -11816,50 +11868,56 @@ impl Run<'_> {
             };
             let by_def: HashMap<DefId, &hd_resolve::Item> =
                 items.0.iter().map(|i| (i.def, i)).collect();
+            // An item of this module, or of a root-package unit's
+            // interface: a handle trait a C method returns is public, so
+            // its unit exports it.
+            let item_of = |def: DefId| -> Option<hd_resolve::Item> {
+                if let Some(item) = by_def.get(&def) {
+                    return Some((*item).clone());
+                }
+                self.table
+                    .units
+                    .iter()
+                    .filter(|u| u.package == 0)
+                    .find_map(|u| {
+                        let iface = self.iface_of(u.id)?;
+                        let &at = iface.by_def.get(&def)?;
+                        iface.items.get(at).cloned()
+                    })
+            };
             for item in &items.0 {
-                let ItemData::Trait(t) = &item.data else {
+                let ItemData::Trait(_) = &item.data else {
                     continue;
                 };
                 let trait_name = names.path(item.def);
                 let trait_name = trait_name.rsplit(['.', '/']).next().unwrap_or("");
                 let path = format!("{prefix}{trait_name}");
-                if !bound.contains(path.as_str()) {
-                    continue;
-                }
-                let Some(identity) = self.package_host_identity(item.def) else {
+                let Some(&library) = bound.get(path.as_str()) else {
                     continue;
                 };
-                let methods = t
-                    .methods
-                    .iter()
-                    .map(|&(name, m)| {
-                        let sig = by_def.get(&m)?.sig()?;
-                        let params = sig
-                            .params
-                            .iter()
-                            .filter(|p| names.text(p.0) != "self")
-                            .map(|p| {
-                                let row =
-                                    hd_check::header::c_param(&names, p.1, sig.suspends).ok()?;
-                                Some((names.text(p.0).to_owned(), row))
-                            })
-                            .collect::<Option<Vec<_>>>()?;
-                        Some(hd_host_abi::c::Method {
-                            name: names.text(name).to_owned(),
-                            params,
-                            result: hd_check::header::c_result(&names, sig.ret, sig.suspends)
-                                .ok()?,
-                            suspends: sig.suspends,
-                        })
-                    })
-                    .collect::<Option<Vec<_>>>();
-                if let Some(methods) = methods {
+                // The root, then each handle trait its methods return
+                // (`module.host.package.c-handles`), from the same library.
+                let mut todo = vec![(item.def, false)];
+                let mut seen: HashSet<DefId> = [item.def].into_iter().collect();
+                while let Some((def, handle)) = todo.pop() {
+                    let Some(identity) = self.package_trait_identity(def).map(|(_, i)| i) else {
+                        continue;
+                    };
+                    let Some((table, handles)) = c_table_of_items(&names, def, &item_of, handle)
+                    else {
+                        continue;
+                    };
+                    for h in handles {
+                        if seen.insert(h) {
+                            todo.push((h, true));
+                        }
+                    }
                     out.push((
-                        path,
+                        identity.trait_path.clone(),
+                        library.to_owned(),
                         hd_host_abi::c::Table {
-                            module: hd_wasm::package_module(&identity, false),
-                            trait_name: trait_name.to_owned(),
-                            methods,
+                            module: hd_wasm::package_module(&identity, handle),
+                            ..table
                         },
                     ));
                 }
@@ -12094,53 +12152,93 @@ impl Run<'_> {
         Some((package, full.strip_prefix(&format!("{root}."))?.to_owned()))
     }
 
-    /// The C table of the package host trait `d` when its `[host]` entry
-    /// names a C provider: each method in declaration order, with its C
-    /// value table rows (`hd_check::header::c_param`, `c_result`, the
-    /// mapping the checker held the trait to). `None` for another trait,
-    /// and for a row the checker refused, whose error stops the build.
-    /// Cost: one visit per method and parameter.
-    fn package_c_table(
+    /// The C table of each package host trait whose `[host]` entry names a
+    /// C provider, and of each handle trait such a trait returns
+    /// (`module.host.package.c-handles`), by trait: each method in
+    /// declaration order, with its C value table rows
+    /// (`hd_check::header::c_param`, `c_result`, the mapping the checker
+    /// held the trait to). A trait with a row the checker refused has none;
+    /// its error stops the build. Cost: one pass over the host entries, then
+    /// one visit per method and parameter of each table's trait.
+    fn c_link_tables(
         &self,
         env: &dyn hd_mono::ProgramEnv,
-        d: DefId,
-    ) -> Option<hd_host_abi::c::Table> {
-        if !self.package_host_c(d) {
-            return None;
-        }
-        let identity = self.package_host_identity(d)?;
+    ) -> HashMap<DefId, hd_host_abi::c::Table> {
         let names = self.names();
         let name = |def: DefId| {
             let path = names.path(def);
             path.rsplit(['.', '/']).next().unwrap_or("").to_owned()
         };
-        let mut methods = Vec::new();
-        for m in env.trait_methods(d) {
-            let suspends = env.suspends(m);
-            let params = env.params(m)?;
-            let names_of = env.parameter_names(m).unwrap_or_default();
-            let params = params
+        let mut todo: Vec<(DefId, bool)> = Vec::new();
+        for package in &self.host_packages {
+            let root = &self.table.roots[usize::from(package.package)];
+            for entry in package
+                .declarations
                 .iter()
-                .enumerate()
-                .skip(1)
-                .map(|(k, t)| {
-                    let row = hd_check::header::c_param(&names, *t, suspends).ok()?;
-                    Some((names_of.get(k).cloned().unwrap_or_else(|| "_".into()), row))
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let result = hd_check::header::c_result(&names, env.ret(m)?, suspends).ok()?;
-            methods.push(hd_host_abi::c::Method {
-                name: name(m),
-                params,
-                result,
-                suspends,
-            });
+                .flat_map(|d| d.providers.iter().flatten())
+                .filter(|e| e.binds_c())
+            {
+                let (module, trait_name) = match entry.trait_path.rsplit_once('.') {
+                    Some((module, trait_name)) => (format!("{root}.{module}"), trait_name),
+                    None => (root.clone(), entry.trait_path.as_str()),
+                };
+                let def = names.item(&module, trait_name);
+                if self.package_host_c(def) {
+                    todo.push((def, false));
+                }
+            }
         }
-        Some(hd_host_abi::c::Table {
-            module: hd_wasm::package_module(&identity, false),
-            trait_name: name(d),
-            methods,
-        })
+        let mut out = HashMap::default();
+        while let Some((d, handle)) = todo.pop() {
+            if out.contains_key(&d) {
+                continue;
+            }
+            let Some((_, identity)) = self.package_trait_identity(d) else {
+                continue;
+            };
+            let mut methods = Vec::new();
+            let mut handles = Vec::new();
+            let built = env.trait_methods(d).into_iter().try_for_each(|m| {
+                let suspends = env.suspends(m);
+                let params = env.params(m)?;
+                let names_of = env.parameter_names(m).unwrap_or_default();
+                let params = params
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .map(|(k, t)| {
+                        let row = hd_check::header::c_param(&names, *t, suspends).ok()?;
+                        Some((names_of.get(k).cloned().unwrap_or_else(|| "_".into()), row))
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                let ret = env.ret(m)?;
+                let result = hd_check::header::c_result(&names, ret, suspends).ok()?;
+                if let hd_host_abi::c::Ret::Handle(_) = result {
+                    handles.extend(hd_check::header::c_handle(&names, ret));
+                }
+                methods.push(hd_host_abi::c::Method {
+                    name: name(m),
+                    params,
+                    result,
+                    suspends,
+                });
+                Some(())
+            });
+            if built.is_none() {
+                continue;
+            }
+            todo.extend(handles.into_iter().map(|h| (h, true)));
+            out.insert(
+                d,
+                hd_host_abi::c::Table {
+                    module: hd_wasm::package_module(&identity, handle),
+                    trait_name: name(d),
+                    handle,
+                    methods,
+                },
+            );
+        }
+        out
     }
 
     fn package_host_selectors(&self, def: DefId) -> Vec<String> {
@@ -12422,7 +12520,8 @@ impl Run<'_> {
             let package_host = |d| self.package_host_identity(d);
             let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
             let package_selectors = |d| self.package_host_selectors(d);
-            let package_c = |d| self.package_c_table(env, d);
+            let c_tables = self.c_link_tables(env);
+            let package_c = |d| c_tables.get(&d).cloned();
             let dev_units = self.dev_units(&body);
             let instances = hd_opt::whole::Instances {
                 table: &c.collected.table,

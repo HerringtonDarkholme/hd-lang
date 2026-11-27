@@ -16,7 +16,7 @@ pub(crate) type Prepared = hd_run_wasmtime::PreparedTest;
 /// The named child programs of a test run: name, module and grants. They
 /// stay typed here; only Node needs a scratch-file configuration.
 pub(crate) struct Programs {
-    pub(crate) native: Vec<(String, Vec<u8>, hd_run::Grants)>,
+    pub(crate) native: Vec<(String, Vec<u8>, hd_run::Grants, Vec<crate::node::CLibrary>)>,
     node: Option<crate::node::Programs>,
 }
 
@@ -36,11 +36,24 @@ impl Programs {
         Ok(Self {
             native: native
                 .into_iter()
-                .map(|child| (child.name, child.wasm, child.grants))
+                .map(|child| (child.name, child.wasm, child.grants, child.c))
                 .collect(),
             node,
         })
     }
+}
+
+/// The selected C libraries as the Wasmtime host takes them.
+fn libraries(c: &[crate::node::CLibrary]) -> Vec<hd_run_wasmtime::native::c::Library> {
+    c.iter()
+        .map(|l| hd_run_wasmtime::native::c::Library {
+            module: l.module.clone(),
+            path: l.path.clone(),
+            name: l.name.clone(),
+            package: l.package.clone(),
+            triple: l.triple.clone(),
+        })
+        .collect()
 }
 
 /// The code cache of this command's wasmtime engines
@@ -80,12 +93,13 @@ impl Session {
                 let mut children = programs
                     .native
                     .iter()
-                    .map(|(name, wasm, grants)| {
-                        hd_run_wasmtime::NamedProgram::compile(
+                    .map(|(name, wasm, grants, c)| {
+                        hd_run_wasmtime::NamedProgram::compile_with_c(
                             config,
                             name.clone(),
                             wasm,
                             grants.clone(),
+                            libraries(c),
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -244,16 +258,7 @@ pub(crate) fn run_program(
         .zip(host.limits.cleanup_ms)
         .map(|(interrupt, ms)| (interrupt, std::time::Duration::from_millis(ms)));
     if !c.is_empty() {
-        let libraries: Vec<hd_run_wasmtime::native::c::Library> = c
-            .iter()
-            .map(|l| hd_run_wasmtime::native::c::Library {
-                module: l.module.clone(),
-                path: l.path.clone(),
-                name: l.name.clone(),
-                package: l.package.clone(),
-                triple: l.triple.clone(),
-            })
-            .collect();
+        let libraries = libraries(c);
         let config = match image {
             hd_run::artifact::Image::Wasm(_) => config,
             hd_run::artifact::Image::Native(_) => {

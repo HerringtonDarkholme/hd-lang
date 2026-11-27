@@ -182,6 +182,8 @@ pub(crate) enum NamedCode {
         engine: Arc<WasmtimeEngine>,
         module: Arc<Module>,
         grants: Grants,
+        /// The libraries of its C-bound root traits (`crate::native::c`).
+        c: Arc<[crate::native::c::Library]>,
     },
     Command {
         program: String,
@@ -196,6 +198,19 @@ impl NamedProgram {
         wasm: &[u8],
         grants: Grants,
     ) -> Result<Self, String> {
+        Self::compile_with_c(config, name, wasm, grants, Vec::new())
+    }
+
+    /// [`NamedProgram::compile`] with `c`, the libraries the invoker
+    /// selected for the child's C-bound root traits, which each run of the
+    /// child binds before its guest starts (`cli.host.c.create`).
+    pub fn compile_with_c(
+        config: EngineConfig,
+        name: String,
+        wasm: &[u8],
+        grants: Grants,
+        c: Vec<crate::native::c::Library>,
+    ) -> Result<Self, String> {
         let engine = Arc::new(WasmtimeEngine::new(config)?);
         let module = Arc::new(
             engine
@@ -208,6 +223,7 @@ impl NamedProgram {
                 engine,
                 module,
                 grants,
+                c: Arc::from(c),
             },
         })
     }

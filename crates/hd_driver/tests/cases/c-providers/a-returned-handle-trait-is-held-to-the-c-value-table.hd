@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# @c-host: main.Disk
+# A C-bound trait may return a handle of a program trait, which is C-bound
+# too (module.host.package.c-handles): its methods take the C value table's
+# rows, and it has no supertraits. A handle from a suspending method is
+# no row.
+pub trait Base:
+    fn id(&self) -> i32
+
+pub trait File:
+    fn size(&self) -> i64
+    fn name(&self) -> string
+    fn child(&mut self) -> *mut dyn Dir
+
+pub trait Dir < Base:
+    fn count(&self) -> u32
+
+@host
+pub trait Disk:
+    fn open(&mut self, path: string) -> *mut dyn File
+    fn later!(&mut self) -> *mut dyn File
