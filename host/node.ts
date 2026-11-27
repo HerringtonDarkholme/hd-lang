@@ -813,9 +813,10 @@ function envProvider({ grant, sink, st, flush }: DynamicRecord): DynamicRecord {
 
 // Only methods that open a path can wait for a special-file peer. A
 // missing or uninspectable path stays inline and reports its ordinary error.
-// `open` stays on this thread at any file: its descriptor is the handle,
-// which the helper process that a special-file call runs in cannot share.
+// `open` of a special file leaves its descriptor with the helper child
+// that opened it (fs.ts), which makes the file's reads.
 const fileOpening = new Set([
+  "open",
   "read_bytes",
   "read_text",
   "write_bytes",
@@ -853,8 +854,49 @@ const fileKind = (path: string): "special" | number | null => {
   return st.isDirectory() ? null : "special";
 };
 
+// A special-file call the file worker started (fs.ts): pending until the
+// worker has its result. `.finish` takes the result from the worker, since
+// a dispose after the poll makes a read's `Closed`
+// (std-io.read.pending-closed), and `deliver` makes it the program's.
+const waitFile = (
+  fsClient: Dynamic,
+  { ok: operation }: { ok: number },
+  deliver: (result: Dynamic) => Dynamic = (result) => result,
+): Dynamic => {
+  let result: Dynamic = null;
+  const poll = () => {
+    const outcome = fsClient.call({ op: "wait_poll", operation });
+    if (outcome.pending) {
+      return false;
+    }
+    result = outcome.result;
+    return true;
+  };
+  return pendingOperation(
+    poll,
+    () => result,
+    () => fsClient.cancel({ op: "wait_abort", operation }),
+    () => deliver(fsClient.call({ op: "wait_finish", operation }).result),
+    (ready) => fsClient.subscribe(operation, ready),
+  );
+};
+
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
 function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
+  // An open file's handle is a number never issued twice, not its
+  // descriptor, so an alias of a disposed file is `Closed` even once the
+  // OS reuses the descriptor (std-fs.open.dispose). A regular file's
+  // descriptor is this thread's; a special file is the file worker's
+  // number for it.
+  const files = new Map<number, { fd: number } | { special: number }>();
+  let nextFile = 1;
+  const issue = (file: { fd: number } | { special: number }): Dynamic => {
+    files.set(nextFile, file);
+    return Ok(nextFile++);
+  };
+  // A special file's handle is issued when the program takes its open.
+  const openedSpecial = (opened: Dynamic): Dynamic =>
+    opened.ok ? issue({ special: opened.value }) : opened;
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.ts). A
   // special-file call is offloaded after these checks. Output is flushed
@@ -890,25 +932,8 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
           // cost: one stat per path a file-opening call names.
           const kinds = fileOpening.has(name) ? ps.map(fileKind) : [];
           if (kinds.includes("special")) {
-            const { ok: operation } = fsClient.call({ op: "wait_start", module, name, args });
-            let result: Dynamic = null;
-            const poll = () => {
-              const outcome = fsClient.call({ op: "wait_poll", operation });
-              if (outcome.pending) {
-                return false;
-              }
-              result = outcome.result;
-              return true;
-            };
-            return pendingOperation(
-              poll,
-              () => result,
-              () => fsClient.cancel({ op: "wait_abort", operation }),
-              () => {
-                fsClient.call({ op: "wait_finish", operation });
-              },
-              (ready) => fsClient.subscribe(operation, ready),
-            );
+            const started = fsClient.call({ op: "wait_start", module, name, args });
+            return waitFile(fsClient, started, name === "open" ? openedSpecial : undefined);
           }
           if (module === "hd:FsRead" && typeof kinds[0] === "number") {
             return fileOperation(module, name, [...args, kinds[0]]);
@@ -921,42 +946,47 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
   const providers = Object.fromEntries(
     Object.entries(fileOperations).map(([module, ops]) => [module, fsOps(module, ops)]),
   );
-  // An open file's handle is a number never issued twice, not its
-  // descriptor, so an alias of a disposed file is `Closed` even once the
-  // OS reuses the descriptor (std-fs.open.dispose).
-  const files = new Map<number, number>();
-  let nextFile = 1;
   const reads = providers["hd:FsRead"];
   return {
     ...providers,
     "hd:FsRead": {
       ...reads,
+      // A regular file opens inline; a special file's open is pending in
+      // the file worker, and `openedSpecial` issues its handle.
       open: (path: string) => {
         const opened = reads.open(path);
-        if (!opened.ok) {
-          return opened;
-        }
-        files.set(nextFile, opened.value);
-        return Ok(nextFile++);
+        return opened.ok === true ? issue({ fd: opened.value }) : opened;
       },
       "File.read": (file: number, max: number) => {
         flush();
-        const fd = files.get(file);
-        if (fd === undefined) {
+        const open = files.get(file);
+        if (open === undefined) {
           return Err({ tag: "Closed" });
         }
+        if ("special" in open) {
+          // std-fs.open.special-file: the read waits off this thread.
+          const started = fsClient.call({ op: "read_start", file: open.special, max });
+          return waitFile(fsClient, started);
+        }
         try {
-          return Ok(readOpen(fd, max >>> 0));
+          return Ok(readOpen(open.fd, max >>> 0));
         } catch (error) {
           return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
         }
       },
-      // `dispose!` closes an open file; disposing a closed one does nothing.
+      // `dispose!` closes an open file; disposing a closed one does
+      // nothing. A special file's pending reads answer `Closed`.
       "File.dispose": (file: number) => {
-        const fd = files.get(file);
-        if (fd !== undefined) {
-          files.delete(file);
-          closeSync(fd);
+        const open = files.get(file);
+        if (open === undefined) {
+          return;
+        }
+        files.delete(file);
+        if ("special" in open) {
+          // A release, so it runs past the run's deadline too.
+          fsClient.cancel({ op: "file_dispose", file: open.special });
+        } else {
+          closeSync(open.fd);
         }
       },
     },

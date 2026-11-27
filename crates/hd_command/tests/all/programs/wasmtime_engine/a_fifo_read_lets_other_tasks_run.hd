@@ -1,0 +1,20 @@
+use std.fs.{FsRead, open}
+use std.io.Read
+use std.path.Path
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+fn read_pipe!() -> void $ Console + FsRead:
+    using! file = open!(Path("pipe")).expect("open the FIFO")
+    println("opened")
+    bytes := file.read!(64).expect("read the FIFO")
+    println("read ${bytes.len()}")
+
+fn tick!() -> void $ Clock + Console:
+    while true:
+        sleep!(ms(20))
+        println("tick")
+
+pub fn main!() -> void $ Clock + Console + FsRead:
+    race!(read_pipe(), tick())
+    println("done")

@@ -315,6 +315,23 @@ export const readOpen = (fd: number, max: number): Uint8Array => {
   return parts.length === 1 ? parts[0]! : Buffer.concat(parts);
 };
 
+// `File.read` of a special file `fd` (std-fs.open.special-file): one
+// `readSync`, which waits for any bytes and returns those it has, at most
+// `max` and at most READ_CHUNK, or none at the end (libuv retries an
+// interrupted read). It runs on a thread of the helper child that holds
+// the file (fs.ts), as the Rust host's `read_once` runs on its blocking
+// pool. A short read is copied out, since posting a view would copy its
+// whole buffer. cost: one system call and O(min(max, READ_CHUNK)) memory.
+export const readSpecial = (fd: number, max: number): Result<Uint8Array, TaggedValue> => {
+  const chunk = new Uint8Array(Math.min(max, READ_CHUNK));
+  try {
+    const count = readSync(fd, chunk, 0, chunk.length, null);
+    return Ok(count === chunk.length ? chunk : chunk.slice(0, count));
+  } catch (error) {
+    return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
+  }
+};
+
 export const fileOperations = {
   "hd:FsRead": {
     // A file opened for reading: its descriptor, which `File.dispose`

@@ -792,6 +792,166 @@ fn disposed_files_release_their_descriptors() {
     }
 }
 
+/// `main.hd` running on `engine` with a fresh FIFO `pipe` in `dir`. The
+/// test drives the FIFO's writer from the program's standard output,
+/// line by line, so what the program printed while it waited is known.
+#[cfg(unix)]
+struct FifoRun {
+    child: std::process::Child,
+    lines: std::sync::mpsc::Receiver<String>,
+    seen: Vec<String>,
+    pipe: PathBuf,
+}
+
+#[cfg(unix)]
+impl FifoRun {
+    fn start(dir: &Path, engine: &str) -> Self {
+        let pipe = dir.join("pipe");
+        let _ = std::fs::remove_file(&pipe);
+        let made = Command::new("mkfifo").arg(&pipe).status().expect("mkfifo");
+        assert!(made.success(), "mkfifo {}", pipe.display());
+        let mut c = hd(dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit());
+        let mut child = c.spawn().expect("run hd");
+        let stdout = child.stdout.take().expect("stdout");
+        let (send, lines) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            use std::io::BufRead as _;
+            for line in std::io::BufReader::new(stdout).lines() {
+                let Ok(line) = line else { break };
+                if send.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        Self {
+            child,
+            lines,
+            seen: Vec::new(),
+            pipe,
+        }
+    }
+
+    /// The program's next line; a program that stops printing fails.
+    fn next(&mut self) -> String {
+        let line = self
+            .lines
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap_or_else(|_| panic!("no line after {:?}", self.seen));
+        self.seen.push(line.clone());
+        line
+    }
+
+    /// Reads lines up to `line`.
+    fn until(&mut self, line: &str) {
+        while self.next() != line {}
+    }
+
+    /// Opens the FIFO's write end once the program's open is reading it.
+    fn writer(&self) -> std::fs::File {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            // A write end opened without O_NONBLOCK would wait for a
+            // reader forever if the program never opened the FIFO.
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(&self.pipe)
+            {
+                Ok(file) => return file,
+                Err(error) if error.raw_os_error() == Some(libc::ENXIO) => {
+                    assert!(std::time::Instant::now() < deadline, "no reader opened");
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("open the FIFO's write end: {error}"),
+            }
+        }
+    }
+
+    /// Every line, after the program ended with status 0.
+    fn finish(mut self) -> Vec<String> {
+        while let Ok(line) = self.lines.recv_timeout(std::time::Duration::from_secs(30)) {
+            self.seen.push(line);
+        }
+        let status = self.child.wait().expect("hd status");
+        assert!(status.success(), "{status}: {:?}", self.seen);
+        std::mem::take(&mut self.seen)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for FifoRun {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// #2414 (`std-fs.special-file`): `open!` of a FIFO with no writer and a
+/// `read!` with nothing written wait off the program thread, on both
+/// engines, so a ticking task prints during each wait. The writer opens
+/// only after a tick, and writes only after another tick.
+#[cfg(unix)]
+#[test]
+fn a_fifo_read_lets_other_tasks_run() {
+    let dir = program(
+        "fifo-ticks",
+        include_str!("programs/wasmtime_engine/a_fifo_read_lets_other_tasks_run.hd"),
+    );
+    for engine in ["node", "wasmtime"] {
+        let mut run = FifoRun::start(&dir, engine);
+        assert_eq!(run.next(), "tick", "{engine}: a tick while the open waits");
+        let mut writer = run.writer();
+        run.until("opened");
+        assert_eq!(run.next(), "tick", "{engine}: a tick while the read waits");
+        writer.write_all(b"hello").expect("write the FIFO");
+        run.until("read 5");
+        drop(writer);
+        let lines = run.finish();
+        assert_eq!(lines.last().map(String::as_str), Some("done"), "{engine}");
+    }
+}
+
+/// #2421 (`std-io.read.pending-closed`): a task disposes the file while
+/// another's read of the FIFO waits; the read answers `Closed` on both
+/// engines, and the bytes written after the dispose never reach the
+/// program.
+#[cfg(unix)]
+#[test]
+fn disposing_a_fifo_answers_its_pending_read_closed() {
+    let dir = program(
+        "fifo-dispose",
+        include_str!(
+            "programs/wasmtime_engine/disposing_a_fifo_answers_its_pending_read_closed.hd"
+        ),
+    );
+    for engine in ["node", "wasmtime"] {
+        let mut run = FifoRun::start(&dir, engine);
+        let mut writer = run.writer();
+        assert_eq!(run.next(), "opened", "{engine}");
+        assert_eq!(run.next(), "disposed", "{engine}");
+        // No reader may be left, or one that is left drops these bytes.
+        let _ = writer.write_all(b"late");
+        drop(writer);
+        assert_eq!(
+            run.finish(),
+            [
+                "opened",
+                "disposed",
+                "dispose returned",
+                "read failed: the reader is closed",
+                "then: the reader is closed",
+            ],
+            "{engine}"
+        );
+    }
+}
+
 /// The existing file sample now runs on both engines.
 #[test]
 fn fs_read_is_available_on_both_engines() {

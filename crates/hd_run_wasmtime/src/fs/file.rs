@@ -8,11 +8,23 @@
 //! (`std-fs.special-file`). `File.dispose`, which a `using!` binding
 //! calls, drops the file, which closes it (`std-fs.open.dispose`); the
 //! number is dead from then on, so a later call through an alias is
-//! `Closed`. A read in flight holds the file too, so the descriptor closes
-//! when both are done.
+//! `Closed`.
+//!
+//! A special file's read is an operation the file owns in the reactor
+//! (`offload_for`), so a dispose completes every read still pending on it,
+//! or answered and not yet taken, with `Closed` and drops what the read
+//! got (`std-io.read.pending-closed`), as a socket's close does
+//! (`net::ops::dispose`). The blocking `read` itself cannot be cancelled:
+//! its thread holds the file until the OS read returns, at the writer's
+//! next bytes or its close, and the descriptor closes then. Go does the
+//! same for a FIFO on macOS, whose kqueue never reports a writer's close
+//! (golang/go#24164), and Deno and libuv read files on a blocking pool
+//! too. A readiness-driven read (Go's poller on Linux) would close the
+//! descriptor at once, but would never see a FIFO's end on macOS.
 //!
 //! Cost: one host call and one `read` system call per chunk, and
-//! O(min(max, the bytes left)) memory; nothing reads the whole file.
+//! O(min(max, the bytes left)) memory; nothing reads the whole file. A
+//! dispose is O(the instance's pending operations), as a socket's is.
 
 use std::io::Read as _;
 use std::sync::Arc;
@@ -23,7 +35,7 @@ use crate::abi::{File, FsError, Id, IoError};
 use crate::codec::{Enc, encode};
 use crate::host::offload::{finished, not_completed, pending};
 use crate::host::{Host, Ret, Stop, count_arg, int_arg};
-use crate::runtime::reactor::Done;
+use crate::runtime::reactor::{Done, Owner};
 
 /// The handle registry interface of an open file: a host number above
 /// every contract's interfaces, which count from 0.
@@ -66,10 +78,12 @@ pub(crate) fn call(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     if finish {
-        let Done::Read(read) = finished(caller, params)? else {
-            return Err(not_completed());
+        return match finished(caller, params)? {
+            Done::Read(read) => Ok(Ret::encoded(chunk(read))),
+            // The `Closed` of a read its file's dispose ended.
+            Done::Fs(closed) => Ok(Ret::encoded(closed)),
+            _ => Err(not_completed()),
         };
-        return Ok(Ret::encoded(chunk(read)));
     }
     let number = u32::try_from(int_arg(params, 0)?).unwrap_or(0);
     let host = caller.data_mut();
@@ -77,7 +91,12 @@ pub(crate) fn call(
     // one this instance never issued. Disposing it again does nothing.
     let open = host.handles.host::<Open>(number, FILE);
     if id == Id::FsReadFileDispose {
-        if open.is_some() {
+        if let Some(open) = open {
+            if open.special {
+                host.reactor.dispose_owned(owner(number), || {
+                    Done::Fs(encode(&Err::<Vec<u8>, _>(IoError::Closed)))
+                });
+            }
             host.handles
                 .release(number, FILE)
                 .map_err(|error| Stop::Contract(error.0))?;
@@ -96,11 +115,19 @@ pub(crate) fn call(
         let read = tokio::task::spawn_blocking(move || read_once(&file, max)).await;
         Done::Read(read.unwrap_or_else(|error| Err(std::io::Error::other(error.to_string()))))
     };
-    pending(host.reactor.offload(work), |error| {
-        encode(&Err::<Vec<u8>, _>(IoError::Other {
-            message: error.to_owned(),
-        }))
-    })
+    pending(
+        host.reactor.offload_for(Some(owner(number)), work),
+        |error| {
+            encode(&Err::<Vec<u8>, _>(IoError::Other {
+                message: error.to_owned(),
+            }))
+        },
+    )
+}
+
+/// The reactor owner of the reads pending on the open file `number`.
+fn owner(number: u32) -> Owner {
+    ("File", i64::from(number))
 }
 
 /// A regular file's next bytes, at most `max`: all that are left when

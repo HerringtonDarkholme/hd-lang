@@ -1,0 +1,26 @@
+use std.fs.{File, FsRead, open}
+use std.io.Read
+use std.path.Path
+use std.task.join
+use std.time.{Clock, ms, sleep}
+
+fn read_once!(file: *mut dyn File) -> string:
+    match file.read!(64):
+        .Ok(bytes) => "read ${bytes.len()}"
+        .Err(error) => "read failed: ${error}"
+
+fn dispose_soon!(file: *mut dyn File) -> string $ Clock + Console:
+    sleep!(ms(100))
+    file.dispose!()
+    println("disposed")
+    "dispose returned"
+
+pub fn main!() -> void $ Clock + Console + FsRead:
+    file := open!(Path("pipe")).expect("open the FIFO")
+    println("opened")
+    let (read, disposed) = join!(read_once(file), dispose_soon(file))
+    println(disposed)
+    println(read)
+    match file.read!(4):
+        .Ok(bytes) => println("then read ${bytes.len()}")
+        .Err(error) => println("then: ${error}")

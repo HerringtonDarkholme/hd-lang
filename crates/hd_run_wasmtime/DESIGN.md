@@ -418,6 +418,9 @@ the variant index and the path.
   stop for real
   ([`req.cancel.external-abort`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort)).
   A blocking special-file operation (a FIFO) only has its result dropped.
+  Disposing a `File` completes the reads pending on it with `Closed` the
+  same way (`std-io.read.pending-closed`), and its descriptor closes when
+  the abandoned OS read returns.
 - **Path sandbox.** Granted directories are opened once as `cap-std`
   directory handles, and every file operation resolves relative to them,
   which removes a check-then-use race on symbolic links, as the host
