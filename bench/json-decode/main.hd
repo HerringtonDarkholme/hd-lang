@@ -91,7 +91,7 @@ struct Rng:
 
 impl Rng:
     fn next(&mut self, bound: usize) -> usize:
-        self.state = self.state * 6364136223846793005 + 1442695040888963407
+        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407)
         usize((self.state >> 33) % u64(bound))
 
 # One key, its value's text, and whether the member may be absent.
