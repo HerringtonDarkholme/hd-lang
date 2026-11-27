@@ -1244,7 +1244,7 @@ export const nodeLayer = {
       const http = syncClient("./http.ts", null, reactor);
       const child = syncClient("./process.ts", "close", reactor);
       const files = syncClient("./fs.ts", "close", reactor);
-      const input = syncClient("./input.ts", null, reactor);
+      const input = syncClient("./input.ts", "close", reactor);
       const workers = workersProvider(env.module, reactor);
       // A bare Promise does not keep Node alive. Reference one idle message
       // port while the guest waits, without a polling timer or worker spin.

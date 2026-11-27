@@ -328,7 +328,13 @@ export const readSpecial = (fd: number, max: number): Result<Uint8Array, TaggedV
     const count = readSync(fd, chunk, 0, chunk.length, null);
     return Ok(count === chunk.length ? chunk : chunk.slice(0, count));
   } catch (error) {
-    return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
+    // ConsoleInput's inherited-descriptor helper also reports its OS code;
+    // the filesystem ABI continues to encode only Other.message.
+    return Err({
+      tag: "Other",
+      message: `read: ${(error as Error).message}`,
+      errno: (error as NodeJS.ErrnoException).errno,
+    });
   }
 };
 
