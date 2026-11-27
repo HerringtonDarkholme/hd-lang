@@ -37,6 +37,28 @@ fn program(points: usize, all_live: bool, depth: usize, pending: bool) -> String
     text
 }
 
+/// [`program`]'s values with no suspension, under loops whose bound is
+/// the run's argument, so the optimizer keeps every loop.
+fn looped_program(width: usize, depth: usize) -> String {
+    let mut text = String::from(
+        "use std.time.{Clock}\n\nfn step!(x: i32) -> i32 $ Clock:\n    x + 1\n\n\
+         fn run!(n: i32) -> i32 $ Clock:\n    let total = +0\n",
+    );
+    let mut indent = String::from("    ");
+    for _ in 0..depth {
+        let _ = writeln!(text, "{indent}for _ in 0..n:");
+        indent.push_str("    ");
+    }
+    for i in 0..width {
+        let _ = writeln!(text, "{indent}v{i} := step!(+{i})");
+    }
+    for i in 0..width {
+        let _ = writeln!(text, "{indent}total += v{i}");
+    }
+    text.push_str("    total\n\npub fn main!() -> void $ Console + Clock:\n    println(run!(1))\n");
+    text
+}
+
 fn compile(source: &str, target: EngineTarget, checked: bool, level: OptLevel) -> Output {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
@@ -150,6 +172,32 @@ fn resident_spill_work_is_linear_in_width_and_depth_together() {
                 // ancestor, not just the per-point scan of every live value.
                 assert!(c <= 14 * a, "{phase}: {a}, {c}");
             }
+        }
+    });
+}
+
+/// #2453: local sharing's liveness (dev) and rule 13's dead accesses
+/// (optimized) are linear in width and depth together: a loop-carried
+/// local read at an outer header is live in the inner loops' blocks,
+/// which the worklist fixed point found one nesting level per round.
+#[test]
+fn local_liveness_work_has_no_loop_depth_factor() {
+    on_worker_stack(|| {
+        let rows = [OptLevel::Dev, OptLevel::Optimized].map(|level| {
+            [2, 5, 10, 20].map(|depth| {
+                let (out, work) = hd_wasm::work::count_liveness(|| {
+                    compile(&looped_program(1000, depth), EngineTarget::V8, false, level)
+                });
+                assert!(out.wasm.is_some());
+                eprintln!("liveness {level:?}, depth={depth}: {work}");
+                work
+            })
+        });
+        for row in rows {
+            assert!(
+                row.iter().all(|&deep| deep * 10 <= row[0] * 13),
+                "liveness at 2, 5, 10 and 20 loops (dev, optimized): {rows:?}"
+            );
         }
     });
 }

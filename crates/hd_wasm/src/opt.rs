@@ -1104,14 +1104,14 @@ fn zero_rows(
     gone
 }
 
-/// The words of a dense row of `locals` bits, when a row per block of
-/// `blocks` takes at most four words per instruction of a body of `len`:
-/// storage and a pass's work linear in the body, where persistent sets
-/// pay `log2 n` nodes per access. Above it the persistent sets keep a
-/// huge body from holding `n²` facts.
-fn row_words(blocks: usize, locals: usize, len: usize) -> Option<usize> {
+/// The words of a dense row of `locals` bits, when `rows` of them (a
+/// pass's rows per block and per loop) take at most four words per
+/// instruction of a body of `len`: storage and a pass's work linear in
+/// the body, where persistent sets pay `log2 n` nodes per access. Above
+/// it the persistent sets keep a huge body from holding `n²` facts.
+fn row_words(rows: usize, locals: usize, len: usize) -> Option<usize> {
     let words = locals.div_ceil(64);
-    (blocks.checked_mul(words)? <= 4 * len).then_some(words)
+    (rows.checked_mul(words)? <= 4 * len).then_some(words)
 }
 
 /// A body's basic blocks and their edges ([`zero_edges`],
@@ -1327,42 +1327,219 @@ pub fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>)
     (point_at, starts)
 }
 
-/// The locals live into each basic block of a body, by a backward pass
-/// to a fixed point (loop backedges included). Each block's set is a
-/// persistent set ([`live_set`]) that shares every subtree its block
-/// leaves alone with the sets it was built from: `n` locals live across
-/// `n` blocks take about `n log n` nodes, not `n²` entries.
+/// The locals live into and out of each basic block of a body, exactly,
+/// in one pass with no round per level of loops ([`Live::solve`]). Each
+/// block's set is a persistent set ([`live_set`]) that shares every
+/// subtree its block leaves alone with the sets it was built from: `n`
+/// locals live across `n` blocks take about `n log n` nodes, not `n²`
+/// entries.
 ///
 /// A block is summarised once, as the textbook `UEVar` and `VarKill` sets
 /// are (Cooper and Torczon, "Engineering a Compiler", 8.6.1): the
 /// first access of each local it touches, a read putting the local in
 /// and a write taking it out. A visit then costs one path per local the
-/// block touches, not one per access, and the fixed point never walks
-/// the instructions again. Dead accesses come from each block's live-out
+/// block touches, not one per access, and the pass never walks the
+/// instructions again. Dead accesses come from each block's live-out
 /// set and the next access in the block, as LLVM's `LiveVariables`
-/// marks kills within a block. [`Live::dead_accesses`] solves the
-/// same equations on dense bit rows ([`Live::rows`]) when they fit.
+/// marks kills within a block. [`Live::dead_accesses`] runs the same
+/// pass on dense bit rows ([`Rows`]) when they fit.
 pub struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
     pub starts: Vec<usize>,
-    /// Every edge leads to a later block, so one backward pass settles.
+    /// Every edge leads to a later block: the body has no loop.
     pub forward: bool,
     pub sets: Sets,
     pub into: Vec<Set>,
-    /// What is live out of each block, as its last visit found it: at the
-    /// fixed point, the union of its successors' `into`.
-    outs: Vec<Set>,
+    /// What is live out of each block: the union of its successors'
+    /// `into`.
+    pub outs: Vec<Set>,
     /// The first access of each local block `p` touches, in
     /// `firsts[first[p]..first[p + 1]]`: the local, and whether it reads.
     first: Vec<usize>,
     firsts: Vec<(u32, bool)>,
+    /// The body's parameters and locals.
+    locals: usize,
 }
 
 impl Drop for Live {
     fn drop(&mut self) {
         crate::work::liveness(self.starts.len() + self.firsts.len() + self.sets.work());
     }
+}
+
+/// Where [`Live::solve`] keeps its sets, by slot: block `p`'s live-in
+/// set in slot `p` and its live-out set in slot `B + p`, for `B` blocks,
+/// then two per loop ([`Forest::slots`]). Persistent sets
+/// ([`Persistent`]) and dense bit rows ([`Rows`]) both keep them, so one
+/// pass serves both.
+trait Slots {
+    /// Adds slot `from`'s locals to slot `to`'s; whether `to` grew.
+    fn union(&mut self, to: usize, from: usize) -> bool;
+    fn insert(&mut self, slot: usize, l: u32);
+    fn remove(&mut self, slot: usize, l: u32);
+    fn clear(&mut self, slot: usize);
+    /// Fills empty slot `slot` with `keys`, ascending and distinct.
+    fn assign(&mut self, slot: usize, keys: &[u32]);
+    /// Puts in slot `rest` the locals of slot `a` that slot `b` lacks,
+    /// and keeps in `b` only those `a` holds too.
+    fn split(&mut self, a: usize, b: usize, rest: usize);
+}
+
+/// Persistent sets in slots: their arena, and each slot's set.
+struct Persistent {
+    sets: Sets,
+    slots: Vec<Set>,
+}
+
+impl Slots for Persistent {
+    fn union(&mut self, to: usize, from: usize) -> bool {
+        let before = self.slots[to];
+        self.slots[to] = self.sets.union(before, self.slots[from]);
+        // A union keeps a superset, so a new size is a change.
+        self.sets.len(self.slots[to]) != self.sets.len(before)
+    }
+
+    fn insert(&mut self, slot: usize, l: u32) {
+        self.slots[slot] = self.sets.insert(self.slots[slot], l);
+    }
+
+    fn remove(&mut self, slot: usize, l: u32) {
+        self.slots[slot] = self.sets.remove(self.slots[slot], l);
+    }
+
+    fn clear(&mut self, slot: usize) {
+        self.slots[slot] = Set::EMPTY;
+    }
+
+    fn assign(&mut self, slot: usize, keys: &[u32]) {
+        self.slots[slot] = self.sets.of_sorted(keys);
+    }
+
+    fn split(&mut self, a: usize, b: usize, rest: usize) {
+        let (x, y) = (self.slots[a], self.slots[b]);
+        self.slots[rest] = self.sets.subtract(x, y);
+        self.slots[b] = self.sets.intersection(x, y);
+    }
+}
+
+/// Dense bit rows in slots, `words` u64 each, as the live sets of
+/// production allocators are bit rows: an operation costs `words` or one
+/// word, with no allocation, where a persistent set pays a path of
+/// `log2 n` nodes per access. [`row_words`] admits them when they take at
+/// most four words per instruction of the body.
+struct Rows {
+    words: usize,
+    bits: Vec<u64>,
+    /// The words the operations touched.
+    work: usize,
+}
+
+impl Rows {
+    fn has(&self, slot: usize, l: u32) -> bool {
+        let l = l as usize;
+        self.bits[slot * self.words + l / 64] >> (l % 64) & 1 != 0
+    }
+
+    fn row(&mut self, slot: usize) -> &mut [u64] {
+        self.work += self.words;
+        &mut self.bits[slot * self.words..][..self.words]
+    }
+
+    fn word(&mut self, slot: usize, l: u32) -> (&mut u64, u64) {
+        self.work += 1;
+        (
+            &mut self.bits[slot * self.words + l as usize / 64],
+            1 << (l % 64),
+        )
+    }
+}
+
+impl Slots for Rows {
+    fn union(&mut self, to: usize, from: usize) -> bool {
+        let words = self.words;
+        self.work += words;
+        let mut grew = false;
+        for i in 0..words {
+            let x = self.bits[from * words + i];
+            let out = &mut self.bits[to * words + i];
+            grew |= x & !*out != 0;
+            *out |= x;
+        }
+        grew
+    }
+
+    fn insert(&mut self, slot: usize, l: u32) {
+        let (word, bit) = self.word(slot, l);
+        *word |= bit;
+    }
+
+    fn remove(&mut self, slot: usize, l: u32) {
+        let (word, bit) = self.word(slot, l);
+        *word &= !bit;
+    }
+
+    fn clear(&mut self, slot: usize) {
+        self.row(slot).fill(0);
+    }
+
+    fn assign(&mut self, slot: usize, keys: &[u32]) {
+        for &l in keys {
+            self.insert(slot, l);
+        }
+    }
+
+    fn split(&mut self, a: usize, b: usize, rest: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            let (x, y) = (self.bits[a * words + i], self.bits[b * words + i]);
+            self.bits[rest * words + i] = x & !y;
+            self.bits[b * words + i] = x & y;
+        }
+    }
+}
+
+/// No loop, in [`Forest`]'s tables.
+const NO_LOOP: usize = usize::MAX;
+
+/// The loops of a body's blocks ([`Live::forest`]): each a header and
+/// its natural loop, the blocks that reach one of its backedges without
+/// passing the header, nested as a forest.
+struct Forest {
+    /// Each loop's header block, ascending. A loop's header comes after
+    /// the headers of the loops around it, so a loop comes after them.
+    headers: Vec<usize>,
+    /// The innermost loop holding each block, or [`NO_LOOP`].
+    loop_of: Vec<usize>,
+    /// The loop around each loop, or [`NO_LOOP`].
+    parent: Vec<usize>,
+    /// Each block's predecessors: those of block `p` are
+    /// `list[first[p]..first[p + 1]]`.
+    first: Vec<usize>,
+    list: Vec<usize>,
+}
+
+impl Forest {
+    /// The slots [`Live::solve`] uses for a body of `blocks` blocks: a
+    /// live-in and a live-out set per block, and two sets per loop.
+    fn slots(&self, blocks: usize) -> usize {
+        2 * blocks + 2 * self.headers.len()
+    }
+
+    fn preds(&self, p: usize) -> &[usize] {
+        &self.list[self.first[p]..self.first[p + 1]]
+    }
+}
+
+/// The root of `x`'s tree in a union-find of loops: the outermost loop
+/// found so far that holds `x`, halving the path on the way.
+fn loop_root(rep: &mut [usize], mut x: usize) -> usize {
+    while rep[x] != x {
+        rep[x] = rep[rep[x]];
+        x = rep[x];
+    }
+    x
 }
 
 impl Live {
@@ -1372,51 +1549,293 @@ impl Live {
         Some(me)
     }
 
-    /// Runs the backward pass to its fixed point. Blocks go last to
-    /// first, so in a body that only branches forward each block's
-    /// successors are final when it is visited, and one pass settles. A
-    /// backedge can grow its target's set after the target's
-    /// predecessors were visited; then only those predecessors go again,
-    /// from a worklist, not every block of the body once more.
     fn settle(&mut self, f: &Func) {
         self.settle_with(f, || {});
     }
 
-    /// [`Self::settle`], calling `visit` at each block it visits.
+    /// Settles every block's sets ([`Self::solve`]) on persistent sets,
+    /// calling `visit` at each block a pass visits.
     pub fn settle_with(&mut self, f: &Func, mut visit: impl FnMut()) {
-        let len = f.body.len();
+        let forest = self.forest(f.body.len());
+        self.settle_in(f.body.len(), &forest, &mut visit);
+    }
+
+    fn settle_in(&mut self, len: usize, forest: &Forest, visit: &mut impl FnMut()) {
         let blocks = self.starts.len();
-        let preds = (!self.forward).then(|| self.predecessors(len));
-        // Popped last first; `queued[p]`: `p` is in `pending`.
-        let mut pending: Vec<usize> = (0..blocks).collect();
-        let mut queued = vec![true; blocks];
-        while let Some(p) = pending.pop() {
-            visit();
-            queued[p] = false;
-            let out = self.out(p, len);
-            self.outs[p] = out;
-            let mut live = out;
-            for &(l, reads) in &self.firsts[self.first[p]..self.first[p + 1]] {
-                live = if reads {
-                    self.sets.insert(live, l)
+        let mut slots = Persistent {
+            sets: std::mem::take(&mut self.sets),
+            slots: vec![Set::EMPTY; forest.slots(blocks)],
+        };
+        self.solve(len, forest, &mut slots, visit);
+        let Persistent { sets, mut slots } = slots;
+        self.sets = sets;
+        self.outs = slots.split_off(blocks);
+        self.outs.truncate(blocks);
+        self.into = slots;
+    }
+
+    /// The body's loops, found as Tarjan's reducibility test finds them
+    /// ("Testing Flow Graph Reducibility", 1974; Havlak, "Nesting of
+    /// Reducible and Irreducible Loops", 1997): headers innermost first,
+    /// a backward search from each one's backedges that stops at its
+    /// header and steps over each loop found already through a union-find
+    /// of loops. Each block joins its innermost loop once, and each loop
+    /// its parent once: `O(E α(B))` for `E` edges and `B` blocks.
+    ///
+    /// A backedge leads to a block no later than its source. Structured
+    /// Wasm is reducible, and its only backedges are branches to a
+    /// `loop`'s label, whose header holds the loop's first instruction.
+    fn forest(&self, len: usize) -> Forest {
+        let blocks = self.starts.len();
+        if self.forward {
+            return Forest {
+                headers: Vec::new(),
+                loop_of: vec![NO_LOOP; blocks],
+                parent: Vec::new(),
+                first: vec![0; blocks + 1],
+                list: Vec::new(),
+            };
+        }
+        let (first, list) = self.predecessors(len);
+        let preds = |p: usize| &list[first[p]..first[p + 1]];
+        let headers: Vec<usize> = (0..blocks)
+            .filter(|&p| preds(p).iter().any(|&q| q >= p))
+            .collect();
+        let mut loop_of = vec![NO_LOOP; blocks];
+        let mut parent = vec![NO_LOOP; headers.len()];
+        let mut rep: Vec<usize> = (0..blocks).collect();
+        let mut stack = Vec::new();
+        for (k, &h) in headers.iter().enumerate().rev() {
+            loop_of[h] = k;
+            stack.extend(preds(h).iter().copied().filter(|&q| q >= h));
+            while let Some(x) = stack.pop() {
+                let x = loop_root(&mut rep, x);
+                if x == h {
+                    continue;
+                }
+                rep[x] = h;
+                match loop_of[x] {
+                    NO_LOOP => loop_of[x] = k,
+                    inner => parent[inner] = k,
+                }
+                // A block's predecessors, or a loop's entries: its
+                // header's predecessors but its backedges.
+                stack.extend(preds(x).iter().copied().filter(|&q| q < x));
+            }
+        }
+        Forest {
+            headers,
+            loop_of,
+            parent,
+            first,
+            list,
+        }
+    }
+
+    /// The locals live into and out of each block, exactly, into
+    /// `slots`, with each block visited at most twice, and a few more
+    /// times by step 2, not once more per level of loops around it.
+    ///
+    /// A worklist fixed point (regalloc2's `compute_liveness`, a FIFO
+    /// seeded in postorder) finds a local read at an outer loop's header
+    /// live in an inner loop's blocks one level per round, so each level
+    /// walks the inner body again (#2453). The pass here settles the
+    /// headers first, as the loop-forest liveness of Brandner et al. does
+    /// ("Computing Liveness Sets for SSA-Form Programs", INRIA RR-7503,
+    /// 2011), extended to locals written inside loops:
+    ///
+    /// 1. One backward pass over the forward edges, blocks last to first,
+    ///    so each block's successors are final when it is visited: what
+    ///    is live along paths that take no backedge.
+    /// 2. Each loop, outer first, takes what the loop around it never
+    ///    writes into its header's set, which is then final, and splits
+    ///    it. What the loop never writes (`N`: no block of it writes the
+    ///    local first) is live in every block of the loop, as each
+    ///    reaches a backedge inside it: RR-7503's propagation, which
+    ///    holds there for the whole header set because an SSA value is
+    ///    never written in a loop it is live into. What the loop writes
+    ///    (`C`) is live in a block exactly when some path along forward
+    ///    edges from it to a backedge of the loop writes it nowhere
+    ///    first. Those blocks are visited from the backedges back, last
+    ///    to first, carrying `C` less each block's first writes, and the
+    ///    search stops at a block whose set does not grow: what that
+    ///    block held came from a path its predecessors' sets hold
+    ///    already, or from a header that holds it too.
+    /// 3. One more backward pass over the blocks inside loops, every
+    ///    edge: each block's successors are final when it is visited, a
+    ///    header since step 2, so each set is exact, and built from its
+    ///    successors' sets as a worklist builds them, sharing their
+    ///    nodes. A block outside every loop reaches no backedge, so step
+    ///    1 settled it.
+    ///
+    /// Exact: take a shortest path from a header `h` to a read of a
+    /// local that writes it nowhere first. If it takes no backedge, step
+    /// 1 finds it. Otherwise its first backedge leads to a header `g`
+    /// the path did not pass before (cutting the cycle would shorten
+    /// it), so `h` is in `g`'s loop and the local is live into `g`, an
+    /// outer loop's header, settled first. If `g`'s loop never writes the
+    /// local, `h` took it in with `g`'s `N`. Otherwise step 2 walks the
+    /// path from `g`'s backedge back to `h`, or stops at a block that
+    /// holds the local: through step 1 (then `h` does, along the path),
+    /// a header's `N` (then the header's loop holds `h`, which took that
+    /// `N` in, or the path enters that loop at its header, an earlier
+    /// stop), or an earlier walk, which went on to the predecessors.
+    /// Every fact a step adds is a path's, so nothing more is live.
+    ///
+    /// Cost: two visits per block in a loop and one per other block, a
+    /// union per loop and one per first
+    /// write in a loop for `C` and `N`, and in step 2 a visit per block
+    /// whose set grows, and its predecessors, per loop whose backedge it
+    /// reaches by forward edges: its own loop's, and one more per loop
+    /// that a branch out of it leaves for that loop's tail. A local read
+    /// at every header of `d` nested `for` loops costs no visit of an
+    /// inner body per outer level.
+    fn solve(&self, len: usize, forest: &Forest, slots: &mut impl Slots, visit: &mut impl FnMut()) {
+        let blocks = self.starts.len();
+        let firsts = |p: usize| &self.firsts[self.first[p]..self.first[p + 1]];
+        // Block `p`'s live-out set, from its successors' live-in sets
+        // (`back`: and its backedges'), and its live-in set from that.
+        let settle = |slots: &mut _, p: usize, back: bool| {
+            let slots: &mut _ = slots;
+            Slots::clear(slots, blocks + p);
+            self.succs(p, len, |q| {
+                if back || q > p {
+                    Slots::union(slots, blocks + p, q);
+                }
+            });
+            Slots::clear(slots, p);
+            Slots::union(slots, p, blocks + p);
+            for &(l, reads) in firsts(p) {
+                if reads {
+                    Slots::insert(slots, p, l);
                 } else {
-                    self.sets.remove(live, l)
-                };
+                    Slots::remove(slots, p, l);
+                }
             }
-            // Sets only grow from empty here, so a new size is a change.
-            if self.sets.len(self.into[p]) == self.sets.len(live) {
-                continue;
+        };
+        for p in (0..blocks).rev() {
+            visit();
+            settle(&mut *slots, p, false);
+        }
+        let Forest {
+            headers,
+            loop_of,
+            parent,
+            ..
+        } = forest;
+        if headers.is_empty() {
+            return;
+        }
+        // Each loop's slots: first what its blocks write first, then what
+        // of its header's set it writes (`C`); and what it never writes
+        // (`N`).
+        let (written, kept) = (
+            |k: usize| 2 * blocks + 2 * k,
+            |k: usize| 2 * blocks + 2 * k + 1,
+        );
+        let mut work = forest.list.len();
+        // What each loop's own blocks write first, each set made at once
+        // from its keys in order ([`Sets::of_sorted`], `2k` nodes, where
+        // an insert per write copied a path): the writes bucketed by
+        // local, then read out by local, so each loop's come ascending.
+        let mut by_local = vec![0usize; self.locals + 1];
+        let writes = || {
+            loop_of.iter().enumerate().flat_map(move |(p, &k)| {
+                firsts(p)
+                    .iter()
+                    .filter(move |&&(_, reads)| k != NO_LOOP && !reads)
+                    .map(move |&(l, _)| (l as usize, k))
+            })
+        };
+        for (l, _) in writes() {
+            by_local[l + 1] += 1;
+        }
+        for l in 0..self.locals {
+            by_local[l + 1] += by_local[l];
+        }
+        let mut loops = vec![0usize; by_local[self.locals]];
+        work += self.locals + loops.len();
+        let mut next = by_local.clone();
+        for (l, k) in writes() {
+            loops[next[l]] = k;
+            next[l] += 1;
+        }
+        let mut own: Vec<Vec<u32>> = vec![Vec::new(); headers.len()];
+        for (key, l) in (0u32..).zip(0..self.locals) {
+            for &k in &loops[by_local[l]..by_local[l + 1]] {
+                if own[k].last() != Some(&key) {
+                    own[k].push(key);
+                }
             }
-            self.into[p] = live;
-            if let Some((first, list)) = &preds {
-                for &q in &list[first[p]..first[p + 1]] {
-                    if !queued[q] {
-                        queued[q] = true;
-                        pending.push(q);
+        }
+        for (k, keys) in own.iter().enumerate() {
+            slots.assign(written(k), keys);
+        }
+        for (k, &up) in parent.iter().enumerate().rev() {
+            if up != NO_LOOP {
+                slots.union(written(up), written(k));
+            }
+        }
+        // Step 2's visits, last block first; `at[p]`: the loop whose walk
+        // queued `p`, whose live-out slot then holds what the walk
+        // carries out of `p`.
+        let mut pending = BinaryHeap::new();
+        let mut at = vec![NO_LOOP; blocks];
+        for (k, &h) in headers.iter().enumerate() {
+            if parent[k] != NO_LOOP {
+                slots.union(h, kept(parent[k]));
+            }
+            slots.split(h, written(k), kept(k));
+            for &q in forest.preds(h) {
+                if q > h && at[q] != k {
+                    at[q] = k;
+                    pending.push(q);
+                }
+            }
+            while let Some(b) = pending.pop() {
+                visit();
+                let carried = blocks + b;
+                slots.clear(carried);
+                self.succs(b, len, |q| {
+                    if q == h {
+                        slots.union(carried, written(k));
+                    } else if q > b && at[q] == k {
+                        slots.union(carried, blocks + q);
+                    }
+                });
+                for &(l, reads) in firsts(b) {
+                    if !reads {
+                        slots.remove(carried, l);
+                    }
+                }
+                if slots.union(b, carried) {
+                    for &q in forest.preds(b) {
+                        work += 1;
+                        if q < b && q != h && at[q] != k {
+                            at[q] = k;
+                            pending.push(q);
+                        }
                     }
                 }
             }
         }
+        for p in (0..blocks).rev() {
+            if loop_of[p] != NO_LOOP {
+                visit();
+                settle(&mut *slots, p, true);
+            }
+        }
+        crate::work::liveness(work);
+    }
+
+    /// Calls `to` with each successor block of block `p`.
+    fn succs(&self, p: usize, len: usize, mut to: impl FnMut(usize)) {
+        let end = self.end(p, len);
+        self.edges[end - 1].each(end, |at| {
+            if let Some(&q) = self.point_at.get(at) {
+                to(q);
+            }
+        });
     }
 
     /// Each block's predecessors: those of block `p` are
@@ -1424,26 +1843,20 @@ impl Live {
     fn predecessors(&self, len: usize) -> (Vec<usize>, Vec<usize>) {
         let blocks = self.starts.len();
         let mut first = vec![0usize; blocks + 1];
-        let each = |visit: &mut dyn FnMut(usize, usize)| {
-            for p in 0..blocks {
-                let end = self.end(p, len);
-                self.edges[end - 1].each(end, |to| {
-                    if let Some(&q) = self.point_at.get(to) {
-                        visit(p, q);
-                    }
-                });
-            }
-        };
-        each(&mut |_, q| first[q + 1] += 1);
+        for p in 0..blocks {
+            self.succs(p, len, |q| first[q + 1] += 1);
+        }
         for p in 0..blocks {
             first[p + 1] += first[p];
         }
         let mut list = vec![0usize; first[blocks]];
         let mut next = first.clone();
-        each(&mut |p, q| {
-            list[next[q]] = p;
-            next[q] += 1;
-        });
+        for p in 0..blocks {
+            self.succs(p, len, |q| {
+                list[next[q]] = p;
+                next[q] += 1;
+            });
+        }
         (first, list)
     }
 
@@ -1492,6 +1905,7 @@ impl Live {
             sets,
             first,
             firsts,
+            locals: n,
         })
     }
 
@@ -1499,21 +1913,33 @@ impl Live {
     /// read after which its local is dead. Walking each block back, a
     /// local's next access in the block answers, a stamp per local saying
     /// whether there is one; the block's live-out set answers only for
-    /// its last access of each local: `O(B + a log n)` after the fixed
-    /// point, for `a` first accesses, with no set made.
+    /// its last access of each local: `O(B + a log n)` after the pass,
+    /// for `a` first accesses, with no set made.
     ///
-    /// The live-out sets are dense rows ([`Live::rows`]) when they fit,
-    /// and persistent sets above that.
+    /// The pass keeps dense rows ([`Rows`]) when they fit, and
+    /// persistent sets above that.
     #[must_use]
     pub fn dead_accesses(f: &Func, cfg: Option<Cfg>) -> Option<Vec<bool>> {
         let body = &f.body;
         let mut me = Self::blocks(f, cfg, Sets::unconsed())?;
-        let rows = me.rows(f);
+        let blocks = me.starts.len();
+        let forest = me.forest(body.len());
+        let slots = forest.slots(blocks);
+        let rows = row_words(slots, f.params.len() + f.locals.len(), body.len()).map(|words| {
+            let mut rows = Rows {
+                words,
+                bits: vec![0; slots * words],
+                work: 0,
+            };
+            me.solve(body.len(), &forest, &mut rows, &mut || {});
+            crate::work::liveness(rows.work);
+            rows
+        });
         if rows.is_none() {
-            me.settle(f);
+            me.settle_in(body.len(), &forest, &mut || {});
         }
         let live_out = |p: usize, l: u32| match &rows {
-            Some(rows) => rows.has(p, l),
+            Some(rows) => rows.has(blocks + p, l),
             None => me.sets.contains(me.outs[p], l),
         };
         let mut dead = vec![false; body.len()];
@@ -1542,68 +1968,8 @@ impl Live {
         Some(dead)
     }
 
-    /// The locals live out of each block as dense bit rows, when the rows
-    /// take at most four words per instruction of the body, as the live
-    /// sets of production allocators are bit rows. The pass is
-    /// regalloc2's `compute_liveness`: a FIFO worklist seeded in
-    /// postorder (here the blocks last to first, as every edge but a
-    /// backedge leads forward), each visit unioning the block's live-in
-    /// row into its predecessors' live-out rows and queueing a
-    /// predecessor whose row grew. In a body that only branches forward
-    /// each block is visited once. A visit costs `W` words per
-    /// predecessor and one bit per first access, with no allocation, so
-    /// the pass is `O(V W)` words within the `4 L` the threshold allows,
-    /// where a persistent set pays a path of `log2 n` nodes per access.
-    fn rows(&self, f: &Func) -> Option<Rows> {
-        let len = f.body.len();
-        let blocks = self.starts.len();
-        let words = row_words(blocks, f.params.len() + f.locals.len(), len)?;
-        let (first, preds) = self.predecessors(len);
-        let mut bits = vec![0u64; blocks * words];
-        let mut queue: std::collections::VecDeque<usize> = (0..blocks).rev().collect();
-        let mut queued = vec![true; blocks];
-        let mut live = vec![0u64; words];
-        let mut work = 0;
-        while let Some(p) = queue.pop_front() {
-            queued[p] = false;
-            live.copy_from_slice(&bits[p * words..][..words]);
-            for &(l, reads) in &self.firsts[self.first[p]..self.first[p + 1]] {
-                let (w, bit) = (l as usize / 64, 1u64 << (l % 64));
-                live[w] = if reads { live[w] | bit } else { live[w] & !bit };
-            }
-            for &q in &preds[first[p]..first[p + 1]] {
-                work += words;
-                let mut grew = false;
-                for (out, &x) in bits[q * words..][..words].iter_mut().zip(&live) {
-                    grew |= x & !*out != 0;
-                    *out |= x;
-                }
-                if grew && !queued[q] {
-                    queued[q] = true;
-                    queue.push_back(q);
-                }
-            }
-        }
-        crate::work::liveness(work);
-        Some(Rows { words, bits })
-    }
-
     fn end(&self, p: usize, len: usize) -> usize {
         self.starts.get(p + 1).copied().unwrap_or(len)
-    }
-
-    /// The locals live after block `p`: the union of those live into its
-    /// successors, which costs where they differ, not their size.
-    fn out(&mut self, p: usize, len: usize) -> Set {
-        let end = self.end(p, len);
-        let (point_at, into, sets) = (&self.point_at, &self.into, &mut self.sets);
-        let mut live = Set::EMPTY;
-        self.edges[end - 1].each(end, |to| {
-            if let Some(&q) = point_at.get(to) {
-                live = sets.union(live, into[q]);
-            }
-        });
-        live
     }
 
     fn step(sets: &mut Sets, ins: &Ins, live: Set) -> Set {
@@ -1612,19 +1978,6 @@ impl Live {
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => sets.remove(live, *l),
             _ => live,
         }
-    }
-}
-
-/// Each block's live-out locals, `words` u64 per block ([`Live::rows`]).
-struct Rows {
-    words: usize,
-    bits: Vec<u64>,
-}
-
-impl Rows {
-    fn has(&self, p: usize, l: u32) -> bool {
-        let l = l as usize;
-        self.bits[p * self.words + l / 64] >> (l % 64) & 1 != 0
     }
 }
 
@@ -1650,14 +2003,8 @@ impl Rows {
 /// more from its header, innermost first, each header once.
 ///
 /// So the query costs one pass over the blocks after `at` and one per
-/// loop holding `at`, with no depth factor for the loops after it,
-/// where the full backward fixed point ([`Live::settle`]) visits a
-/// loop's blocks once more per level of loops around them (#2401), as
-/// regalloc2's `compute_liveness` does: a FIFO worklist seeded in
-/// postorder, as many rounds as the loops nest. The SSA loop-forest
-/// pass (Brandner et al., INRIA RR-7503) settles in two passes, but
-/// only because an SSA value live into a header is live in its whole
-/// loop; a Wasm local written inside the loop is not.
+/// loop holding `at`, with no depth factor for the loops after it, and
+/// no set per block, which every block's sets ([`Live`]) build.
 #[must_use]
 pub fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
     let edges = zero_edges(&f.body, &f.labels)?;
@@ -2266,7 +2613,7 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 }
 
 /// Rules 12 and 13, from one backward liveness pass over the basic blocks
-/// (loop backedges to a fixed point).
+/// ([`Live::dead_accesses`], loop backedges included).
 ///
 /// Rule 12 deletes a `local.set` or `local.tee` of a local that no path
 /// reads before its next write, dropping a set's value, or the pure push

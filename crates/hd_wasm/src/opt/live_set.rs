@@ -398,6 +398,55 @@ impl Sets {
         Set::EMPTY
     }
 
+    /// The keys of `a` that `b` lacks, made only along the paths where
+    /// they differ: a subtree of `a` that `b` does not reach is kept as
+    /// it is, so taking a few keys out of many costs about their paths.
+    pub fn subtract(&mut self, a: Set, b: Set) -> Set {
+        if a == b || a == Set::EMPTY {
+            return Set::EMPTY;
+        }
+        if b == Set::EMPTY {
+            return a;
+        }
+        self.tick();
+        let (x, y) = (self.node(a), self.node(b));
+        if x.bit == 0 {
+            return if self.contains(b, x.prefix) {
+                Set::EMPTY
+            } else {
+                a
+            };
+        }
+        if y.bit == 0 {
+            return self.remove(a, y.prefix);
+        }
+        let (zero, one) = if x.bit == y.bit && x.prefix == y.prefix {
+            (self.subtract(x.zero, y.zero), self.subtract(x.one, y.one))
+        } else if x.bit > y.bit && high(y.prefix, x.bit) == x.prefix {
+            // `b` lies under one side of `a`.
+            if y.prefix & x.bit == 0 {
+                (self.subtract(x.zero, b), x.one)
+            } else {
+                (x.zero, self.subtract(x.one, b))
+            }
+        } else if y.bit > x.bit && high(x.prefix, y.bit) == y.prefix {
+            // `a` lies under one side of `b`.
+            let side = if x.prefix & y.bit == 0 { y.zero } else { y.one };
+            return self.subtract(a, side);
+        } else {
+            return a;
+        };
+        if zero == x.zero && one == x.one {
+            a
+        } else if zero == Set::EMPTY {
+            one
+        } else if one == Set::EMPTY {
+            zero
+        } else {
+            self.branch(x.prefix, x.bit, zero, one)
+        }
+    }
+
     /// The keys of `b` that `a` lacks, appended to `out` in any order,
     /// found only along the paths where the two differ: a subtree they
     /// share is skipped, so a `b` made from `a` by adding `d` keys costs
@@ -456,6 +505,7 @@ impl Sets {
     }
 
     /// The keys of `s`, ascending, appended to `out`.
+    #[cfg(feature = "testing")]
     pub fn members(&self, s: Set, out: &mut Vec<u32>) {
         self.members_upto(s, out, usize::MAX);
     }

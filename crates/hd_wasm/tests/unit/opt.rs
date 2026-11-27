@@ -2085,12 +2085,12 @@ mod origin_tests {
         Ok(())
     }
 
-    /// The locals a run from just after `at`, along each of its edges,
-    /// reads before it writes, by a search per local over the
-    /// instructions: the definition
-    /// [`live_after`] is checked against, with edges found here, not
-    /// from the pass's own CFG.
-    fn live_after_by_search(f: &Func, at: usize) -> Vec<u32> {
+    /// The locals a run from `at` (`before`), or from just after it along
+    /// each of its edges, reads before it writes, by a search per local
+    /// over the instructions: the definition [`live_after`] and [`Live`]
+    /// are checked against, with edges found here, not from the passes'
+    /// own CFG.
+    fn live_by_search(f: &Func, at: usize, before: bool) -> Vec<u32> {
         let body = &f.body;
         let (mut opens, mut ends, mut elses) =
             (Vec::new(), vec![0; body.len()], vec![None; body.len()]);
@@ -2134,7 +2134,7 @@ mod origin_tests {
         (0..n)
             .filter(|&l| {
                 let mut seen = vec![false; body.len()];
-                let mut stack = succs(at);
+                let mut stack = if before { vec![at] } else { succs(at) };
                 while let Some(i) = stack.pop() {
                     if i >= body.len() || std::mem::replace(&mut seen[i], true) {
                         continue;
@@ -2154,14 +2154,51 @@ mod origin_tests {
         for at in 0..f.body.len() {
             assert_eq!(
                 live_after(f, at),
-                Some(live_after_by_search(f, at)),
+                Some(live_by_search(f, at, false)),
                 "after {at} of {:?}",
                 f.body
             );
         }
     }
 
-    /// #2401's shapes, the query asked after every instruction, inside
+    /// Each block's live-in and live-out sets ([`Live`], hash-consed and
+    /// not) and each access's deadness ([`Live::dead_accesses`], on dense
+    /// rows, and on persistent sets for a copy too wide for rows) against
+    /// the search.
+    fn assert_live_sets_everywhere(f: &Func) {
+        let body = &f.body;
+        for sets in [Sets::default(), Sets::unconsed()] {
+            let live = Live::new(f, sets).unwrap();
+            let members = |s| {
+                let mut out = Vec::new();
+                live.sets.members(s, &mut out);
+                out
+            };
+            for (p, &start) in live.starts.iter().enumerate() {
+                let end = live.starts.get(p + 1).copied().unwrap_or(body.len());
+                let (into, out) = (members(live.into[p]), members(live.outs[p]));
+                assert_eq!(into, live_by_search(f, start, true), "into {p} of {body:?}");
+                assert_eq!(
+                    out,
+                    live_by_search(f, end - 1, false),
+                    "out of {p} of {body:?}"
+                );
+            }
+        }
+        let dead = Live::dead_accesses(f, None).unwrap();
+        for (at, ins) in body.iter().enumerate() {
+            if let Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) = *ins {
+                let live = live_by_search(f, at, false).contains(&l);
+                assert_eq!(dead[at], !live, "access {at} of {body:?}");
+            }
+        }
+        let mut wide = f.clone();
+        wide.locals.extend(vec![Val::I32; 320 * body.len()]);
+        assert_eq!(Live::dead_accesses(&wide, None), Some(dead));
+    }
+
+    /// #2401's and #2453's shapes, the query asked after every
+    /// instruction and every block's sets checked, inside
     /// loops too: nested loops with a suspension (a `return`) inside the
     /// innermost; a `br` out of several levels; a `br_if` from an inner
     /// loop back to an outer header; a `block` inside a `loop`.
@@ -2289,17 +2326,61 @@ mod origin_tests {
                 get(2),
                 drop,
             ],
+            // A tail after a loop's last backedge, inside its `loop` but
+            // outside its natural loop, writing what the header reads.
+            vec![
+                lp,
+                get(1),
+                drop,
+                get(0),
+                op(I::BrIf(0)),
+                one,
+                set(1),
+                end,
+                get(1),
+                drop,
+            ],
+            // A `br` from an inner loop to the outer loop's tail, which
+            // writes what the outer header reads; the inner loop writes
+            // what the tail reads, and only on some runs.
+            vec![
+                lp,
+                get(3),
+                drop,
+                bl,
+                lp,
+                get(0),
+                op(I::BrIf(1)),
+                get(0),
+                op(I::If(BlockType::Empty)),
+                one,
+                set(4),
+                end,
+                get(1),
+                op(I::BrIf(0)),
+                end,
+                end,
+                get(4),
+                drop,
+                one,
+                set(3),
+                get(2),
+                op(I::BrIf(0)),
+                end,
+            ],
         ];
         for body in bodies {
             let mut f = tracked(&symbols, 1, 5, body);
             f.labels = vec![vec![0, 1]];
             assert_live_after_everywhere(&f);
+            assert_live_sets_everywhere(&f);
         }
     }
 
-    /// [`live_after`] against the search on structured bodies drawn at
-    /// random: loops, blocks and ifs nested to depth five, reads and
-    /// writes of six locals, and branches to every enclosing label.
+    /// [`live_after`] and [`Live`] against the search on structured
+    /// bodies drawn at random: loops, blocks and ifs nested to depth
+    /// five, reads and writes of six locals, and branches to every
+    /// enclosing label.
     #[test]
     fn live_after_matches_a_search_on_random_bodies() {
         let symbols = Symbols::default();
@@ -2338,56 +2419,62 @@ mod origin_tests {
                 }
             }
             body.extend((0..depth).map(|_| Ins::Op(I::End)));
-            assert_live_after_everywhere(&tracked(&symbols, 1, 5, body));
+            let f = tracked(&symbols, 1, 5, body);
+            assert_live_after_everywhere(&f);
+            assert_live_sets_everywhere(&f);
         }
     }
 
-    /// #2401: the query's work is linear in width and depth together.
     /// `n` values written and read inside `d` nested loops, each loop's
-    /// counter read at its header and written at its end, as the
-    /// lowered `for` loops are: the full fixed point walked the inner
-    /// body once more per level.
+    /// counter read at its header and written at its end, as the lowered
+    /// `for` loops are, with a suspension (a `return`) after each write.
+    fn nested_loops(symbols: &Symbols, n: u32, d: u32) -> Func {
+        let op = Ins::Op;
+        let mut body = vec![
+            op(I::LocalGet(0)),
+            op(I::If(BlockType::Empty)),
+            op(I::I32Const(0)),
+            op(I::Drop),
+            op(I::End),
+        ];
+        for c in 0..d {
+            body.extend([
+                op(I::Loop(BlockType::Empty)),
+                op(I::LocalGet(1 + c)),
+                op(I::Drop),
+            ]);
+        }
+        let values = 1 + d;
+        for v in 0..n {
+            body.extend([op(I::I32Const(1)), op(I::LocalSet(values + v))]);
+            body.extend([
+                op(I::LocalGet(0)),
+                op(I::If(BlockType::Empty)),
+                op(I::Return),
+                op(I::End),
+            ]);
+        }
+        body.extend((0..n).flat_map(|v| [op(I::LocalGet(values + v)), op(I::Drop)]));
+        for c in (0..d).rev() {
+            body.extend([
+                op(I::LocalGet(1 + c)),
+                op(I::I32Const(1)),
+                op(I::I32Add),
+                op(I::LocalTee(1 + c)),
+                op(I::BrIf(0)),
+                op(I::End),
+            ]);
+        }
+        tracked(symbols, 1, (1 + d + n) as usize, body)
+    }
+
+    /// #2401: the query's work is linear in width and depth together:
+    /// the full fixed point walked the inner body once more per level.
     #[test]
     fn live_after_work_has_no_loop_depth_factor() {
         let symbols = Symbols::default();
-        let op = Ins::Op;
         let work = |n: u32, d: u32| {
-            let mut body = vec![
-                op(I::LocalGet(0)),
-                op(I::If(BlockType::Empty)),
-                op(I::I32Const(0)),
-                op(I::Drop),
-                op(I::End),
-            ];
-            for c in 0..d {
-                body.extend([
-                    op(I::Loop(BlockType::Empty)),
-                    op(I::LocalGet(1 + c)),
-                    op(I::Drop),
-                ]);
-            }
-            let values = 1 + d;
-            for v in 0..n {
-                body.extend([op(I::I32Const(1)), op(I::LocalSet(values + v))]);
-                body.extend([
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::Return),
-                    op(I::End),
-                ]);
-            }
-            body.extend((0..n).flat_map(|v| [op(I::LocalGet(values + v)), op(I::Drop)]));
-            for c in (0..d).rev() {
-                body.extend([
-                    op(I::LocalGet(1 + c)),
-                    op(I::I32Const(1)),
-                    op(I::I32Add),
-                    op(I::LocalTee(1 + c)),
-                    op(I::BrIf(0)),
-                    op(I::End),
-                ]);
-            }
-            let f = tracked(&symbols, 1, (values + n) as usize, body);
+            let f = nested_loops(&symbols, n, d);
             let (live, work) = hd_wasm::work::count_liveness(|| live_after(&f, 2));
             // Every counter is read before written; no value is.
             assert_eq!(live, Some((0..=d).collect::<Vec<_>>()));
@@ -2400,6 +2487,43 @@ mod origin_tests {
                 deep <= shallow + shallow / 10,
                 "depth {d}: {deep} against {shallow}"
             );
+        }
+    }
+
+    /// #2453: every block's sets cost work linear in width and depth
+    /// together, for local sharing (persistent sets) and for rule 13
+    /// (dense rows, and persistent sets where rows do not fit): the
+    /// worklist found a counter read at an outer header live in the
+    /// inner body one level per round.
+    #[test]
+    fn liveness_work_has_no_loop_depth_factor() {
+        let symbols = Symbols::default();
+        let work = |n: u32, d: u32| {
+            let f = nested_loops(&symbols, n, d);
+            let (live, sets) = hd_wasm::work::count_liveness(|| {
+                let live = Live::new(&f, Sets::default()).unwrap();
+                let mut entry = Vec::new();
+                live.sets.members(live.into[0], &mut entry);
+                entry
+            });
+            // Every counter is read before written; no value is.
+            assert_eq!(live, (0..=d).collect::<Vec<_>>());
+            let (dead, rule_13) = hd_wasm::work::count_liveness(|| Live::dead_accesses(&f, None));
+            assert!(dead.is_some());
+            [sets, rule_13]
+        };
+        // Rule 13's rows fit 200 values, four words each from 2 to 20
+        // loops, and not 1,000. Each loop adds nine instructions, so the
+        // work may grow by what the body grows, not by a pass per level.
+        for n in [200, 1000] {
+            let shallow = work(n, 2);
+            for d in [5, 10, 20] {
+                let deep = work(n, d);
+                assert!(
+                    (0..2).all(|i| deep[i] * 10 <= shallow[i] * 12),
+                    "{n} values, {d} loops: {deep:?} against {shallow:?}"
+                );
+            }
         }
     }
 
