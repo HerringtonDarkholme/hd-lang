@@ -213,7 +213,7 @@ pub(super) fn short_loans(
 /// Both sides of a call read them as lent: the caller passes its local's
 /// value with no count, and the copy owns none.
 pub(super) fn promoted_params(input: &Input<'_>, m: &Module, key: hd_base::Hash128) -> u64 {
-    m.inst_of.get(&key).map_or(0, |id| {
+    m.inst(key).map_or(0, |id| {
         hd_mono::defaults::promoted_mask(&input.collected.table.defaults[id.idx()])
     })
 }

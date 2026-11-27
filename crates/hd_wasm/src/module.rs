@@ -21,6 +21,8 @@ use wasm_encoder::{
 
 use crate::rt::Helper;
 
+pub(crate) mod wire;
+
 /// The exchange buffer `hd.x`, the host contract's memory
 /// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
 pub const BUF: u32 = 1;
@@ -821,13 +823,6 @@ pub enum Ins {
     DrainGlue(SymId),
     /// A descriptor alias: a distinct slot with the same release glue, keyed
     /// by checked-report allocation kind.
-    #[cfg_attr(
-        all(not(feature = "checked-report"), not(feature = "testing")),
-        expect(
-            dead_code,
-            reason = "ruled out: only checked-report's allocation kinds make a descriptor alias"
-        )
-    )]
     Descriptor(SymId, DescriptorKey),
     /// `call_indirect` through the function table, with its source location.
     CallIndirect(SigId, Option<u32>),
@@ -1475,6 +1470,9 @@ struct Unit {
     static_len: u32,
     /// Whether the merge emits it again in order ([`Module::in_order`]).
     serial: bool,
+    /// The instances its emission looked up by key ([`Module::inst`]),
+    /// whose content a stored unit's reuse checks again.
+    reads: std::cell::RefCell<Vec<Hash128>>,
 }
 
 /// One instance's emission on a module of its own ([`Module::emit_unit`]):
@@ -1483,6 +1481,13 @@ pub(crate) struct Emitted<E> {
     symbols: Symbols,
     unit: Unit,
     f: Result<Func, E>,
+}
+
+impl<E> Emitted<E> {
+    /// The instances its emission looked up by key, in order.
+    pub(crate) fn take_reads(&self) -> Vec<Hash128> {
+        self.unit.reads.take()
+    }
 }
 
 /// A static data request of a unit, which the merge makes of the module
@@ -1543,8 +1548,9 @@ pub struct Facts {
     /// The std runtime every linked program provides to its helpers.
     pub runtime: crate::Runtime,
     /// Each instance by its key, for a caller to read how its callee takes
-    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
-    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
+    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25). Emission reads
+    /// it through [`Module::inst`], which records the read.
+    inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Per instance, what its worker takes or gives by address, once
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params: Vec<Option<crate::emit::IndirectParams>>,
@@ -1842,6 +1848,18 @@ fn cyclic_desc(f: &Func) -> bool {
     })
 }
 
+impl Facts {
+    /// Instance `key`, read for a unit's key, not by its emission.
+    #[must_use]
+    pub(crate) fn instance(&self, key: Hash128) -> Option<hd_base::InstId> {
+        self.inst_of.get(&key).copied()
+    }
+    /// Indexes instance `id` by its key `key` ([`Module::inst`]).
+    pub fn index_instance(&mut self, key: Hash128, id: hd_base::InstId) {
+        self.inst_of.insert(key, id);
+    }
+}
+
 impl std::ops::Deref for Module {
     type Target = Facts;
     fn deref(&self) -> &Facts {
@@ -1979,8 +1997,21 @@ impl Module {
             emitted
         };
         let mut remap = self.symbols.absorb(&symbols);
+        // The merge's work, which the cost test counts: one intern per
+        // entry of the unit's tables, one step per static request and per
+        // instruction remapped.
+        let work = remap.syms.len() + remap.globals.len() + remap.signatures.len();
+        let work = work + unit.statics.len();
         self.place_statics(unit.statics, &mut remap);
         let mut f = f?;
+        let work = work
+            + f.body.len()
+            + unit
+                .defines
+                .iter()
+                .map(|(_, g)| g.body.len())
+                .sum::<usize>();
+        crate::work::merge(work);
         // A shim another unit asked for first is already queued.
         for (shape, request) in unit.shim_queue {
             let (_, kind, _, by_value, key) = request;
@@ -2010,6 +2041,16 @@ impl Module {
         }
         f.remap(&remap, &self.symbols);
         Ok(f)
+    }
+    /// Instance `key`, whose body or facts emission is about to read: a
+    /// unit records the read ([`Unit::reads`]), so a stored unit is reused
+    /// only while that instance's content is unchanged.
+    #[must_use]
+    pub(crate) fn inst(&self, key: Hash128) -> Option<hd_base::InstId> {
+        if self.symbols.is_local() {
+            self.unit.reads.borrow_mut().push(key);
+        }
+        self.facts.inst_of.get(&key).copied()
     }
     /// The facts the units read, shared ([`Module::emit_unit`]).
     #[must_use]

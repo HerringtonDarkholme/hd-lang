@@ -12163,6 +12163,7 @@ impl Run<'_> {
             let package_host = |d| self.package_host_identity(d);
             let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
             let package_selectors = |d| self.package_host_selectors(d);
+            let dev_units = self.dev_units(&body);
             let instances = hd_opt::whole::Instances {
                 table: &c.collected.table,
                 order: &c.order,
@@ -12264,6 +12265,7 @@ impl Run<'_> {
                 own_cx: env,
                 mutation_targets: &mutation_targets,
                 coinductive_flags: &coinductive_flags,
+                units: dev_units.as_ref().map(|u| u as &dyn hd_wasm::UnitStore),
             };
             // The `own` view shows an item's plain instance's final rows.
             let t = &c.collected.table;
@@ -12316,6 +12318,118 @@ impl Run<'_> {
             }
             let _ = self.wasm.set(wasm);
         });
+    }
+}
+
+/// The dev store of emitted units (#2423, `crates/hd_wasm/DESIGN.md`
+/// §23.41), over this run's store: entry kind `unit`, sections the reads,
+/// the types (`hd_types::wire` tables, as a TIR body's) and the unit.
+struct DevUnits<'r, 'a, 'b> {
+    run: &'r Run<'a>,
+    body: &'b (dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body> + Sync),
+    fingerprint: Hash128,
+}
+
+impl<'a> Run<'a> {
+    /// The unit store a link of this run reads and fills: a dev build's,
+    /// whose emission reads no body's summary (`Run::summaries` is
+    /// `None`, so `lent_mask` and the return-loan shapes answer from
+    /// declarations alone), as the owned forms' keys rely on (#2106).
+    /// None for a release or promoting build, a REPL session, a fixture,
+    /// and a build of std itself, whose std is not the toolchain's.
+    fn dev_units<'r, 'b>(
+        &'r self,
+        body: &'b (dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body> + Sync),
+    ) -> Option<DevUnits<'r, 'a, 'b>> {
+        if self.summaries.is_some()
+            || self.promote_args
+            || self.level == OptLevel::Optimized
+            || self.session.is_some()
+            || self.package == "std"
+            || matches!(self.goal, Goal::Fixture { .. })
+        {
+            return None;
+        }
+        let mut k = hd_base::StableHasher::new("emit-unit-run-v1");
+        self.hash_owned_settings(&mut k);
+        Some(DevUnits {
+            run: self,
+            body,
+            fingerprint: k.finish(),
+        })
+    }
+}
+
+impl hd_wasm::UnitStore for DevUnits<'_, '_, '_> {
+    fn fingerprint(&self) -> Hash128 {
+        self.fingerprint
+    }
+    fn body_hash(&self, id: hd_base::InstId) -> Option<Hash128> {
+        let r = self.run;
+        let bytes = hd_tir::wire::write_body((self.body)(id)?, &r.pool, &r.paths, &r.syms).ok()?;
+        Some(hd_tir::wire::content_hash(&bytes))
+    }
+    fn get(&self, key: Hash128) -> Option<hd_wasm::StoredUnit> {
+        let r = self.run;
+        let sections = r.lookup(EntryKind::Unit, key)?;
+        let [reads, tys, bytes] = &sections[..] else {
+            return None;
+        };
+        let reads = reads
+            .chunks_exact(32)
+            .map(|row| {
+                let k = u128::from_le_bytes(row[..16].try_into().ok()?);
+                let c = u128::from_le_bytes(row[16..].try_into().ok()?);
+                Some((Hash128(k), Hash128(c)))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut rd = Reader::new(tys);
+        let tables = hd_types::wire::Tables::read(&mut rd, &r.pool, &r.paths, &r.syms)?;
+        let n = rd.count();
+        let tys = (0..n)
+            .map(|_| tables.ty(rd.u32()))
+            .collect::<Option<Vec<_>>>()?;
+        (rd.ok() && rd.at_end()).then(|| hd_wasm::StoredUnit {
+            reads,
+            tys,
+            bytes: bytes.to_vec(),
+        })
+    }
+    fn put(&self, key: Hash128, unit: &hd_wasm::StoredUnit) {
+        let r = self.run;
+        let mut t = hd_types::wire::TableWriter::new(&r.pool, &r.paths, &r.syms);
+        // ruled out: a refusal. A unit's types are its shim requests',
+        // laid out already, so each has a wire form, as a body's do.
+        let Ok(rows) = unit
+            .tys
+            .iter()
+            .map(|&ty| t.ty(ty))
+            .collect::<StageResult<Vec<u32>>>()
+        else {
+            return;
+        };
+        let mut w = Writer::default();
+        t.write(&mut w);
+        w.len_of(&rows);
+        for &row in &rows {
+            w.u32(row);
+        }
+        let reads: Vec<u8> = unit
+            .reads
+            .iter()
+            .flat_map(|(k, c)| [k.0.to_le_bytes(), c.0.to_le_bytes()])
+            .flatten()
+            .collect();
+        r.put(EntryKind::Unit, key, &[&reads, &w.bytes, &unit.bytes]);
+    }
+    fn verify(&self) -> bool {
+        self.run.verifies_own()
+    }
+    fn report(&self, mut emitted: Vec<String>, reused: usize) {
+        emitted.sort_stable();
+        let mut c = lock(&self.run.counters);
+        c.units_emitted = emitted;
+        c.units_reused = reused;
     }
 }
 
