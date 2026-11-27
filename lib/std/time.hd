@@ -16,7 +16,7 @@
 # `Duration` has no `Neg`, so `-5s` is a type error (r-std-time.duration.no-neg).
 use std.format.DebugWriter
 use std.error.Error
-use std.text.Parse
+use std.text.{Parse, StringBuilder}
 use std.ops.{Add, Sub, num_suffix}
 use std.encoding.{Serialize, Deserialize, Serializer, Deserializer}
 use std.collections.Heap
@@ -246,7 +246,7 @@ pub struct Timestamp:
 
 impl Timestamp:
     ## Returns the timestamp that holds `millis` milliseconds since the Unix epoch.
-    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
+    ## See [std-time.timestamp.api-calendar](../../spec/std/time.md#r-std-time.timestamp.api-calendar).
     pub fn from_unix_milliseconds(millis: i64) -> Timestamp:
         Timestamp { millis: millis }
 
@@ -269,14 +269,14 @@ impl Timestamp:
 
     # The UTC calendar date (r-std-time.date.of-timestamp).
     ## The calendar day of the timestamp in UTC.
-    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
+    ## See [std-time.timestamp.api-calendar](../../spec/std/time.md#r-std-time.timestamp.api-calendar).
     pub fn date(self) -> Date:
         civil_from_days(self.days())
 
     # `YYYY-MM-DDTHH:MM:SSZ`, with `.mmm` before the `Z` when the
     # milliseconds are not zero (r-std-time.rfc3339.text).
     ## The timestamp as RFC 3339 text in UTC.
-    ## See [std-time.timestamp.api-milliseconds](../../spec/std/time.md#r-std-time.timestamp.api-milliseconds).
+    ## See [std-time.timestamp.api-calendar](../../spec/std/time.md#r-std-time.timestamp.api-calendar).
     pub fn to_rfc3339(self) -> string:
         civil := civil_from_days(self.days())
         let clock = self.millis % 86400000
@@ -296,38 +296,22 @@ impl Timestamp:
             text = text + "." + zero_padded(clock % 1000, 3)
         text + "Z"
 
-    # The layout with each `%` specifier replaced (r-std-time.format).
-    ## The timestamp as text in UTC, laid out by `%Y %m %d %H %M %S %z %%`.
-    ## See [std-time.format](../../spec/std/time.md#r-std-time.format).
+    ## The timestamp in UTC, using a strftime layout.
+    ## See [std-time.format.utc](../../spec/std/time.md#r-std-time.format.utc).
     pub fn format(self, layout: string) -> string:
-        date := self.date()
-        let clock = self.millis % 86400000
-        if clock < 0:
-            clock = clock + 86400000
-        let text = ""
-        let pending = false
-        for c in layout.chars():
-            if !pending:
-                if c == '%':
-                    pending = true
-                else:
-                    text = text + "$c"
-                continue
-            pending = false
-            piece := match c:
-                'Y' => year_digits(date.year)
-                'm' => zero_padded(i64(date.month), 2)
-                'd' => zero_padded(i64(date.day), 2)
-                'H' => zero_padded(clock / 3600000, 2)
-                'M' => zero_padded(clock / 60000 % 60, 2)
-                'S' => zero_padded(clock / 1000 % 60, 2)
-                'z' => "+0000"
-                '%' => "%"
-                _ => "%$c"
-            text = text + piece
-        if pending:
-            text = text + "%"
-        text
+        self.to_datetime(UtcOffset::utc()).format(layout)
+
+    ## Splits this millisecond timestamp into calendar fields at a fixed offset.
+    ## See [std-time.datetime.to-datetime](../../spec/std/time.md#r-std-time.datetime.to-datetime).
+    pub fn to_datetime(self, offset: UtcOffset) -> DateTime:
+        if offset.seconds < -86399 || offset.seconds > 86399:
+            panic("invalid UTC offset: ${offset.seconds}")
+        let seconds = self.millis / 1000
+        let fraction = self.millis % 1000
+        if fraction < 0:
+            seconds -= 1
+            fraction += 1000
+        datetime_from_seconds(seconds, u32(fraction) * 1000000, offset)
 
     # Whole days since the epoch, rounded toward negative infinity, so the
     # time of day is never negative. Adjusting the truncated quotient and
@@ -408,10 +392,741 @@ impl Date:
             + zero_padded(i64(self.day), 2)
         )
 
+## A fixed number of seconds east of UTC.
+## See [std-time.offset.decl](../../spec/std/time.md#r-std-time.offset.decl).
+@derive(Debug, Eq)
+pub struct UtcOffset:
+    pub seconds: i32
+
+impl UtcOffset:
+    ## The zero offset, with no local-zone lookup.
+    ## See [std-time.offset.utc](../../spec/std/time.md#r-std-time.offset.utc).
+    pub fn utc() -> UtcOffset:
+        UtcOffset { seconds: 0 }
+
+    ## A fixed offset strictly less than one day in either direction.
+    ## See [std-time.offset.from-seconds](../../spec/std/time.md#r-std-time.offset.from-seconds).
+    pub fn from_seconds(seconds: i32) -> Result[UtcOffset, TimeError]:
+        if seconds < -86399 || seconds > 86399:
+            return .Err(.InvalidField("offset"))
+        .Ok(UtcOffset { seconds: seconds })
+
+## A weekday in Monday-first order.
+## See [std-time.weekday.decl](../../spec/std/time.md#r-std-time.weekday.decl).
+@derive(Debug, Eq)
+pub enum Weekday:
+    Monday
+    Tuesday
+    Wednesday
+    Thursday
+    Friday
+    Saturday
+    Sunday
+
+## A broken-down time in the proleptic Gregorian calendar.
+## See [std-time.datetime.decl](../../spec/std/time.md#r-std-time.datetime.decl).
+@derive(Debug, Eq)
+pub struct DateTime:
+    pub year: i32
+    pub month: u8
+    pub day: u8
+    pub hour: u8
+    pub minute: u8
+    pub second: u8
+    pub nanosecond: u32
+    pub offset: UtcOffset
+    pub zone: string? = .None
+
+impl DateTime:
+    ## Parses a broken-down time using a strftime layout.
+    ## See [std-time.datetime.parse](../../spec/std/time.md#r-std-time.datetime.parse).
+    pub fn parse(text: string, layout: string) -> Result[DateTime, ParseTimeError]:
+        parse_datetime(text, layout)
+
+    ## Converts these fields to whole Unix milliseconds, flooring the fraction.
+    ## See [std-time.datetime.floor-milliseconds](../../spec/std/time.md#r-std-time.datetime.floor-milliseconds).
+    pub fn to_timestamp(self) -> Result[Timestamp, TimeError]:
+        self.validate()?
+        day := days_from_civil(i64(self.year), i64(self.month), i64(self.day))
+        millis := (
+            i64(self.hour) * 3600000
+            + i64(self.minute) * 60000
+            + i64(self.second) * 1000
+            + i64(self.nanosecond / 1000000)
+        )
+        calendar_timestamp(day, millis, self.offset)
+
+    ## The weekday of this calendar date, with Monday first.
+    ## See [std-time.datetime.weekday](../../spec/std/time.md#r-std-time.datetime.weekday).
+    pub fn weekday(self) -> Weekday:
+        day := match self.calendar_day():
+            .Some(day) => day
+            .None => panic("invalid DateTime calendar date")
+        match positive_remainder(day + 3, 7):
+            0 => .Monday
+            1 => .Tuesday
+            2 => .Wednesday
+            3 => .Thursday
+            4 => .Friday
+            5 => .Saturday
+            _ => .Sunday
+
+    ## The ordinal day of the year, starting at one.
+    ## See [std-time.datetime.day-of-year](../../spec/std/time.md#r-std-time.datetime.day-of-year).
+    pub fn day_of_year(self) -> u16:
+        day := match self.calendar_day():
+            .Some(day) => day
+            .None => panic("invalid DateTime calendar date")
+        u16(day - days_from_civil(i64(self.year), 1, 1) + 1)
+
+    ## Formats these fields using the fixed C-locale strftime directives.
+    ## See [std-time.format.strftime](../../spec/std/time.md#r-std-time.format.strftime).
+    pub fn format(self, layout: string) -> string:
+        match self.validate():
+            .Err(error) => panic("invalid DateTime: $error")
+            .Ok(_) => pass
+        format_datetime(self, layout)
+
+    fn validate(self) -> Result[void, TimeError]:
+        if self.month < 1 || self.month > 12:
+            return .Err(.InvalidField("month"))
+        if self.day < 1 || i64(self.day) > days_in_month(i64(self.year), i64(self.month)):
+            return .Err(.InvalidField("day"))
+        if self.hour > 23:
+            return .Err(.InvalidField("hour"))
+        if self.minute > 59:
+            return .Err(.InvalidField("minute"))
+        if self.second > 59:
+            return .Err(.InvalidField("second"))
+        if self.nanosecond > 999999999:
+            return .Err(.InvalidField("nanosecond"))
+        if self.offset.seconds < -86399 || self.offset.seconds > 86399:
+            return .Err(.InvalidField("offset"))
+        .Ok(())
+
+    # Validation precedes Hinnant's arithmetic: the conversion deliberately
+    # accepts no overflowing month or day to normalize into another date.
+    fn calendar_day(self) -> i64?:
+        if self.month < 1 || self.month > 12:
+            return .None
+        if self.day < 1 || i64(self.day) > days_in_month(i64(self.year), i64(self.month)):
+            return .None
+        .Some(days_from_civil(i64(self.year), i64(self.month), i64(self.day)))
+
+## Why calendar components cannot be converted to a timestamp.
+## See [std-time.time-error.decl](../../spec/std/time.md#r-std-time.time-error.decl).
+@error
+@derive(Debug, Eq)
+pub enum TimeError:
+    @error("invalid time field $field")
+    InvalidField(field: string)
+    @error("timestamp is outside the i64 millisecond range")
+    OutOfRange
+    @error("$message")
+    Other(message: string)
+
+# Convert a local day and within-day millisecond count after applying an
+# offset. Split first, so neither i64 timestamp endpoint is lost to an
+# intermediate multiplication. Callers choose the fractional precision.
+fn calendar_timestamp(
+    day: i64,
+    local_millis: i64,
+    offset: UtcOffset,
+) -> Result[Timestamp, TimeError]:
+    clock := local_millis - i64(offset.seconds) * 1000
+    utc_day := day + clock / 86400000 - (if clock % 86400000 < 0: 1 else: 0)
+    remainder := positive_remainder(clock, 86400000)
+    minimum := -9223372036854775807 - 1
+    maximum := 9223372036854775807
+    minimum_day := minimum / 86400000 - 1
+    maximum_day := maximum / 86400000
+    minimum_tail := positive_remainder(minimum, 86400000)
+    if utc_day < minimum_day || utc_day > maximum_day:
+        return .Err(.OutOfRange)
+    if utc_day == minimum_day:
+        if remainder < minimum_tail:
+            return .Err(.OutOfRange)
+        return .Ok(Timestamp { millis: minimum + (remainder - minimum_tail) })
+    if utc_day == maximum_day && remainder > maximum % 86400000:
+        return .Err(.OutOfRange)
+    .Ok(Timestamp { millis: utc_day * 86400000 + remainder })
+
+# Hinnant's ISO week computation reduces to a weekday and one year boundary.
+# The year is widened before arithmetic so ISO years just outside i32 still format.
+fn iso_weeks(year: i64) -> i64:
+    january := positive_remainder(days_from_civil(year, 1, 1) + 3, 7)
+    leap := year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    if january == 3 || (january == 2 && leap): 53 else: 52
+
+fn iso_year_week(value: DateTime) -> (i64, i64):
+    day := days_from_civil(i64(value.year), i64(value.month), i64(value.day))
+    ordinal := day - days_from_civil(i64(value.year), 1, 1) + 1
+    weekday := positive_remainder(day + 3, 7)
+    week := (ordinal - weekday + 9) / 7
+    if week < 1:
+        year := i64(value.year) - 1
+        return (year, iso_weeks(year))
+    if week > iso_weeks(i64(value.year)):
+        return (i64(value.year) + 1, 1)
+    (i64(value.year), week)
+
+fn expanded_year(year: i64) -> string:
+    if year < 0: "-" + zero_padded(-year, 4) else: zero_padded(year, 4)
+
+fn time_offset(offset: UtcOffset) -> string:
+    seconds := i64(offset.seconds)
+    magnitude := if seconds < 0: -seconds else: seconds
+    sign := if seconds < 0: "-" else: "+"
+    prefix := sign + zero_padded(magnitude / 3600, 2) + zero_padded(magnitude / 60 % 60, 2)
+    if magnitude % 60 == 0: prefix else: prefix + zero_padded(magnitude % 60, 2)
+
+# Composite expansion has fixed depth one. Both scans and the output builder
+# are linear in layout/output bytes, independent of calendar year magnitude.
+fn format_datetime(value: DateTime, layout: string) -> string:
+    expanded := match time_layout(layout):
+        .Ok(expanded) => expanded
+        .Err(error) => panic(time_layout_error(layout, error))
+    day := days_from_civil(i64(value.year), i64(value.month), i64(value.day))
+    weekday := positive_remainder(day + 3, 7)
+    ordinal := day - days_from_civil(i64(value.year), 1, 1) + 1
+    let (iso_year, iso_week) = iso_year_week(value)
+    year := i64(value.year)
+    hour := i64(value.hour)
+    twelve := if hour % 12 == 0: 12 else: hour % 12
+    out := StringBuilder::new()
+    let pending = false
+    for c in expanded.chars():
+        if !pending:
+            if c == '%':
+                pending = true
+            else:
+                out.push_char(c)
+            continue
+        pending = false
+        piece := match c:
+            'Y' => year_digits(value.year)
+            'y' => zero_padded(positive_remainder(year, 100), 2)
+            'C' =>
+                century := (year - positive_remainder(year, 100)) / 100
+                if century < 0: "$century" else: zero_padded(century, 2)
+            'm' => zero_padded(i64(value.month), 2)
+            'd' => zero_padded(i64(value.day), 2)
+            'e' =>
+                if value.day < 10: " ${value.day}" else: "${value.day}"
+            'H' => zero_padded(hour, 2)
+            'k' =>
+                if hour < 10: " $hour" else: "$hour"
+            'I' => zero_padded(twelve, 2)
+            'l' =>
+                if twelve < 10: " $twelve" else: "$twelve"
+            'M' => zero_padded(i64(value.minute), 2)
+            'S' => zero_padded(i64(value.second), 2)
+            'f' => zero_padded(i64(value.nanosecond / 1000), 6)
+            'a' => weekday_names(false)[usize(weekday)]
+            'A' => weekday_names(true)[usize(weekday)]
+            'b' => month_names(false)[usize(value.month) - 1]
+            'h' => month_names(false)[usize(value.month) - 1]
+            'B' => month_names(true)[usize(value.month) - 1]
+            'p' =>
+                if hour < 12: "AM" else: "PM"
+            'j' => zero_padded(ordinal, 3)
+            'u' => "${weekday + 1}"
+            'w' => "${(weekday + 1) % 7}"
+            'U' => zero_padded((ordinal + 6 - (weekday + 1) % 7) / 7, 2)
+            'W' => zero_padded((ordinal + 6 - weekday) / 7, 2)
+            'G' => expanded_year(iso_year)
+            'g' => zero_padded(positive_remainder(iso_year, 100), 2)
+            'V' => zero_padded(iso_week, 2)
+            's' =>
+                "${day * 86400 + hour * 3600 + i64(value.minute) * 60 + i64(value.second) - i64(value.offset.seconds)}"
+            'z' => time_offset(value.offset)
+            'Z' =>
+                value.zone.unwrap_or(if value.offset.seconds == 0: "UTC" else: "")
+            'n' => "\n"
+            't' => "\t"
+            '%' => "%"
+            # ruled out: time_layout accepts only these primitive directives.
+            _ => panic("invalid expanded time directive %$c")
+        out.push(piece)
+    out.build()
+
+# Truncating integer division needs one remainder correction before a date
+# before the epoch can be split into a day and a nonnegative time of day.
+fn positive_remainder(value: i64, modulus: i64) -> i64:
+    remainder := value % modulus
+    if remainder < 0: remainder + modulus else: remainder
+
+# Split before adding the offset: adding seconds to the entire timestamp
+# could overflow at i64::MIN/MAX even when the resulting date is valid.
+fn datetime_from_seconds(seconds: i64, nanosecond: u32, offset: UtcOffset) -> DateTime:
+    remainder := positive_remainder(seconds, 86400)
+    day := seconds / 86400 - (if seconds % 86400 < 0: 1 else: 0)
+    local := remainder + i64(offset.seconds)
+    local_remainder := positive_remainder(local, 86400)
+    local_day := day + local / 86400 - (if local % 86400 < 0: 1 else: 0)
+    date := civil_from_days(local_day)
+    DateTime {
+        year: date.year,
+        month: u8(date.month),
+        day: u8(date.day),
+        hour: u8(local_remainder / 3600),
+        minute: u8(local_remainder / 60 % 60),
+        second: u8(local_remainder % 60),
+        nanosecond: nanosecond,
+        offset: offset,
+    }
+
+# Expand only the fixed C-locale composite directives. Their replacements
+# contain primitives, so expansion has no input-controlled recursion or retry.
+fn time_layout(layout: string) -> Result[string, ParseTimeError]:
+    out := StringBuilder::new()
+    let position: usize = 0
+    let pending = false
+    for c in layout.chars():
+        if pending:
+            replacement := match c:
+                'c' => "%a %b %e %H:%M:%S %Y"
+                'D' => "%m/%d/%y"
+                'F' => "%Y-%m-%d"
+                'r' => "%I:%M:%S %p"
+                'R' => "%H:%M"
+                'T' => "%H:%M:%S"
+                'x' => "%m/%d/%y"
+                'X' => "%H:%M:%S"
+                _ => ""
+            if !replacement.is_empty():
+                out.push(replacement)
+            else:
+                if !"aAbBCdeGghHIjklmMnpsStUuVwWyYzZf%".contains("$c"):
+                    return .Err(.InvalidCharacter(position - 1))
+                out.push_char('%')
+                out.push_char(c)
+            pending = false
+        else if c == '%':
+            pending = true
+        else:
+            out.push_char(c)
+        position = position + "$c".len()
+    if pending:
+        return .Err(.TooShort(layout.len()))
+    .Ok(out.build())
+
+fn time_layout_error(layout: string, error: ParseTimeError) -> string:
+    match error:
+        .InvalidCharacter(position) =>
+            let mut chars = layout.slice(position, layout.len()).chars()
+            _ := chars.next()
+            directive := match chars.next():
+                .Some(c) => "%$c"
+                .None => "%"
+            "unknown time format directive $directive at byte $position"
+        .TooShort(position) => "incomplete time format directive % at byte ${position - 1}"
+        _ => "invalid time format: $error"
+
+# One forward cursor in the input, independent of the number of fields.
+# Numeric fields have bounded widths; names use fixed C-locale tables.
+struct TimeInput:
+    text: string
+    position: usize
+
+impl TimeInput:
+    fn number(&mut self, width: usize, minimum: i64, maximum: i64) -> Result[i64, ParseTimeError]:
+        start := self.position
+        let value: i64 = 0
+        while self.position < self.text.len() && self.position - start < width:
+            byte := self.text[self.position]
+            if byte < 48 || byte > 57:
+                break
+            digit := i64(byte - 48)
+            if value > (9223372036854775807 - digit) / 10:
+                return .Err(.OutOfRange(start))
+            value = value * 10 + digit
+            self.position += 1
+        if self.position == start:
+            return .Err(self.mismatch())
+        if value < minimum || value > maximum:
+            return .Err(.OutOfRange(start))
+        .Ok(value)
+
+    fn exact_number(&mut self, width: usize, maximum: i64) -> Result[i64, ParseTimeError]:
+        start := self.position
+        value := self.number(width, 0, maximum)?
+        if self.position - start != width:
+            return .Err(self.mismatch())
+        .Ok(value)
+
+    fn signed(&mut self, width: usize, minimum: i64, maximum: i64) -> Result[i64, ParseTimeError]:
+        start := self.position
+        let negative = false
+        if self.position < self.text.len():
+            sign := self.text[self.position]
+            if sign == 45 || sign == 43:
+                negative = sign == 45
+                self.position += 1
+        # Accumulate negatively, allowing the magnitude of i64::MIN.
+        digits := self.position
+        let value: i64 = 0
+        while self.position < self.text.len() && self.position - digits < width:
+            byte := self.text[self.position]
+            if byte < 48 || byte > 57:
+                break
+            digit := i64(byte - 48)
+            if value < (-9223372036854775807 - 1 + digit) / 10:
+                return .Err(.OutOfRange(start))
+            value = value * 10 - digit
+            self.position += 1
+        if self.position == digits:
+            return .Err(self.mismatch())
+        if !negative:
+            if value == -9223372036854775807 - 1:
+                return .Err(.OutOfRange(start))
+            value = -value
+        if value < minimum || value > maximum:
+            return .Err(.OutOfRange(start))
+        .Ok(value)
+
+    fn mismatch(&self) -> ParseTimeError:
+        if self.position == self.text.len():
+            .TooShort(self.position)
+        else:
+            .InvalidCharacter(self.position)
+
+    fn spaces(&mut self) -> void:
+        while self.position < self.text.len():
+            byte := self.text[self.position]
+            if byte != 32 && (byte < 9 || byte > 13):
+                break
+            self.position += 1
+
+    fn name(&mut self, names: List[string]) -> Result[usize, ParseTimeError]:
+        let index: usize = 0
+        for name in names:
+            end := self.position + name.len()
+            if end <= self.text.len():
+                let offset: usize = 0
+                let matches = true
+                while offset < name.len():
+                    actual := i32(self.text[self.position + offset])
+                    expected := i32(name[offset])
+                    folded_actual := if actual >= 65 && actual <= 90: actual + 32 else: actual
+                    folded_expected := if expected >= 65 && expected <= 90:
+                        expected + 32
+                    else:
+                        expected
+                    if folded_actual != folded_expected:
+                        matches = false
+                        break
+                    offset += 1
+                if matches:
+                    self.position = end
+                    return .Ok(index)
+            index += 1
+        .Err(self.mismatch())
+
+fn month_names(full: bool) -> List[string]:
+    if full:
+        [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ]
+    else:
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+fn weekday_names(full: bool) -> List[string]:
+    if full:
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    else:
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+# Intrinsic widths disambiguate adjoining numeric directives, as in chrono.
+# Delimited years retain hd's existing expanded signed/unsigned year text.
+fn next_time_number(layout: string, position: usize) -> bool:
+    (
+        position + 1 < layout.len()
+        && layout[position] == 37
+        && "YCymdeHkIlMSfjuwUWGgVs".contains(layout.slice(position + 1, position + 2))
+    )
+
+fn parse_datetime(text: string, layout: string) -> Result[DateTime, ParseTimeError]:
+    expanded := match time_layout(layout):
+        .Ok(expanded) => expanded
+        .Err(error) => return .Err(.Other(time_layout_error(layout, error)))
+    let mut input = TimeInput { text: text, position: 0 }
+    let mut result = DateTime {
+        year: 1900,
+        month: 1,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0,
+        nanosecond: 0,
+        offset: UtcOffset { seconds: 0 },
+    }
+    let century: i64? = .None
+    let short_year: i64? = .None
+    let iso_year: i64? = .None
+    let iso_week: i64? = .None
+    let week: i64? = .None
+    let week_monday = false
+    let weekday: i64? = .None
+    let ordinal: i64? = .None
+    let epoch: i64? = .None
+    let twelve_hour = false
+    let pm = false
+    let day_position: usize = 0
+    let century_position: usize = 0
+    let ordinal_position: usize = 0
+    let iso_week_position: usize = 0
+    let epoch_position: usize = 0
+    let position: usize = 0
+    while position < expanded.len():
+        byte := expanded[position]
+        position += 1
+        if byte != 37:
+            if byte == 32 || (byte >= 9 && byte <= 13):
+                input.spaces()
+            else:
+                if input.position == text.len() || text[input.position] != byte:
+                    return .Err(input.mismatch())
+                input.position += 1
+            continue
+        directive := expanded[position]
+        position += 1
+        start := input.position
+        match directive:
+            89 =>
+                result.year = i32(
+                    input.signed(
+                        if next_time_number(expanded, position): 4 else: 10,
+                        -2147483648,
+                        2147483647,
+                    )?
+                )
+            121 => short_year = .Some(input.number(2, 0, 99)?)
+            67 =>
+                century_position = start
+                century = .Some(
+                    input.signed(
+                        if next_time_number(expanded, position): 2 else: 8,
+                        -21474837,
+                        21474836,
+                    )?
+                )
+            109 => result.month = u8(input.number(2, 1, 12)?)
+            100 =>
+                day_position = start
+                result.day = u8(input.number(2, 1, 31)?)
+            101 =>
+                input.spaces()
+                day_position = input.position
+                result.day = u8(input.number(2, 1, 31)?)
+            72 => result.hour = u8(input.number(2, 0, 23)?)
+            107 =>
+                input.spaces()
+                result.hour = u8(input.number(2, 0, 23)?)
+            73 =>
+                twelve_hour = true
+                result.hour = u8(input.number(2, 1, 12)?)
+            108 =>
+                input.spaces()
+                twelve_hour = true
+                result.hour = u8(input.number(2, 1, 12)?)
+            77 => result.minute = u8(input.number(2, 0, 59)?)
+            83 => result.second = u8(input.number(2, 0, 59)?)
+            102 =>
+                let fraction = input.number(6, 0, 999999)?
+                let digits = input.position - start
+                while digits < 9:
+                    fraction *= 10
+                    digits += 1
+                result.nanosecond = u32(fraction)
+            98 => result.month = u8(input.name(month_names(false))? + 1)
+            104 => result.month = u8(input.name(month_names(false))? + 1)
+            66 => result.month = u8(input.name(month_names(true))? + 1)
+            97 => weekday = .Some(i64(input.name(weekday_names(false))?))
+            65 => weekday = .Some(i64(input.name(weekday_names(true))?))
+            112 => pm = input.name(["AM", "PM"])? == 1
+            106 =>
+                ordinal_position = start
+                ordinal = .Some(input.number(3, 1, 366)?)
+            117 => weekday = .Some(input.number(1, 1, 7)? - 1)
+            119 => weekday = .Some((input.number(1, 0, 6)? + 6) % 7)
+            85 =>
+                week = .Some(input.number(2, 0, 53)?)
+                week_monday = false
+            87 =>
+                week = .Some(input.number(2, 0, 53)?)
+                week_monday = true
+            71 =>
+                iso_year = .Some(
+                    input.signed(
+                        if next_time_number(expanded, position): 4 else: 10,
+                        -2147483649,
+                        2147483648,
+                    )?
+                )
+            103 =>
+                value := input.number(2, 0, 99)?
+                iso_year = .Some(if value <= 68: 2000 + value else: 1900 + value)
+            86 =>
+                iso_week_position = start
+                iso_week = .Some(input.number(2, 1, 53)?)
+            115 =>
+                epoch_position = start
+                epoch = .Some(input.signed(19, -9223372036854775807 - 1, 9223372036854775807)?)
+            122 =>
+                if input.position < text.len() && text[input.position] == 90:
+                    input.position += 1
+                    result.offset = UtcOffset { seconds: 0 }
+                else:
+                    if (
+                        input.position == text.len()
+                        || (text[input.position] != 43 && text[input.position] != 45)
+                    ):
+                        return .Err(input.mismatch())
+                    negative := text[input.position] == 45
+                    input.position += 1
+                    hours := input.exact_number(2, 23)?
+                    colon := input.position < text.len() && text[input.position] == 58
+                    if colon:
+                        input.position += 1
+                    minutes := input.exact_number(2, 59)?
+                    let seconds: i64 = 0
+                    if colon && input.position < text.len() && text[input.position] == 58:
+                        input.position += 1
+                        seconds = input.exact_number(2, 59)?
+                    else if (
+                        !colon
+                        && input.position < text.len()
+                        && text[input.position] >= 48
+                        && text[input.position] <= 57
+                    ):
+                        seconds = input.exact_number(2, 59)?
+                    offset := hours * 3600 + minutes * 60 + seconds
+                    result.offset = UtcOffset { seconds: i32(if negative: -offset else: offset) }
+            90 =>
+                _ := input.name(["UTC", "GMT", "Z"])?
+                result.zone = .Some(text.slice(start, input.position))
+            110 => input.spaces()
+            116 => input.spaces()
+            37 =>
+                if input.position == text.len() || text[input.position] != 37:
+                    return .Err(input.mismatch())
+                input.position += 1
+            _ => return .Err(.InvalidCharacter(position - 1))
+    if input.position < text.len():
+        return .Err(input.mismatch())
+    match short_year:
+        .Some(value) =>
+            year := match century:
+                .Some(base) => base * 100 + value
+                .None =>
+                    if value <= 68: 2000 + value else: 1900 + value
+            if year < -2147483648 || year > 2147483647:
+                return .Err(.OutOfRange(century_position))
+            result.year = i32(year)
+        .None =>
+            match century:
+                .Some(base) =>
+                    year := base * 100
+                    if year < -2147483648 || year > 2147483647:
+                        return .Err(.OutOfRange(century_position))
+                    result.year = i32(year)
+                .None => pass
+    if twelve_hour:
+        result.hour = result.hour % 12 + (if pm: 12 else: 0)
+    let calendar: i64? = .None
+    match iso_week:
+        .Some(value) =>
+            let (year, selected_weekday) = match (iso_year, weekday):
+                (.Some(year), .Some(selected)) => (year, selected)
+                _ => return .Err(.Other("ISO week requires an ISO year and weekday"))
+            first := days_from_civil(year, 1, 4)
+            first_monday := first - positive_remainder(first + 3, 7)
+            next := days_from_civil(year + 1, 1, 4)
+            next_monday := next - positive_remainder(next + 3, 7)
+            day := first_monday + (value - 1) * 7 + selected_weekday
+            if day >= next_monday:
+                return .Err(.OutOfRange(iso_week_position))
+            calendar = .Some(day)
+        .None =>
+            if iso_year.is_some():
+                return .Err(.Other("ISO year requires an ISO week and weekday"))
+    if calendar.is_none():
+        match ordinal:
+            .Some(value) =>
+                first := days_from_civil(i64(result.year), 1, 1)
+                if value > days_from_civil(i64(result.year) + 1, 1, 1) - first:
+                    return .Err(.OutOfRange(ordinal_position))
+                calendar = .Some(first + value - 1)
+            .None =>
+                match week:
+                    .Some(value) =>
+                        match weekday:
+                            .Some(selected_weekday) =>
+                                first := days_from_civil(i64(result.year), 1, 1)
+                                shift := if week_monday: 3 else: 4
+                                first_weekday := positive_remainder(first + shift, 7)
+                                selected := positive_remainder(
+                                    selected_weekday + (if week_monday: 0 else: 1),
+                                    7,
+                                )
+                                delta := if value == 0:
+                                    selected - first_weekday
+                                else:
+                                    (
+                                        positive_remainder(7 - first_weekday, 7)
+                                        + (value - 1) * 7
+                                        + selected
+                                    )
+                                calendar = .Some(first + delta)
+                            .None => pass
+                    .None => pass
+    match calendar:
+        .Some(day) =>
+            if (
+                day < days_from_civil(-2147483648, 1, 1)
+                || day > days_from_civil(2147483647, 12, 31)
+            ):
+                return .Err(.Other("calendar date is outside the i32 year range"))
+            date := civil_from_days(day)
+            result.year = date.year
+            result.month = u8(date.month)
+            result.day = u8(date.day)
+        .None => pass
+    match epoch:
+        .Some(value) =>
+            # DateTime's i32 year bounds are narrower than i64 seconds.
+            minimum := days_from_civil(-2147483648, 1, 1) * 86400 - i64(result.offset.seconds)
+            maximum := (
+                days_from_civil(2147483647, 12, 31) * 86400
+                + 86399
+                - i64(result.offset.seconds)
+            )
+            if value < minimum || value > maximum:
+                return .Err(.OutOfRange(epoch_position))
+            zone := result.zone
+            result = datetime_from_seconds(value, result.nanosecond, result.offset)
+            result.zone = zone
+        .None => pass
+    if result.calendar_day().is_none():
+        return .Err(.OutOfRange(day_position))
+    .Ok(result)
+
 # Why time text did not parse (spec/std/time.md#time-parse-errors): one error
 # for RFC 3339 timestamps and duration text.
 ## Why time text failed to parse: the kind, and the byte position.
-## See [std-time.parse-error.declared](../../spec/std/time.md#r-std-time.parse-error.declared).
+## See [std-time.parse-error.declared-other](../../spec/std/time.md#r-std-time.parse-error.declared-other).
 @error
 @derive(Debug, Eq)
 pub enum ParseTimeError:
@@ -433,6 +1148,8 @@ pub enum ParseTimeError:
     # Duration text: a component that is not a whole number of milliseconds.
     @error("not a whole number of milliseconds at position $position")
     Inexact(position: usize)
+    @error("$message")
+    Other(message: string)
 
 # Howard Hinnant's `civil_from_days`: the date `day` days after
 # 1970-01-01. An era is 400 years, 146097 days, and each year in it starts

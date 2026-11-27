@@ -1,5 +1,5 @@
-# test: Date.to_iso8601 writes YYYY-MM-DD, and Timestamp.format writes %Y %m %d %H %M %S %z %% in UTC and keeps anything else as written
-# Spec std/time ISO 8601 Dates, Layouts: std-time.date.iso8601, std-time.date.iso8601.year, std-time.date.iso8601.fields, std-time.date.iso8601.same-date, std-time.format, std-time.format.unknown, std-time.format.no-locale, std-time.format.rfc3339 (#370).
+# test: Date.to_iso8601 writes YYYY-MM-DD, and Timestamp.format writes %Y %m %d %H %M %S %z %% in UTC and the decided fixed-locale layouts
+# Spec std/time ISO 8601 Dates, Layouts: std-time.date.iso8601, std-time.date.iso8601.year, std-time.date.iso8601.fields, std-time.date.iso8601.same-date, std-time.format.strftime, std-time.format.invalid-directive, std-time.format.c-locale, std-time.format.rfc3339 (#370).
 use std.time.{Date, Timestamp}
 
 fn day_text(millis: i64) -> string:
@@ -65,10 +65,8 @@ tests:
         assert_equal(laid_out(0, ""), "", reason="empty layout")
         assert_equal(laid_out(0, "no specifiers"), "no specifiers", reason="plain text")
         assert_equal(laid_out(0, "100%% sure"), "100% sure", reason="percent")
-        assert_equal(laid_out(0, "%q%"), "%q%", reason="unknown specifier and a final percent")
         assert_equal(laid_out(0, "%%Y"), "%Y", reason="an escaped percent is not a specifier")
         assert_equal(laid_out(0, "é %Y é"), "é 1970 é", reason="non-ASCII text")
-        assert_equal(laid_out(0, "%é"), "%é", reason="percent before a non-ASCII character")
 
     it("the RFC 3339 layout"):
         stamp := Timestamp::from_unix_milliseconds(1700000000000)

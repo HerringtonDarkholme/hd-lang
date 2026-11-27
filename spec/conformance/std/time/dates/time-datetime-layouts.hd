@@ -1,0 +1,191 @@
+# test: fixed-offset DateTime decomposition and every C-locale format directive match independent Python output
+# Spec std/time Broken-down Time, Parsing Layouts, Layouts: std-time.datetime.to-datetime, std-time.datetime.weekday, std-time.datetime.day-of-year, std-time.datetime.parse, std-time.format.strftime, std-time.format.c-locale.
+use std.time.{DateTime, Timestamp, UtcOffset, Weekday, ParseTimeError}
+
+fn fixed() -> DateTime:
+    DateTime {
+        year: 2015,
+        month: 3,
+        day: 5,
+        hour: 23,
+        minute: 51,
+        second: 47,
+        nanosecond: 123000000,
+        offset: UtcOffset::from_seconds(19815).expect("fixed offset"),
+        zone: .Some("IST"),
+    }
+
+tests:
+    it("formats every requested directive against Python fixed-locale output"):
+        value := fixed()
+        for (layout, expected) in [
+            ("%a", "Thu"),
+            ("%A", "Thursday"),
+            ("%b", "Mar"),
+            ("%B", "March"),
+            ("%c", "Thu Mar  5 23:51:47 2015"),
+            ("%C", "20"),
+            ("%d", "05"),
+            ("%D", "03/05/15"),
+            ("%e", " 5"),
+            ("%F", "2015-03-05"),
+            ("%g", "15"),
+            ("%G", "2015"),
+            ("%h", "Mar"),
+            ("%H", "23"),
+            ("%I", "11"),
+            ("%j", "064"),
+            ("%k", "23"),
+            ("%l", "11"),
+            ("%m", "03"),
+            ("%M", "51"),
+            ("%n", "\n"),
+            ("%p", "PM"),
+            ("%r", "11:51:47 PM"),
+            ("%R", "23:51"),
+            ("%s", "1425579692"),
+            ("%S", "47"),
+            ("%t", "\t"),
+            ("%T", "23:51:47"),
+            ("%u", "4"),
+            ("%U", "09"),
+            ("%V", "10"),
+            ("%w", "4"),
+            ("%W", "09"),
+            ("%x", "03/05/15"),
+            ("%X", "23:51:47"),
+            ("%y", "15"),
+            ("%Y", "2015"),
+            ("%z", "+053015"),
+            ("%Z", "IST"),
+            ("%f", "123000"),
+            ("%%", "%"),
+        ]:
+            assert_equal(value.format(layout), expected, reason=layout)
+
+    it("decomposes the epoch, negative milliseconds and a Gregorian leap day"):
+        epoch := Timestamp::from_unix_milliseconds(0)
+            .to_datetime(UtcOffset::from_seconds(0).expect("UTC"))
+        assert_equal(epoch.year, +1970)
+        assert_equal(epoch.weekday(), Weekday.Thursday)
+        assert_equal(epoch.day_of_year(), 1u16)
+        before := Timestamp::from_unix_milliseconds(-1)
+            .to_datetime(UtcOffset::from_seconds(0).expect("UTC"))
+        assert_equal(before.format("%F %T.%f"), "1969-12-31 23:59:59.999000")
+        leap := Timestamp::from_unix_milliseconds(951782400000)
+            .to_datetime(UtcOffset::from_seconds(0).expect("UTC"))
+        assert_equal(leap.format("%F %a %j"), "2000-02-29 Tue 060")
+
+    it("parses names, ordinal and ISO weeks and preserves a zone name"):
+        value := DateTime::parse("2015-03-05 23:51:47.123 +053015 IST", "%F %T.%f %z %Z")
+        assert(value.is_err(), reason="only the decided UTC/GMT/Z zone names parse")
+        parsed := DateTime::parse("2015-03-05 23:51:47.123 +053015 GMT", "%F %T.%f %z %Z")
+            .expect("layout")
+        assert_equal(parsed.format("%F %T.%f %z %Z"), "2015-03-05 23:51:47.123000 +053015 GMT")
+        assert_equal(
+            DateTime::parse("2015 064", "%Y %j").expect("ordinal").format("%F"),
+            "2015-03-05",
+        )
+        assert_equal(
+            DateTime::parse("2020 53 5", "%G %V %u").expect("ISO week").format("%F"),
+            "2021-01-01",
+        )
+        assert_equal(
+            DateTime::parse("2023 01 1", "%Y %W %u").expect("Monday week").format("%F"),
+            "2023-01-02",
+        )
+        assert_equal(
+            DateTime::parse("Sun Jan  1 00:00:00 2023", "%c").expect("composite").format("%F"),
+            "2023-01-01",
+        )
+        assert(DateTime::parse("é", "%b").is_err(), reason="invalid name does not split UTF-8")
+
+    it("handles adjacent fields, expanded years and signed centuries"):
+        assert_equal(
+            DateTime::parse("20150305", "%Y%m%d").expect("adjacent fields").format("%F"),
+            "2015-03-05",
+        )
+        assert_equal(
+            DateTime::parse("2015-03-05", "%C%y-%m-%d").expect("century").format("%F"),
+            "2015-03-05",
+        )
+        assert_equal(
+            DateTime::parse("-0001-12-31", "%F").expect("negative year").format("%Y %C %y"),
+            "-0001 -1 99",
+        )
+        assert_equal(DateTime::parse("10000-01-01", "%F").expect("expanded year").year, +10000)
+        assert(
+            DateTime::parse("21474836 99", "%C %y").is_err(),
+            reason="year cannot narrow past i32",
+        )
+        assert(DateTime::parse("+530", "%z").is_err(), reason="offset digits have exact widths")
+
+    it("calendar and week range errors point to their original input fields"):
+        assert_equal(DateTime::parse("2023-02-29", "%F"), .Err(ParseTimeError.OutOfRange(8)))
+        assert_equal(DateTime::parse("2023 366", "%Y %j"), .Err(ParseTimeError.OutOfRange(5)))
+        assert_equal(DateTime::parse("2021 53 1", "%G %V %u"), .Err(ParseTimeError.OutOfRange(5)))
+        assert_equal(
+            DateTime::parse("é", "%q"),
+            .Err(ParseTimeError.Other("unknown time format directive %q at byte 0")),
+        )
+
+    it("layout errors retain byte offsets after Unicode text"):
+        assert_equal(
+            DateTime::parse("", "é %é"),
+            .Err(ParseTimeError.Other("unknown time format directive %é at byte 3")),
+        )
+        assert_equal(
+            DateTime::parse("", "é %"),
+            .Err(ParseTimeError.Other("incomplete time format directive % at byte 3")),
+        )
+
+    it("parses every supported directive with the context its date fields need"):
+        for (text, layout, render, expected) in [
+            ("2015-03-05 Thu", "%F %a", "%a", "Thu"),
+            ("2015-03-05 Thursday", "%F %A", "%A", "Thursday"),
+            ("Mar", "%b", "%b", "Mar"),
+            ("March", "%B", "%B", "March"),
+            ("Thu Mar  5 23:51:47 2015", "%c", "%c", "Thu Mar  5 23:51:47 2015"),
+            ("20", "%C", "%C", "20"),
+            ("05", "%d", "%d", "05"),
+            ("03/05/15", "%D", "%D", "03/05/15"),
+            (" 5", "%e", "%e", " 5"),
+            ("2015-03-05", "%F", "%F", "2015-03-05"),
+            ("15 10 4", "%g %V %u", "%g", "15"),
+            ("2015 10 4", "%G %V %u", "%G", "2015"),
+            ("Mar", "%h", "%h", "Mar"),
+            ("23", "%H", "%H", "23"),
+            ("11", "%I", "%I", "11"),
+            ("064", "%j", "%j", "064"),
+            ("23", "%k", "%k", "23"),
+            ("11", "%l", "%l", "11"),
+            ("03", "%m", "%m", "03"),
+            ("51", "%M", "%M", "51"),
+            ("\n", "%n", "%n", "\n"),
+            ("11 PM", "%I %p", "%p", "PM"),
+            ("11:51:47 PM", "%r", "%r", "11:51:47 PM"),
+            ("23:51", "%R", "%R", "23:51"),
+            ("1425579692", "%s", "%s", "1425579692"),
+            ("47", "%S", "%S", "47"),
+            ("\t", "%t", "%t", "\t"),
+            ("23:51:47", "%T", "%T", "23:51:47"),
+            ("2015 10 4", "%G %V %u", "%u", "4"),
+            ("2015 09 4", "%Y %U %w", "%U", "09"),
+            ("2015 10 4", "%G %V %u", "%V", "10"),
+            ("2015 09 4", "%Y %U %w", "%w", "4"),
+            ("2015 09 4", "%Y %W %u", "%W", "09"),
+            ("03/05/15", "%x", "%x", "03/05/15"),
+            ("23:51:47", "%X", "%X", "23:51:47"),
+            ("15", "%y", "%y", "15"),
+            ("2015", "%Y", "%Y", "2015"),
+            ("+053015", "%z", "%z", "+053015"),
+            ("GMT", "%Z", "%Z", "GMT"),
+            ("123000", "%f", "%f", "123000"),
+            ("%", "%%", "%%", "%"),
+        ]:
+            parsed := DateTime::parse(text, layout).expect("the directive's input")
+            assert_equal(parsed.format(render), expected, reason=layout)
+        parsed := DateTime::parse("2015-mAr-05 tHuRsDaY 11:51:47 pm", "%Y-%b-%d %A %r")
+            .expect("case-insensitive names")
+        assert_equal(parsed.format("%F %T"), "2015-03-05 23:51:47")
+        assert_equal(DateTime::parse("0 GMT", "%s %Z").expect("epoch and zone").zone, .Some("GMT"))
