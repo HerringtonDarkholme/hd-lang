@@ -718,10 +718,10 @@ impl f32:
     @intrinsic
     pub fn copysign(self, sign: f32) -> f32
 
-# Floating remainder is ordinary std code. Wasm has no native instruction
-# for it or for power, so the backend roots `float_rem_f64` and
-# `float_pow_f64` (the musl pow port below) and calls them for both widths
-# (widening and narrowing f32). Remainder uses exact shift-and-subtract on
+# Floating power and remainder are ordinary std code: Wasm has no
+# instructions for them. Power calls float_pow_f64 at f64 and libm_powf
+# at f32, the same functions powf calls. Only f32 remainder widens and
+# narrows around float_rem_f64, which uses exact shift-and-subtract on
 # the significands.
 
 fn normalized_float(bits: u64) -> (i32, u64):
@@ -1265,7 +1265,7 @@ fn libm_exp2(x: f64) -> f64:
     scale := f64_from(sbits)
     scale + scale * tmp
 
-# The tables of the `**` path as code. The backend roots `float_pow_f64`
+# The tables of the f64 `**` path as code. The backend roots `float_pow_f64`
 # in every program (crates/hd_wasm FLOAT_FNS), and static data a rooted
 # function allocates keeps its address range after the function is
 # dropped, so a string table there would change the Wasm of programs that
@@ -1663,7 +1663,7 @@ fn libm_zeroinfnan(i: u64) -> bool:
     (i << 1).wrapping_sub(1) >= 0xffdfffffffffffff
 
 # musl pow.c (Arm): exp(y * log(x)), with log in extra precision. It is
-# also the `**` operator on floats, so the backend roots it
+# also the `**` operator at f64, so the backend roots it
 # (crates/hd_wasm FLOAT_FNS). Cost: two `match` table lookups and about
 # 60 floating operations.
 @inline(.Never)

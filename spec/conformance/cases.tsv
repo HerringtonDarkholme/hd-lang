@@ -7492,6 +7492,7 @@ lang/modules/public-uses-and-visibility/public-binding-untyped.hd	parse	reject:m
 lang/modules/name-resolution-across-packages/public-binding-across-packages.hd	runtime	accept	lang/10-modules.md#r-module.vis.pub.binding.type
 std/console/terminal-streams/is-terminal.hd	runtime	accept	std/console.md#r-std-console.terminal.query
 std/process/inherited-standard-streams/scripted-status.hd	runtime	accept	std/process.md#r-std-process.command.status
+lang/expressions/unary-and-binary-operators/exponentiation/power-f32-matches-width-libm.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.f32-libm
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

@@ -1417,11 +1417,13 @@ As built: `PrimOp::Pow` is one `Prim`. An integer base runs
 square-and-multiply over the exponent widened to 64 bits, with each
 product the checked multiply above; a square is made only while exponent
 bits remain, so no product exceeds the final magnitude and a result in
-range never panics. A float base calls std's `float_pow_f64`
-(`lib/std/num.hd`, `(f64, f64) -> f64`); an `f32` operand is widened
-first and the result rounded back. It follows IEEE 754 clause 9.2 for
-the special cases and is a port of fdlibm's `pow` otherwise, within
-1 ULP. No host import is involved, so every host gives the same bits.
+range never panics. A float base calls std's implementation of its own
+width: `libm_powf(f32, f32) -> f32` or `float_pow_f64(f64, f64) -> f64`
+in `lib/std/num.hd`, the same functions the inherent `powf` methods call.
+The Wasm emitter selects the matching `FloatOps` key; f32 power does not
+widen to f64 power and narrow. Both are the musl libm 1.2.5 ports, with
+IEEE 754 clause 9.2 special cases and results within 1 ULP. No host import
+is involved, so every host gives the same bits apart from NaN sign/payload.
 
 As built: floats use the instructions of their own width, so
 `f32` `+ - * /`, negation and the comparisons round once to `f32` and
