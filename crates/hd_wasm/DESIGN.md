@@ -2943,11 +2943,12 @@ object files.
   program-wide facts (flags, runtime, driven methods, addressed bindings,
   loan types, coinductive flags), the instance's key and its content: its
   body without node indices (`hd_tir::wire::content_hash`), sub-body,
-  masks, entry root, call targets by stable names, and loan rows. A unit
-  with a call through a trait value also holds the program's set of
-  methods such calls name: a vtable keeps only the slots some call names
-  (#2415, #2420), so a dyn call's slot index depends on every other
-  call's method.
+  masks, entry root, call targets by stable names, loan rows, and its
+  slot facts (`Collected::slot_facts`): the kept slots of each trait whose
+  table layout its code reads and the final digest of each table it
+  builds. A vtable keeps only the slots some trait-value call names
+  (#2415, #2420), so a dyn call's slot index and a widening's parent
+  offset depend on the whole program's calls.
 - Reads: emission reaches another instance only by key, through
   `Module::inst`, which records it. A stored unit keeps each read
   instance's content and is reused only while each is unchanged, as

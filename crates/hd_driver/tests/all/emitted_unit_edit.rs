@@ -172,3 +172,35 @@ fn removing_the_only_dyn_call_of_a_method_emits_the_dyn_calls_of_its_trait() {
     assert!(emitted.contains(&"own/main/use_b"), "{emitted:?}");
     assert_eq!(warm.wasm, build(&MemoryStore::default(), &edited).wasm);
 }
+
+/// `widen` makes no dyn call: it reads `Base`'s table from a `dyn Child`
+/// table at the offset after `Child`'s own kept slots. Taking away the
+/// only call of `extra` drops `Child`'s one slot, so that offset moves
+/// from 4 to 0, and `widen` must be emitted again (its `callee_reps`
+/// slot facts, `Collected::slot_facts`).
+#[test]
+fn dropping_a_child_traits_only_called_slot_emits_its_widenings_again() {
+    let files = |use_extra: &str| {
+        vec![(
+            "main.hd".to_owned(),
+            format!(
+                "trait Base:\n    fn read(&self) -> i64\n\n\
+                 trait Child < Base:\n    fn extra(&self) -> i64\n\n\
+                 struct Sq:\n    k: i64\n\n\
+                 impl Base for Sq:\n    fn read(&self) -> i64:\n        self.k\n\n\
+                 impl Child for Sq:\n    fn extra(&self) -> i64:\n        self.k + 1\n\n\
+                 fn widen(c: &dyn Child) -> &dyn Base:\n    c\n\n\
+                 fn use_extra(c: &dyn Child) -> i64:\n    {use_extra}\n\n\
+                 pub fn main() -> void $ Console:\n    s := Sq {{ k: 2 }}\n    \
+                 println(\"${{widen(&s).read()}} ${{use_extra(&s)}}\")\n"
+            ),
+        )]
+    };
+    let store = MemoryStore::default();
+    build(&store, &files("c.extra()"));
+    let edited = files("1");
+    let warm = build(&store, &edited);
+    let emitted = own_emitted(&warm);
+    assert!(emitted.contains(&"own/main/widen"), "{emitted:?}");
+    assert_eq!(warm.wasm, build(&MemoryStore::default(), &edited).wasm);
+}
