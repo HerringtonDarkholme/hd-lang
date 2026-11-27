@@ -73,7 +73,15 @@ pub fn found() -> Result<&'static Path, &'static str> {
 /// As [`binary`].
 #[must_use]
 pub fn command() -> Command {
-    child(binary())
+    let command = child(binary());
+    #[cfg(unix)]
+    let command = {
+        use std::os::unix::process::CommandExt as _;
+        let mut command = command;
+        command.process_group(0);
+        command
+    };
+    command
 }
 
 /// PATH with [`binary`]'s directory first, for a child that starts `node`

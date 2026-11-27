@@ -8,10 +8,7 @@ fn main() {
     use hd_base::SliceSort as _;
     use hd_driver::{Executor, Goal, Host, NoClock, Packages};
     use hd_project::MemorySources;
-    use std::{
-        io::Write as _,
-        process::{Command, Stdio},
-    };
+    use std::{io::Write as _, process::Stdio};
     let mut programs: Vec<_> = std::env::args().skip(1).collect();
     if programs.is_empty() {
         for directory in ["bench/study", "bench/runtime/progs"] {
@@ -68,7 +65,7 @@ fn main() {
         ",
             node.to_str().unwrap()
         );
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .arg("--input-type=module")
             .stdin(Stdio::piped())
             .spawn()

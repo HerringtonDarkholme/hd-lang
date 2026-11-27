@@ -15,7 +15,14 @@ import { Dec, Enc, Err, HostContract, Ok } from "./wire.ts";
 import { ConsoleError, METHODS } from "./gen/abi.ts";
 
 import { cgroupCpuCount, createHost, syncClient } from "./node.ts";
-import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.ts";
+import {
+  fixture,
+  netHost,
+  netWorker,
+  readPid,
+  signalProcess,
+  tcpHost,
+} from "./node-test-support.ts";
 import { browserSend } from "./web.ts";
 import { failed as failedOutput } from "./output-worker.ts";
 import { postReply, postReady } from "./worker-control.ts";
@@ -1303,25 +1310,27 @@ for (const phase of ["running", "leader-exited"]) {
       const script = `require('node:fs').writeFileSync(${JSON.stringify(parent)},String(process.pid));const {spawn}=require('node:child_process');const child=spawn(process.execPath,['-e',${JSON.stringify(descendant)}],{stdio:['ignore','inherit','inherit']});
       ${phase === "leader-exited" ? "child.unref();" : "setInterval(()=>{},1000);"}`;
       const operation = start(script);
-      await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
-      const pid = Number(readFileSync(ready, "utf8"));
-      const parentPid = Number(readFileSync(parent, "utf8"));
+      await testContext.waitFor(() => assert.ok(readPid(ready)), { timeout: 5000 });
+      const pid = readPid(ready);
+      const parentPid = readPid(parent);
       if (phase === "leader-exited") {
-        await testContext.waitFor(() => assert.throws(() => process.kill(parentPid, 0)), {
+        await testContext.waitFor(() => assert.throws(() => signalProcess(parentPid, 0)), {
           timeout: 5000,
         });
       } else {
-        process.kill(parentPid, 0);
+        signalProcess(parentPid, 0);
       }
       testContext.after(() => {
         try {
-          process.kill(pid, "SIGKILL");
+          signalProcess(pid, "SIGKILL");
         } catch {}
       });
       assert.deepEqual(call({ op: "wait_poll", operation }), { pending: true });
       assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
       assert.deepEqual(call({ op: "wait_abort", operation }), { ok: null });
-      await testContext.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+      await testContext.waitFor(() => assert.throws(() => signalProcess(pid, 0)), {
+        timeout: 5000,
+      });
     },
   );
 }
@@ -1399,15 +1408,15 @@ test("Process host close cancels a child with unread output", async (testContext
   run(
     `require('node:fs').writeFileSync(${JSON.stringify(ready)},String(process.pid));setInterval(()=>{},1000)`,
   );
-  await testContext.waitFor(() => assert.ok(existsSync(ready)), { timeout: 5000 });
-  const pid = Number(readFileSync(ready, "utf8"));
+  await testContext.waitFor(() => assert.ok(readPid(ready)), { timeout: 5000 });
+  const pid = readPid(ready);
   testContext.after(() => {
     try {
-      process.kill(pid, "SIGKILL");
+      signalProcess(pid, "SIGKILL");
     } catch {}
   });
   host.close();
-  await testContext.waitFor(() => assert.throws(() => process.kill(pid, 0)), { timeout: 5000 });
+  await testContext.waitFor(() => assert.throws(() => signalProcess(pid, 0)), { timeout: 5000 });
 });
 
 // A host timeout longer than Node's timer range must not turn into 1 ms.
