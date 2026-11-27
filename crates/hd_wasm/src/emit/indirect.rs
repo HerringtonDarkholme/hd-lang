@@ -108,20 +108,22 @@ pub(crate) type Params = Arc<Abi>;
 
 /// The worker ABI of instance `id`, or none when no parameter and not
 /// the result passes by address and the instance keeps the leaf ABI
-/// alone: [`prepare`]'s, for an instance the link emits.
-pub(crate) fn params(input: &Input<'_>, m: &Module, id: InstId) -> Option<Params> {
-    match m.indirect_params.get(&id) {
-        Some(p) => p.clone(),
-        None => compute(input, id),
-    }
+/// alone: [`prepare`]'s. The link emits, and `inst_of` names, only the
+/// instances of `input.order`, each of which [`prepare`] answers.
+pub(crate) fn params(m: &Module, id: InstId) -> Option<Params> {
+    m.indirect_params[id.idx()].clone()
 }
 
 /// Each instance's worker ABI, which its emission and its callers' read,
-/// computed on the task's threads before any is emitted. Cost: one
-/// computation per instance, as each instance's emission made before.
+/// computed on the task's threads before any is emitted, by instance
+/// index. Cost: one computation per instance, as each instance's
+/// emission made before, and one slot per instance of the table.
 pub(crate) fn prepare(input: &Input<'_>, m: &mut Module) {
-    let all = hd_sched::par_map(input.order, |&id| (id, compute(input, id)));
-    m.facts_mut().indirect_params = all.into_iter().collect();
+    let mut all = vec![None; input.collected.table.item.len()];
+    for (id, p) in hd_sched::par_map(input.order, |&id| (id, compute(input, id))) {
+        all[id.idx()] = p;
+    }
+    m.facts_mut().indirect_params = all;
 }
 
 fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
@@ -422,7 +424,7 @@ impl Em<'_, '_, '_> {
     /// direct call of it.
     pub(super) fn worker_of(&mut self, key: hd_base::Hash128) -> Option<Params> {
         let id = *self.m.inst_of.get(&key)?;
-        params(self.input, self.m, id)
+        params(self.m, id)
     }
 
     /// The field reads of an address parameter that only pass on as an

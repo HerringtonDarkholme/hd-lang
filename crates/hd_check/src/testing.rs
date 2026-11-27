@@ -147,13 +147,16 @@ pub fn with_checker_items(
 }
 
 /// A body checker: its context, the state the tests read, and the
-/// queries they drive.
+/// queries they drive. Each field accessor is out of line, so its
+/// coverage counters are this crate's: a release build inlines a small
+/// function into the test crate, whose copy counts apart.
 pub struct Checker<'r, 'a, 'c> {
     ck: &'r mut Ck<'a, 'c>,
 }
 
 impl<'a, 'c> Checker<'_, 'a, 'c> {
     #[must_use]
+    #[inline(never)]
     pub fn cx(&self) -> &'c BodyCx<'a> {
         self.ck.cx
     }
@@ -166,10 +169,12 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
 
     /// The root of the (empty) source file, for a query's syntax position.
     #[must_use]
+    #[inline(never)]
     pub fn root(&self) -> NodeRef<'a> {
         self.ck.cx.src.parse.tree.root()
     }
 
+    #[inline(never)]
     pub fn b(&mut self) -> &mut TirBuilder {
         &mut self.ck.b
     }
@@ -195,10 +200,12 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         (slots, links.len())
     }
 
+    #[inline(never)]
     pub fn infer(&mut self) -> &mut InferTable {
         &mut self.ck.infer
     }
 
+    #[inline(never)]
     pub fn env(&mut self) -> &mut ParamEnv {
         &mut self.ck.env
     }
@@ -208,6 +215,7 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
         &mut self.ck.strict_rets
     }
 
+    #[inline(never)]
     pub fn local_generics(&mut self) -> &mut HashMap<LocalId, LocalGeneric> {
         &mut self.ck.local_generics
     }

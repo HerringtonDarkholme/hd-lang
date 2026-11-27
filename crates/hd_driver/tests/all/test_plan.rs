@@ -14,6 +14,8 @@ const MATH: &str = include_str!("programs/test_plan/math.hd");
 
 const TEXT: &str = include_str!("programs/test_plan/text.hd");
 
+const UNIT: &str = include_str!("programs/test_plan/unit.hd");
+
 fn sources() -> MemorySources {
     let mut s = MemorySources::default();
     s.insert("math.hd", MATH);
@@ -189,6 +191,12 @@ fn entry_counts(k: usize) -> (Vec<String>, u32, usize) {
     assert!(out.diags.is_empty(), "{}", out.render());
     assert_eq!(out.tests.len(), k + 1);
     assert_eq!(out.tests[k].run, Some((u32::try_from(k).unwrap(), 1)));
+    shape(out)
+}
+
+/// A test program's exported functions, its defined functions and the
+/// most arms of any one function's `br_table`s.
+fn shape(out: Output) -> (Vec<String>, u32, usize) {
     let wasm = out.wasm.expect("a test program");
     wasmparser::validate(&wasm).expect("a valid module");
     let mut exports = Vec::new();
@@ -229,6 +237,43 @@ fn entry_counts(k: usize) -> (Vec<String>, u32, usize) {
 /// dispatch splits into functions of at most [`hd_wasm::DISPATCH_ARMS`]
 /// arms, one per run of 256 cases here, so no one function grows with the
 /// cases, which an engine's optimizing compile is superlinear in (#2049).
+/// The unit dispatch of `hd.test.init` splits as the case dispatch does:
+/// a package of more units than [`hd_wasm::DISPATCH_ARMS`], each with an
+/// init, has no function of more arms, in a release link too, whose walk
+/// over the parts leaves out the inits that do nothing.
+#[test]
+fn a_test_program_splits_its_unit_init_dispatch() {
+    let arms = hd_wasm::DISPATCH_ARMS;
+    let mut src = MemorySources::default();
+    for i in 0..=arms {
+        src.insert(&format!("u{i}/m.hd"), &UNIT.replace("UNIT", &i.to_string()));
+    }
+    let store = MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &src,
+        store: &store,
+        clock: &NoClock,
+        executor: SERIAL,
+    };
+    let goal = Goal::Tests {
+        module: None,
+        filter: None,
+    };
+    // Optimized, where the link drops quiet inits from each part.
+    let packages = hd_driver::Packages {
+        build_profile: hd_driver::BuildProfile::Release,
+        level: hd_driver::OptLevel::Optimized,
+        ..hd_driver::Packages::default()
+    };
+    let out = hd_driver::build_packages(&host, "app", &packages, &goal);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    assert_eq!(out.tests.len(), arms + 1);
+    let (exports, _, widest) = shape(out);
+    assert_eq!(exports, ["hd.test", "hd.test.init"]);
+    assert!(widest <= arms, "{widest} arms over {} units", arms + 1);
+}
+
 #[test]
 fn a_test_program_exports_two_entries_and_a_function_per_case() {
     let arms = hd_wasm::DISPATCH_ARMS;

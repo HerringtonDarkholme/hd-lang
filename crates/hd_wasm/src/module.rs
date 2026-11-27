@@ -1536,8 +1536,7 @@ pub struct Facts {
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Per instance, what its worker takes or gives by address, once
     /// (`emit/indirect.rs`).
-    pub(crate) indirect_params:
-        hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
+    pub(crate) indirect_params: Vec<Option<crate::emit::IndirectParams>>,
     /// The top-level bindings some reference refers to, by path hash:
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm/DESIGN.md` §23.20).
@@ -1724,7 +1723,7 @@ impl Module {
                 blocking_only: hd_base::HashSet::default(),
                 runtime: *runtime,
                 inst_of: hd_base::HashMap::default(),
-                indirect_params: hd_base::HashMap::default(),
+                indirect_params: Vec::new(),
                 addressed: hd_base::HashMap::default(),
                 objects: hd_base::HashSet::default(),
                 binding_slots: hd_base::HashMap::default(),

@@ -1394,6 +1394,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             ops,
         },
         Helper::MapSlotNext,
+        Helper::BytesIndexPair,
         Helper::MapStep {
             entry,
             // ruled out: past the value-size limit; a few scalars fit.
@@ -1532,11 +1533,25 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
     ] {
         check(helper);
     }
+    // A string crosses as its bytes and length: two parameters.
+    check(Helper::HostCold {
+        module: "hd:Probe".into(),
+        method: "text".into(),
+        args: vec![HostArg::Str],
+        area: Elem {
+            size: 8,
+            leaves: vec![word(0), word(4)],
+            ..area.clone()
+        },
+        counts: Box::default(),
+        res: HostRes::Void,
+    });
     for res in [
         HostRes::Void,
         HostRes::Tags,
         HostRes::Buf(every_boundary_type()),
     ] {
+        check(cold(res.clone()));
         for blocking in [false, true] {
             check(Helper::HostPoll {
                 blocking,
