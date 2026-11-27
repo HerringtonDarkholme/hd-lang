@@ -840,6 +840,14 @@ function httpWorker(testContext: TestContext): Dynamic {
   return { call, start, result };
 }
 
+// Resolves when an aborted request's server socket closes. An abort may
+// reset the connection, so the socket can emit `error` (ECONNRESET) before
+// `close`; `once(socket, "close")` would reject on that error.
+function socketClosed(socket: net.Socket): Promise<void> {
+  socket.on("error", () => {});
+  return new Promise((resolve) => socket.once("close", () => resolve()));
+}
+
 for (const phase of ["headers", "body", "redirect"]) {
   test(
     `HTTP abort closes a request waiting for ${phase}`,
@@ -867,7 +875,7 @@ for (const phase of ["headers", "body", "redirect"]) {
       const operation = start(url);
       const request = await received;
       assert.deepEqual(call({ op: "poll", operation }), { pending: true });
-      const closed = once(request.socket, "close");
+      const closed = socketClosed(request.socket);
       assert.deepEqual(call({ op: "abort", operation }), { ok: null });
       await closed;
       assert.deepEqual(call({ op: "open" }), { ok: 0 });
@@ -897,7 +905,7 @@ test(
     const pending = start(`${url}/slow`);
     const request = await received;
     const fast = start(`${url}/fast`);
-    const closed = once(request.socket, "close");
+    const closed = socketClosed(request.socket);
     call({ op: "abort", operation: pending });
     await closed;
     const answer = await result(fast);
@@ -1132,7 +1140,7 @@ for (const mode of ["expired deadline", "host close"]) {
       const [status, operation] = host.imports["hd:Http"]["send.start"](encoded.len);
       assert.equal(status, 1, "send stays pending while the server has not replied");
       const request = await received;
-      const closed = once(request.socket, "close");
+      const closed = socketClosed(request.socket);
       if (mode === "expired deadline") {
         host.core.st.deadline = performance.now() - 1;
         host.imports["hd:rt"].abort(operation);
