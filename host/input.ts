@@ -58,41 +58,49 @@ const complete = (state: InputState, newline: boolean): void => {
   }
 };
 const canServe = (): boolean => available.length > 0 || ended || failure !== null;
+// A "bytes" read: what is buffered, at most `max`, at once; it always
+// completes. cost: O(the bytes taken).
+const serveBytes = (state: InputState): void => {
+  let left = state.max;
+  while (available.length && left > 0) {
+    const length = Math.min(left, available[0].bytes.length);
+    take(state, length);
+    left -= length;
+  }
+  if (failure !== null && !state.parts.length) {
+    state.result = { error: failure };
+  } else {
+    complete(state, false);
+  }
+};
+// A "line" or "all" read: completes at a newline (a line), the end, or a
+// failure; otherwise it keeps what it took and waits.
+const serveText = (state: InputState): void => {
+  let newline = false;
+  while (available.length) {
+    const bytes = available[0].bytes;
+    const nl = state.kind === "line" ? bytes.indexOf(10) : -1;
+    take(state, nl === -1 ? bytes.length : nl + 1);
+    if (nl !== -1) {
+      newline = true;
+      break;
+    }
+  }
+  if (failure !== null) {
+    state.result = { error: failure };
+  } else if (newline || ended) {
+    complete(state, newline);
+  }
+};
 const serve = (): void => {
   for (const state of waiting) {
     if (!canServe()) {
       break;
     }
-    let newline = false;
     if (state.kind === "bytes") {
-      // cost: O(the bytes taken); a read never waits once any are buffered.
-      let left = state.max;
-      while (available.length && left > 0) {
-        const length = Math.min(left, available[0].bytes.length);
-        take(state, length);
-        left -= length;
-      }
-      if (failure !== null && !state.parts.length) {
-        state.result = { error: failure };
-      } else {
-        complete(state, false);
-      }
-      waiting.delete(state);
-      continue;
-    }
-    while (available.length) {
-      const bytes = available[0].bytes;
-      const nl = state.kind === "line" ? bytes.indexOf(10) : -1;
-      take(state, nl === -1 ? bytes.length : nl + 1);
-      if (nl !== -1) {
-        newline = true;
-        break;
-      }
-    }
-    if (failure !== null) {
-      state.result = { error: failure };
-    } else if (newline || ended) {
-      complete(state, newline);
+      serveBytes(state);
+    } else {
+      serveText(state);
     }
     if (state.result !== null) {
       waiting.delete(state);
