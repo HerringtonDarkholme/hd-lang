@@ -2390,17 +2390,20 @@ enum Fault {
 /// Cost: each trait the walk reaches once, and each signature's distinct
 /// types once per signature.
 ///
-/// A package host trait that `c_bound` names has a C provider: its
-/// methods are held to the C value table instead ([`c_fault`],
-/// `module.host.package.c-types`).
+/// A package host trait whose library `c.library` names has a C
+/// provider: its methods are held to the C value table instead
+/// ([`c_fault`], `module.host.package.c-types`), and so are the handle
+/// traits it returns, which share its library ([`CLibraries`]).
 pub fn boundary(
     cx: &HeaderCx<'_>,
     roots: &[(DefId, bool)],
     returned: &dyn Fn(DefId, bool) -> Returned,
-    c_bound: &dyn Fn(DefId) -> bool,
+    c: &CLibraries<'_>,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
-    let (c_roots, roots): (Vec<_>, Vec<_>) = roots.iter().partition(|&&(def, _)| c_bound(def));
+    let (c_roots, roots): (Vec<_>, Vec<_>) = roots
+        .iter()
+        .partition(|&&(def, _)| (c.library)(def).is_some());
     let roots: &[(DefId, bool)] = &roots;
     let serialize = cx.names.known.serialize;
     let deserialize = cx.names.known.deserialize;
@@ -2512,8 +2515,28 @@ pub fn boundary(
         shape(def, "host capability", &mut out);
     }
     // A C-bound root, then each handle trait a checked method returns
-    // (`module.host.package.c-handles`), each checked once.
-    let mut c_seen: hd_base::HashSet<DefId> = c_roots.iter().map(|r| r.0).collect();
+    // (`module.host.package.c-handles`), each checked once, with the
+    // library it shares with the trait that returns it.
+    let mut c_library: hd_base::HashMap<DefId, String> = c_roots
+        .iter()
+        .filter_map(|r| Some((r.0, (c.library)(r.0)?)))
+        .collect();
+    // The trait each library's entry name is taken by in this walk.
+    let short = |def: DefId| {
+        let path = cx.names.path(def);
+        path.rsplit(['.', '/']).next().unwrap_or("").to_owned()
+    };
+    // A trait's package-relative path, as its `[host]` entry writes it.
+    let relative = |def: DefId| {
+        let path = cx.names.path(def);
+        path.split_once('/')
+            .map_or(path.as_str(), |(_, rest)| rest)
+            .replace('/', ".")
+    };
+    let mut c_entries: hd_base::HashMap<(String, String), DefId> = c_library
+        .iter()
+        .map(|(&d, library)| ((library.clone(), short(d)), d))
+        .collect();
     // Each entry: a trait, and for a root whether its package's marker
     // check, not this one, reports a type parameter list.
     let mut c_todo: Vec<(DefId, Option<bool>)> =
@@ -2528,10 +2551,52 @@ pub fn boundary(
             generic(def, what, &mut out);
         }
         shape(def, what, &mut out);
-        for handle in c_trait(cx, def, &mut out) {
-            if c_seen.insert(handle) {
-                c_todo.push((handle, None));
+        let Some(library) = c_library.get(&def).cloned() else {
+            continue;
+        };
+        for (handle, method) in c_trait(cx, def, &mut out) {
+            let report = |out: &mut Vec<Finding>, message: String| {
+                out.push(Finding {
+                    item: method,
+                    slot: 0,
+                    code: Code::BoundaryNotSafe,
+                    message,
+                    ref_fix: Vec::new(),
+                    visibility_fix: Vec::new(),
+                });
+            };
+            // `cli.host.c.handle-library`: one library serves a handle trait.
+            if let Some(other) = c_library.get(&handle) {
+                if *other != library {
+                    report(
+                        &mut out,
+                        format!(
+                            "the handle trait `{}` is returned by C providers of two libraries, `{other}` and `{library}`; a returned handle's table comes from the one library of the traits that return it",
+                            relative(handle)
+                        ),
+                    );
+                }
+                continue;
             }
+            // `cli.host.c.handle-entry`: one entry symbol names one trait.
+            let name = short(handle);
+            let entry = format!("{library}_{name}");
+            let taken = c_entries
+                .get(&(library.clone(), name.clone()))
+                .map(|&d| relative(d))
+                .or_else(|| (c.root_named)(method, &library, &name));
+            if let Some(taken) = taken {
+                report(
+                    &mut out,
+                    format!(
+                        "the handle trait `{}` would export the entry symbol `{entry}`, which `{taken}` exports from library `{library}`; rename one of the traits",
+                        relative(handle)
+                    ),
+                );
+            }
+            c_entries.insert((library.clone(), name), handle);
+            c_library.insert(handle, library.clone());
+            c_todo.push((handle, None));
         }
     }
     let mut bound = queued.clone();
@@ -2606,6 +2671,18 @@ pub fn boundary(
     Ok(out)
 }
 
+/// What the boundary check knows of a package's C providers from its
+/// manifest (`cli.host.c.file`): the library of a C-bound root trait, and
+/// which root trait of the package of a definition takes an entry name in
+/// a library.
+pub struct CLibraries<'a> {
+    /// The `c` library of a root trait's `[host]` entry, when it has one.
+    pub library: &'a dyn Fn(DefId) -> Option<String>,
+    /// The path of a C-bound root trait of `near`'s package whose entry
+    /// symbol in `library` is `library_NAME`, when there is one.
+    pub root_named: &'a dyn Fn(DefId, &str, &str) -> Option<String>,
+}
+
 /// Where a type stands in a C-bound method's signature.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CPlace {
@@ -2629,7 +2706,7 @@ enum CPlace {
 ///
 /// Cost: each method once, and each signature type once; no type is
 /// walked deeper than a reference to a list of numbers.
-fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<DefId> {
+fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<(DefId, DefId)> {
     let mut handles = Vec::new();
     let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
         return handles;
@@ -2654,7 +2731,7 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<DefId> 
         if !sig.suspends
             && let Some(handle) = c_handle(&cx.names, sig.ret)
         {
-            handles.push(handle);
+            handles.push((handle, m));
         }
         let (param, result) = if sig.suspends {
             (CPlace::SuspendParam, CPlace::SuspendResult)

@@ -8462,8 +8462,13 @@ impl Run<'_> {
         if roots.is_empty() {
             return;
         }
-        let c_bound = |def| self.package_host_c(def);
-        let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned, &c_bound) else {
+        let library = |def| self.package_host_library(def);
+        let root_named = |near, library: &str, name: &str| self.c_root_named(near, library, name);
+        let c = hd_check::header::CLibraries {
+            library: &library,
+            root_named: &root_named,
+        };
+        let Ok(findings) = hd_check::header::boundary(&hcx, &roots, &returned, &c) else {
             return;
         };
         if findings.is_empty() {
@@ -12133,6 +12138,43 @@ impl Run<'_> {
             .trait_paths()
             .any(|path| path == identity.trait_path)
             .then_some(identity)
+    }
+
+    /// The `c` library of the package host trait `d`'s `[host]` entry, when
+    /// it names one (`cli.host.c.file`). Cost: one scan of its package's
+    /// entries.
+    fn package_host_library(&self, d: DefId) -> Option<String> {
+        let (package, identity) = self.package_trait_identity(d)?;
+        self.host_packages
+            .iter()
+            .find(|p| p.package == package)?
+            .declarations
+            .as_ref()?
+            .providers
+            .iter()
+            .flatten()
+            .find(|e| e.trait_path == identity.trait_path)?
+            .c
+            .clone()
+    }
+
+    /// The path of a C-bound root trait of `near`'s package whose entry
+    /// symbol is `LIBRARY_NAME` (`cli.host.c.handle-entry`). Cost: one
+    /// scan of that package's entries.
+    fn c_root_named(&self, near: DefId, library: &str, name: &str) -> Option<String> {
+        let package = self.table.modules[self.item_module(near)?.idx()].package;
+        self.host_packages
+            .iter()
+            .find(|p| p.package == package)?
+            .declarations
+            .as_ref()?
+            .providers
+            .iter()
+            .flatten()
+            .find(|e| {
+                e.c.as_deref() == Some(library) && e.trait_path.rsplit('.').next() == Some(name)
+            })
+            .map(|e| e.trait_path.clone())
     }
 
     /// Whether the package host trait `d`'s `[host]` entry names a C

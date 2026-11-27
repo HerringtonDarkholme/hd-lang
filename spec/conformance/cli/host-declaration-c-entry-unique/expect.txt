@@ -1,0 +1,4 @@
+# A library exports one entry symbol `NAME_TRAIT` per trait: two `[host]` entries whose traits would share one are an error at the second.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error","message":null,"file":"hd.toml","line":6,"column":null},{"kind":"summary","errors":1,"warnings":0,"status":101}]

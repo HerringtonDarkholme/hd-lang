@@ -2508,8 +2508,12 @@ the `c` key of the trait's `[host]` entry:
 8. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
 9. r[cli.host.c.handle] A returned handle's trait table comes from the same library's entry `NAME_TRAIT`, checked as a root trait's is, and the host calls its `destroy` once at the handle's last release.
 10. r[cli.host.c.test] `hd test` on Wasmtime binds the C providers of a program it runs by name.
-11. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
-12. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+11. r[cli.host.c.entry-unique] Two traits of one `[host]` table that would export one entry symbol `NAME_TRAIT` from one library are an error, naming both traits. Error: `invalid-manifest`.
+12. r[cli.host.c.handle-library] A handle trait that traits bound to two libraries return is an error, naming the trait and both libraries. Error: `boundary-not-safe`.
+13. r[cli.host.c.handle-entry] A handle trait whose entry symbol `NAME_TRAIT` another C-bound trait of its package takes in the same library is an error, naming both traits. Error: `boundary-not-safe`.
+14. r[cli.host.c.unseen-conflict] A conflict of the two rules above that no check sees, as between modules checked apart, refuses the run before the guest starts.
+15. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+16. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
 
 > **Why.** The library's entry symbol joins its name and the trait's, so
 > the name is a C identifier.

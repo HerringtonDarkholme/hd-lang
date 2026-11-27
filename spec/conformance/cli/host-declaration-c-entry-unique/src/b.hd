@@ -1,0 +1,7 @@
+@host
+pub trait Disk:
+    fn size(&self) -> i64
+
+@host
+pub trait Net:
+    fn open(&mut self) -> i32

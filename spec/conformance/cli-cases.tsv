@@ -333,6 +333,7 @@ host-declaration-not-list	cli.host.declaration.map-table
 host-declaration-not-public	cli.host.declaration.mapped
 host-c-value-table	cli.host.declaration.kinds
 host-declaration-c-kinds	cli.host.declaration.kinds,cli.host.c.name
+host-declaration-c-entry-unique	cli.host.c.entry-unique
 host-c-provider-engines	cli.host.declaration.kinds,cli.host.package.provider-hosts,cli.host.c.header
 host-c-header	cli.host.c.header,cli.host.c.header-contents
 host-c-only-node-refused	cli.host.c.engine

@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# @c-host: main.Disk=hd_disk main.Net=hd_net
+# A returned handle's table comes from the one library of the traits that
+# return it (cli.host.c.handle-library): traits bound to two libraries
+# that return one handle trait are an error at the second.
+pub trait Cursor:
+    fn next(&mut self) -> i32
+
+@host
+pub trait Disk:
+    fn open(&mut self) -> *mut dyn Cursor
+
+@host
+pub trait Net:
+    fn open(&mut self) -> *mut dyn Cursor
