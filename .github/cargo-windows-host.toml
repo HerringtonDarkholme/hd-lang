@@ -1,0 +1,14 @@
+# Windows CI spends minutes optimizing the uncached test executables.
+# Keep compiler libraries and Wasmtime at release optimization, and keep
+# release paths/assertion behavior for CLI and native-host parity tests.
+[profile.release.package.hd_command]
+opt-level = 1
+
+[profile.release.package.hd_run_wasmtime]
+opt-level = 1
+
+[profile.release.package.hd_cache]
+opt-level = 1
+
+[profile.release.package.hd_testkit]
+opt-level = 1
