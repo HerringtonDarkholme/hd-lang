@@ -2807,19 +2807,7 @@ impl Em<'_, '_, '_> {
                     self.pool(),
                     crate::layout::strip_newtype(self.pool(), self.env(), self.ty(i)),
                 );
-                let srcs: Vec<value::Src> = members.into_iter().map(value::Src::Ref).collect();
-                // Construction consumes its parts (§23.25).
-                let srcs = if self.b.is_borrowed_coercion(i) {
-                    srcs
-                } else {
-                    self.count_parts(&srcs, &tys)?
-                };
-                for (s, mt) in srcs.iter().zip(tys) {
-                    for k in 0..self.vals(mt)?.len() {
-                        self.src(s, k)?;
-                    }
-                }
-                self.store(i)?;
+                self.new_in_locals(i, &members, &tys)?;
             }
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,

@@ -81,12 +81,7 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * Superlinear lines already found, as `SHAPE COMMAND` to the issue. The
  * first run's findings name the issue that tracks each one.
  */
-export const KNOWN: ReadonlyMap<string, string> = new Map([
-  // The borrow pass now walks each column once and every column borrows
-  // (lane 322), but hashes still grow 6.02x per 4x and allocations 5.16x
-  // outside it: not yet attributed.
-  ["tuple-nest-string build", "#2402"],
-]);
+export const KNOWN: ReadonlyMap<string, string> = new Map();
 
 /**
  * Superlinear lines the owner accepted as bounded by a language limit,

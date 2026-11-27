@@ -50,24 +50,20 @@
               br 0
             end
           end
-          local.get $value.0
-          local.get $call.0
           i32.const 0
-          local.set $call.0
-          local.set $value.0
           local.set $t0
           br 0
         end
       end
       ;; ...
       local.get $t2
-      local.get $t0
+      local.get $value.0
       i32.store $heap
       local.get $t2
-      local.get $value.0
+      local.get $call.0
       i32.store $heap offset=4
       local.get $t2
-      local.get $call.0
+      local.get $t0
       i32.store $heap offset=8
       local.get $t2
       i32.const 1

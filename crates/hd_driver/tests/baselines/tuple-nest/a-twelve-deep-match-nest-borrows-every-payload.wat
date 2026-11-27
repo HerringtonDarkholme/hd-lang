@@ -7,7 +7,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t.0 i32) (local $t.1 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32) (local $t4 i32) (local $t7 i32) (local $t6 i32) (local $t9 i32) (local $t8 i32) (local $t11 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t15 i32) (local $t14 i32) (local $t17 i32) (local $t16 i32) (local $t19 i32) (local $t18 i32) (local $t23 i32) (local $t22 i32) (local $t21 i32) (local $t20 i32) (local $t25 i32) (local $t24 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t.0 i32) (local $t.1 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32) (local $t4 i32) (local $t7 i32) (local $t6 i32) (local $t9 i32) (local $t8 i32) (local $t11 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t15 i32) (local $t14 i32) (local $t17 i32) (local $t16 i32) (local $t19 i32) (local $t18 i32) (local $t21 i32) (local $t20 i32) (local $t23 i32) (local $t22 i32) (local $t25 i32) (local $t24 i32)
     ;; 33 |     t := "s"
     block
       i32.const 113 ;; &"s"
@@ -16,77 +16,77 @@
       local.set $t.0
     ;; 34 |     println(inner((t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, t))))))))))))))
       local.get $t.0
-      call $retain
-      local.get $t.0
-      call $retain
-      local.get $t.0
       local.get $t.1
       local.set $t0
       local.set $t1
-      local.get $t.0
+      local.get $t1
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t2
       local.set $t3
-      local.get $t.0
+      local.get $t3
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t4
       local.set $t5
-      local.get $t.0
+      local.get $t5
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t6
       local.set $t7
-      local.get $t.0
+      local.get $t7
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t8
       local.set $t9
-      local.get $t.0
+      local.get $t9
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t10
       local.set $t11
-      local.get $t.0
+      local.get $t11
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t12
       local.set $t13
-      local.get $t.0
+      local.get $t13
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t14
       local.set $t15
-      local.get $t.0
+      local.get $t15
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t16
       local.set $t17
-      local.get $t.0
+      local.get $t17
       call $retain
       local.get $t.0
       local.get $t.1
       local.set $t18
       local.set $t19
-      local.get $t.0
+      local.get $t19
       call $retain
-      local.get $t.0
-      local.get $t.1
       local.get $t.0
       local.get $t.1
       local.set $t20
       local.set $t21
+      local.get $t21
+      call $retain
+      local.get $t.0
+      local.get $t.1
       local.set $t22
       local.set $t23
+      local.get $t23
+      call $retain
       local.get $t.0
       local.get $t.1
       local.set $t24

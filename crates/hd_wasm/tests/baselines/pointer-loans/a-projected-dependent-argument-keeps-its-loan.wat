@@ -72,10 +72,8 @@
       local.set $t0
       i32.const 0
       local.set $t1
-      local.get $t0
       i32.const 0
-      local.set $t0
-      local.set $t0
+      local.set $t1
       local.get $alias
       local.set $t1
       i32.const 0

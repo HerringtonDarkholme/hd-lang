@@ -401,16 +401,16 @@
     local.get $t0
     local.get $t2
   )
-  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $held.0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $held.1 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 18 |     held := (&t.lead.name, +1)
     block
       local.get $t
       i32.load $heap
-      local.set $held.0
-      local.get $held.0
+      local.set $held.1
+      local.get $held.1
       i32.const 4
       i32.sub
-      local.set $held.0
+      local.set $held.1
       local.get $t
       i32.load $heap
       local.set $t
@@ -439,12 +439,12 @@
         i32.sub
         local.set $t2
       end
-      local.get $held.0
+      local.get $held.1
       local.set $t0
       local.get $t0
       i32.load $heap
-      local.set $held.0
-      local.get $held.0
+      local.set $held.1
+      local.get $held.1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -454,7 +454,7 @@
         call $rt:loan_share
       else
         local.get $t0
-        local.get $held.0
+        local.get $held.1
         i32.const 65536
         i32.add
         i32.store $heap
@@ -463,16 +463,14 @@
       i32.const 65536
       i32.add
       local.set $t2
-      local.get $t
       i32.const 1
-      local.set $t
-      local.set $held.0
+      local.set $held.1
     ;; 19 |     alias.name = "b"
       local.get $alias
       i32.const 4
       i32.sub
-      local.set $t
-      local.get $t
+      local.set $held.1
+      local.get $held.1
       i32.load $heap
       i32.const 4128768
       i32.and
@@ -482,7 +480,7 @@
       end
       i32.const 65 ;; &"b"
       i32.const 1
-      local.set $t
+      local.set $held.1
       local.set $t1
       local.get $t1
       call $retain
@@ -496,15 +494,15 @@
       local.get $t1
       i32.store $heap
       local.get $alias
-      local.get $t
+      local.get $held.1
       i32.store $heap offset=4
       local.get $t3
       call $rt:release_ref'1
     ;; 20 |     *held._0
-      local.get $held.0
+      local.get $t
       i32.load $heap
       local.set $t1
-      local.get $held.0
+      local.get $t
       i32.load $heap offset=4
       local.set $t3
       local.get $t1
@@ -513,8 +511,8 @@
       if
         local.get $t0
         i32.load $heap
-        local.set $held.0
-        local.get $held.0
+        local.set $t
+        local.get $t
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -524,7 +522,7 @@
           call $rt:loan_unshare
         else
           local.get $t0
-          local.get $held.0
+          local.get $t
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -538,9 +536,9 @@
       end
     ;; 18 |     held := (&t.lead.name, +1)
       i32.const 0
-      local.set $held.0
-      i32.const 0
       local.set $t
+      i32.const 0
+      local.set $held.1
       local.get $alias
       call $rt:release_ref'2
     end

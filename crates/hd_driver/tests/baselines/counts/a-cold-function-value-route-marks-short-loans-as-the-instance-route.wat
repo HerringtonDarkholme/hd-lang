@@ -1411,19 +1411,15 @@
     i32.store $heap offset=32
     local.get $t0
   )
-  (func $viewed (result i32 i32) (local $t0 i32) (local $source.0.1 i32) (local $source.1 i32) (local $source.0.0 i32)
+  (func $viewed (result i32 i32) (local $t0 i32) (local $source.0.0 i32) (local $source.0.1 i32) (local $source.1 i32)
     ;; 23 |     let source: (fn!(*Map[string, string], string) -> usize, usize) = (lookup_viewed, 1)
     block
       i32.const 9
       i32.const 0
-      local.set $source.1
-      local.set $source.0.1
-      local.get $source.0.1
-      local.get $source.1
-      i32.const 1
-      local.set $source.1
       local.set $source.0.1
       local.set $source.0.0
+      i32.const 1
+      local.set $source.1
     ;; 24 |     source._0
       local.get $source.0.0
       local.get $source.0.1

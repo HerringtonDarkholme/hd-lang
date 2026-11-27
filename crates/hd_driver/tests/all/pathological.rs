@@ -4717,6 +4717,35 @@ fn a_nested_tuple_release_emits_no_unused_count_shims() {
     });
 }
 
+// Emit: #2402, a tuple literal stored each part in fresh locals, so a
+// nest of `n` literals copied each level's whole suffix again: O(n^2)
+// locals and instructions before the link's coalescing removed them,
+// which the liveness work over that body paid. A part moved into the
+// literal now keeps its locals, as rustc's `DestinationPropagation`
+// makes `_2` the place `_3.1` for `_3 = (_1, move _2)`.
+#[test]
+fn a_nested_string_tuple_literal_copies_each_leaf_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_wasm::work::count_liveness(|| compile(&string_tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        work(0);
+        let zero = work(0);
+        let small = work(32) - zero;
+        let large = work(128) - zero;
+        assert!(
+            small > 0 && large <= 5 * small,
+            "liveness work over the empty body at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
 /// A `!Copy` struct held `n` tuples deep through named aliases
 /// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
 /// depth, deepest first: each copy question's answer is a blocker below

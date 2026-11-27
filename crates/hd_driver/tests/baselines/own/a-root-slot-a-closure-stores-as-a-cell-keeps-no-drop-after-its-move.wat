@@ -124,7 +124,7 @@
       i32.store $heap offset=4
     end
   )
-  (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $value.1 i32) (local $text.0 i32) (local $capacity i32) (local $text.1 i32) (local $t0 i32) (local $offset i32) (local $t1 i64) (local $t2 i64)
+  (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $value.1 i32) (local $capacity i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32) (local $offset i32) (local $t1 i64) (local $t2 i64)
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
     local.get $env
     i32.load $heap
@@ -163,11 +163,7 @@
               br 0
             end
           end
-          local.get $text.1
-          local.get $capacity
           i32.const 0
-          local.set $capacity
-          local.set $text.1
           local.set $text.0
           br 0
         end
@@ -177,13 +173,13 @@
       call $rt:new/class-3
       local.set $t0
       local.get $t0
-      local.get $text.0
+      local.get $text.1
       i32.store $heap
       local.get $t0
-      local.get $text.1
+      local.get $capacity
       i32.store $heap offset=4
       local.get $t0
-      local.get $capacity
+      local.get $text.0
       i32.store $heap offset=8
       local.get $t0
       i32.const 1

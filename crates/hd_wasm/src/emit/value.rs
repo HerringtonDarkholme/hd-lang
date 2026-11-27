@@ -267,19 +267,66 @@ impl Em<'_, '_, '_> {
         }
         // A struct literal names a struct, whose values are in locals.
         let tys = self.struct_fields(t);
-        // Construction consumes its parts (§23.25).
-        let srcs = if self.b.is_borrowed_coercion(i) {
-            fields.iter().copied().map(Src::Ref).collect()
-        } else {
-            self.count_refs(&fields, &tys)?
-        };
-        for (s, ft) in srcs.iter().zip(&tys) {
-            for k in 0..self.vals(*ft)?.len() {
-                self.src(s, k)?;
+        self.new_in_locals(i, &fields, &tys)
+    }
+
+    /// Value `i`, a struct or tuple whose values are in locals, made of
+    /// `parts` of types `tys`. Construction consumes its parts (§23.25),
+    /// and their counts are the new value's. A part moved in here keeps
+    /// its locals as that part of `i`'s, with nothing emitted, as rustc's
+    /// `DestinationPropagation` makes `_2` the place `_3.1` for
+    /// `_3 = (_1, move _2)`: a nest of `k` literals then copies each leaf
+    /// once, not once per level above it (#2402). Any other part is pushed
+    /// and stored in fresh locals. Not in a suspending body, whose cancel
+    /// block reads a moved part's zeroed locals ([`Em::settle`]). A moved
+    /// part's locals are set once, where it is made, and nothing reads or
+    /// releases it again ([`Em::names_part`]).
+    /// Cost: O(values of `i`).
+    pub(super) fn new_in_locals(&mut self, i: u32, parts: &[u32], tys: &[Ty]) -> StageResult<()> {
+        let borrowed = self.b.is_borrowed_coercion(i);
+        let adopt = self.susp.is_none()
+            && !borrowed
+            && !self.vals.contains_key(&i)
+            && !self.input_transferred.contains_key(&i);
+        let mut srcs = Vec::with_capacity(parts.len());
+        for &r in parts {
+            srcs.push(if borrowed {
+                (Src::Ref(r), false)
+            } else if self.take(r) {
+                (Src::Ref(r), adopt)
+            } else {
+                (self.retain_ref(r)?, false)
+            });
+        }
+        if !srcs.iter().any(|&(_, kept)| kept) {
+            for ((s, _), t) in srcs.iter().zip(tys) {
+                for k in 0..self.vals(*t)?.len() {
+                    self.src(s, k)?;
+                }
+            }
+            return self.store(i);
+        }
+        let mut ls = Vec::new();
+        let mut fresh = Vec::new();
+        for ((s, kept), t) in srcs.iter().zip(tys) {
+            match s {
+                Src::Ref(r) if *kept => ls.extend(self.computed(*r)),
+                _ => {
+                    for (k, v) in self.vals(*t)?.into_iter().enumerate() {
+                        self.src(s, k)?;
+                        let l = self.f.local(v);
+                        ls.push(l);
+                        fresh.push(l);
+                    }
+                }
             }
         }
-        // The parts' counts are the new value's.
-        self.store(i)
+        for l in fresh.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.stack_values |= ls.len() > crate::wide::WIDTH;
+        self.vals.insert(i, ls);
+        Ok(())
     }
 
     /// The parts `srcs`, of types `tys`, of a new value, each moved in or a
@@ -289,12 +336,6 @@ impl Em<'_, '_, '_> {
             .zip(tys)
             .map(|(s, t)| self.retain_src(s, *t))
             .collect()
-    }
-
-    /// The parts `rs`, of types `tys`, of a new value ([`Em::count_parts`]).
-    fn count_refs(&mut self, rs: &[u32], tys: &[Ty]) -> StageResult<Vec<Src>> {
-        let srcs: Vec<Src> = rs.iter().map(|r| Src::Ref(*r)).collect();
-        self.count_parts(&srcs, tys)
     }
 
     /// Pushes every value of `s`.

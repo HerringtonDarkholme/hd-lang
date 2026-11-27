@@ -304,47 +304,9 @@
       local.set $t12
       local.set $t13
       local.set $t14
-      local.get $t14
-      local.get $t13
-      local.get $t12
-      local.get $t11
-      local.get $t10
-      local.get $t9
-      local.get $t8
-      local.get $t7
-      local.get $t6
-      local.get $t5
-      local.get $t4
-      local.get $t3
-      local.get $t2
-      local.get $t1
-      local.get $t0
-      local.get $offset
-      local.get $result.0
-      local.get $size
-      local.get $width
       i32.const 100
       i32.const 113 ;; &"w"
       i32.const 1
-      local.set $width
-      local.set $size
-      local.set $result.0
-      local.set $offset
-      local.set $t0
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.set $t4
-      local.set $t5
-      local.set $t6
-      local.set $t7
-      local.set $t8
-      local.set $t9
-      local.set $t10
-      local.set $t11
-      local.set $t12
-      local.set $t13
-      local.set $t14
       local.set $t15
       local.set $t16
       local.set $t17
@@ -363,70 +325,70 @@
       local.tee $t18
       global.set $stack
       local.get $t18
-      local.get $t17
+      local.get $t14
       i32.store $heap offset=8
       local.get $t18
-      local.get $t16
+      local.get $t13
       i32.store $heap offset=12
       local.get $t18
-      local.get $t15
+      local.get $t12
       i32.store $heap offset=16
       local.get $t18
-      local.get $t14
+      local.get $t11
       i32.store $heap offset=20
       local.get $t18
-      local.get $t13
+      local.get $t10
       i32.store $heap offset=24
       local.get $t18
-      local.get $t12
+      local.get $t9
       i32.store $heap offset=28
       local.get $t18
-      local.get $t11
+      local.get $t8
       i32.store $heap offset=32
       local.get $t18
-      local.get $t10
+      local.get $t7
       i32.store $heap offset=36
       local.get $t18
-      local.get $t9
+      local.get $t6
       i32.store $heap offset=40
       local.get $t18
-      local.get $t8
+      local.get $t5
       i32.store $heap offset=44
       local.get $t18
-      local.get $t7
+      local.get $t4
       i32.store $heap offset=48
       local.get $t18
-      local.get $t6
+      local.get $t3
       i32.store $heap offset=52
       local.get $t18
-      local.get $t5
+      local.get $t2
       i32.store $heap offset=56
       local.get $t18
-      local.get $t4
+      local.get $t1
       i32.store $heap offset=60
       local.get $t18
-      local.get $t3
+      local.get $t0
       i32.store $heap offset=64
       local.get $t18
-      local.get $t2
+      local.get $offset
       i32.store $heap offset=68
       local.get $t18
-      local.get $t1
+      local.get $result.0
       i32.store $heap offset=72
       local.get $t18
-      local.get $t0
+      local.get $size
       i32.store $heap
       local.get $t18
-      local.get $offset
+      local.get $width
       i32.store $heap offset=4
       local.get $t18
-      local.get $result.0
+      local.get $t17
       i32.store $heap offset=84
       local.get $t18
-      local.get $size
+      local.get $t16
       i32.store $heap offset=76
       local.get $t18
-      local.get $width
+      local.get $t15
       i32.store $heap offset=80
       local.get $t18
       call $outer
