@@ -1638,6 +1638,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     // its scrutinee by borrowing it, and a match column that only names
     // its bindings' place, which they read again, has no use at all.
     // There is no count to end or drop.
+    let mut reads: Option<MatchReads> = None;
     for r in 0..b.len() {
         if b.tags[r] == Tag::Read
             && b.data[r][1] == ReadMode::Copy as u32
@@ -1645,8 +1646,19 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             && cx.copies(b.ty[r]) != Tri::Yes
             && (t.v[r].uses == 0
                 || !cx.counted(b.ty[r])
-                    && match_reference_read(b, topo, r, |value| t.v[value].borrows))
+                    && reads
+                        .get_or_insert_with(|| {
+                            let v = &t.v;
+                            let work = || crate::work::match_read_work(1);
+                            MatchReads::new(b, topo, |value| v[value].borrows, work)
+                        })
+                        .get(r))
         {
+            if !t.v[r].borrows
+                && let Some(reads) = &mut reads
+            {
+                reads.borrows(r);
+            }
             t.v[r].borrows = true;
         }
     }
@@ -2628,52 +2640,225 @@ fn frame_lending_roots_with(
     lends
 }
 
-/// Whether read `r` is in a match's decision block and reads through that
-/// match's reference scrutinee. The current decision query follows borrowed
-/// parent reads before or after those decisions are written into TIR.
-pub(super) fn match_reference_read(
-    b: &Body,
-    topo: &Topology,
-    r: usize,
-    mut borrows: impl FnMut(usize) -> bool,
-) -> bool {
-    let Some(&first) = topo.blk.get(r).filter(|&&block| block != NONE) else {
-        return false;
-    };
-    let mut block = first;
-    let mut subject = NONE;
-    for _ in 0..b.len() {
-        let owner = topo.owner[block as usize];
-        if owner != NONE && b.tags.get(owner as usize) == Some(&Tag::Match) {
-            let [candidate, blocks] = b.data[owner as usize];
-            if b.record(blocks).first() == Some(&block) {
-                subject = candidate;
-                break;
+/// Which reads are in a match's decision block and read through that
+/// match's reference scrutinee: a read whose place is rooted at the
+/// subject, or at a borrowed read (`borrows`) rooted at it, and so on up.
+/// A deep pattern matched through `&x` roots each payload at the read
+/// above it, so walking each read's chain up to the subject costs
+/// O(depth²) for the pattern. Instead the roots form a forest, each read
+/// a child of the value it is rooted at (a read is made after its root,
+/// so there is no cycle), and one Euler tour answers each read by an
+/// ancestor test on entry and exit times (Tarjan): the subject must be
+/// an ancestor of the read, with only borrowed reads between, which
+/// counts of the other nodes on each root path (a Fenwick tree over the
+/// tour, for reads found to borrow later) tell, and the read reaches it
+/// behind a dereference or an element when the counts of those steps on
+/// the path differ. Each decision block's subject is found once per
+/// block, its parent's answer folded in.
+/// Cost: O(n) to build for `n` instructions and constants, O(log n) per
+/// answer and per [`MatchReads::borrows`].
+pub(super) struct MatchReads {
+    /// Each instruction's decision subject: the match whose first block
+    /// encloses it, as that match's candidate, or `NONE`.
+    subject: Vec<u32>,
+    /// Each node's root value as a node, or `NONE`: an instruction or a
+    /// constant (after the instructions).
+    parent: Vec<u32>,
+    /// Each node's entry and exit time in the tour, `NONE` for a node on
+    /// no root path.
+    enter: Vec<u32>,
+    exit: Vec<u32>,
+    /// The steps behind a dereference or an element on each node's path
+    /// to its forest root, itself included.
+    behind: Vec<u32>,
+    /// The nodes other than borrowed reads on each node's path to its
+    /// forest root, itself included, as [`MatchReads::new`] found them;
+    /// `fewer` holds those that borrow since.
+    stops: Vec<u32>,
+    fewer: Vec<u32>,
+}
+
+impl MatchReads {
+    pub(super) fn new(
+        b: &Body,
+        topo: &Topology,
+        mut borrows: impl FnMut(usize) -> bool,
+        mut visit: impl FnMut(),
+    ) -> Self {
+        let n = b.len();
+        let nodes = n + b.consts.len();
+        // The subject inside each block, each block resolved once: a walk
+        // up stops at a block already known, then fills the blocks it
+        // passed.
+        let (mut inside, mut known) = (vec![NONE; n], vec![false; n]);
+        let mut passed = Vec::new();
+        let mut subject = vec![NONE; n];
+        for (i, slot) in subject.iter_mut().enumerate() {
+            let mut block = topo.blk[i];
+            let mut found = NONE;
+            while block != NONE {
+                visit();
+                if known[block as usize] {
+                    found = inside[block as usize];
+                    break;
+                }
+                passed.push(block);
+                let owner = topo.owner[block as usize];
+                if owner != NONE && b.tags[owner as usize] == Tag::Match {
+                    let [candidate, blocks] = b.data[owner as usize];
+                    if b.record(blocks).first() == Some(&block) {
+                        found = candidate;
+                        break;
+                    }
+                }
+                block = topo.up(block).map_or(NONE, |(parent, _)| parent);
+            }
+            for blk in passed.drain(..) {
+                known[blk as usize] = true;
+                inside[blk as usize] = found;
+            }
+            *slot = found;
+        }
+        let mut parent = vec![NONE; nodes];
+        let mut own_behind = vec![false; nodes];
+        let mut stop = vec![true; nodes];
+        for r in 0..n {
+            visit();
+            if b.tags[r] != Tag::Read {
+                continue;
+            }
+            let place = b.view(b.data[r][0]);
+            if let Root::Value(value) = place.root {
+                parent[r] = value_node(n, nodes, value);
+                own_behind[r] = place.kinds(b).0 > 0;
+            }
+            stop[r] = !borrows(r);
+        }
+        // The children of each node, then the tour from each forest root,
+        // folding each node's counts from its parent's.
+        let mut first = vec![0u32; nodes + 1];
+        for &p in &parent {
+            if p != NONE {
+                first[p as usize + 1] += 1;
             }
         }
-        let Some((parent, _)) = topo.up(block) else {
-            return false;
+        for k in 0..nodes {
+            first[k + 1] += first[k];
+        }
+        let mut kids = vec![0u32; first[nodes] as usize];
+        let mut next = first.clone();
+        for (k, &p) in parent.iter().enumerate() {
+            if p != NONE {
+                kids[next[p as usize] as usize] = u32_of(k);
+                next[p as usize] += 1;
+            }
+        }
+        let (mut enter, mut exit) = (vec![NONE; nodes], vec![NONE; nodes]);
+        let (mut behind, mut stops) = (vec![0u32; nodes], vec![0u32; nodes]);
+        let mut time = 0;
+        let mut stack: Vec<(u32, u32)> = Vec::new();
+        for (root, &up) in parent.iter().enumerate() {
+            if up != NONE {
+                continue;
+            }
+            let root = u32_of(root);
+            stack.push((root, first[root as usize]));
+            enter[root as usize] = time;
+            behind[root as usize] = u32::from(own_behind[root as usize]);
+            stops[root as usize] = u32::from(stop[root as usize]);
+            time += 1;
+            while let Some((at, kid)) = stack.last_mut() {
+                visit();
+                let at = *at;
+                if *kid == first[at as usize + 1] {
+                    exit[at as usize] = time;
+                    stack.pop();
+                    continue;
+                }
+                let c = kids[*kid as usize];
+                *kid += 1;
+                enter[c as usize] = time;
+                time += 1;
+                behind[c as usize] = behind[at as usize] + u32::from(own_behind[c as usize]);
+                stops[c as usize] = stops[at as usize] + u32::from(stop[c as usize]);
+                stack.push((c, first[c as usize]));
+            }
+        }
+        Self {
+            subject,
+            parent,
+            enter,
+            exit,
+            behind,
+            stops,
+            fewer: vec![0; time as usize + 1],
+        }
+    }
+
+    /// The stops on node `x`'s root path now.
+    fn stops(&self, x: u32) -> u32 {
+        let mut k = self.enter[x as usize] as usize + 1;
+        let mut fewer = 0;
+        while k > 0 {
+            fewer += self.fewer[k - 1];
+            k &= k - 1;
+        }
+        self.stops[x as usize] - fewer
+    }
+
+    /// Read `r` borrows from now on, so a walk goes on through it: one
+    /// stop fewer on the root path of each node of its subtree.
+    pub(super) fn borrows(&mut self, r: usize) {
+        let (a, z) = (self.enter[r], self.exit[r]);
+        if a == NONE {
+            return;
+        }
+        let mut add = |at: u32, d: u32| {
+            let mut k = at as usize + 1;
+            while k <= self.fewer.len() {
+                self.fewer[k - 1] = self.fewer[k - 1].wrapping_add(d);
+                k += k & k.wrapping_neg();
+            }
         };
-        block = parent;
+        add(a, 1);
+        add(z, 1u32.wrapping_neg());
     }
-    if subject == NONE {
-        return false;
-    }
-    let mut word = b.data[r][0];
-    let mut behind = false;
-    // Each step goes to a read made before: the walk ends.
-    loop {
-        let place = b.view(word);
-        behind |= place.kinds(b).0 > 0;
-        match place.root {
-            Root::Value(value) if value == subject => return behind,
-            Root::Value(value)
-                if b.tags.get(value as usize) == Some(&Tag::Read) && borrows(value as usize) =>
-            {
-                word = b.data[value as usize][0];
-            }
-            _ => return false,
+
+    /// Whether read `r` is in a match's decision block and reads through
+    /// that match's reference scrutinee, behind a dereference or an
+    /// element on the way.
+    pub(super) fn get(&self, r: usize) -> bool {
+        let (s, p) = (self.subject[r], self.parent[r]);
+        if s == NONE || p == NONE {
+            return false;
         }
+        let s = value_node(self.subject.len(), self.parent.len(), s);
+        if s == NONE || self.enter[s as usize] == NONE || self.enter[p as usize] == NONE {
+            return false;
+        }
+        let ancestor = s == p
+            || self.enter[s as usize] < self.enter[p as usize]
+                && self.exit[p as usize] <= self.exit[s as usize];
+        // Only borrowed reads lie between: the subject's own stop, if any,
+        // is the one the paths share.
+        ancestor
+            && (s == p || self.stops(p) == self.stops(s))
+            && self.behind[r] > self.behind[s as usize]
+    }
+}
+
+/// The node of value `v` in a forest of `n` instructions and then the
+/// constants, `nodes` in all, or `NONE`.
+fn value_node(n: usize, nodes: usize, v: u32) -> u32 {
+    let at = if v & Ref::CONST_BIT != 0 {
+        n + (v & !Ref::CONST_BIT) as usize
+    } else {
+        v as usize
+    };
+    if v != NONE && at < nodes {
+        u32_of(at)
+    } else {
+        NONE
     }
 }
 
@@ -2682,27 +2867,36 @@ pub(super) fn match_reference_read(
 /// read (`[%decision as .variant .field]`). That decision read may keep a
 /// `Drop` for an erased instance that makes its value fresh; the payload loan
 /// instead lives on the referenced scrutinee, which the match keeps alive.
+/// A payload rooted at another such payload keeps that one link, as the
+/// borrow pass roots a read at its parent ([`Bit::value`]): the parent is
+/// re-rooted itself, so a nest's places do not grow with its depth, where
+/// spelling each payload's whole projection, as rustc's MIR does, is
+/// O(depth²) words in all.
 pub(super) fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
+    let mut visit = || crate::work::match_read_work(1);
+    let borrowed = |b: &Body, i: usize| {
+        b.tags.get(i) == Some(&Tag::Read) && b.data[i][1] == ReadMode::Borrow as u32
+    };
+    let reads = MatchReads::new(b, topo, |value| borrowed(b, value), &mut visit);
+    let payload = |r: usize| borrowed(b, r) && reads.get(r);
     let mut changed = Vec::new();
     for r in 0..b.len() {
-        if b.tags[r] != Tag::Read
-            || b.data[r][1] != ReadMode::Borrow as u32
-            || !match_reference_read(b, topo, r, |value| {
-                b.data[value][1] == ReadMode::Borrow as u32
-            })
-        {
+        visit();
+        if !payload(r) {
             continue;
         }
         let Some(mut p) = b.decode_place(b.data[r][0]) else {
             continue;
         };
         let mut flattened = false;
-        // Each step goes to a read made before: the walk ends.
+        // Each step goes to a read made before, up to a payload or the
+        // scrutinee's place: the walk ends.
         while let PlaceRoot::Value(base) = p.root {
             let i = base.0 as usize;
-            if b.tags.get(i) != Some(&Tag::Read) || b.data[i][1] != ReadMode::Borrow as u32 {
+            if !borrowed(b, i) || payload(i) {
                 break;
             }
+            visit();
             let Some(mut outer) = b.decode_place(b.data[i][0]) else {
                 break;
             };

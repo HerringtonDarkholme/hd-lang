@@ -4746,6 +4746,50 @@ fn a_nested_string_tuple_literal_copies_each_leaf_once() {
     });
 }
 
+/// A tuple of `string`s nested `n` deep, matched through a reference by
+/// one nested pattern that binds its deepest leaf.
+fn reference_match_nest(n: usize) -> String {
+    let ty = format!("{}string{}", "(string, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    let mut pattern = String::from("z");
+    for i in (0..n).rev() {
+        pattern = format!("(a{i}, {pattern})");
+    }
+    format!(
+        "fn last(x: {ty}) -> string:\n    match &x:\n        {pattern} => z\n\n\
+         pub fn main() -> void $ Console:\n    let t = \"s\"\n    println(last({value}))\n"
+    )
+}
+
+// Ownership: #2402, each payload read of a deep pattern matched through
+// `&x` walked its chain of reads up to the match's subject, and was
+// re-rooted at the scrutinee with its whole projection: O(depth^2) steps
+// and place words. Now one tour of the reads' root forest answers each
+// read, and a payload keeps its one link to the payload above it.
+#[test]
+fn a_deep_match_through_a_reference_walks_each_read_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_tir::work::count_match_read_work(|| compile(&reference_match_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        // A pattern of depth 0 binds the reference itself. The first build
+        // fills what the run's memo then keeps of std, so each later size
+        // counts its program's own reads.
+        work(8);
+        let (small, large) = (work(32), work(128));
+        assert!(
+            small > 0 && large <= 5 * small,
+            "match-reference read work at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
 /// A `!Copy` struct held `n` tuples deep through named aliases
 /// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
 /// depth, deepest first: each copy question's answer is a blocker below
