@@ -1,0 +1,9 @@
+use std.console.{ConsoleInput, stdin, read_line, read_all}
+use std.io.Read
+fn check!() -> void $ Console + ConsoleInput:
+    let mut input = stdin()
+    println(input.read!(100).expect("read").is_empty())
+    println(read_line!().expect("read") == .None)
+    println(read_all!().expect("read").is_empty())
+
+check!()

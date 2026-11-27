@@ -71,6 +71,7 @@ interface SyncClient {
 export interface LineReader {
   (): string | null | false;
   all(): string | false;
+  bytes(max: number): Uint8Array | false;
 }
 
 interface ErrorWithCode {
@@ -303,9 +304,10 @@ export function lineReader(fd: number | null): LineReader {
   if (fd === null) {
     const none = (() => null) as LineReader;
     none.all = () => "";
+    none.bytes = () => new Uint8Array();
     return none;
   }
-  let pending = Buffer.alloc(0);
+  let pending: Buffer = Buffer.alloc(0);
   let parts: Buffer[] = [];
   let length = 0;
   let ended = false;
@@ -386,6 +388,26 @@ export function lineReader(fd: number | null): LineReader {
     }
     return take().toString("utf8");
   };
+  line.bytes = (max) => {
+    max >>>= 0;
+    if (max === 0) {
+      return new Uint8Array();
+    }
+    // Only a failed text read can retain earlier fragments. Recover them
+    // once before continuing with the same buffered descriptor.
+    if (length) {
+      retain(pending);
+      pending = take();
+    }
+    while (!pending.length && !ended) {
+      if (!fill()) {
+        return false;
+      }
+    }
+    const bytes = pending.subarray(0, Math.min(max, pending.length));
+    pending = pending.subarray(bytes.length);
+    return bytes;
+  };
   return line;
 }
 
@@ -462,26 +484,12 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
       }
       return text;
     });
-  // A line reader has no bytes of its own: its lines, each ended by "\n",
-  // are the handle's bytes.
-  let unread = Buffer.alloc(0);
   return {
     stdin: () => 1,
     "StdinHandle.read": (_handle: number, max: number) => {
       flush();
-      while (unread.length === 0 && max > 0) {
-        const line = readLine();
-        if (line === false) {
-          return Err({ tag: "Closed" });
-        }
-        if (line === null) {
-          break;
-        }
-        unread = Buffer.from(`${line}\n`);
-      }
-      const taken = unread.subarray(0, Math.min(max >>> 0, unread.length));
-      unread = unread.subarray(taken.length);
-      return Ok(new Uint8Array(taken));
+      const bytes = readLine.bytes(max >>> 0);
+      return bytes === false ? Err({ tag: "Closed" }) : Ok(new Uint8Array(bytes));
     },
     read_line: () => {
       // A completed prompt must reach the sink before this read blocks.

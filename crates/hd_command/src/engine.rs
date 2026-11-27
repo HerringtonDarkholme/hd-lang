@@ -697,25 +697,46 @@ impl NodeSession {
                     .write_all(text.as_bytes())
                     .and_then(|()| self.io.err.flush())
                     .map_err(|error| error.to_string())?;
+            } else if let Some(max) = row.strip_prefix("bytes\t") {
+                let max: usize = max
+                    .parse::<u32>()
+                    .map_err(|error| format!("invalid session input size: {error}"))?
+                    as usize;
+                // BufRead's fill/consume pair shares unread bytes with the
+                // text reads, without allocating the guest's requested max.
+                let value = match self.io.input.as_mut() {
+                    None => "[]".into(),
+                    Some(input) => match input.fill_buf() {
+                        Ok(bytes) => {
+                            let count = max.min(bytes.len());
+                            let value = serde_json::to_string(&bytes[..count])
+                                .map_err(|error| error.to_string())?;
+                            input.consume(count);
+                            value
+                        }
+                        Err(_) => "false".into(),
+                    },
+                };
+                self.send(&format!("{{\"value\":{value}}}"))?;
             } else if matches!(row, "input" | "all") {
-                let mut text = String::new();
+                let mut bytes = Vec::new();
                 let value = match self.io.input.as_mut() {
                     None if row == "all" => crate::report::quote(""),
                     None => "null".into(),
-                    Some(input) if row == "all" => match input.read_to_string(&mut text) {
-                        Ok(_) => crate::report::quote(&text.replace("\r\n", "\n")),
+                    Some(input) if row == "all" => match input.read_to_end(&mut bytes) {
+                        Ok(_) => crate::report::quote(&String::from_utf8_lossy(&bytes)),
                         Err(_) => "false".into(),
                     },
-                    Some(input) => match input.read_line(&mut text) {
+                    Some(input) => match input.read_until(b'\n', &mut bytes) {
                         Ok(0) => "null".into(),
                         Ok(_) => {
-                            if text.ends_with('\n') {
-                                text.pop();
-                                if text.ends_with('\r') {
-                                    text.pop();
+                            if bytes.last() == Some(&b'\n') {
+                                bytes.pop();
+                                if bytes.last() == Some(&b'\r') {
+                                    bytes.pop();
                                 }
                             }
-                            crate::report::quote(&text)
+                            crate::report::quote(&String::from_utf8_lossy(&bytes))
                         }
                         Err(_) => "false".into(),
                     },
