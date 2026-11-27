@@ -4865,7 +4865,13 @@ impl Em<'_, '_, '_> {
             }
             self.f.call(Sym::Inst(if op == PrimOp::Pow {
                 if single {
-                    self.input.float_ops.pow_f32
+                    // ruled out: a missing key. Collection follows every
+                    // f32 Pow's implicit std call, including generic/closure
+                    // instances, before the emitter can reach this operator.
+                    required(
+                        self.input.float_ops.pow_f32,
+                        "collection recorded f32 power's std implementation",
+                    )
                 } else {
                     self.input.float_ops.pow
                 }

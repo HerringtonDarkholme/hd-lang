@@ -389,23 +389,27 @@ pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "marking"
 /// The ordinary std functions that implement floating operators absent
 /// from Wasm. The driver roots them so emission can call them directly.
 pub const FLOAT_MODULE: &str = "std.num";
-pub const FLOAT_FNS: [&str; 3] = ["float_pow_f64", "float_rem_f64", "libm_powf"];
+pub const FLOAT_FNS: [&str; 2] = ["float_pow_f64", "float_rem_f64"];
+/// The f32 power implementation: collected only when a reachable operator
+/// needs it, or an ordinary source call reaches it.
+pub const FLOAT_POW_F32: &str = "libm_powf";
 
-/// The instance keys of [`FLOAT_FNS`], in declaration order.
+/// The rooted floating operators' instance keys, plus f32 power's key
+/// when collection reaches a corresponding operator or ordinary call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FloatOps {
     pub pow: Hash128,
     pub rem: Hash128,
-    pub pow_f32: Hash128,
+    pub pow_f32: Option<Hash128>,
 }
 
 impl FloatOps {
     #[must_use]
-    pub fn from_keys(keys: [Option<Hash128>; 3]) -> Option<FloatOps> {
+    pub fn from_keys(keys: [Option<Hash128>; 2], pow_f32: Option<Hash128>) -> Option<FloatOps> {
         Some(FloatOps {
             pow: keys[0]?,
             rem: keys[1]?,
-            pow_f32: keys[2]?,
+            pow_f32,
         })
     }
 }

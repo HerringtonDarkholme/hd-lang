@@ -12233,7 +12233,16 @@ impl Run<'_> {
                     .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
                     .map(|id| table.key[id.idx()])
             });
-            let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys) else {
+            let pow_f32 = c
+                .collected
+                .table
+                .get(
+                    names.item(hd_wasm::FLOAT_MODULE, hd_wasm::FLOAT_POW_F32),
+                    hd_mono::Sub::Body(0),
+                    TyList::EMPTY,
+                )
+                .map(|id| c.collected.table.key[id.idx()]);
+            let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys, pow_f32) else {
                 self.stage::<()>(
                     Stage::Link,
                     Err(NotImplemented::bug(
@@ -14055,6 +14064,16 @@ impl Env<'_> {
 }
 
 impl ProgramEnv for Env<'_> {
+    fn float_operator(&self, op: hd_tir::ir::PrimOp, ty: Ty) -> Option<DefId> {
+        // ** accepts only primitives or a Float-bound parameter, substituted
+        // before collection (expr.power.float.same-type/type-parameter).
+        (op == hd_tir::ir::PrimOp::Pow && ty == Ty::prim(hd_types::Prim::F32)).then(|| {
+            self.run
+                .names()
+                .item(hd_wasm::FLOAT_MODULE, hd_wasm::FLOAT_POW_F32)
+        })
+    }
+
     fn source_span(&self, item: DefId, node: hd_base::NodeIdx) -> Option<Span> {
         let module = self.run.item_module(item)?.idx();
         if node == hd_base::NodeIdx::NONE {
