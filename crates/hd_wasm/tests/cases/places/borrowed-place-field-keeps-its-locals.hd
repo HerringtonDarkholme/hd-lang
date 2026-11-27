@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: dev | checked | release
+# @helper: app/main/borrow_field
+# Hand-built borrowed value-place fixture (#2441).
+# The emitter accepts a Read borrow of an instruction's field as well as Field.
+use std.meta.cold
+
+@cold
+fn borrow_field(pair: (i32, i32)) -> i32:
+    pair._0

@@ -1496,6 +1496,7 @@ impl<E> Emitted<E> {
 
 /// A static data request of a unit, which the merge makes of the module
 /// in order ([`Module::place_statics`]).
+#[cfg_attr(feature = "testing", derive(Debug))]
 enum Static {
     /// [`Module::static_bytes`].
     Bytes(Vec<u8>, u32),
@@ -1509,6 +1510,7 @@ enum Static {
 
 /// An edit of a table that emission writes and never reads, applied in
 /// emission order ([`Module::edit`]).
+#[cfg_attr(feature = "testing", derive(Debug))]
 pub(crate) enum Edit {
     /// [`Module::stored`] gets this entry.
     Stored(Hash128, Stored),

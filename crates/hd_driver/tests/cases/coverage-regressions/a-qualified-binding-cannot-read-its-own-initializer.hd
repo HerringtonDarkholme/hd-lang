@@ -1,0 +1,4 @@
+# @dump: diagnostics
+use pkg.main as own
+
+pub let VALUE: i32 = own.VALUE

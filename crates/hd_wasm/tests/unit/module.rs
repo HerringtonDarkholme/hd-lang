@@ -249,3 +249,46 @@ mod dense_symbol_tests {
         assert_eq!(functions, 1, "only the exported root is still linked");
     }
 }
+
+#[test]
+fn every_unit_wire_record_round_trips_and_rejects_truncation() {
+    hd_wasm::testing::unit_wire_records();
+}
+
+#[test]
+fn emitted_unit_place_roots_hash_their_kind_and_all_identity_fields() {
+    use hd_base::{DefId, Hash128, LocalId, StableHasher};
+    use hd_tir::ir::{PlaceRoot, Ref};
+    use hd_types::Ty;
+    let hash = |root| {
+        let mut h = StableHasher::new("test-unit-place");
+        hd_wasm::testing::place_root(
+            &mut h,
+            root,
+            |t| Hash128(u128::from(t.0)),
+            |d| Hash128(u128::from(d.raw())),
+        );
+        h.finish()
+    };
+    let roots = [
+        PlaceRoot::Local(LocalId::from_raw(1)),
+        PlaceRoot::Global(DefId::from_raw(1), Ty::I32),
+        PlaceRoot::Global(DefId::from_raw(2), Ty::I32),
+        PlaceRoot::Global(DefId::from_raw(1), Ty::STRING),
+        PlaceRoot::Value(Ref(1)),
+        PlaceRoot::Value(Ref(2)),
+        PlaceRoot::Frame(1),
+        PlaceRoot::Frame(2),
+        PlaceRoot::Ptr(Ref(1)),
+        PlaceRoot::Ptr(Ref(2)),
+    ];
+    let hashes: Vec<_> = roots.into_iter().map(hash).collect();
+    assert_eq!(
+        hashes
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        hashes.len()
+    );
+}

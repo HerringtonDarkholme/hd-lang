@@ -365,7 +365,7 @@ fn a_trace_names_each_task_and_the_serial_phases() {
         .env("HD_CACHE", dir.cache())
         .env("HD_TRACE", &trace)
         .current_dir(&dir)
-        .arg("check")
+        .arg("build")
         .output()
         .expect("run hd");
     assert!(
@@ -382,6 +382,13 @@ fn a_trace_names_each_task_and_the_serial_phases() {
             .any(|e| e["ph"] == "X" && e["cat"] == cat && e["name"] == name && e["dur"].is_u64())
     };
     assert!(named("task", "ModulePrep shop.main"), "{json}");
+    assert!(
+        events.iter().any(|event| event["cat"] == "phase"
+            && event["name"].as_str().is_some_and(
+                |name| name.starts_with("link: units emitted ") && name.contains(", reused ")
+            )),
+        "{json}"
+    );
     for phase in [
         "load package",
         "result key",

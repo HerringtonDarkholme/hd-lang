@@ -559,7 +559,7 @@ impl Em<'_, '_, '_> {
                     self.env(),
                     self.input.collected,
                     at,
-                )?)
+                ))
             }
         };
         paths.path(to).ok_or_else(|| {

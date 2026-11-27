@@ -5,10 +5,14 @@
 //! paths. Unlike rustc's segmented vtable, hd keeps its direct-parent ABI.
 //! <https://github.com/rust-lang/rust/blob/main/compiler/rustc_trait_selection/src/traits/vtable.rs>
 
-use hd_base::{DefId, HashMap, HashSet, NotImplemented, Stage, StageResult};
+use hd_base::{DefId, HashMap, HashSet};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 use crate::{Collected, ProgramEnv, subst};
+
+// A trait's two direct declaration lists fit Wasm32 even at the source
+// limit. Changing that language limit must recheck the offset proof below.
+const _: () = assert!(hd_base::limits::FILE_SIZE <= u32::MAX / 8);
 
 /// Direct supertraits in declaration order, with `Self` and arguments filled.
 /// One substitution per edge; consumers retain this list while walking it.
@@ -47,12 +51,8 @@ pub struct DynPaths {
 impl DynPaths {
     /// A table's parent pointers follow the slots its trait keeps in
     /// `program` ([`Collected::slots`]).
-    pub fn new(
-        pool: &InternPool,
-        env: &dyn ProgramEnv,
-        program: &Collected,
-        root: Ty,
-    ) -> StageResult<Self> {
+    #[must_use]
+    pub fn new(pool: &InternPool, env: &dyn ProgramEnv, program: &Collected, root: Ty) -> Self {
         let mut out = Self::default();
         let mut seen = HashSet::default();
         let mut stack = vec![(root, None)];
@@ -83,22 +83,16 @@ impl DynPaths {
             // Push rightmost first so popping visits declared parents leftmost
             // first, exactly as the old recursive path query did.
             for (k, sup) in supers.into_iter().enumerate().rev() {
-                // Parent addresses are Wasm32 byte offsets, not an arbitrary
-                // inheritance limit. Propagate an unrepresentable layout.
-                let offset = own
-                    .checked_add(k)
-                    .and_then(|slot| u32::try_from(slot).ok())
-                    .and_then(|slot| slot.checked_mul(4))
-                    .ok_or_else(|| {
-                        NotImplemented::bug(
-                            Stage::Emit,
-                            "a vtable parent offset exceeds Wasm32 memory",
-                        )
-                    })?;
+                // ruled out: overflow. A trait's own methods and direct
+                // parents each come from one declaration in a source file
+                // of at most limits::FILE_SIZE (16 MiB) bytes. Even one entry
+                // per byte in both lists needs at most 128 MiB of offsets,
+                // within Wasm32. slot_methods removes entries; it adds none.
+                let offset = hd_tir::ir::u32_of((own + k) * 4);
                 stack.push((sup, Some((index, offset))));
             }
         }
-        Ok(out)
+        out
     }
 
     /// A checked whole key, without the legacy definition-only fallback.
