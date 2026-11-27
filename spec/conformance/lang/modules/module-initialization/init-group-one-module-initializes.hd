@@ -1,0 +1,9 @@
+# test: a statement that reads its own binding through a function of its cycle is an error when only its module initializes
+# Spec 10 Order Inside A Cycle: module.init.cycle.dependency, module.init.cycle.stuck. src/b.hd has no statements.
+# fixture-package-tree: init-cycle-one/src/a.hd
+use pkg.b.{read_b}
+
+let a = read_b() # diagnostic: top-level-read-before-initialization
+
+pub fn read_a() -> i32:
+    a

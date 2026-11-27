@@ -2732,6 +2732,7 @@ lang/modules/public-uses-and-visibility/pub-use-loop.hd	type	reject:re-export-lo
 lang/modules/module-initialization/init-group-order.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.step
 lang/modules/module-initialization/init-group-a-bound-call-reaches-the-impls-of-its-module.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.dependency
 lang/modules/module-initialization/init-group-cycle.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.cycle.stuck
+lang/modules/module-initialization/init-group-one-module-initializes.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.cycle.dependency
 lang/lexical/literals/string-prefix-plain-dollar-digit.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 lang/functions/function-types-and-values/literal-suffix-default-parameter.hd	runtime	accept	lang/05-expressions.md#r-expr.literal-fn.ordinary-call
 lang/expressions/unary-and-binary-operators/operator-traits/operator-string-add.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.string-generic

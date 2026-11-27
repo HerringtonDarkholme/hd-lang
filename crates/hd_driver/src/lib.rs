@@ -6279,10 +6279,12 @@ impl Run<'_> {
         self.graph.deps[m].iter().map(|d| d.idx()).collect()
     }
 
-    /// The module cycles of unit `fi` whose statements sit in several
-    /// modules, each in module identity order (`module.init.cycle`). A
-    /// cycle never leaves its unit (`module.init.use-graph`), and only a
-    /// checked module's summary counts its statements.
+    /// The module cycles of unit `fi` of several modules, any of which has
+    /// statements, each in module identity order (`module.init.cycle`): a
+    /// statement may read its own module's binding through another
+    /// module's function (`module.init.cycle.dependency`). A cycle never
+    /// leaves its unit (`module.init.use-graph`), and only a checked
+    /// module's summary counts its statements.
     fn unit_cycles(&self, fi: usize) -> Vec<Vec<usize>> {
         let unit = UnitId::from_raw(u32_of(fi));
         let mods = &self.table.units[fi].modules;
@@ -6305,7 +6307,7 @@ impl Run<'_> {
         };
         groups
             .into_iter()
-            .filter(|g| g.len() > 1 && g.iter().filter(|m| initializes(**m)).count() > 1)
+            .filter(|g| g.len() > 1 && g.iter().any(|m| initializes(*m)))
             .map(|mut g| {
                 g.sort_stable_by(|a, b| {
                     self.table.modules[*a]
@@ -11622,8 +11624,8 @@ impl Run<'_> {
             .filter(|p| has_init(p))
             .collect();
         paths.sort_stable();
-        if paths.len() < 2 {
-            return Ok(paths.into_iter().map(|p| (init_of(p), p)).collect());
+        if paths.is_empty() {
+            return Ok(Vec::new());
         }
         let unit = self.table.modules[graph.cycles[c][0]].unit.idx();
         if query.indexed.insert(unit) {
@@ -11635,6 +11637,11 @@ impl Run<'_> {
             }
         }
         let Some(&runs) = query.runs_of.get(&c) else {
+            // A cycle of one module runs its whole init in source order
+            // (`module.init.source-order-single`).
+            if let [p] = paths[..] {
+                return Ok(vec![(init_of(p), p)]);
+            }
             return Err(NotImplemented::new(
                 Stage::Collect,
                 "a module cycle without its init order",
