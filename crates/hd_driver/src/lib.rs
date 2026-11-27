@@ -1751,6 +1751,9 @@ struct Run<'a> {
     /// path ([`Packages::profile`]).
     profile: Vec<String>,
     host_packages: Vec<HostPackage>,
+    /// Each `[host]` entry that names a C provider, as (package, trait
+    /// path), built once from `host_packages` ([`c_bound_index`]).
+    host_c: HashSet<(u16, String)>,
     host_contract_key: Option<Hash128>,
     table: ModuleTable,
     /// The run's module trie nodes mapped to project rows. Never cast between
@@ -1993,6 +1996,22 @@ pub struct HostPackage {
     pub declarations: Option<hd_project::HostDeclarations>,
     /// Manifest path for diagnostics alongside the source declaration.
     pub manifest: String,
+}
+
+/// Each `[host]` entry of `packages` that names a C provider, as (package,
+/// trait path): the index [`Run`]'s C-bound queries probe. Cost: one pass
+/// over every package's entries, once per run.
+fn c_bound_index(packages: &[HostPackage]) -> HashSet<(u16, String)> {
+    packages
+        .iter()
+        .flat_map(|p| {
+            p.declarations
+                .iter()
+                .flat_map(|d| d.providers.iter().flatten())
+                .filter(|e| e.binds_c())
+                .map(move |e| (p.package, e.trait_path.clone()))
+        })
+        .collect()
 }
 
 impl HostPackage {
@@ -2999,6 +3018,7 @@ fn build_packages_inner(
         root_settings,
         profile,
         host_packages: packages.host_packages.clone(),
+        host_c: c_bound_index(&packages.host_packages),
         host_contract_key,
         pipeline,
         planner,
@@ -12029,11 +12049,7 @@ impl Run<'_> {
     }
 
     fn package_trait_identity(&self, d: DefId) -> Option<(u16, hd_host_abi::schema::Identity)> {
-        let module = &self.table.modules[self.item_module(d)?.idx()];
-        let package = module.package;
-        let root = &self.table.roots[usize::from(package)];
-        let full = self.names().path(d).replace('/', ".");
-        let trait_path = full.strip_prefix(&format!("{root}."))?.to_owned();
+        let (package, trait_path) = self.package_trait_path(d)?;
         let identity = if let Some(meta) = self.host_packages.iter().find(|p| p.package == package)
         {
             meta.trait_identity(&trait_path)?
@@ -12062,22 +12078,20 @@ impl Run<'_> {
     }
 
     /// Whether the package host trait `d`'s `[host]` entry names a C
-    /// provider (`module.host.package.c-types`). Cost: one scan of its
-    /// package's entries.
+    /// provider (`module.host.package.c-types`). Cost: building `d`'s
+    /// trait path, then one probe of the run's index (`host_c`).
     fn package_host_c(&self, d: DefId) -> bool {
-        let Some((package, identity)) = self.package_trait_identity(d) else {
-            return false;
-        };
-        self.host_packages
-            .iter()
-            .find(|p| p.package == package)
-            .and_then(|p| p.declarations.as_ref())
-            .and_then(|d| d.providers.as_ref())
-            .is_some_and(|entries| {
-                entries
-                    .iter()
-                    .any(|e| e.trait_path == identity.trait_path && e.binds_c())
-            })
+        self.package_trait_path(d)
+            .is_some_and(|key| self.host_c.contains(&key))
+    }
+
+    /// `d`'s package and its path inside that package, as `[host]` names it.
+    fn package_trait_path(&self, d: DefId) -> Option<(u16, String)> {
+        let module = &self.table.modules[self.item_module(d)?.idx()];
+        let package = module.package;
+        let root = &self.table.roots[usize::from(package)];
+        let full = self.names().path(d).replace('/', ".");
+        Some((package, full.strip_prefix(&format!("{root}."))?.to_owned()))
     }
 
     /// The C table of the package host trait `d` when its `[host]` entry
