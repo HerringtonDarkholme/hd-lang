@@ -32,6 +32,7 @@ says.
 | `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) and, per check run kind, its module rows and unit rows; per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that changed a row or missed its result | every later run (§5.5) |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
 | `owned` | one body after the ownership passes, in the wire form's owned section, and its hash. A std body is keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423). A dev build's package body (#2028) and generic instance (#2106) add the root package's key and settings and the program's declarations, each non-std module's checked items hash and each unit's impl heads, so a body edit that infers the same signature keeps them; an instance adds its instance key. Their entry lists the bodies the passes read, each by path and TIR hash, checked on load | `Collect`, after the passes on a miss | `Collect`, before running them |
+| `unit` | one instance's emitted unit in a dev link, before the link's finish (#2423, `crates/hd_wasm/DESIGN.md` §23.41), in sections: each other instance its emission read with that instance's content hash then, checked on load; the type tables of its types; the unit. Keyed by the run (toolchain, pipeline, profile, settings and the program's declarations, as a dev `owned` entry), the link's program-wide facts, the instance key and the instance's content | `Link`, after emitting a unit | `Link`, before emitting it |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
 
 `EntryKind` names only the kinds above; a kind's discriminant is part of
@@ -614,7 +615,7 @@ obj/
 
 **Planned logical code packs (#49, point 4).** These are distinct from
 physical data packs. Current producers write `parse`, `check`, `iface`,
-`graph`, `depfiles`, `link`, `owned` and `clpack`; the `codepack` and
+`graph`, `depfiles`, `link`, `owned`, `unit` and `clpack`; the `codepack` and
 `packhint` design below is not built. In it, code is stored in one
 `codepack` per unit group, so a build reads and publishes tens of files
 instead of one per instance.

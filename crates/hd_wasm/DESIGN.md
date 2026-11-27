@@ -2909,3 +2909,51 @@ dev builds keep the address at a call; the inliner's by-value binding
   copy binds (`Text(*self).size()`) forwards the borrow of the place it
   was read from to the copy's `self` (`hd_tir::own::borrow`'s forwarding
   locals); the emitter's `loan_locals` follow the read to that borrow.
+
+### 23.41 Stored Units
+
+A dev link keeps each instance's emitted unit in the store and merges it
+into a later link while its inputs are unchanged (#2423), as rustc reuses
+a codegen unit's work product (`determine_cgu_reuse`) and wasm-ld merges
+object files.
+
+- A unit is one instance's emission on a module of its own
+  (`Module::emit_unit`): the functions it defined, its count shim
+  requests, its table edits and its static data requests. Its symbol,
+  global and signature tables are its own (`Symbols::unit`), every entry
+  it names in first-use order, so nothing in it depends on the module or
+  the run.
+- The merge (`Module::merge`) runs in content order: it interns the
+  unit's table entries, places its static data, queues its shims,
+  applies its edits and renumbers each function once. An entry the module
+  has keeps its id and the others are added in the unit's order, so a
+  stored unit and a fresh one leave the module the same. Cost: one intern
+  per table entry, one step per static request and per instruction.
+- Stored form (`module/wire.rs`): a listing per type of its variants and
+  fields, exhaustive in both directions, so a variant the listing lacks is
+  a compile error. Types are rows of the program's type tables
+  (`hd_types::wire`), as a TIR body's are. A unit that names a vtable, a
+  recursive boundary codec or a package host interface, which the module
+  numbers, is not stored; nor is one the merge emits again in order.
+- Key (`units.rs`): the run's fingerprint (toolchain, pipeline, profile,
+  the program's declarations, as a dev owned form's key), the link's
+  program-wide facts (flags, runtime, driven methods, addressed bindings,
+  loan types, coinductive flags), the instance's key and its content: its
+  body without node indices (`hd_tir::wire::content_hash`), sub-body,
+  masks, entry root, call targets by stable names, and loan rows.
+- Reads: emission reaches another instance only by key, through
+  `Module::inst`, which records it. A stored unit keeps each read
+  instance's content and is reused only while each is unchanged, as
+  `try_mark_green` checks a work product's dependencies.
+- Only a dev link has a store: its emission reads no summary of another
+  body (`lent_mask` is 0 and the return-loan shapes are none without
+  summaries), so every input is in the key or the reads. Under the TIR
+  verifier's policy each reused unit is emitted again and compared.
+- A count shim of a type with a `Drop` hook names the type by its `canon`
+  digest, not its number in the run's pool, so a stored unit's shim keys
+  hold in a later build.
+
+Where hd does worse than rustc: the unit is stored before `finish`, which
+still runs over the whole module, because `finish` makes whole-module
+choices (reachability, the acyclic runtime, cold calls, the function
+table and static layout).

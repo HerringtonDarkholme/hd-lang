@@ -49,6 +49,7 @@ mod tables;
 mod task;
 #[cfg(feature = "testing")]
 pub mod testing;
+mod units;
 pub mod views;
 mod wide;
 pub mod work;
@@ -271,6 +272,42 @@ pub struct Input<'a> {
     /// `annot.bound.recursive.flag`): each one's code answers a call made
     /// while the same instance is evaluating with `true`.
     pub coinductive_flags: &'a hd_base::HashSet<Hash128>,
+    /// The store of emitted units a dev link reads and fills (#2423),
+    /// `None` where a link may not share one.
+    pub units: Option<&'a dyn UnitStore>,
+}
+
+/// The store of emitted units (#2423): what one instance's emission made,
+/// kept between links, as rustc keeps a codegen unit's work product. The
+/// driver offers it only to a dev link, whose emission reads no summary
+/// of another body: every input of a unit's emission is then in its key
+/// or in the reads it records (`crates/hd_wasm/DESIGN.md` §23.41).
+pub trait UnitStore: Sync {
+    /// What every unit's key holds of the run: the toolchain, the
+    /// pipeline and profile, and the program's declarations.
+    fn fingerprint(&self) -> Hash128;
+    /// The hash of everything instance `id`'s body holds but its node
+    /// indices (`hd_tir::wire::content_hash`), as emission reads it.
+    fn body_hash(&self, id: InstId) -> Option<Hash128>;
+    /// The unit stored under `key`: the reads it recorded, its types and
+    /// its bytes.
+    fn get(&self, key: Hash128) -> Option<StoredUnit>;
+    fn put(&self, key: Hash128, unit: &StoredUnit);
+    /// Whether each reused unit is emitted again and compared, as the
+    /// TIR verifier's policy says (rustc's `-Z incremental-verify-ich`).
+    fn verify(&self) -> bool;
+    /// What the link did: the item paths of the units it emitted, in
+    /// emission order, and how many it took from the store.
+    fn report(&self, emitted: Vec<String>, reused: usize);
+}
+
+/// One stored unit ([`UnitStore`]).
+pub struct StoredUnit {
+    /// Each other instance its emission read, by key, and that
+    /// instance's content hash then, sorted by key.
+    pub reads: Vec<(Hash128, Hash128)>,
+    pub tys: Vec<Ty>,
+    pub bytes: Vec<u8>,
 }
 
 /// The std module whose functions emitted code calls by key, and their
@@ -694,6 +731,8 @@ fn link(
         own_cx: input.own_cx,
         mutation_targets: input.mutation_targets,
         coinductive_flags: input.coinductive_flags,
+        // The store's body hashes are of the bodies before the hook.
+        units: None,
     };
     link_prepared(&test_input, track_origins, session, previous)
 }
@@ -734,7 +773,7 @@ fn link_prepared(
     facts.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
-        facts.inst_of.insert(key, *id);
+        facts.index_instance(key, *id);
         let item = input.collected.table.item[id.idx()];
         if (input.path)(item).starts_with("std/") {
             facts.std_insts.insert(key);
@@ -770,7 +809,7 @@ fn link_prepared(
     let mut units: Vec<_> = input
         .order
         .iter()
-        .map(|&id| (id, m.body_facts.remove(&id), None))
+        .map(|&id| (id, m.body_facts.remove(&id), None, false))
         .collect();
     // A pool thread keeps one layout cache for this link's units, as
     // the link's own thread has its own (`hd_layout::cached_for_run`).
@@ -778,15 +817,66 @@ fn link_prepared(
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         1 << 63 | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     };
-    hd_sched::par_each_mut(&mut units, |_, (id, cell, out)| {
-        let cell = cell.take().map(|cell| (*id, cell));
-        let emitted = hd_layout::cached_for_run(layouts, || {
-            module::Module::emit_unit(&facts, cell, |m| emit::instance(input, m, *id))
-        });
+    // A dev link takes each unit whose key and reads are unchanged from
+    // the store, and stores each unit it emits (#2423, §23.41).
+    let keys = input
+        .units
+        .filter(|_| session.is_none() && previous.is_none())
+        .map(|store| units::Keys::new(input, store, &facts));
+    hd_sched::par_each_mut(&mut units, |_, (id, cell, out, reused)| {
+        let mut cell = cell.take().map(|cell| (*id, cell));
+        let mut emit = || {
+            hd_layout::cached_for_run(layouts, || {
+                module::Module::emit_unit(&facts, cell.take(), |m| emit::instance(input, m, *id))
+            })
+        };
+        let Some((keys, key)) = keys.as_ref().and_then(|k| Some((k, k.key(*id)?))) else {
+            *out = Some(emit());
+            return;
+        };
+        if let Some(stored) = keys.store.get(key)
+            && keys.fresh(&facts, &stored.reads)
+            && let Some(unit) = module::wire::decode(&stored.bytes, &stored.tys)
+        {
+            if keys.store.verify() {
+                let again = module::wire::encode(&emit());
+                assert!(
+                    again.is_some_and(|(bytes, tys)| bytes == stored.bytes && tys == stored.tys),
+                    "a stored unit of {} differs from its emission again",
+                    (input.path)(input.collected.table.item[id.idx()])
+                );
+            }
+            *reused = true;
+            *out = Some(unit);
+            return;
+        }
+        let emitted = emit();
+        if let Some((bytes, tys)) = module::wire::encode(&emitted) {
+            let own = input.collected.table.key[id.idx()];
+            if let Some(reads) = keys.reads(&facts, own, emitted.take_reads()) {
+                keys.store.put(key, &StoredUnit { reads, tys, bytes });
+            }
+        }
         *out = Some(emitted);
     });
     drop(facts);
-    for (id, _, emitted) in units {
+    if let Some(keys) = &keys {
+        let reused = units.iter().filter(|u| u.3).count();
+        let emitted = units.len() - reused;
+        drop(hd_base::trace::span("phase", || {
+            format!("link: units emitted {emitted}, reused {reused}")
+        }));
+        let t = &input.collected.table;
+        keys.store.report(
+            units
+                .iter()
+                .filter(|u| !u.3)
+                .map(|u| (input.path)(t.item[u.0.idx()]))
+                .collect(),
+            reused,
+        );
+    }
+    for (id, _, emitted, _) in units {
         // ruled out: `par_each_mut` runs every unit.
         let emitted = emit::required(emitted, "an emitted unit");
         let f = m
