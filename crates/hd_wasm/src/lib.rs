@@ -280,6 +280,8 @@ pub struct Input<'a> {
     /// (`hd_opt::whole::completes_at_once`, #2419): a bang call of one is
     /// a plain call of its body, not a suspension point.
     pub ready: &'a hd_base::HashSet<Hash128>,
+    /// Closed-world drive methods for which every possible target completes at once.
+    pub ready_slots: &'a hd_base::HashSet<DefId>,
     /// The store of emitted units a dev link reads and fills (#2423),
     /// `None` where a link may not share one.
     pub units: Option<&'a dyn UnitStore>,
@@ -734,6 +736,7 @@ fn link(
         mutation_targets: input.mutation_targets,
         coinductive_flags: input.coinductive_flags,
         ready: input.ready,
+        ready_slots: input.ready_slots,
         // The store's body hashes are of the bodies before the hook.
         units: None,
     };

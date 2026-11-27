@@ -32,7 +32,9 @@ use crate::task::{
 /// may wait: a suspension point other than a bang call of an instance that
 /// completes at once ([`ready_callee`]).
 pub(super) fn waits(input: &Input<'_>, calls: &HashMap<u32, Target>, b: &Body, i: u32) -> bool {
-    hd_opt::whole::is_point(b.tags[i as usize]) && ready_callee(input, calls, b, i).is_none()
+    hd_opt::whole::is_point(b.tags[i as usize])
+        && ready_callee(input, calls, b, i).is_none()
+        && !ready_slot(input, calls, b, i)
 }
 
 /// The callee of bang call `i` when it completes at once (`Input::ready`,
@@ -51,6 +53,19 @@ pub(super) fn ready_callee<'c>(
         }
         _ => None,
     }
+}
+
+/// A dynamic await whose entire closed-world drive slot completes at once.
+pub(super) fn ready_slot(
+    input: &Input<'_>,
+    calls: &HashMap<u32, Target>,
+    b: &Body,
+    i: u32,
+) -> bool {
+    b.tags[i as usize] == Tag::Await
+        && matches!(calls.get(&i), Some(Target::Dyn))
+        && crate::drive::callee(b, b.data[i as usize][0])
+            .is_some_and(|(_, method)| input.ready_slots.contains(&method))
 }
 
 /// The blocks instruction `i` runs, in the order emission enters them.
@@ -948,6 +963,25 @@ impl Em<'_, '_, '_> {
         self.release_call_ctx(i, c);
         for l in &tmp {
             self.f.get(*l);
+        }
+        self.store_awaited(i)
+    }
+
+    /// The existing drive ABI returns frame zero before the ordinary results.
+    /// The slot proof makes that frame dead; retain the normal adapter and
+    /// receiver/context ownership, without a suspension point or child.
+    pub(super) fn await_ready_slot(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let args = self.b.call_args(i as usize).to_vec();
+        let res = self.vals(self.ty(i))?;
+        let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
+        self.push_dyn(i, a, &args, None, Some((self.ty(i), None)))?;
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.op(I::Drop);
+        self.settle(i);
+        for l in tmp {
+            self.f.get(l);
         }
         self.store_awaited(i)
     }

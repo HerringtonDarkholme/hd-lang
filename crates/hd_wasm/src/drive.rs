@@ -20,11 +20,7 @@ use crate::rt::Helper;
 /// arguments but rows (`AsyncDisposable[$ R]`), so the slot's signature
 /// is the method's own. Parent vtable pointers precede the drive slots,
 /// just as in ordinary trait vtables.
-pub fn drivable(env: &dyn ProgramEnv, trait_: DefId, method: DefId) -> bool {
-    env.suspends(method)
-        && env.generic_rows(trait_).iter().all(|&row| row)
-        && env.bounded(method).is_none_or(|b| b.is_empty())
-}
+pub use hd_opt::whole::drivable;
 
 /// The trait and method of the callee record at word `a`.
 pub fn callee(b: &Body, a: u32) -> Option<(DefId, DefId)> {

@@ -19,9 +19,6 @@ std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
 std/fs/open#0
-std/fs/open#0.poll
-std/fs/open#0.cancel
-std/fs/open#0.drop
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 std/fs/impl FsRead for MemoryFs.read_bytes#0
@@ -33,10 +30,6 @@ std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
-app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
 app/main/main#0
 std/rt.cycle/item#0
 std/rt.alloc/full#0
@@ -69,7 +62,6 @@ std/rt.alloc/retain_known#0
 std/rt.memory/room#0
 std/fs/FsRead.open#0 [std.fs.MemoryFs]
 std/fs/FsRead.open#0.poll
-std/fs/FsRead.open#0.cancel
 std/fs/FsRead.open#0.drop
 std/fs/FsRead.open#0
 std/rt.alloc/alloc#0
@@ -94,9 +86,6 @@ std/rt.alloc/publish#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
 std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
 std/text/impl StringBuilder.build#0
 std/rt.cycle/drop_root#0
@@ -154,20 +143,14 @@ rt:panic#10
 rt:panic#11
 rt:panic#12
 rt:panic#13
-rt:panic#14
 rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5
-rt:new/class-9
+rt:new/class-4
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
-rt:alloc_class/9
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -221,22 +204,8 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame#0
-rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame
 rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:wake_notify
-rt:entry_cancel#0
-rt:entry_cancel#1
 == @build: release
 std/console/println#0 [string]
 std/rt.cycle/compact#0
@@ -252,9 +221,6 @@ std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
 std/fs/open#0
-std/fs/open#0.poll
-std/fs/open#0.cancel
-std/fs/open#0.drop
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 std/fs/impl FsRead for MemoryFs.read_bytes#0
@@ -266,10 +232,6 @@ std/fs/impl FsWrite for MemoryFs.write_text#0
 std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
-app/main/main#0
-app/main/main#0.poll
-app/main/main#0.cancel
-app/main/main#0.drop
 app/main/main#0
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -294,7 +256,6 @@ std/rt.memory/room#0
 std/collections.list/impl[T < Display] List[T].join#0 [string]
 std/fs/FsRead.open#0 [std.fs.MemoryFs]
 std/fs/FsRead.open#0.poll
-std/fs/FsRead.open#0.cancel
 std/fs/FsRead.open#0.drop
 std/fs/FsRead.open#0
 std/rt.alloc/alloc#0
@@ -318,9 +279,6 @@ std/path/impl Path.parent#0
 std/rt.cycle/collection_due#0
 std/rt.hash/rotate_right#0
 std/fs/write_text#0
-std/fs/write_text#0.poll
-std/fs/write_text#0.cancel
-std/fs/write_text#0.drop
 std/text/search_from#0
 std/text/impl StringBuilder.build#0
 std/rt.cycle/mark#0
@@ -370,20 +328,14 @@ rt:panic#8
 rt:panic#9
 rt:panic#10
 rt:panic#11
-rt:panic#12
 rt:panic_str
 rt:panic_with
 rt:to_buf
 rt:new
 rt:new/class-2
-rt:new/class-4#0
-rt:new/class-4#1
-rt:new/class-5
-rt:new/class-9
+rt:new/class-4
 rt:alloc_class/2
 rt:alloc_class/4
-rt:alloc_class/5
-rt:alloc_class/9
 rt:free_class
 rt:free_class_loaded
 rt:str
@@ -438,18 +390,5 @@ rt:dec#0
 rt:dec#1
 rt:dec#2
 rt:dec#3
-rt:frame#0
-rt:frame#1
-rt:frame#2
-rt:frame#3
-rt:frame_ensure#0
-rt:frame_ensure#1
-rt:frame_ensure#2
+rt:frame
 rt:poll_check
-rt:cancel_check
-rt:cancel_enter
-rt:cancel_leave
-rt:cancel_child
-rt:wake_mark
-rt:entry_cancel#0
-rt:entry_cancel#1

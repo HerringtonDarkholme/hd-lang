@@ -1,0 +1,29 @@
+# @dump: functions
+# @build: dev | release
+# A host Clock and a ready concrete Clock both occur; host tables are not collected vtables.
+use std.meta.inline
+use std.time.{Clock, Instant, Timestamp, Duration, ms, sleep}
+
+struct ReadyClock:
+    pass
+
+impl Clock for ReadyClock:
+    fn now(self) -> Timestamp:
+        Timestamp::from_unix_milliseconds(0)
+
+    fn monotonic(self) -> Instant:
+        Instant::from_milliseconds(0)
+
+    fn sleep!(&mut self, duration: Duration) -> void:
+        pass
+
+@inline(.Never)
+fn pause!() -> void $ Clock:
+    sleep!(ms(1))
+
+pub fn main!() -> void $ Clock + Console:
+    pause!()
+    fake := box(ReadyClock {})
+    $.with(Clock=fake):
+        pause!()
+    println("done")
