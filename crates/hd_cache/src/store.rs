@@ -21,12 +21,10 @@ pub enum EntryKind {
     Parse,
     Lint,
     Owned,
-    /// One instance's emitted unit, before the link's finish (#2423).
-    Unit,
 }
 
 impl EntryKind {
-    pub const ALL: [EntryKind; 10] = [
+    pub const ALL: [EntryKind; 9] = [
         EntryKind::Iface,
         EntryKind::Check,
         EntryKind::Graph,
@@ -36,7 +34,6 @@ impl EntryKind {
         EntryKind::Parse,
         EntryKind::Lint,
         EntryKind::Owned,
-        EntryKind::Unit,
     ];
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -50,7 +47,6 @@ impl EntryKind {
             EntryKind::Parse => "parse",
             EntryKind::Lint => "lint",
             EntryKind::Owned => "owned",
-            EntryKind::Unit => "unit",
         }
     }
 }

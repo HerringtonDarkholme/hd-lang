@@ -101,11 +101,6 @@ pub struct Counters {
     /// The generic instances the ownership passes ran on, by item path,
     /// sorted, rather than reading their owned form from the store (#2106).
     pub instances_owned: Vec<String>,
-    /// The instances whose units a dev link emitted, by item path,
-    /// sorted, rather than taking them from the store (#2423).
-    pub units_emitted: Vec<String>,
-    /// How many units a dev link took from the store (#2423).
-    pub units_reused: usize,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
     /// Generic instance bodies built (`hd_mono::instantiate`): one per

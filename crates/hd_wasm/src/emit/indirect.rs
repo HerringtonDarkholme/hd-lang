@@ -423,7 +423,7 @@ impl Em<'_, '_, '_> {
     /// The parameters instance `key`'s worker takes by address, for a
     /// direct call of it.
     pub(super) fn worker_of(&mut self, key: hd_base::Hash128) -> Option<Params> {
-        let id = self.m.inst(key)?;
+        let id = *self.m.inst_of.get(&key)?;
         params(self.m, id)
     }
 

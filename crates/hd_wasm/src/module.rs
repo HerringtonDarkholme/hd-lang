@@ -21,8 +21,6 @@ use wasm_encoder::{
 
 use crate::rt::Helper;
 
-pub(crate) mod wire;
-
 /// The exchange buffer `hd.x`, the host contract's memory
 /// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
 pub const BUF: u32 = 1;
@@ -206,12 +204,9 @@ struct Shared {
     /// The tables as they stood when the link froze them.
     frozen: OnceLock<SymbolData>,
     /// A local view's module table, which it reads through: the module's
-    /// own, for a unit the merge emits again in order. The view's own
-    /// entries take ids with [`LOCAL`] set.
+    /// own, or its [`Symbols::snapshot`]. The view's own entries take ids
+    /// with [`LOCAL`] set.
     base: Option<Symbols>,
-    /// A unit's own tables ([`Symbols::unit`]): every entry its emission
-    /// names, with [`LOCAL`] set, and no base.
-    unit: bool,
 }
 
 /// The bit of a local view's own ids ([`Symbols::local`]): one instance's
@@ -343,13 +338,10 @@ impl Symbols {
     /// the view's own by its [`LOCAL`] bit; else the frozen one's when it
     /// was made before the freeze, else the live one's under the lock.
     fn entry<T>(&self, id: u32, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
-        if self.0.unit || self.0.base.is_some() {
-            if let Some(base) = self.0.base.as_ref().filter(|_| id & LOCAL == 0) {
+        if let Some(base) = &self.0.base {
+            if id & LOCAL == 0 {
                 return base.entry(id, of);
             }
-            // ruled out: a unit's tables number every id its emission
-            // names, so each has LOCAL set.
-            debug_assert!(id & LOCAL != 0, "a unit names a module id");
             return Entry {
                 at: At::Live(self.live(), of, (id & !LOCAL) as usize),
             };
@@ -365,7 +357,17 @@ impl Symbols {
     }
     /// [`LOCAL`] in a local view, else nothing.
     fn local_bit(&self) -> u32 {
-        if self.is_local() { LOCAL } else { 0 }
+        if self.0.base.is_some() { LOCAL } else { 0 }
+    }
+    /// A copy of the tables as they stand, all of it frozen, which local
+    /// views read without a lock while the instances emit at once. Cost:
+    /// one copy of the tables, once per link.
+    #[must_use]
+    pub(crate) fn snapshot(&self) -> Self {
+        Self(Arc::new(Shared {
+            frozen: OnceLock::from(self.live().clone()),
+            ..Shared::default()
+        }))
     }
     /// What `look` finds in the tables: the frozen copy's, when there is
     /// one, as a local view's base is frozen whole or not at all.
@@ -375,10 +377,10 @@ impl Symbols {
             None => look(&self.live()),
         }
     }
-    /// A local view of `base` for one instance's emission against the
-    /// module, in order: it reads `base`, which stays as it is while the
-    /// view lives, and numbers what it adds with [`LOCAL`] set, in
-    /// first-use order. Cost: one empty table.
+    /// A local view of `base` for one instance's emission: it reads
+    /// `base`, which stays as it is while the view lives, and numbers what
+    /// it adds with [`LOCAL`] set, in first-use order. Cost: one empty
+    /// table.
     #[must_use]
     pub(crate) fn local(base: &Self) -> Self {
         Self(Arc::new(Shared {
@@ -386,27 +388,13 @@ impl Symbols {
             ..Shared::default()
         }))
     }
-    /// A unit's own tables, apart from any module, as wasm-ld's object
-    /// file has its own symbol table: every symbol, global and signature
-    /// its emission names, with [`LOCAL`] set, in first-use order. Nothing
-    /// in them depends on the module or the run, so the unit can be stored
-    /// and merged into a later link. Cost: one empty table.
-    #[must_use]
-    pub(crate) fn unit() -> Self {
-        Self(Arc::new(Shared {
-            unit: true,
-            ..Shared::default()
-        }))
-    }
     #[must_use]
     pub(crate) fn is_local(&self) -> bool {
-        self.0.unit || self.0.base.is_some()
+        self.0.base.is_some()
     }
     /// Interns local view `local`'s entries into this table in their
-    /// first-use order, as the emission would have interned them here:
-    /// an entry the module has keeps its id, and the others are added in
-    /// the order the emission first named them.
-    /// Cost: one intern per entry the view holds.
+    /// first-use order, as the emission would have interned them here.
+    /// Cost: one intern per entry the view added.
     pub(crate) fn absorb(&self, local: &Self) -> Remap {
         let added = std::mem::take(&mut *local.live_mut());
         Remap {
@@ -823,6 +811,13 @@ pub enum Ins {
     DrainGlue(SymId),
     /// A descriptor alias: a distinct slot with the same release glue, keyed
     /// by checked-report allocation kind.
+    #[cfg_attr(
+        all(not(feature = "checked-report"), not(feature = "testing")),
+        expect(
+            dead_code,
+            reason = "ruled out: only checked-report's allocation kinds make a descriptor alias"
+        )
+    )]
     Descriptor(SymId, DescriptorKey),
     /// `call_indirect` through the function table, with its source location.
     CallIndirect(SigId, Option<u32>),
@@ -1470,9 +1465,6 @@ struct Unit {
     static_len: u32,
     /// Whether the merge emits it again in order ([`Module::in_order`]).
     serial: bool,
-    /// The instances its emission looked up by key ([`Module::inst`]),
-    /// whose content a stored unit's reuse checks again.
-    reads: std::cell::RefCell<Vec<Hash128>>,
 }
 
 /// One instance's emission on a module of its own ([`Module::emit_unit`]):
@@ -1481,13 +1473,6 @@ pub(crate) struct Emitted<E> {
     symbols: Symbols,
     unit: Unit,
     f: Result<Func, E>,
-}
-
-impl<E> Emitted<E> {
-    /// The instances its emission looked up by key, in order.
-    pub(crate) fn take_reads(&self) -> Vec<Hash128> {
-        self.unit.reads.take()
-    }
 }
 
 /// A static data request of a unit, which the merge makes of the module
@@ -1548,9 +1533,8 @@ pub struct Facts {
     /// The std runtime every linked program provides to its helpers.
     pub runtime: crate::Runtime,
     /// Each instance by its key, for a caller to read how its callee takes
-    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25). Emission reads
-    /// it through [`Module::inst`], which records the read.
-    inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
+    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
+    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Per instance, what its worker takes or gives by address, once
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params: Vec<Option<crate::emit::IndirectParams>>,
@@ -1848,18 +1832,6 @@ fn cyclic_desc(f: &Func) -> bool {
     })
 }
 
-impl Facts {
-    /// Instance `key`, read for a unit's key, not by its emission.
-    #[must_use]
-    pub(crate) fn instance(&self, key: Hash128) -> Option<hd_base::InstId> {
-        self.inst_of.get(&key).copied()
-    }
-    /// Indexes instance `id` by its key `key` ([`Module::inst`]).
-    pub fn index_instance(&mut self, key: Hash128, id: hd_base::InstId) {
-        self.inst_of.insert(key, id);
-    }
-}
-
 impl std::ops::Deref for Module {
     type Target = Facts;
     fn deref(&self) -> &Facts {
@@ -1944,18 +1916,19 @@ impl Module {
         self.funcs[id.idx()] = Some(f);
     }
     /// Runs `emit`, instance `id`'s emission, on a module of its own: it
-    /// reads `facts`, numbers what it names in tables of its own
-    /// ([`Symbols::unit`]) and keeps what it adds in its [`Unit`] for
+    /// reads `facts` and, through a local view, the symbol snapshot
+    /// `base`, and keeps what it adds in its [`Unit`] for
     /// [`Module::merge`]. Units emit at once on the task's threads.
     /// Cost: one empty module, and the cell of the instance's body facts.
     pub(crate) fn emit_unit<E>(
         facts: &Arc<Facts>,
+        base: &Symbols,
         cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
         emit: impl FnOnce(&mut Self) -> Result<Func, E>,
     ) -> Emitted<E> {
         let mut unit = Self::new(&facts.runtime);
         unit.facts = Arc::clone(facts);
-        unit.symbols = Symbols::unit();
+        unit.symbols = Symbols::local(base);
         unit.body_facts.extend(cell);
         let f = emit(&mut unit);
         Emitted {
@@ -1997,21 +1970,8 @@ impl Module {
             emitted
         };
         let mut remap = self.symbols.absorb(&symbols);
-        // The merge's work, which the cost test counts: one intern per
-        // entry of the unit's tables, one step per static request and per
-        // instruction remapped.
-        let work = remap.syms.len() + remap.globals.len() + remap.signatures.len();
-        let work = work + unit.statics.len();
         self.place_statics(unit.statics, &mut remap);
         let mut f = f?;
-        let work = work
-            + f.body.len()
-            + unit
-                .defines
-                .iter()
-                .map(|(_, g)| g.body.len())
-                .sum::<usize>();
-        crate::work::merge(work);
         // A shim another unit asked for first is already queued.
         for (shape, request) in unit.shim_queue {
             let (_, kind, _, by_value, key) = request;
@@ -2041,16 +2001,6 @@ impl Module {
         }
         f.remap(&remap, &self.symbols);
         Ok(f)
-    }
-    /// Instance `key`, whose body or facts emission is about to read: a
-    /// unit records the read ([`Unit::reads`]), so a stored unit is reused
-    /// only while that instance's content is unchanged.
-    #[must_use]
-    pub(crate) fn inst(&self, key: Hash128) -> Option<hd_base::InstId> {
-        if self.symbols.is_local() {
-            self.unit.reads.borrow_mut().push(key);
-        }
-        self.facts.inst_of.get(&key).copied()
     }
     /// The facts the units read, shared ([`Module::emit_unit`]).
     #[must_use]

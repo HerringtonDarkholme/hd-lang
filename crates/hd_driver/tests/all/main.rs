@@ -21,7 +21,6 @@ mod dbg_release;
 mod derive_members;
 mod derive_run;
 mod dyn_diamond_work;
-mod emitted_unit_edit;
 mod entry_point;
 mod exit;
 mod fixture_roots;

@@ -18,18 +18,6 @@ thread_local! {
     static EXIT_ROWS: Cell<Option<u64>> = const { Cell::new(None) };
     static SHARED_CENSUSES: Cell<Option<u64>> = const { Cell::new(None) };
     static ENTRY_ROOTS: Cell<Option<u64>> = const { Cell::new(None) };
-    static MERGE: Cell<Option<u64>> = const { Cell::new(None) };
-}
-
-/// Counts the link's merge of its emitted units on this thread: one per
-/// entry of a unit's tables interned, per static request placed and per
-/// instruction renumbered (#2423).
-pub fn count_merge<R>(run: impl FnOnce() -> R) -> (R, u64) {
-    count(&MERGE, run)
-}
-
-pub(crate) fn merge(n: usize) {
-    add(&MERGE, n);
 }
 
 /// Counts shared-local censuses, independent of the number of cells emitted.

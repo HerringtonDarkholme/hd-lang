@@ -876,32 +876,6 @@ pub fn tir_hash(bytes: &[u8]) -> Hash128 {
     hash128(bytes.get(4..4 + n).unwrap_or(bytes))
 }
 
-/// The hash of everything a body's wire bytes hold but its node indices
-/// (`syn`, `local_syn`): what emission reads of the body, the owned
-/// section included, so the key of an emitted unit (`hd_wasm`'s unit
-/// store, #2423). A body moved in its file keeps it; emission reads no
-/// node index. Cost: one pass over the bytes.
-#[must_use]
-pub fn content_hash(bytes: &[u8]) -> Hash128 {
-    let mut r = Reader::new(bytes);
-    let n = r.u32() as usize;
-    let prefix = bytes.get(4..4 + n).unwrap_or(&[]);
-    // The two node-index columns, each a length and its words.
-    let mut at = 4 + n;
-    for _ in 0..2 {
-        let len = bytes
-            .get(at..at + 4)
-            .and_then(|b| b.try_into().ok())
-            .map_or(0, u32::from_le_bytes) as usize;
-        at = at.saturating_add(4 + 4 * len);
-    }
-    let mut h = hd_base::StableHasher::new("tir-content");
-    h.len(prefix.len());
-    h.bytes(prefix);
-    h.bytes(bytes.get(at..).unwrap_or(&[]));
-    h.finish()
-}
-
 #[cfg(test)]
 mod tests {
     use super::{map_ids, read_body, tir_hash, write_body};

@@ -3879,7 +3879,7 @@ impl Run<'_> {
     /// the unit itself: the settings in [`Run::owned_std_key`]'s key, the
     /// root package's key and settings, and the program's declarations
     /// ([`Run::program_api_hash`]).
-    pub(super) fn hash_owned_settings(&self, k: &mut StableHasher) {
+    fn hash_owned_settings(&self, k: &mut StableHasher) {
         k.hash(self.toolchain);
         k.hash(self.pipeline);
         k.u8(self.build_profile as u8);

@@ -136,7 +136,7 @@ impl Context for Facts<'_, '_> {
             callees: keys.map(|keys| {
                 keys.into_iter()
                     .map(|k| {
-                        self.module.inst(k).filter(|id| {
+                        self.module.inst_of.get(&k).copied().filter(|id| {
                             matches!(self.input.collected.table.sub[id.idx()], Sub::Body(_))
                         })
                     })

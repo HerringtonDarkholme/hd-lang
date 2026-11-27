@@ -218,7 +218,7 @@ fn body_func<'i>(
     b: &'i Body,
 ) -> StageResult<Func> {
     let (item, args) = (own.item, own.args);
-    let inst = m.inst(own.key);
+    let inst = m.inst_of.get(&own.key).copied();
     // Each collected instance emits once. Consume its cell reference so
     // the shared body facts end after the last sibling emitter, rather
     // than retaining every body's analysis until the module links.
@@ -1091,7 +1091,7 @@ pub(crate) fn callee_params(
 ) -> Vec<Ty> {
     let (pool, env) = (input.pool, input.env);
     let t = &input.collected.table;
-    if let Some(id) = m.inst(key)
+    if let Some(&id) = m.inst_of.get(&key)
         && t.sub[id.idx()] == Sub::Body(0)
         && let Some(b) = (input.body)(id)
     {
@@ -3468,8 +3468,9 @@ impl Em<'_, '_, '_> {
         self.release_call_ctx(i, context);
         let complete = self
             .m
-            .inst(target.key)
-            .is_some_and(|id| crate::drive::completes(self.input, id));
+            .inst_of
+            .get(&target.key)
+            .is_some_and(|&id| crate::drive::completes(self.input, id));
         self.driven.insert(
             on,
             Driven {
