@@ -7457,21 +7457,19 @@
             end
             local.get $t1
             i32.load $heap offset=8
-            local.tee $pause.1
+            local.tee $value
             if
-              local.get $pause.1
+              local.get $value
               i32.const 8
               i32.sub
               i32.load $heap
               global.get $tracing
               i32.or
               if
-                local.get $pause.1
+                local.get $value
                 call $rt:release_ref'2
               end
             end
-            i32.const 0
-            local.set $pause.1
             local.get $t1
             i32.const 0
             i32.store $heap offset=8
@@ -7491,7 +7489,7 @@
               end
             end
             local.get $t1
-            local.get $pause.1
+            i32.const 0
             i32.store $heap offset=12
             i32.const 0
             local.set $value
@@ -7501,21 +7499,19 @@
           end
           local.get $t1
           i32.load $heap offset=12
-          local.tee $pause.1
+          local.tee $value
           if
-            local.get $pause.1
+            local.get $value
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $pause.1
+              local.get $value
               call $rt:release_ref'2
             end
           end
-          i32.const 0
-          local.set $pause.1
           local.get $t1
           i32.const 0
           i32.store $heap offset=12
@@ -7535,7 +7531,7 @@
             end
           end
           local.get $t1
-          local.get $pause.1
+          i32.const 0
           i32.store $heap offset=8
           local.get $t1
           i32.load $heap
@@ -7547,7 +7543,7 @@
           local.set $value
     ;; 11 |     pause := fn!() -> i32: 0
           local.get $t1
-          local.get $pause.1
+          i32.const 0
           i32.store $heap
         end
         local.get $t1
@@ -9783,16 +9779,16 @@
             end
             local.get $t1
             i32.load $heap offset=8
-            local.tee $pause.1
+            local.tee $value
             if
-              local.get $pause.1
+              local.get $value
               i32.const 8
               i32.sub
               i32.load $heap
               global.get $tracing
               i32.or
               if
-                local.get $pause.1
+                local.get $value
                 call $rt:release_ref'2
               else
                 call $skipped_test
@@ -9800,8 +9796,6 @@
             else
               call $skipped_test
             end
-            i32.const 0
-            local.set $pause.1
             local.get $t1
             i32.const 0
             i32.store $heap offset=8
@@ -9825,7 +9819,7 @@
               call $skipped_test
             end
             local.get $t1
-            local.get $pause.1
+            i32.const 0
             i32.store $heap offset=12
             i32.const 0
             local.set $value
@@ -9835,16 +9829,16 @@
           end
           local.get $t1
           i32.load $heap offset=12
-          local.tee $pause.1
+          local.tee $value
           if
-            local.get $pause.1
+            local.get $value
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $pause.1
+              local.get $value
               call $rt:release_ref'2
             else
               call $skipped_test
@@ -9852,8 +9846,6 @@
           else
             call $skipped_test
           end
-          i32.const 0
-          local.set $pause.1
           local.get $t1
           i32.const 0
           i32.store $heap offset=12
@@ -9877,7 +9869,7 @@
             call $skipped_test
           end
           local.get $t1
-          local.get $pause.1
+          i32.const 0
           i32.store $heap offset=8
           local.get $t1
           i32.load $heap
@@ -9889,7 +9881,7 @@
           local.set $value
     ;; 11 |     pause := fn!() -> i32: 0
           local.get $t1
-          local.get $pause.1
+          i32.const 0
           i32.store $heap
         end
         local.get $t1

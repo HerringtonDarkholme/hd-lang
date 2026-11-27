@@ -78,12 +78,12 @@
     ;; 16 |         *self.calls += 1
     local.get $self
     i32.load $heap
+    local.tee $self
     i32.load $heap
     i32.const 1
     i32.add
     local.set $t0
     local.get $self
-    i32.load $heap
     local.get $t0
     i32.store $heap
     i32.const 0

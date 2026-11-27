@@ -367,8 +367,6 @@
               local.set $t5
               br 4
             end
-            i32.const 0
-            local.set $a
             local.get $t1
             i32.const 0
             i32.store $heap offset=16
@@ -380,7 +378,7 @@
               call $rt:release_ref'1
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=28
             i32.const 0
             local.set $t3
@@ -400,7 +398,7 @@
               end
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=8
             local.get $t1
             i32.load $heap offset=12
@@ -418,7 +416,7 @@
               end
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=12
             local.get $t1
             i32.load $heap

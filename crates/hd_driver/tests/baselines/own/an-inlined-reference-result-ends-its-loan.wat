@@ -173,7 +173,7 @@
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.0 i32) (local $value i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $value i32) (local $t1 i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
     local.get $p
     i32.const 4
@@ -182,7 +182,7 @@
     i32.load $heap
     i32.const 2097152
     i32.and
-    local.get $message.0
+    local.get $value
     i32.const 2097152
     i32.and
     i32.ne
@@ -192,7 +192,7 @@
     end
     local.get $t0
     i32.load $heap
-    local.tee $value
+    local.tee $t1
     i32.const 2031616
     i32.and
     i32.const 2031616
@@ -202,15 +202,15 @@
       call $rt:loan_share
     else
       local.get $t0
-      local.get $value
+      local.get $t1
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $message.0
+    local.get $value
     i32.const 65536
     i32.add
-    local.set $message.0
+    local.set $value
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -221,7 +221,7 @@
       i32.load $heap
       i32.const 4128768
       i32.and
-      local.get $message.0
+      local.get $value
       i32.ne
       if
         call $rt:panic'2
@@ -250,9 +250,7 @@
       i32.const 0
     end
     i32.const 124 ;; &"slot"
-    i32.const 4
     local.set $p
-    local.set $message.0
     local.set $value
     block
       block
@@ -265,8 +263,8 @@
         end
         br 1
       end
-      local.get $message.0
       local.get $p
+      i32.const 4
       i32.const 2
       call_indirect $table0 (param i32 i32)
       unreachable
@@ -274,12 +272,12 @@
     local.get $value
     call $read
     local.set $p
-    local.set $message.0
+    local.set $value
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $value
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -289,7 +287,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $value
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -309,7 +307,7 @@
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.get $message.0
+    local.get $value
     local.get $p
   )
 )

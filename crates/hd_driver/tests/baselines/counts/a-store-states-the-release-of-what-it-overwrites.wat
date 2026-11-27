@@ -115,7 +115,7 @@
     i32.const 0
     call $"impl[T < ?Copy] UniqList[T].with_capacity[i32]"
   )
-  (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32)
     ;; 16 |     "s$n"
     local.get $n
     i64.extend_i32_s
@@ -136,60 +136,51 @@
     i32.add
     local.set $n
     i32.const 1
-    local.tee $t1
     local.get $n
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 115
     i32.store8 $heap
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 1
     i32.add
     local.get $n
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
-  (func $declared (param $c i32) (result i32) (local $u.buffer.ptr i32) (local $u.buffer.capacity i32) (local $u.len i32) (local $t0 i32)
+  (func $declared (param $c i32) (result i32) (local $u.buffer.ptr i32) (local $u.buffer.capacity i32) (local $u.len i32)
     ;; 39 |     u := fresh()
     call $fresh
     local.set $u.len
     local.set $u.buffer.capacity
     local.set $u.buffer.ptr
-    i32.const 1
-    local.set $t0
     ;; 40 |     if c:
     local.get $c
     if
-      local.get $t0
-      if
-        local.get $u.buffer.ptr
-        local.get $u.buffer.capacity
-        local.get $u.len
-        call $rt:release_spilled
-      end
+      local.get $u.buffer.ptr
+      local.get $u.buffer.capacity
+      local.get $u.len
+      call $rt:release_spilled
     ;; 41 |         return u.len()
       local.get $u.len
       return
     ;; 40 |     if c:
     end
     ;; 39 |     u := fresh()
-    local.get $t0
-    if
-      local.get $u.buffer.ptr
-      local.get $u.buffer.capacity
-      local.get $u.len
-      call $rt:release_spilled
-    end
+    local.get $u.buffer.ptr
+    local.get $u.buffer.capacity
+    local.get $u.len
+    call $rt:release_spilled
     i32.const 0
   )
 )

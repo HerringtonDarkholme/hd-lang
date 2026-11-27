@@ -38,6 +38,7 @@ use hd_tir::ir::{
 use hd_tir::own::ElementChecks;
 use hd_types::{Prim, Ty};
 
+mod load_reuse;
 mod loop_loads;
 
 /// The type and call facts the proofs read, which the backend's layout
@@ -64,6 +65,16 @@ pub trait Cx {
     }
     /// The intrinsic `callee` names, if it names one.
     fn intrinsic(&self, callee: &Callee) -> Option<String>;
+    /// Whether `t` is a shared local reference, `&T`: its referent is
+    /// written by no place while it is live (`ref.excl.shared`).
+    fn shared_ref(&self, _t: Ty) -> bool {
+        false
+    }
+    /// Whether a call of `callee` may write memory its caller reaches
+    /// (`hd_tir::own::Summary::writes`).
+    fn call_writes(&self, _callee: &Callee) -> bool {
+        true
+    }
 }
 
 /// Clears the bounds check of each element access `b` proves in range.
@@ -141,6 +152,7 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) -> Result<(), String> {
     }
     if release {
         loop_loads::run(b, cx)?;
+        load_reuse::run(b, cx)?;
     }
     Ok(())
 }
@@ -2058,7 +2070,9 @@ mod tests {
             work.push(scanned);
             // Two insertions per loop and place (`*xs .0`, `*xs .1`) shift
             // each later instruction; the loads become reads of locals.
-            assert_eq!(body.len(), before + 4 * k);
+            // Then each place is read once for every loop
+            // (`load_reuse`): two insertions per place.
+            assert_eq!(body.len(), before + 4 * k + 4);
             let loads = body
                 .tags
                 .iter()
@@ -2070,9 +2084,9 @@ mod tests {
                             .is_some_and(|p| p.proj.first() == Some(&Proj::Deref))
                 })
                 .count();
-            // Each loop's two loads stand before it; the one before its
-            // bound stays.
-            assert_eq!(loads, 3 * k, "{k} loops");
+            // Nothing writes the list, so the loads before each loop and
+            // its bound's are all read from the first two.
+            assert_eq!(loads, 2, "{k} loops");
             let decided = body
                 .tags
                 .iter()

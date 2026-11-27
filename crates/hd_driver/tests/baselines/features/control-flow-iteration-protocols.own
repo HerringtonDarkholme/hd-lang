@@ -15,27 +15,31 @@ impl Iterator[string] for Words:
         if self.at >= self.items.len():
 > app/main/impl Iterator[string] for Words.next
 >   local $0 self: &mut Words [param read] value
->     uses $0: entry -> %0 lend, %1 lend, %8 lend, %10 lend, %11 lend, %13 lend last
+>     uses $0: entry -> %0 lend, %3 lend, %12 lend, %13 lend, %15 lend last
+>   local $1 $load: usize [read assigned] value
+>     uses $1: %1 -> %2 lend, %10 lend last
 >   %0 = Read copy [*$0 .at] : usize
->   %1 = Read borrow [*$0 .items] : List[string]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Prim Ge [%0 %2] : bool
->   %7 = If %3 [%6 -] : ()
->   %16 = Block %15 : string?
+>   %1 = Store [$1] %0 : ()
+>   %2 = Read copy [$1] : usize
+>   %3 = Read borrow [*$0 .items] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Ge [%2 %4] : bool
+>   %9 = If %5 [%8 -] : ()
+>   %18 = Block %17 : string?
             return .None
->   %4 = NewVariant #0 [] : string?
->   %5 = Return %4 : never
->   %6 = Block - : never
+>   %6 = NewVariant #0 [] : string?
+>   %7 = Return %6 : never
+>   %8 = Block - : never
         self.at += 1
->   %8 = Read copy [*$0 .at] : usize
->   %9 = Prim Add [%8 1:usize] : usize
->   %10 = Store [*$0 .at] %9 : ()
+>   %10 = Read copy [$1] : usize
+>   %11 = Prim Add [%10 1:usize] : usize
+>   %12 = Store [*$0 .at] %11 : ()
         .Some(self.items[self.at - 1])
->   %11 = Read copy [*$0 .at] : usize
->   %12 = Prim Sub [%11 1:usize] : usize
->   %13 = Read copy [*$0 .items [%12]] : string
->   %14 = Retain %13 Value #0 : ()
->   %15 = NewVariant #1 [%13] : string?
+>   %13 = Read copy [*$0 .at] : usize
+>   %14 = Prim Sub [%13 1:usize] : usize
+>   %15 = Read copy [*$0 .items [%14]] : string
+>   %16 = Retain %15 Value #0 : ()
+>   %17 = NewVariant #1 [%15] : string?
 >   summary kept [$0] writes
 
 fn user_cursor(words: Words) -> usize:

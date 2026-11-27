@@ -1,0 +1,40 @@
+# @dump: wat
+# @build: v8 release
+# A load through `&mut p` is read once while only other fields of `*p`
+# are written: `p.a` loads once in `apart` and in the loop of
+# `loop_apart`. A store to `p.a` itself, or through a second counted
+# reference that may be `p`, makes the next `p.a` load again.
+struct Pair:
+    a: i64
+    b: i64
+
+fn apart(p: &mut Pair) -> i64:
+    x := p.a
+    p.b = x + 1
+    p.a + x
+
+fn same(p: &mut Pair) -> i64:
+    x := p.a
+    p.a = x + 1
+    p.a + x
+
+fn two(p: *mut Pair, q: *mut Pair) -> i64:
+    x := p.a
+    q.b = 1
+    p.a + x
+
+fn loop_apart(p: &mut Pair, n: i64) -> i64:
+    x := p.a
+    let mut i = 0i64
+    while i < n:
+        p.b += p.a
+        i += 1
+    x
+
+fn loop_writes(p: &mut Pair, n: i64) -> i64:
+    x := p.a
+    let mut i = 0i64
+    while i < n:
+        p.a = p.a + x
+        i += 1
+    x

@@ -372,11 +372,11 @@
       local.tee $t0
       i32.load $heap offset=4
       local.tee $t1
-      local.get $t0
+      i32.const 128 ;; &empty-buffer
       i32.load $heap
       i32.eq
       if
-        local.get $t0
+        i32.const 128 ;; &empty-buffer
         i32.const 3
         call_indirect $table0 (param i32) (result i32)
         local.tee $t0

@@ -15,6 +15,7 @@
     i32.load $heap offset=4
     local.get $t0
     i32.load $heap offset=8
+    local.tee $t1
     i32.ge_u
     if
       i32.const 0
@@ -22,8 +23,7 @@
       return
     end
     local.get $t0
-    local.get $t0
-    i32.load $heap offset=8
+    local.get $t1
     i32.const 1
     i32.sub
     i32.store $heap offset=8

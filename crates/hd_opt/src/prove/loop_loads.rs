@@ -48,7 +48,7 @@ use hd_tir::ir::{
 use hd_types::Ty;
 
 /// How many definitions a place's key follows.
-const DEPTH: usize = 16;
+pub(super) const DEPTH: usize = 16;
 
 /// The intrinsic calls that write no memory and always return.
 const PURE: &[&str] = &[
@@ -80,10 +80,10 @@ const PURE: &[&str] = &[
 
 /// A place through a reference: a local and the fields and dereferences
 /// from it, at least one a dereference.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Key {
-    local: u32,
-    path: Vec<Proj>,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Key {
+    pub(super) local: u32,
+    pub(super) path: Vec<Proj>,
 }
 
 /// A load group leaving its loop: the loop, the block and position its
@@ -91,13 +91,14 @@ struct Key {
 type Hoist = (u32, (u32, u32), Key, Ty, Vec<u32>);
 
 /// One loop's facts.
-struct LoopFacts<'a, 'b> {
-    lists: &'a Lists<'b>,
+pub(super) struct LoopFacts<'a, 'b> {
+    pub(super) lists: &'a Lists<'b>,
     /// Instructions that may write memory, before each index.
-    kills: &'a [u32],
-    l: u32,
+    pub(super) kills: &'a [u32],
+    /// The last instruction a key's locals must keep their values to.
+    pub(super) l: u32,
     /// The loop's first instruction.
-    first: u32,
+    pub(super) first: u32,
 }
 
 /// Hoists `b`'s invariant loads and decides its guards.
@@ -273,7 +274,7 @@ impl Lists<'_> {
     /// run code that does: anything but a value, a control instruction, a
     /// loan marker, a store to an unaddressed local, a pure intrinsic, or
     /// a panic.
-    fn writes_memory(&self, i: usize) -> bool {
+    pub(super) fn writes_memory(&self, i: usize) -> bool {
         let b = self.b;
         match b.tags[i] {
             Tag::Read
@@ -365,6 +366,17 @@ impl LoopFacts<'_, '_> {
     /// local on its way changes after `from`.
     fn place_key(&self, word: u32, at: u32, from: u32, depth: usize) -> Option<Key> {
         let p = self.lists.b.decode_place(word)?;
+        self.key_of(&p, at, from, depth)
+    }
+
+    /// [`Self::place_key`] of a decoded place.
+    pub(super) fn key_of(
+        &self,
+        p: &hd_tir::ir::Place,
+        at: u32,
+        from: u32,
+        depth: usize,
+    ) -> Option<Key> {
         // A reference local set once is keyed by what it refers to, so two
         // copies of one reference (an inlined `self` each) name one place.
         let through = |k: LocalId| {

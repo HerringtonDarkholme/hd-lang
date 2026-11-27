@@ -132,8 +132,6 @@
         local.set $t3
     ;; 14 |         xs[i] = 1.0
         local.tee $t1
-        f64.const 0x1p+0
-        local.set $value
         local.get $xs.len
         i32.ge_u
         if
@@ -150,7 +148,7 @@
         i32.const 8
         i32.mul
         i32.add
-        local.get $value
+        f64.const 0x1p+0
         f64.store $heap
     ;; 13 |     for i in 0..n:
         br 0

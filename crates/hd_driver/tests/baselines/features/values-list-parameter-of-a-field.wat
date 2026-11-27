@@ -32,7 +32,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $t8 i32) (local $t7 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $t8 i32) (local $t7 i32)
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     global.get $stack
     global.get $stack_limit
@@ -61,21 +61,19 @@
     i32.const 0
     i32.store $heap offset=4
     ;; 27 |     for i in 0..4:
-    i32.const 4
-    local.set $t1
     block
       loop
-        local.get $t2
         local.get $t1
+        i32.const 4
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
+        local.get $t1
         local.set $i
-        local.get $t2
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 28 |         trail.enter(i64(i))
         local.get $trail
         local.get $i
@@ -88,13 +86,13 @@
     ;; 29 |     let mut local: List[i64] = [5, 6]
     i32.const 2
     call $rt:list_buf
-    local.tee $t2
+    local.tee $t1
     i32.const 2
     i32.store $heap offset=4
-    local.get $t2
+    local.get $t1
     i64.const 5
     i64.store $heap offset=16
-    local.get $t2
+    local.get $t1
     i64.const 6
     i64.store $heap offset=24
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
@@ -104,23 +102,23 @@
     local.get $t0
     i32.const 24
     i32.add
-    local.tee $t1
+    local.tee $i
     ;; 29 |     let mut local: List[i64] = [5, 6]
-    local.get $t2
+    local.get $t1
     i32.store $heap
     ;; 30 |     saved := local
-    local.get $t1
+    local.get $i
     i32.load $heap
-    local.tee $t2
+    local.tee $t1
     call $rt:retain_coll
     ;; 31 |     set_first(&mut local, 9)
-    local.get $t1
+    local.get $i
     i64.const 9
     call $set_first
     ;; 32 |     println("${trail.depth} ${saved[0]} ${local[0]}")
     local.get $trail
     i32.load $heap offset=4
-    local.set $i
+    local.set $t2
     local.get $trail
     if
       local.get $trail
@@ -137,29 +135,29 @@
         end
       end
     end
-    local.get $i
+    local.get $t2
     i64.extend_i32_u
     local.tee $t3
     call $unsigned_width
     local.set $trail
     i32.const 0
-    local.get $t2
+    local.get $t1
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i64.load $heap offset=16
-    local.get $t2
+    local.get $t1
     if
-      local.get $t2
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $t1
         call $rt:release_ref'1
       end
     end
@@ -167,7 +165,7 @@
     local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
-    local.set $t2
+    local.set $t1
     local.get $value'1
     i64.const 0
     i64.lt_s
@@ -175,11 +173,11 @@
       i32.const 1
       local.set $t5
     end
-    local.get $t2
+    local.get $t1
     local.get $t5
     i32.add
-    local.set $t2
-    local.get $t1
+    local.set $t1
+    local.get $i
     i32.load $heap
     local.set $t5
     i32.const 0
@@ -193,9 +191,9 @@
     local.get $t5
     i64.load $heap offset=16
     local.set $value'1
-    local.get $t1
+    local.get $i
     if
-      local.get $t1
+      local.get $i
       i32.load $heap
       local.tee $t5
       if
@@ -229,12 +227,12 @@
     i32.const 1
     i32.add
     local.tee $t6
-    local.get $t2
-    i32.add
-    local.tee $t1
-    i32.const 1
+    local.get $t1
     i32.add
     local.tee $i
+    i32.const 1
+    i32.add
+    local.tee $t2
     local.get $t5
     i32.add
     local.tee $t7
@@ -258,16 +256,16 @@
     local.get $t8
     local.get $t6
     i32.add
-    local.get $t2
+    local.get $t1
     call $write_signed_sized
     local.get $t8
-    local.get $t1
+    local.get $i
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $value'1
     local.get $t8
-    local.get $i
+    local.get $t2
     i32.add
     local.get $t5
     call $write_signed_sized

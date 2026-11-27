@@ -66,10 +66,10 @@
     ;; 27 |     for i in 0..n:
     local.get $h
     i32.load $heap
+    local.tee $h
     i32.load $heap offset=8
     local.set $t0
     local.get $h
-    i32.load $heap
     i32.load $heap
     local.set $h
     block

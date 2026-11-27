@@ -17,7 +17,7 @@
     local.get $p
     call $norm
   )
-  (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
+  (func $use_all (result i32) (local $p i32) (local $t0 i32)
     ;; 21 |     let p = Point { x: +1, y: +2 }
     global.get $stack
     global.get $stack_limit
@@ -45,9 +45,6 @@
     local.get $p
     i32.const 2
     i32.store $heap offset=4
-    ;; 22 |     let n = +3
-    i32.const 3
-    local.set $n
     ;; 23 |     if same_place(&p, &p):
     local.get $p
     local.get $p
@@ -56,12 +53,12 @@
     ;; 24 |         relay(&p) + n
       local.get $p
       call $relay
-      local.get $n
+      i32.const 3
       i32.add
     ;; 23 |     if same_place(&p, &p):
     else
     ;; 26 |         n
-      local.get $n
+      i32.const 3
     ;; 23 |     if same_place(&p, &p):
     end
     ;; 21 |     let p = Point { x: +1, y: +2 }
@@ -70,52 +67,50 @@
     i32.add
     global.set $stack
   )
-  (func $norm (param $p i32) (result i32) (local $t0 i64)
+  (func $norm (param $p i32) (result i32) (local $t0 i32) (local $t1 i64)
     ;; 12 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
     local.get $p
     i32.load $heap
+    local.tee $t0
     i32.const 1
     i32.add
     local.get $p
     i32.load $heap offset=4
+    local.tee $p
     i32.const 2
     i32.add
     i32.mul
-    local.get $p
-    i32.load $heap
+    local.get $t0
     i32.const 3
     i32.add
     i32.mul
     local.get $p
-    i32.load $heap offset=4
     i32.const 4
     i32.add
     i32.mul
-    local.get $p
-    i32.load $heap
+    local.get $t0
     i32.const 5
     i32.add
     i32.mul
     local.get $p
-    i32.load $heap offset=4
     i32.const 6
     i32.add
     local.set $p
     i64.extend_i32_s
     local.get $p
     i64.extend_i32_s
-    local.tee $t0
+    local.tee $t1
     i64.eqz
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t0
+    local.get $t1
     i64.div_s
-    local.tee $t0
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t0
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -123,7 +118,7 @@
       call $rt:panic'3
       unreachable
     end
-    local.get $t0
+    local.get $t1
     i32.wrap_i64
   )
 )

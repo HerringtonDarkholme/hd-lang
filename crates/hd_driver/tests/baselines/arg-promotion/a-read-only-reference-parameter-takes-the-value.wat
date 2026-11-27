@@ -83,30 +83,26 @@
     ;; 19 |         (*self + 1) * (*self + 2) * (*self + 3) * (*self + 4) * (*self + 5) / (*self + 6)
     local.get $self
     i32.load $heap
+    local.tee $self
     i32.const 1
     i32.add
     local.get $self
-    i32.load $heap
     i32.const 2
     i32.add
     i32.mul
     local.get $self
-    i32.load $heap
     i32.const 3
     i32.add
     i32.mul
     local.get $self
-    i32.load $heap
     i32.const 4
     i32.add
     i32.mul
     local.get $self
-    i32.load $heap
     i32.const 5
     i32.add
     i32.mul
     local.get $self
-    i32.load $heap
     i32.const 6
     i32.add
     local.set $self
@@ -198,52 +194,50 @@
     ;; 32 |     norm(&p)
     call $norm'1
   )
-  (func $norm'2 (param $p i32) (result i32) (local $t0 i64)
+  (func $norm'2 (param $p i32) (result i32) (local $t0 i32) (local $t1 i64)
     ;; 22 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
     local.get $p
     i32.load $heap
+    local.tee $t0
     i32.const 1
     i32.add
     local.get $p
     i32.load $heap offset=4
+    local.tee $p
     i32.const 2
     i32.add
     i32.mul
-    local.get $p
-    i32.load $heap
+    local.get $t0
     i32.const 3
     i32.add
     i32.mul
     local.get $p
-    i32.load $heap offset=4
     i32.const 4
     i32.add
     i32.mul
-    local.get $p
-    i32.load $heap
+    local.get $t0
     i32.const 5
     i32.add
     i32.mul
     local.get $p
-    i32.load $heap offset=4
     i32.const 6
     i32.add
     local.set $p
     i64.extend_i32_s
     local.get $p
     i64.extend_i32_s
-    local.tee $t0
+    local.tee $t1
     i64.eqz
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t0
+    local.get $t1
     i64.div_s
-    local.tee $t0
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t0
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -251,7 +245,7 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t0
+    local.get $t1
     i32.wrap_i64
   )
 )

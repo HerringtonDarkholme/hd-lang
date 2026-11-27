@@ -209,8 +209,6 @@
             local.set $t6
             br 1
           end
-          i32.const 0
-          local.set $t4
           local.get $t1
           i32.const 0
           i32.store $heap offset=4
@@ -230,7 +228,7 @@
             end
           end
           local.get $t1
-          local.get $t4
+          i32.const 0
           i32.store $heap
           local.get $t1
           i32.load $heap
@@ -687,8 +685,6 @@
             local.set $t7
             br 1
           end
-          i32.const 0
-          local.set $t4
           local.get $t1
           i32.const 0
           i32.store $heap offset=4
@@ -708,7 +704,7 @@
             end
           end
           local.get $t1
-          local.get $t4
+          i32.const 0
           i32.store $heap
           local.get $t1
           i32.load $heap

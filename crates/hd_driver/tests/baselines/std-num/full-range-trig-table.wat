@@ -8,16 +8,84 @@
     local.get $value
     call $libm_sin
   )
-  (func $float_two_over_pi (param $t2 i32) (result f64) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $float_two_over_pi (param $t1 i32) (result f64) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; (no span)
     i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
-    i32.const 264
-    local.set $t0
-    local.tee $t1
-    local.get $t2
+    local.tee $t0
+    local.get $t1
     i32.const 4
     i32.mul
+    local.tee $t1
     local.tee $t2
+    i32.const 264
+    i32.ge_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    local.get $t2
+    i32.add
+    i32.load8_u $heap
+    local.set $t2
+    block
+      local.get $t2
+      i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
+      i32.ge_u
+      if
+        local.get $t2
+        i32.const 90
+        i32.le_u
+        if
+          local.get $t2
+          i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
+          i32.sub
+          local.set $t2
+          br 2
+        end
+      end
+      local.get $t2
+      i32.const 97
+      i32.ge_u
+      if
+        local.get $t2
+        i32.const 122
+        i32.le_u
+        if
+          local.get $t2
+          i32.const 71
+          i32.sub
+          local.set $t2
+          br 2
+        end
+      end
+      local.get $t2
+      i32.const 48
+      i32.ge_u
+      if
+        local.get $t2
+        i32.const 57
+        i32.le_u
+        if
+          local.get $t2
+          i32.const 4
+          i32.add
+          local.set $t2
+          br 2
+        end
+      end
+      local.get $t2
+      i32.const 43
+      i32.eq
+      if (result i32)
+        i32.const 62
+      else
+        i32.const 63
+      end
+      local.set $t2
+    end
+    local.get $t1
+    i32.const 1
+    i32.add
     local.tee $t3
     i32.const 264
     i32.ge_u
@@ -25,6 +93,7 @@
       call $rt:panic
       unreachable
     end
+    local.get $t0
     local.get $t3
     i32.add
     i32.load8_u $heap
@@ -85,17 +154,17 @@
       end
       local.set $t3
     end
-    local.get $t2
-    i32.const 1
+    local.get $t1
+    i32.const 2
     i32.add
     local.tee $t4
-    local.get $t0
+    i32.const 264
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t0
     local.get $t4
     i32.add
     i32.load8_u $heap
@@ -156,139 +225,68 @@
       end
       local.set $t4
     end
-    local.get $t2
-    i32.const 2
-    i32.add
-    local.tee $t5
     local.get $t0
-    i32.ge_u
-    if
-      call $rt:panic
-      unreachable
-    end
     local.get $t1
-    local.get $t5
-    i32.add
-    i32.load8_u $heap
-    local.set $t5
-    block
-      local.get $t5
-      i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
-      i32.ge_u
-      if
-        local.get $t5
-        i32.const 90
-        i32.le_u
-        if
-          local.get $t5
-          i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
-          i32.sub
-          local.set $t5
-          br 2
-        end
-      end
-      local.get $t5
-      i32.const 97
-      i32.ge_u
-      if
-        local.get $t5
-        i32.const 122
-        i32.le_u
-        if
-          local.get $t5
-          i32.const 71
-          i32.sub
-          local.set $t5
-          br 2
-        end
-      end
-      local.get $t5
-      i32.const 48
-      i32.ge_u
-      if
-        local.get $t5
-        i32.const 57
-        i32.le_u
-        if
-          local.get $t5
-          i32.const 4
-          i32.add
-          local.set $t5
-          br 2
-        end
-      end
-      local.get $t5
-      i32.const 43
-      i32.eq
-      if (result i32)
-        i32.const 62
-      else
-        i32.const 63
-      end
-      local.set $t5
-    end
-    local.get $t1
-    local.get $t2
     i32.const 3
     i32.add
-    local.tee $t2
-    local.get $t0
+    local.tee $t1
+    i32.const 264
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t2
+    local.get $t1
     i32.add
     i32.load8_u $heap
-    local.set $t2
+    local.set $t1
     block
-      local.get $t2
+      local.get $t1
       i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
       i32.ge_u
       if
-        local.get $t2
+        local.get $t1
         i32.const 90
         i32.le_u
         if
-          local.get $t2
+          local.get $t1
           i32.const 65 ;; &"ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
           i32.sub
           local.set $t0
           br 2
         end
       end
-      local.get $t2
+      local.get $t1
       i32.const 97
       i32.ge_u
       if
-        local.get $t2
+        local.get $t1
         i32.const 122
         i32.le_u
         if
-          local.get $t2
+          local.get $t1
           i32.const 71
           i32.sub
           local.set $t0
           br 2
         end
       end
-      local.get $t2
+      local.get $t1
       i32.const 48
       i32.ge_u
       if
-        local.get $t2
+        local.get $t1
         i32.const 57
         i32.le_u
         if
-          local.get $t2
+          local.get $t1
           i32.const 4
           i32.add
           local.set $t0
           br 2
         end
       end
-      local.get $t2
+      local.get $t1
       i32.const 43
       i32.eq
       if (result i32)
@@ -298,14 +296,14 @@
       end
       local.set $t0
     end
-    local.get $t3
+    local.get $t2
     i32.const 18
     i32.shl
-    local.get $t4
+    local.get $t3
     i32.const 12
     i32.shl
     i32.or
-    local.get $t5
+    local.get $t4
     i32.const 6
     i32.shl
     i32.or

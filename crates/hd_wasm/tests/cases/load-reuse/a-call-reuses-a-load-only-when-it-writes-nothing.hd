@@ -1,0 +1,29 @@
+# @dump: wat
+# @build: v8 release
+# A call between two loads of `p.a` keeps the first only when its
+# callee writes nothing a caller reaches (its write summary): `square`
+# does, so `p.a` loads once in `call_pure`; `bump` writes through its
+# `&mut` parameter, so `call_writes` loads `p.a` again after it.
+use std.meta.inline
+
+struct Pair:
+    a: i64
+    b: i64
+
+@inline(.Never)
+fn square(x: i64) -> i64:
+    x * x
+
+@inline(.Never)
+fn bump(p: &mut Pair) -> void:
+    p.a += 1
+
+fn call_pure(p: &Pair) -> i64:
+    x := p.a
+    y := square(x)
+    p.a + y
+
+fn call_writes(p: &mut Pair) -> i64:
+    x := p.a
+    bump(p)
+    p.a + x

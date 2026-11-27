@@ -17,29 +17,33 @@ impl Iterator[i64] for Cursor:
         if self.at >= self.end:
 > app/main/impl Iterator[i64] for Cursor.next
 >   local $0 self: &mut Cursor [param read] value
->     uses $0: entry -> %0 lend, %1 lend, %7 lend, %10 lend, %12 lend last
+>     uses $0: entry -> %0 lend, %3 lend, %14 lend last
 >   local $1 value: i64 [:= read assigned] value
->     uses $1: %9 -> %13 consume last
+>     uses $1: %11 -> %15 consume last
+>   local $2 $load: i64 [read assigned] value
+>     uses $2: %1 -> %2 lend, %9 lend, %12 lend last
 >   %0 = Read copy [*$0 .at] : i64
->   %1 = Read copy [*$0 .end] : i64
->   %2 = Prim Ge [%0 %1] : bool
->   %6 = If %2 [%5 -] : ()
->   %15 = Block %14 : i64?
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read copy [$2] : i64
+>   %3 = Read copy [*$0 .end] : i64
+>   %4 = Prim Ge [%2 %3] : bool
+>   %8 = If %4 [%7 -] : ()
+>   %17 = Block %16 : i64?
             return .None
->   %3 = NewVariant #0 [] : i64?
->   %4 = Return %3 : never
->   %5 = Block - : never
+>   %5 = NewVariant #0 [] : i64?
+>   %6 = Return %5 : never
+>   %7 = Block - : never
         value := self.at * 3
->   %7 = Read copy [*$0 .at] : i64
->   %8 = Prim Mul [%7 3:i64] : i64
->   %9 = Store [$1] %8 : ()
+>   %9 = Read copy [$2] : i64
+>   %10 = Prim Mul [%9 3:i64] : i64
+>   %11 = Store [$1] %10 : ()
         self.at += 1
->   %10 = Read copy [*$0 .at] : i64
->   %11 = Prim Add [%10 1:i64] : i64
->   %12 = Store [*$0 .at] %11 : ()
+>   %12 = Read copy [$2] : i64
+>   %13 = Prim Add [%12 1:i64] : i64
+>   %14 = Store [*$0 .at] %13 : ()
         .Some(value)
->   %13 = Read copy [$1] : i64
->   %14 = NewVariant #1 [%13] : i64?
+>   %15 = Read copy [$1] : i64
+>   %16 = NewVariant #1 [%15] : i64?
 >   summary kept [] writes
 
 pub fn total(n: i64) -> i64:

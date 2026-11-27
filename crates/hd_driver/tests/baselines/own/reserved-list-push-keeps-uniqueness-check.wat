@@ -61,14 +61,13 @@
     ;; 26 |     output
     local.get $output
   )
-  (func $with_capacity (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $index i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $with_capacity (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     let mut output = List::[usize].with_capacity(count)
     i32.const 80 ;; &empty-buffer
-    local.tee $items
-    local.set $index
+    local.set $items
     local.get $count
     if
-      local.get $index
+      i32.const 80 ;; &empty-buffer
       local.get $count
       call $rt:list_reserve
       local.set $items
@@ -127,15 +126,14 @@
     ;; 13 |     output
     local.get $items
   )
-  (func $reserve (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $index i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $reserve (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 16 |     let mut output: List[usize] = []
     i32.const 80 ;; &empty-buffer
-    local.tee $output
     ;; 17 |     output.reserve(count)
-    local.set $index
+    local.set $output
     local.get $count
     if
-      local.get $index
+      i32.const 80 ;; &empty-buffer
       local.get $count
       call $rt:list_reserve
       local.set $output

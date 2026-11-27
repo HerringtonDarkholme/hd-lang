@@ -3,7 +3,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i64]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i64]" (param i32 i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $grow (param $n i32) (result i64) (local $xs.buffer.ptr i32) (local $xs.buffer.capacity i32) (local $xs.len i32) (local $t1 i32) (local $value i64) (local $xs i32) (local $t2 i32) (local $sum i64) (local $t0 i32)
+  (func $grow (param $n i32) (result i64) (local $xs.buffer.ptr i32) (local $xs.buffer.capacity i32) (local $xs.len i32) (local $t1 i32) (local $xs i32) (local $t2 i32) (local $sum i64) (local $t0 i32) (local $value i64)
     ;; ...
     ;; 13 |     for i in 0..n:
     block

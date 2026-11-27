@@ -309,45 +309,43 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 13 funcref))
-  (func $$test0 (local $value.2'1 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $reason.0'2 i32) (local $t1 i64) (local $t0 f64) (local $value i32) (local $value.2'2 i32) (local $value.3 i64) (local $value.4 f64) (local $value.5 i32) (local $reason.0'1 i32) (local $t2 i32) (local $t7 i32)
+  (func $$test0 (local $value.2'1 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t2 i64) (local $t1 f64) (local $value i32) (local $value.2'2 i32) (local $value.3 i64) (local $value.4 f64) (local $value.5 i32) (local $t0 i32) (local $t3 i32) (local $t9 i32)
     ;; ...
     ;; 20 |         assert(read("[1]").get("a").is_none())
     i32.const 310 ;; &"[1]"
     i32.const 3
     call $parse
-    local.set $reason.0'1
     local.set $t0
     local.set $t1
     local.set $t2
-    local.set $value
-    local.set $reason.0'2
     local.set $t3
+    local.set $value
     local.set $t4
     local.set $t5
+    local.set $t6
+    local.set $t7
     block
       block
         block
-          local.get $t5
+          local.get $t7
           br_if 1
-          local.get $t3
+          local.get $t5
           local.get $value
+          local.get $t3
           local.get $t2
           local.get $t1
           local.get $t0
-          local.get $reason.0'1
           i32.const 0
+          local.tee $t5
+          local.tee $value
           local.set $t3
-          i32.const 0
-          local.set $value
-          i32.const 0
-          local.set $t2
           i64.const 0
-          local.set $t1
+          local.set $t2
           f64.const 0x0p+0
-          local.set $t0
+          local.set $t1
           i32.const 0
-          local.set $reason.0'1
-          local.set $t6
+          local.set $t0
+          local.set $t8
           local.set $value.4
           local.set $value.3
           local.set $value.2'1
@@ -364,82 +362,82 @@
       call_indirect $table0 (param i32 i32)
       unreachable
     end
+    local.get $t7
+    local.get $t6
     local.get $t5
     local.get $t4
-    local.get $t3
-    local.get $reason.0'2
     local.get $value
+    local.get $t3
     local.get $t2
     local.get $t1
     local.get $t0
-    local.get $reason.0'1
     call $"release_value[Result[std.encoding.json.Json, std.encoding.json.JsonError]]"
     ;; ...
     local.get $value.2'2
     i32.store $heap
-    local.get $reason.0'1
+    local.get $t0
     local.get $value.5
     i32.store8 $heap offset=8
-    local.get $reason.0'1
+    local.get $t0
     local.get $value.2'1
     i32.store $heap offset=8
-    local.get $reason.0'1
+    local.get $t0
     local.get $value.3
     i64.store $heap offset=8
-    local.get $reason.0'1
+    local.get $t0
     local.get $value.4
     f64.store $heap offset=8
-    local.get $reason.0'1
-    local.get $t6
+    local.get $t0
+    local.get $t8
     i32.store $heap offset=12
-    local.get $reason.0'1
+    local.get $t0
     i32.const 313 ;; &"a"
     i32.const 1
     call $"impl Json.get"
-    local.set $t2
-    local.set $t0
-    local.set $t1
-    local.set $value
-    local.set $reason.0'2
     local.set $t3
-    local.get $reason.0'1
+    local.set $t1
+    local.set $t2
+    local.set $value
+    local.set $t4
+    local.set $t5
+    local.get $t0
     if
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap
-      local.get $reason.0'1
+      local.get $t0
       i32.load8_u $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i64.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       f64.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap offset=12
       call $"release_value[std.encoding.json.Json]"
     end
     ;; ...
-    local.get $t3
+    local.get $t5
     i32.store $heap
-    local.get $reason.0'1
-    local.get $reason.0'2
+    local.get $t0
+    local.get $t4
     i32.store8 $heap offset=8
-    local.get $reason.0'1
+    local.get $t0
     local.get $value
     i32.store $heap offset=8
-    local.get $reason.0'1
-    local.get $t1
-    i64.store $heap offset=8
-    local.get $reason.0'1
     local.get $t0
-    f64.store $heap offset=8
-    local.get $reason.0'1
     local.get $t2
+    i64.store $heap offset=8
+    local.get $t0
+    local.get $t1
+    f64.store $heap offset=8
+    local.get $t0
+    local.get $t3
     i32.store $heap offset=12
     block
       block
         block
-          local.get $reason.0'1
+          local.get $t0
           i32.load $heap
           i32.const 9
           i32.ne
@@ -450,32 +448,30 @@
         br 1
       end
       i32.const 1
-      local.set $t7
+      local.set $t9
     end
-    local.get $reason.0'1
+    local.get $t0
     if
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap
-      local.get $reason.0'1
+      local.get $t0
       i32.load8_u $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i64.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       f64.load $heap offset=8
-      local.get $reason.0'1
+      local.get $t0
       i32.load $heap offset=12
       call $"release_value[std.encoding.json.Json?]"
     end
-    i32.const 16 ;; &"heap-exhausted"
-    local.set $reason.0'1
-    local.get $t7
+    local.get $t9
     i32.eqz
     if
       i32.const 294 ;; &"assertion-failed"
       i32.const 16 ;; &"heap-exhausted"
-      local.get $reason.0'1
+      i32.const 16 ;; &"heap-exhausted"
       i32.const 0
       i32.const 4
       call_indirect $table0 (param i32 i32 i32 i32)

@@ -176,25 +176,7 @@
         local.get $t3
         call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
-      i32.const 0
-      local.set $t3
       local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
-      end
-      i32.const 0
-      local.tee $t1
-      local.get $t2
-      if
-        local.get $t2
-        call $rt:release_ref
-      end
       if
         local.get $t1
         i32.load $heap
@@ -204,10 +186,20 @@
           call $rt:release_ref
         end
       end
-      local.get $t3
+      i32.const 0
+      local.get $t2
       if
-        local.get $t3
-        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
+        local.get $t2
+        call $rt:release_ref
+      end
+      if
+        i32.const 0
+        i32.load $heap
+        local.tee $t5
+        if
+          local.get $t5
+          call $rt:release_ref
+        end
       end
       unreachable
     end
@@ -407,29 +399,7 @@
         local.get $t3
         call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
-      i32.const 0
-      local.set $t3
       local.get $t1
-      if
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
-          local.get $t1
-          call $rt:release_ref
-        else
-          call $skipped_test
-        end
-      end
-      i32.const 0
-      local.tee $t1
-      local.get $t2
-      if
-        local.get $t2
-        call $rt:release_ref
-      else
-        call $skipped_test
-      end
       if
         local.get $t1
         i32.load $heap
@@ -441,10 +411,24 @@
           call $skipped_test
         end
       end
-      local.get $t3
+      i32.const 0
+      local.get $t2
       if
-        local.get $t3
-        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
+        local.get $t2
+        call $rt:release_ref
+      else
+        call $skipped_test
+      end
+      if
+        i32.const 0
+        i32.load $heap
+        local.tee $t5
+        if
+          local.get $t5
+          call $rt:release_ref
+        else
+          call $skipped_test
+        end
       end
       unreachable
     end

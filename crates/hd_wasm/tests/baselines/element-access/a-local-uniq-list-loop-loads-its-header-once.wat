@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $multiply (param $n i32) (result f64) (local $b.buffer.ptr i32) (local $b.len i32) (local $c i32) (local $t0 i32) (local $value'1 f64) (local $a i32) (local $value'2 f64) (local $key'1 i32) (local $j i32) (local $idx i32) (local $key'2 i32) (local $t1 f64)
+  (func $multiply (param $n i32) (result f64) (local $b.buffer.ptr i32) (local $b.len i32) (local $c i32) (local $t0 i32) (local $a i32) (local $value f64) (local $key'1 i32) (local $j i32) (local $idx i32) (local $key'2 i32) (local $prev f64) (local $t1 f64)
     ;; ...
     block
       loop
@@ -54,7 +54,7 @@
                 i32.mul
                 i32.add
                 f64.load $heap
-                local.set $value'1
+                local.set $prev
     ;; 29 |                 add := aik * b[k * n + j]
                 local.get $a
                 local.get $n
@@ -81,14 +81,14 @@
                 f64.load $heap
                 local.set $t1
     ;; 30 |                 c[idx] = prev + add
-                local.get $value'1
+                local.get $prev
     ;; 29 |                 add := aik * b[k * n + j]
-                local.get $value'2
+                local.get $value
                 local.get $t1
                 f64.mul
     ;; 30 |                 c[idx] = prev + add
                 f64.add
-                local.set $value'1
+                local.set $prev
                 local.get $idx
                 local.get $c
                 i32.load $heap offset=8
@@ -108,7 +108,7 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                local.get $value'1
+                local.get $prev
                 f64.store $heap
     ;; 26 |             for j in 0..n:
                 br 0

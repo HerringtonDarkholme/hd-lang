@@ -1,6 +1,12 @@
 //! Local constant propagation and executable-arm selection after inlining.
-//! Like LLVM `InstCombine`, fold operations where their operands become literals;
-//! unknown joins deliberately discard facts instead of solving a global lattice.
+//! Like LLVM `InstCombine`, fold operations where their operands become literals.
+//!
+//! A literal written to a local holds at a later read when the write
+//! dominates it and no other write may reach it, as LLVM's `EarlyCSE`
+//! keeps a value per dominator-tree scope: the write's frame is still open
+//! (structured control enters a frame only at its start), it is the
+//! local's last write in walk order, and no loop entered after it writes
+//! the local, whose back edge would reach the read.
 
 use super::{I, Ins, branch_frame};
 use crate::module::Func;
@@ -8,31 +14,47 @@ use crate::origins::Remap;
 
 #[derive(Default)]
 struct Frame {
+    start: usize,
     end: usize,
-    other: Option<usize>,
+    is_loop: bool,
+    /// A `block`, whose end joins nothing unless a branch names it.
+    plain: bool,
     targeted: bool,
+    other: Option<usize>,
     selected: bool,
-    join: bool,
 }
 
-/// O(instructions + locals + branch-table entries), with heap control stacks.
-/// Two input walks and one compaction walk of at most three times the input. Epochs
-/// invalidate local facts in O(1); there is no nesting-dependent retry.
+/// O(instructions + locals + branch-table entries), with heap control
+/// stacks, plus per folded read the open frames and a binary search of its
+/// local's writes. Two input walks and one compaction walk of at most three
+/// times the input; there is no nesting-dependent retry.
 pub fn run(f: &mut Func) -> bool {
     run_with(f, &mut || {})
 }
 
 pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
-    let mut frames = vec![Frame::default()];
+    let mut frames = vec![Frame {
+        end: f.body.len(),
+        ..Frame::default()
+    }];
     let mut ids = vec![0; f.body.len()];
     let mut stack = vec![0];
+    // Each local's writes, in walk order.
+    let mut writes: Vec<Vec<usize>> = vec![Vec::new(); f.params.len() + f.locals.len()];
     for (at, ins) in f.body.iter().enumerate() {
         visit();
+        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
+            && let Some(w) = writes.get_mut(*l as usize)
+        {
+            w.push(at);
+        }
         if matches!(ins, Ins::Op(I::If(_) | I::Block(_) | I::Loop(_))) {
             ids[at] = frames.len();
             stack.push(frames.len());
             frames.push(Frame {
-                join: matches!(ins, Ins::Op(I::If(_) | I::Loop(_))),
+                start: at,
+                is_loop: matches!(ins, Ins::Op(I::Loop(_))),
+                plain: matches!(ins, Ins::Op(I::Block(_))),
                 ..Frame::default()
             });
         } else if matches!(ins, Ins::Op(I::Else)) {
@@ -64,8 +86,12 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
     if stack.len() != 1 {
         return false;
     }
-    let mut facts = vec![(0, None); f.params.len() + f.locals.len()];
-    let mut epoch = 1usize;
+    // Per local: its last write's literal, position, frame and the frame's
+    // arm then: an `else` arm is not dominated by its `then` arm.
+    let mut facts: Vec<Option<(Ins, usize, usize, u32)>> =
+        vec![None; f.params.len() + f.locals.len()];
+    let mut open = vec![0usize];
+    let mut arm = vec![0u32; frames.len()];
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out = Vec::with_capacity(f.body.len());
     let mut changed = false;
@@ -77,20 +103,39 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
     while at < f.body.len() {
         visit();
         let ins = f.body[at];
-        let frame = &mut frames[ids[at]];
+        if matches!(ins, Ins::Op(I::If(_) | I::Block(_) | I::Loop(_))) {
+            open.push(ids[at]);
+        } else if matches!(ins, Ins::Op(I::End)) && open.len() > 1 && open.last() == Some(&ids[at])
+        {
+            open.pop();
+        } else if matches!(ins, Ins::Op(I::Else)) {
+            arm[ids[at]] += 1;
+        }
         match ins {
-            Ins::Op(I::LocalGet(l)) if facts[l as usize].0 == epoch => {
-                if let Some(value) = facts[l as usize].1 {
-                    exposed.push((out.len(), l));
-                    out.push(value);
-                    changed = true;
-                } else {
-                    out.push(ins);
-                }
+            Ins::Op(I::LocalGet(l))
+                if let Some((value, set, id, a)) = facts[l as usize]
+                    && arm[id] == a
+                    && holds(&frames, &open, &writes[l as usize], (set, id), at) =>
+            {
+                exposed.push((out.len(), l));
+                out.push(value);
+                changed = true;
             }
             Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
                 let value = out.last().copied().filter(literal);
-                facts[l as usize] = (epoch, value);
+                // A plain block no branch names ends only by falling
+                // through, so what it writes holds past its end: the fact
+                // belongs to the nearest frame around that joins.
+                let id = open
+                    .iter()
+                    .rev()
+                    .copied()
+                    .find(|&k| {
+                        let fr = &frames[k];
+                        k == 0 || fr.targeted || !(fr.plain || fr.selected)
+                    })
+                    .unwrap_or(0);
+                facts[l as usize] = value.map(|v| (v, at, id, arm[id]));
                 if let (Ins::Op(I::LocalTee(_)), Some(value)) = (ins, value) {
                     // Keep the write, but expose the tee's literal result.
                     let producer = pop_exposed(&mut out, &mut exposed);
@@ -107,6 +152,7 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                 out.push(ins);
             }
             Ins::Op(I::If(bt)) => {
+                let frame = &mut frames[ids[at]];
                 if let Some(Ins::Op(I::I32Const(c))) = out.last() {
                     let take_then = *c != 0;
                     pop_exposed(&mut out, &mut exposed);
@@ -122,32 +168,12 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                     };
                     continue;
                 }
-                epoch += 1;
                 out.push(ins);
             }
-            Ins::Op(I::Else) if frame.selected => {
+            Ins::Op(I::Else) if frames[ids[at]].selected => {
+                let frame = &frames[ids[at]];
                 at = frame.end;
                 continue;
-            }
-            Ins::Op(
-                I::Else
-                | I::Loop(_)
-                | I::Br(_)
-                | I::BrIf(_)
-                | I::BrTable(..)
-                | I::Return
-                | I::Unreachable,
-            ) => {
-                epoch += 1;
-                out.push(ins);
-            }
-            Ins::Op(I::End) => {
-                // Unselected ifs and loops join unknown paths. Plain blocks
-                // only join paths when a branch actually names their label.
-                if frame.targeted || (!frame.selected && frame.join) {
-                    epoch += 1;
-                }
-                out.push(ins);
             }
             Ins::Op(op) => {
                 if let Some((n, value)) = evaluate(op, &out) {
@@ -187,6 +213,35 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
         compact_tees(f, &exposed, visit);
     }
     changed
+}
+
+/// Whether the literal a local's last write `(set, frame)` gave holds at
+/// a read at `at`: the write's frame is open, and no loop opened after the
+/// write writes the local after the read (`writes`, its writes in walk
+/// order). O(open frames + log writes).
+fn holds(
+    frames: &[Frame],
+    open: &[usize],
+    writes: &[usize],
+    fact: (usize, usize),
+    at: usize,
+) -> bool {
+    let (set, id) = fact;
+    if !open.contains(&id) {
+        return false;
+    }
+    let mut end = at;
+    for &k in open.iter().rev() {
+        let fr = &frames[k];
+        if fr.start < set {
+            break;
+        }
+        if fr.is_loop {
+            end = end.max(fr.end);
+        }
+    }
+    let after = writes.partition_point(|&w| w <= at);
+    writes.get(after).is_none_or(|&w| w > end)
 }
 
 fn pop_exposed(out: &mut Vec<Ins>, exposed: &mut Vec<(usize, u32)>) -> Option<u32> {

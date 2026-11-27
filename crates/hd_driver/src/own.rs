@@ -490,6 +490,19 @@ impl hd_opt::prove::Cx for Env<'_> {
             Callee::TraitMethod { .. } => None,
         }
     }
+    fn shared_ref(&self, t: Ty) -> bool {
+        matches!(
+            self.run.pool.get(t),
+            TyData::Ref {
+                mutable: false,
+                counted: false,
+                ..
+            }
+        )
+    }
+    fn call_writes(&self, callee: &Callee) -> bool {
+        OwnCx::call_writes(self, callee).any()
+    }
 }
 
 impl OwnCx for Env<'_> {

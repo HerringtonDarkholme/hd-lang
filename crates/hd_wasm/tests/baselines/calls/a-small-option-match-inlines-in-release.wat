@@ -411,11 +411,9 @@
     end
     local.get $t1
   )
-  (func $loan_value (param $value i32) (result i32) (local $message.0 i32) (local $message.1 i32)
+  (func $loan_value (param $value i32) (result i32) (local $message.0 i32)
     ;; 38 |     value.expect("value")
     i32.const 65 ;; &"value"
-    i32.const 5
-    local.set $message.1
     local.set $message.0
     block
       block
@@ -430,7 +428,7 @@
         return
       end
       local.get $message.0
-      local.get $message.1
+      i32.const 5
       i32.const 0
       call_indirect $table0 (param i32 i32)
       unreachable

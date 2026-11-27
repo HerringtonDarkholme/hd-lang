@@ -3,23 +3,21 @@
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $t i32) (param $y i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $k i32) (local $t2 i32)
+  (func $total (param $t i32) (param $y i32) (result i64) (local $s i64) (local $t0 i32) (local $k i32) (local $t1 i32)
     ;; 13 |     for k in 0..3usize:
-    i32.const 3
-    local.set $t0
     block
       loop
-        local.get $t1
         local.get $t0
+        i32.const 3
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.set $k
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t0
     ;; 14 |         s = s + t.m[(y + k) & 3]
         local.get $t
         i32.load $heap
@@ -39,10 +37,10 @@
         end
         local.get $t
         i32.load $heap
-        local.set $t2
+        local.set $t1
         local.get $s
-        local.get $t2
-        local.get $t2
+        local.get $t1
+        local.get $t1
         i32.load $heap offset=12
         i32.const 14
         i32.mul

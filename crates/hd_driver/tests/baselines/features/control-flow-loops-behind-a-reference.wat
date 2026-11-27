@@ -183,7 +183,7 @@
     local.get $mark
     i32.store $heap offset=8
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $p i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64) (local $t6 i64)
     ;; 33 |     let mut p = Parser { index: [], pending: [], held: 0 }
     global.get $stack
     global.get $stack_limit
@@ -215,8 +215,6 @@
     i32.const 0
     i32.store $heap offset=8
     ;; 34 |     for i in 0..4:
-    i32.const 4
-    local.set $t1
     local.get $p
     local.get $p
     i32.load $heap offset=4
@@ -224,44 +222,44 @@
     i32.store $heap offset=4
     block
       loop
-        local.get $t2
         local.get $t1
+        i32.const 4
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 35 |         p.pending.push(i)
-        local.set $t3
+        local.set $t2
         local.get $p
         i32.load $heap offset=4
-        local.tee $t4
+        local.tee $t3
         i32.load $heap offset=4
-        local.tee $t5
-        local.get $t4
+        local.tee $t4
+        local.get $t3
         i32.load $heap
         i32.eq
         if
-          local.get $t4
+          local.get $t3
           i32.const 1
           call_indirect $table0 (param i32) (result i32)
-          local.set $t4
+          local.set $t3
           local.get $p
-          local.get $t4
+          local.get $t3
           i32.store $heap offset=4
         end
+        local.get $t3
         local.get $t4
-        local.get $t5
         i32.const 4
         i32.mul
         i32.add
-        local.get $t3
+        local.get $t2
         i32.store $heap offset=16
+        local.get $t3
         local.get $t4
-        local.get $t5
         i32.const 1
         i32.add
         i32.store $heap offset=4
@@ -286,13 +284,13 @@
     i32.load $heap
     i32.load $heap offset=4
     i64.extend_i32_u
-    local.tee $t6
+    local.tee $t5
     call $unsigned_width
-    local.set $t2
+    local.set $t1
     local.get $p
     i32.const 2
     call $"impl Parser.snapshot"
-    local.set $t1
+    local.set $t2
     local.get $p
     if
       local.get $p
@@ -303,15 +301,15 @@
       i32.load $heap offset=8
       call $"release_value[Parser]"
     end
-    local.get $t1
+    local.get $t2
     i64.extend_i32_u
-    local.tee $t7
+    local.tee $t6
     call $unsigned_width
     local.set $p
-    local.get $t2
+    local.get $t1
     i32.const 1
     i32.add
-    local.tee $t1
+    local.tee $t2
     local.get $p
     i32.add
     local.tee $t3
@@ -322,18 +320,18 @@
       call $rt:str
       local.set $t4
     end
-    local.get $t6
+    local.get $t5
     local.get $t4
-    local.get $t2
+    local.get $t1
     call $write_unsigned_sized
     local.get $t4
-    local.get $t2
+    local.get $t1
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t7
+    local.get $t6
     local.get $t4
-    local.get $t1
+    local.get $t2
     i32.add
     local.get $p
     call $write_unsigned_sized

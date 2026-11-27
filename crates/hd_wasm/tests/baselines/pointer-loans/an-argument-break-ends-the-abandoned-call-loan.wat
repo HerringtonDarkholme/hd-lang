@@ -243,96 +243,94 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (local $t3 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $probe (param $p i32) (param $alias i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 26 |     for round in 0..2:
-    i32.const 2
-    local.set $t0
     block
       loop
-        local.get $t1
         local.get $t0
+        i32.const 2
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t0
     ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
         local.get $p
         i32.const 4
         i32.sub
-        local.set $t2
-        local.get $t3
+        local.set $t1
+        local.get $t2
         if
-          local.get $t3
+          local.get $t2
           i32.load $heap
-          local.tee $t4
+          local.tee $t3
           i32.const 2031616
           i32.and
           i32.const 2031616
           i32.eq
           if
-            local.get $t3
+            local.get $t2
             call $rt:loan_unshare
           else
+            local.get $t2
             local.get $t3
-            local.get $t4
             i32.const 65536
             i32.sub
             i32.store $heap
           end
-          local.get $t5
+          local.get $t4
           i32.const 65536
           i32.sub
-          local.set $t5
+          local.set $t4
         end
-        local.get $t2
-        local.tee $t3
-        i32.load $heap
+        local.get $t1
         local.tee $t2
+        i32.load $heap
+        local.tee $t1
         i32.const 2031616
         i32.and
         i32.const 2031616
         i32.eq
         if
-          local.get $t3
+          local.get $t2
           call $rt:loan_share
         else
-          local.get $t3
           local.get $t2
+          local.get $t1
           i32.const 65536
           i32.add
           i32.store $heap
         end
-        local.get $t5
+        local.get $t4
         i32.const 65536
         i32.add
-        local.set $t5
+        local.set $t4
         local.get $p
         i32.load $heap
-        local.set $t2
+        local.set $t1
         i32.const 0
-        local.get $t2
+        local.get $t1
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'1
           unreachable
         end
-        local.get $t2
+        local.get $t1
         i32.const 16
         i32.add
-        local.set $t2
+        local.set $t1
         local.get $p
         i32.load $heap
         i32.load $heap offset=4
         i32.const 1
         i32.eq
         if
-          local.get $t3
+          local.get $t2
           if
-            local.get $t3
+            local.get $t2
             i32.load $heap
             local.tee $p
             i32.const 2031616
@@ -340,10 +338,10 @@
             i32.const 2031616
             i32.eq
             if
-              local.get $t3
+              local.get $t2
               call $rt:loan_unshare
             else
-              local.get $t3
+              local.get $t2
               local.get $p
               i32.const 65536
               i32.sub
@@ -365,53 +363,53 @@
           end
           local.get $alias
           call $later
-          local.set $t4
+          local.set $t3
         end
-        local.get $t2
-        local.get $t4
+        local.get $t1
+        local.get $t3
         call $observe
         drop
-        local.set $t2
-        local.get $t3
+        local.set $t1
+        local.get $t2
         if
-          local.get $t3
+          local.get $t2
           i32.load $heap
-          local.tee $t6
+          local.tee $t5
           i32.const 2031616
           i32.and
           i32.const 2031616
           i32.eq
           if
-            local.get $t3
+            local.get $t2
             call $rt:loan_unshare
           else
-            local.get $t3
-            local.get $t6
+            local.get $t2
+            local.get $t5
             i32.const 65536
             i32.sub
             i32.store $heap
           end
-          local.get $t5
+          local.get $t4
           i32.const 65536
           i32.sub
-          local.set $t5
+          local.set $t4
           i32.const 0
-          local.set $t3
+          local.set $t2
         end
     ;; 26 |     for round in 0..2:
-        local.get $t2
+        local.get $t1
         if
-          local.get $t2
+          local.get $t1
           call $rt:release_ref'1
         end
-        local.get $t4
+        local.get $t3
         if
-          local.get $t4
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref'2
           end
         end

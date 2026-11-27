@@ -14,12 +14,10 @@
     i32.const 0
     call $kept#1
     ;; 11 |     for _ in 0..2:
-    i32.const 2
-    local.set $f.0
     block
       loop
         local.get $t0
-        local.get $f.0
+        i32.const 2
         i32.lt_u
         i32.eqz
         br_if 1

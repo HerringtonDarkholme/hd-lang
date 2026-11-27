@@ -3,10 +3,11 @@
   (import "fixture" "impl[T < ?Copy] Index[usize] for UniqList[T].index[i64]" (func $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i64]" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $"impl['a] Iterator[i64] for Cursor['a].next" (param $self i32) (result i32 i64) (local $t0 i64)
+  (func $"impl['a] Iterator[i64] for Cursor['a].next" (param $self i32) (result i32 i64) (local $t0 i32) (local $t1 i64)
     ;; 16 |         if self.at >= self.list.len():
     local.get $self
     i32.load $heap offset=4
+    local.tee $t0
     local.get $self
     i32.load $heap
     i32.load $heap offset=8
@@ -21,11 +22,10 @@
     ;; 18 |         value := self.list[self.at]
     local.get $self
     i32.load $heap
-    local.get $self
-    i32.load $heap offset=4
+    local.get $t0
     call $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i64]"
     i64.load $heap
-    local.set $t0
+    local.set $t1
     ;; 19 |         self.at += 1
     local.get $self
     local.get $self
@@ -36,7 +36,7 @@
     ;; 20 |         .Some(value)
     i32.const 1
     ;; 18 |         value := self.list[self.at]
-    local.get $t0
+    local.get $t1
   )
   (func $total (param $xs i32) (result i64) (local $s i64) (local $t0 i32) (local $x i64)
     ;; 24 |     for x in Cursor { list: xs, at: 0 }:

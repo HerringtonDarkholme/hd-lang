@@ -120,7 +120,7 @@
     i32.const 76 ;; &"!"
     i32.const 1
   )
-  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $current i32) (local $t0 i32) (local $t1 i32)
+  (func $through_cell (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $current i32) (local $t0 i32)
     ;; 10 |     let mut current = text
     global.get $stack
     global.get $stack_limit
@@ -150,19 +150,17 @@
     i32.store $heap offset=4
     ;; 12 |     append("!")
     i32.const 76 ;; &"!"
-    i32.const 1
     local.set $text.0
-    local.set $text.1
     local.get $current
     i32.load $heap
-    local.tee $t1
+    local.tee $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $retain
     end
-    local.get $t1
+    local.get $text.1
     if
-      local.get $t1
+      local.get $text.1
       call $rt:release_ref
     end
     local.get $current
@@ -175,8 +173,8 @@
     local.get $current
     i32.const 0
     i32.store $heap offset=4
-    local.get $text.1
     local.get $text.0
+    i32.const 1
     call $rt:str_append
     local.set $text.0
     local.set $text.1

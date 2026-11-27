@@ -15,127 +15,135 @@ impl Parser:
         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
 > app/main/impl Parser.whitespace
 >   local $0 self: &mut Parser [param read] value
->     uses $0: entry -> %0 lend, %1 lend, %4 lend, %5 lend, %71 lend, %73 lend
+>     uses $0: entry -> %0 lend, %3 lend, %7 lend, %75 lend
 >   local $1 self: char [read] value
->     uses $1: %6 -> %7 lend last
+>     uses $1: %8 -> %9 lend last
 >   local $2 point: i32 [read] value
->     uses $2: %10 -> %11 lend, %13 lend, %15 lend, %17 lend last, %26 lend, %28 lend, %30 lend, %34 lend last, %41 lend, %43 lend, %47 lend, %51 lend, %55 lend, %59 lend last
+>     uses $2: %12 -> %13 lend, %15 lend, %17 lend, %19 lend last, %28 lend, %30 lend, %32 lend, %36 lend last, %43 lend, %45 lend, %49 lend, %53 lend, %57 lend, %61 lend last
+>   local $3 $load: usize [read assigned] value
+>     uses $3: %1 -> %2 lend, %6 lend, %73 lend last
 >   %0 = Read copy [*$0 .at] : usize
->   %1 = Read borrow [*$0 .chars] : List[char]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Prim Lt [%0 %2] : bool
->   %4 = Read copy [*$0 .at] : usize
->   %5 = Read copy [*$0 .chars [%4]] : char
->   %6 = Store [$1] %5 : ()
->   %7 = Read copy [$1] : char
->   %8 = Call std/core/char_scalar[] (%7) : u32
->   %9 = Prim Conv [%8] : i32
->   %10 = Store [$2] %9 : ()
->   %11 = Read copy [$2] : i32
->   %12 = Prim Le [%11 32:i32] : bool
+>   %1 = Store [$3] %0 : ()
+>   %2 = Read copy [$3] : usize
+>   %3 = Read borrow [*$0 .chars] : List[char]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Lt [%2 %4] : bool
+>   %6 = Read copy [$3] : usize
+>   %7 = Read copy [*$0 .chars [%6]] : char
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read copy [$1] : char
+>   %10 = Call std/core/char_scalar[] (%9) : u32
+>   %11 = Prim Conv [%10] : i32
+>   %12 = Store [$2] %11 : ()
 >   %13 = Read copy [$2] : i32
->   %14 = Prim Eq [%13 32:i32] : bool
+>   %14 = Prim Le [%13 32:i32] : bool
 >   %15 = Read copy [$2] : i32
->   %16 = Prim Ge [%15 9:i32] : bool
+>   %16 = Prim Eq [%15 32:i32] : bool
 >   %17 = Read copy [$2] : i32
->   %18 = Prim Le [%17 13:i32] : bool
->   %19 = Block %18 : bool
->   %20 = And %16 %19 : bool
+>   %18 = Prim Ge [%17 9:i32] : bool
+>   %19 = Read copy [$2] : i32
+>   %20 = Prim Le [%19 13:i32] : bool
 >   %21 = Block %20 : bool
->   %22 = Or %14 %21 : bool
->   %23 = Break L1 %22 : never
->   %24 = Block - : never
->   %25 = If %12 [%24 -] : ()
->   %26 = Read copy [$2] : i32
->   %27 = Prim Lt [%26 8192:i32] : bool
+>   %22 = And %18 %21 : bool
+>   %23 = Block %22 : bool
+>   %24 = Or %16 %23 : bool
+>   %25 = Break L1 %24 : never
+>   %26 = Block - : never
+>   %27 = If %14 [%26 -] : ()
 >   %28 = Read copy [$2] : i32
->   %29 = Prim Eq [%28 133:i32] : bool
+>   %29 = Prim Lt [%28 8192:i32] : bool
 >   %30 = Read copy [$2] : i32
->   %31 = Prim Eq [%30 160:i32] : bool
->   %32 = Block %31 : bool
->   %33 = Or %29 %32 : bool
->   %34 = Read copy [$2] : i32
->   %35 = Prim Eq [%34 5760:i32] : bool
->   %36 = Block %35 : bool
->   %37 = Or %33 %36 : bool
->   %38 = Break L1 %37 : never
->   %39 = Block - : never
->   %40 = If %27 [%39 -] : ()
->   %41 = Read copy [$2] : i32
->   %42 = Prim Le [%41 8202:i32] : bool
+>   %31 = Prim Eq [%30 133:i32] : bool
+>   %32 = Read copy [$2] : i32
+>   %33 = Prim Eq [%32 160:i32] : bool
+>   %34 = Block %33 : bool
+>   %35 = Or %31 %34 : bool
+>   %36 = Read copy [$2] : i32
+>   %37 = Prim Eq [%36 5760:i32] : bool
+>   %38 = Block %37 : bool
+>   %39 = Or %35 %38 : bool
+>   %40 = Break L1 %39 : never
+>   %41 = Block - : never
+>   %42 = If %29 [%41 -] : ()
 >   %43 = Read copy [$2] : i32
->   %44 = Prim Eq [%43 8232:i32] : bool
->   %45 = Block %44 : bool
->   %46 = Or %42 %45 : bool
->   %47 = Read copy [$2] : i32
->   %48 = Prim Eq [%47 8233:i32] : bool
->   %49 = Block %48 : bool
->   %50 = Or %46 %49 : bool
->   %51 = Read copy [$2] : i32
->   %52 = Prim Eq [%51 8239:i32] : bool
->   %53 = Block %52 : bool
->   %54 = Or %50 %53 : bool
->   %55 = Read copy [$2] : i32
->   %56 = Prim Eq [%55 8287:i32] : bool
->   %57 = Block %56 : bool
->   %58 = Or %54 %57 : bool
->   %59 = Read copy [$2] : i32
->   %60 = Prim Eq [%59 12288:i32] : bool
->   %61 = Block %60 : bool
->   %62 = Or %58 %61 : bool
->   %63 = Break L1 %62 : never
->   %64 = Block - : bool
->   %65 = Scope %64 [] : bool
->   %66 = Break L2 %65 : never
->   %67 = Block - : bool
->   %68 = Scope %67 [] : bool
->   %69 = Block %68 : bool
->   %70 = And %3 %69 : bool
->   %75 = Break L0 - : never
->   %76 = Block - : ()
->   %77 = If %70 [%74 %76] : ()
+>   %44 = Prim Le [%43 8202:i32] : bool
+>   %45 = Read copy [$2] : i32
+>   %46 = Prim Eq [%45 8232:i32] : bool
+>   %47 = Block %46 : bool
+>   %48 = Or %44 %47 : bool
+>   %49 = Read copy [$2] : i32
+>   %50 = Prim Eq [%49 8233:i32] : bool
+>   %51 = Block %50 : bool
+>   %52 = Or %48 %51 : bool
+>   %53 = Read copy [$2] : i32
+>   %54 = Prim Eq [%53 8239:i32] : bool
+>   %55 = Block %54 : bool
+>   %56 = Or %52 %55 : bool
+>   %57 = Read copy [$2] : i32
+>   %58 = Prim Eq [%57 8287:i32] : bool
+>   %59 = Block %58 : bool
+>   %60 = Or %56 %59 : bool
+>   %61 = Read copy [$2] : i32
+>   %62 = Prim Eq [%61 12288:i32] : bool
+>   %63 = Block %62 : bool
+>   %64 = Or %60 %63 : bool
+>   %65 = Break L1 %64 : never
+>   %66 = Block - : bool
+>   %67 = Scope %66 [] : bool
+>   %68 = Break L2 %67 : never
+>   %69 = Block - : bool
+>   %70 = Scope %69 [] : bool
+>   %71 = Block %70 : bool
+>   %72 = And %5 %71 : bool
+>   %77 = Break L0 - : never
 >   %78 = Block - : ()
->   %79 = Loop %78 - : ()
+>   %79 = If %72 [%76 %78] : ()
 >   %80 = Block - : ()
+>   %81 = Loop %80 - : ()
+>   %82 = Block - : ()
             self.at += 1
->   %71 = Read copy [*$0 .at] : usize
->   %72 = Prim Add [%71 1:usize] : usize
->   %73 = Store [*$0 .at] %72 : ()
->   %74 = Block - : ()
+>   %73 = Read copy [$3] : usize
+>   %74 = Prim Add [%73 1:usize] : usize
+>   %75 = Store [*$0 .at] %74 : ()
+>   %76 = Block - : ()
 >   summary kept [] writes
->   loop %79 keeps [*$0 .chars] (-..-)
+>   loop %81 keeps [*$0 .chars] (-..-)
 
     @inline(.Never)
     fn expression(&mut self) -> Result[*i32, string]:
         self.whitespace()
 > app/main/impl Parser.expression
 >   local $0 self: &mut Parser [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %3 lend, %6 lend, %8 lend, %9 lend last
+>     uses $0: entry -> %0 lend, %2 lend, %5 lend, %10 lend, %11 lend last
 >   local $1 $ref: i32 [read assigned captured captured-assigned] place
+>   local $2 $load: usize [read assigned] value
+>     uses $2: %3 -> %4 lend, %8 lend last
 >   %0 = Read borrow [$0] : &mut Parser
 >   %1 = Call app/main/impl Parser.whitespace[] (%0) : ()
->   %14 = Box #1 #1 : ()
->   %19 = Block %18 : Result[*i32, string]
+>   %16 = Box #1 #1 : ()
+>   %21 = Block %20 : Result[*i32, string]
         if self.at < self.chars.len():
 >   %2 = Read copy [*$0 .at] : usize
->   %3 = Read borrow [*$0 .chars] : List[char]
->   %4 = Intrinsic ListLen [%3] : usize
->   %5 = Prim Lt [%2 %4] : bool
->   %13 = If %5 [%12 -] : ()
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read copy [$2] : usize
+>   %5 = Read borrow [*$0 .chars] : List[char]
+>   %6 = Intrinsic ListLen [%5] : usize
+>   %7 = Prim Lt [%4 %6] : bool
+>   %15 = If %7 [%14 -] : ()
             self.at += 1
->   %6 = Read copy [*$0 .at] : usize
->   %7 = Prim Add [%6 1:usize] : usize
->   %8 = Store [*$0 .at] %7 : ()
->   %12 = Block - : never
+>   %8 = Read copy [$2] : usize
+>   %9 = Prim Add [%8 1:usize] : usize
+>   %10 = Store [*$0 .at] %9 : ()
+>   %14 = Block - : never
             return self.expression()
->   %9 = Read borrow [$0] : &mut Parser
->   %10 = Call app/main/impl Parser.expression[] (%9) : Result[*i32, string]
->   %11 = Return %10 : never
+>   %11 = Read borrow [$0] : &mut Parser
+>   %12 = Call app/main/impl Parser.expression[] (%11) : Result[*i32, string]
+>   %13 = Return %12 : never
         .Ok(box(+1))
->   %15 = Store [$1] 1:i32 : ()
->   %16 = Ref take mut [$1] : *mut i32
->   %17 = Coerce %16 [Weaken -] : *i32
->   %18 = NewVariant #0 [%17] : Result[*i32, string]
+>   %17 = Store [$1] 1:i32 : ()
+>   %18 = Ref take mut [$1] : *mut i32
+>   %19 = Coerce %18 [Weaken -] : *i32
+>   %20 = NewVariant #0 [%19] : Result[*i32, string]
 >   storage sub 0: $1 cell
 >   summary kept [] writes recursive
 

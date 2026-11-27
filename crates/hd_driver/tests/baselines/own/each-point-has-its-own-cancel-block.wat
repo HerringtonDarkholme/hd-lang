@@ -617,8 +617,6 @@
             local.get $provider0
             call $rt:release_ref'1
           end
-          i32.const 0
-          local.set $provider0
           global.get $forbid
           i32.const -1
           i32.add
@@ -639,7 +637,7 @@
             end
           end
           local.get $t1
-          local.get $provider0
+          i32.const 0
           i32.store $heap offset=32
           local.get $t1
           i32.load $heap offset=32

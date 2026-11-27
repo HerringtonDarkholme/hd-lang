@@ -31,7 +31,7 @@
     local.get $env
     i32.load $heap
   )
-  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32)
     ;; 16 |     "held$i"
     local.get $i
     i64.extend_i32_s
@@ -52,30 +52,29 @@
     i32.add
     local.set $i
     i32.const 4
-    local.tee $t1
     local.get $i
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 1684825448
     i32.store $heap align=1
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 4
     i32.add
     local.get $i
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $items.buffer.capacity i32) (local $t1 i32) (local $items.buffer.ptr i32) (local $value i32) (local $t2 i32) (local $items i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $items.buffer.capacity i32) (local $t1 i32) (local $items.buffer.ptr i32) (local $t2 i32) (local $items i32) (local $t0 i32)
     ;; 39 |     original := word(7)
     global.get $stack
     global.get $stack_limit
@@ -290,9 +289,9 @@
     local.get $items.buffer.capacity
     i32.load $heap offset=4
     local.set $items.buffer.capacity
-    local.tee $value
+    local.tee $t2
     if
-      local.get $value
+      local.get $t2
       call $retain
     end
     local.get $items.buffer.ptr
@@ -308,14 +307,14 @@
         call $rt:release_ref'2
       end
     end
-    local.get $value
+    local.get $t2
     local.get $items.buffer.capacity
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $value
+    local.get $t2
     if
-      local.get $value
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 49 |     println(keep(+7)())
@@ -385,8 +384,6 @@
     local.set $items.buffer.capacity
     local.set $items.buffer.ptr
     ;; 52 |     items.push(7)
-    i32.const 7
-    local.set $value
     local.get $items.buffer.capacity
     local.get $t1
     i32.le_u
@@ -452,7 +449,7 @@
     i32.const 4
     i32.mul
     i32.add
-    local.get $value
+    i32.const 7
     i32.store $heap
     local.get $t1
     i32.const 1

@@ -24,7 +24,7 @@
     local.get $env
     i32.load $heap
   )
-  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32)
     ;; 11 |     "held$i"
     local.get $i
     i64.extend_i32_s
@@ -45,28 +45,27 @@
     i32.add
     local.set $i
     i32.const 4
-    local.tee $t1
     local.get $i
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 1684825448
     i32.store $heap align=1
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 4
     i32.add
     local.get $i
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $t0 i32) (local $items i32) (local $t1 i32) (local $t2 i32)
     ;; 22 |     original := word(7)
