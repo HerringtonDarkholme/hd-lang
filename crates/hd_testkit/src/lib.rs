@@ -6,7 +6,8 @@
 //! `known_failures` reads the root `KNOWN_FAILURES.tsv` for the conformance
 //! tiers. `stages` runs the stage fixtures under each crate's
 //! `tests/cases/` (#675). [`CountingStore`] counts a warm run's cache
-//! lookups for the cost tests.
+//! lookups for the cost tests. `cdylib` builds a test's C-ABI library with
+//! an installed toolchain's `rustc`, never a rustup proxy.
 
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -18,6 +19,7 @@ use hd_cache::{CacheStore, EntryKind, MemoryStore};
 use hd_driver::Executor;
 use hd_sched::SerialOrder;
 
+pub mod cdylib;
 pub mod known_failures;
 pub mod node;
 pub mod stages;

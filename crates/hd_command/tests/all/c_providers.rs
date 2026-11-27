@@ -13,7 +13,8 @@ use hd_testkit::Scratch;
 /// `hd ARGS` in `root`, with its own cache and no engine from the
 /// environment.
 fn hd(root: &Path, args: &[&str]) -> std::process::Output {
-    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
+    let mut command = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
+    command
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),
@@ -22,27 +23,10 @@ fn hd(root: &Path, args: &[&str]) -> std::process::Output {
         .env_remove("HD_ENGINE")
         .env_remove("HD_WAT")
         .current_dir(root)
-        .args(args)
-        .output()
-        .expect("run hd")
-}
-
-/// The `rustc` of the toolchain that built this test, beside its `cargo`:
-/// no rustup proxy picks another toolchain for the scratch directory or
-/// installs a component at test time. When it is not there, the proxy runs
-/// the toolchain the build named.
-fn rustc() -> std::process::Command {
-    let beside =
-        Path::new(env!("CARGO")).with_file_name(if cfg!(windows) { "rustc.exe" } else { "rustc" });
-    let mut command = std::process::Command::new(if beside.is_file() {
-        beside.into_os_string()
-    } else {
-        "rustc".into()
-    });
-    if let Some(toolchain) = option_env!("RUSTUP_TOOLCHAIN") {
-        command.env("RUSTUP_TOOLCHAIN", toolchain);
-    }
-    command
+        .args(args);
+    // A run that hangs fails the test instead of the whole binary.
+    hd_testkit::cdylib::output_within(command, std::time::Duration::from_mins(2))
+        .unwrap_or_else(|why| panic!("{why}"))
 }
 
 /// The library's file on this target.
@@ -102,18 +86,7 @@ fn build_library(root: &Path, hash: &str, abi: u32, entry: &str) {
     std::fs::write(dir.join("lib.rs"), source).expect("library source");
     let out = library(root);
     std::fs::create_dir_all(out.parent().expect("folder")).expect("native folder");
-    // cost: one compiler process for the test library's one source file.
-    let rustc = rustc()
-        .args(["--crate-type", "cdylib", "--edition", "2024", "-O", "-o"])
-        .arg(&out)
-        .arg(dir.join("lib.rs"))
-        .output()
-        .expect("rustc builds the test library");
-    assert!(
-        rustc.status.success(),
-        "{}",
-        String::from_utf8_lossy(&rustc.stderr)
-    );
+    hd_testkit::cdylib::build(&dir.join("lib.rs"), &out);
 }
 
 fn text(out: &[u8]) -> String {
