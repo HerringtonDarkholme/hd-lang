@@ -2,45 +2,16 @@
 //! findings from the stored package result, with as many cache lookups at
 //! 1,000 modules as at 100.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use hd_base::Hash128;
-use hd_cache::{CacheStore, EntryKind, MemoryStore};
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages_with_analysis};
 use hd_lint::ANALYZER;
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
-
-/// A store that counts its lookups and the bytes they returned.
-#[derive(Default)]
-struct Counted {
-    store: MemoryStore,
-    gets: AtomicUsize,
-    bytes: AtomicUsize,
-}
-
-impl CacheStore for Counted {
-    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-        let got = self.store.get(kind, key);
-        self.gets.fetch_add(1, Ordering::Relaxed);
-        self.bytes
-            .fetch_add(got.as_ref().map_or(0, |b| b.len()), Ordering::Relaxed);
-        got
-    }
-    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-        self.store.put(kind, key, bytes);
-    }
-    fn touch(&self, kind: EntryKind, key: &Hash128) {
-        self.store.touch(kind, key);
-    }
-}
+use hd_testkit::CountingStore;
 
 /// A lint run over `sources` through `store`: its lookups, bytes and output.
-fn lint(sources: &MemorySources, store: &Counted) -> (usize, usize, Output) {
-    store.gets.store(0, Ordering::Relaxed);
-    store.bytes.store(0, Ordering::Relaxed);
+fn lint(sources: &MemorySources, store: &CountingStore) -> (usize, usize, Output) {
+    store.reset();
     let host = Host {
         render_tir: &[],
         sources,
@@ -55,11 +26,7 @@ fn lint(sources: &MemorySources, store: &Counted) -> (usize, usize, Output) {
         &Goal::Analyze,
         Some(&ANALYZER),
     );
-    (
-        store.gets.load(Ordering::Relaxed),
-        store.bytes.load(Ordering::Relaxed),
-        out,
-    )
+    (store.gets(), store.bytes(), out)
 }
 
 #[test]
@@ -74,7 +41,7 @@ fn a_warm_lint_run_replays_its_findings_with_the_same_lookups_at_ten_times_the_m
                 &format!("pub fn value{i}() -> i32: {i}\n"),
             );
         }
-        let store = Counted::default();
+        let store = CountingStore::default();
         let (_, _, cold) = lint(&sources, &store);
         assert!(!cold.diags.has_errors(), "{}", cold.render());
         assert!(
