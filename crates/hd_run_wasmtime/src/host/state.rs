@@ -71,6 +71,10 @@ pub struct Host {
     /// The created C providers, by contract interface, which drop, and so
     /// `destroy`, with the instance, trap or not (`cli.host.c.create`).
     pub(crate) c_providers: Vec<Option<crate::native::c::Provider>>,
+    /// The checked tables of the C-bound handle interfaces, by contract
+    /// interface, which each returned C handle holds
+    /// (`module.host.package.c-handles`).
+    pub(crate) c_handles: Vec<Option<std::sync::Arc<crate::native::c::CTable>>>,
     /// The guest heap a C call's pointer arguments address
     /// (`module.host.package.c-references`), once the instance exists.
     pub(crate) c_heap: Option<wasmtime::Extern>,
@@ -135,6 +139,7 @@ impl Host {
             natives: Vec::new(),
             c_libraries: std::sync::Arc::from(Vec::new()),
             c_providers: Vec::new(),
+            c_handles: Vec::new(),
             c_heap: None,
             handles: crate::native::Handles::default(),
             testing: None,

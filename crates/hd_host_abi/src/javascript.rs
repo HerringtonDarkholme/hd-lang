@@ -98,6 +98,13 @@ fn c_methods(out: &mut String, tables: &[Table]) {
         let _ = write!(out, "{b}");
     }
     out.push_str("]), methods: {");
+    // A returned handle names its trait; the runtime keys handles by the
+    // handle interface's module.
+    let handles: hd_base::HashMap<&str, &str> = tables
+        .iter()
+        .filter(|t| t.handle)
+        .map(|t| (t.trait_name.as_str(), t.module.as_str()))
+        .collect();
     for (n, t) in tables.iter().enumerate() {
         if n != 0 {
             out.push(',');
@@ -125,7 +132,7 @@ fn c_methods(out: &mut String, tables: &[Table]) {
                 };
             }
             out.push_str("], result: ");
-            ret(out, &m.result);
+            ret(out, &m.result, &handles);
             out.push_str(" }");
         }
         out.push_str(" }");
@@ -133,7 +140,7 @@ fn c_methods(out: &mut String, tables: &[Table]) {
     out.push_str(" } }");
 }
 
-fn ret(out: &mut String, r: &Ret) {
+fn ret(out: &mut String, r: &Ret, handles: &hd_base::HashMap<&str, &str>) {
     match r {
         Ret::Void => out.push_str("[\"void\"]"),
         Ret::Bool => out.push_str("[\"bool\"]"),
@@ -143,8 +150,12 @@ fn ret(out: &mut String, r: &Ret) {
         Ret::Bytes => out.push_str("[\"bytes\"]"),
         Ret::Result(inner) => {
             out.push_str("[\"result\",");
-            ret(out, inner);
+            ret(out, inner, handles);
             out.push(']');
+        }
+        Ret::Handle(name) => {
+            let module = handles.get(name.as_str()).copied().unwrap_or("");
+            let _ = write!(out, "[\"handle\",{}]", quoted(module));
         }
     }
 }
@@ -297,6 +308,7 @@ mod tests {
         let table = Table {
             module: root.module.clone(),
             trait_name: "Store".into(),
+            handle: false,
             methods: vec![
                 Method {
                     name: "put".into(),

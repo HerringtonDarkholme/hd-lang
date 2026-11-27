@@ -1593,6 +1593,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             hd_wasm::testing::boundary::CallRes::Void => vec![],
             hd_wasm::testing::boundary::CallRes::Scalar(value) => vec![*value],
             hd_wasm::testing::boundary::CallRes::Buf(ty) => ty.vals(),
+            hd_wasm::testing::boundary::CallRes::Handle(_) => vec![Val::I32, Val::I32],
         };
         let inner = Helper::HostCall {
             module: "hd:Probe".into(),

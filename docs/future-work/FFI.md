@@ -1,10 +1,10 @@
 # Native FFI: C Providers For Host Traits
 
-Status: accepted by the owner, 2026-11-27; phase steps 1 to 4 built
+Status: accepted by the owner, 2026-11-27; phase steps 1 to 4b built
 (the `{ c, js }` manifest form, the [C value table](../../spec/lang/10-modules.md#c-value-table)
 check, the C lowering with its table section, the JavaScript glue for a
 C-bound trait's `js` provider, the [header](../../spec/cli/command-line.md#c-providers)
-`hd build` writes, and Wasmtime's binding), the rest not yet (P3);
+`hd build` writes, Wasmtime's binding, and returned handles), the rest not yet (P3);
 domain: runtime and host, CLI. Design for #2388, after the owner's
 [decisions](#decisions).
 
@@ -419,9 +419,9 @@ Rules this design revises, quoted:
 | calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers, or a target other than x86-64 or arm64, is refused at startup (decision 16) |
 | `!` methods | a module that calls a C provider's suspending method is refused at startup until step 5 binds its token |
 | pointer arguments | a reference to a number, or to a list of numbers, must lie in the guest heap at a multiple of its number type's size; otherwise the call fails with `host-contract`, "misaligned C pointer argument", as the JavaScript glue words it ([`module.host.package.c-aligned`](../../spec/lang/10-modules.md#r-module.host.package.c-aligned)) |
-| `hd test` | binds no C provider yet: a C-bound trait's test runs on Node through its `js` provider |
+| `hd test` | from step 4b, a Wasmtime test run binds the C providers of the programs its tests run by name; a Node run, and a test case's own module, bind none |
 | workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
-| returned handles | still refused by the check; step 4b binds them (decision 1 of the step 1 answers) |
+| returned handles | step 4b binds them (decision 17) |
 
 ### Proposed Spec Rules
 
@@ -656,8 +656,14 @@ Owner, 2026-11-27, on phase step 1's questions:
     step 2b and lifts the refusal for `{ c, js }` (built:
     [`module.host.package.c-js-views`](../../spec/lang/10-modules.md#r-module.host.package.c-js-views)).
 
-A third answer, on returned handles, takes effect in step 4b and is
-recorded there.
+A third answer, on returned handles, took effect in step 4b:
+
+17. **Returned handles:** a returned handle's trait is C-bound too. Its
+    table comes from a second entry `NAME_HANDLETRAIT` of the same
+    library, with the same version and hash checks, and its
+    `destroy(self)` runs at the handle's last release (built in step 4b:
+    [`module.host.package.c-handles`](../../spec/lang/10-modules.md#r-module.host.package.c-handles),
+    [`cli.host.c.handle`](../../spec/cli/command-line.md#r-cli.host.c.handle)).
 
 Owner, 2026-11-27, on phase step 4's questions:
 

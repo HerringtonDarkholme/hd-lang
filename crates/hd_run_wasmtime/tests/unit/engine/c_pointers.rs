@@ -53,6 +53,7 @@ fn table() -> Table {
     Table {
         module: CELL.into(),
         trait_name: "Cell".into(),
+        handle: false,
         methods: vec![
             row(
                 "bump",

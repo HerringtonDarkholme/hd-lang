@@ -1,0 +1,6 @@
+@host
+pub trait Store:
+    fn open(&mut self, from: i32) -> *mut dyn Cursor
+
+pub trait Cursor:
+    fn next(&mut self) -> i32

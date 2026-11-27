@@ -1,0 +1,329 @@
+//! C providers' returned handles (`module.host.package.c-handles`, owner
+//! decision 1 of #2388): a C-bound root's method returns the library's
+//! handle object, whose trait's table comes from a second entry of the
+//! same library, checked as a root's is. The handle lives in the
+//! instance's handle registry; a method call on it reaches its table's
+//! slot with the object as `self`, a forged, stale or other-trait number
+//! calls no slot (`native-handle-check`, `host-contract`), and its last
+//! release runs `destroy` (`native-handle-release`). The library is
+//! `c_handles/cursor.rs`, built by `rustc` inside the test.
+
+use hd_host_abi::c::{Method as CMethod, Ret, Table};
+use hd_host_abi::schema::{Contract, Interface, Method, Value};
+use hd_run::{Consent, GrantValue, Grants, HostSetup, Limits, Outcome};
+use hd_run_wasmtime::internals::Shared;
+use hd_run_wasmtime::native::c::Library;
+use hd_run_wasmtime::{EngineConfig, HostIo};
+use wasm_encoder::{
+    CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
+    Instruction as I, MemorySection, MemoryType, Module as Wasm, TypeSection, ValType,
+};
+
+const STORE: &str = "hd:pkg:store";
+const CURSOR: &str = "hd:pkg:cursor";
+
+fn identity(trait_path: &str) -> hd_host_abi::schema::Identity {
+    hd_host_abi::schema::Identity {
+        package: "example.org/sdk".into(),
+        version: "1.0.0".into(),
+        trait_path: trait_path.into(),
+    }
+}
+
+fn method(name: &str, result: Value) -> Method {
+    Method {
+        name: name.into(),
+        member: name.into(),
+        params: Vec::new(),
+        result,
+        suspends: false,
+    }
+}
+
+fn contract() -> Contract {
+    Contract {
+        interfaces: vec![
+            Interface {
+                identity: identity("store.Store"),
+                module: STORE.into(),
+                selectors: vec!["dep.sdk.store.Store".into()],
+                handle: false,
+                methods: vec![method("open", Value::Handle(CURSOR.into()))],
+            },
+            Interface {
+                identity: identity("store.Cursor"),
+                module: CURSOR.into(),
+                selectors: Vec::new(),
+                handle: true,
+                methods: vec![method(
+                    "next",
+                    Value::Int {
+                        bits: 32,
+                        signed: true,
+                    },
+                )],
+            },
+        ],
+    }
+}
+
+fn tables() -> Vec<Table> {
+    let row = |name: &str, result| CMethod {
+        name: name.into(),
+        params: Vec::new(),
+        result,
+        suspends: false,
+    };
+    vec![
+        Table {
+            module: STORE.into(),
+            trait_name: "Store".into(),
+            handle: false,
+            methods: vec![row("open", Ret::Handle("Cursor".into()))],
+        },
+        Table {
+            module: CURSOR.into(),
+            trait_name: "Cursor".into(),
+            handle: true,
+            methods: vec![row("next", Ret::Num(hd_host_abi::c::Num::I32))],
+        },
+    ]
+}
+
+/// A module importing `open() -> i32`, `next(i32) -> i32` and
+/// `$release(i32)`, whose `hd.init` runs `init` and whose `hd.poll` is
+/// done at once.
+fn module(init: &[I<'_>]) -> Vec<u8> {
+    let mut types = TypeSection::new();
+    types.ty().function([], [ValType::I32]);
+    types.ty().function([ValType::I32], [ValType::I32]);
+    types.ty().function([ValType::I32], []);
+    types.ty().function([], []);
+    types.ty().function([ValType::I32], [ValType::I32]);
+    let mut imports = ImportSection::new();
+    imports.import(STORE, "open", EntityType::Function(0));
+    imports.import(CURSOR, "next", EntityType::Function(1));
+    imports.import(CURSOR, "$release", EntityType::Function(2));
+    let mut functions = FunctionSection::new();
+    functions.function(3).function(4);
+    let mut memory = MemorySection::new();
+    memory.memory(MemoryType {
+        minimum: 1,
+        maximum: None,
+        memory64: false,
+        shared: false,
+        page_size_log2: None,
+    });
+    let mut exports = ExportSection::new();
+    exports.export("hd.x", ExportKind::Memory, 0);
+    exports.export("hd.heap", ExportKind::Memory, 0);
+    exports.export("hd.init", ExportKind::Func, 3);
+    exports.export("hd.poll", ExportKind::Func, 4);
+    let mut body = Function::new([]);
+    for instruction in init {
+        body.instruction(instruction);
+    }
+    body.instruction(&I::End);
+    let mut poll = Function::new([]);
+    poll.instruction(&I::I32Const(0)).instruction(&I::End);
+    let mut code = CodeSection::new();
+    code.function(&body).function(&poll);
+    let mut wasm = Wasm::new();
+    wasm.section(&types)
+        .section(&imports)
+        .section(&functions)
+        .section(&memory)
+        .section(&exports)
+        .section(&code);
+    wasm.section(&wasm_encoder::CustomSection {
+        name: hd_host_abi::schema::SECTION.into(),
+        data: contract().encode().into(),
+    });
+    wasm.section(&wasm_encoder::CustomSection {
+        name: hd_host_abi::c::SECTION.into(),
+        data: hd_host_abi::c::encode(&tables()).into(),
+    });
+    wasm.finish()
+}
+
+fn hash_text(table: &Table) -> String {
+    let bytes: Vec<String> = table.hash().iter().map(|b| format!("{b:#04x}")).collect();
+    format!("[{}]", bytes.join(", "))
+}
+
+/// The cursor library, built once per test into its own folder.
+fn library(name: &str) -> (std::path::PathBuf, Library) {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("c-handles-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("library folder");
+    let tables = tables();
+    let source = include_str!("c_handles/cursor.rs")
+        .replace("__STORE__", &hash_text(&tables[0]))
+        .replace("__CURSOR__", &hash_text(&tables[1]));
+    std::fs::write(dir.join("lib.rs"), source).expect("library source");
+    let file = dir.join(if cfg!(windows) {
+        "hd_store.dll"
+    } else if cfg!(target_vendor = "apple") {
+        "libhd_store.dylib"
+    } else {
+        "libhd_store.so"
+    });
+    // The rustc beside the cargo that built this test: no rustup proxy
+    // picks another toolchain or installs a component at test time.
+    let beside = std::path::Path::new(env!("CARGO")).with_file_name(if cfg!(windows) {
+        "rustc.exe"
+    } else {
+        "rustc"
+    });
+    let mut rustc = std::process::Command::new(if beside.is_file() {
+        beside.into_os_string()
+    } else {
+        "rustc".into()
+    });
+    if let Some(toolchain) = option_env!("RUSTUP_TOOLCHAIN") {
+        rustc.env("RUSTUP_TOOLCHAIN", toolchain);
+    }
+    // cost: one compiler process for the test library's one source file.
+    let built = rustc
+        .args(["--crate-type", "cdylib", "--edition", "2024", "-O", "-o"])
+        .arg(&file)
+        .arg(dir.join("lib.rs"))
+        .output()
+        .expect("rustc builds the test library");
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let library = Library {
+        module: STORE.into(),
+        path: file.clone(),
+        name: "hd_store".into(),
+        package: "sdk".into(),
+        triple: "test".into(),
+    };
+    (file, library)
+}
+
+/// The library's cursor destroys and `next` calls so far, the high and low
+/// halves of its `counts`.
+#[allow(unsafe_code, clippy::cast_possible_truncation)]
+fn counts(file: &std::path::Path) -> (u32, u32) {
+    // SAFETY: the test's own library; `counts` takes nothing.
+    unsafe {
+        let lib = libloading::Library::new(file).expect("the library");
+        let counts = lib
+            .get::<unsafe extern "C" fn() -> u64>(b"counts")
+            .expect("counts");
+        let n = counts();
+        ((n >> 32) as u32, n as u32)
+    }
+}
+
+/// Runs `init` with the library bound: its outcome and standard error.
+#[allow(unsafe_code)]
+fn run(library: &Library, init: &[I<'_>]) -> (Outcome, String) {
+    let err = Shared::default();
+    let io = HostIo {
+        out: Box::new(Shared::default()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let setup = HostSetup {
+        grants: Grants::with_consent(Consent::new(
+            &[("dep.sdk.store.Store".to_owned(), GrantValue::All)],
+            &[],
+        )),
+        limits: Limits::default(),
+        args: vec![],
+        program: "c-handles".into(),
+    };
+    let wasm = module(init);
+    // SAFETY: a portable Wasm image, and the test's own library.
+    let (outcome, _) = unsafe {
+        hd_run_wasmtime::run_with_c_providers(
+            EngineConfig::default(),
+            hd_run::artifact::Image::Wasm(&wasm),
+            &setup,
+            io,
+            std::slice::from_ref(library),
+            None,
+            None,
+        )
+    }
+    .expect("the run");
+    (outcome, String::from_utf8(err.take()).unwrap())
+}
+
+/// `open` twice issues 1 and 2; `next` on each reaches its own object;
+/// releasing both runs `destroy` twice.
+#[test]
+fn a_returned_c_handle_is_called_and_destroyed_at_its_release() {
+    let (file, library) = library("round-trip");
+    let (outcome, error) = run(
+        &library,
+        &[
+            I::Call(0),
+            I::Drop,
+            I::Call(0),
+            I::Drop,
+            I::I32Const(1),
+            I::Call(1),
+            I::Drop,
+            I::I32Const(2),
+            I::Call(1),
+            I::Drop,
+            I::I32Const(1),
+            I::Call(2),
+            I::I32Const(2),
+            I::Call(2),
+        ],
+    );
+    assert_eq!(outcome, Outcome::Exit(0), "{error}");
+    assert_eq!(counts(&file), (2, 2), "two calls, two destroys");
+}
+
+/// A number this instance never issued, one already released, and one of
+/// another trait call no slot and fail the run with `host-contract`.
+#[test]
+fn a_forged_or_stale_c_handle_calls_no_slot() {
+    let (file, library) = library("forged");
+    let call = "panic: host-contract: package host: call of an invalid handle";
+    let release = "panic: host-contract: package host: release of an invalid handle";
+    let cases: [(&str, &[I<'_>], &str); 3] = [
+        ("never issued", &[I::I32Const(7), I::Call(1), I::Drop], call),
+        (
+            "released",
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(1),
+                I::Call(2),
+                I::I32Const(1),
+                I::Call(1),
+                I::Drop,
+            ],
+            call,
+        ),
+        (
+            "released twice",
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(1),
+                I::Call(2),
+                I::I32Const(1),
+                I::Call(2),
+            ],
+            release,
+        ),
+    ];
+    for (case, body, message) in cases {
+        let (outcome, error) = run(&library, body);
+        assert_eq!(outcome, Outcome::Exit(3), "{case}: {error}");
+        assert!(error.starts_with(message), "{case}: {error}");
+    }
+    assert_eq!(counts(&file).1, 0, "no `next` slot ran");
+    // Each released cursor was destroyed once.
+    assert_eq!(counts(&file).0, 2);
+}

@@ -978,6 +978,7 @@ wire_enum!(CallRes {
     0 => Void,
     1 => Scalar(a),
     2 => Buf(a),
+    3 => Handle(a),
 });
 wire_enum!(LTy {
     0 => Void,

@@ -660,19 +660,17 @@ pub fn module_metadata(wasm: &[u8]) -> Result<ModuleMetadata, &'static str> {
         }
     }
     let c_tables = c_tables.unwrap_or_default();
-    // Each table names a root interface of the contract, once.
-    let roots: BTreeSet<&str> = contract
+    // Each table names an interface of the contract of its role, once.
+    let interfaces: BTreeSet<(&str, bool)> = contract
         .iter()
         .flat_map(|c| &c.interfaces)
-        .filter(|i| !i.handle)
-        .map(|i| i.module.as_str())
+        .map(|i| (i.module.as_str(), i.handle))
         .collect();
     let mut named = BTreeSet::new();
-    if c_tables
-        .iter()
-        .any(|t| !roots.contains(t.module.as_str()) || !named.insert(t.module.as_str()))
-    {
-        return Err("a C table names no root interface of the package host contract, or one twice");
+    if c_tables.iter().any(|t| {
+        !interfaces.contains(&(t.module.as_str(), t.handle)) || !named.insert(t.module.as_str())
+    }) {
+        return Err("a C table names no interface of the package host contract, or one twice");
     }
     Ok(ModuleMetadata {
         contract,

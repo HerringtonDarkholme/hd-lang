@@ -898,7 +898,7 @@ fn build_traced<'a>(
         && let Some(root) = &program.package_dir
     {
         let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
-        write_header(program, root, &package, &out.c_tables).map_err(|e| rep.fail(&e))?;
+        write_header(root, &package, &out.c_tables).map_err(|e| rep.fail(&e))?;
     }
     let positions = out.positions(&mut hd_driver::PositionPool::default());
     let Some(wasm) = out.wasm else {
@@ -2029,27 +2029,17 @@ fn header_path(root: &Path, package: &str) -> PathBuf {
 }
 
 /// Writes the C header of `package`, at `root`, from its C tables
-/// (`cli.host.c.header`), only when its bytes change. Each table's library
-/// is the `c` of its trait's `[host]` entry.
+/// (`cli.host.c.header`), only when its bytes change. Each table comes
+/// with its library: a root's `[host]` entry's `c`, which a handle trait
+/// it returns shares.
 fn write_header(
-    program: &disk::Program,
     root: &Path,
     package: &str,
-    c_tables: &[(String, hd_host_abi::c::Table)],
+    c_tables: &[(String, String, hd_host_abi::c::Table)],
 ) -> Result<(), String> {
-    let libraries: std::collections::BTreeMap<&str, &str> = program
-        .host_packages
-        .iter()
-        .find(|p| p.package == 0)
-        .and_then(|p| p.declarations.as_ref())
-        .and_then(|d| d.providers.as_deref())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|e| Some((e.trait_path.as_str(), e.c.as_deref()?)))
-        .collect();
     let tables: Vec<(&str, &str, &hd_host_abi::c::Table)> = c_tables
         .iter()
-        .filter_map(|(path, table)| Some((path.as_str(), *libraries.get(path.as_str())?, table)))
+        .map(|(path, library, table)| (path.as_str(), library.as_str(), table))
         .collect();
     let text = hd_host_abi::c::header(package, &tables);
     let path = header_path(root, package);
@@ -2105,7 +2095,7 @@ fn c_header(
         }
         out
     };
-    write_header(program, root, package, &out.c_tables).map_err(|e| rep.fail(&e))
+    write_header(root, package, &out.c_tables).map_err(|e| rep.fail(&e))
 }
 
 /// The package check that gives the C tables, reporting nothing.

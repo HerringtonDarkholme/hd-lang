@@ -2805,7 +2805,8 @@ pub trait Surface:
 23. r[module.host.package.c-aligned] The address the host passes for such a reference is a multiple of its number type's size. A reference at another address fails the call. Boundary failure: `host-contract`.
 24. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
 25. r[module.host.package.c-no-supertraits] Such a trait declares no supertraits: its C function table holds its own methods, in source order. Error: `boundary-not-safe`.
-26. r[module.host.package.c-js-views] A JavaScript provider of such a trait receives a local reference to a number or to a list of numbers as a typed array over the guest's memory. It may read the array, and write it for `&mut`, only until the call returns.
+26. r[module.host.package.c-handles] A method of such a trait that returns at once may return a reference to a trait value of a program trait, a returned host handle. That trait is bound to the same C provider and is held to these rules too.
+27. r[module.host.package.c-js-views] A JavaScript provider of such a trait receives a local reference to a number or to a list of numbers as a typed array over the guest's memory. It may read the array, and write it for `&mut`, only until the call returns.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.

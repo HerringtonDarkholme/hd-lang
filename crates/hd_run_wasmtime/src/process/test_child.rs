@@ -103,12 +103,18 @@ pub fn start(
     let mut overlay = env_overlay.to_vec();
     overlay.extend(call.env);
     let (name, args, input) = (call.program, call.args, call.stdin.into_bytes());
-    let (engine, module, child_grants) = match &child.code {
+    let (engine, module, child_grants, c) = match &child.code {
         crate::test_engine::engine::NamedCode::Native {
             engine,
             module,
             grants,
-        } => (Arc::clone(engine), Arc::clone(module), grants.clone()),
+            c,
+        } => (
+            Arc::clone(engine),
+            Arc::clone(module),
+            grants.clone(),
+            Arc::clone(c),
+        ),
         crate::test_engine::engine::NamedCode::Command {
             program,
             args: prefix,
@@ -144,6 +150,7 @@ pub fn start(
                     cwd,
                     env: overlay,
                     grants: child_grants,
+                    c,
                 },
                 deadline,
                 interrupt,
@@ -166,6 +173,8 @@ struct ChildInput {
     /// The pairs the command added to the environment, after the parent's.
     env: Vec<(String, String)>,
     grants: Grants,
+    /// The libraries of the child's C-bound root traits.
+    c: Arc<[crate::native::c::Library]>,
 }
 
 /// Runs the child to its end on the current thread: its encoded result, or
@@ -207,6 +216,7 @@ fn run(
             None,
         );
         host.env_overlay = child.env;
+        host.c_libraries = child.c;
         host.environment = Some(TestEnvironment {
             cwd: child.cwd,
             program: name.clone(),

@@ -1357,29 +1357,40 @@ fn build_programs(
             &[],
         );
         let contract = crate::host_contract(&wasm).map_err(|e| rep.fail(&e))?;
+        let (tables, mut c) = crate::host_c_tables(&wasm).map_err(|e| rep.fail(&e))?;
+        // A Node session runs every child on Node, which binds no C
+        // provider; a Wasmtime session's children may bind theirs.
+        if engine == crate::engine::EngineKind::Node {
+            c.clear();
+        }
         let kind = crate::engine::Choice {
             kind: engine,
             named: false,
         }
-        // `hd test` binds no C provider yet: a C-bound trait's test runs
-        // on Node, through its `js` provider.
-        .for_module(contract.as_ref(), &std::collections::BTreeSet::new())
+        .for_module(contract.as_ref(), &c)
         .map_err(|e| rep.fail(&e))?;
-        let providers = if kind == crate::engine::EngineKind::Node {
-            crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants).map_err(
-                |refusal| {
-                    rep.diag(&refusal.diag());
-                    rep.finish(crate::HD_FAILURE)
-                },
-            )?
+        let refused = |refusal: crate::node::Refusal, rep: &mut report::Reporter| {
+            rep.diag(&refusal.diag());
+            rep.finish(crate::HD_FAILURE)
+        };
+        // A child whose every root trait has a C provider runs on
+        // Wasmtime, with its libraries (`cli.host.c.file`).
+        let (providers, c) = if kind == crate::engine::EngineKind::Node {
+            let providers = crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants)
+                .map_err(|r| refused(r, rep))?;
+            (providers, Vec::new())
         } else {
-            Vec::new()
+            let c =
+                crate::node::manifest_c_libraries(contract.as_ref(), &tables, Some(&p), &grants)
+                    .map_err(|r| refused(r, rep))?;
+            (Vec::new(), c)
         };
         list.push(crate::engine::TestProgram {
             name: r.name,
             wasm,
             grants,
             providers,
+            c,
             #[cfg(feature = "wasmtime")]
             engine: kind,
         });

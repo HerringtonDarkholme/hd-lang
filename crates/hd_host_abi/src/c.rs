@@ -126,6 +126,10 @@ pub enum Ret {
     Bytes,
     /// `Result[T, i32]`: `T`, or an `i32` error code.
     Result(Box<Ret>),
+    /// A returned host handle of the C-bound handle trait of this name,
+    /// in the same library: `void *`, the library's handle object
+    /// (`module.host.package.c-handles`).
+    Handle(String),
 }
 
 /// One method of a C table, at its slot.
@@ -147,6 +151,9 @@ pub struct Table {
     pub module: String,
     /// The trait's own name, which names its entry symbol.
     pub trait_name: String,
+    /// Whether it is a returned handle's trait, whose objects come from a
+    /// method's result rather than its table's `create`.
+    pub handle: bool,
     /// Every method of the trait, in source order.
     pub methods: Vec<Method>,
 }
@@ -159,6 +166,7 @@ impl Table {
     pub fn hash(&self) -> [u8; 16] {
         let mut h = hd_base::StableHasher::new("hd-c-table");
         h.u32(ABI_VERSION);
+        h.u8(u8::from(self.handle));
         h.len(self.methods.len());
         for m in &self.methods {
             h.str(&m.name);
@@ -211,6 +219,10 @@ fn ret(w: &mut Writer, r: &Ret) {
             w.0.push(4);
             ret(w, inner);
         }
+        Ret::Handle(name) => {
+            w.0.push(5);
+            w.string(name);
+        }
     }
 }
 
@@ -239,6 +251,7 @@ fn read_ret(r: &mut Reader<'_>, nested: bool) -> Result<Ret, &'static str> {
         3 => Ret::Bytes,
         // A completion's `Result` holds a number or bytes, never another.
         4 if !nested => Ret::Result(Box::new(read_ret(r, true)?)),
+        5 if !nested => Ret::Handle(r.string()?),
         _ => return Err("unknown C table result"),
     })
 }
@@ -252,6 +265,7 @@ pub fn encode(tables: &[Table]) -> Vec<u8> {
     for t in tables {
         w.string(&t.module);
         w.string(&t.trait_name);
+        w.0.push(u8::from(t.handle));
         w.len(t.methods.len());
         for m in &t.methods {
             w.string(&m.name);
@@ -278,6 +292,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Table>, &'static str> {
     for _ in 0..r.len()? {
         let module = r.string()?;
         let trait_name = r.string()?;
+        let handle = r.boolean()?;
         let mut methods = Vec::new();
         for _ in 0..r.len()? {
             let name = r.string()?;
@@ -295,6 +310,7 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Table>, &'static str> {
         tables.push(Table {
             module,
             trait_name,
+            handle,
             methods,
         });
     }
@@ -400,6 +416,7 @@ fn c_return(r: &Ret) -> &'static str {
     match r {
         Ret::Bool => "bool",
         Ret::Num(n) => n.c_type(),
+        Ret::Handle(_) => "void *",
         // A suspending method's slot returns at once; its result comes
         // through the token.
         Ret::Void | Ret::Bytes | Ret::Result(_) => "void",
@@ -439,9 +456,17 @@ pub fn header(package: &str, tables: &[(&str, &str, &Table)]) -> String {
     for (path, library, table) in tables {
         let name = c_name(&table.trait_name);
         let entry = format!("{library}_{name}");
+        let (made, ends) = if table.handle {
+            (
+                "NULL: a method's result makes each handle",
+                "at the handle's last release",
+            )
+        } else {
+            ("at instance start", "at instance close, trap or not")
+        };
         let _ = write!(
             out,
-            "\n/* {path}: its function table, in source order. */\ntypedef struct hd_{name} {{\n    uint32_t abi_version; /* HD_HOST_ABI_VERSION */\n    uint8_t contract_hash[16]; /* HD_CONTRACT_HASH_{entry} */\n    void *(*create)(void); /* at instance start */\n    void (*destroy)(void *self); /* at instance close, trap or not */\n"
+            "\n/* {path}: its function table, in source order. */\ntypedef struct hd_{name} {{\n    uint32_t abi_version; /* HD_HOST_ABI_VERSION */\n    uint8_t contract_hash[16]; /* HD_CONTRACT_HASH_{entry} */\n    void *(*create)(void); /* {made} */\n    void (*destroy)(void *self); /* {ends} */\n"
         );
         let mut fields: std::collections::BTreeSet<String> =
             ["abi_version", "contract_hash", "create", "destroy"]
@@ -491,7 +516,9 @@ pub fn header(package: &str, tables: &[(&str, &str, &Table)]) -> String {
             } else {
                 ""
             };
-            let _ = writeln!(out, "    {ret} (*{slot})({});{note}", params.join(", "));
+            // A pointer result binds to the slot's name, as `void *(*open)(...)`.
+            let gap = if ret.ends_with('*') { "" } else { " " };
+            let _ = writeln!(out, "    {ret}{gap}(*{slot})({});{note}", params.join(", "));
             if m.suspends {
                 let abort = fresh(&mut fields, format!("{slot}_abort"));
                 let _ = writeln!(
@@ -524,6 +551,7 @@ mod tests {
         Table {
             module: "hd:pkg:00".into(),
             trait_name: "Disk".into(),
+            handle: false,
             methods: vec![
                 Method {
                     name: "write".into(),
@@ -595,6 +623,7 @@ mod tests {
         Table {
             module: "hd:pkg:01".into(),
             trait_name: "Dätä".into(),
+            handle: false,
             methods: vec![
                 Method {
                     name: "default".into(),

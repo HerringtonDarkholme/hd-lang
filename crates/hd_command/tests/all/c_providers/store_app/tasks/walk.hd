@@ -1,0 +1,7 @@
+use pkg.store.Store
+
+pub fn main() -> void $ Console + Store:
+    store := $.use(Store)
+    a := store.open(10)
+    b := store.open(20)
+    println("${a.next()} ${a.next()} ${b.next()}")
