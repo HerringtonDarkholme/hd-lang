@@ -563,6 +563,17 @@ fn body_func<'i>(
                 }
             }
         }
+        // A parameter passed by address has no leaves to hold, but is lent
+        // as its entry says all the same: its drops stand under
+        // `ParamOwned`, false for it (#2399).
+        for (&l, entry) in &entries {
+            if matches!(entry, Entry::Lent)
+                && em.parameter_positions.contains_key(&l)
+                && em.mem_locals.contains_key(&l)
+            {
+                em.borrowed.insert(l);
+            }
+        }
     }
     // A parameter a closure shares, or a reference refers to, moves into
     // the cell or frame slot its `Box` at the root names, which takes over
@@ -1322,6 +1333,9 @@ struct Em<'i, 'a, 'm> {
     /// kept in memory when [`Em::forwarded`] lets it pass as an address:
     /// the store copies it with one `memory.copy`.
     frame_copies: Vec<u32>,
+    /// The borrowed reads of memory a local kept in memory aliases
+    /// ([`Em::frame_locals`]): their stores write nothing.
+    aliased: hd_base::HashSet<u32>,
     /// Each read of such a local or of a parameter's fields that only
     /// passes on as an address: an argument of a direct call to a worker
     /// or a value copied into a local kept in memory ([`Em::forwarded`]).
@@ -1553,6 +1567,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             mem_locals: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
+            aliased: hd_base::HashSet::default(),
             forward: hd_base::HashSet::default(),
             mem_vals: HashMap::default(),
             sret: None,

@@ -128,7 +128,7 @@ fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
     }
     let b = (input.body)(id)?;
     let ret = compute_ret(input, b, id);
-    let params = compute_params(input, b, id);
+    let params = compute_params(input, b);
     if params.is_none() && ret.is_none() {
         return None;
     }
@@ -153,31 +153,24 @@ fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Me
     crate::layout::mem(input.pool, input.env, ret).ok()
 }
 
-fn compute_params(
-    input: &Input<'_>,
-    b: &hd_tir::ir::Body,
-    id: InstId,
-) -> Option<Rc<[Option<Mem>]>> {
+fn compute_params(input: &Input<'_>, b: &hd_tir::ir::Body) -> Option<Rc<[Option<Mem>]>> {
     let (pool, env) = (input.pool, input.env);
-    let t = &input.collected.table;
-    let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
     let locals = param_locals(b);
-    // A counted parameter passes by address only when the callee owns it
-    // (`layout::Pass::Owned`): its count arrives with its bits, and its
-    // drop releases them from the address (`Em::mem_release`). A lent one
-    // keeps leaves.
-    let lends = env.lends(item, args) | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]);
+    // A counted parameter passes by address whether the callee owns it
+    // or not (rustc's `PassMode::Indirect` for any by-value argument
+    // over two pointers). An owned one's count arrives with its bits, and
+    // its drop releases them from the address (`Em::mem_release`); a lent
+    // one (`layout::Pass::Borrowed`) is the caller's place, which neither
+    // side counts, and its drops stand under `ParamOwned`, false for it.
+    // Leaves would cost each call O(the value's size) (#2399).
     let mut found: HashMap<usize, Mem> = HashMap::default();
     let mut counted: HashMap<usize, hd_types::Ty> = HashMap::default();
-    for (k, &l) in locals.iter().enumerate() {
+    for &l in &locals {
         let ty = b.local_ty[l];
         if matches!(by_address(pool, env, ty), Ok(true))
             && let Ok(m) = crate::layout::mem(pool, env, ty)
         {
             if crate::layout::tracked(pool, env, ty) || crate::layout::holds_drop(pool, env, ty) {
-                if k < 64 && lends & (1 << k) != 0 {
-                    continue;
-                }
                 counted.insert(l, ty);
             }
             found.insert(l, m);
@@ -484,12 +477,13 @@ impl Em<'_, '_, '_> {
                 }
                 let mode = b.data[r as usize][1];
                 let t = self.ty_of(r);
-                let owned_copy = mode == ReadMode::Copy as u32
-                    && matches!(
-                        self.argument_pass(Some(lends), k, t),
-                        crate::layout::Pass::Owned
-                    );
-                if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy {
+                let pass = self.argument_pass(Some(lends), k, t);
+                let owned_copy =
+                    mode == ReadMode::Copy as u32 && matches!(pass, crate::layout::Pass::Owned);
+                // A lent argument is the caller's place: its address.
+                let lent =
+                    mode != ReadMode::Move as u32 && matches!(pass, crate::layout::Pass::Borrowed);
+                if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy || lent {
                     out.push(r);
                 }
             }
@@ -1070,6 +1064,7 @@ impl Em<'_, '_, '_> {
         // callee that owns it is copied into the call's block, where the
         // retain shim takes its counts from the address.
         let mut moves: Vec<(usize, u32)> = Vec::new();
+        let mut moved_from: HashSet<usize> = HashSet::default();
         let mut whole_reads: Vec<(usize, u32)> = Vec::new();
         let mut dropped: HashSet<usize> = HashSet::default();
         for &i in self.rows.clone().iter() {
@@ -1097,6 +1092,9 @@ impl Em<'_, '_, '_> {
                         whole_reads.push((l.idx(), u32_of(i)));
                     } else if b.data[i][1] == ReadMode::Move as u32 {
                         moves.push((l.idx(), u32_of(i)));
+                    }
+                    if b.data[i][1] == ReadMode::Move as u32 {
+                        moved_from.insert(l.idx());
                     }
                 }
                 Tag::Store if p.proj.is_empty() && b.data[i][1] != NONE => {
@@ -1193,6 +1191,20 @@ impl Em<'_, '_, '_> {
             let lands_counted = uses.get(&v) == Some(&1)
                 && (b.tags[v as usize] != Tag::Read
                     || b.data[v as usize][1] == ReadMode::Move as u32);
+            // A borrowed read of memory stored whole, at its one use, into
+            // a local never moved from, dropped, or read whole but as a
+            // worker's address: the local names the place it reads (an
+            // inlined lent parameter), so it costs no slot and no copy.
+            let alias = b.tags[v as usize] == Tag::Read
+                && b.data[v as usize][1] == ReadMode::Borrow as u32
+                && uses.get(&v) == Some(&1)
+                && !moved_from.contains(&l)
+                && !dropped.contains(&l)
+                && !whole.contains(&l);
+            if alias {
+                kept.push((l, m, v));
+                continue;
+            }
             let ruled_out = if counted {
                 whole.contains(&l) || far.contains(&l) || !lands_counted
             } else {
@@ -1215,6 +1227,19 @@ impl Em<'_, '_, '_> {
             if b.tags[v as usize] == Tag::Read && self.mem_source(v).is_none() {
                 continue;
             }
+            if b.tags[v as usize] == Tag::Read
+                && b.data[v as usize][1] == ReadMode::Borrow as u32
+                && let Some((at, off, _, fields, src)) = self.mem_field(v)
+            {
+                // An alias: the read passes on its address and the store
+                // writes nothing ([`Em::mem_store`]).
+                let (_, part) = self.fold_path(b.local_ty[src], &fields)?;
+                self.mem_locals
+                    .insert(l, (at, off + part.offset, Rc::new(mem)));
+                self.frame_copies.push(v);
+                self.aliased.insert(v);
+                continue;
+            }
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
@@ -1224,7 +1249,9 @@ impl Em<'_, '_, '_> {
                 self.plan_in_place(v, base, off, &uses)?;
             }
         }
-        self.stack_frame = Some((base, size));
+        if size != 0 {
+            self.stack_frame = Some((base, size));
+        }
         Ok(())
     }
 
@@ -1259,7 +1286,7 @@ impl Em<'_, '_, '_> {
         // Big = panic(..)` and a match whose other arm panics; TIR ends the
         // path before the store), so `v` has its values or its address.
         let v = self.b.data[i as usize][1];
-        if self.written.contains(&v) {
+        if self.written.contains(&v) || self.aliased.contains(&v) {
             return Ok(true);
         }
         if let Some(&(at, from)) = self.mem_vals.get(&v) {

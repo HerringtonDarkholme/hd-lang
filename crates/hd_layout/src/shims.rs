@@ -509,14 +509,13 @@ pub fn shim(
     if at && hooked(pool, env, t, kind, counts.portion) {
         hook_calls(pool, env, hooks, &mut b, x, t);
     }
+    // In place, the value is its place: each part is read where it lies
+    // when a count needs its values, never the whole value (whose read
+    // would load or copy every leaf, O(its size) per type of a chain).
     let v = if at {
-        let word = b.place(&Place {
-            root: PlaceRoot::Local(x),
-            proj: vec![Proj::Deref],
-        });
-        b.emit(Tag::Read, word, ReadMode::Borrow as u32, t, n)
+        Src::At(Vec::new())
     } else {
-        b.get(x, t, n)
+        Src::Val(b.get(x, t, n))
     };
     let mut w = Writer {
         pool,
@@ -525,8 +524,11 @@ pub fn shim(
         b,
         kind,
         at: at.then_some(x),
+        param: x,
     };
-    w.borrow(v);
+    if let Src::Val(v) = v {
+        w.borrow(v);
+    }
     w.whole(t, v, &[])?;
     let root = w.b.close_block(root, None, Ty::VOID, n);
     w.b.body_mut().phase = Phase::Lowered;
@@ -586,6 +588,17 @@ fn hook_calls(
     called
 }
 
+/// A part a shim counts: its value, or, in an in-place shim, its place
+/// under the parameter, as the steps a read of it takes. Those step into
+/// each newtype layer, as the emitter's reads through a reference do
+/// (`Em::fold_path`), while a `path` beside it, for an in-place `Ref`,
+/// takes none (the emitter's places strip newtypes).
+#[derive(Clone)]
+enum Src {
+    Val(Ref),
+    At(Vec<Proj>),
+}
+
 struct Writer<'a> {
     pool: &'a InternPool,
     env: &'a dyn ProgramEnv,
@@ -595,18 +608,22 @@ struct Writer<'a> {
     /// The parameter of an in-place shim: a hooked part is counted where
     /// it lives, through it.
     at: Option<LocalId>,
+    /// The shim's one parameter.
+    param: LocalId,
 }
 
 impl Writer<'_> {
     /// The shim's own type: a sum switches on its variants; a newtype
-    /// counts its one field; any other type, its parts in place.
-    fn whole(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
+    /// counts its one field; any other type, its parts in place. `v` is
+    /// the value, or the place under the in-place parameter, read only
+    /// where a count needs its values ([`Writer::val`]).
+    fn whole(&mut self, t: Ty, v: Src, path: &[Proj]) -> StageResult<()> {
         let s = strip_newtype(self.pool, self.env, t);
         if s != t {
             // A newtype has one field (`strip_newtype`).
             if let &[inner] = value_parts(self.pool, self.env, t).as_slice() {
-                // A place's type is its base already: no step.
-                let f = self.field(v, 0, inner);
+                // A place's type is its base already: no step in `path`.
+                let f = self.field(&v, 0, inner);
                 return self.whole(inner, f, path);
             }
         }
@@ -618,15 +635,36 @@ impl Writer<'_> {
             return self.part(t, v, path);
         }
         match variants(self.pool, self.env, t) {
-            Some(vs) => self.switch(v, &vs, path),
+            Some(vs) => {
+                let v = self.val(v, t);
+                self.switch(v, &vs, path)
+            }
             None => self.parts(t, v, path),
         }
+    }
+
+    /// The value `v`, or the borrowed read of its place under the
+    /// in-place parameter: only the leaves of that part.
+    fn val(&mut self, v: Src, t: Ty) -> Ref {
+        let rp = match v {
+            Src::Val(v) => return v,
+            Src::At(rp) => rp,
+        };
+        let word = self.b.place(&Place {
+            root: PlaceRoot::Local(self.param),
+            proj: step(&[Proj::Deref], &rp),
+        });
+        self.b
+            .emit(Tag::Read, word, ReadMode::Borrow as u32, t, NodeIdx::NONE)
     }
 
     /// A product's counted parts, in place. A place's type is its
     /// newtype's base already (the emitter's places strip newtypes), so
     /// `path` takes no step for a layer.
-    fn parts(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
+    fn parts(&mut self, t: Ty, mut v: Src, path: &[Proj]) -> StageResult<()> {
+        if let Src::At(rp) = &mut v {
+            crate::newtype_layers(self.pool, self.env, t, &mut |_| rp.push(Proj::Field(0)));
+        }
         let t = strip_newtype(self.pool, self.env, t);
         let parts = match self.pool.get(t) {
             TyData::Adt(AdtId::Product { .. }, _) => tuple_members(self.pool, t),
@@ -634,7 +672,7 @@ impl Writer<'_> {
         };
         for (k, &p) in (0u32..).zip(&parts) {
             if self.counts.of(self.pool, self.env, p)? != Count::None {
-                let f = self.field(v, k, p);
+                let f = self.field(&v, k, p);
                 self.part(p, f, &step(path, &[Proj::Field(k)]))?;
             }
         }
@@ -647,7 +685,7 @@ impl Writer<'_> {
     /// values opens a struct or tuple kept by address too: its by-value
     /// shim would take its values again, so a chain of them would cost
     /// O(its depth) per level.
-    fn part(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
+    fn part(&mut self, t: Ty, v: Src, path: &[Proj]) -> StageResult<()> {
         let own = self.counts.of(self.pool, self.env, t)?;
         let tag = match self.kind {
             Shim::Retain => Tag::Retain,
@@ -695,6 +733,7 @@ impl Writer<'_> {
                     self.b.emit(tag, r.0, info, Ty::VOID, n);
                     return Ok(());
                 }
+                let v = self.val(v, t);
                 let info = Info::new(At::Value, Part::Result, portion).write(self.b.body_mut());
                 self.b.emit(tag, v.0, info, Ty::VOID, n);
             }
@@ -720,7 +759,11 @@ impl Writer<'_> {
                 if self.counts.of(self.pool, self.env, f)? != Count::None {
                     let p = self.b.payload(v, k, j, f, n);
                     self.borrow(p);
-                    self.part(f, p, &step(path, &[Proj::Variant(k), Proj::Field(j)]))?;
+                    self.part(
+                        f,
+                        Src::Val(p),
+                        &step(path, &[Proj::Variant(k), Proj::Field(j)]),
+                    )?;
                 }
             }
             let arm = self.b.close_block(arm, None, Ty::VOID, n);
@@ -734,10 +777,17 @@ impl Writer<'_> {
         Ok(())
     }
 
-    fn field(&mut self, v: Ref, k: u32, t: Ty) -> Ref {
-        let f = self.b.field(v, k, t, NodeIdx::NONE);
-        self.borrow(f);
-        f
+    /// Field `k` of `v`; of a place, nothing is read yet: the field's
+    /// place is one step longer.
+    fn field(&mut self, v: &Src, k: u32, t: Ty) -> Src {
+        match v {
+            Src::Val(v) => {
+                let f = self.b.field(*v, k, t, NodeIdx::NONE);
+                self.borrow(f);
+                Src::Val(f)
+            }
+            Src::At(rp) => Src::At(step(rp, &[Proj::Field(k)])),
+        }
     }
 
     /// The read takes no count: the shim's statements are its counts.

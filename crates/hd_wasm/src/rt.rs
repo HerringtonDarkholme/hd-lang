@@ -3334,14 +3334,25 @@ fn parts_glue(
     retain: bool,
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
-    let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
-    for (l, at) in leaves.iter().zip(&ls) {
-        f.get(0);
-        f.op(l.load(0));
-        f.set(*at);
-    }
+    // Each leaf a count reads is loaded where it is first read, into a
+    // local of its own: a part released in place reads only its address,
+    // so the glue is O(the leaves its counts read), not O(the payload's).
+    // Parts own disjoint leaves, and a part's count reads each of its
+    // leaves first outside any test, so the memo is the part's own.
     for (first, counted) in parts {
-        let get = |f: &mut Func, k: u32| f.get(ls[(first + k) as usize]);
+        let ls: std::cell::RefCell<hd_base::HashMap<usize, u32>> = std::cell::RefCell::default();
+        let get = |f: &mut Func, k: u32| {
+            let at = (first + k) as usize;
+            if let Some(&l) = ls.borrow().get(&at) {
+                f.get(l);
+                return;
+            }
+            let l = f.local(leaves[at].val);
+            f.get(0);
+            f.op(leaves[at].load(0));
+            f.op(Instruction::LocalTee(l));
+            ls.borrow_mut().insert(at, l);
+        };
         // A small struct's counts are inline, on the loaded values.
         if let Counted::Shims(s) = counted
             && s.small.is_some()
