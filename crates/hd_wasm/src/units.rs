@@ -34,6 +34,11 @@ pub(crate) struct Keys<'i, 'a> {
     loans: HashMap<InstId, Hash128>,
     /// The entry's roots and held item ([`Entry::root`], [`Entry::held`]).
     roots: hd_base::HashSet<DefId>,
+    /// Every trait method some call through a trait value names, in the
+    /// whole program, hashed: what a dyn call's slot index and every table
+    /// of its trait may depend on once a table keeps only the slots some
+    /// call names (#2415, #2420). A unit with a dyn call holds it.
+    dyn_methods: Hash128,
 }
 
 impl<'i, 'a> Keys<'i, 'a> {
@@ -136,6 +141,31 @@ impl<'i, 'a> Keys<'i, 'a> {
                 (id, k.finish())
             })
             .collect();
+        // One pass over the program's calls: each dyn call's method.
+        let mut methods = Vec::new();
+        for &id in input.order {
+            let calls = &input.collected.calls[id.idx()];
+            if !calls.values().any(|t| matches!(t, Target::Dyn)) {
+                continue;
+            }
+            let body = (input.body)(id);
+            for (&at, target) in calls {
+                if matches!(target, Target::Dyn) {
+                    let method = body.and_then(|b| crate::boundary::dynamic_method(b, at));
+                    // A call whose method is not named answers no slot
+                    // by name: it stands for itself.
+                    methods.push(method.map_or(Hash128(1), |m| env.path_hash(m)));
+                }
+            }
+        }
+        methods.sort_stable();
+        methods.dedup();
+        let mut dyn_methods = StableHasher::new("dyn-methods");
+        dyn_methods.len(methods.len());
+        for m in methods {
+            dyn_methods.hash(m);
+        }
+        let dyn_methods = dyn_methods.finish();
         let roots = match &input.entry {
             Entry::Main { main, .. } | Entry::Scenario { main, .. } => {
                 [*main].into_iter().collect()
@@ -154,6 +184,7 @@ impl<'i, 'a> Keys<'i, 'a> {
                 .collect(),
             loans,
             roots,
+            dyn_methods,
         }
     }
 
@@ -185,6 +216,12 @@ impl<'i, 'a> Keys<'i, 'a> {
                 target_hash(&mut h, target, &mut canon, env);
             }
             h.hash(self.loans.get(&id).copied().unwrap_or_default());
+            if input.collected.calls[id.idx()]
+                .values()
+                .any(|t| matches!(t, Target::Dyn))
+            {
+                h.hash(self.dyn_methods);
+            }
             Some(h.finish())
         })
     }
