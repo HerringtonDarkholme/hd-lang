@@ -5,6 +5,7 @@
 # `closure_bang` and `stored` hold `key` in the suspending frame (by
 # design, #1355) and build one string per `fetch`.
 fn fetch!(key: string) -> string:
+    pause!()
     key + "?"
 
 fn construct(key: string) -> usize:
@@ -21,3 +22,9 @@ fn closure_bang!(key: string) -> usize:
 fn stored!(key: string) -> usize:
     loader := fn!(k: string) -> string: fetch!(k)
     loader!(key).len()
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

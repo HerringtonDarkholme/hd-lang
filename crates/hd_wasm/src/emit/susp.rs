@@ -896,7 +896,7 @@ impl Em<'_, '_, '_> {
         self.settle(i);
         self.release_call_ctx(i, c);
         if shielded {
-            self.shield_leave(i, nc, Some(ch));
+            self.shield_leave(i, nc, ch);
         }
         self.f.get(nc);
         self.f.op(I::If(BlockType::Empty));
@@ -1033,12 +1033,10 @@ impl Em<'_, '_, '_> {
         let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
         let ready = self.f.local(Val::I32);
-        // `gone` is the child a shielded point is left to wait on.
-        let shielded = self.shield > 0;
-        let gone = self.f.local(Val::I32);
-        if shielded {
-            self.shield_enter(k, s, &tmp, gone);
-        }
+        // ruled out: a shielded suite's only point is its `dispose!`, a
+        // direct call or a trait-value call of `AsyncDisposable`, whose
+        // rows-only trait drives every such call (`drive::drivable`).
+        debug_assert_eq!(self.shield, 0, "a shielded stored suspension");
         self.f.get(s);
         self.f.get(s);
         self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
@@ -1048,20 +1046,6 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         self.f.set(ready);
-        if shielded {
-            self.f.i32(0);
-            self.f.set(gone);
-            self.f.get(ready);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.get(s);
-            self.f.set(gone);
-            self.f.op(I::End);
-            self.shield_leave(i, gone, None);
-            self.f.get(gone);
-            self.f.op(I::I32Eqz);
-            self.f.set(ready);
-        }
         self.f.get(ready);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -1174,7 +1158,7 @@ impl Em<'_, '_, '_> {
             self.f.get(ready);
             self.f.op(I::Select);
             self.f.set(gone);
-            self.shield_leave(i, gone, Some(held));
+            self.shield_leave(i, gone, held);
             self.f.get(gone);
             self.f.op(I::I32Eqz);
             self.f.set(ready);
@@ -1394,9 +1378,9 @@ impl Em<'_, '_, '_> {
     /// `abandon()`, or one cancelled because it awaited a suspension
     /// cancelled elsewhere (`req.abandon.dependency`), is abandoned and
     /// `out` cleared, so the suite goes on; this frame's cleanup is then
-    /// `ABANDONED`. A child that a fresh step made (`fresh` 0) loses the
-    /// count it came with.
-    fn shield_leave(&mut self, i: u32, out: u32, fresh: Option<u32>) {
+    /// `ABANDONED`. A child that a fresh step made (local `fresh` 0)
+    /// loses the count it came with.
+    fn shield_leave(&mut self, i: u32, out: u32, fresh: u32) {
         let wait = self.f.local(Val::I32);
         self.f.get(out);
         self.f.op(I::If(BlockType::Empty));
@@ -1411,13 +1395,11 @@ impl Em<'_, '_, '_> {
         crate::task::abandon_by(&mut self.f, 1);
         self.cancel_task(out, wait);
         crate::task::abandon_by(&mut self.f, -1);
-        if let Some(h) = fresh {
-            self.f.get(h);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.count_child(i, out, false);
-            self.f.op(I::End);
-        }
+        self.f.get(fresh);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        self.count_child(i, out, false);
+        self.f.op(I::End);
         self.f.zero(out);
         self.f.op(I::End);
         self.f.op(I::End);

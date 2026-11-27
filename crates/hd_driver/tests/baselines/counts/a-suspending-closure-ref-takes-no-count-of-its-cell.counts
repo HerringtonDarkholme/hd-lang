@@ -6,26 +6,35 @@ struct Tally:
     n: i64
 
 fn bump!(t: &mut Tally) -> void:
-    t.n += 1
+    pause!()
 > app/main/bump
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/bump
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/bump
 >   retain counted reference (by design)
+    t.n += 1
 
 fn read!(t: &Tally) -> i64:
-    t.n
+    pause!()
 > app/main/read
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+    t.n
 
 fn local!() -> i64:
     run := fn!() -> i64:
 > app/main/local
+>   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/local
 >   release counted reference (last use)
@@ -37,8 +46,13 @@ fn local!() -> i64:
 >   release fn!() -> i64 (last use)
 > app/main/local
 >   release counted reference (last use)
+> app/main/local
+>   retain counted reference (stored)
         let mut tally = Tally { n: 0 }
         bump!(&mut tally)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
         tally.n
     run!()
 >   retain counted reference (stored)
@@ -59,6 +73,10 @@ fn shared!() -> i64:
 > app/main/shared
 >   retain counted reference (stored)
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/shared
 >   release counted reference (cancelled)
 >   release counted reference (last use)
@@ -66,6 +84,8 @@ fn shared!() -> i64:
 > app/main/shared
 >   retain counted reference (stored)
 >   retain counted reference (stored)
+>   retain counted reference (stored)
+> app/main/shared
 >   retain counted reference (stored)
     run!()
 >   retain counted reference (stored)
@@ -88,9 +108,14 @@ fn copied!() -> i64:
     run := fn!() -> i64: read!(&tally)
 > app/main/copied
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (cancelled)
+>   release counted reference (last use)
 > app/main/copied
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/copied
+>   retain counted reference (stored)
 > app/main/copied
 >   retain counted reference (stored)
     run!()
@@ -99,3 +124,23 @@ fn copied!() -> i64:
 >   release counted reference (last use)
 >   release fn!() -> i64 (cancelled)
 >   release Suspend[i64] (cancelled)
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

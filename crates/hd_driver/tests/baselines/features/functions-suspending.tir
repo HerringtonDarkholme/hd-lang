@@ -6,12 +6,14 @@
 # `closure_bang` and `stored` hold `key` in the suspending frame (by
 # design, #1355) and build one string per `fetch`.
 fn fetch!(key: string) -> string:
-    key + "?"
+    pause!()
 > app/main/fetch
 >   local $0 key: string [param read]
->   %0 = Read [$0] : string
->   %1 = Intrinsic StrConcat [%0 "?"] : string
->   %2 = Block %1 : string
+>   %0 = Await app/main/pause[] () : ()
+>   %3 = Block %2 : string
+    key + "?"
+>   %1 = Read [$0] : string
+>   %2 = Intrinsic StrConcat [%1 "?"] : string
 
 fn construct(key: string) -> usize:
     _ := fetch(key)
@@ -78,3 +80,18 @@ fn stored!(key: string) -> usize:
 >   %9 = Store [$3] %8 : ()
 >   %10 = Ref local [$3] : &string
 >   %11 = Call std/text/impl string.len[] (%10) : usize
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned]
+>   %0 = Block - : ()
+>   %1 = Closure #1 : fn!() -> ()
+>   %2 = Store [$0] %1 : ()
+>   %6 = Block - : ()
+    step!()
+>   %3 = Read [$0] : fn!() -> ()
+>   %4 = CallValue %3 [] : Suspend[()]
+>   %5 = AwaitValue %4 : ()

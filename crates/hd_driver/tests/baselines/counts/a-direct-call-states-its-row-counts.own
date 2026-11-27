@@ -28,32 +28,37 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 > app/main/later
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %8 lend last
->   %0 = Retain %15 Cold local $0 #0 : ()
->   %1 = Retain %15 Entry local $0 #0 : ()
->   %5 = Retain %15 Cold referent $0 #8 : ()
->   %6 = Release %15 FrameDrop referent $0 #2 : ()
->   %7 = Release %15 Exit referent $0 #8 : ()
-    callback()
->   %2 = Retain %15 Cold row #0 : ()
->   %3 = Retain %15 Materialize row #0 : ()
->   %4 = Release %15 FrameDrop row #2 : ()
->   %8 = Read move [$0] : fn() -> i32
->   %9 = Intrinsic Empty [] : ()
->   %10 = CallValue %8 [] : i32
->   %11 = Retain %10 Operation row #0 : ()
->   %12 = Release %10 Operation row #2 : ()
->   %13 = Drop [%8] : ()
->   %14 = Drop [$0] : ()
->   %15 = Block %10 : i32
->   %16 = Intrinsic ParamOwned [0:i32] : bool
+>     uses $0: entry -> %11 lend last
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
+>   %5 = Retain %18 Cold referent $0 #8 : ()
+>   %6 = Release %18 FrameDrop referent $0 #2 : ()
+>   %7 = Release %18 Exit referent $0 #8 : ()
+    pause!()
+>   %2 = Retain %18 Cold row #0 : ()
+>   %3 = Retain %18 Materialize row #0 : ()
+>   %4 = Release %18 FrameDrop row #2 : ()
+>   %8 = Release %18 FrameDrop child #2 : ()
+>   %9 = Await app/main/pause[] () : ()
+>   %10 = Release %9 Operation child #2 : ()
 >   %17 = Drop [$0] : ()
->   %18 = Block - : ()
->   %19 = If %16 [%18 -] : ()
->   %20 = Block - : ()
+>   %18 = Block %13 : i32
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Block - : ()
+    callback()
+>   %11 = Read move [$0] : fn() -> i32
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = CallValue %11 [] : i32
+>   %14 = Retain %13 Operation row #0 : ()
+>   %15 = Release %13 Operation row #2 : ()
+>   %16 = Drop [%11] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %15 releases [%16 %16]
+>   cancel %9 releases [%2147483648 %4294967295]
+>   cancel %18 releases [%16 %22]
 
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
     forward(callback)
@@ -134,3 +139,31 @@ fn empty(callback: fn() -> i32) -> i32:
 >   %7 = Release %8 Exit local $0 #2 : ()
 >   %8 = Block %1 : i32
 >   summary kept [] borrows [$0] writes
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

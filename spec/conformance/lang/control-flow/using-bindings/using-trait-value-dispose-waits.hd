@@ -1,0 +1,28 @@
+# fixture-runtime-profile: pending-tick
+# expect-stdout: body
+# expect-stdout: closing, closed
+# test: a using! binding of a trait value whose dispose! waits on the host steps its drive slot, waits shielded, and finishes the dispose
+# Spec lang/06 Using Bindings: flow.using.async.suite-suspends, flow.using.async.cancel.shielded.
+use std.ops.AsyncDisposable
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+struct Conn:
+    log: *mut List[string]
+    ticker: *mut dyn Tick
+
+impl AsyncDisposable for Conn:
+    fn dispose!(&mut self) -> void:
+        self.log.push("closing")
+        self.ticker.tick!("")
+        self.log.push("closed")
+
+fn hold!(conn: *mut dyn AsyncDisposable) -> void $ Console:
+    using! held = conn
+    println("body")
+
+pub fn main!() -> void $ Console + Tick:
+    log := box::[List[string]]([])
+    hold!(box(Conn { log: log, ticker: $.use(Tick) }))
+    println(log.join(", "))

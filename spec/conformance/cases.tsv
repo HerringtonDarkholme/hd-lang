@@ -1209,6 +1209,8 @@ lang/control-flow/using-bindings/top-level-using.hd	type	reject:cleanup-outside-
 lang/control-flow/using-bindings/using-dispose-order.hd	runtime	accept	lang/06-control-flow.md#binding-and-registration
 lang/control-flow/using-bindings/using-dispose-suspends.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.async.suite-suspends
 lang/control-flow/using-bindings/using-race-loser-disposes.hd	runtime	accept	lang/06-control-flow.md#binding-and-registration
+lang/control-flow/using-bindings/using-trait-value-race-loser-disposes.hd	runtime	accept	lang/06-control-flow.md#binding-and-registration
+lang/control-flow/using-bindings/using-trait-value-dispose-waits.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.async.suite-suspends
 lang/control-flow/using-bindings/using-reference-disposes.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.reference.v2
 lang/control-flow/using-bindings/using-sync-and-async-order.hd	runtime	accept	lang/06-control-flow.md#r-flow.using.order.v2
 std/ops/scope-guards/scope-guard-row.hd	runtime	accept	std/ops.md#scope-guards

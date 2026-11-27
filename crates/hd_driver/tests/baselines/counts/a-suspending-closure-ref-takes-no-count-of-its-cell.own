@@ -8,50 +8,60 @@ struct Tally:
 fn bump!(t: &mut Tally) -> void:
 > app/main/bump
 >   local $0 t: &mut Tally [param read] value
->     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %10 Cold local $0 #0 : ()
->   %1 = Retain %10 Entry local $0 #0 : ()
->   %2 = Retain %10 Cold referent $0 #8 : ()
->   %3 = Release %10 FrameDrop referent $0 #2 : ()
->   %4 = Release %10 Exit referent $0 #8 : ()
-    t.n += 1
->   %5 = Read copy [*$0 .n] : i64
->   %6 = Prim Add [%5 1:i64] : i64
->   %7 = Store [*$0 .n] %6 : ()
->   %8 = Drop [$0] : ()
->   %9 = Drop [$0] : ()
->   %10 = Block - : ()
->   %11 = Intrinsic ParamOwned [0:i32] : bool
+>     uses $0: entry -> %8 lend, %10 lend last
+>   %0 = Retain %13 Cold local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
+>   %2 = Retain %13 Cold referent $0 #8 : ()
+>   %3 = Release %13 FrameDrop referent $0 #2 : ()
+>   %4 = Release %13 Exit referent $0 #8 : ()
+    pause!()
+>   %5 = Release %13 FrameDrop child #2 : ()
+>   %6 = Await app/main/pause[] () : ()
+>   %7 = Release %6 Operation child #2 : ()
 >   %12 = Drop [$0] : ()
 >   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block - : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block - : ()
+    t.n += 1
+>   %8 = Read copy [*$0 .n] : i64
+>   %9 = Prim Add [%8 1:i64] : i64
+>   %10 = Store [*$0 .n] %9 : ()
+>   %11 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %10 releases [%16 %11]
+>   cancel %6 releases [%2147483648 %4294967295]
+>   cancel %13 releases [%16 %17]
 
 fn read!(t: &Tally) -> i64:
 > app/main/read
 >   local $0 t: &Tally [param read] value
->     uses $0: entry -> %5 lend last
->   %0 = Retain %8 Cold local $0 #0 : ()
->   %1 = Retain %8 Entry local $0 #0 : ()
->   %2 = Retain %8 Cold referent $0 #8 : ()
->   %3 = Release %8 FrameDrop referent $0 #2 : ()
->   %4 = Release %8 Exit referent $0 #8 : ()
-    t.n
->   %5 = Read copy [*$0 .n] : i64
->   %6 = Drop [$0] : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %5 : i64
->   %9 = Intrinsic ParamOwned [0:i32] : bool
+>     uses $0: entry -> %8 lend last
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
+>   %2 = Retain %11 Cold referent $0 #8 : ()
+>   %3 = Release %11 FrameDrop referent $0 #2 : ()
+>   %4 = Release %11 Exit referent $0 #8 : ()
+    pause!()
+>   %5 = Release %11 FrameDrop child #2 : ()
+>   %6 = Await app/main/pause[] () : ()
+>   %7 = Release %6 Operation child #2 : ()
 >   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block - : ()
+>   %11 = Block %8 : i64
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Block - : ()
+    t.n
+>   %8 = Read copy [*$0 .n] : i64
+>   %9 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %8 releases [%16 %9]
+>   cancel %6 releases [%2147483648 %4294967295]
+>   cancel %11 releases [%16 %15]
 
 fn local!() -> i64:
     run := fn!() -> i64:
@@ -206,3 +216,31 @@ fn copied!() -> i64:
 >   cancel %15 releases [%16 %43]
 >   cancel %22 releases [%19 %21 %2147483648 %4294967295]
 >   cancel %28 releases [%16 %38]
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

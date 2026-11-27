@@ -1,0 +1,53 @@
+# fixture-runtime-profile: pending-tick
+# expect-stdout: won
+# expect-stdout: open b, open a, defer inner, closing a, closed a, defer outer, closing b, closed b
+# expect-stdout: done
+# test: a race! loser holding using! bindings of trait values whose dispose! suspends still disposes each through the drive slot, shielded, innermost frame first
+# Spec lang/06 Using Bindings: flow.using.cancel.v2, flow.using.async.cancel.shielded, flow.using.async.cancel.wait; lang/11 req.combinator.race-losers-disposed.using-split.
+use std.ops.defer
+use std.ops.AsyncDisposable
+use std.task.race
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
+
+struct Conn:
+    name: string
+    log: *mut List[string]
+    closing: Suspend[void]
+
+impl AsyncDisposable for Conn:
+    fn dispose!(&mut self) -> void:
+        self.log.push("closing ${self.name}")
+        let mut wait = self.closing
+        wait!()
+        self.log.push("closed ${self.name}")
+
+fn connect(name: string, log: *mut List[string]) -> *mut dyn AsyncDisposable $ Tick:
+    log.push("open ${name}")
+    box(Conn { name: name, log: log, closing: host_wait() })
+
+fn fetch!(log: *mut List[string]) -> string $ Tick:
+    defer(fn() -> void: log.push("defer outer"))
+    using! a = connect("a", log)
+    defer(fn() -> void: log.push("defer inner"))
+    host_wait!()
+    log.push("fetched")
+    "late"
+
+fn session!(log: *mut List[string]) -> string $ Tick:
+    using! b = connect("b", log)
+    fetch!(log)
+
+fn ready!() -> string:
+    "won"
+
+pub fn main!() -> void $ Console + Tick:
+    log := box::[List[string]]([])
+    winner := race!(session(log), ready())
+    println(winner)
+    println(log.join(", "))
+    println("done")
