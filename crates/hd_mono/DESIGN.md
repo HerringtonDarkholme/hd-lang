@@ -772,7 +772,15 @@ growing type) has no finite instance set.
   interface call names it: a table built before the first call of `m`
   leaves `m`'s slot pending, and that call (`Cx::note_dyn`) resolves
   every pending slot of `m` once. Cost: one visit per slot of a built
-  table, plus its target. Kept anyway: every slot of a REPL input's
+  table, plus its target. Which slots a trait keeps depends on calls in
+  other instances, so a code key cannot read it from the instance's own
+  scan (`docs/compiler/tiering.md` §6.4). After the worklist drains,
+  `Cx::fold_slot_facts` folds into each instance's `callee_reps` the
+  kept slots of every trait whose table layout its code may read (a
+  trait value type among its values, through references; its row keys;
+  a function value's row keys), with their supertraits, and the final
+  digest of every table it built. Cost: one visit per table, per trait
+  (memoized), and per record. Kept anyway: every slot of a REPL input's
   tables, which later inputs call (`Collected::all_slots`), and every
   slot of a compiler-supplied trait, whose `runtime_type` slot the
   `runtime_type` and downcast intrinsics read with no call site. The

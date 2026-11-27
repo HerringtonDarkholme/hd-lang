@@ -202,4 +202,72 @@ fn late_slots_resolve_once_each_at_width_1000_and_depth_20() {
             "an uncalled body is linked"
         );
     }
+    // The fold visits each table, trait and record once: no more than
+    // tenfold work for tenfold tables.
+    assert!(
+        small.folded > 0 && large.folded <= 10 * small.folded + 100,
+        "{small:?} -> {large:?}"
+    );
+}
+
+/// Each root instance's `callee_reps` after building `source` with a
+/// fresh store, so collection runs.
+fn reps_of(source: &str) -> Vec<(String, hd_base::Hash128)> {
+    let mut sources = MemorySources::default();
+    sources.insert("main.hd", source);
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let goal = Goal::Program {
+        entry: "main".into(),
+    };
+    let (out, reps) = hd_mono::work::capture_reps(|| build(&host, "app", &goal));
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    reps
+}
+
+fn reps_named(all: &[(String, hd_base::Hash128)], name: &str) -> hd_base::Hash128 {
+    let found: Vec<_> = all.iter().filter(|(n, _)| n.ends_with(name)).collect();
+    assert_eq!(found.len(), 1, "one instance of {name} in {all:?}");
+    found[0].1
+}
+
+/// #2415 under the code-key rule (`docs/compiler/tiering.md` §6.4): which
+/// slots `T` keeps depends on every caller, so `call_c`'s code, whose slot
+/// index for `c` moves when the only call of `b` goes, must have a new
+/// `callee_reps`, though its own TIR is unchanged. `plain`, which touches
+/// no trait value, keeps its own.
+#[test]
+fn dropping_another_instances_call_changes_a_dyn_callers_reps() {
+    let program = |b: &str| {
+        format!(
+            "trait T:\n    fn a(&self) -> i32\n    fn b(&self) -> i32\n    fn c(&self) -> i32\n\n\
+             struct S: pass\n\n\
+             impl T for S:\n    fn a(&self) -> i32: 1\n    fn b(&self) -> i32: 2\n    \
+             fn c(&self) -> i32: 3\n\n\
+             fn call_a(x: &dyn T) -> i32: x.a()\n\n\
+             fn call_b(x: &dyn T) -> i32: x.{b}()\n\n\
+             fn call_c(x: &dyn T) -> i32: x.c()\n\n\
+             fn plain(n: i32) -> i32: n + 1\n\n\
+             pub fn main() -> void $ Console:\n    s := S {{}}\n    \
+             println(call_a(&s) + call_b(&s) + call_c(&s) + plain(1))\n"
+        )
+    };
+    let with_b = reps_of(&program("b"));
+    let without_b = reps_of(&program("a"));
+    assert_ne!(
+        reps_named(&with_b, "/call_c"),
+        reps_named(&without_b, "/call_c"),
+        "call_c's slot index moved, so its code key must change"
+    );
+    assert_eq!(
+        reps_named(&with_b, "/plain"),
+        reps_named(&without_b, "/plain"),
+        "an instance that touches no trait value keeps its code key"
+    );
 }

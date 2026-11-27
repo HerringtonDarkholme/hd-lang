@@ -559,6 +559,11 @@ pub struct Collected {
     /// Whether every method with a slot keeps it ([`Collected::slots`]):
     /// a REPL session's, whose later inputs call the tables built earlier.
     pub all_slots: bool,
+    /// Per instance, the slot facts its code reads besides its own TIR
+    /// (`Cx::fold_slot_facts`), also folded into its `callee_reps`: the
+    /// kept slots of each trait whose table layout it may read, and the
+    /// final digest of each table it builds. Zero for one that reads none.
+    pub slot_facts: Vec<Hash128>,
     /// Concrete data types whose release glue first calls their
     /// `std.rt.Drop.drop` implementation, by type and instance key.
     pub drop_glue: HashMap<Ty, Hash128>,
@@ -1407,6 +1412,12 @@ struct Cx<'a> {
     /// The slots built tables leave unresolved, by method, until a call
     /// through a trait value names it ([`Cx::note_dyn`]).
     pending: HashMap<DefId, Vec<PendingSlot>>,
+    /// Per scanned instance, each trait whose table layout its code may
+    /// read: a trait value type among its values, its row keys, or the
+    /// row keys of a function value it holds ([`Cx::fold_slot_facts`]).
+    slot_users: Vec<(InstId, DefId)>,
+    /// Per scanned instance, each table its coercions build.
+    table_users: Vec<(InstId, VTableId)>,
     /// Each lifted `Wire` crossing literal an instance numbers: its
     /// number, its function's code instance and type (`fn.crossing.lift`).
     crossings: Vec<(u64, Hash128, Ty)>,
@@ -2623,13 +2634,14 @@ impl Cx<'_> {
     /// Build a concrete vtable DAG with rustc's visited, explicit-stack
     /// traversal (`prepare_vtable_segments`; see `dyn_graph`). Each node's
     /// slots and ordered edges are built once, even across coercion sites.
+    /// The coercing instance `parent` takes the table's final digest
+    /// once every slot is resolved ([`Cx::fold_slot_facts`]).
     fn vtable(
         &mut self,
         trait_: DefId,
         trait_args: TyList,
         from: Ty,
         parent: InstId,
-        reps: &mut StableHasher,
     ) -> StageResult<VTableId> {
         struct Frame {
             key: (Ty, DefId, TyList),
@@ -2682,7 +2694,7 @@ impl Cx<'_> {
             }
         }
         let id = self.vtables[&root];
-        reps.hash(self.out.vtables[id.0].digest);
+        self.table_users.push((parent, id));
         Ok(id)
     }
 
@@ -2802,6 +2814,142 @@ impl Cx<'_> {
             self.out.vtables[at.vtable.0].slots[at.slot] = Some(t);
         }
         Ok(())
+    }
+
+    /// Records that instance `id`'s code may read the table layout of the
+    /// trait a value of type `t` carries: `t` itself, through references,
+    /// or each key of a function value's row. A dynamic call's slot, a
+    /// parent pointer's offset, a row adapter's or a downcast's path all
+    /// start at such a value or key.
+    fn note_slot_user(&mut self, id: InstId, t: Ty) {
+        let pool = self.pool;
+        let mut t = layout::strip_newtype(pool, self.env, t);
+        while let TyData::Ref { inner, .. } = pool.get(t) {
+            t = inner;
+        }
+        match pool.get(t) {
+            TyData::TraitValue { def, .. } => self.slot_users.push((id, def)),
+            TyData::Fn { row, .. } => {
+                for k in pool.row_data(row).keys {
+                    if let TyData::TraitValue { def, .. } = pool.get(k) {
+                        self.slot_users.push((id, def));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Folds the program's final slot facts into each instance's
+    /// `callee_reps`, which every code key holds
+    /// (`docs/compiler/tiering.md` §6.4): which slots a trait keeps depends
+    /// on calls in other instances, so no instance's own scan can hash it.
+    /// An instance takes, per trait it recorded ([`Cx::note_slot_user`]),
+    /// the kept slots of that trait and of every supertrait, and per table
+    /// it built, the table's final digest, slots resolved late included.
+    ///
+    /// Cost: one visit per table, per trait of a recorded supertrait DAG
+    /// (memoized; an explicit stack, as `reach_hash`), and per record, so
+    /// linear in the program's tables, traits and scanned types.
+    fn fold_slot_facts(&mut self) {
+        let env = self.env;
+        let mut finals: Vec<Hash128> = Vec::with_capacity(self.out.vtables.len());
+        for node in &mut self.out.vtables {
+            work::dyn_fold(1);
+            let mut h = StableHasher::new("dyn-vtable-final");
+            h.hash(node.digest);
+            for slot in &node.slots {
+                match slot {
+                    Some(t) => {
+                        h.u8(1);
+                        h.hash(t.key);
+                        h.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
+                    }
+                    None => h.u8(0),
+                }
+            }
+            // Parents precede their children (`Collected::vtables`).
+            for p in &node.parents {
+                h.hash(finals[p.0]);
+            }
+            node.digest = h.finish();
+            finals.push(node.digest);
+        }
+        let mut layouts: HashMap<DefId, Hash128> = HashMap::default();
+        let mut folds: HashMap<InstId, StableHasher> = HashMap::default();
+        for &(id, def) in &std::mem::take(&mut self.slot_users) {
+            work::dyn_fold(1);
+            let layout = self.slot_layout(def, &mut layouts);
+            folds
+                .entry(id)
+                .or_insert_with(|| StableHasher::new("slot-facts"))
+                .hash(layout);
+        }
+        for &(id, vt) in &std::mem::take(&mut self.table_users) {
+            work::dyn_fold(1);
+            folds
+                .entry(id)
+                .or_insert_with(|| StableHasher::new("slot-facts"))
+                .hash(finals[vt.0]);
+        }
+        self.out.slot_facts = vec![Hash128(0); self.out.callee_reps.len()];
+        for (id, fold) in folds {
+            let Some(reps) = self.out.callee_reps.get_mut(id.idx()) else {
+                continue;
+            };
+            let facts = fold.finish();
+            self.out.slot_facts[id.idx()] = facts;
+            let mut h = StableHasher::new("callee-reps-folded");
+            h.hash(*reps);
+            h.hash(facts);
+            *reps = h.finish();
+        }
+    }
+
+    /// The hash of the slots trait `root` and each of its supertraits keep
+    /// ([`Collected::slots`]), which fix every table offset of its values:
+    /// a Merkle hash over the supertrait DAG, post-order on an explicit
+    /// stack and memoized per trait in `memo`.
+    fn slot_layout(&self, root: DefId, memo: &mut HashMap<DefId, Hash128>) -> Hash128 {
+        let (pool, env) = (self.pool, self.env);
+        let supers = |d: DefId| -> Vec<DefId> {
+            (env.decls().supertraits(d).iter())
+                .filter_map(|&s| match pool.get(s) {
+                    TyData::TraitValue { def, .. } => Some(def),
+                    _ => None,
+                })
+                .collect()
+        };
+        // ruled out: a cycle, by `trait.super.acyclic` in hd_resolve.
+        let mut stack = vec![(root, false)];
+        while let Some((d, ready)) = stack.pop() {
+            if memo.contains_key(&d) {
+                continue;
+            }
+            let parents = supers(d);
+            if !ready {
+                stack.push((d, true));
+                stack.extend(
+                    (parents.into_iter())
+                        .filter(|p| !memo.contains_key(p))
+                        .map(|p| (p, false)),
+                );
+                continue;
+            }
+            work::dyn_fold(1);
+            let mut h = StableHasher::new("slot-layout");
+            let kept = self.out.slots(env, d);
+            h.len(kept.len());
+            for m in kept {
+                h.hash(env.path_hash(m));
+            }
+            h.len(parents.len());
+            for p in &parents {
+                h.hash(memo[p]);
+            }
+            memo.insert(d, h.finish());
+        }
+        memo[&root]
     }
 
     /// The parameters of `def` a known value is worth specializing on, by
@@ -3001,6 +3149,10 @@ impl Cx<'_> {
                 (&mut self.layouts, &mut self.reaches),
             ));
             note_data(pool, env, t, &mut self.out.data);
+            self.note_slot_user(id, t);
+        }
+        for k in env.row_keys(item, args) {
+            self.note_slot_user(id, k);
         }
         reps.u8(u8::from(env.suspends(item)));
         let t = match env.parent(item) {
@@ -3177,6 +3329,11 @@ impl Cx<'_> {
         for ty in signature {
             self.note_drop(s(ty), id)?;
         }
+        // Its provider context's keys, which a call's or row adapter's
+        // projection to a supertrait key starts at.
+        for k in env.row_keys(item, args) {
+            self.note_slot_user(id, k);
+        }
         let plan = if instance_body.is_some() {
             self.planner.plan(item, body, env)
         } else {
@@ -3214,6 +3371,7 @@ impl Cx<'_> {
                     &mut self.canons,
                     (&mut self.layouts, &mut self.reaches),
                 ));
+                self.note_slot_user(id, ty);
             }
             note_data(pool, env, ty, &mut self.out.data);
             self.note_drop(ty, id)?;
@@ -3533,7 +3691,7 @@ impl Cx<'_> {
                         } else {
                             (trait_, trait_args)
                         };
-                    let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
+                    let vt = self.vtable(trait_, trait_args, from, id)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
                 // A map's key operations (`crates/hd_mono/DESIGN.md` §13.12): a literal
@@ -3938,6 +4096,8 @@ fn collect_roots(
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
         pending: HashMap::default(),
+        slot_users: Vec::new(),
+        table_users: Vec::new(),
         crossings: Vec::new(),
         crossing_numbers: HashMap::default(),
         crossing_run: None,
@@ -3953,9 +4113,17 @@ fn collect_roots(
             })),
         };
     }
+    cx.out.callee_reps.resize(cx.out.table.len(), Hash128(0));
+    cx.fold_slot_facts();
     let mut out = cx.out;
     out.calls.resize_with(out.table.len(), HashMap::default);
-    out.callee_reps.resize(out.table.len(), Hash128(0));
+    if work::reps_wanted() {
+        for (i, reps) in out.callee_reps.iter().enumerate() {
+            if out.table.sub[i] == Sub::Body(0) {
+                work::note_reps(env.describe(out.table.item[i]), *reps);
+            }
+        }
+    }
     Ok(Ok(out))
 }
 
