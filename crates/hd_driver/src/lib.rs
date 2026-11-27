@@ -10816,12 +10816,6 @@ impl Run<'_> {
                     extra.insert(r);
                 }
             }
-            for name in hd_wasm::FLOAT_FNS {
-                let r = (names.item(hd_wasm::FLOAT_MODULE, name), TyList::EMPTY);
-                if self.body_of(p, r.0).is_some() {
-                    extra.insert(r);
-                }
-            }
             let reach = phase("collect: reach");
             let collected = hd_mono::collect(
                 &self.pool,
@@ -11033,12 +11027,6 @@ impl Run<'_> {
             // the emitted fixture reaches them.
             for (m, n) in hd_wasm::runtime_items(self.checked(), self.report()) {
                 let d = names.item(m, n);
-                if self.body_of(p, d).is_some() {
-                    roots.push((d, TyList::EMPTY));
-                }
-            }
-            for name in hd_wasm::FLOAT_FNS {
-                let d = names.item(hd_wasm::FLOAT_MODULE, name);
                 if self.body_of(p, d).is_some() {
                     roots.push((d, TyList::EMPTY));
                 }
@@ -12226,31 +12214,17 @@ impl Run<'_> {
                 );
                 return;
             }
-            let float_keys = hd_wasm::FLOAT_FNS.map(|name| {
+            let float_key = |name| {
                 let def = names.item(hd_wasm::FLOAT_MODULE, name);
                 let table = &c.collected.table;
                 table
                     .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
                     .map(|id| table.key[id.idx()])
-            });
-            let pow_f32 = c
-                .collected
-                .table
-                .get(
-                    names.item(hd_wasm::FLOAT_MODULE, hd_wasm::FLOAT_POW_F32),
-                    hd_mono::Sub::Body(0),
-                    TyList::EMPTY,
-                )
-                .map(|id| c.collected.table.key[id.idx()]);
-            let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys, pow_f32) else {
-                self.stage::<()>(
-                    Stage::Link,
-                    Err(NotImplemented::bug(
-                        Stage::Link,
-                        "std.num floating operator implementations were not collected",
-                    )),
-                );
-                return;
+            };
+            let float_ops = hd_wasm::FloatOps {
+                pow: float_key(hd_wasm::FLOAT_POW_F64),
+                rem: float_key(hd_wasm::FLOAT_REM_F64),
+                pow_f32: float_key(hd_wasm::FLOAT_POW_F32),
             };
             let package_trait = |d| self.package_trait_identity(d);
             let package_host = |d| self.package_host_identity(d);
@@ -14065,13 +14039,19 @@ impl Env<'_> {
 
 impl ProgramEnv for Env<'_> {
     fn float_operator(&self, op: hd_tir::ir::PrimOp, ty: Ty) -> Option<DefId> {
-        // ** accepts only primitives or a Float-bound parameter, substituted
-        // before collection (expr.power.float.same-type/type-parameter).
-        (op == hd_tir::ir::PrimOp::Pow && ty == Ty::prim(hd_types::Prim::F32)).then(|| {
-            self.run
-                .names()
-                .item(hd_wasm::FLOAT_MODULE, hd_wasm::FLOAT_POW_F32)
-        })
+        use hd_tir::ir::PrimOp;
+        use hd_types::Prim;
+        // Collection has substituted each generic/closure instance's type.
+        // Remainder widens f32 to exact f64 fmod, then narrows the result.
+        let name = match op {
+            PrimOp::Pow if ty == Ty::prim(Prim::F32) => hd_wasm::FLOAT_POW_F32,
+            PrimOp::Pow if ty == Ty::prim(Prim::F64) => hd_wasm::FLOAT_POW_F64,
+            PrimOp::Rem if ty == Ty::prim(Prim::F32) || ty == Ty::prim(Prim::F64) => {
+                hd_wasm::FLOAT_REM_F64
+            }
+            _ => return None,
+        };
+        Some(self.run.names().item(hd_wasm::FLOAT_MODULE, name))
     }
 
     fn source_span(&self, item: DefId, node: hd_base::NodeIdx) -> Option<Span> {
