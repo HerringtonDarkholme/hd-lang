@@ -2802,9 +2802,10 @@ pub trait Surface:
 20. r[module.host.package.contract-source-names] The package host contract records source names for structurally represented structs, enums and method parameters.
 21. r[module.host.package.c-types] A package host trait bound to a C provider declares only methods whose parameter and result types are rows of the [C value table](#c-value-table). Error: `boundary-not-safe`.
 22. r[module.host.package.c-references] In such a trait, a local reference to a number or to a list of numbers is boundary-safe. The C function may use it only until the call returns.
-23. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
-24. r[module.host.package.c-no-supertraits] Such a trait declares no supertraits: its C function table holds its own methods, in source order. Error: `boundary-not-safe`.
-25. r[module.host.package.c-js-views] A JavaScript provider of such a trait receives a local reference to a number or to a list of numbers as a typed array over the guest's memory. It may read the array, and write it for `&mut`, only until the call returns.
+23. r[module.host.package.c-aligned] The address the host passes for such a reference is a multiple of its number type's size. A reference at another address fails the call. Boundary failure: `host-contract`.
+24. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
+25. r[module.host.package.c-no-supertraits] Such a trait declares no supertraits: its C function table holds its own methods, in source order. Error: `boundary-not-safe`.
+26. r[module.host.package.c-js-views] A JavaScript provider of such a trait receives a local reference to a number or to a list of numbers as a typed array over the guest's memory. It may read the array, and write it for `&mut`, only until the call returns.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.

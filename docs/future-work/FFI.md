@@ -418,6 +418,7 @@ Rules this design revises, quoted:
 | --- | --- |
 | calls | until step 6's trampolines, a bridge calls every slot through one fixed function type per calling convention (System V x86-64, AAPCS64, Apple arm64, Windows x64), with each argument placed by class and position; a slot needing more than 16 stack words past the registers, or a target other than x86-64 or arm64, is refused at startup (decision 16) |
 | `!` methods | a module that calls a C provider's suspending method is refused at startup until step 5 binds its token |
+| pointer arguments | a reference to a number, or to a list of numbers, must lie in the guest heap at a multiple of its number type's size; otherwise the call fails with `host-contract`, "misaligned C pointer argument", as the JavaScript glue words it ([`module.host.package.c-aligned`](../../spec/lang/10-modules.md#r-module.host.package.c-aligned)) |
 | `hd test` | binds no C provider yet: a C-bound trait's test runs on Node through its `js` provider |
 | workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
 | returned handles | still refused by the check; step 4b binds them (decision 1 of the step 1 answers) |
