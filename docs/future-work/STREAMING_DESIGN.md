@@ -1,8 +1,14 @@
 # Streaming: One Reader And Writer Shape
 
-Today an hd program reads an HTTP body, a child process's output or a
-file in one piece: `send!`, `run!` and `read_text!` return the whole
-thing. That is right for most programs and fails for the rest: a
+Status: historical proposal; its names are placeholders, not accepted API.
+Chunked file and standard-input reads now use
+[`std.io.Read` and `BufReader`](../../spec/std/io.md), with
+[streaming JSON decoding](../../spec/std/json.md#decoding-a-stream).
+The HTTP, process and writer portions below remain proposals.
+
+The buffered calls for HTTP bodies, child process output and files
+return the whole input: `send!`, `run!` and `read_text!` read one piece.
+That is right for most programs and fails for the rest: a
 download larger than memory, a build whose output should appear as it
 runs, a log of several gigabytes, a line protocol over a socket. This
 design adds streaming beside the buffered calls. HTTP bodies, child
@@ -18,10 +24,10 @@ host reports handles a program forgot to close. On the host boundary a
 handle is a plain descriptor id that std wraps, as Rust's `File` wraps
 a file descriptor.
 
-This is the design for issue #350; nothing in it is implemented yet,
-and every name is a placeholder. It adds one
-reader shape beside the buffered terminals, as
-[the standard library convention](STDLIB.md) allows.
+This proposal grew from the stdlib audit #350, closed as superseded.
+It describes a broader reader and writer shape beside buffered terminals,
+as [the standard library convention](STDLIB.md) allows.
+The linked specifications describe the implemented file and stdin APIs.
 
 ## 1. The Problem
 
@@ -36,9 +42,11 @@ notes := read_text!(Path("notes.md"))?      # the whole file
 Four programs do not fit them: a download larger than memory or with
 progress, a build that prints for minutes, a log of several gigabytes
 read line by line, and a line protocol such as SMTP over a socket.
-`TcpStream` already streams, with `read!(max)` and `write!(bytes)`; the
-other sources have nothing. The aim is one shape for all four, so a
-helper written once (count lines, copy, hash) serves every source.
+`TcpStream` already streams, with `read!(max)` and `write!(bytes)`.
+HTTP and child process output still have no streaming terminal in std.
+Files and stdin now implement `std.io.Read`.
+The broader aim is one shape for all sources, so a helper written once
+(count lines, copy, hash) serves each source.
 
 ## 2. The Design On One Page
 
