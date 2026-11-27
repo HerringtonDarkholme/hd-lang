@@ -1,6 +1,6 @@
-//! Every `Env` reads the program's impls through one view (#2146): its
-//! unit list is built once per run, so its work counts the program's
-//! units, not those times the bodies the passes own.
+//! Checking and program views share each unit's frozen impl table (#2146).
+//! Count the actual table initialization, not a lazy whole-program fallback
+//! that a program using only direct owner lookups need not request.
 
 use std::fmt::Write as _;
 

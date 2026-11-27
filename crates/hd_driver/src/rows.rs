@@ -1,8 +1,10 @@
-//! One last-run record per source set and check kind: module findings,
-//! unit read fingerprints, and header findings share the same row format.
-//! Interface bytes live only in their canonical Iface entries; a row keeps
-//! the entry key and its read list, never another copy of its sections.
-//! Cost: O(current modules + units) setup, one record read per source set,
+//! Source-set findings and canonical interface records share one row
+//! format, indexed by source set and normal/test checking role.
+//! For named source sets this record owns the canonical interface
+//! sections; standalone Iface entries are used only without such a record.
+//! Interface records are separate from changing check findings, so a body
+//! edit never rewrites unchanged interface blobs. Both use this one codec.
+//! Cost: O(current modules + units) setup, two records read per source set,
 //! binary search per row, and a changed set's bytes written once.
 
 use std::ops::Range;
@@ -106,35 +108,41 @@ impl<'a> Rows<'a> {
         store: &'a dyn CacheStore,
         toolchain: Hash128,
         identities: &[Option<(Hash128, bool)>],
-        kind: Option<Hash128>,
+        kind: Hash128,
         table: &ModuleTable,
     ) -> Self {
-        let kind = kind.map(|kind| {
-            let mut h = hd_base::StableHasher::new("check-rows-v2");
+        let kind = {
+            let mut h = hd_base::StableHasher::new("check-rows-v3");
             h.hash(kind);
             h.finish()
-        });
+        };
         let sets = identities
             .iter()
-            .map(|identity| {
-                let &(key, partial) = identity.as_ref()?;
-                Some(Set {
-                    at: ResultKey { toolchain, key },
-                    kind: kind?,
-                    partial,
-                    old: OnceLock::new(),
+            .flat_map(|identity| {
+                [false, true].map(|interfaces| {
+                    let &(key, partial) = identity.as_ref()?;
+                    let mut record = hd_base::StableHasher::new("source-set-rows");
+                    record.hash(kind);
+                    record.u8(u8::from(interfaces));
+                    Some(Set {
+                        at: ResultKey { toolchain, key },
+                        kind: record.finish(),
+                        partial,
+                        old: OnceLock::new(),
+                    })
                 })
             })
             .collect();
         let modules = table.modules.len();
         let units = table.units.len();
         let count = modules + 2 * units;
-        let mut packages = vec![Vec::new(); identities.len()];
+        let mut packages = vec![Vec::new(); identities.len() * 2];
         for (m, module) in table.modules.iter().enumerate() {
-            packages[usize::from(module.package)].push(m);
+            packages[usize::from(module.package) * 2].push(m);
         }
         for (u, unit) in table.units.iter().enumerate() {
-            packages[usize::from(unit.package)].extend([modules + u, modules + units + u]);
+            packages[usize::from(unit.package) * 2 + 1].push(modules + u);
+            packages[usize::from(unit.package) * 2].push(modules + units + u);
         }
         Self {
             store,
@@ -155,7 +163,7 @@ impl<'a> Rows<'a> {
         if index < self.modules {
             (
                 Kind::Module,
-                usize::from(table.modules[index].package),
+                usize::from(table.modules[index].package) * 2,
                 table.sources[index].1.as_bytes(),
             )
         } else {
@@ -165,7 +173,11 @@ impl<'a> Rows<'a> {
                 (Kind::Header, index - self.modules - self.units)
             };
             let unit = &table.units[u];
-            (kind, usize::from(unit.package), unit.path.as_bytes())
+            (
+                kind,
+                usize::from(unit.package) * 2 + usize::from(kind == Kind::Iface),
+                unit.path.as_bytes(),
+            )
         }
     }
 
@@ -251,14 +263,14 @@ impl<'a> Rows<'a> {
         table: &ModuleTable,
         u: usize,
         own: Hash128,
-    ) -> Option<(Hash128, CacheSection)> {
+    ) -> Option<(Hash128, Vec<CacheSection>)> {
         let (old, at) = self.row(table, self.modules + u)?;
         let row = &old.rows[at];
         if row.2 != own {
             return None;
         }
-        let mut sections = sections_in(&old.bytes, &row.4)?;
-        (sections.len() == 1).then(|| (row.3, sections.remove(0)))
+        let sections = sections_in(&old.bytes, &row.4)?;
+        (sections.len() == 10).then_some((row.3, sections))
     }
 
     pub(crate) fn header(
@@ -274,14 +286,24 @@ impl<'a> Rows<'a> {
             .flatten()
     }
 
+    pub(crate) fn keeps_interfaces(&self, table: &ModuleTable, u: usize) -> bool {
+        self.sets[usize::from(table.units[u].package) * 2 + 1].is_some()
+    }
+
     pub(crate) fn record_iface(
         &self,
         table: &ModuleTable,
         u: usize,
         (own, key): (Hash128, Hash128),
         reads: &[u8],
+        sections: &[impl AsRef<[u8]>],
     ) {
-        self.write(table, self.modules + u, own, key, |w| w.blob(reads));
+        self.write(table, self.modules + u, own, key, |w| {
+            w.blob(reads);
+            for section in sections {
+                w.blob(section.as_ref());
+            }
+        });
     }
 
     pub(crate) fn record_header(

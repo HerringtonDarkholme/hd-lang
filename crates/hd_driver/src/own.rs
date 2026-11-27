@@ -3693,7 +3693,6 @@ impl hd_types::lookup::UnitContext for Run<'_> {
         codes: [Option<u64>; 3],
     ) -> Box<dyn Iterator<Item = (usize, &hd_types::lookup::UnitImpls)> + '_> {
         let built = self.built_units.get_or_init(|| {
-            lock(&self.counters).view_units += self.table.units.len();
             (0..self.table.units.len())
                 .map(super::u32_of)
                 .filter(|&u| self.unit_impls(hd_base::UnitId::from_raw(u)).is_some())

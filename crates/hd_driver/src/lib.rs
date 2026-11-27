@@ -2940,13 +2940,17 @@ fn build_packages_inner(
         key.hash(hosts);
         package_key = key.finish();
     }
-    // A check run keeps rows, one record per run kind and root package.
-    let kind = matches!(goal, Goal::Analyze | Goal::CheckTests).then(|| {
+    // Checking and building share canonical interface storage. Test-role
+    // records stay separate; every row still verifies its own query key.
+    let kind = {
         let mut k = hd_base::StableHasher::new("rows-kind");
-        k.u8(u8::from(matches!(goal, Goal::CheckTests)));
+        k.u8(u8::from(matches!(
+            goal,
+            Goal::CheckTests | Goal::Tests { .. }
+        )));
         k.hash(package_key);
         k.finish()
-    });
+    };
     let rows = rows::Rows::new(host.store, toolchain, &identities, kind, &table);
     let run = Run {
         lint: analysis::Lint::new(analysis, n),
@@ -4873,15 +4877,15 @@ impl Run<'_> {
                 iface_key(own, &rows)
             }
         };
-        // A row keeps only the read fingerprint and canonical interface key.
-        // Missing/evicted interface bytes fall through to the ordinary rebuild.
+        // The indexed source-set record owns these canonical sections: do not
+        // look up or store a second copy under an individual interface key.
         if !input
             && !broken
-            && let Some((key, reads)) = self.rows.iface(&self.table, fi, own)
-            && let Some(reads) = decode_reads(&reads)
+            && let Some((key, row)) = self.rows.iface(&self.table, fi, own)
+            && let Some(reads) = decode_reads(&row[0])
             && key_of(&reads) == key
-            && let Some(sections) = self.lookup(EntryKind::Iface, key)
-            && let Some(mentions) = self.iface_hit(fi, &sections, None)
+            && let sections = &row[1..]
+            && let Some(mentions) = self.iface_hit(fi, sections, None)
         {
             if let Some(diags) = sections.get(1).and_then(|d| decode_iface_diags(d)) {
                 self.leave_reused(fi, own, reads, key, diags, &mentions);
@@ -4917,7 +4921,8 @@ impl Run<'_> {
                 self.leave_reused(fi, own, reads.clone(), key, diags, &mentions);
             }
             if let Some(reads) = stored.as_deref().filter(|_| !input) {
-                self.rows.record_iface(&self.table, fi, (own, key), reads);
+                self.rows
+                    .record_iface(&self.table, fi, (own, key), reads, &sections);
             }
             let m = unit.modules[0].idx();
             self.keep_input(
@@ -5011,23 +5016,22 @@ impl Run<'_> {
         // The units the interface names, so a hit finds them without
         // decoding its items (#213).
         let msec = encode_mentioned(&mentions);
-        if !broken {
-            self.put(
-                EntryKind::Iface,
-                key,
-                &[
-                    &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
-                ],
-            );
+        let sections = [
+            &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
+        ];
+        let retained = !input && self.rows.keeps_interfaces(&self.table, fi);
+        if !broken && !retained {
+            self.put(EntryKind::Iface, key, &sections.map(Vec::as_slice));
         }
-        // The read list goes after the entry it keys: a concurrent build
-        // that reads the list finds the entry too.
+        // Stable source sets publish their canonical record at finish.
+        // Other callers publish the canonical entry before its read list.
         if !input && !broken {
             let bytes = encode_reads(&reads);
-            if stored.as_deref() != Some(bytes.as_slice()) {
+            if !retained && stored.as_deref() != Some(bytes.as_slice()) {
                 self.put(EntryKind::Iface, own, &[&bytes]);
             }
-            self.rows.record_iface(&self.table, fi, (own, key), &bytes);
+            self.rows
+                .record_iface(&self.table, fi, (own, key), &bytes, &sections);
         }
         self.keep_input(
             unit.modules[0].idx(),
@@ -7008,7 +7012,12 @@ impl Run<'_> {
         // A module whose key and text match its row takes the row and reads
         // no entry ([`Self::record_row`]).
         let source = self.skim_of(mi).file.source_hash;
-        let row = self.rows.get(&self.table, mi, key, source);
+        // Analysis rows omit TIR; executable/session builds need the complete
+        // Check entry even when they share the canonical interface record.
+        let row = self
+            .analyze()
+            .then(|| self.rows.get(&self.table, mi, key, source))
+            .flatten();
         // A module that does not parse is checked every run, its broken
         // declarations left out (`grammar.recovery.item`), and never
         // stored: the key ignores comments and blank lines, which can
@@ -7166,6 +7175,7 @@ impl Run<'_> {
                 let impls: Vec<&Item> = iface.items.impls().collect();
                 let table = hd_resolve::impl_table(&self.names(), &impls);
                 let fi = UnitImpls::new(f, table, self.pool.types(), &self.paths, self.owners());
+                lock(&self.counters).view_units += 1;
                 Some(Arc::new(fi))
             })
             .as_deref()
@@ -9579,9 +9589,11 @@ impl Run<'_> {
     fn record_row(&self, m: usize, key: Hash128, sections: &[impl AsRef<[u8]>]) {
         let regs = self.regs[m].get().map_or(&[][..], Vec::as_slice);
         let checked = self.check[m].get().and_then(Option::as_ref);
-        if checked.is_some_and(|c| {
-            !c.has_opaque && !c.has_inline_always && !self.capabilities_read(m, regs)
-        }) {
+        if self.analyze()
+            && checked.is_some_and(|c| {
+                !c.has_opaque && !c.has_inline_always && !self.capabilities_read(m, regs)
+            })
+        {
             let source = self.skim_of(m).file.source_hash;
             self.rows.record(&self.table, m, key, source, sections);
         }

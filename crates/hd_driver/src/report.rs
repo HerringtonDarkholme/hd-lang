@@ -132,8 +132,8 @@ pub struct Counters {
     /// How many body-unit pass runs collection's planner made
     /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2): 0 in a pipeline with no body pass.
     pub body_passes: usize,
-    /// Units the program view read to list its built units
-    /// (`Run::with_env`): the program's units once, whatever its bodies.
+    /// Unit impl tables initialized for the shared checking/program views,
+    /// once per built unit, whatever the number of bodies or solver probes.
     pub view_units: usize,
 }
 
