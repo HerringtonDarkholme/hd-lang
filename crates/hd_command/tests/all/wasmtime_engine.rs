@@ -682,6 +682,23 @@ fn stdin_reads_bytes_as_they_arrive() {
     assert_eq!(outputs[0], outputs[1], "node and wasmtime");
 }
 
+/// `BufReader::lines` over `stdin()` keeps each line ending exactly as
+/// read, on both engines, across a 3-byte buffer: `\r\n` stays two bytes
+/// and a last line with no ending keeps its `\r` (`std-io.buf-reader.lines`,
+/// `std-console.stdin.exact`).
+#[test]
+fn stdin_lines_keep_their_endings() {
+    let dir = program(
+        "stdin-lines",
+        include_str!("programs/wasmtime_engine/stdin_lines_keep_their_endings.hd"),
+    );
+    let out = both_with(&dir, &["main.hd"], "ab\r\ncdefg\n\nlast\r", &[]);
+    assert_eq!(
+        text(&out.stdout),
+        "[97, 98, 13, 10]\n[99, 100, 101, 102, 103, 10]\n[10]\n[108, 97, 115, 116, 13]\nend\n"
+    );
+}
+
 /// `open!` reads a file larger than any whole read may be, 3 GiB, one
 /// chunk at a time, and stops after 1 MiB and 16 bytes: those are the
 /// only bytes that cross into the program, so its memory stays O(chunk)

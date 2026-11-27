@@ -2,7 +2,7 @@
 # test: open! reads a host file and a MemoryFs file in chunks, and reports what read_bytes! reports
 # Spec std/fs Reading Files In Chunks: std-fs.open.decl, std-fs.open.chunks, std-fs.open.errors, std-fs.open.default.
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, create_dir_all, open, write_bytes}
-use std.io.{IoError, Read}
+use std.io.{BufReader, IoError, Read}
 use std.path.Path
 use std.testing.{assert_equal, temp_dir}
 
@@ -38,3 +38,11 @@ it("the host and MemoryFs read a file in the same chunks"):
     files := MemoryFs::new()
     $.with(FsRead=files, FsWrite=files):
         exercise!(Path("/"))
+
+it("a BufReader over a host file keeps each line ending"):
+    file := temp_dir().join("lines.txt")
+    write_bytes!(file, "a\r\nb\n".to_utf8()).expect("seed the file")
+    let mut lines = BufReader::new(open!(file).expect("open")).lines()
+    assert_equal(lines.next!(), .Some(.Ok("a\r\n")), reason="the CRLF line")
+    assert_equal(lines.next!(), .Some(.Ok("b\n")), reason="the LF line")
+    assert_equal(lines.next!(), .None, reason="the end")

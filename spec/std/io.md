@@ -7,7 +7,9 @@ over the language tier:
 
 - the trait `Read`, which every byte source read in chunks implements;
 - the error enum `IoError`;
-- `Cursor`, the `Read` source over bytes in memory.
+- `Cursor`, the `Read` source over bytes in memory;
+- `BufReader`, which reads a source a buffer at a time and hands out
+  lines, and its line cursor `Lines`.
 
 A file ([Reading Files In Chunks](fs.md#reading-files-in-chunks)) and standard input
 ([Standard Input Bytes](console.md#standard-input-bytes)) implement `Read`.
@@ -59,7 +61,7 @@ pub enum IoError:
 
 1. r[std-io.error.decl] `std.io` declares `IoError` as above. It implements `Debug`, `Eq`, and `Display`. Code imports it, as in `use std.io.IoError`.
 2. r[std-io.error.other] `Other` holds a host read failure with the host's message.
-3. r[std-io.error.invalid-utf8] `InvalidUtf8` reports bytes that a read of text cannot decode as UTF-8.
+3. r[std-io.error.invalid-utf8] `InvalidUtf8` reports bytes that a read of text, such as [`BufReader.read_line!`](#buffered-reading), cannot decode as UTF-8.
 
 ## Cursor
 
@@ -82,6 +84,44 @@ tests:
 1. r[std-io.cursor.decl] `std.io` declares `Cursor`, with private fields, which implements `Read` and `Debug`. `Cursor::new(bytes: List[u8]) -> Cursor` returns a cursor at the first byte.
 2. r[std-io.cursor.read] Each `read!(max)` returns the next `max` bytes, or all that are left when fewer, then an empty list.
 3. r[std-io.cursor.position] `position(&self) -> usize` returns how many bytes have been read.
+
+## Buffered Reading
+
+`BufReader` reads its source a buffer at a time, so a line costs no host
+call of its own:
+
+```text
+use std.console.{ConsoleInput, stdin}
+use std.io.BufReader
+
+fn count_lines!() -> usize $ ConsoleInput:
+    let mut lines = BufReader::new(stdin()).lines()
+    let count: usize = 0
+    while true:
+        match lines.next!():
+            .Some(.Ok(_)) => count = count + 1
+            _ => break
+    count
+```
+
+```text
+pub struct BufReader[R < Read]
+pub struct Lines[R < Read]
+```
+
+1. r[std-io.buf-reader.decl] `std.io` declares `BufReader[R < Read]`, with private fields, which implements `Read`. `BufReader::new(inner: R)` returns a reader over `inner` with an 8 KiB buffer.
+2. r[std-io.buf-reader.capacity] `BufReader::with_capacity(capacity: usize, inner: R)` reads `inner` at most `capacity` bytes at a time. A `capacity` of 0 reads one byte at a time.
+3. r[std-io.buf-reader.read-line] `read_line!(&mut self) -> Result[string?, IoError]` returns the next line with its line ending exactly as read, `\n` or `\r\n`, or `.None` at the end of input. A last line with no ending is returned as it is.
+4. r[std-io.buf-reader.invalid-utf8] A line that is not UTF-8 is `.Err(IoError.InvalidUtf8)`. Its bytes are read, so the next `read_line!` reads the line after it.
+5. r[std-io.buf-reader.lines] `lines(self) -> Lines[R]` returns a cursor whose `next!(&mut self) -> Result[string, IoError]?` returns what `read_line!` reads: `.Some(.Ok(line))`, `.Some(.Err(error))`, or `.None` at the end.
+6. r[std-io.buf-reader.read] `read!(max)` returns buffered bytes first. With an empty buffer, a `max` of at least the capacity reads `inner` directly, and a smaller one refills the buffer.
+7. r[std-io.buf-reader.into-inner] `into_inner(self) -> R` returns the source. Bytes still in the buffer are dropped.
+8. r[std-io.buf-reader.cost] A line costs O(its length): each byte is read from `inner` once, scanned once, and copied once.
+
+> **Why.** Line endings stay, as Rust's `read_line` and Go's
+> `ReadString('\n')` keep them, so a filter writes back exactly the bytes
+> it read. `Lines` is a cursor with a bang `next!`, not an `Iterator`,
+> because reading suspends.
 
 See also: [Reading Files In Chunks](fs.md#reading-files-in-chunks),
 [Standard Input Bytes](console.md#standard-input-bytes).

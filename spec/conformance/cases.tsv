@@ -5551,6 +5551,7 @@ std/error/error-context/error-context-private-field.hd	type	reject:unknown-field
 std/fs/memory-file-system/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
 std/fs/reading-files-in-chunks/dropped-files-are-released.hd	runtime	accept	std/fs.md#r-std-fs.open.released
 std/fs/reading-files-in-chunks/open-reads-a-file-in-chunks.hd	runtime	accept	std/fs.md#r-std-fs.open.chunks
+std/io/buffered-reading/buf-reader-lines.hd	runtime	accept	std/io.md#r-std-io.buf-reader.read-line
 std/io/reading-in-chunks/cursor-reads-in-chunks.hd	runtime	accept	std/io.md#r-std-io.read.at-most
 std/http/sending/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#r-std-http.helper.get-post
 std/collections/heap/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-collections.heap.collect.linear

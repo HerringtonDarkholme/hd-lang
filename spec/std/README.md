@@ -229,7 +229,7 @@ file of its own.
 | [`convert.md`](convert.md) | `std.convert` | `std-convert` | explicit fallible conversions through `TryFrom` |
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Env` and `Sys`, the helper `env`, the providers `ScriptedEnv` and `ScriptedSys`, `HostError`, and the rules every host operation follows |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, `File` and `open!`, and the provider `MemoryFs` |
-| [`io.md`](io.md) | `std.io` | `std-io` | the trait `Read` of byte sources read in chunks, `IoError`, and `Cursor` |
+| [`io.md`](io.md) | `std.io` | `std-io` | the trait `Read` of byte sources read in chunks, `IoError`, `Cursor`, and `BufReader` with its `Lines` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
 | [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, request sending and checked `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
