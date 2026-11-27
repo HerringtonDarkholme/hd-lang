@@ -604,8 +604,8 @@ pub fn main!() -> void $ Console + ConsoleInput:
 }
 
 /// `read_all!` reads the rest of standard input whole, on both engines,
-/// as read, with `\r\n` read as `\n`
-/// (`std-console.input.read-all-host-coded-error`).
+/// without newline translation
+/// (`std-console.input.read-all-host-preserves-bytes`).
 #[test]
 fn console_input_reads_all() {
     let dir = program(
@@ -628,10 +628,10 @@ pub fn main!() -> void $ Console + ConsoleInput:
 ",
     );
     for (input, want) in [
-        // A final newline is kept, and `\r\n` is read as `\n`.
+        // Every remaining line ending is kept byte for byte.
         (
             "one\r\ntwo\r\n\nlast\r\n",
-            "[one]\n<two\n\nlast\n>\n<>\nend\n",
+            "[one]\n<two\r\n\nlast\r\n>\n<>\nend\n",
         ),
         ("one\ntwo\nlast\n", "[one]\n<two\nlast\n>\n<>\nend\n"),
         ("one\ntwo\nlast", "[one]\n<two\nlast>\n<>\nend\n"),

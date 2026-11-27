@@ -1,0 +1,27 @@
+# std-console.input.read-all-preserves-text, std-console.input.read-all-end,
+# std-console.input.read-all-host-preserves-bytes, std-console.input.line-ending-lf-crlf.
+use std.process.Command
+use std.testing.{assert_equal, hd_run}
+
+it("read_all preserves CRLF and a trailing lone CR"):
+    output := hd_run!(*Command::new("all").stdin("a\r\nb\r"))
+    assert_equal(output.stdout, "\"a\\r\\nb\\r\"\n", reason="stdin text is unchanged")
+    assert_equal(output.status, 0, reason="clean EOF")
+
+it("read_line removes only its final line ending"):
+    output := hd_run!(*Command::new("lines").stdin("a\r\nb\r\nc\r"))
+    assert_equal(
+        output.stdout,
+        "\"a\"\n\"b\\r\\nc\\r\"\n\"EOF\"\n",
+        reason="mixed reads preserve unread bytes",
+    )
+    assert_equal(output.status, 0, reason="clean EOF")
+
+it("read_line preserves a lone CR at EOF"):
+    output := hd_run!(*Command::new("tail").stdin("a\r\nb\r"))
+    assert_equal(
+        output.stdout,
+        "\"a\"\n\"b\\r\"\n\"EOF\"\n",
+        reason="a CR without LF is input text",
+    )
+    assert_equal(output.status, 0, reason="clean EOF")

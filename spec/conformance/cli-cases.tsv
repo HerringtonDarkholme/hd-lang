@@ -404,3 +404,4 @@ new-dot	cli.name.dot.new,cli.name.dot.diagnostic,cli.exit.hd-failure
 fmt-let-else	cli.fmt.meaning,cli.fmt.idempotent
 wasm-build-profile	cli.wasm.build-level,cli.wasm.legacy-level,cli.wasm.release-flag
 native-build-artifacts	cli.build.output.artifact,cli.build.output.file-artifact,cli.build.artifact.profile-directory,cli.build.artifact.native,cli.build.artifact.portable,cli.build.artifact.native-pipeline,cli.run.native-release,cli.native.run,cli.native.engine,cli.native.host,cli.native.standalone,cli.native.compatibility,cli.native.release-flag,cli.install.release-artifact
+console-crlf	cli.test.process,cli.test.process.tasks,cli.engine.same-behavior
