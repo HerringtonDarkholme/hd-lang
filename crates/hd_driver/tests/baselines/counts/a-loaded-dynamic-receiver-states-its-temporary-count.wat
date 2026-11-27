@@ -8,7 +8,7 @@
     ;; 9 |     value.to_string()
     local.get $value.0
     local.get $value.1
-    i32.load $heap offset=4
+    i32.load $heap
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
   )
@@ -27,7 +27,7 @@
     end
     local.get $t0
     local.get $value
-    i32.load $heap offset=4
+    i32.load $heap
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.get $t0

@@ -1520,7 +1520,8 @@ impl HandleTree<'_, '_> {
         })
     }
 
-    /// The slots of `owner`'s part of the handle's vtable, one per method.
+    /// The slots of `owner`'s part of the handle's vtable, one per method
+    /// that keeps one (`hd_mono::Collected::slots`).
     fn slots(
         &self,
         m: &mut Module,
@@ -1531,7 +1532,7 @@ impl HandleTree<'_, '_> {
         let input = self.input;
         let (pool, env) = (input.pool, input.env);
         let mut slots = Vec::new();
-        for method in env.trait_methods(owner) {
+        for method in input.collected.slots(env, owner) {
             let mp = (input.path)(method);
             let member = mp.rsplit(['.', '/']).next().unwrap_or("");
             let inner = match self.host {

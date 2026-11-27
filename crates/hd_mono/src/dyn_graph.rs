@@ -8,7 +8,7 @@
 use hd_base::{DefId, HashMap, HashSet, NotImplemented, Stage, StageResult};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
-use crate::{ProgramEnv, slot_methods, subst};
+use crate::{Collected, ProgramEnv, subst};
 
 /// Direct supertraits in declaration order, with `Self` and arguments filled.
 /// One substitution per edge; consumers retain this list while walking it.
@@ -45,7 +45,14 @@ pub struct DynPaths {
 }
 
 impl DynPaths {
-    pub fn new(pool: &InternPool, env: &dyn ProgramEnv, root: Ty) -> StageResult<Self> {
+    /// A table's parent pointers follow the slots its trait keeps in
+    /// `program` ([`Collected::slots`]).
+    pub fn new(
+        pool: &InternPool,
+        env: &dyn ProgramEnv,
+        program: &Collected,
+        root: Ty,
+    ) -> StageResult<Self> {
         let mut out = Self::default();
         let mut seen = HashSet::default();
         let mut stack = vec![(root, None)];
@@ -70,7 +77,7 @@ impl DynPaths {
                 .entry((def, args))
                 .or_insert_with(|| bindings.into_iter().collect());
             out.fallback.entry(def).or_insert(index);
-            let own = slot_methods(env, def).len();
+            let own = program.slots(env, def).len();
             let supers = direct_supers(pool, env, def, args, at);
             crate::work::dyn_path(supers.len());
             // Push rightmost first so popping visits declared parents leftmost

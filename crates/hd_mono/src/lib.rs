@@ -436,8 +436,11 @@ pub struct VTableId(pub usize);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VTable {
     pub trait_: DefId,
-    pub slots: Vec<CallTarget>,
-    /// Per slot, how its adapter hands the payload to the target.
+    /// Per method of [`slot_methods`], its target, or `None` for one that
+    /// keeps no slot ([`Collected::slots`]): collection never resolves it.
+    pub slots: Vec<Option<CallTarget>>,
+    /// Per method of [`slot_methods`], how its adapter hands the payload
+    /// to the target.
     pub recv: Vec<SlotRecv>,
     pub parents: Vec<VTableId>,
     /// Own slot representations and ordered parent digests, computed once.
@@ -553,6 +556,9 @@ pub struct Collected {
     /// The trait methods that scanned code calls through a trait value
     /// ([`Target::Dyn`], a function reference's adapter included).
     pub dyn_methods: HashSet<DefId>,
+    /// Whether every method with a slot keeps it ([`Collected::slots`]):
+    /// a REPL session's, whose later inputs call the tables built earlier.
+    pub all_slots: bool,
     /// Concrete data types whose release glue first calls their
     /// `std.rt.Drop.drop` implementation, by type and instance key.
     pub drop_glue: HashMap<Ty, Hash128>,
@@ -582,6 +588,37 @@ impl Collected {
     pub fn calls_dyn(&self, method: DefId) -> bool {
         self.dyn_methods.contains(&method)
     }
+
+    /// The methods of trait `trait_` that keep a slot in this program's
+    /// dispatch tables, in slot order: [`slot_methods`] less those no call
+    /// site can reach ([`slot_kept`]). Every table of the trait and every
+    /// call through one number their slots by this one list.
+    #[must_use]
+    pub fn slots(&self, env: &dyn ProgramEnv, trait_: DefId) -> Vec<DefId> {
+        let mut methods = slot_methods(env, trait_);
+        methods.retain(|&m| slot_kept(env, self.all_slots, &self.dyn_methods, trait_, m));
+        methods
+    }
+}
+
+/// Whether method `m` of trait `trait_`, one of [`slot_methods`], keeps
+/// its slot in a program whose trait-value calls name the methods
+/// `called`. A call through a trait value ([`Target::Dyn`]) is what reads
+/// a slot, so a method that no such call names has none, and no
+/// implementation of it is collected for a table. Kept besides: every
+/// slot when `all` (a REPL session, whose later inputs call the tables
+/// earlier inputs built), and every slot of a compiler-supplied trait,
+/// whose `runtime_type` slot the `runtime_type` and downcast intrinsics
+/// read with no call site (`trait.inspect.dynamic`).
+#[must_use]
+pub fn slot_kept(
+    env: &dyn ProgramEnv,
+    all: bool,
+    called: &HashSet<DefId>,
+    trait_: DefId,
+    m: DefId,
+) -> bool {
+    all || called.contains(&m) || env.decls().sealed().supplies(trait_)
 }
 
 pub use layout::InstanceTable;
@@ -1367,6 +1404,9 @@ struct Cx<'a> {
     drop_checked: HashSet<Ty>,
     /// One node per concrete instantiated trait, across coercion sites.
     vtables: HashMap<(Ty, DefId, TyList), VTableId>,
+    /// The slots built tables leave unresolved, by method, until a call
+    /// through a trait value names it ([`Cx::note_dyn`]).
+    pending: HashMap<DefId, Vec<PendingSlot>>,
     /// Each lifted `Wire` crossing literal an instance numbers: its
     /// number, its function's code instance and type (`fn.crossing.lift`).
     crossings: Vec<(u64, Hash128, Ty)>,
@@ -1382,6 +1422,23 @@ struct Cx<'a> {
     worker_sends: bool,
     /// [`ProgramEnv::crossing_items`], resolved once: a scan asks per call.
     crossing: Option<(DefId, DefId, DefId, DefId)>,
+}
+
+/// A table's slot whose method no call through a trait value has named
+/// yet ([`Cx::vtable_node`]): what resolving its target takes.
+struct PendingSlot {
+    vtable: VTableId,
+    /// Its index in [`slot_methods`].
+    slot: usize,
+    trait_: DefId,
+    trait_args: TyList,
+    /// The type whose implementation fills the slot.
+    self_ty: Ty,
+    /// The instance whose coercion built the table.
+    parent: InstId,
+    /// A reference-receiver slot of a payload that is no reference:
+    /// only a compiler-supplied body may fill it.
+    builtin_only: bool,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2613,18 +2670,26 @@ impl Cx<'_> {
                 }
                 continue;
             }
-            let node = self.vtable_node(key.1, key.2, from, parent, current.parents)?;
+            let (node, pending) = self.vtable_node(key.1, key.2, from, parent, current.parents)?;
             let id = VTableId(self.out.vtables.len());
             self.out.vtables.push(node);
             self.vtables.insert(key, id);
+            for (m, slot) in pending {
+                self.pending
+                    .entry(m)
+                    .or_default()
+                    .push(PendingSlot { vtable: id, ..slot });
+            }
         }
         let id = self.vtables[&root];
         reps.hash(self.out.vtables[id.0].digest);
         Ok(id)
     }
 
-    /// The nonrecursive part of one DAG node. Cost: its own method slots
-    /// plus direct parent edges; parent digests are constant-sized.
+    /// The nonrecursive part of one DAG node, and its slots whose methods
+    /// no call through a trait value has named yet, left for
+    /// [`Cx::note_dyn`]. Cost: its own method slots plus direct parent
+    /// edges; parent digests are constant-sized.
     fn vtable_node(
         &mut self,
         trait_: DefId,
@@ -2632,11 +2697,10 @@ impl Cx<'_> {
         from: Ty,
         parent: InstId,
         parents: Vec<VTableId>,
-    ) -> StageResult<VTable> {
+    ) -> StageResult<(VTable, Vec<(DefId, PendingSlot)>)> {
         work::dyn_collect(1);
         let mut reps = StableHasher::new("dyn-vtable-node");
         let (pool, env) = (self.pool, self.env);
-        let targs = pool.list_items(trait_args);
         let is_ref = |t: Ty| matches!(pool.get(t), TyData::Ref { .. });
         let takes_ref = |d: DefId| {
             env.params(d)
@@ -2654,56 +2718,90 @@ impl Cx<'_> {
         reps.u8(u8::from(inner.is_some()));
         let mut slots = Vec::new();
         let mut recv = Vec::new();
+        let mut pending = Vec::new();
         let methods = slot_methods(env, trait_);
         reps.u64(methods.len() as u64);
-        for m in methods {
+        for (slot, m) in methods.into_iter().enumerate() {
             work::dyn_collect(1);
-            let (t, r) = match inner {
-                Some(s) => {
-                    let t = self.method_target(trait_, m, s, targs, None, parent)?;
-                    // The slot ABI follows the trait declaration. An impl
-                    // for a reference can lower a value receiver to that
-                    // reference type without making the slot a reference
-                    // receiver.
-                    let r = if takes_ref(m) {
-                        SlotRecv::Payload
-                    } else {
-                        SlotRecv::ReadThrough
-                    };
-                    (t, r)
-                }
-                None if takes_ref(m) => {
-                    // A slot whose body the compiler supplies, such as
-                    // `runtime_type`'s `RuntimeType` helper, reads no
-                    // payload, so a reference receiver needs none.
-                    let t = self.method_target(trait_, m, from, targs, None, parent)?;
-                    if !matches!(t.kind, TargetKind::Builtin { .. }) {
-                        return err("a reference-receiver vtable without a reference payload");
-                    }
-                    (t, SlotRecv::Payload)
-                }
-                None => (
-                    self.method_target(trait_, m, from, targs, None, parent)?,
-                    SlotRecv::Payload,
-                ),
+            let (self_ty, r, builtin_only) = match inner {
+                // The slot ABI follows the trait declaration. An impl for
+                // a reference can lower a value receiver to that reference
+                // type without making the slot a reference receiver.
+                Some(s) if takes_ref(m) => (s, SlotRecv::Payload, false),
+                Some(s) => (s, SlotRecv::ReadThrough, false),
+                // A slot whose body the compiler supplies, such as
+                // `runtime_type`'s `RuntimeType` helper, reads no payload,
+                // so a reference receiver needs none.
+                None => (from, SlotRecv::Payload, takes_ref(m)),
             };
+            let at = PendingSlot {
+                vtable: VTableId(usize::MAX),
+                slot,
+                trait_,
+                trait_args,
+                self_ty,
+                parent,
+                builtin_only,
+            };
+            reps.u8(r as u8);
+            recv.push(r);
+            if !slot_kept(env, self.out.all_slots, &self.out.dyn_methods, trait_, m) {
+                // No call reads this slot yet: its target, and the
+                // instance that fills it, wait for one ([`Cx::note_dyn`]).
+                reps.hash(env.path_hash(m));
+                slots.push(None);
+                pending.push((m, at));
+                continue;
+            }
+            let t = self.slot_target(m, &at)?;
             reps.hash(t.key);
             reps.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
-            reps.u8(r as u8);
-            slots.push(t);
-            recv.push(r);
+            slots.push(Some(t));
         }
         reps.u64(parents.len() as u64);
         for id in &parents {
             reps.hash(self.out.vtables[id.0].digest);
         }
-        Ok(VTable {
+        let node = VTable {
             trait_,
             slots,
             recv,
             parents,
             digest: reps.finish(),
-        })
+        };
+        Ok((node, pending))
+    }
+
+    /// The target of method `m`'s slot `at`: its implementation at the
+    /// slot's type, which this pushes.
+    fn slot_target(&mut self, m: DefId, at: &PendingSlot) -> StageResult<CallTarget> {
+        let pool = self.pool;
+        let targs = pool.list_items(at.trait_args);
+        let t = self.method_target(at.trait_, m, at.self_ty, targs, None, at.parent)?;
+        if at.builtin_only && !matches!(t.kind, TargetKind::Builtin { .. }) {
+            return err("a reference-receiver vtable without a reference payload");
+        }
+        Ok(t)
+    }
+
+    /// Records that scanned code calls trait method `m` through a trait
+    /// value ([`Target::Dyn`]), and fills every table slot of `m` built
+    /// before this first call, pushing the implementations they name.
+    /// This is rapid type analysis's other half (Bacon and Sweeney, 1996;
+    /// Go's linker `deadcode` keeps an interface method of a converted type
+    /// only once some call names it): a table built later resolves `m` at
+    /// once. Cost: each pending slot is resolved once, so all calls cost
+    /// O(total slots of built tables) besides their targets.
+    fn note_dyn(&mut self, m: DefId) -> StageResult<()> {
+        if !self.out.dyn_methods.insert(m) {
+            return Ok(());
+        }
+        for at in self.pending.remove(&m).unwrap_or_default() {
+            work::dyn_slot(1);
+            let t = self.slot_target(m, &at)?;
+            self.out.vtables[at.vtable.0].slots[at.slot] = Some(t);
+        }
+        Ok(())
     }
 
     /// The parameters of `def` a known value is worth specializing on, by
@@ -2923,7 +3021,7 @@ impl Cx<'_> {
                     Target::Call(self.target(item, args, id)?)
                 } else if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
-                    self.out.dyn_methods.insert(item);
+                    self.note_dyn(item)?;
                     Target::Dyn
                 } else {
                     Target::Call(self.method_target(trait_, item, self_ty, targs, None, id)?)
@@ -3219,7 +3317,7 @@ impl Cx<'_> {
                                     continue;
                                 }
                                 reps.hash(env.path_hash(method));
-                                self.out.dyn_methods.insert(method);
+                                self.note_dyn(method)?;
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
@@ -3756,8 +3854,9 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// at an instantiation limit. With `joined_inputs` (a REPL session's
 /// program, every kept input joined), each init body is also a root of the
 /// host boundary, since each input's init runs with the entry's providers.
-/// `planner` holds the pipeline's body-unit passes, whose plans
-/// collection applies (`plan`).
+/// With `open_world` (a REPL input, which later inputs extend), every
+/// table keeps every slot ([`Collected::all_slots`]). `planner` holds the
+/// pipeline's body-unit passes, whose plans collection applies (`plan`).
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -3766,6 +3865,7 @@ pub fn collect(
     inits: &[DefId],
     extra: &[(DefId, TyList)],
     joined_inputs: bool,
+    open_world: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     collect_roots(
@@ -3776,6 +3876,7 @@ pub fn collect(
         inits,
         extra,
         joined_inputs,
+        open_world,
         planner,
     )
 }
@@ -3792,7 +3893,7 @@ pub fn collect_fixtures(
     roots: &[(DefId, TyList)],
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
-    collect_roots(pool, env, solver, None, inits, roots, false, planner)
+    collect_roots(pool, env, solver, None, inits, roots, false, false, planner)
 }
 
 fn collect_roots(
@@ -3803,6 +3904,7 @@ fn collect_roots(
     inits: &[DefId],
     extra: &[(DefId, TyList)],
     joined_inputs: bool,
+    open_world: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
@@ -3821,7 +3923,10 @@ fn collect_roots(
         depths: HashMap::default(),
         at: None,
         too_deep: None,
-        out: Collected::default(),
+        out: Collected {
+            all_slots: open_world,
+            ..Collected::default()
+        },
         work: Vec::new(),
         joined_inputs,
         planner,
@@ -3832,6 +3937,7 @@ fn collect_roots(
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
+        pending: HashMap::default(),
         crossings: Vec::new(),
         crossing_numbers: HashMap::default(),
         crossing_run: None,

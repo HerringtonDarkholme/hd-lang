@@ -7,12 +7,12 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "table0" (table $table0 6 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $size i32) (local $width i32) (local $number i32) (local $value i64) (local $t0 i64) (local $t1 i64) (local $offset i32)
     ;; 11 |     fn make[N](value: N) -> Box[N]:
     block
     ;; 14 |     number := make(+7)
-      i32.const 4
+      i32.const 3
       i32.const 0
       local.set $width
       local.set $size

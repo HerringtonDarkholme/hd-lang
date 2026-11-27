@@ -25,7 +25,7 @@
       local.get $callback.0
       local.get $ctx
       i32.store $heap offset=4
-      i32.const 8
+      i32.const 7
       local.set $ctx
       local.get $callback.1
       call $rt:release_ref
@@ -60,7 +60,7 @@
       local.get $callback.0
       local.get $ctx
       i32.store $heap offset=4
-      i32.const 8
+      i32.const 7
       local.set $ctx
       local.get $callback.1
       call $rt:release_ref

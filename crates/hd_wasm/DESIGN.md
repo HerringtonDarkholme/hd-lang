@@ -472,7 +472,10 @@ cannot move under one.
   a `dyn` releases its data with no knowledge of the type: the release
   and, later, the trace are the data's own descriptor's (§23.4). A
   vtable is a static record of the method slots in the trait's declared
-  order, then each direct supertrait's vtable address. `Inspectable`'s
+  order, then each direct supertrait's vtable address. A closed program
+  keeps a slot only for a method some call through a trait value names
+  (`hd_mono::Collected::slots`, crates/hd_mono/DESIGN.md §13.5), for host
+  providers and handles too; a REPL session keeps every slot. `Inspectable`'s
   `runtime_type` slot answers the type's identity (§15.2's `TypeId`).
 - **Providers** are trait values, passed as `(data, vtable)` pairs in key
   order (crates/hd_mono/DESIGN.md §13.18).

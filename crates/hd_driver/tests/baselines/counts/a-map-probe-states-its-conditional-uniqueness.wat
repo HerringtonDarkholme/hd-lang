@@ -22,7 +22,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 9 funcref))
+  (import "fixture" "table0" (table $table0 8 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $saved i32) (local $items i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 19 |     let mut items = { "a": +1 }
     global.get $stack
@@ -82,13 +82,13 @@
     local.get $items
     i32.const 65 ;; &"a"
     i32.const 1
-    i32.const 4
+    i32.const 3
     call_indirect $table0 (param i32 i32 i32)
     ;; 22 |     bump(&mut items, "b")
     local.get $items
     i32.const 66 ;; &"b"
     i32.const 1
-    i32.const 4
+    i32.const 3
     call_indirect $table0 (param i32 i32 i32)
     ;; 23 |     println(items["a"])
     local.get $items
@@ -217,7 +217,7 @@
     i32.add
     i32.const 8
     i32.add
-    i32.const 5
+    i32.const 4
     call_indirect $table0 (param i32) (result i32)
     local.set $saved
     local.get $items
@@ -276,12 +276,12 @@
     ;; 28 |     scalar(&mut numbers, 1)
     local.get $items
     i32.const 1
-    i32.const 6
+    i32.const 5
     call_indirect $table0 (param i32 i32)
     ;; 29 |     scalar(&mut numbers, 2)
     local.get $items
     i32.const 2
-    i32.const 6
+    i32.const 5
     call_indirect $table0 (param i32 i32)
     ;; 30 |     println(numbers[1])
     local.get $items

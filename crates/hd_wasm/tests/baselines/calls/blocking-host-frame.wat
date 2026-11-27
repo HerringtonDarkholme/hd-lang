@@ -55,7 +55,7 @@
       local.get $provider0
       local.get $path.1
       local.get $t1
-      i32.load $heap offset=24
+      i32.load $heap offset=8
       call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
       local.set $provider0
       local.set $provider0.vtable

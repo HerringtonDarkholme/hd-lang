@@ -15,7 +15,7 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 17 funcref))
+  (import "fixture" "table0" (table $table0 16 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 38 |     println(element())
     block
@@ -264,7 +264,7 @@
       local.get $t0
       i32.store $heap
     ;; 25 |     change := fn() -> void: ps[0] = box(P { name: "b" })
-      i32.const 8
+      i32.const 7
       i32.const 4
       i32.const -2147483645
       call $rt:new/class-1'2
@@ -497,7 +497,7 @@
       local.get $change.1
       i32.store $heap
     ;; 32 |     change := fn() -> void: h.p = box(P { name: "f" })
-      i32.const 9
+      i32.const 8
       i32.const 4
       i32.const -2147483645
       call $rt:new/class-1'2

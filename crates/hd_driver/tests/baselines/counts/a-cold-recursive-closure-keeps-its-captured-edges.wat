@@ -22,7 +22,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 26 funcref))
+  (import "fixture" "table0" (table $table0 25 funcref))
   (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t4 i32) (local $read.0 i32) (local $read.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 13 |     read := make("kept")
     global.get $stack
@@ -1290,7 +1290,7 @@
   )
   (func $make (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 5 |     read := fn!(n: usize) -> string:
-    i32.const 9
+    i32.const 8
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
@@ -1330,7 +1330,7 @@
   )
   (func $"generic[i32]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    i32.const 10
+    i32.const 9
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2
@@ -1341,7 +1341,7 @@
   )
   (func $"generic[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
-    i32.const 11
+    i32.const 10
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
@@ -1576,7 +1576,7 @@
         local.get $frame
         i32.eqz
         if
-          i32.const 9
+          i32.const 8
           local.set $env
           local.get $t1
           local.get $env
@@ -2219,7 +2219,7 @@
       call $retain
     end
     local.get $t0
-    i32.const 9
+    i32.const 8
     i32.store $heap offset=36
     local.get $t0
     local.get $t1

@@ -1974,10 +1974,12 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
     }
 }
 
-/// The vtable of the host's provider of capability `key`, in the trait's
-/// method order (`ProgramEnv::trait_methods`): each slot a host call or a
-/// host leaf over the exchange buffer's codecs (`boundary.rs`), or a trap
-/// with no import for a method no reachable code calls.
+/// The vtable of the host's provider of capability `key`, one slot per
+/// method that keeps one (`hd_mono::Collected::slots`), in the trait's
+/// method order: each a host call or a host leaf over the exchange
+/// buffer's codecs (`boundary.rs`). A closed program keeps no slot for a
+/// method that no reachable code calls; a REPL session's table, which
+/// keeps every slot, gets a trap with no import for it.
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
     // ruled out: a requirement row lists traits (`req.row.syntax.signature`;
     // hd_resolve lowers each key with `Lower::trait_value`), an entry
@@ -1997,7 +1999,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         return profile_vtable(input, m, def, &p);
     };
     let mut slots = Vec::new();
-    for method in hd_mono::slot_methods(input.env, def) {
+    for method in input.collected.slots(input.env, def) {
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
         let hm = host.methods.iter().find(|x| x.name == name);
@@ -2075,7 +2077,7 @@ fn profile_tree(
 ) -> StageResult<usize> {
     use hd_host_abi::{Codec, Wait};
     let mut slots = Vec::new();
-    for method in hd_mono::slot_methods(input.env, def) {
+    for method in input.collected.slots(input.env, def) {
         if !input.collected.calls_dyn(method) {
             slots.push(crate::boundary::uncalled_slot_at(
                 input,

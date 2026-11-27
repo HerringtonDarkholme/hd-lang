@@ -26,7 +26,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 432 ;; &vtable[rt:dyn_slot]
+      i32.const 328 ;; &vtable[]
       local.set $t0
       local.set $original.0
       i32.const 0
@@ -46,7 +46,7 @@
       call $retain
       local.get $t0
       local.get $t1
-      i32.load $heap offset=8
+      i32.load $heap offset=4
       local.set $original.0
       local.set $t3
       i32.const 0
@@ -92,7 +92,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 808 ;; &vtable[rt:dyn_slot]
+      i32.const 704 ;; &vtable[]
       local.set $t0
       local.set $original.0
       i32.const 0
@@ -112,7 +112,7 @@
       call $retain
       local.get $t0
       local.get $t1
-      i32.load $heap offset=8
+      i32.load $heap offset=4
       local.set $original.0
       local.set $t3
       i32.const 0

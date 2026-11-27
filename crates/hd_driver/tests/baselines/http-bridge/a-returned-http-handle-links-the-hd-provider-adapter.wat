@@ -10,8 +10,8 @@
   (import "fixture" "HostSettings.response_header_timeout" (func $HostSettings.response_header_timeout (result i32 i64)))
   (import "fixture" "HostSettings.body_read_timeout" (func $HostSettings.body_read_timeout (result i32 i64)))
   (import "fixture" "rt:new/class-7" (func $rt:new/class-7 (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 41 funcref))
+  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
     block
@@ -84,7 +84,7 @@
       local.set $t2
       block
         block
-          i32.const 64 ;; &empty-buffer
+          i32.const 168 ;; &empty-buffer
           local.set $t3
           br 0
         end
@@ -107,7 +107,7 @@
       local.set $t15
       local.set $t16
       i32.const 96
-      i32.const -2147483645
+      i32.const -2147483647
       call $rt:new/class-7
       local.set $t17
       local.get $t17
@@ -167,7 +167,7 @@
       i32.const 0
       local.set $t1
       local.get $t2
-      i32.const 2048 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+      i32.const 616 ;; &vtable[]
       local.set $t1
       local.set $t3
       i32.const 0
@@ -191,7 +191,7 @@
   (import "fixture" "HostSettings.body_read_timeout" (func $HostSettings.body_read_timeout (result i32 i64)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 41 funcref))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
     block
@@ -264,7 +264,7 @@
       local.set $t2
       block
         block
-          i32.const 64 ;; &empty-buffer
+          i32.const 232 ;; &empty-buffer
           local.set $t3
           br 0
         end
@@ -287,7 +287,7 @@
       local.set $t15
       local.set $t16
       i32.const 96
-      i32.const -2147483645
+      i32.const -2147483647
       call $rt:new
       local.set $t17
       local.get $t17
@@ -347,7 +347,7 @@
       i32.const 0
       local.set $t1
       local.get $t2
-      i32.const 2392 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+      i32.const 996 ;; &vtable[]
       local.set $t1
       local.set $t3
       i32.const 0
@@ -370,8 +370,8 @@
   (import "fixture" "HostSettings.response_header_timeout" (func $HostSettings.response_header_timeout (result i32 i64)))
   (import "fixture" "HostSettings.body_read_timeout" (func $HostSettings.body_read_timeout (result i32 i64)))
   (import "fixture" "rt:new/class-7" (func $rt:new/class-7 (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 39 funcref))
+  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
     local.get $provider0
@@ -427,7 +427,7 @@
     call $HostSettings.body_read_timeout
     local.set $t12
     local.set $t13
-    i32.const 96
+    i32.const 96 ;; &empty-buffer
     i32.const -2147483647
     call $rt:new/class-7
     local.tee $t14
@@ -440,7 +440,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 64 ;; &empty-buffer
+    i32.const 96 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -479,7 +479,7 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 1956 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 528 ;; &vtable[]
   )
 )
 == @build: release checked program
@@ -494,8 +494,8 @@
   (import "fixture" "HostSettings.response_header_timeout" (func $HostSettings.response_header_timeout (result i32 i64)))
   (import "fixture" "HostSettings.body_read_timeout" (func $HostSettings.body_read_timeout (result i32 i64)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 39 funcref))
+  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 13 |     _ := $.use(TransportFactory).open()
     local.get $provider0
@@ -574,7 +574,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 64 ;; &empty-buffer
+    i32.const 104 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -613,6 +613,6 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 2296 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 872 ;; &vtable[]
   )
 )

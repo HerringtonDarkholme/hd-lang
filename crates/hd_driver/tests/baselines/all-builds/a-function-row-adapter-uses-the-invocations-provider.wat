@@ -10,11 +10,11 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $callback.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     block
-      i32.const 4
+      i32.const 3
       i32.const 0
       local.set $callback.1
       local.set $callback.0
-      i32.const 5
+      i32.const 4
       local.set $callback.0
     ;; 30 |     $.with(Named=box(S { n: 4 })):
       i32.const 4
@@ -37,7 +37,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 304 ;; &vtable[rt:dyn_slot]
+      i32.const 304 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -93,7 +93,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 304 ;; &vtable[rt:dyn_slot]
+      i32.const 304 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -149,11 +149,11 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $callback.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     block
-      i32.const 4
+      i32.const 3
       i32.const 0
       local.set $callback.1
       local.set $callback.0
-      i32.const 5
+      i32.const 4
       local.set $callback.0
     ;; 30 |     $.with(Named=box(S { n: 4 })):
       i32.const 4
@@ -176,7 +176,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 680 ;; &vtable[rt:dyn_slot]
+      i32.const 680 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -232,7 +232,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 680 ;; &vtable[rt:dyn_slot]
+      i32.const 680 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -285,10 +285,10 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 11 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
+    i32.const 3
     local.set $callback.0
     i32.const 4
     i32.const 0
@@ -312,7 +312,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 304 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -360,7 +360,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 304 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -396,10 +396,10 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 11 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
+    i32.const 3
     local.set $callback.0
     i32.const 4
     i32.const 0
@@ -423,7 +423,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 644 ;; &vtable[rt:dyn_slot]
+    i32.const 644 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -477,7 +477,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 644 ;; &vtable[rt:dyn_slot]
+    i32.const 644 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1

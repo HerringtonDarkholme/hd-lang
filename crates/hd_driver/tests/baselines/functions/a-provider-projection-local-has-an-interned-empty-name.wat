@@ -11,7 +11,7 @@
       call $retain
       local.get $provider0
       local.get $provider0.vtable
-      i32.load $heap offset=4
+      i32.load $heap
       local.set $t0
       local.set $t1
       i32.const 0

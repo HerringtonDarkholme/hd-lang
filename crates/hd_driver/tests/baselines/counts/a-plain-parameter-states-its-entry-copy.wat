@@ -21,7 +21,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 26 funcref))
+  (import "fixture" "table0" (table $table0 25 funcref))
   (func $"same[i32]" (param $t0 i32) (result i32)
     ;; 20 |     value
     local.get $t0
@@ -92,13 +92,13 @@
     local.tee $t0
     global.set $stack
     i32.const 7
-    i32.const 6
+    i32.const 5
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $original.1
     local.tee $original.0
     ;; 40 |     println(same(original))
     local.get $original.1
-    i32.const 7
+    i32.const 6
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t1
     local.tee $items.buffer.capacity
@@ -118,7 +118,7 @@
     end
     ;; 41 |     println(same(+7))
     i32.const 7
-    i32.const 8
+    i32.const 7
     call_indirect $table0 (param i32) (result i32)
     local.get $provider0
     local.get $provider0.vtable
@@ -131,7 +131,7 @@
     end
     local.get $original.0
     local.get $original.1
-    i32.const 9
+    i32.const 8
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t1
     local.set $items.buffer.capacity
@@ -164,7 +164,7 @@
       call $rt:release_ref'1
     end
     ;; 43 |     call := make()
-    i32.const 10
+    i32.const 9
     call_indirect $table0 (result i32 i32)
     ;; 44 |     println(call(original))
     local.set $t1
@@ -202,7 +202,7 @@
     ;; 45 |     println(read(&original))
     local.get $original.0
     local.get $original.1
-    i32.const 11
+    i32.const 10
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $provider0
     local.get $provider0.vtable
@@ -227,7 +227,7 @@
     local.get $t1
     ;; 47 |     println(same(shared).text)
     local.tee $items.buffer.capacity
-    i32.const 12
+    i32.const 11
     call_indirect $table0 (param i32) (result i32)
     drop
     local.get $items.buffer.capacity
@@ -263,7 +263,7 @@
       end
     end
     local.get $t1
-    i32.const 13
+    i32.const 12
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $items.buffer.capacity
     local.set $items.buffer.ptr
@@ -320,7 +320,7 @@
     end
     ;; 49 |     println(keep(+7)())
     i32.const 7
-    i32.const 14
+    i32.const 13
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $items.buffer.capacity
     local.set $items.buffer.ptr
@@ -462,7 +462,7 @@
     local.get $items.buffer.ptr
     local.get $items.buffer.capacity
     local.get $t1
-    i32.const 15
+    i32.const 14
     call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
     local.tee $t1
     call $rt:release_spilled
@@ -495,7 +495,7 @@
   )
   (func $"keep[*Named]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     fn() -> T: value
-    i32.const 16
+    i32.const 15
     i32.const 4
     i32.const -2147483646
     call $rt:new/class-1'2
@@ -515,7 +515,7 @@
   )
   (func $make (result i32 i32)
     ;; 28 |     fn(value: string) -> string: value
-    i32.const 17
+    i32.const 16
     i32.const 0
   )
   (func $read (param $value.0 i32) (param $value.1 i32) (result i32)
@@ -541,7 +541,7 @@
   )
   (func $"keep[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     fn() -> T: value
-    i32.const 18
+    i32.const 17
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
@@ -555,7 +555,7 @@
   )
   (func $"keep[i32]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 24 |     fn() -> T: value
-    i32.const 19
+    i32.const 18
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2

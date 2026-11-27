@@ -79,7 +79,6 @@ rt:release_drain
 rt:retain_known
 rt:release_ref#1
 rt:drop
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0

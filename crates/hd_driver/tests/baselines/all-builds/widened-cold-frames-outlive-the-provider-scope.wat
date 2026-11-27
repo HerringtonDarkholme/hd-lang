@@ -12,7 +12,7 @@
       call $retain
       local.get $provider1
       local.get $provider1.vtable
-      i32.load $heap offset=4
+      i32.load $heap
       local.set $t0
       local.set $t1
       i32.const 0
@@ -76,7 +76,7 @@
       call $retain
       local.get $provider1
       local.get $provider1.vtable
-      i32.load $heap offset=4
+      i32.load $heap
       local.set $t0
       local.set $t1
       i32.const 0
@@ -142,7 +142,7 @@
     end
     local.get $provider1
     local.get $provider1.vtable
-    i32.load $heap offset=4
+    i32.load $heap
     local.set $provider1
     local.tee $provider1.vtable
     local.tee $t0
@@ -196,7 +196,7 @@
     end
     local.get $provider1
     local.get $provider1.vtable
-    i32.load $heap offset=4
+    i32.load $heap
     local.set $provider1
     local.tee $provider1.vtable
     local.tee $t0

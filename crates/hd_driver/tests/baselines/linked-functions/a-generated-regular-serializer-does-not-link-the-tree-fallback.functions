@@ -143,7 +143,6 @@ rt:list_grow#2
 rt:list_grow#3
 rt:type_info#0
 rt:type_info#1
-rt:dyn_trap
 rt:str_from_bytes
 rt:str_to_bytes
 rt:str_append

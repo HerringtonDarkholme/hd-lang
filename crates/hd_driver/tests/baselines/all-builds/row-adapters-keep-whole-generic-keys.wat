@@ -25,7 +25,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 11
+      i32.const 8
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -54,7 +54,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 16
+      i32.const 13
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -83,7 +83,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 17
+      i32.const 14
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -118,7 +118,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 11
+      i32.const 8
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -147,7 +147,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 16
+      i32.const 13
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -176,7 +176,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 17
+      i32.const 14
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -189,9 +189,11 @@
 (module
   ;; no code from the subject
   ;; skipped app/main/adapt: no concrete instantiation named by the case
+  ;; skipped app/main/impl[T] NamedStore[T] for Source[T].name: no concrete instantiation named by the case
 )
 == @build: release checked
 (module
   ;; no code from the subject
   ;; skipped app/main/adapt: no concrete instantiation named by the case
+  ;; skipped app/main/impl[T] NamedStore[T] for Source[T].name: no concrete instantiation named by the case
 )

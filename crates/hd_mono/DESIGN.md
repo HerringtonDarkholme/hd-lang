@@ -592,7 +592,12 @@ A worklist walk, as rustc's collector does:
    pushes nothing; a `Builtin` choice pushes its generated body (§13.6).
 5. For each coercion to a trait value, select the impl as in step 4,
    record the vtable `(type, trait)` and push every method of the trait
-   at that type, supertraits' vtables included. A method with its own type or row parameters has no slot.
+   at that type that some call through a trait value names,
+   supertraits' vtables included. A method with its own type or row
+   parameters has no slot. A method no such call names has no slot
+   either (§13.5, "Only called methods keep a slot"): its slot waits,
+   and the first call that names it pushes its implementation in every
+   table built before.
 6. For each `DefaultCall`, push the default body with the call's type
    arguments.
 7. For each `Closure`, push the closure body with the parent's
@@ -747,12 +752,41 @@ growing type) has no finite instance set.
 
 - **Vtables follow the trait record's shape** (crates/hd_check/DESIGN.md (trait solver) §9.2).
   A vtable is static data: one function-table slot per method of the
-  trait itself, in declaration order, then the address of each direct
-  supertrait's own vtable at the same type, in declared order
+  trait itself that keeps one (below), in declaration order, then the
+  address of each direct supertrait's own vtable at the same type, in
+  declared order
   (`hd_wasm/src/emit/dyn_value.rs`; crates/hd_wasm/DESIGN.md §23.8).
   Supertrait slots are never copied, so a diamond such as
   `Error < Display & Inspectable` shares one `Display` vtable. A
   coercion to a trait value never allocates a vtable.
+- **Only called methods keep a slot** (#2415, #2420). A slot is read
+  only by a call through a trait value (`Target::Dyn`, a function
+  reference's adapter included), so a method that no such call in the
+  program names gets no slot in any table of its trait, and no
+  implementation or default body of it is collected for one.
+  `Collected::slots` is the one list every table and every call numbers
+  slots by; parent pointers and drive slots follow it
+  (`dyn_graph::DynPaths`, `hd_wasm/src/drive.rs`). Collection is rapid
+  type analysis (Bacon and Sweeney, OOPSLA 1996), as Go's linker
+  `deadcode` pass keeps a converted type's method only once an
+  interface call names it: a table built before the first call of `m`
+  leaves `m`'s slot pending, and that call (`Cx::note_dyn`) resolves
+  every pending slot of `m` once. Cost: one visit per slot of a built
+  table, plus its target. Kept anyway: every slot of a REPL input's
+  tables, which later inputs call (`Collected::all_slots`), and every
+  slot of a compiler-supplied trait, whose `runtime_type` slot the
+  `runtime_type` and downcast intrinsics read with no call site. The
+  method decides use, not the receiver's type: a call of `m` keeps `m`'s
+  slot in every table of its trait, as LLVM's virtual function
+  elimination (GlobalDCE over `llvm.type.checked.load` and
+  `!vcall_visibility`; clang's `-fvirtual-function-elimination`,
+  rustc's `-Zvirtual-function-elimination`) keeps the entry at a
+  loaded offset in every vtable compatible with the call's static type.
+  Unlike LLVM, which only drops the dead entry's function and keeps the
+  layout, hd drops the slot and renumbers, since every table and every
+  call is in one link.
+  wasm-opt's `--remove-unused-module-elements` keeps every function a
+  table segment names, so it cannot drop these bodies after the fact.
 - **Trait values** are `(data, vtable)` pairs (crates/hd_wasm/DESIGN.md
   §23.19). A call through a trait value loads the slot from the vtable
   and makes one `call_indirect`.

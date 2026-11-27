@@ -17,7 +17,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 13 funcref))
+  (import "fixture" "table0" (table $table0 12 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (local $width i32) (local $size i32) (local $result.0 i32) (local $offset i32) (local $t0 i32) (local $value i64) (local $t1 i64) (local $t2 i64)
     ;; 23 |     store := $.use(Store)
     block

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 6 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32)
     ;; 13 |     println("before")
     block

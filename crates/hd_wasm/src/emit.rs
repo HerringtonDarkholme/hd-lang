@@ -3540,10 +3540,11 @@ impl Em<'_, '_, '_> {
         };
         let slot = match drive {
             Some((_, buffer)) => {
-                crate::drive::index(self.env(), self.m, trait_, method, buffer.is_some()) as usize
+                crate::drive::index(self.input, self.m, trait_, method, buffer.is_some()) as usize
             }
-            // Collection dispatches only a method with a slot.
-            None => hd_mono::slot_methods(self.env(), trait_)
+            // Collection dispatches only a method with a slot, and this
+            // call keeps it (`Collected::slots`).
+            None => (self.input.collected.slots(self.env(), trait_))
                 .iter()
                 .position(|m| *m == method)
                 .expect("a dynamically dispatched method has a slot"),

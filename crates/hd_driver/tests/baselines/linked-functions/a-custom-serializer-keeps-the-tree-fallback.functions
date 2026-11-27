@@ -119,7 +119,6 @@ rt:list_grow#0
 rt:list_grow#1
 rt:list_grow#2
 rt:list_grow#3
-rt:dyn_trap
 rt:str_from_bytes
 rt:str_append
 rt:fmt_u64

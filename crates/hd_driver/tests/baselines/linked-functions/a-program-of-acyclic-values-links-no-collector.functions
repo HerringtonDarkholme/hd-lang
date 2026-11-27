@@ -61,7 +61,6 @@ rt:release_ref#1
 rt:release_fresh
 rt:list_buf
 rt:drop_elems
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0

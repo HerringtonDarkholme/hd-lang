@@ -44,7 +44,6 @@ rt:new
 rt:str
 rt:release_ref
 rt:release_drain
-rt:dyn_trap
 rt:fmt_u64
 rt:hd:Console/write_sync
 rt:leb_get

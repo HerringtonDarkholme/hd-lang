@@ -71,7 +71,7 @@
   )
   (func $"impl Probes.captured_copy" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 53 |         fn() -> usize:
-    i32.const 5
+    i32.const 4
     i32.const 8
     i32.const 1
     call $rt:new/class-1

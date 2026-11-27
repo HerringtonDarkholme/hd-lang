@@ -1,0 +1,15 @@
+# @dump: functions
+# A program that binds `MemoryFs` as `FsRead` and never calls `open!` links
+# neither `open!`'s default body nor the `MemoryFile` it boxes: no call
+# through a trait value names `open!`, so `FsRead`'s tables keep no slot
+# for it (`crates/hd_mono/DESIGN.md` §13.5, #2420).
+use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console:
+    files := MemoryFs::new()
+    $.with(FsRead=files, FsWrite=files):
+        _ := write_text!(Path("a.txt"), "hello")
+        match read_text!(Path("a.txt")):
+            .Ok(text) => println(text)
+            .Err(_) => println("error")

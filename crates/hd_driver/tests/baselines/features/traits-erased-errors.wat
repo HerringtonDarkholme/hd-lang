@@ -95,7 +95,7 @@
       i32.store $heap offset=4
       i32.const 1
       local.get $path.0
-      i32.const 364 ;; &vtable[rt:dyn_slot]
+      i32.const 260 ;; &vtable[]
       return
     end
     ;; 25 |     .Ok(text)

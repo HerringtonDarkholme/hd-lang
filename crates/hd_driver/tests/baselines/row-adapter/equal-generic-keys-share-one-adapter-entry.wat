@@ -25,7 +25,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 6
+      i32.const 5
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -60,7 +60,7 @@
       local.get $callback.0
       local.get $t0
       i32.store $heap offset=4
-      i32.const 6
+      i32.const 5
       local.set $t0
       local.get $callback.1
       call $rt:release_ref
@@ -84,7 +84,7 @@
     local.get $t0
     local.get $callback.1
     i32.store $heap offset=4
-    i32.const 6
+    i32.const 5
     local.get $t0
   )
 )
@@ -103,7 +103,7 @@
     local.get $t0
     local.get $callback.1
     i32.store $heap offset=4
-    i32.const 6
+    i32.const 5
     local.get $t0
   )
 )

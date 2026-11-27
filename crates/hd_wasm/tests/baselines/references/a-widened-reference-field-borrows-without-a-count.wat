@@ -7,7 +7,7 @@
     i32.load $heap
     local.get $value
     i32.load $heap offset=4
-    i32.load $heap offset=4
+    i32.load $heap
   )
   (func $"widened[*Child]" (param $value i32) (result i32 i32)
     ;; 15 |     value
@@ -15,6 +15,6 @@
     i32.load $heap
     local.get $value
     i32.load $heap offset=4
-    i32.load $heap offset=4
+    i32.load $heap
   )
 )

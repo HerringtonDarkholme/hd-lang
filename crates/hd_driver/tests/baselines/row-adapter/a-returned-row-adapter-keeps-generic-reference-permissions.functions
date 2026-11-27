@@ -99,7 +99,6 @@ rt:ctx_find
 rt:row_adapter#0
 rt:row_adapter#1
 rt:row_adapter#2
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -220,7 +219,6 @@ rt:ctx_find
 rt:row_adapter#0
 rt:row_adapter#1
 rt:row_adapter#2
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -310,7 +308,6 @@ rt:ctx_find
 rt:row_adapter#0
 rt:row_adapter#1
 rt:row_adapter#2
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -417,7 +414,6 @@ rt:ctx_find
 rt:row_adapter#0
 rt:row_adapter#1
 rt:row_adapter#2
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0

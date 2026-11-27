@@ -10820,6 +10820,9 @@ impl Run<'_> {
                 &all_inits,
                 &extra.roots,
                 self.session.is_some(),
+                // A REPL input's tables serve later inputs' calls too, as
+                // the link's open world does (`hd_wasm` `Facts::open_world`).
+                self.session.is_some() || matches!(self.goal, Goal::ReplInput { .. }),
                 &self.planner,
             );
             drop(reach);

@@ -101,7 +101,6 @@ rt:ctx_find
 rt:ctx_new
 rt:copy_elems
 rt:dyn_read
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0
@@ -191,7 +190,6 @@ rt:ctx_find
 rt:ctx_new
 rt:copy_elems
 rt:dyn_read
-rt:dyn_trap
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0

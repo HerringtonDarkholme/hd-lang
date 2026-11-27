@@ -7,7 +7,7 @@
     block
       local.get $value.0
       local.get $value.1
-      i32.load $heap offset=4
+      i32.load $heap
       i32.load $heap
       call_indirect $table0 (param i32) (result i32)
       local.set $value.0
@@ -19,7 +19,7 @@
     block
       local.get $value.0
       local.get $value.1
-      i32.load $heap offset=8
+      i32.load $heap offset=4
       local.set $value.0
       local.set $value.1
       local.get $value.1
@@ -38,7 +38,7 @@
     block
       local.get $value.0
       local.get $value.1
-      i32.load $heap offset=4
+      i32.load $heap
       local.set $value.0
       local.set $value.1
       local.get $value.1
@@ -57,7 +57,7 @@
     block
       local.get $value.0
       local.get $value.1
-      i32.load $heap offset=4
+      i32.load $heap
       i32.load $heap
       call_indirect $table0 (param i32) (result i32)
       local.set $value.0

@@ -268,7 +268,6 @@ rt:type_info#2
 rt:type_info#3
 rt:type_info#4
 rt:type_id
-rt:dyn_trap
 rt:str_from_bytes
 rt:str_to_bytes
 rt:str_append

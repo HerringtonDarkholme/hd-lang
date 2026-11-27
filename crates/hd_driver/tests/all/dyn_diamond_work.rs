@@ -50,7 +50,60 @@ fn diamond(width: usize, depth: usize) -> String {
     s
 }
 
+/// #2415: `width` types coerced to `dyn Wide` before any call names
+/// `Wide.called`, and a chain of `depth` traits whose `next` slot each
+/// body fills only after it coerces the next type. Every `never_called`
+/// slot stays pending; `called` and `next` resolve once per table.
+fn late_slots(width: usize, depth: usize) -> String {
+    let mut s = String::from(
+        "trait Wide:\n    fn called(&self) -> i32\n    fn never_called_wide(&self) -> i32\n\n",
+    );
+    for i in 0..width {
+        let _ = writeln!(
+            s,
+            "struct W{i}: pass\n\nimpl Wide for W{i}:\n    fn called(&self) -> i32: {i}\n    \
+             fn never_called_wide(&self) -> i32: 0\n"
+        );
+    }
+    for i in 0..depth {
+        let _ = writeln!(
+            s,
+            "trait T{i}:\n    fn next(&self) -> i32\n    fn never_called_{i}(&self) -> i32\n\n\
+             struct S{i}: pass\n"
+        );
+        let next = if i + 1 < depth {
+            format!(
+                "\n        let x: &dyn T{} = &S{} {{}}\n        x.next()",
+                i + 1,
+                i + 1
+            )
+        } else {
+            " 1".to_owned()
+        };
+        let _ = writeln!(
+            s,
+            "impl T{i} for S{i}:\n    fn next(&self) -> i32:{next}\n    \
+             fn never_called_{i}(&self) -> i32: 0\n"
+        );
+    }
+    s.push_str("fn sum(all: List[*dyn Wide]) -> i32:\n    let total = +0\n");
+    s.push_str("    for w in all:\n        total = total + w.called()\n    total\n\n");
+    s.push_str("pub fn main() -> void $ Console:\n    let mut all: List[*dyn Wide] = []\n");
+    for i in 0..width {
+        let _ = writeln!(s, "    all.push(box(W{i} {{}}))");
+    }
+    s.push_str("    println(sum(all))\n");
+    if depth > 0 {
+        s.push_str("    let x: &dyn T0 = &S0 {}\n    println(x.next())\n");
+    }
+    s
+}
+
 fn work(source: &str) -> DynWork {
+    work_and_wasm(source).0
+}
+
+fn work_and_wasm(source: &str) -> (DynWork, Vec<u8>) {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = crate::warm_store();
@@ -66,8 +119,8 @@ fn work(source: &str) -> DynWork {
     };
     let (out, work) = hd_mono::work::count_dyn_work(|| build(&host, "app", &goal));
     assert!(!out.diags.has_errors(), "{}", out.render());
-    assert!(out.wasm.is_some(), "no module");
-    work
+    let wasm = out.wasm.expect("no module");
+    (work, wasm)
 }
 
 fn linear(small: DynWork, large: DynWork) {
@@ -120,4 +173,33 @@ fn repeated_dyn_coercions_share_collection_emission_and_conversion_walks() {
     }
     assert!(small.paths > 0);
     assert_eq!(small.paths, large.paths);
+}
+
+fn contains(haystack: &[u8], needle: &str) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|w| w == needle.as_bytes())
+}
+
+#[test]
+fn late_slots_resolve_once_each_at_width_1000_and_depth_20() {
+    let (small, small_wasm) = work_and_wasm(&late_slots(100, 20));
+    let (large, large_wasm) = work_and_wasm(&late_slots(1000, 20));
+    eprintln!("late slot work: {small:?} -> {large:?}");
+    // Each table built before its method's first call resolves that one
+    // slot once: `called` per `Wide` table, `next` per chain table. No
+    // `never_called` slot resolves, however many tables wait on it.
+    assert_eq!(small.late_slots, 100 + 20);
+    assert_eq!(large.late_slots, 1000 + 20);
+    assert!(
+        large.collected <= 10 * small.collected + 100,
+        "{small:?} -> {large:?}"
+    );
+    for wasm in [&small_wasm, &large_wasm] {
+        assert!(contains(wasm, "called"), "no called body is linked");
+        assert!(
+            !contains(wasm, "never_called"),
+            "an uncalled body is linked"
+        );
+    }
 }

@@ -14,6 +14,9 @@ pub struct DynWork {
     pub emitted: u64,
     pub paths: u64,
     pub conversions: u64,
+    /// Table slots left pending and resolved when a later call through a
+    /// trait value first names their method (`Cx::note_dyn`).
+    pub late_slots: u64,
 }
 
 thread_local! {
@@ -54,6 +57,9 @@ pub fn dyn_path(n: usize) {
 }
 pub fn dyn_conversion(n: usize) {
     dyn_add(n, |w| &mut w.conversions);
+}
+pub fn dyn_slot(n: usize) {
+    dyn_add(n, |w| &mut w.late_slots);
 }
 
 thread_local! {

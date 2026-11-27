@@ -13,11 +13,11 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 131))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $sum i32) (local $out i32) (local $t1 i32) (local $t0 i32) (local $g.1 i32) (local $g.0 i32) (local $result.0 i32) (local $value'1 i64) (local $value'2 i64) (local $t2 i64) (local $t3 i64) (local $offset i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $sum i32) (local $out i32) (local $t1 i32) (local $t0 i32) (local $g.1 i32) (local $g.0 i32) (local $result.0 i32) (local $offset i32) (local $value'1 i64) (local $value'2 i64) (local $t2 i64) (local $t3 i64)
     ;; ...
     block
       ;; ...
-    ;; 197 |     if sum > 0:
+    ;; 261 |     if sum > 0:
       local.get $sum
       i32.load $heap
       local.set $t0
@@ -27,7 +27,7 @@
       local.set $t0
       local.get $t0
       if
-    ;; 198 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
+    ;; 262 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
         i32.const 32773
         i32.const 4
         i32.const -2147483647
@@ -55,7 +55,7 @@
         local.set $t0
         i32.const 0
         local.set $out
-    ;; 199 |         println("$sum ${target.value}")
+    ;; 263 |         println("$sum ${target.value}")
         local.get $sum
         local.set $out
         local.get $out
@@ -300,14 +300,14 @@
         local.get $provider0
         local.get $provider0.vtable
         call $"println[string]"
-    ;; 197 |     if sum > 0:
+    ;; 261 |     if sum > 0:
       end
       ;; ...
     end
     ;; ...
   )
   (func $main#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i64)
-    ;; 198 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
+    ;; 262 |         target := box(Leaf { value: apply(fn(x: i32) -> i32: x + sum, +1) })
     local.get $env
     i32.load $heap
     local.set $env
