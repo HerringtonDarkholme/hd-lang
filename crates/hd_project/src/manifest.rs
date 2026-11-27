@@ -1015,6 +1015,25 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
                     );
                 }
             }
+            // `cli.host.c.entry-unique`: each library's entry symbol
+            // `NAME_TRAIT` names one trait. Cost: one map probe per entry.
+            let mut entries: std::collections::BTreeMap<(&str, &str), &str> =
+                std::collections::BTreeMap::new();
+            for entry in providers {
+                let Some(library) = entry.c.as_deref() else {
+                    continue;
+                };
+                let name = entry.trait_path.rsplit('.').next().unwrap_or_default();
+                if let Some(first) = entries.insert((library, name), &entry.trait_path) {
+                    report(
+                        entry.line,
+                        format!(
+                            "host traits `{first}` and `{}` would both export the entry symbol `{library}_{name}` from library `{library}`; rename one, or give it another library",
+                            entry.trait_path
+                        ),
+                    );
+                }
+            }
         } else {
             report(
                 host.line,

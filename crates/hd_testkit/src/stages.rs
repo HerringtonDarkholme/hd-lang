@@ -51,7 +51,8 @@ pub struct Program {
     /// `[host]` (`# @host: main.Surface`), each package-relative.
     pub hosts: Vec<String>,
     /// The `@host` traits its manifest binds to a C provider
-    /// (`# @c-host: main.Disk`, an entry `{ c = "stage" }`).
+    /// (`# @c-host: main.Disk`, an entry `{ c = "stage" }`, or
+    /// `main.Disk=hd_disk` for another library).
     pub c_hosts: Vec<String>,
     /// For a REPL session case (`# @repl: N`): the number of the input the
     /// case's own text is. Its earlier inputs are the `@input` modules.
@@ -871,11 +872,11 @@ fn host_packages(p: &Program, package: &str) -> Vec<hd_driver::HostPackage> {
                     .iter()
                     .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
             )
-            .chain(
-                p.c_hosts
-                    .iter()
-                    .map(|t| format!("\"{t}\" = {{ c = \"stage\" }}\n")),
-            )
+            .chain(p.c_hosts.iter().map(|t| {
+                // `TRAIT=LIBRARY` names the library; `stage` by default.
+                let (t, library) = t.split_once('=').unwrap_or((t, "stage"));
+                format!("\"{t}\" = {{ c = \"{library}\" }}\n")
+            }))
             .collect();
         vec![hd_driver::HostPackage {
             package: 0,

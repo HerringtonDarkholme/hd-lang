@@ -422,6 +422,7 @@ Rules this design revises, quoted:
 | `hd test` | from step 4b, a Wasmtime test run binds the C providers of the programs its tests run by name; a Node run, and a test case's own module, bind none |
 | workers | a worker instance gets no root consent, so it binds no package provider, C or Rust, as before |
 | returned handles | step 4b binds them (decision 17) |
+| entry and library conflicts | errors at check time: two `[host]` traits sharing `NAME_TRAIT` in one library, a handle trait from two libraries, a handle trait taking another trait's entry symbol; a conflict between modules checked apart refuses at startup |
 
 ### Proposed Spec Rules
 

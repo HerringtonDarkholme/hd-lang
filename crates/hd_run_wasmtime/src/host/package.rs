@@ -286,7 +286,12 @@ pub(crate) fn c_preflight(
     // library of the trait that returns it, which it shares (decision 1).
     let mut opened: HashMap<&std::path::Path, Arc<libloading::Library>> = HashMap::default();
     let mut todo: Vec<(usize, &Library)> = Vec::new();
-    let mut queued: hd_base::HashSet<usize> = hd_base::HashSet::default();
+    // Each queued handle trait's library, and each library's entry names
+    // taken so far: a conflict the check could not see, as between two
+    // modules, refuses the run (`cli.host.c.handle-library`,
+    // `cli.host.c.handle-entry`).
+    let mut queued: HashMap<usize, &Library> = HashMap::default();
+    let mut entries: HashMap<(&std::path::Path, &str), String> = HashMap::default();
     let check_slots = |index: usize, table: &CTable, library: &Library, name: &str| {
         let interface = &interfaces[index];
         if let Some(m) = interface.methods.iter().find(|m| m.suspends) {
@@ -332,12 +337,12 @@ pub(crate) fn c_preflight(
         };
         let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
         check_slots(index, &table, library, &name)?;
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
         for m in &c.table.methods {
             if let Ret::Handle(handle) = &m.result
                 && let Some(&h) = package.c_handles.get(handle)
-                && queued.insert(h)
             {
-                todo.push((h, library));
+                queue(&mut queued, &mut todo, h, library, &interfaces[h])?;
             }
         }
         bound.providers[index] =
@@ -356,17 +361,61 @@ pub(crate) fn c_preflight(
         };
         let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
         check_slots(index, &table, library, &name)?;
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
         for m in &c.table.methods {
             if let Ret::Handle(handle) = &m.result
                 && let Some(&h) = package.c_handles.get(handle)
-                && queued.insert(h)
             {
-                todo.push((h, library));
+                queue(&mut queued, &mut todo, h, library, &interfaces[h])?;
             }
         }
         bound.handles[index] = Some(table);
     }
     Ok(bound)
+}
+
+/// Takes `library`'s entry name `trait_name` for the trait `label`, or
+/// refuses the run when another C-bound trait took it
+/// (`cli.host.c.handle-entry`).
+fn claim<'a>(
+    entries: &mut HashMap<(&'a std::path::Path, &'a str), String>,
+    library: &'a Library,
+    trait_name: &'a str,
+    label: &str,
+) -> Result<(), StartError> {
+    if let Some(other) = entries.insert((library.path.as_path(), trait_name), label.to_owned()) {
+        return Err(refused(format!(
+            "{label:?} and {other:?} would both take the entry symbol `{}_{trait_name}` of the C provider `{}` of package `{}`",
+            library.name, library.name, library.package
+        )));
+    }
+    Ok(())
+}
+
+/// Queues the handle interface `h` with the library of the trait that
+/// returns it, once, or refuses the run when traits of two libraries
+/// return it (`cli.host.c.handle-library`).
+fn queue<'a>(
+    queued: &mut HashMap<usize, &'a Library>,
+    todo: &mut Vec<(usize, &'a Library)>,
+    h: usize,
+    library: &'a Library,
+    handle: &Interface,
+) -> Result<(), StartError> {
+    match queued.get(&h) {
+        Some(other) if other.path != library.path => Err(refused(format!(
+            "the handle trait {:?} is returned by C providers of two libraries, `{}` and `{}`",
+            handle.identity.to_string(),
+            other.name,
+            library.name
+        ))),
+        Some(_) => Ok(()),
+        None => {
+            queued.insert(h, library);
+            todo.push((h, library));
+            Ok(())
+        }
+    }
 }
 
 /// The C providers of an instance's C-bound root interfaces and the checked
