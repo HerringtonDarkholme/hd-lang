@@ -414,15 +414,15 @@ struct Binders {
     guard: usize,
 }
 
-struct Writer(Vec<u8>);
+pub(crate) struct Writer(pub(crate) Vec<u8>);
 impl Writer {
-    fn len(&mut self, n: usize) {
+    pub(crate) fn len(&mut self, n: usize) {
         self.number(u32::try_from(n).expect("Wasm contract length"));
     }
-    fn number(&mut self, n: u32) {
+    pub(crate) fn number(&mut self, n: u32) {
         hd_base::leb::put(&mut self.0, u64::from(n));
     }
-    fn string(&mut self, s: &str) {
+    pub(crate) fn string(&mut self, s: &str) {
         self.len(s.len());
         self.0.extend_from_slice(s.as_bytes());
     }
@@ -493,12 +493,12 @@ impl Writer {
     }
 }
 
-struct Reader<'a> {
-    bytes: &'a [u8],
-    at: usize,
+pub(crate) struct Reader<'a> {
+    pub(crate) bytes: &'a [u8],
+    pub(crate) at: usize,
 }
 impl<'a> Reader<'a> {
-    fn take(&mut self, n: usize) -> Result<&'a [u8], &'static str> {
+    pub(crate) fn take(&mut self, n: usize) -> Result<&'a [u8], &'static str> {
         let end = self
             .at
             .checked_add(n)
@@ -510,17 +510,17 @@ impl<'a> Reader<'a> {
         self.at = end;
         Ok(b)
     }
-    fn byte(&mut self) -> Result<u8, &'static str> {
+    pub(crate) fn byte(&mut self) -> Result<u8, &'static str> {
         Ok(self.take(1)?[0])
     }
-    fn boolean(&mut self) -> Result<bool, &'static str> {
+    pub(crate) fn boolean(&mut self) -> Result<bool, &'static str> {
         match self.byte()? {
             0 => Ok(false),
             1 => Ok(true),
             _ => Err("invalid package host boolean"),
         }
     }
-    fn len(&mut self) -> Result<usize, &'static str> {
+    pub(crate) fn len(&mut self) -> Result<usize, &'static str> {
         let n = self.number()? as usize;
         if n <= self.bytes.len() - self.at {
             Ok(n)
@@ -528,7 +528,7 @@ impl<'a> Reader<'a> {
             Err("truncated package host contract vector")
         }
     }
-    fn number(&mut self) -> Result<u32, &'static str> {
+    pub(crate) fn number(&mut self) -> Result<u32, &'static str> {
         let start = self.at;
         hd_base::leb::get(self.bytes, &mut self.at, u32::BITS)
             .and_then(|n| u32::try_from(n).ok())
@@ -540,7 +540,7 @@ impl<'a> Reader<'a> {
                 }
             })
     }
-    fn string(&mut self) -> Result<String, &'static str> {
+    pub(crate) fn string(&mut self) -> Result<String, &'static str> {
         let n = self.len()?;
         String::from_utf8(self.take(n)?.to_vec())
             .map_err(|_| "invalid UTF-8 in package host contract")
@@ -610,9 +610,12 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// The package contract and compilation level, read in one section walk.
+/// The package contract, its C tables and compilation level, read in one
+/// section walk.
 pub struct ModuleMetadata {
     pub contract: Option<Contract>,
+    /// The C table of each C-bound root interface (`crate::c`).
+    pub c_tables: Vec<crate::c::Table>,
     pub opt_level: hd_base::OptLevel,
 }
 
@@ -624,6 +627,7 @@ pub fn module_metadata(wasm: &[u8]) -> Result<ModuleMetadata, &'static str> {
     }
     let mut r = Reader { bytes: wasm, at: 8 };
     let mut contract = None;
+    let mut c_tables = None;
     let mut opt_level = None;
     while r.at < wasm.len() {
         let kind = r.byte()?;
@@ -639,6 +643,11 @@ pub fn module_metadata(wasm: &[u8]) -> Result<ModuleMetadata, &'static str> {
                 return Err("duplicate package host contract section");
             }
             contract = Some(Contract::decode(&bytes[section.at..])?);
+        } else if name == crate::c::SECTION {
+            if c_tables.is_some() {
+                return Err("duplicate C table section");
+            }
+            c_tables = Some(crate::c::decode(&bytes[section.at..])?);
         } else if name == BUILD_SECTION {
             if opt_level.is_some() {
                 return Err("duplicate build profile section");
@@ -650,8 +659,24 @@ pub fn module_metadata(wasm: &[u8]) -> Result<ModuleMetadata, &'static str> {
             });
         }
     }
+    let c_tables = c_tables.unwrap_or_default();
+    // Each table names a root interface of the contract, once.
+    let roots: BTreeSet<&str> = contract
+        .iter()
+        .flat_map(|c| &c.interfaces)
+        .filter(|i| !i.handle)
+        .map(|i| i.module.as_str())
+        .collect();
+    let mut named = BTreeSet::new();
+    if c_tables
+        .iter()
+        .any(|t| !roots.contains(t.module.as_str()) || !named.insert(t.module.as_str()))
+    {
+        return Err("a C table names no root interface of the package host contract, or one twice");
+    }
     Ok(ModuleMetadata {
         contract,
+        c_tables,
         opt_level: opt_level.unwrap_or_default(),
     })
 }

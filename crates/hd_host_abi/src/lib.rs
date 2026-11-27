@@ -11,6 +11,7 @@
 //! hosts' codecs and method descriptors: the JS host's `host/gen/abi.ts`
 //! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
+pub mod c;
 pub mod javascript;
 #[cfg(feature = "native-rust")]
 pub mod native_rust;

@@ -2077,7 +2077,14 @@ fn profile_vtable(
         arguments: None,
     };
     let mut methods = Vec::new();
-    let vtable = profile_tree(input, m, def, def, key, at, &mut methods)?;
+    let c_table = package.as_ref().and_then(|_| (input.package_c)(def));
+    let vtable = match &c_table {
+        Some(table) => c_vtable(input, m, def, key, at, table, &mut methods)?,
+        None => profile_tree(input, m, def, def, key, at, &mut methods)?,
+    };
+    if let Some(table) = c_table {
+        m.edit(crate::module::Edit::CTable(table));
+    }
     if let (Some(identity), Some(module)) = (package, module) {
         crate::boundary::record_package_interface(
             m,
@@ -2091,6 +2098,48 @@ fn profile_vtable(
         );
     }
     Ok(vtable)
+}
+
+/// The vtable of a package host trait bound to a C provider: one slot per
+/// method that keeps one, each a C call ([`crate::boundary::c_slot`]),
+/// and its contract methods, the called ones in source order. Such a
+/// trait has no supertrait (`hd_check::header::c_trait`), so it has no
+/// parent vtable.
+///
+/// Cost: one pass over the trait's slots, with one table lookup each.
+fn c_vtable(
+    input: &Input<'_>,
+    m: &mut Module,
+    def: hd_base::DefId,
+    key: &str,
+    at: crate::boundary::AtProfile<'_>,
+    table: &hd_host_abi::c::Table,
+    methods: &mut Vec<hd_host_abi::schema::Method>,
+) -> StageResult<usize> {
+    let rows: hd_base::HashMap<&str, &hd_host_abi::c::Method> = table
+        .methods
+        .iter()
+        .map(|cm| (cm.name.as_str(), cm))
+        .collect();
+    let mut slots = Vec::new();
+    for method in input.collected.slots(input.env, def) {
+        let mp = (input.path)(method);
+        let member = mp.rsplit(['.', '/']).next().unwrap_or("");
+        let row = rows.get(member).copied();
+        // ruled out: the driver builds the table from every method of this
+        // trait (`package_c_table`).
+        debug_assert!(row.is_some(), "the C method `{member}` has no table row");
+        let (true, Some(row)) = (input.collected.calls_dyn(method), row) else {
+            slots.push(crate::boundary::uncalled_slot(input, method)?);
+            continue;
+        };
+        slots.push(crate::boundary::c_slot(input, m, key, row, method, at)?);
+        crate::boundary::add_package_method(
+            methods,
+            crate::boundary::package_method(input, method, def, def, None)?,
+        );
+    }
+    crate::drive::vtable(input, m, def, slots, Vec::new())
 }
 
 // ruled out: hd_resolve checks trait.super.acyclic before collection.
@@ -2302,7 +2351,7 @@ pub fn arity(helper: &Helper) -> (usize, usize) {
         args.iter()
             .map(|arg| match arg {
                 crate::task::HostArg::Str => 2,
-                crate::task::HostArg::Scalar(_) => 1,
+                crate::task::HostArg::Scalar(_) | crate::task::HostArg::List(_) => 1,
                 crate::task::HostArg::Buf(ty) => ty.value_count(),
             })
             .sum::<usize>()

@@ -2668,74 +2668,154 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) {
 }
 
 /// Why `t` at `place` is no row of the C value table, or `None` when it
-/// is one (`module.host.package.c-types`): `bool`, an integer, `f32` or
-/// `f64`; as a parameter, also `string` and a local reference to a number
-/// or to a list of numbers (`c-references`); a suspending method takes
-/// numbers and `bool` only, and its result is a number, `List[u8]`, or a
-/// `Result` of one of them with an `i32` error (`c-suspend`).
+/// is one.
 fn c_fault(cx: &HeaderCx<'_>, t: Ty, place: CPlace) -> Option<&'static str> {
+    let suspends = matches!(place, CPlace::SuspendParam | CPlace::SuspendResult);
+    match place {
+        CPlace::Param | CPlace::SuspendParam => c_param(&cx.names, t, suspends).err(),
+        CPlace::Result | CPlace::SuspendResult => c_result(&cx.names, t, suspends).err(),
+    }
+}
+
+/// The number row of `t`, when it is a number type.
+fn c_num(pool: Types<'_>, t: Ty) -> Option<hd_host_abi::c::Num> {
+    use hd_host_abi::c::Num;
     use hd_types::Prim;
-    let pool = cx.names.pool.types();
-    let known = cx.names.known;
-    let prim = |t: Ty| match pool.get(t) {
-        TyData::Prim(p) => Some(p),
-        _ => None,
+    let TyData::Prim(p) = pool.get(t) else {
+        return None;
     };
-    let number =
-        |t: Ty| prim(t).is_some_and(|p| !matches!(p, Prim::Bool | Prim::Char | Prim::String));
-    let list_of = |t: Ty| match pool.get(t) {
-        TyData::Adt(AdtId::Declared(def), args) if def == known.list => {
+    Some(match p {
+        Prim::I8 => Num::I8,
+        Prim::I16 => Num::I16,
+        Prim::I32 => Num::I32,
+        Prim::I64 => Num::I64,
+        Prim::U8 => Num::U8,
+        Prim::U16 => Num::U16,
+        Prim::U32 => Num::U32,
+        Prim::U64 => Num::U64,
+        Prim::Usize => Num::Usize,
+        Prim::F32 => Num::F32,
+        Prim::F64 => Num::F64,
+        Prim::Bool | Prim::Char | Prim::String => return None,
+    })
+}
+
+/// The element of `t` when it is a `List`.
+fn c_list_of(names: &Names<'_>, t: Ty) -> Option<Ty> {
+    let pool = names.pool.types();
+    match pool.get(t) {
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
             pool.list_items(args).first().copied()
         }
         _ => None,
-    };
-    let bytes = |t: Ty| list_of(t).and_then(prim) == Some(Prim::U8);
-    match place {
-        CPlace::Param | CPlace::Result if prim(t) == Some(Prim::Bool) || number(t) => None,
-        CPlace::Result if t == Ty::VOID => None,
-        CPlace::Result
-            if matches!(pool.get(t), TyData::Ref { inner, .. }
-                if matches!(pool.get(inner), TyData::TraitValue { .. })) =>
-        {
-            Some(
-                "a C provider returns no host handle: no function table for a returned handle is defined",
-            )
-        }
-        CPlace::Result => Some(
-            "a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion",
-        ),
-        CPlace::Param if t == Ty::STRING => None,
-        CPlace::Param => match pool.get(t) {
-            TyData::Ref {
-                inner,
-                counted: false,
-                ..
-            } if number(inner) || list_of(inner).is_some_and(number) => None,
-            TyData::Ref { counted: false, .. } => {
-                Some("a local reference crosses to C only to a number or to a list of numbers")
-            }
-            _ => Some(
-                "a C function takes `bool`, numbers, `string`, and local references to numbers and to lists of numbers",
-            ),
-        },
-        CPlace::SuspendParam if prim(t) == Some(Prim::Bool) || number(t) => None,
-        CPlace::SuspendParam => Some(
-            "a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works",
-        ),
-        CPlace::SuspendResult => {
-            let completed = |t: Ty| number(t) || bytes(t);
-            let ok = completed(t)
-                || match pool.get(t) {
-                    TyData::Adt(AdtId::Declared(def), args) if def == known.result => {
-                        matches!(pool.list_items(args), [value, error] if completed(*value) && *error == Ty::I32)
-                    }
-                    _ => false,
-                };
-            (!ok).then_some(
-                "a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error",
-            )
-        }
     }
+}
+
+/// The C value table row of parameter type `t` of a method that
+/// suspends when `suspends` (`module.host.package.c-types`,
+/// `c-references`, `c-suspend`), or why it has none: `bool` and the
+/// numbers; for a method that returns at once, also `string` and a local
+/// reference to a number or to a list of numbers.
+///
+/// Cost: a constant number of pool reads.
+pub fn c_param(
+    names: &Names<'_>,
+    t: Ty,
+    suspends: bool,
+) -> Result<hd_host_abi::c::Param, &'static str> {
+    use hd_host_abi::c::Param;
+    let pool = names.pool.types();
+    if t == Ty::BOOL {
+        return Ok(Param::Bool);
+    }
+    if let Some(num) = c_num(pool, t) {
+        return Ok(Param::Num(num));
+    }
+    if suspends {
+        return Err(
+            "a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works",
+        );
+    }
+    if t == Ty::STRING {
+        return Ok(Param::Str);
+    }
+    match pool.get(t) {
+        TyData::Ref {
+            inner,
+            counted: false,
+            mutable,
+        } => {
+            if let Some(num) = c_num(pool, inner) {
+                Ok(Param::Ref { num, mutable })
+            } else if let Some(num) = c_list_of(names, inner).and_then(|e| c_num(pool, e)) {
+                Ok(Param::List { num, mutable })
+            } else {
+                Err("a local reference crosses to C only to a number or to a list of numbers")
+            }
+        }
+        _ => Err(
+            "a C function takes `bool`, numbers, `string`, and local references to numbers and to lists of numbers",
+        ),
+    }
+}
+
+/// The C value table row of result type `t` of a method that suspends
+/// when `suspends`, or why it has none: `void`, `bool` or a number; a
+/// suspending method's completion is a number, `List[u8]`, or a `Result`
+/// of one of them with an `i32` error.
+///
+/// Cost: a constant number of pool reads.
+pub fn c_result(
+    names: &Names<'_>,
+    t: Ty,
+    suspends: bool,
+) -> Result<hd_host_abi::c::Ret, &'static str> {
+    use hd_host_abi::c::{Num, Ret};
+    let pool = names.pool.types();
+    if suspends {
+        let completed = |t: Ty| {
+            if let Some(num) = c_num(pool, t) {
+                Some(Ret::Num(num))
+            } else {
+                (c_list_of(names, t).and_then(|e| c_num(pool, e)) == Some(Num::U8))
+                    .then_some(Ret::Bytes)
+            }
+        };
+        return completed(t)
+            .or_else(|| match pool.get(t) {
+                TyData::Adt(AdtId::Declared(def), args) if def == names.known.result => {
+                    match pool.list_items(args) {
+                        [value, error] if *error == Ty::I32 => {
+                            completed(*value).map(|r| Ret::Result(Box::new(r)))
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .ok_or(
+                "a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error",
+            );
+    }
+    if t == Ty::VOID {
+        return Ok(Ret::Void);
+    }
+    if t == Ty::BOOL {
+        return Ok(Ret::Bool);
+    }
+    if let Some(num) = c_num(pool, t) {
+        return Ok(Ret::Num(num));
+    }
+    if matches!(pool.get(t), TyData::Ref { inner, .. }
+        if matches!(pool.get(inner), TyData::TraitValue { .. }))
+    {
+        return Err(
+            "a C provider returns no host handle: no function table for a returned handle is defined",
+        );
+    }
+    Err(
+        "a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion",
+    )
 }
 
 impl ItemCheck<'_, '_> {

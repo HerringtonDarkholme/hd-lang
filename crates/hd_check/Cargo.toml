@@ -19,6 +19,7 @@ testing = ["hd_resolve/testing", "hd_types/testing"]
 [dependencies]
 hd_base = { workspace = true }
 hd_diag = { workspace = true }
+hd_host_abi = { workspace = true }
 hd_intern = { workspace = true }
 hd_project = { workspace = true }
 hd_resolve = { workspace = true }

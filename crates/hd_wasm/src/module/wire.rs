@@ -967,6 +967,7 @@ wire_enum!(HostArg {
     0 => Str,
     1 => Scalar(a),
     2 => Buf(a),
+    3 => List(a),
 });
 wire_enum!(HostRes {
     0 => Void,
@@ -1064,7 +1065,7 @@ impl Wire for Edit {
                 a.put(o);
                 b.put(o);
             }
-            Edit::PackageInterface(_) => o.unstorable = true,
+            Edit::PackageInterface(_) | Edit::CTable(_) => o.unstorable = true,
         }
     }
     fn get(i: &mut In<'_>) -> Option<Self> {

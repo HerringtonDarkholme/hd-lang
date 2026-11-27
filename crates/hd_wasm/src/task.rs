@@ -62,6 +62,13 @@ pub enum HostArg {
     /// A structured value, encoded in the exchange buffer after the ones
     /// before it (`boundary.rs`).
     Buf(LTy),
+    /// A local reference to a list of numbers, for a C provider
+    /// (`module.host.package.c-references`): its value is the list
+    /// place's address, and the import takes the elements' address and
+    /// the length. A `&mut` one first makes the buffer the place's own
+    /// with this element's `rt:list_unique`, so C writes no other holder's
+    /// elements.
+    List(Option<crate::rt::Elem>),
 }
 
 impl HostArg {
@@ -71,6 +78,7 @@ impl HostArg {
             HostArg::Str => vec![Val::I32, Val::I32],
             HostArg::Scalar(v) => vec![*v],
             HostArg::Buf(b) => b.vals(),
+            HostArg::List(_) => vec![Val::I32],
         }
     }
 }

@@ -59,6 +59,7 @@ use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty};
 
+pub use boundary::package_module;
 #[cfg(feature = "checked-report")]
 pub use count_audit::resolve as resolve_count_audit;
 pub use emit::{Settled, settled};
@@ -227,6 +228,9 @@ pub struct Input<'a> {
     pub package_host: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
     pub package_trait: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
     pub package_selectors: &'a (dyn Fn(DefId) -> Vec<String> + Sync),
+    /// The C table of a package host root bound to a C provider
+    /// (`module.host.package.c-types`), whose methods lower as C calls.
+    pub package_c: &'a (dyn Fn(DefId) -> Option<hd_host_abi::c::Table> + Sync),
     pub collected: &'a Collected,
     /// The instances in content order (`InstanceTable::content_order`).
     pub order: &'a [InstId],
@@ -716,6 +720,7 @@ fn link(
         package_host: input.package_host,
         package_trait: input.package_trait,
         package_selectors: input.package_selectors,
+        package_c: input.package_c,
         collected: input.collected,
         order: input.order,
         body: &body,

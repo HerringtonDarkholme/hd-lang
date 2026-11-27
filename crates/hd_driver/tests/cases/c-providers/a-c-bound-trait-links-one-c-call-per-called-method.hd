@@ -1,0 +1,25 @@
+# @dump: functions
+# @c-host: main.Disk
+# A trait bound to a C provider (module.host.package.c-types) links one
+# C call slot per called method, and a trap for an uncalled one; it passes
+# each argument as an import parameter, with no exchange buffer: a number
+# as its value, a reference to a number as its address, a string as its
+# bytes' address and length, and a reference to a list as its elements'
+# address and length, made the list's own first when `&mut`.
+@host
+pub trait Disk:
+    fn write(&mut self, path: string, data: &List[u8], at: &mut u64, scale: f32) -> i32
+    fn fill(&mut self, into: &mut List[i32]) -> bool
+    fn wait!(&mut self, ms: u32) -> Result[List[u8], i32]
+    fn unused(&self) -> i32
+
+pub fn main!() -> void $ Disk + Console:
+    disk := $.use(Disk)
+    let mut at: u64 = 0
+    let data: List[u8] = [1, 2]
+    let mut into: List[i32] = [3]
+    n := disk.write("a.txt", &data, &mut at, 1.5)
+    ok := disk.fill(&mut into)
+    match disk.wait!(10):
+        .Ok(bytes) => println("${n} ${ok} ${bytes.len()} ${at} ${into[0]}")
+        .Err(code) => println("error ${code}")
