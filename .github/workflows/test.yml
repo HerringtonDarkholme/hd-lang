@@ -594,10 +594,8 @@ jobs:
         include:
           - os: windows-latest
             cargo-config: --config .github/cargo-windows-host.toml
-            lint-profile: --release
           - os: macos-latest
             cargo-config: ""
-            lint-profile: ""
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -634,9 +632,7 @@ jobs:
           fi
 
       - name: Lint host crates
-        # Windows shares the test profile, avoiding a second build-script
-        # and dependency profile. macOS keeps its existing dev lint.
-        run: cargo ${{ matrix.cargo-config }} clippy ${{ matrix.lint-profile }} -p hd_run_wasmtime -p hd_command --features hd_command/dist --all-targets -- -D warnings
+        run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/dist --all-targets -- -D warnings
 
       # The disk cache's file locks and rejected-query handoff, the wasmtime
       # host (whose process parity tests run the release `hd` this builds),
