@@ -9,7 +9,7 @@
   (import "fixture" "rt:list_truncate" (func $rt:list_truncate (param i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $scalar (param $size i32) (result i32)
     ;; 28 |     run(fn() -> i32: size + 1)

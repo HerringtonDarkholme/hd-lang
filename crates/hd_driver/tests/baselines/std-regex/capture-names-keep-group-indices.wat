@@ -3,7 +3,7 @@
 (module
   (import "fixture" "impl Regex.capture_names" (func $"impl Regex.capture_names" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $group_count (param $regex i32) (result i32) (local $t0 i32)
     ;; 7 |     regex.capture_names().len()
     block
@@ -25,7 +25,7 @@
 (module
   (import "fixture" "impl Regex.capture_names" (func $"impl Regex.capture_names" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $group_count (param $regex i32) (result i32) (local $t0 i32)
     ;; 7 |     regex.capture_names().len()
     block
@@ -48,7 +48,7 @@
   (import "fixture" "impl Regex.capture_names" (func $"impl Regex.capture_names" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $group_count (param $regex i32) (result i32)
     ;; 7 |     regex.capture_names().len()
     local.get $regex
@@ -76,7 +76,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $group_count (param $regex i32) (result i32)
     ;; 7 |     regex.capture_names().len()
     local.get $regex

@@ -5,7 +5,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $digest (param $value'2 i32) (result i64) (local $value'1 i32) (local $t0 i32) (local $h.low i64) (local $h.accumulator i64) (local $value'3 i64) (local $hasher i32) (local $h.high i64) (local $h.bits i32) (local $lx i64) (local $ll i64) (local $t1 i32) (local $lh i64)
     ;; 9 |     hash_of(value)
     global.get $stack

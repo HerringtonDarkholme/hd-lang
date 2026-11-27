@@ -13,7 +13,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $send (param $items.buffer.ptr i32) (param $items.buffer.capacity'1 i32) (param $items.len'1 i32) (param $word.0'2 i32) (param $word.1'2 i32) (result i32) (local $t1 i32) (local $items.len'2 i32) (local $items.buffer.capacity'2 i32) (local $t2 i32) (local $items i32) (local $t0 i32) (local $t3 i32) (local $word.0'1 i32) (local $word.1'1 i32) (local $t4 i32) (local $t5 i32)
     ;; 14 |     run(fn() -> usize: items.len() + word.len())

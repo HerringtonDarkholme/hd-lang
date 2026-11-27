@@ -3,7 +3,7 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 33 |     callback
     block
@@ -96,7 +96,7 @@
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 33 |     callback
     block

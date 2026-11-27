@@ -9,7 +9,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $twice (param $xs i32) (result i32) (local $n i32) (local $x.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 26 |     let n: usize = 0
     global.get $stack

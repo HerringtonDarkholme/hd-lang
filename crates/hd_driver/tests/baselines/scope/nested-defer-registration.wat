@@ -10,7 +10,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $nested#1 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 8 |     defer(fn() -> void: log.push(+1))

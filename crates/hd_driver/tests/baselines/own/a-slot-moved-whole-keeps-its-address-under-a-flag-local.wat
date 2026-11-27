@@ -10,7 +10,7 @@
   (import "fixture" "std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (func $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $consume (param $held i32) (result i32)
     ;; 32 |     held.id

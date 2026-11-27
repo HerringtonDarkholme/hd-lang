@@ -1,0 +1,5 @@
+# A recursion 200,000 calls deep runs on every engine: the default call
+# stacks are 16 MiB of Wasm stack and 8 MiB of frame region (#2396).
+run: hd main.hd
+exit: 0
+stdout: 200000

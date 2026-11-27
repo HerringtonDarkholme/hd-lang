@@ -5,7 +5,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $reborrow (param $c i32) (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32)
     ;; 39 |     grow(c, s)

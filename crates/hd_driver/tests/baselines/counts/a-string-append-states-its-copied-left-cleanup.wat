@@ -8,7 +8,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $text i32) (param $suffix.0 i32) (param $suffix.1 i32)
     ;; 17 |     *text += suffix
     local.get $text

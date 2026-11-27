@@ -23,7 +23,7 @@
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 8 |     s.len()

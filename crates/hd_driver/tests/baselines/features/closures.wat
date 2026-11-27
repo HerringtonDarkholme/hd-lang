@@ -7,7 +7,7 @@
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $escape#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     fn() -> usize: s.len()

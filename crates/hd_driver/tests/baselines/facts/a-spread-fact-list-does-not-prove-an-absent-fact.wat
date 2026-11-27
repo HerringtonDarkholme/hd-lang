@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "release_value[std.encoding.serde.EnumTagging?]" (func $"release_value[std.encoding.serde.EnumTagging?]" (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $unknown (param $unrelated i32) (param $value i64) (result i64) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32)
     ;; ...
     ;; 12 |     if facts.find::[EnumTagging]().is_some():

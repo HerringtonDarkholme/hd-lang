@@ -5,7 +5,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 25 |     announce(value).text.len()
     block
@@ -55,7 +55,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 25 |     announce(value).text.len()
     block
@@ -102,7 +102,7 @@
 == @build: release
 (module
   (import "fixture" "announce" (func $announce (param i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $length (param $value i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 25 |     announce(value).text.len()
     local.get $value

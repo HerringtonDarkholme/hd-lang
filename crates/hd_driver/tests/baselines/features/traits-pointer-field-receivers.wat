@@ -6,7 +6,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t0 i32)
     ;; 32 |         self.source.step()

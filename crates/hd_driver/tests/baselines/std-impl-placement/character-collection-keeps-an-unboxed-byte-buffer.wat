@@ -11,7 +11,7 @@
   (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl FromIterator[char] for string.from_iter[std.text.Chars]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; (no span)
     global.get $stack
@@ -240,7 +240,7 @@
   (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl FromIterator[char] for string.from_iter[std.text.Chars]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; (no span)
     global.get $stack

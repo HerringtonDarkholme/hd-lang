@@ -7,7 +7,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[string]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[string]" (param i32 i32)))
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32)
     ;; 11 |     _ := m.insert(k, v)
     local.get $m

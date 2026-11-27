@@ -5,7 +5,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (func $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (param i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 11 funcref))
   (func $inferred#1 (param $env i32) (param $t0 i32) (param $t2 i32) (param $ctx i32) (result i32) (local $t1 i32)
     ;; 15 |     invoke(Fn::call, logged, +15)

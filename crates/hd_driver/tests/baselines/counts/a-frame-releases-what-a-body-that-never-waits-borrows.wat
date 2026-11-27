@@ -25,7 +25,7 @@
   (import "fixture" "waker" (global $waker (mut i32)))
   (import "fixture" "wake_bit" (global $wake_bit (mut i32)))
   (import "fixture" "all_polls" (global $all_polls (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 20 funcref))
   (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $offset i32) (local $t5 i32) (local $t3 i32) (local $t4 i32) (local $value i64) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 20 |     n := box::[Note](Note { text: "n" })

@@ -9,7 +9,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $outer (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 32 | fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
     local.get $t0

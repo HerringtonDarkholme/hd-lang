@@ -28,9 +28,10 @@ pub const BUF: u32 = 1;
 /// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2).
 pub const HEAP: u32 = 0;
 
-/// The shared frame region: 1 MiB, over nine times the measured 114,480-byte
-/// peak of the wide dev frame case, preserving the previous stack capacity.
-pub const STACK_PAGES: u32 = 16;
+/// The shared frame region: 8 MiB (#2396), Rust's main-thread stack, over
+/// seventy times the measured 114,480-byte peak of the wide dev frame case.
+/// Its pages cost nothing until a frame touches them.
+pub const STACK_PAGES: u32 = 128;
 
 /// The first address of static data: addresses below it are never used,
 /// so 0 stays null.

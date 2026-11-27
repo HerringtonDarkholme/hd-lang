@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $consume (param $t1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64)
     ;; 61 | fn consume(b: Big) -> i32: b.f0 + b.f15
     block

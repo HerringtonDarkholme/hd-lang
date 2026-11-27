@@ -2246,9 +2246,10 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   counted, so a checked build audits the same counts.
 - **The stack** is a downward region in memory 0 between static data and
   the heap start. `Global::Stack` and `Global::StackLimit` delimit it;
-  the allocator cannot consume its pages. Its 16 pages retain the previous
-  1 MiB capacity, over nine times the measured 114,480-byte frame-case peak
-  (#2183). Every reservation compares its size against `top - limit`
+  the allocator cannot consume its pages. Its 128 pages are 8 MiB, Rust's
+  main-thread stack (#2396), over seventy times the measured 114,480-byte
+  frame-case peak (#2183); each thread's region is as large
+  (`std/rt/thread.hd` `FRAMES`). Every reservation compares its size against `top - limit`
   before subtraction and reports `stack-exhausted` on failure. References,
   value blocks, wide calls and local slots share this address space.
 - **Wide bodies** (#640) put their locals in a zeroed shadow frame after

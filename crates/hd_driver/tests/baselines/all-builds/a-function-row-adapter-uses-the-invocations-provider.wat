@@ -145,7 +145,7 @@
   (import "fixture" "invoke" (func $invoke (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $callback.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     block

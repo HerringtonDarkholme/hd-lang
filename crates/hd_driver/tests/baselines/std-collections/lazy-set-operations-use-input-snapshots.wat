@@ -6,7 +6,7 @@
   (import "fixture" "Iterator.count[std.collections.set.Union[i32], i32]" (func $"Iterator.count[std.collections.set.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < Eq & Hash] Set[T].intersection[i32]" (func $"impl[T < Eq & Hash] Set[T].intersection[i32]" (param i32 i32) (result i32 i32 i32 i32)))
   (import "fixture" "Iterator.count[std.collections.set.Intersection[i32], i32]" (func $"Iterator.count[std.collections.set.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl[T < Eq & Hash] Iterator[T] for Union[T].next[i32]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     block
     ;; (no span)

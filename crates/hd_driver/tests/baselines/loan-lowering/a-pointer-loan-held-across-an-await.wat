@@ -27,7 +27,7 @@
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 18 funcref))
   (func $maybe_change (param $alias i32) (param $change i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |     if change:
@@ -1528,7 +1528,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 18 funcref))
   (func $maybe_change (param $alias i32) (param $change i32) (local $t0 i32)
     ;; 18 |     if change:

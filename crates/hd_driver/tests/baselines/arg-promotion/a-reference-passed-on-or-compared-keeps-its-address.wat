@@ -5,7 +5,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $same_place (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a is b
     local.get $a

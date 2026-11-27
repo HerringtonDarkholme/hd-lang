@@ -325,7 +325,7 @@ impl NodeInstance {
         }
         let _ = std::io::stdout().flush();
         // cost: one Node process per program run.
-        let status = Command::new(node_program())
+        let status = node_command()
             .arg(dir.0.join("run.js"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
@@ -863,6 +863,55 @@ fn grants_json(g: &Grants) -> String {
 /// The Node every host process starts: `node` from PATH; in `hd_command`'s own
 /// unit tests, the version `.node-version` pins, so an older PATH Node
 /// fails them once at setup (`hd_testkit::node`, #2059).
+/// V8's stack in KiB for the program's Wasm on Node's main thread: 16 MiB,
+/// as wasmtime's `max_wasm_stack` and a worker thread's (`host/run-support.ts`
+/// `PROGRAM_STACK`, #2396). V8 trusts the flag, so the thread must be larger:
+/// [`node_command`] raises the stack limit Node's process starts with to
+/// twice this, and passes the flag only when it could.
+const NODE_STACK_KIB: u64 = 16 << 10;
+
+/// `node` with the program's stack ([`NODE_STACK_KIB`]).
+fn node_command() -> Command {
+    // cost: one getrlimit and at most one setrlimit per `hd` process.
+    let mut command = Command::new(node_program());
+    if node_stack_raised() {
+        command.arg(format!("--stack-size={NODE_STACK_KIB}"));
+    }
+    command
+}
+
+/// Whether this process's stack limit, which Node's main thread inherits,
+/// is at least twice [`NODE_STACK_KIB`], raised once if the hard limit
+/// allows. Unlimited counts as enough.
+#[cfg(unix)]
+fn node_stack_raised() -> bool {
+    use rustix::process::{Resource, Rlimit, getrlimit, setrlimit};
+    static RAISED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *RAISED.get_or_init(|| {
+        let want = (2 * NODE_STACK_KIB) << 10;
+        let now = getrlimit(Resource::Stack);
+        if now.current.is_none_or(|current| current >= want) {
+            return true;
+        }
+        now.maximum.is_none_or(|maximum| maximum >= want)
+            && setrlimit(
+                Resource::Stack,
+                Rlimit {
+                    current: Some(want),
+                    maximum: now.maximum,
+                },
+            )
+            .is_ok()
+    })
+}
+
+/// Elsewhere Node keeps V8's own stack: the main thread's size is fixed
+/// when `node` is linked.
+#[cfg(not(unix))]
+fn node_stack_raised() -> bool {
+    false
+}
+
 pub(crate) fn node_program() -> &'static std::ffi::OsStr {
     #[cfg(test)]
     {
@@ -942,7 +991,7 @@ pub(crate) fn run_batch(
     let config = dir.0.join("batch.json");
     std::fs::write(&config, manifest).map_err(|error| format!("{}: {error}", config.display()))?;
     // cost: one Node process per hd test command (see below).
-    let mut child = Command::new(node_program())
+    let mut child = node_command()
         .arg(dir.0.join("test.js"))
         .arg("--batch")
         .arg(config)
@@ -1046,7 +1095,7 @@ fn run_host(
     std::fs::write(&config, host_config(env, cases, node))
         .map_err(|e| format!("{}: {e}", config.display()))?;
     // cost: one Node process per test program, which runs its cases.
-    let mut command = Command::new(node_program());
+    let mut command = node_command();
     command
         .arg(dir.0.join("test.js"))
         .arg(dir.0.join("main.wasm"))

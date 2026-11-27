@@ -22,7 +22,7 @@
   (import "fixture" "waker" (global $waker (mut i32)))
   (import "fixture" "wake_bit" (global $wake_bit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $"ready[i32]" (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 7 |     value

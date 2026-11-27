@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl f64 #9.sin" (func $"impl f64 #9.sin" (param f64) (result f64)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $sine (param $value f64) (result f64)
     ;; 7 |     value.sin()
     local.get $value

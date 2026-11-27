@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl[T < Ord] List[T].sort[u32]" (func $"impl[T < Ord] List[T].sort[u32]" (param i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $run (param $xs i32)
     ;; 13 |     xs.sort()
     local.get $xs

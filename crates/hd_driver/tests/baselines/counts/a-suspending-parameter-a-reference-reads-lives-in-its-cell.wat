@@ -27,7 +27,7 @@
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t3 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $value i64) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     global.get $stack

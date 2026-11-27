@@ -5,7 +5,7 @@
   (import "fixture" "release_value[std.iter.Zip[Cursor, usize, usize, Cursor]]" (func $"release_value[std.iter.Zip[Cursor, usize, usize, Cursor]]" (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl ExactSizeIterator[usize] for Cursor.len" (param $self i32) (result i32)
     ;; 21 |         0
     i32.const 0

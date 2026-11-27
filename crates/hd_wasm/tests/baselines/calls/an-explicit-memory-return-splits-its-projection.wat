@@ -4,7 +4,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 44 |     return x._0
     block
@@ -471,7 +471,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 44 |     return x._0
     block
@@ -938,7 +938,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
@@ -1122,7 +1122,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block

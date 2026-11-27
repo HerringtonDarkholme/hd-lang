@@ -211,7 +211,7 @@
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 11 funcref))
   (func $outer (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t4 i64)
     ;; 21 |     callback() + middle(callback)

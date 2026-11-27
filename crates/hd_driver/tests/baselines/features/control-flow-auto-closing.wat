@@ -8,7 +8,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $guard (param $log i32) (param $label.0 i32) (param $label.1 i32) (result i32 i32 i32)
     ;; 21 |     Guard { log: log, label: label }

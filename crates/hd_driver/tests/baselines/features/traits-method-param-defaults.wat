@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl Joiner.join.sep" (param $self i32) (result i32 i32)
     ;; 11 |     fn join(&self, sep: string = ", ") -> usize:
     i32.const 65 ;; &", "

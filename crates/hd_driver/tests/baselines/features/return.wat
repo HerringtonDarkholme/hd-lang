@@ -8,7 +8,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $ret_field (param $r.name.0 i32) (param $r.name.1 i32) (result i32 i32)
     ;; 13 |     r.name
     local.get $r.name.0

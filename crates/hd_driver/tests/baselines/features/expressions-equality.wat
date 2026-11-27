@@ -8,7 +8,7 @@
   (import "fixture" "derive Eq for Rec.eq" (func $"derive Eq for Rec.eq" (param i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $opt_some (param $t1 i32) (param $t2 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $o i32) (local $t0 i32)
     ;; 24 |     o == .Some(s)
     global.get $stack

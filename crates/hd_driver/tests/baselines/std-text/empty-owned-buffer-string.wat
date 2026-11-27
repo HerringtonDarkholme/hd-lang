@@ -6,7 +6,7 @@
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $transfer (param $room.ptr i32) (param $room.capacity i32) (param $size i32) (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $bytes i32) (local $t0 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 9 |     .Some(string_from_buffer(room, size))
     global.get $stack

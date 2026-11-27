@@ -7,7 +7,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $kept (param $n i32) (result i32) (local $f.0 i32) (local $f.1 i32) (local $t0 i32) (local $i i32) (local $total i32) (local $step.1 i32)
     ;; 8 |     let mut f = fn() -> i32: +0
