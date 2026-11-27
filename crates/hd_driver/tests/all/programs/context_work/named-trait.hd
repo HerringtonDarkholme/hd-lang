@@ -1,0 +1,2 @@
+pub trait Pick[T]:
+    fn pick(self) -> T

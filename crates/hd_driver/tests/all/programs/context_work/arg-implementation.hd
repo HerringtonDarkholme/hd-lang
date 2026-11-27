@@ -1,0 +1,6 @@
+pub struct Product:
+    pub id: i32
+
+impl Pick[Product] for Receiver:
+    fn pick(self) -> Product:
+        Product { id: self.n }

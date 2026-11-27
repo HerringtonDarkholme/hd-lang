@@ -485,3 +485,14 @@ pub(crate) fn loan_words(n: usize) {
         }
     });
 }
+
+#[cfg(feature = "testing")]
+#[path = "../tests/support/method_context_work.rs"]
+mod method_context_work;
+#[cfg(feature = "testing")]
+pub use method_context_work::count_method_context_steps;
+#[cfg(feature = "testing")]
+pub(crate) use method_context_work::method_context_step;
+#[cfg(not(feature = "testing"))]
+#[inline]
+pub(crate) fn method_context_step() {}

@@ -31,7 +31,7 @@ use hd_resolve::{
 };
 use hd_syntax::NodeRef;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, TirBuilder};
-use hd_types::lookup::{UnitSlots, Unseen};
+use hd_types::lookup::Unseen;
 use hd_types::solver::{
     Answer, Candidate, Evidence, GlobalMemo, ImplUniverseId, ImplView, OwnerMap, ParamEnv,
     TableSolver, UniverseImpls,
@@ -83,9 +83,10 @@ pub fn with_checker_items(
     let parsed = hd_syntax::parse(b"");
     let index = hd_resolve::iface::IfaceIndex::default();
     let items = items(names);
+    let interfaces = [];
     let lookup = Lookup::new(
         &items,
-        std::iter::empty(),
+        &interfaces,
         &index,
         hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
     );
@@ -95,7 +96,7 @@ pub fn with_checker_items(
         paths: &paths,
         owners: &owners,
         own: None,
-        units: UnitSlots::default(),
+        units: &(),
         universe: ImplUniverseId(0),
         extra: &extra,
         arity: &|_| 0,
@@ -567,3 +568,7 @@ pub(crate) fn projection_pair_visited() {
 pub fn result_cycle_work(width: u32, depth: u32, nested: bool) -> (usize, u64, u64) {
     crate::result_cycles::generated_work(width, depth, nested)
 }
+
+#[path = "../tests/support/persistent_maps.rs"]
+mod persistent_maps;
+pub use persistent_maps::persistent_method_map_history;

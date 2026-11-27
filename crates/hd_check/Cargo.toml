@@ -14,7 +14,7 @@ description = "Body checking, trait solving, exhaustiveness, facts, coherence an
 test = false
 
 [features]
-testing = []
+testing = ["hd_resolve/testing", "hd_types/testing"]
 
 [dependencies]
 hd_base = { workspace = true }

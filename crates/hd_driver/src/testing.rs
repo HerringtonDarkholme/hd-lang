@@ -226,3 +226,10 @@ pub fn checked_entry(out: &crate::Output, m: usize) -> Option<&std::sync::Arc<[u
 pub fn body_index(entry: &[u8]) -> Option<Vec<(hd_base::Hash128, std::ops::Range<usize>)>> {
     crate::body_index(entry)
 }
+
+/// The driver's immutable unit set, for internal cost and algebra checks.
+pub use crate::contexts::UnitSet;
+
+#[path = "../tests/support/context_graphs.rs"]
+mod context_graphs;
+pub use context_graphs::unit_contexts;

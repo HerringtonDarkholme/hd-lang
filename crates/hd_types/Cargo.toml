@@ -8,6 +8,9 @@ repository.workspace = true
 include.workspace = true
 description = "Type storage, inference primitives, rows and solver data (hd compiler internals, no stable API; install `hd-lang`)"
 
+[features]
+testing = []
+
 [dependencies]
 hd_base = { workspace = true }
 hd_intern = { workspace = true }
