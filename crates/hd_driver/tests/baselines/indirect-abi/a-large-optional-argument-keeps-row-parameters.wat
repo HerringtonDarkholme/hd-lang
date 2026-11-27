@@ -12,126 +12,172 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t2 i64) (local $t3 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $value i64) (local $t4 i32)
-    ;; ...
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width i32) (local $value i64) (local $size i32) (local $result.0 i32) (local $offset i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t0 i32) (local $t13 i64) (local $t14 i64)
+    block
+      ;; ...
     ;; 27 |     println("${finish(opts)}")
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 40
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 40
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    local.get $t1
-    i32.store $heap
-    local.get $t0
-    ;; ...
-    i64.store $heap offset=8
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=28
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=29
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=30
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=31
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=32
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=33
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=34
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=35
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=36
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=37
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=38
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=39
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=16
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=20
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=24
-    local.get $t0
-    local.get $provider0
-    local.get $provider0.vtable
-    call $finish
-    local.get $t0
-    i32.const 40
-    i32.add
-    global.set $stack
-    local.tee $t2
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t3
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t4
-    end
-    local.get $t3
-    i64.extend_i32_u
-    local.get $t4
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t4
-    local.tee $t3
-    i32.const 16
-    local.set $t5
-    if
+      global.get $stack
+      global.get $stack_limit
+      i32.sub
+      i32.const 40
+      i32.lt_u
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      global.get $stack
+      i32.const 40
+      i32.sub
+      local.tee $t0
+      global.set $stack
+      local.get $t0
+      local.get $width
+      i32.store $heap
+      local.get $t0
+      local.get $value
+      i64.store $heap offset=8
+      local.get $t0
+      local.get $size
+      i32.store8 $heap offset=28
+      local.get $t0
+      local.get $result.0
+      i32.store8 $heap offset=29
+      local.get $t0
+      local.get $offset
+      i32.store8 $heap offset=30
+      local.get $t0
+      local.get $t1
+      i32.store8 $heap offset=31
+      local.get $t0
+      local.get $t2
+      i32.store8 $heap offset=32
+      local.get $t0
       local.get $t3
-      call $rt:str
-      local.set $t5
+      i32.store8 $heap offset=33
+      local.get $t0
+      local.get $t4
+      i32.store8 $heap offset=34
+      local.get $t0
+      local.get $t5
+      i32.store8 $heap offset=35
+      local.get $t0
+      local.get $t6
+      i32.store8 $heap offset=36
+      local.get $t0
+      local.get $t7
+      i32.store8 $heap offset=37
+      local.get $t0
+      local.get $t8
+      i32.store8 $heap offset=38
+      local.get $t0
+      local.get $t9
+      i32.store8 $heap offset=39
+      local.get $t0
+      local.get $t10
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $t11
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $t12
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $finish
+      local.get $t0
+      i32.const 40
+      i32.add
+      global.set $stack
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t13
+              local.get $t13
+              call $unsigned_width
+              local.set $width
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $width
+              i64.extend_i32_u
+              local.set $t13
+              local.get $size
+              i64.extend_i32_u
+              local.set $t14
+              local.get $t13
+              local.get $t14
+              i64.add
+              local.set $t13
+              local.get $t13
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t13
+              i32.wrap_i64
+              local.set $width
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $width
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $width
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
     end
-    local.get $t2
-    local.get $t5
-    local.get $t4
-    call $write_signed_sized
-    local.get $t5
-    local.get $t3
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
   )
 )
 == @build: checked
@@ -147,126 +193,172 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t2 i64) (local $t3 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $value i64) (local $t4 i32)
-    ;; ...
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width i32) (local $value i64) (local $size i32) (local $result.0 i32) (local $offset i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t0 i32) (local $t13 i64) (local $t14 i64)
+    block
+      ;; ...
     ;; 27 |     println("${finish(opts)}")
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 40
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 40
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    local.get $t1
-    i32.store $heap
-    local.get $t0
-    ;; ...
-    i64.store $heap offset=8
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=28
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=29
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=30
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=31
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=32
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=33
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=34
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=35
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=36
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=37
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=38
-    local.get $t0
-    ;; ...
-    i32.store8 $heap offset=39
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=16
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=20
-    local.get $t0
-    ;; ...
-    i32.store $heap offset=24
-    local.get $t0
-    local.get $provider0
-    local.get $provider0.vtable
-    call $finish
-    local.get $t0
-    i32.const 40
-    i32.add
-    global.set $stack
-    local.tee $t2
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t3
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t4
-    end
-    local.get $t3
-    i64.extend_i32_u
-    local.get $t4
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t4
-    local.tee $t3
-    i32.const 16
-    local.set $t5
-    if
+      global.get $stack
+      global.get $stack_limit
+      i32.sub
+      i32.const 40
+      i32.lt_u
+      if
+        call $rt:panic'1
+        unreachable
+      end
+      global.get $stack
+      i32.const 40
+      i32.sub
+      local.tee $t0
+      global.set $stack
+      local.get $t0
+      local.get $width
+      i32.store $heap
+      local.get $t0
+      local.get $value
+      i64.store $heap offset=8
+      local.get $t0
+      local.get $size
+      i32.store8 $heap offset=28
+      local.get $t0
+      local.get $result.0
+      i32.store8 $heap offset=29
+      local.get $t0
+      local.get $offset
+      i32.store8 $heap offset=30
+      local.get $t0
+      local.get $t1
+      i32.store8 $heap offset=31
+      local.get $t0
+      local.get $t2
+      i32.store8 $heap offset=32
+      local.get $t0
       local.get $t3
-      call $rt:str
-      local.set $t5
+      i32.store8 $heap offset=33
+      local.get $t0
+      local.get $t4
+      i32.store8 $heap offset=34
+      local.get $t0
+      local.get $t5
+      i32.store8 $heap offset=35
+      local.get $t0
+      local.get $t6
+      i32.store8 $heap offset=36
+      local.get $t0
+      local.get $t7
+      i32.store8 $heap offset=37
+      local.get $t0
+      local.get $t8
+      i32.store8 $heap offset=38
+      local.get $t0
+      local.get $t9
+      i32.store8 $heap offset=39
+      local.get $t0
+      local.get $t10
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $t11
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $t12
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $provider0
+      local.get $provider0.vtable
+      call $finish
+      local.get $t0
+      i32.const 40
+      i32.add
+      global.set $stack
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t13
+              local.get $t13
+              call $unsigned_width
+              local.set $width
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $width
+              i64.extend_i32_u
+              local.set $t13
+              local.get $size
+              i64.extend_i32_u
+              local.set $t14
+              local.get $t13
+              local.get $t14
+              i64.add
+              local.set $t13
+              local.get $t13
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t13
+              i32.wrap_i64
+              local.set $width
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $width
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $width
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
     end
-    local.get $t2
-    local.get $t5
-    local.get $t4
-    call $write_signed_sized
-    local.get $t5
-    local.get $t3
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
   )
 )
 == @build: release
