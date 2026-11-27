@@ -73,6 +73,9 @@ pub(crate) fn key(
         // `Output::scopes` is not stored: only `hd lint`'s broken-link pass
         // reads it, and the CLI stores that command's whole result.
         && !packages.doc_scopes
+        // `Output::c_tables` is not stored either: only `hd build` of a
+        // package declaring a C provider asks for it.
+        && !packages.c_tables
         && packages.session.is_none()
         && packages.reuse.is_none()
         && packages.inputs_from.is_none()

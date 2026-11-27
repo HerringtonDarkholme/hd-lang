@@ -588,6 +588,10 @@ pub struct Output {
     pub analysis_diags: DiagBuf,
     /// Checked entry rows, including capabilities unused by the linked code.
     pub entry_capabilities: Vec<EntryCapability>,
+    /// With [`Packages::c_tables`]: each root-package host trait bound to
+    /// a C provider, by its package-relative trait path, with its C table,
+    /// sorted by path. A trait whose check failed has none.
+    pub c_tables: Vec<(String, hd_host_abi::c::Table)>,
     pub wasm: Option<Vec<u8>>,
     /// Generated glue when the default-enabled `host-artifacts` feature is on.
     pub host_artifacts: Option<HostArtifacts>,
@@ -1895,6 +1899,10 @@ struct Run<'a> {
     tuple_plans: Mutex<HashMap<DefId, PlanCell>>,
     body: Vec<OnceLock<Option<BodyOut>>>,
     check: Vec<OnceLock<Option<CheckOut>>>,
+    /// The root package's modules, package-relative, that declare a host
+    /// trait its manifest binds to a C provider: their entries stay whole
+    /// for the C tables (`Run::c_tables_read`). Found on first use.
+    c_modules: OnceLock<BTreeSet<String>>,
     /// Per module, in a test run: the checked `tests:` blocks (a miss).
     tests: Vec<OnceLock<TestsOut>>,
     /// Per module, in a test run: the registrations its check entry holds.
@@ -2273,6 +2281,11 @@ pub struct Packages<'a> {
     /// Expose checked root entry rows for manifest validation. This
     /// off-band metadata does not change modules or their cache keys.
     pub entry_capabilities: bool,
+    /// Expose the C table of each root-package host trait bound to a C
+    /// provider, from its checked signatures (`Output::c_tables`), for the
+    /// header `hd build` writes (`cli.host.c.header`). A run that asks for
+    /// them takes no stored package result.
+    pub c_tables: bool,
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
@@ -3069,6 +3082,7 @@ fn build_packages_inner(
         tuple_plans: Mutex::default(),
         body: (0..n).map(|_| OnceLock::new()).collect(),
         check: (0..n).map(|_| OnceLock::new()).collect(),
+        c_modules: OnceLock::new(),
         tests: (0..n).map(|_| OnceLock::new()).collect(),
         regs: (0..n).map(|_| OnceLock::new()).collect(),
         dbg_refs: (0..n).map(|_| OnceLock::new()).collect(),
@@ -3206,6 +3220,11 @@ fn build_packages_inner(
     );
     let entry_capabilities = if packages.entry_capabilities {
         run.entry_capabilities()
+    } else {
+        Vec::new()
+    };
+    let c_tables = if packages.c_tables {
+        run.c_header_tables()
     } else {
         Vec::new()
     };
@@ -3367,6 +3386,7 @@ fn build_packages_inner(
             run.lint_findings()
         },
         entry_capabilities,
+        c_tables,
         tests: cases,
         wasm,
         host_artifacts,
@@ -3497,6 +3517,7 @@ fn stored_output(
     Output {
         analysis_diags: stored.analysis_diags,
         entry_capabilities: stored.entry_capabilities,
+        c_tables: Vec::new(),
         wasm: None,
         host_artifacts: None,
         instruction_origins: Vec::new(),
@@ -9606,12 +9627,53 @@ impl Run<'_> {
         let checked = self.check[m].get().and_then(Option::as_ref);
         if self.analyze()
             && checked.is_some_and(|c| {
-                !c.has_opaque && !c.has_inline_always && !self.capabilities_read(m, regs)
+                !c.has_opaque
+                    && !c.has_inline_always
+                    && !self.capabilities_read(m, regs)
+                    && !self.c_tables_read(m)
             })
         {
             let source = self.skim_of(m).file.source_hash;
             self.rows.record(&self.table, m, key, source, sections);
         }
+    }
+
+    /// Whether `hd build`'s C tables read module `m`'s items: a module of
+    /// the root package that declares a host trait its manifest binds to a
+    /// C provider ([`Run::c_header_tables`]). It holds on every run, not only
+    /// one that asks for the tables, so no run leaves such a module only
+    /// its row. Cost: the declaring modules once per run, then one lookup.
+    fn c_tables_read(&self, m: usize) -> bool {
+        let module = &self.table.modules[m];
+        if module.package != 0 {
+            return false;
+        }
+        let declaring = self.c_modules.get_or_init(|| {
+            self.host_packages
+                .iter()
+                .find(|p| p.package == 0)
+                .and_then(|p| p.declarations.as_ref())
+                .and_then(|d| d.providers.as_deref())
+                .unwrap_or_default()
+                .iter()
+                .filter(|e| e.binds_c())
+                .map(|e| {
+                    e.trait_path
+                        .rsplit_once('.')
+                        .map_or("", |(module, _)| module)
+                        .to_owned()
+                })
+                .collect()
+        });
+        if declaring.is_empty() {
+            return false;
+        }
+        let relative = module
+            .path
+            .strip_prefix(self.table.roots[0].as_str())
+            .unwrap_or("")
+            .trim_start_matches('.');
+        declaring.contains(relative)
     }
 
     /// Whether the entry capabilities read module `m`'s items: an entry
@@ -11671,6 +11733,121 @@ impl Run<'_> {
 
     /// Read checked signatures after the task graph on cold and warm runs.
     /// Manifest checks must not depend on imports that dead-code removal kept.
+    /// The C table of each root-package host trait bound to a C provider,
+    /// from the checked signatures of its module's items, through the
+    /// mapping the checker held it to (`hd_check::header::c_param`,
+    /// `c_result`). Only a root-package module that names such a trait in
+    /// its manifest's `[host]` is decoded, and a trait with a refused row
+    /// has no table.
+    ///
+    /// Cost: one decode of each such module's items, then one visit per
+    /// method and parameter of each C-bound trait.
+    fn c_header_tables(&self) -> Vec<(String, hd_host_abi::c::Table)> {
+        let Some(declarations) = self
+            .host_packages
+            .iter()
+            .find(|p| p.package == 0)
+            .and_then(|p| p.declarations.as_ref())
+        else {
+            return Vec::new();
+        };
+        let bound: BTreeSet<&str> = declarations
+            .providers
+            .iter()
+            .flatten()
+            .filter(|e| e.binds_c())
+            .map(|e| e.trait_path.as_str())
+            .collect();
+        if bound.is_empty() {
+            return Vec::new();
+        }
+        let root = &self.table.roots[0];
+        let names = self.names();
+        let mut out = Vec::new();
+        for (m, module) in self.table.modules.iter().enumerate() {
+            if module.package != 0 {
+                continue;
+            }
+            let relative = module
+                .path
+                .strip_prefix(root.as_str())
+                .unwrap_or("")
+                .trim_start_matches('.');
+            let prefix = if relative.is_empty() {
+                String::new()
+            } else {
+                format!("{relative}.")
+            };
+            if !self.c_tables_read(m) {
+                continue;
+            }
+            let Some(Some(checked)) = self.check[m].get() else {
+                continue;
+            };
+            let Some(items) = checked
+                .entry
+                .as_deref()
+                .and_then(split_sections)
+                .and_then(|sections| sections.get(2).copied())
+                .and_then(|b| hd_resolve::decode_items(&names, b))
+            else {
+                continue;
+            };
+            let by_def: HashMap<DefId, &hd_resolve::Item> =
+                items.0.iter().map(|i| (i.def, i)).collect();
+            for item in &items.0 {
+                let ItemData::Trait(t) = &item.data else {
+                    continue;
+                };
+                let trait_name = names.path(item.def);
+                let trait_name = trait_name.rsplit(['.', '/']).next().unwrap_or("");
+                let path = format!("{prefix}{trait_name}");
+                if !bound.contains(path.as_str()) {
+                    continue;
+                }
+                let Some(identity) = self.package_host_identity(item.def) else {
+                    continue;
+                };
+                let methods = t
+                    .methods
+                    .iter()
+                    .map(|&(name, m)| {
+                        let sig = by_def.get(&m)?.sig()?;
+                        let params = sig
+                            .params
+                            .iter()
+                            .filter(|p| names.text(p.0) != "self")
+                            .map(|p| {
+                                let row =
+                                    hd_check::header::c_param(&names, p.1, sig.suspends).ok()?;
+                                Some((names.text(p.0).to_owned(), row))
+                            })
+                            .collect::<Option<Vec<_>>>()?;
+                        Some(hd_host_abi::c::Method {
+                            name: names.text(name).to_owned(),
+                            params,
+                            result: hd_check::header::c_result(&names, sig.ret, sig.suspends)
+                                .ok()?,
+                            suspends: sig.suspends,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>();
+                if let Some(methods) = methods {
+                    out.push((
+                        path,
+                        hd_host_abi::c::Table {
+                            module: hd_wasm::package_module(&identity, false),
+                            trait_name: trait_name.to_owned(),
+                            methods,
+                        },
+                    ));
+                }
+            }
+        }
+        out.sort_stable_by(|a, b| a.0.cmp(&b.0));
+        out
+    }
+
     fn entry_capabilities(&self) -> Vec<EntryCapability> {
         let names = self.names();
         let mut out = Vec::new();

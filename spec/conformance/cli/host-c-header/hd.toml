@@ -1,0 +1,5 @@
+[package]
+name = "disk_sdk"
+
+[host]
+"disk.Disk" = { c = "hd_disk" }

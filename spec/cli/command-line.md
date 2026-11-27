@@ -2499,9 +2499,15 @@ the `c` key of the trait's `[host]` entry:
 
 1. r[cli.host.c.name] A `c` library name is a C identifier: an ASCII letter or `_`, then ASCII letters, digits or `_`. Error: `invalid-manifest`.
 2. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
+3. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+4. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
 
 > **Why.** The library's entry symbol joins its name and the trait's, so
 > the name is a C identifier.
+
+> **Why.** The header comes from the checked trait, so a library built
+> against it carries the hash the program checks; a changed trait changes
+> the hash, and a stale library is refused.
 
 See also: [C Value Table](../lang/10-modules.md#c-value-table), [Native Package Providers](#native-package-providers).
 

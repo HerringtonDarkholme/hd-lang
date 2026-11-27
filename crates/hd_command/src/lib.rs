@@ -1943,7 +1943,19 @@ fn build_package(
     if executables.is_empty() {
         let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
         program.only_program("");
-        return build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ());
+        return if binds_c(&program) {
+            c_header(&program, root, &package, true, rep)
+        } else {
+            build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ())
+        };
+    }
+    if let Some(first) = executables.first() {
+        let mut program = disk::load_package(root, &first.file).map_err(|e| rep.fail(&e))?;
+        if binds_c(&program) {
+            program.only_program("");
+            // The executables' builds report the diagnostics.
+            c_header(&program, root, &package, false, rep)?;
+        }
     }
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
@@ -1959,6 +1971,120 @@ fn build_package(
         )?;
     }
     Ok(())
+}
+
+/// Whether `program`'s root manifest binds a host trait to a C provider.
+fn binds_c(program: &disk::Program) -> bool {
+    program
+        .host_packages
+        .iter()
+        .find(|p| p.package == 0)
+        .and_then(|p| p.declarations.as_ref())
+        .and_then(|d| d.providers.as_deref())
+        .is_some_and(|entries| entries.iter().any(hd_project::HostProvider::binds_c))
+}
+
+/// Writes `native/include/<package>.h` for the root package's C-bound
+/// host traits (`cli.host.c.header`), from their checked signatures,
+/// when the package checks without an error. With `report`, the check's
+/// diagnostics are this command's; without, a later build reports them.
+/// The file is written only when its bytes change.
+///
+/// Cost: one check of the package, whose modules' entries the cache
+/// holds on a warm run, and one header the size of the C tables.
+fn c_header(
+    program: &disk::Program,
+    root: &Path,
+    package: &str,
+    report: bool,
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
+    let store = hd_cache::DeferredStore::new(disk_store());
+    let pipeline = Pipeline {
+        target: program.packages().target,
+        level: program.packages().level,
+    };
+    let out = if report {
+        build_goal_c(program, pipeline, rep, &store)?
+    } else {
+        if !program.problems.is_empty() {
+            return Ok(());
+        }
+        let out = c_tables_output(program, pipeline, &store);
+        if out.diags.has_errors() {
+            return Ok(());
+        }
+        out
+    };
+    let libraries: std::collections::BTreeMap<&str, &str> = program
+        .host_packages
+        .iter()
+        .find(|p| p.package == 0)
+        .and_then(|p| p.declarations.as_ref())
+        .and_then(|d| d.providers.as_deref())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|e| Some((e.trait_path.as_str(), e.c.as_deref()?)))
+        .collect();
+    let tables: Vec<(&str, &str, &hd_host_abi::c::Table)> = out
+        .c_tables
+        .iter()
+        .filter_map(|(path, table)| Some((path.as_str(), *libraries.get(path.as_str())?, table)))
+        .collect();
+    let text = hd_host_abi::c::header(package, &tables);
+    let path = root.join("native/include").join(format!("{package}.h"));
+    if std::fs::read(&path).is_ok_and(|old| old == text.as_bytes()) {
+        return Ok(());
+    }
+    std::fs::create_dir_all(root.join("native/include"))
+        .and_then(|()| std::fs::write(&path, text))
+        .map_err(|e| rep.fail(&format!("{}: {e}", path.display())))
+}
+
+/// The package check that gives the C tables, reporting nothing.
+fn c_tables_output(
+    program: &disk::Program,
+    pipeline: Pipeline,
+    store: &dyn hd_cache::CacheStore,
+) -> Output {
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: executor(),
+    };
+    let packages = hd_driver::Packages {
+        build_profile: BuildProfile::Checked,
+        target: pipeline.target,
+        level: pipeline.level,
+        c_tables: true,
+        ..program.packages()
+    };
+    hd_driver::build_packages(&host, &program.package, &packages, &Goal::Analyze)
+}
+
+/// [`c_tables_output`], reporting the manifest's and the check's
+/// diagnostics as `hd build` of a library does.
+fn build_goal_c(
+    program: &disk::Program,
+    pipeline: Pipeline,
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
+) -> Result<Output, ExitCode> {
+    if rep.diags(&program.problems) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    let out = c_tables_output(program, pipeline, store);
+    note_built(&out);
+    let mut diags = report::from_output(&out, program.as_written.as_deref());
+    diags.extend(caps::required(program, &out));
+    report::relocate(&mut diags, |f| program.sources.display(f));
+    if rep.diags(&diags) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    Ok(out)
 }
 
 /// `hd build FILE`: the module of a file of the package, linked with the
