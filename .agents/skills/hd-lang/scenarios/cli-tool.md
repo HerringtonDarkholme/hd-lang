@@ -66,6 +66,12 @@ tests:
         assert_equal(options.top, 5)
         assert(!options.ignore_case)
 
+    it("groups short flags and attaches the final option's value"):
+        for arguments in [["notes.txt", "-in5"], ["notes.txt", "-in=5"], ["notes.txt", "-in", "5"]]:
+            options := Options::parse(arguments).expect("grouped short options")
+            assert(options.ignore_case)
+            assert_equal(options.top, 5)
+
     it("reports a missing file on standard error"):
         console := MemoryConsole::new()
         arguments := box(ScriptedArgs::new("wordtop", ["nope.txt"]))
@@ -78,6 +84,7 @@ Run it with the arguments after `--`:
 
 ```sh
 hd wordtop.hd -- notes.txt -n 5 -i
+hd wordtop.hd -- notes.txt -in5
 hd wordtop.hd -- --help
 ```
 
@@ -114,6 +121,9 @@ at position 0`.
 - **Field facts:** `@short('n')` adds `-n`. `@positional` reads a plain
   argument instead of `--name`. A `List[T]` positional takes the rest and
   must come last.
+- **Short groups:** `-in5` and `-in=5` mean `-i -n 5`. Flags are read
+  in order; the first value-taking short consumes the rest, or the next
+  argument when no text follows it. This also applies to the builder.
 - **Help text:** the struct's `##` comment is the description, and each
   field's `##` comment is its help line. `--help` is built in.
 - **A closed set of values:** `@derive(Cli)` on a payload-free enum

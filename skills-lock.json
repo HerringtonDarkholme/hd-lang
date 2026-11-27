@@ -3,10 +3,10 @@
   "skills": {
     "hd-lang": {
       "source": "HerringtonDarkholme/hd-skill",
-      "commit": "bc5cbb75d306e2e18e3a824b65c235db9896a397",
+      "commit": "50e6b1ccd99cb52825061b31b4acd4050ae5d2e5",
       "sourceType": "github",
       "skillPath": "skills/hd-lang/SKILL.md",
-      "computedHash": "b7462dd419d6d95b88e001ba19bf65b8cc087049f3d79b03220dc99e11688f48"
+      "computedHash": "167fcbe23a5323bd521085a7c077adca7e7bae581ec65802c7c80c99000a4fc3"
     }
   }
 }
