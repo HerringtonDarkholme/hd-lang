@@ -152,13 +152,49 @@ fn hash_text(table: &Table) -> String {
 }
 
 /// The cursor library, built once per test into its own folder.
-fn library(name: &str) -> (std::path::PathBuf, Library) {
+fn library(name: &str) -> (Loaded, Library) {
     library_for(name, STORE, &tables())
+}
+
+/// The test's own handle on a built library, opened before the run and
+/// held after it. The run's handle is then not the last one: on Windows
+/// the last `FreeLibrary` unloads the DLL and its counters start again at
+/// 0, which an unloaded `dlclose` on Unix never showed.
+struct Loaded(libloading::Library);
+
+impl Loaded {
+    /// The exported counter `name`.
+    #[allow(unsafe_code)]
+    fn read<T>(&self, name: &[u8]) -> T {
+        // SAFETY: the test's own library, whose counters take nothing and
+        // return `T`.
+        unsafe {
+            let f = self
+                .0
+                .get::<unsafe extern "C" fn() -> T>(name)
+                .expect("a counter");
+            f()
+        }
+    }
+
+    /// The cursor destroys and `next` calls so far, the high and low
+    /// halves of its `counts`.
+    #[allow(clippy::cast_possible_truncation)]
+    fn counts(&self) -> (u32, u32) {
+        let n: u64 = self.read(b"counts");
+        ((n >> 32) as u32, n as u32)
+    }
+
+    /// How many providers the library created.
+    fn created(&self) -> u32 {
+        self.read(b"created")
+    }
 }
 
 /// [`library`], selected for the root interface `module`, with the
 /// contract hashes of `tables`.
-fn library_for(name: &str, module: &str, tables: &[Table]) -> (std::path::PathBuf, Library) {
+#[allow(unsafe_code)]
+fn library_for(name: &str, module: &str, tables: &[Table]) -> (Loaded, Library) {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("c-handles-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("library folder");
@@ -173,56 +209,17 @@ fn library_for(name: &str, module: &str, tables: &[Table]) -> (std::path::PathBu
     } else {
         "libhd_store.so"
     });
-    // The rustc beside the cargo that built this test: no rustup proxy
-    // picks another toolchain or installs a component at test time.
-    let beside = std::path::Path::new(env!("CARGO")).with_file_name(if cfg!(windows) {
-        "rustc.exe"
-    } else {
-        "rustc"
-    });
-    let mut rustc = std::process::Command::new(if beside.is_file() {
-        beside.into_os_string()
-    } else {
-        "rustc".into()
-    });
-    if let Some(toolchain) = option_env!("RUSTUP_TOOLCHAIN") {
-        rustc.env("RUSTUP_TOOLCHAIN", toolchain);
-    }
-    // cost: one compiler process for the test library's one source file.
-    let built = rustc
-        .args(["--crate-type", "cdylib", "--edition", "2024", "-O", "-o"])
-        .arg(&file)
-        .arg(dir.join("lib.rs"))
-        .output()
-        .expect("rustc builds the test library");
-    assert!(
-        built.status.success(),
-        "{}",
-        String::from_utf8_lossy(&built.stderr)
-    );
+    hd_testkit::cdylib::build(&dir.join("lib.rs"), &file);
+    // SAFETY: the test's own library, whose loading runs no initializer.
+    let loaded = Loaded(unsafe { libloading::Library::new(&file) }.expect("the library"));
     let library = Library {
         module: module.into(),
-        path: file.clone(),
+        path: file,
         name: "hd_store".into(),
         package: "sdk".into(),
         triple: "test".into(),
     };
-    (file, library)
-}
-
-/// The library's cursor destroys and `next` calls so far, the high and low
-/// halves of its `counts`.
-#[allow(unsafe_code, clippy::cast_possible_truncation)]
-fn counts(file: &std::path::Path) -> (u32, u32) {
-    // SAFETY: the test's own library; `counts` takes nothing.
-    unsafe {
-        let lib = libloading::Library::new(file).expect("the library");
-        let counts = lib
-            .get::<unsafe extern "C" fn() -> u64>(b"counts")
-            .expect("counts");
-        let n = counts();
-        ((n >> 32) as u32, n as u32)
-    }
+    (loaded, library)
 }
 
 /// Runs `init` with the library bound: its outcome and standard error.
@@ -285,7 +282,7 @@ fn a_returned_c_handle_is_called_and_destroyed_at_its_release() {
         ],
     );
     assert_eq!(outcome, Outcome::Exit(0), "{error}");
-    assert_eq!(counts(&file), (2, 2), "two calls, two destroys");
+    assert_eq!(file.counts(), (2, 2), "two calls, two destroys");
 }
 
 /// A number this instance never issued, one already released, and one of
@@ -328,22 +325,9 @@ fn a_forged_or_stale_c_handle_calls_no_slot() {
         assert_eq!(outcome, Outcome::Exit(3), "{case}: {error}");
         assert!(error.starts_with(message), "{case}: {error}");
     }
-    assert_eq!(counts(&file).1, 0, "no `next` slot ran");
+    assert_eq!(file.counts().1, 0, "no `next` slot ran");
     // Each released cursor was destroyed once.
-    assert_eq!(counts(&file).0, 2);
-}
-
-/// How many providers the library at `file` created.
-#[allow(unsafe_code)]
-fn created(file: &std::path::Path) -> u32 {
-    // SAFETY: the test's own library; `created` takes nothing.
-    unsafe {
-        let lib = libloading::Library::new(file).expect("the library");
-        let created = lib
-            .get::<unsafe extern "C" fn() -> u32>(b"created")
-            .expect("created");
-        created()
-    }
+    assert_eq!(file.counts().0, 2);
 }
 
 /// A module of `contract` and `tables` whose `hd.init` traps, so a guest
@@ -461,7 +445,7 @@ fn a_conflict_no_check_saw_refuses_the_run_before_any_create() {
     );
     assert!(message.contains("store.Cursor"), "{message}");
     assert!(out.is_empty(), "the guest wrote {out:?}");
-    assert_eq!((created(&store_file), created(&shelf_file)), (0, 0));
+    assert_eq!((store_file.created(), shelf_file.created()), (0, 0));
 
     // `Cursor`'s table named `Store`: the root's entry symbol.
     let mut tables = tables();
@@ -474,5 +458,5 @@ fn a_conflict_no_check_saw_refuses_the_run_before_any_create() {
         "{message}"
     );
     assert!(out.is_empty(), "the guest wrote {out:?}");
-    assert_eq!(created(&file), 0);
+    assert_eq!(file.created(), 0);
 }
