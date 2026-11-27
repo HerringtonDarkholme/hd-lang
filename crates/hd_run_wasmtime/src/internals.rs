@@ -228,6 +228,57 @@ pub mod native {
         }
     }
 
+    /// A C provider's suspending calls (`native::c_token`), started on
+    /// slots a test defines with the C ABI.
+    pub mod c_token {
+        use std::ffi::c_void;
+
+        use crate::native::Suspension;
+        use crate::native::c_call::{Arg, Kind, Plan};
+        use crate::native::c_token as token;
+
+        /// How many tokens are alive.
+        #[must_use]
+        pub fn live() -> usize {
+            token::live()
+        }
+
+        /// Starts a call of the `!` slot `call`,
+        /// `void (*)(void *self, hd_token, int64_t…)`, with `args`, whose
+        /// abort slot is `abort` and whose C result row is `result`, as the
+        /// engine's `.start` does.
+        ///
+        /// # Safety
+        ///
+        /// `call` and `abort` have those C signatures, and `this` lives
+        /// until the call is taken or aborted.
+        #[allow(unsafe_code)]
+        #[must_use]
+        pub unsafe fn start(
+            this: *mut c_void,
+            call: *const c_void,
+            abort: *const c_void,
+            args: &[i64],
+            result: &hd_host_abi::c::Ret,
+        ) -> Suspension {
+            let pointer = Kind::Int(u8::try_from(std::mem::size_of::<usize>()).unwrap_or(8));
+            let mut kinds = vec![pointer, pointer];
+            kinds.extend(args.iter().map(|_| Kind::Int(8)));
+            let plan = Plan::new(&kinds, false).expect("a bridged target");
+            let mut values = vec![Arg::Int(this as u64)];
+            values.extend(args.iter().map(|a| Arg::Int(a.cast_unsigned())));
+            let expect = token::Expect::of(result).expect("a completion row");
+            let slots = token::Slots {
+                this,
+                call,
+                abort,
+                keep: None,
+            };
+            // SAFETY: the caller's contract, passed on.
+            unsafe { token::start(slots, &plan, values, expect) }
+        }
+    }
+
     /// The handle table's engine-side operations and its bounds.
     pub mod handles {
         use std::any::Any;

@@ -6,7 +6,8 @@
 //! trap or not (`cli.host.c.entry`, `cli.host.c.check`, `cli.host.c.create`).
 //! Each called slot is linked to its import with the C arguments the
 //! guest passes ([`super::c_call`]). Every slot runs on the instance's
-//! thread (`cli.host.c.thread`).
+//! thread (`cli.host.c.thread`); a suspending method's slot takes a token,
+//! which the library completes from any thread ([`super::c_token`]).
 //!
 //! Cost. Startup opens each library once and probes one symbol per
 //! trait; checking a table compares 16 bytes. A call converts each
@@ -104,9 +105,9 @@ impl Provider {
         self.this
     }
 
-    /// The function pointer of slot `index`.
-    pub(crate) fn slot(&self, index: usize) -> Option<*const c_void> {
-        self.table.slot(index)
+    /// The provider's checked table.
+    pub(crate) fn table(&self) -> &Arc<CTable> {
+        &self.table
     }
 }
 

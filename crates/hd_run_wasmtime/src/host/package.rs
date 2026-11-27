@@ -255,10 +255,9 @@ pub(crate) fn preflight(
 /// `libraries` before anything is linked or the guest starts, in contract
 /// interface order (`cli.host.c.entry`, `cli.host.c.check`,
 /// `cli.host.c.create`). A provider runs only with the app manifest's
-/// consent to its trait (`native-two-keys`). Each called method must have
-/// a slot the library filled; a suspending one, whose token arrives with
-/// #2388 step 5, refuses the run. A refusal drops, and so destroys, the
-/// providers made before it.
+/// consent to its trait (`native-two-keys`). Each method must have a slot
+/// the library filled, and a suspending one its abort slot too. Every
+/// check comes before any `create` runs.
 ///
 /// Cost: one library open, one symbol probe and one `create` per C-bound
 /// root, and one slot probe per called method.
@@ -294,23 +293,26 @@ pub(crate) fn c_preflight(
     let mut entries: HashMap<(&std::path::Path, &str), String> = HashMap::default();
     let check_slots = |index: usize, table: &CTable, library: &Library, name: &str| {
         let interface = &interfaces[index];
-        if let Some(m) = interface.methods.iter().find(|m| m.suspends) {
-            return Err(refused(format!(
-                "the C provider of {name:?} cannot run its suspending method `{}` yet: Wasmtime binds a C provider's suspending methods from #2388 step 5",
-                m.member
-            )));
-        }
         let Some(c) = package.c_interface(index) else {
             return Ok(());
         };
+        // Each called method's slot, and a suspending one's abort slot
+        // after it (`cli.host.c.slot`, `cli.host.c.abort-slot`): the
+        // contract lists only the methods the module calls.
         for m in &interface.methods {
             let slot = c.slots.get(&m.name).map(|&(slot, _)| slot);
-            if slot.and_then(|slot| table.slot(slot)).is_none() {
-                return Err(refused(format!(
-                    "the C provider `{}` of package `{}` leaves the slot of {name:?}'s method `{}` empty",
-                    library.name, library.package, m.member
-                )));
-            }
+            let empty = |at: Option<usize>| at.and_then(|at| table.slot(at)).is_none();
+            let what = if empty(slot) {
+                "slot"
+            } else if m.suspends && empty(slot.map(|slot| slot + 1)) {
+                "abort slot"
+            } else {
+                continue;
+            };
+            return Err(refused(format!(
+                "the C provider `{}` of package `{}` leaves the {what} of {name:?}'s method `{}` empty",
+                library.name, library.package, m.member
+            )));
         }
         Ok(())
     };
@@ -470,29 +472,48 @@ fn heap(caller: &mut wasmtime::Caller<'_, Host>) -> Result<(usize, usize), Stop>
     }
 }
 
-/// Defines the import of the C-bound method `row`, slot `slot` of
-/// interface `interface`: each Wasm parameter becomes its C argument, a
-/// pointer offset by the guest heap's base after a bounds check, and the
-/// slot's result becomes the import's (`module.host.package.c-types`).
+/// Defines the import of the C-bound method `row`, method `index` and
+/// slot `slot` of interface `interface`: each Wasm parameter becomes its C
+/// argument, a pointer offset by the guest heap's base after a bounds
+/// check, and the slot's result becomes the import's
+/// (`module.host.package.c-types`). A suspending method's import is its
+/// `.start`: the slot takes a new token second and returns at once, and
+/// the call waits in the instance's reactor for the token's completion
+/// (`native::c_token`).
 #[allow(unsafe_code)]
 fn define_c(
     linker: &mut Linker<Host>,
     (m, n): (&str, &str),
     ty: wasmtime::FuncType,
-    (interface, on_handle, slot, label): (usize, bool, usize, String),
+    (interface, index, on_handle, slot, label): (usize, usize, bool, usize, String),
     (row, returned): (&hd_host_abi::c::Method, Option<usize>),
 ) -> Result<(), StartError> {
-    let kinds = c_kinds(row);
-    let float = matches!(row.result, Ret::Num(Num::F32 | Num::F64));
+    let mut kinds = c_kinds(row);
+    // A suspending slot's completion, and its token after `self`.
+    let expect = if row.suspends {
+        let Some(expect) = crate::native::c_token::Expect::of(&row.result) else {
+            unreachable!("ruled out: module.host.package.c-suspend (hd_check header::c_result)")
+        };
+        kinds.insert(1, kinds[0]);
+        Some(expect)
+    } else {
+        None
+    };
+    let float = !row.suspends && matches!(row.result, Ret::Num(Num::F32 | Num::F64));
     let plan = Plan::new(&kinds, float).ok_or_else(|| {
         refused(format!(
             "{label} takes more arguments than this hd passes to a C provider: past the registers, at most {} stack words until #2388 step 6",
             crate::native::c_call::STACK_WORDS
         ))
     })?;
-    // A handle method's import takes the handle's number first.
-    let wasm_params = kinds.len() - 1 + usize::from(on_handle);
-    let gives = usize::from(!matches!(row.result, Ret::Void));
+    // A handle method's import takes the handle's number first; a
+    // `.start` gives its status and the pending call's number.
+    let wasm_params = kinds.len() - 1 - usize::from(row.suspends) + usize::from(on_handle);
+    let gives = if row.suspends {
+        2
+    } else {
+        usize::from(!matches!(row.result, Ret::Void))
+    };
     if matches!(row.result, Ret::Handle(_)) && returned.is_none() {
         return Err(refused(format!(
             "{label} returns a handle whose trait has no C table in this module"
@@ -516,7 +537,7 @@ fn define_c(
             // The slot and its `self`: the root's provider, or the handle
             // object of a live number this instance issued for this trait
             // (`native-handle-check`).
-            let (f, this) = if on_handle {
+            let (table, this) = if on_handle {
                 let number = u32::try_from(int(0)).unwrap_or(0);
                 let handle = host
                     .handles
@@ -524,14 +545,16 @@ fn define_c(
                     .ok_or_else(|| {
                         Stop::Contract(crate::native::handles::fail("call of an invalid handle").0)
                     })?;
-                (handle.table.slot(slot), handle.this)
+                (&handle.table, handle.this)
             } else {
                 let Some(provider) = host.c_providers.get(interface).and_then(Option::as_ref)
                 else {
                     unreachable!("ruled out: c_preflight created every C-bound root's provider")
                 };
-                (provider.slot(slot), provider.this())
+                (provider.table(), provider.this())
             };
+            // A suspending method's abort slot follows its own.
+            let (f, keep) = (table.slot(slot), expect.map(|_| Arc::clone(table)));
             let Some(f) = f else {
                 unreachable!("ruled out: c_preflight refused an empty slot of a called method")
             };
@@ -600,6 +623,32 @@ fn define_c(
                     }
                 }
                 k += 1;
+            }
+            if let (Some(expect), Some(keep)) = (expect, keep) {
+                let Some(abort) = keep.slot(slot + 1) else {
+                    unreachable!("ruled out: c_preflight refused an empty abort slot")
+                };
+                let slots = crate::native::c_token::Slots {
+                    this,
+                    call: f,
+                    abort,
+                    keep: Some(keep),
+                };
+                // SAFETY: as the call below; a suspending slot takes only
+                // numbers (`module.host.package.c-suspend`), and its `self`
+                // lives until the call ends, since the reactor that holds
+                // the call drops before the providers and handles.
+                let call = unsafe { crate::native::c_token::start(slots, &plan, args, expect) };
+                let h = caller
+                    .data_mut()
+                    .reactor
+                    .native(call, (interface, index))
+                    .ok_or_else(|| fail("the call ended before it was registered"))?;
+                if let [status, handle] = out {
+                    *status = wasmtime::Val::I32(1);
+                    *handle = wasmtime::Val::I32(h);
+                }
+                return Ok(());
             }
             // SAFETY: the table's contract hash matched the module's C
             // table (`c_preflight`), so the slot takes these parameters and
@@ -727,11 +776,12 @@ pub(crate) fn define(
         let declared = &package.contract.interfaces[interface];
         let method = &declared.methods[index];
         let label = format!("{}.{}", declared.identity, method.member);
-        // A C-bound method's import takes C arguments (`define_c`); a
-        // suspending one refused the run in `c_preflight`.
+        // A C-bound method's call or `.start` takes C arguments
+        // (`define_c`); its `.finish` and a handle's `$release` are any
+        // package method's, below.
         if let Some(c) = package
             .c_interface(interface)
-            .filter(|_| part != Part::Release)
+            .filter(|_| matches!(part, Part::Call | Part::Start))
         {
             let Some(&(slot, row)) = c.slots.get(&method.name) else {
                 unreachable!("ruled out: a C table lists every method of its trait")
@@ -745,7 +795,7 @@ pub(crate) fn define(
                 &mut *linker,
                 (m, n),
                 ty,
-                (interface, declared.handle, slot, label),
+                (interface, index, declared.handle, slot, label),
                 (row, returned),
             )?;
             defined.insert((m.to_owned(), n.to_owned()));

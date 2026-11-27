@@ -2505,15 +2505,28 @@ the `c` key of the trait's `[host]` entry:
 5. r[cli.host.c.entry] The library exports one function per trait, named `NAME_TRAIT`, that returns the trait's table.
 6. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
 7. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
-8. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
-9. r[cli.host.c.handle] A returned handle's trait table comes from the same library's entry `NAME_TRAIT`, checked as a root trait's is, and the host calls its `destroy` once at the handle's last release.
-10. r[cli.host.c.test] `hd test` on Wasmtime binds the C providers of a program it runs by name.
-11. r[cli.host.c.entry-unique] Two traits of one `[host]` table that would export one entry symbol `NAME_TRAIT` from one library are an error, naming both traits. Error: `invalid-manifest`.
-12. r[cli.host.c.handle-library] A handle trait that traits bound to two libraries return is an error, naming the trait and both libraries. Error: `boundary-not-safe`.
-13. r[cli.host.c.handle-entry] A handle trait whose entry symbol `NAME_TRAIT` another C-bound trait of its package takes in the same library is an error, naming both traits. Error: `boundary-not-safe`.
-14. r[cli.host.c.unseen-conflict] A conflict of the two rules above that no check sees, as between modules checked apart, refuses the run before the guest starts.
-15. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
-16. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+8. r[cli.host.c.slot] A called method whose slot the library left null refuses the run before the guest starts, naming the package, the trait and the method.
+9. r[cli.host.c.abort-slot] A called suspending method whose abort slot the library left null refuses the run before the guest starts.
+10. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
+11. r[cli.host.c.complete] `hd_complete_*` returns true when the host accepts the value, which then decides the call's result, and false when the call is already aborting or completed; the library then keeps the value.
+12. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot once, also after the library completed it; `completed` is true when the host accepted a completion.
+13. r[cli.host.c.token] A library completes a token at most once, and uses it only until that completion returns or its abort slot returns.
+14. r[cli.host.c.bytes] `hd_complete_bytes` copies the bytes before it returns, and the guest receives them as a new `List[u8]`.
+15. r[cli.host.c.complete-types] `hd_complete_i32` completes an integer of 32 bits or fewer, `hd_complete_i64` a 64-bit integer, `hd_complete_f64` a float, and `hd_complete_bytes` a `List[u8]`.
+16. r[cli.host.c.complete-kind] A `Result` result also takes `hd_complete_error`, and a completion its result does not take fails the call. Boundary failure: `host-contract`.
+17. r[cli.host.c.handle] A returned handle's trait table comes from the same library's entry `NAME_TRAIT`, checked as a root trait's is, and the host calls its `destroy` once at the handle's last release.
+18. r[cli.host.c.test] `hd test` on Wasmtime binds the C providers of a program it runs by name.
+19. r[cli.host.c.entry-unique] Two traits of one `[host]` table that would export one entry symbol `NAME_TRAIT` from one library are an error, naming both traits. Error: `invalid-manifest`.
+20. r[cli.host.c.handle-library] A handle trait that traits bound to two libraries return is an error, naming the trait and both libraries. Error: `boundary-not-safe`.
+21. r[cli.host.c.handle-entry] A handle trait whose entry symbol `NAME_TRAIT` another C-bound trait of its package takes in the same library is an error, naming both traits. Error: `boundary-not-safe`.
+22. r[cli.host.c.unseen-conflict] A conflict of the two rules above that no check sees, as between modules checked apart, refuses the run before the guest starts.
+23. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+24. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+
+> **Why.** A cancel may race the library's completion. The completion's
+> result and the abort slot's `completed` tell the library, together,
+> exactly one outcome: the guest took the value, the host discarded it, or
+> the host refused it and the library still holds it.
 
 > **Why.** The library's entry symbol joins its name and the trait's, so
 > the name is a C identifier.

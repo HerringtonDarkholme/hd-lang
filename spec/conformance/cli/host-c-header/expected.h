@@ -15,17 +15,19 @@ extern "C" {
 #ifndef HD_HOST_ABI_VERSION
 #define HD_HOST_ABI_VERSION 1u
 
-/* A suspending call's token. Complete it once, from any thread; a later
- * completion is ignored. Use it until you complete it or until its abort
- * slot returns. */
+/* A suspending call's token. Complete it at most once, from any thread,
+ * and use it only until that completion returns or until its abort slot
+ * returns. A completion returns true when the host accepted the value,
+ * and false when the call was already aborting or completed: the library
+ * then keeps the value. */
 typedef struct hd_call *hd_token;
 
 typedef struct hd_completions {
-    void (*complete_i32)(hd_token token, int32_t value);
-    void (*complete_i64)(hd_token token, int64_t value);
-    void (*complete_f64)(hd_token token, double value);
-    void (*complete_bytes)(hd_token token, const uint8_t *bytes, size_t len);
-    void (*complete_error)(hd_token token, int32_t error);
+    bool (*complete_i32)(hd_token token, int32_t value);
+    bool (*complete_i64)(hd_token token, int64_t value);
+    bool (*complete_f64)(hd_token token, double value);
+    bool (*complete_bytes)(hd_token token, const uint8_t *bytes, size_t len);
+    bool (*complete_error)(hd_token token, int32_t error);
 } hd_completions;
 
 /* The host's call: its completions first, then the host's own state. */
@@ -34,28 +36,28 @@ struct hd_call {
 };
 
 /* An integer of 32 bits or fewer. */
-static inline void hd_complete_i32(hd_token token, int32_t value) {
-    token->completions->complete_i32(token, value);
+static inline bool hd_complete_i32(hd_token token, int32_t value) {
+    return token->completions->complete_i32(token, value);
 }
 
 /* A 64-bit integer. */
-static inline void hd_complete_i64(hd_token token, int64_t value) {
-    token->completions->complete_i64(token, value);
+static inline bool hd_complete_i64(hd_token token, int64_t value) {
+    return token->completions->complete_i64(token, value);
 }
 
 /* A float. */
-static inline void hd_complete_f64(hd_token token, double value) {
-    token->completions->complete_f64(token, value);
+static inline bool hd_complete_f64(hd_token token, double value) {
+    return token->completions->complete_f64(token, value);
 }
 
 /* A `List[u8]`: the host copies the bytes before it returns. */
-static inline void hd_complete_bytes(hd_token token, const uint8_t *bytes, size_t len) {
-    token->completions->complete_bytes(token, bytes, len);
+static inline bool hd_complete_bytes(hd_token token, const uint8_t *bytes, size_t len) {
+    return token->completions->complete_bytes(token, bytes, len);
 }
 
 /* A `Result`'s `i32` error. */
-static inline void hd_complete_error(hd_token token, int32_t error) {
-    token->completions->complete_error(token, error);
+static inline bool hd_complete_error(hd_token token, int32_t error) {
+    return token->completions->complete_error(token, error);
 }
 #endif /* HD_HOST_ABI_VERSION */
 
