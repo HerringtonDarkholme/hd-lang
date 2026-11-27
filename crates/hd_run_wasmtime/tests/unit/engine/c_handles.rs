@@ -12,7 +12,7 @@ use hd_host_abi::c::{Method as CMethod, Ret, Table};
 use hd_host_abi::schema::{Contract, Interface, Method, Value};
 use hd_run::{Consent, GrantValue, Grants, HostSetup, Limits, Outcome};
 use hd_run_wasmtime::internals::Shared;
-use hd_run_wasmtime::internals::native::c_trampoline::{CType, Sig, compiles};
+use hd_run_wasmtime::internals::native::c_trampoline::{CType, Sig, compiles, refuse};
 use hd_run_wasmtime::native::c::Library;
 use hd_run_wasmtime::{EngineConfig, HostIo};
 use wasm_encoder::{
@@ -473,6 +473,33 @@ fn a_conflict_no_check_saw_refuses_the_run_before_any_create() {
         message.contains("would both take the entry symbol `hd_store_Store`"),
         "{message}"
     );
+    assert!(out.is_empty(), "the guest wrote {out:?}");
+    assert_eq!(file.created(), 0);
+}
+
+/// A slot whose trampoline cannot be compiled, as on a host Cranelift
+/// cannot target, refuses the run in preflight: before the guest starts
+/// and before any `create` runs (`cli.host.c.create`). The failure is the
+/// test build's, forced for one signature that no other test binds.
+#[test]
+fn a_trampoline_that_cannot_compile_refuses_the_run_before_any_create() {
+    use hd_host_abi::c::{Num, Param};
+    let mut tables = tables();
+    tables[1].methods[0].params = vec![
+        ("a".into(), Param::Num(Num::I16)),
+        ("b".into(), Param::Num(Num::F32)),
+    ];
+    refuse(Sig {
+        params: vec![CType::Ptr, CType::I16, CType::F32],
+        result: Some(CType::I32),
+    });
+    let (file, library) = library_for("trampoline-refused", STORE, &tables);
+    let (message, out) = refused(&guarded(&contract(), &tables), &[library]);
+    assert!(
+        message.contains("a compile failure the test asked for"),
+        "{message}"
+    );
+    assert!(message.contains("store.Cursor"), "{message}");
     assert!(out.is_empty(), "the guest wrote {out:?}");
     assert_eq!(file.created(), 0);
 }

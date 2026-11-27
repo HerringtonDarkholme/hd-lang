@@ -290,7 +290,7 @@ pub mod native {
 
     /// The C call trampolines (`native::c_trampoline`).
     pub mod c_trampoline {
-        pub use crate::native::c_trampoline::{CType, Sig, Trampoline, compiles};
+        pub use crate::native::c_trampoline::{CType, Sig, Trampoline, compiles, refuse};
     }
 
     /// The handle table's engine-side operations and its bounds.
