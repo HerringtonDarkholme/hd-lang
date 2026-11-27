@@ -1,5 +1,5 @@
 # test: unit magnitude is resolved before large-exponent overflow on both float widths
-# Spec std/num.md: std-num.float-math.powf-even-unit and std-num.float-math.powf.
+# Spec std/num.md: std-num.float-math.powf-even-unit and std-num.float-math.powf-musl.
 # expect-stdout: ok
 use std.testing.{assert, assert_equal}
 
