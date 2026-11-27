@@ -82,10 +82,9 @@ const ARGS: Readonly<Record<Command, readonly string[]>> = {
  * first run's findings name the issue that tracks each one.
  */
 export const KNOWN: ReadonlyMap<string, string> = new Map([
-  // The borrow pass's source walk stops at 8 roots (`derive` `DEPTH`), so
-  // the ninth column copies the whole suffix, whose O(depth) leaves stay
-  // live while each moves out: the dev link's local coalescing then works
-  // O(depth^2) (`link: finish`).
+  // The borrow pass now walks each column once and every column borrows
+  // (lane 322), but hashes still grow 6.02x per 4x and allocations 5.16x
+  // outside it: not yet attributed.
   ["tuple-nest-string build", "#2402"],
 ]);
 

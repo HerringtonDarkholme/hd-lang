@@ -1,0 +1,15 @@
+# @dump: own wat
+# #2402: `z` is twelve columns deep in `x`, and `change` writes the fourth
+# column through `&mut` while `z` lives: `z` keeps its own count, as
+# rustc's borrow checker rejects a write to a prefix of a live borrow's
+# place (`places_conflict`).
+fn change(x: &mut (string, (string, (string, (string, (string, (string, (string, (string, (string, string)))))))))) -> void:
+    x._0 = "changed"
+
+fn main() -> string:
+    let t = "s"
+    let mut x: (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, string)))))))))))) = (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, t))))))))))))
+    let (_, (_, (_, (_, (_, (_, (_, (_, (_, (_, (_, (z, _)))))))))))) = x
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    change(&mut x._1._1._1)
+    z

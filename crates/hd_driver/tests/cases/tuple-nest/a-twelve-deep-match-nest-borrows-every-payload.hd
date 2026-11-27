@@ -1,0 +1,34 @@
+# @dump: own wat
+# #2402: each payload is rooted at the binding of the match above it; its
+# source folds in what that binding holds while the binding borrows, one
+# step per level, so every payload borrows and only the result copies.
+fn inner(r0: (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, string))))))))))))) -> string:
+    match r0:
+        (a0, r1) =>
+            match r1:
+                (a1, r2) =>
+                    match r2:
+                        (a2, r3) =>
+                            match r3:
+                                (a3, r4) =>
+                                    match r4:
+                                        (a4, r5) =>
+                                            match r5:
+                                                (a5, r6) =>
+                                                    match r6:
+                                                        (a6, r7) =>
+                                                            match r7:
+                                                                (a7, r8) =>
+                                                                    match r8:
+                                                                        (a8, r9) =>
+                                                                            match r9:
+                                                                                (a9, r10) =>
+                                                                                    match r10:
+                                                                                        (a10, r11) =>
+                                                                                            match r11:
+                                                                                                (a11, z) =>
+                                                                                                    z
+
+pub fn main() -> void $ Console:
+    t := "s"
+    println(inner((t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, t))))))))))))))
