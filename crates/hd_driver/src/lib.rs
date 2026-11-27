@@ -1752,9 +1752,9 @@ struct Run<'a> {
     /// path ([`Packages::profile`]).
     profile: Vec<String>,
     host_packages: Vec<HostPackage>,
-    /// Each `[host]` entry that names a C provider, as (package, trait
-    /// path), built once from `host_packages` ([`c_bound_index`]).
-    host_c: HashSet<(u16, String)>,
+    /// Each `[host]` entry that names a C provider, built once from
+    /// `host_packages` ([`CBoundIndex`]).
+    host_c: CBoundIndex,
     host_contract_key: Option<Hash128>,
     table: ModuleTable,
     /// The run's module trie nodes mapped to project rows. Never cast between
@@ -1999,20 +1999,43 @@ pub struct HostPackage {
     pub manifest: String,
 }
 
-/// Each `[host]` entry of `packages` that names a C provider, as (package,
-/// trait path): the index [`Run`]'s C-bound queries probe. Cost: one pass
-/// over every package's entries, once per run.
-fn c_bound_index(packages: &[HostPackage]) -> HashSet<(u16, String)> {
-    packages
-        .iter()
-        .flat_map(|p| {
-            p.declarations
+/// The `[host]` entries that name a C provider, indexed for [`Run`]'s
+/// C-bound queries: each one's library by (package, trait path), and each
+/// one's trait path by (package, library, trait name), the entry symbol's
+/// parts. Cost: one pass over every package's entries, once per run; a
+/// query is one hash probe.
+#[derive(Default)]
+struct CBoundIndex {
+    library: HashMap<(u16, String), String>,
+    by_entry: HashMap<(u16, String, String), String>,
+}
+
+impl CBoundIndex {
+    fn new(packages: &[HostPackage]) -> Self {
+        let mut index = Self::default();
+        for p in packages {
+            for e in p
+                .declarations
                 .iter()
                 .flat_map(|d| d.providers.iter().flatten())
-                .filter(|e| e.binds_c())
-                .map(move |e| (p.package, e.trait_path.clone()))
-        })
-        .collect()
+            {
+                let Some(library) = e.c.as_ref() else {
+                    continue;
+                };
+                index
+                    .library
+                    .insert((p.package, e.trait_path.clone()), library.clone());
+                let name = e.trait_path.rsplit('.').next().unwrap_or_default();
+                // The first entry wins, as a scan in entry order found it;
+                // a second is `cli.host.c.entry-unique`'s error.
+                index
+                    .by_entry
+                    .entry((p.package, library.clone(), name.to_owned()))
+                    .or_insert_with(|| e.trait_path.clone());
+            }
+        }
+        index
+    }
 }
 
 impl HostPackage {
@@ -3071,7 +3094,7 @@ fn build_packages_inner(
         root_settings,
         profile,
         host_packages: packages.host_packages.clone(),
-        host_c: c_bound_index(&packages.host_packages),
+        host_c: CBoundIndex::new(&packages.host_packages),
         host_contract_key,
         pipeline,
         planner,
@@ -12141,40 +12164,22 @@ impl Run<'_> {
     }
 
     /// The `c` library of the package host trait `d`'s `[host]` entry, when
-    /// it names one (`cli.host.c.file`). Cost: one scan of its package's
-    /// entries.
+    /// it names one (`cli.host.c.file`). Cost: building `d`'s trait path,
+    /// then one probe of the run's index.
     fn package_host_library(&self, d: DefId) -> Option<String> {
-        let (package, identity) = self.package_trait_identity(d)?;
-        self.host_packages
-            .iter()
-            .find(|p| p.package == package)?
-            .declarations
-            .as_ref()?
-            .providers
-            .iter()
-            .flatten()
-            .find(|e| e.trait_path == identity.trait_path)?
-            .c
-            .clone()
+        let key = self.package_trait_path(d)?;
+        self.host_c.library.get(&key).cloned()
     }
 
     /// The path of a C-bound root trait of `near`'s package whose entry
     /// symbol is `LIBRARY_NAME` (`cli.host.c.handle-entry`). Cost: one
-    /// scan of that package's entries.
+    /// probe of the run's index.
     fn c_root_named(&self, near: DefId, library: &str, name: &str) -> Option<String> {
         let package = self.table.modules[self.item_module(near)?.idx()].package;
-        self.host_packages
-            .iter()
-            .find(|p| p.package == package)?
-            .declarations
-            .as_ref()?
-            .providers
-            .iter()
-            .flatten()
-            .find(|e| {
-                e.c.as_deref() == Some(library) && e.trait_path.rsplit('.').next() == Some(name)
-            })
-            .map(|e| e.trait_path.clone())
+        self.host_c
+            .by_entry
+            .get(&(package, library.to_owned(), name.to_owned()))
+            .cloned()
     }
 
     /// Whether the package host trait `d`'s `[host]` entry names a C
@@ -12182,7 +12187,7 @@ impl Run<'_> {
     /// trait path, then one probe of the run's index (`host_c`).
     fn package_host_c(&self, d: DefId) -> bool {
         self.package_trait_path(d)
-            .is_some_and(|key| self.host_c.contains(&key))
+            .is_some_and(|key| self.host_c.library.contains_key(&key))
     }
 
     /// `d`'s package and its path inside that package, as `[host]` names it.
