@@ -11,7 +11,7 @@ mod tests {
     #[test]
     fn dense_tables_preserve_scalar_bits_and_the_default_for_any_index() {
         let mut module = Module::default();
-        module.optimized = true;
+        module.facts_mut().optimized = true;
         let kinds = [Val::I32, Val::I64, Val::F32, Val::F64];
         for (id, ty) in kinds.into_iter().enumerate() {
             let name = ["i32", "i64", "f32", "f64"][id];

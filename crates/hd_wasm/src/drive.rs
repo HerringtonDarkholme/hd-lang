@@ -263,14 +263,14 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
                 continue;
             }
             if tag == Tag::Await {
-                m.driven.insert(method);
+                m.facts_mut().driven.insert(method);
                 // An await in a shielded dispose suite uses the normal slot.
                 // Retain it conservatively for every asynchronous invocation.
                 cold.insert(method);
             } else {
                 let t = facts.topo.get_or_init(|| Topology::new(b));
                 if block_on_of(b, t, calls, x).is_some() {
-                    m.blocking_driven.insert(method);
+                    m.facts_mut().blocking_driven.insert(method);
                     immediate.insert(method);
                 } else {
                     cold.insert(method);
@@ -279,7 +279,7 @@ pub fn collect(input: &Input<'_>, m: &mut Module) {
         }
     }
     if !m.open_world && !unknown {
-        m.blocking_only = immediate.difference(&cold).copied().collect();
+        m.facts_mut().blocking_only = immediate.difference(&cold).copied().collect();
     }
 }
 

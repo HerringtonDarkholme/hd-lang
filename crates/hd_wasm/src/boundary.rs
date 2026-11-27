@@ -658,6 +658,7 @@ fn data_of(
         return named(id);
     }
     if let Some((_, id)) = path.iter_mut().find(|(t, _)| *t == s) {
+        m.in_order();
         let id = *id.get_or_insert_with(|| {
             m.named_codecs.defs.push(None);
             m.named_codecs.defs.len() - 1

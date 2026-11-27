@@ -392,7 +392,7 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
     for helper in [Helper::CanCancel] {
         let make = |tracked: bool| {
             let mut m = Module::default();
-            m.track_origins = tracked;
+            m.facts_mut().track_origins = tracked;
             let mut f = m.func("mapped", vec![Val::I32], vec![Val::I32]);
             if tracked {
                 f.origins = Some(Vec::new());
@@ -778,11 +778,11 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs()
 -> Result<(), Box<dyn std::error::Error>> {
     for session in [false, true] {
         let mut m = Module::default();
-        m.optimized = true;
+        m.facts_mut().optimized = true;
         let init = Hash128(1388);
         let field = hd_wasm::testing::module::Global::Storage(Hash128(1389), 0, Val::I32);
         let length = hd_wasm::testing::module::Global::Storage(Hash128(1389), 1, Val::I32);
-        m.init_insts.push(init);
+        m.facts_mut().init_insts.push(init);
         let mut f = m.func("init", vec![], vec![]);
         let value = f.local(Val::I32);
         f.i32(42);
@@ -872,7 +872,9 @@ fn session_extension_shares_state_and_appends_without_reinitializing() {
     let mut base = Module::default();
     base.static_bytes(b"BASE", 1);
     let counter_slot = base.static_slot(4, 4);
-    base.binding_slots.insert(Hash128(646), counter_slot);
+    base.facts_mut()
+        .binding_slots
+        .insert(Hash128(646), counter_slot);
     base.define(old.clone(), bump(&base));
     base.export("bump", old.clone());
     base.export("alloc", Sym::Helper(Helper::Alloc));
@@ -890,6 +892,7 @@ fn session_extension_shares_state_and_appends_without_reinitializing() {
     let new_binding = Hash128(651);
     let new_binding_slot = extension.static_slot(4, 4);
     extension
+        .facts_mut()
         .binding_slots
         .insert(new_binding, new_binding_slot);
     let mut f = extension.func("fresh", vec![], vec![Val::I32]);
@@ -1143,7 +1146,7 @@ fn session_host_restores_checkpoint_and_active_tail_without_effects() {
         let mut m = Module::default();
         if number == 1 {
             let slot = m.static_slot(4, 4);
-            m.binding_slots.insert(place, slot);
+            m.facts_mut().binding_slots.insert(place, slot);
             m.export("hd.session.alloc", Sym::Helper(Helper::Alloc));
         }
         m.static_bytes(&[u8::try_from(number).unwrap(); 16], 1);
@@ -1670,8 +1673,8 @@ fn a_folded_initializer_keeps_its_forwarded_literal() -> Result<(), String> {
     init.static_addr(at);
     init.global_set(global);
     m.define(Sym::Inst(init_key), init);
-    m.init_insts.push(init_key);
-    m.std_insts.insert(init_key);
+    m.facts_mut().init_insts.push(init_key);
+    m.facts_mut().std_insts.insert(init_key);
     m.export(
         "hd.init",
         Sym::Helper(Helper::EntryInit {
@@ -1729,8 +1732,8 @@ fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(),
             f.op(I::I32Add);
             f.global_set(trace);
             m.define(Sym::Inst(key), f);
-            m.init_insts.push(key);
-            m.std_insts.insert(key);
+            m.facts_mut().init_insts.push(key);
+            m.facts_mut().std_insts.insert(key);
         }
     };
     let entry = |flipped: bool| {
@@ -1740,7 +1743,7 @@ fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(),
     };
     let mut base = Module::default();
     define(&mut base);
-    base.cycle_insts.insert(first);
+    base.facts_mut().cycle_insts.insert(first);
     base.export("hd.init", entry(false));
     let mut read = base.func("read_trace", vec![], vec![Val::I32]);
     read.global_get(trace);
@@ -1756,7 +1759,7 @@ fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(),
     let (base, manifest) = base.finish_session(true).map_err(|e| format!("{e:?}"))?;
     let mut reuse = Module::default();
     define(&mut reuse);
-    reuse.cycle_insts.insert(second);
+    reuse.facts_mut().cycle_insts.insert(second);
     reuse.export("hd.init", entry(false));
     let (reuse, next) = reuse
         .finish_extension(&manifest)

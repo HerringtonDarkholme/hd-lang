@@ -9,7 +9,7 @@ mod tests {
     fn a_final_free_call_keeps_its_source_and_block_label() {
         let mut module = Module::default();
         let runtime = module.runtime;
-        module.track_origins = true;
+        module.facts_mut().track_origins = true;
         let free = module.func("free", vec![Val::I32], vec![]);
         module.define(Sym::Inst(runtime.free), free);
         let mut caller = module.func("app/free_block", vec![Val::I32], vec![]);
@@ -53,7 +53,7 @@ mod tests {
         named: bool,
     ) -> hd_wasm::MappedModule {
         let mut module = Module::default();
-        module.track_origins = tracked;
+        module.facts_mut().track_origins = tracked;
         let key = Hash128(2372);
         let shim = Sym::Shim(key, false, 1, true);
         let mut drop = module.func("release Buffer", vec![Val::I32], vec![]);
@@ -166,7 +166,7 @@ mod tests {
 
     fn count_wrapper(h: Helper, tracked: bool) -> hd_wasm::MappedModule {
         let mut module = Module::default();
-        module.track_origins = tracked;
+        module.facts_mut().track_origins = tracked;
         let runtime = module.runtime;
         // Give the assembler harness's count/free endpoints observable effects.
         // This tests encoder attribution, not a replacement runtime's semantics.

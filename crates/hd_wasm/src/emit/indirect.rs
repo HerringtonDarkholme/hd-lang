@@ -81,6 +81,7 @@
 mod constant;
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
@@ -98,23 +99,29 @@ use crate::op::Op as I;
 /// caller provides (`sret`, step 2 of #2031), whose address is then the
 /// worker's last parameter and the worker returns nothing.
 pub(crate) struct Abi {
-    pub(crate) params: Rc<[Option<Mem>]>,
+    pub(crate) params: Arc<[Option<Mem>]>,
     pub(crate) ret: Option<Mem>,
 }
 
 /// An instance's worker ABI, shared.
-pub(crate) type Params = Rc<Abi>;
+pub(crate) type Params = Arc<Abi>;
 
 /// The worker ABI of instance `id`, or none when no parameter and not
 /// the result passes by address and the instance keeps the leaf ABI
-/// alone.
-pub(crate) fn params(input: &Input<'_>, m: &mut Module, id: InstId) -> Option<Params> {
-    if let Some(p) = m.indirect_params.get(&id) {
-        return p.clone();
+/// alone: [`prepare`]'s, for an instance the link emits.
+pub(crate) fn params(input: &Input<'_>, m: &Module, id: InstId) -> Option<Params> {
+    match m.indirect_params.get(&id) {
+        Some(p) => p.clone(),
+        None => compute(input, id),
     }
-    let p = compute(input, id);
-    m.indirect_params.insert(id, p.clone());
-    p
+}
+
+/// Each instance's worker ABI, which its emission and its callers' read,
+/// computed on the task's threads before any is emitted. Cost: one
+/// computation per instance, as each instance's emission made before.
+pub(crate) fn prepare(input: &Input<'_>, m: &mut Module) {
+    let all = hd_sched::par_map(input.order, |&id| (id, compute(input, id)));
+    m.facts_mut().indirect_params = all.into_iter().collect();
 }
 
 fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
@@ -133,7 +140,7 @@ fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
         return None;
     }
     let params = params.unwrap_or_else(|| param_locals(b).iter().map(|_| None).collect());
-    Some(Rc::new(Abi { params, ret }))
+    Some(Arc::new(Abi { params, ret }))
 }
 
 /// The result's layout when instance `id`, a plain function, returns a
@@ -153,7 +160,7 @@ fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Me
     crate::layout::mem(input.pool, input.env, ret).ok()
 }
 
-fn compute_params(input: &Input<'_>, b: &hd_tir::ir::Body) -> Option<Rc<[Option<Mem>]>> {
+fn compute_params(input: &Input<'_>, b: &hd_tir::ir::Body) -> Option<Arc<[Option<Mem>]>> {
     let (pool, env) = (input.pool, input.env);
     let locals = param_locals(b);
     // A counted parameter passes by address whether the callee owns it

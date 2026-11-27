@@ -153,7 +153,6 @@ impl UseFacts {
 /// cells indexed by stable instance ID. One pass over emitted instances.
 pub(crate) fn prepare(input: &Input<'_>, module: &mut Module) {
     let mut grouped = HashMap::default();
-    module.body_facts = vec![None; input.collected.table.item.len()];
     for &id in input.order {
         let Some(body) = (input.body)(id) else {
             continue;
@@ -161,6 +160,6 @@ pub(crate) fn prepare(input: &Input<'_>, module: &mut Module) {
         let facts = grouped
             .entry(std::ptr::from_ref(body))
             .or_insert_with(BodyFactCell::default);
-        module.body_facts[id.idx()] = Some(Arc::clone(facts));
+        module.body_facts.insert(id, Arc::clone(facts));
     }
 }

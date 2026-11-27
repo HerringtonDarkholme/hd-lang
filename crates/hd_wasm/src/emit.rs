@@ -38,6 +38,7 @@ use hd_layout::shims::Portion;
 mod body_facts;
 pub(crate) mod borrow;
 pub(crate) use body_facts::{BodyFactCell, prepare as prepare_body_facts};
+pub(crate) use indirect::prepare as prepare_indirect;
 mod loan_facts;
 pub(crate) use borrow::lent_receiver_reads;
 pub(crate) use hd_tir::own::pointer::LoanSite;
@@ -222,8 +223,7 @@ fn body_func<'i>(
     // the shared body facts end after the last sibling emitter, rather
     // than retaining every body's analysis until the module links.
     let body_cell = inst
-        .and_then(|id| m.body_facts.get_mut(id.idx()))
-        .and_then(Option::take)
+        .and_then(|id| m.body_facts.remove(&id))
         .unwrap_or_default();
     let boundary = inst.and_then(|id| (input.boundary)(id)).unwrap_or_else(|| {
         let inputs = promote::boundary_inputs(input, b, item, own.cold.is_some(), own.lends);

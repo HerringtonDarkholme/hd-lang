@@ -215,24 +215,25 @@ pub type ShimFn<'a> = dyn Fn(
 #[derive(Clone)]
 pub struct Input<'a> {
     pub pool: &'a InternPool,
-    pub env: &'a dyn ProgramEnv,
+    pub env: &'a (dyn ProgramEnv + Sync),
     /// What counting a type takes, and its retain or release shim
     /// (`hd_layout::shims`), made once per run: `None` when it counts
     /// nothing or one address.
     pub shim: &'a ShimFn<'a>,
     /// An item's stable path, for function names.
-    pub path: &'a dyn Fn(DefId) -> String,
+    pub path: &'a (dyn Fn(DefId) -> String + Sync),
     /// Declared package host roots, and identities for their returned handles.
-    pub package_host: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
-    pub package_trait: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
-    pub package_selectors: &'a dyn Fn(DefId) -> Vec<String>,
+    pub package_host: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
+    pub package_trait: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
+    pub package_selectors: &'a (dyn Fn(DefId) -> Vec<String> + Sync),
     pub collected: &'a Collected,
     /// The instances in content order (`InstanceTable::content_order`).
     pub order: &'a [InstId],
     /// Each instance's TIR body, by instance: its instance body (a
     /// default argument's or a plan's), its supplied body, or its item's.
-    pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
-    pub boundary: &'a dyn Fn(InstId) -> Option<std::sync::Arc<hd_tir::own::boundary::Boundary>>,
+    pub body: &'a (dyn Fn(InstId) -> Option<&'a Body> + Sync),
+    pub boundary:
+        &'a (dyn Fn(InstId) -> Option<std::sync::Arc<hd_tir::own::boundary::Boundary>> + Sync),
     /// The private `std.num` implementations of floating power and
     /// remainder, which Wasm has no native instructions for.
     pub float_ops: FloatOps,
@@ -261,11 +262,11 @@ pub struct Input<'a> {
     /// (`docs/compiler/tir-v2.md`, "The ownership passes"); from these
     /// facts it learns
     /// which use consumes each value (`hd_tir::own::consumers`).
-    pub own_cx: &'a dyn hd_tir::own::OwnCx,
+    pub own_cx: &'a (dyn hd_tir::own::OwnCx + Sync),
     /// The whole-program scan (`hd_opt::whole::mutation_targets`): concrete
     /// types whose existing heap objects can be written, or `None` when any
     /// may. Called only for closed-world optimized release links.
-    pub mutation_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
+    pub mutation_targets: &'a (dyn Fn() -> Option<hd_base::HashSet<Ty>> + Sync),
     /// The flag methods on a call cycle (`hd_opt::whole::coinductive_flags`,
     /// `annot.bound.recursive.flag`): each one's code answers a call made
     /// while the same instance is evaluating with `true`.
@@ -710,41 +711,42 @@ fn link_prepared(
     });
     let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::new(&input.runtime);
+    let facts = m.facts_mut();
     #[cfg(feature = "checked-report")]
     {
-        m.allocation_kind_reporting =
+        facts.allocation_kind_reporting =
             input.runtime.report().is_some() && !matches!(input.entry, Entry::Fixture { .. });
-        m.count_audit = input.runtime.report().is_some()
+        facts.count_audit = input.runtime.report().is_some()
             && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
             && session.is_none()
             && previous.is_none();
-        m.track_origins = track_origins || m.count_audit;
+        facts.track_origins = track_origins || facts.count_audit;
     }
     #[cfg(not(feature = "checked-report"))]
     {
-        m.track_origins = track_origins;
+        facts.track_origins = track_origins;
     }
-    m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
-    m.init_insts.clone_from(&input.collected.inits);
-    m.threads = input.collected.threads;
-    m.release = input.release;
-    m.optimized = input.optimized;
-    m.inline_counts = input.inline_counts;
+    facts.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
+    facts.init_insts.clone_from(&input.collected.inits);
+    facts.threads = input.collected.threads;
+    facts.release = input.release;
+    facts.optimized = input.optimized;
+    facts.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
-        m.inst_of.insert(key, *id);
+        facts.inst_of.insert(key, *id);
         let item = input.collected.table.item[id.idx()];
         if (input.path)(item).starts_with("std/") {
-            m.std_insts.insert(key);
+            facts.std_insts.insert(key);
         }
         if (input.path)(item).starts_with("std/rt.cycle/") {
-            m.cycle_insts.insert(key);
+            facts.cycle_insts.insert(key);
         }
         if runtime_item(&(input.path)(item)) {
-            m.rt_insts.insert(key);
+            facts.rt_insts.insert(key);
         }
         if input.env.cold(item) {
-            m.cold_insts.insert(key);
+            facts.cold_insts.insert(key);
         }
     }
     let _acyclic = cycle::mutation_targets(
@@ -757,11 +759,39 @@ fn link_prepared(
     drive::collect(input, &mut m);
     emit::collect_loans(input, &mut m);
     emit::prepare_body_facts(input, &mut m);
+    emit::prepare_indirect(input, &mut m);
     drop(span);
     let span = hd_base::trace::span("phase", || "link: emit instances".to_owned());
-    for id in input.order {
+    // Each instance emits on a module of its own, on the task's threads;
+    // the merge, in order, numbers what they added as one serial
+    // emission would have (`Module::merge`), so the bytes do not depend
+    // on the thread count.
+    let base = m.symbols.snapshot();
+    let facts = m.shared_facts();
+    let mut units: Vec<_> = input
+        .order
+        .iter()
+        .map(|&id| (id, m.body_facts.remove(&id), None))
+        .collect();
+    // A pool thread keeps one layout cache for this link's units, as
+    // the link's own thread has its own (`hd_layout::cached_for_run`).
+    let layouts = {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        1 << 63 | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    };
+    hd_sched::par_each_mut(&mut units, |_, (id, cell, out)| {
+        let cell = cell.take().map(|cell| (*id, cell));
+        let emitted = hd_layout::cached_for_run(layouts, || {
+            module::Module::emit_unit(&facts, &base, cell, |m| emit::instance(input, m, *id))
+        });
+        *out = Some(emitted);
+    });
+    drop(facts);
+    for (id, _, emitted) in units {
+        // ruled out: `par_each_mut` runs every unit.
+        let emitted = emit::required(emitted, "an emitted unit");
         let f = m
-            .emit_local(|m| emit::instance(input, m, *id))
+            .merge(emitted, |m| emit::instance(input, m, id))
             .map_err(|error| {
                 locate_layout_error(error, || {
                     input
@@ -958,7 +988,7 @@ fn address_globals(
                         locate_layout_error(error, || global_source_span(input, def))
                     })?;
                     let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
-                    m.binding_slots.insert(h, at);
+                    m.facts_mut().binding_slots.insert(h, at);
                     m.label_static(at, &(input.path)(def));
                 }
                 module::Address::Binding(h)
@@ -971,9 +1001,9 @@ fn address_globals(
                 module::Address::Static(at)
             };
             if object {
-                m.objects.insert(h);
+                m.facts_mut().objects.insert(h);
             }
-            m.addressed.insert(h, address);
+            m.facts_mut().addressed.insert(h, address);
         }
     }
     Ok(())

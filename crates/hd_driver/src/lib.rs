@@ -1720,8 +1720,12 @@ impl Drop for Owed<'_> {
 /// A lifted generic local function's template, or `None` where its copy
 /// failed (`hd_tir::ir::function_template`).
 /// Each count shim's body made this run, by type, kind and portion.
-type ShimBodies =
-    HashMap<(Ty, hd_layout::shims::Shim, hd_layout::shims::Portion, bool), Option<Arc<Body>>>;
+/// A count shim's answer ([`hd_wasm::Input::shim`]) by type, kind, portion
+/// and whether it takes its value by value.
+type ShimAnswers = HashMap<
+    (Ty, hd_layout::shims::Shim, hd_layout::shims::Portion, bool),
+    (hd_layout::shims::Count, Hash128, Option<Arc<Body>>),
+>;
 type LiftedTemplate = Option<Arc<Body>>;
 
 type ContextUniverse = (contexts::UnitSet, ImplUniverseId, Arc<UniverseImpls>);
@@ -12185,26 +12189,39 @@ impl Run<'_> {
                 .collect();
             let hooks = |t: Ty| hook_of.get(&t).copied();
             // Each type's count shims, made once per run (`hd_layout::shims`).
-            let shims = std::sync::Mutex::new((
+            // The answers are read under a shared lock, as the instances
+            // emit at once; a miss computes under the memo's lock.
+            let counts = Mutex::new(
                 HashMap::<hd_layout::shims::Portion, hd_layout::shims::Counts>::default(),
-                ShimBodies::default(),
-            ));
+            );
+            let answers = std::sync::RwLock::new(ShimAnswers::default());
+            let answer = |key| {
+                answers
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get(&key)
+                    .cloned()
+            };
             let shim = |t: Ty,
                         kind: hd_layout::shims::Shim,
                         portion: hd_layout::shims::Portion,
                         by_value: bool| {
-                let mut memo = shims
+                let key = (t, kind, portion, by_value);
+                if let Some(got) = answer(key) {
+                    return Ok(got);
+                }
+                let mut all = counts
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                let (all, made) = &mut *memo;
+                // Another unit may have made it while this one waited.
+                if let Some(got) = answer(key) {
+                    return Ok(got);
+                }
                 let counts = all
                     .entry(portion)
                     .or_insert_with(|| hd_layout::shims::Counts::new(portion));
                 let count = counts.of(&self.pool, env, t)?;
                 let shape = counts.shape(&self.pool, env, t)?;
-                if let Some(b) = made.get(&(t, kind, portion, by_value)) {
-                    return Ok((count, shape, b.clone()));
-                }
                 let item = match kind {
                     hd_layout::shims::Shim::Retain => self.known.retain_value,
                     hd_layout::shims::Shim::Release | hd_layout::shims::Shim::CellDrop => {
@@ -12215,7 +12232,10 @@ impl Run<'_> {
                     &self.pool, env, counts, &hooks, item, t, kind, by_value,
                 )?
                 .map(Arc::new);
-                made.insert((t, kind, portion, by_value), b.clone());
+                answers
+                    .write()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .insert(key, (count, shape, b.clone()));
                 Ok((count, shape, b))
             };
             let input = hd_wasm::Input {

@@ -202,8 +202,9 @@ struct Shared {
     live: RwLock<SymbolData>,
     /// The tables as they stood when the link froze them.
     frozen: OnceLock<SymbolData>,
-    /// A local view's module table ([`Symbols::local`]), which it reads
-    /// through; the view's own entries take ids with [`LOCAL`] set.
+    /// A local view's module table, which it reads through: the module's
+    /// own, or its [`Symbols::snapshot`]. The view's own entries take ids
+    /// with [`LOCAL`] set.
     base: Option<Symbols>,
 }
 
@@ -357,14 +358,32 @@ impl Symbols {
     fn local_bit(&self) -> u32 {
         if self.0.base.is_some() { LOCAL } else { 0 }
     }
-    /// A local view of this table for one instance's emission: it reads
-    /// this table, which stays as it is while the view lives, and numbers
-    /// what it adds with [`LOCAL`] set, in first-use order. Cost: one
-    /// empty table.
+    /// A copy of the tables as they stand, all of it frozen, which local
+    /// views read without a lock while the instances emit at once. Cost:
+    /// one copy of the tables, once per link.
     #[must_use]
-    pub(crate) fn local(&self) -> Self {
+    pub(crate) fn snapshot(&self) -> Self {
         Self(Arc::new(Shared {
-            base: Some(self.clone()),
+            frozen: OnceLock::from(self.live().clone()),
+            ..Shared::default()
+        }))
+    }
+    /// What `look` finds in the tables: the frozen copy's, when there is
+    /// one, as a local view's base is frozen whole or not at all.
+    fn lookup<R>(&self, look: impl FnOnce(&SymbolData) -> R) -> R {
+        match self.0.frozen.get() {
+            Some(data) => look(data),
+            None => look(&self.live()),
+        }
+    }
+    /// A local view of `base` for one instance's emission: it reads
+    /// `base`, which stays as it is while the view lives, and numbers what
+    /// it adds with [`LOCAL`] set, in first-use order. Cost: one empty
+    /// table.
+    #[must_use]
+    pub(crate) fn local(base: &Self) -> Self {
+        Self(Arc::new(Shared {
+            base: Some(base.clone()),
             ..Shared::default()
         }))
     }
@@ -404,7 +423,7 @@ impl Symbols {
             .0
             .base
             .as_ref()
-            .and_then(|b| b.live().global_ids.get(&global).copied())
+            .and_then(|b| b.lookup(|d| d.global_ids.get(&global).copied()))
         {
             return id;
         }
@@ -438,7 +457,7 @@ impl Symbols {
             .0
             .base
             .as_ref()
-            .and_then(|b| b.live().ids.get(&symbol).copied())
+            .and_then(|b| b.lookup(|d| d.ids.get(&symbol).copied()))
         {
             return id;
         }
@@ -467,7 +486,7 @@ impl Symbols {
             .0
             .base
             .as_ref()
-            .and_then(|b| b.live().signature_ids.get(&signature).copied())
+            .and_then(|b| b.lookup(|d| d.signature_ids.get(&signature).copied()))
         {
             return id;
         }
@@ -1427,7 +1446,7 @@ pub type ShimRequest = (
 
 /// What one instance's emission adds to the module's shared tables, kept
 /// apart from them, as rustc's codegen unit, until the link merges it in
-/// emission order ([`Module::emit_local`]).
+/// emission order ([`Module::merge`]).
 #[derive(Default)]
 struct Unit {
     /// The functions it defined, by local symbol id.
@@ -1443,6 +1462,16 @@ struct Unit {
     statics: Vec<(u32, Static)>,
     /// The local offset of its next static request.
     static_len: u32,
+    /// Whether the merge emits it again in order ([`Module::in_order`]).
+    serial: bool,
+}
+
+/// One instance's emission on a module of its own ([`Module::emit_unit`]):
+/// its local symbol view, its unit and its function.
+pub(crate) struct Emitted<E> {
+    symbols: Symbols,
+    unit: Unit,
+    f: Result<Func, E>,
 }
 
 /// A static data request of a unit, which the merge makes of the module
@@ -1475,10 +1504,11 @@ pub(crate) enum Edit {
     PackageInterface(hd_host_abi::schema::Interface),
 }
 
-/// The module under construction.
-pub struct Module {
-    /// Instantiated whole-key vtable graph, once per supplier (never per K).
-    pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
+/// What the link prepares before it emits the instances, which their
+/// emission reads and never writes: one copy, shared by the units that
+/// emit at once (#2383). [`Module`] reads it through `Deref`.
+#[derive(Clone)]
+pub struct Facts {
     pub track_origins: bool,
     #[cfg(feature = "checked-report")]
     pub count_audit: bool,
@@ -1491,6 +1521,87 @@ pub struct Module {
     pub init_insts: Vec<Hash128>,
     /// Initialized session interfaces can receive callers from later modules.
     pub open_world: bool,
+    /// The bang methods that some call awaits at once through a trait
+    /// value, whose vtables carry a drive slot (§23.39).
+    pub driven: hd_base::HashSet<hd_base::DefId>,
+    /// Methods synchronously consumed by `block_on`, with caller-local host storage.
+    pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
+    /// Closed-program methods whose dynamic calls all use blocking drive slots.
+    /// Their host vtables need no normal cold-constructor slot.
+    pub blocking_only: hd_base::HashSet<hd_base::DefId>,
+    /// The std runtime every linked program provides to its helpers.
+    pub runtime: crate::Runtime,
+    /// Each instance by its key, for a caller to read how its callee takes
+    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
+    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
+    /// Per instance, what its worker takes or gives by address, once
+    /// (`emit/indirect.rs`).
+    pub(crate) indirect_params:
+        hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
+    /// The top-level bindings some reference refers to, by path hash:
+    /// each lives in a static slot at this address, not in Wasm globals
+    /// (`crates/hd_wasm/DESIGN.md` §23.20).
+    pub addressed: hd_base::HashMap<Hash128, Address>,
+    /// Those of them that are objects (`ref.excl.alias.global`): a binding
+    /// a reference reaches and a place writes. Its slot starts after a
+    /// header whose descriptor word holds the loans of references into
+    /// it, so an access from any function checks them.
+    pub objects: hd_base::HashSet<Hash128>,
+    /// New REPL bindings own these slots in this module's static segment.
+    pub binding_slots: hd_base::HashMap<Hash128, u32>,
+    /// A release build: its function names go in `hd.names`, not `name`
+    /// (`crates/hd_wasm/DESIGN.md` §15.9).
+    pub release: bool,
+    /// The optimized pipeline, including checked optimized builds.
+    pub optimized: bool,
+    /// The instances of `std.rt.cycle`, whose module init an acyclic
+    /// program does not run.
+    pub cycle_insts: BTreeSet<Hash128>,
+    /// The instances of the runtime modules, whose inits a thread's
+    /// instance runs too (`module.rt.thread.spawn`).
+    pub rt_insts: BTreeSet<Hash128>,
+    /// Every `std.*` instance, the runtime's included: the inits whose
+    /// releases of a binding's constant link drops before it looks for
+    /// quiet inits.
+    pub std_insts: BTreeSet<Hash128>,
+    /// The instances of `@cold` functions: [`Module::finish`] lowers each
+    /// direct call of one as [`Func::cold_helper`] lowers a helper's
+    /// (`annot.inline.cold`).
+    pub cold_insts: BTreeSet<Hash128>,
+    /// Whether [`Module::finish`] inlines the count fast paths
+    /// ([`crate::Input::inline_counts`]).
+    pub inline_counts: bool,
+    /// A reachable `thread_spawn`, which exports `hd.thread`: the heap is
+    /// then a shared memory the host gives (`module.rt.thread.heap`).
+    pub threads: bool,
+    /// The types whose objects a pointer loan may hold (model A,
+    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
+    /// access through a `*T` checks a borrow state.
+    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
+    /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
+    /// the instruction that takes the loan, and the dereference it lies at.
+    pub kept: hd_base::HashSet<crate::emit::LoanSite>,
+    /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
+    /// site keeps no loan lowers to nothing.
+    pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
+    /// The objects each access crosses, by instance and instruction
+    /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
+    /// emitter checks.
+    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), hd_tir::own::pointer::Crossed>,
+    /// The types of the objects a trait value of each trait may hold:
+    /// those the program converts to it or to a trait below it
+    /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
+    /// holds one of them.
+    pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
+}
+
+/// The module under construction.
+pub struct Module {
+    /// What the link prepares before emission and emission only reads,
+    /// shared by every unit's emission ([`Facts`]).
+    facts: Arc<Facts>,
+    /// Instantiated whole-key vtable graph, once per supplier (never per K).
+    pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
     /// Interface lookup during construction; finish sorts the contract only
@@ -1503,7 +1614,7 @@ pub struct Module {
     pub symbols: Symbols,
     funcs: Vec<Option<Func>>,
     /// What the instance being emitted adds to the shared tables
-    /// ([`Module::emit_local`]).
+    /// ([`Module::merge`]).
     unit: Unit,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<SymId>,
@@ -1545,86 +1656,36 @@ pub struct Module {
     pub(crate) dyn_paths: std::cell::RefCell<hd_base::HashMap<Ty, hd_mono::dyn_graph::DynPaths>>,
     /// The recursive boundary types' codecs (`boundary::Named`, #1550).
     pub named_codecs: crate::boundary::Named,
-    /// The bang methods that some call awaits at once through a trait
-    /// value, whose vtables carry a drive slot (§23.39).
-    pub driven: hd_base::HashSet<hd_base::DefId>,
-    /// Methods synchronously consumed by `block_on`, with caller-local host storage.
-    pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
-    /// Closed-program methods whose dynamic calls all use blocking drive slots.
-    /// Their host vtables need no normal cold-constructor slot.
-    pub blocking_only: hd_base::HashSet<hd_base::DefId>,
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,
-    /// The std runtime every linked program provides to its helpers.
-    pub runtime: crate::Runtime,
-    /// Each instance by its key, for a caller to read how its callee takes
-    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
-    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
-    pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
-    /// Per instance, what its worker takes or gives by address, once
-    /// (`emit/indirect.rs`).
-    pub(crate) indirect_params:
-        hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
+    pub(crate) body_facts: hd_base::HashMap<hd_base::InstId, crate::emit::BodyFactCell>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     /// Each suspending instance's frame payload size.
     pub frames: hd_base::HashMap<Hash128, u32>,
     /// Deferred scalar layout for shared frame materialization.
     pub(crate) frame_spills: hd_base::HashMap<Hash128, crate::task::FrameSpill>,
-    /// The top-level bindings some reference refers to, by path hash:
-    /// each lives in a static slot at this address, not in Wasm globals
-    /// (`crates/hd_wasm/DESIGN.md` §23.20).
-    pub addressed: hd_base::HashMap<Hash128, Address>,
-    /// Those of them that are objects (`ref.excl.alias.global`): a binding
-    /// a reference reaches and a place writes. Its slot starts after a
-    /// header whose descriptor word holds the loans of references into
-    /// it, so an access from any function checks them.
-    pub objects: hd_base::HashSet<Hash128>,
-    /// New REPL bindings own these slots in this module's static segment.
-    pub binding_slots: hd_base::HashMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
-    /// A release build: its function names go in `hd.names`, not `name`
-    /// (`crates/hd_wasm/DESIGN.md` §15.9).
-    pub release: bool,
-    /// The optimized pipeline, including checked optimized builds.
-    pub optimized: bool,
     /// Set by [`Module::finish`] when no object of the program takes part
     /// in cycle collection: the helpers then call the runtime's releases
     /// without collector hooks and never collect, so `std.rt.cycle` is not
     /// linked (§23.28).
     pub acyclic: bool,
-    /// The instances of `std.rt.cycle`, whose module init an acyclic
-    /// program does not run.
-    pub cycle_insts: BTreeSet<Hash128>,
-    /// The instances of the runtime modules, whose inits a thread's
-    /// instance runs too (`module.rt.thread.spawn`).
-    pub rt_insts: BTreeSet<Hash128>,
-    /// Every `std.*` instance, the runtime's included: the inits whose
-    /// releases of a binding's constant link drops before it looks for
-    /// quiet inits.
-    pub std_insts: BTreeSet<Hash128>,
     /// The inits whose calls do nothing once [`crate::opt::constants`]
     /// took their constant stores: the entry helpers leave them out
     /// (#1423, #1719), such as `std.time`'s list of waiting clocks in a
     /// program that sleeps on no `ManualClock`, or a module that holds
     /// only constants.
     pub quiet_inits: BTreeSet<Hash128>,
-    /// The instances of `@cold` functions: [`Module::finish`] lowers each
-    /// direct call of one as [`Func::cold_helper`] lowers a helper's
-    /// (`annot.inline.cold`).
-    pub cold_insts: BTreeSet<Hash128>,
     /// Each count shim emission asked for (`emit::shims`), by shape and
     /// kind: its key. Types of one shape share it; each is queued once, the
     /// first type of its shape, so the drain ends.
     pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
     pub shim_queue: Vec<ShimRequest>,
-    /// Whether [`Module::finish`] inlines the count fast paths
-    /// ([`crate::Input::inline_counts`]).
-    pub inline_counts: bool,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
     /// The release glue of the objects that take part in cycle collection,
@@ -1635,28 +1696,6 @@ pub struct Module {
     pub wakers: bool,
     /// A reachable idle hook: the drivers run it before they wait.
     pub idle: bool,
-    /// A reachable `thread_spawn`, which exports `hd.thread`: the heap is
-    /// then a shared memory the host gives (`module.rt.thread.heap`).
-    pub threads: bool,
-    /// The types whose objects a pointer loan may hold (model A,
-    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
-    /// access through a `*T` checks a borrow state.
-    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
-    /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
-    /// the instruction that takes the loan, and the dereference it lies at.
-    pub kept: hd_base::HashSet<crate::emit::LoanSite>,
-    /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
-    /// site keeps no loan lowers to nothing.
-    pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
-    /// The objects each access crosses, by instance and instruction
-    /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
-    /// emitter checks.
-    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), hd_tir::own::pointer::Crossed>,
-    /// The types of the objects a trait value of each trait may hold:
-    /// those the program converts to it or to a trait below it
-    /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
-    /// holds one of them.
-    pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,
@@ -1672,14 +1711,38 @@ impl Module {
     #[must_use]
     pub fn new(runtime: &crate::Runtime) -> Self {
         Self {
+            facts: Arc::new(Facts {
+                track_origins: Default::default(),
+                #[cfg(feature = "checked-report")]
+                count_audit: Default::default(),
+                #[cfg(feature = "checked-report")]
+                allocation_kind_reporting: true,
+                init_insts: Vec::default(),
+                open_world: Default::default(),
+                driven: hd_base::HashSet::default(),
+                blocking_driven: hd_base::HashSet::default(),
+                blocking_only: hd_base::HashSet::default(),
+                runtime: *runtime,
+                inst_of: hd_base::HashMap::default(),
+                indirect_params: hd_base::HashMap::default(),
+                addressed: hd_base::HashMap::default(),
+                objects: hd_base::HashSet::default(),
+                binding_slots: hd_base::HashMap::default(),
+                release: Default::default(),
+                optimized: Default::default(),
+                cycle_insts: BTreeSet::default(),
+                rt_insts: BTreeSet::default(),
+                std_insts: BTreeSet::default(),
+                cold_insts: BTreeSet::default(),
+                inline_counts: Default::default(),
+                threads: false,
+                lent: hd_base::HashMap::default(),
+                kept: hd_base::HashSet::default(),
+                kept_sites: hd_base::HashSet::default(),
+                crossed: hd_base::HashMap::default(),
+                dyn_types: hd_base::HashMap::default(),
+            }),
             row_key_graphs: hd_base::HashMap::default(),
-            track_origins: Default::default(),
-            #[cfg(feature = "checked-report")]
-            count_audit: Default::default(),
-            #[cfg(feature = "checked-report")]
-            allocation_kind_reporting: true,
-            init_insts: Vec::default(),
-            open_world: Default::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
             package_interface_at: hd_base::HashMap::default(),
             #[cfg(feature = "testing")]
@@ -1703,42 +1766,20 @@ impl Module {
             dyn_vtables: hd_base::HashMap::default(),
             dyn_paths: std::cell::RefCell::default(),
             named_codecs: crate::boundary::Named::default(),
-            driven: hd_base::HashSet::default(),
-            blocking_driven: hd_base::HashSet::default(),
-            blocking_only: hd_base::HashSet::default(),
             exports: Vec::default(),
             retained: Vec::default(),
-            runtime: *runtime,
-            inst_of: hd_base::HashMap::default(),
-            body_facts: Vec::default(),
-            indirect_params: hd_base::HashMap::default(),
+            body_facts: hd_base::HashMap::default(),
             frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
-            addressed: hd_base::HashMap::default(),
-            objects: hd_base::HashSet::default(),
-            binding_slots: hd_base::HashMap::default(),
             stored: BTreeMap::default(),
-            release: Default::default(),
-            optimized: Default::default(),
             acyclic: Default::default(),
-            cycle_insts: BTreeSet::default(),
-            rt_insts: BTreeSet::default(),
-            std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
-            cold_insts: BTreeSet::default(),
             shims: hd_base::HashMap::default(),
             shim_queue: Vec::new(),
-            inline_counts: Default::default(),
             fixed_allocations: Default::default(),
             drain_glues: Vec::default(),
             wakers: Default::default(),
             idle: Default::default(),
-            threads: false,
-            lent: hd_base::HashMap::default(),
-            kept: hd_base::HashSet::default(),
-            kept_sites: hd_base::HashSet::default(),
-            crossed: hd_base::HashMap::default(),
-            dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
             static_labels: hd_base::HashMap::default(),
             storage_names: hd_base::HashMap::default(),
@@ -1791,7 +1832,18 @@ fn cyclic_desc(f: &Func) -> bool {
     })
 }
 
+impl std::ops::Deref for Module {
+    type Target = Facts;
+    fn deref(&self) -> &Facts {
+        &self.facts
+    }
+}
 impl Module {
+    /// The prepared facts to write: before emission, or after it, when
+    /// no unit shares them, so no copy is made.
+    pub fn facts_mut(&mut self) -> &mut Facts {
+        Arc::make_mut(&mut self.facts)
+    }
     pub fn func(&self, name: impl Into<String>, params: Vec<Val>, results: Vec<Val>) -> Func {
         Func::new(self.symbols.clone(), name, params, results)
     }
@@ -1843,7 +1895,7 @@ impl Module {
         );
         if self.symbols.is_local() {
             // Its id is the local view's: the link places it once the
-            // view's entries have module ids ([`Module::emit_local`]).
+            // view's entries have module ids ([`Module::merge`]).
             self.unit.defines.push((id, f));
         } else {
             self.place(id, f);
@@ -1863,26 +1915,63 @@ impl Module {
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
     }
-    /// Runs `emit`, one instance's emission, against a local view of the
-    /// symbol table, then interns what the view added in its first-use
-    /// order, renumbers what the emission made into the module's ids and
-    /// places the functions it defined, in the order it defined them: the
-    /// module ends as if the emission had interned straight into it.
+    /// Runs `emit`, instance `id`'s emission, on a module of its own: it
+    /// reads `facts` and, through a local view, the symbol snapshot
+    /// `base`, and keeps what it adds in its [`Unit`] for
+    /// [`Module::merge`]. Units emit at once on the task's threads.
+    /// Cost: one empty module, and the cell of the instance's body facts.
+    pub(crate) fn emit_unit<E>(
+        facts: &Arc<Facts>,
+        base: &Symbols,
+        cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
+        emit: impl FnOnce(&mut Self) -> Result<Func, E>,
+    ) -> Emitted<E> {
+        let mut unit = Self::new(&facts.runtime);
+        unit.facts = Arc::clone(facts);
+        unit.symbols = Symbols::local(base);
+        unit.body_facts.extend(cell);
+        let f = emit(&mut unit);
+        Emitted {
+            symbols: unit.symbols,
+            unit: unit.unit,
+            f,
+        }
+    }
+    /// Merges one instance's emission into the module, in emission order:
+    /// interns what its view added in first-use order, places its static
+    /// data, queues its shims, applies its edits, renumbers what it made
+    /// into the module's ids and places the functions it defined, in the
+    /// order it defined them. The module ends as if the emission had
+    /// written straight into it. A unit that made a vtable or a named
+    /// boundary type, whose numbers and caches the module holds, is
+    /// emitted again by `emit` against the module, in order.
     /// Cost: one intern per added entry, and one pass over each function
-    /// the emission made and over each vtable it added.
-    pub(crate) fn emit_local<E>(
+    /// the emission made and over each vtable it added; a unit emitted
+    /// again costs its emission twice.
+    pub(crate) fn merge<E>(
         &mut self,
+        emitted: Emitted<E>,
         emit: impl FnOnce(&mut Self) -> Result<Func, E>,
     ) -> Result<Func, E> {
         let vtables = self.vtables.len();
-        let local = self.symbols.local();
-        let module = std::mem::replace(&mut self.symbols, local);
-        let emitted = emit(self);
-        let local = std::mem::replace(&mut self.symbols, module);
-        let unit = std::mem::take(&mut self.unit);
-        let mut remap = self.symbols.absorb(&local);
+        let Emitted { symbols, unit, f } = if emitted.unit.serial {
+            // Its view reads the module as it stands, so a vtable entry
+            // takes the id an earlier unit gave its symbol and the table
+            // deduplicates as it would have.
+            let view = Symbols::local(&self.symbols);
+            let module = std::mem::replace(&mut self.symbols, view);
+            let f = emit(self);
+            Emitted {
+                symbols: std::mem::replace(&mut self.symbols, module),
+                unit: std::mem::take(&mut self.unit),
+                f,
+            }
+        } else {
+            emitted
+        };
+        let mut remap = self.symbols.absorb(&symbols);
         self.place_statics(unit.statics, &mut remap);
-        let mut f = emitted?;
+        let mut f = f?;
         // A shim another unit asked for first is already queued.
         for (shape, request) in unit.shim_queue {
             let (_, kind, _, by_value, key) = request;
@@ -1912,6 +2001,17 @@ impl Module {
         }
         f.remap(&remap, &self.symbols);
         Ok(f)
+    }
+    /// The facts the units read, shared ([`Module::emit_unit`]).
+    #[must_use]
+    pub(crate) fn shared_facts(&self) -> Arc<Facts> {
+        Arc::clone(&self.facts)
+    }
+    /// Marks the unit being emitted as one the merge emits again in order
+    /// ([`Module::merge`]): it made an entry of a table the module numbers
+    /// and caches by content, the vtables or the named boundary types.
+    pub(crate) fn in_order(&mut self) {
+        self.unit.serial |= self.symbols.is_local();
     }
     /// Renumbers vtables `from..` into the module's ids, and their hash
     /// entries with them. A table holding a local id holds a symbol no
@@ -2153,6 +2253,7 @@ impl Module {
     /// so n requests do O(n) work, as an interner does; a scan of every
     /// earlier table made it O(n²) (#1553).
     pub fn vtable_full(&mut self, slots: Vec<Sym>, parents: Vec<usize>, drives: Vec<Sym>) -> usize {
+        self.in_order();
         let v = (
             slots.into_iter().map(|s| self.symbols.intern(s)).collect(),
             parents,
@@ -2178,6 +2279,7 @@ impl Module {
     /// A vtable index whose table [`ReservedVtable::fill`] supplies later,
     /// for a table whose own slots refer to it.
     pub fn vtable_reserve(&mut self) -> ReservedVtable {
+        self.in_order();
         self.vtables.push(Default::default());
         let k = self.vtables.len() - 1;
         self.reserved_vtables.insert(k);
@@ -2477,7 +2579,7 @@ impl Module {
         let inits = if session || self.open_world {
             &[][..]
         } else {
-            &self.init_insts
+            &self.facts.init_insts
         };
         crate::opt::constants(&mut self.funcs, &self.symbols, inits, arity)
     }
@@ -2504,7 +2606,12 @@ impl Module {
             }
             if dropped || folded {
                 self.reach();
-                crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, arity);
+                crate::opt::constants(
+                    &mut self.funcs,
+                    &self.symbols,
+                    &self.facts.init_insts,
+                    arity,
+                );
             }
             self.skip_quiet_inits();
         }
@@ -2752,7 +2859,7 @@ impl Module {
             // No allocation takes part in cycle collection: build the
             // helpers again over the runtime's releases without hooks.
             self.acyclic = true;
-            self.runtime = crate::Runtime {
+            self.facts_mut().runtime = crate::Runtime {
                 free: r.acyclic.free,
                 release: r.acyclic.release,
                 release_known: r.acyclic.release_known,
@@ -2767,7 +2874,7 @@ impl Module {
                 .iter()
                 .any(|k| seen.contains(self.symbols.intern(Sym::Inst(*k))))
             {
-                self.cycle_insts.clear();
+                self.facts_mut().cycle_insts.clear();
                 self.keep(|_, s| !matches!(s, Sym::Helper(_)));
             }
         }

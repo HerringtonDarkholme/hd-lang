@@ -1127,47 +1127,50 @@ mod instantiation_chain_tests {
     }
 
     /// Dev and release builds own one level of strongly connected
-    /// components at a time, and a release build cleans up the linked
+    /// components at a time, emit each instance on a module of its own and
+    /// merge them in order, and a release build cleans up the linked
     /// functions and puts their count calls behind tests, on the pool's
     /// threads (#2383): `bench/json-decode`, with recursive components and
-    /// generic instances, links to the same bytes on one thread and on
-    /// eight.
+    /// generic instances, and `bench/study/dyn_iter.hd`, whose trait
+    /// objects' vtables the merge emits again in order, link to the same
+    /// bytes on one thread and on eight.
     #[test]
-    fn ownership_bytes_match_at_one_and_eight_threads() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bench/json-decode");
-        let mut sources = MemorySources::default();
-        for file in ["main.hd", "types20.hd"] {
-            sources.insert(
-                file,
-                &std::fs::read_to_string(root.join(file)).expect("bench source"),
-            );
-        }
-        let release = Packages {
-            level: OptLevel::Optimized,
-            build_profile: BuildProfile::Release,
-            ..Packages::default()
-        };
-        for packages in [Packages::default(), release] {
-            let wasm = |executor| {
-                let store = MemoryStore::default();
-                let host = Host {
-                    render_tir: &[],
-                    sources: &sources,
-                    store: &store,
-                    clock: &NoClock,
-                    executor,
-                };
-                let goal = Goal::Program {
-                    entry: "main".into(),
-                };
-                let out = build_packages(&host, "json_decode_bench", &packages, &goal);
-                assert!(!out.diags.has_errors(), "{}", out.render());
-                out.wasm.expect("wasm")
+    fn ownership_and_emission_bytes_match_at_one_and_eight_threads() {
+        let bench = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bench");
+        let read = |path: &str| std::fs::read_to_string(bench.join(path)).expect("bench source");
+        let mut json = MemorySources::default();
+        json.insert("main.hd", &read("json-decode/main.hd"));
+        json.insert("types20.hd", &read("json-decode/types20.hd"));
+        let mut dyn_iter = MemorySources::default();
+        dyn_iter.insert("main.hd", &read("study/dyn_iter.hd"));
+        for sources in [&json, &dyn_iter] {
+            let release = Packages {
+                level: OptLevel::Optimized,
+                build_profile: BuildProfile::Release,
+                ..Packages::default()
             };
-            let one = wasm(Executor::Serial(SerialOrder::Priority));
-            let profile = packages.build_profile;
-            assert_eq!(wasm(Executor::Pool(8)), one, "{profile:?}, eight threads");
-            assert_eq!(wasm(Executor::Pool(1)), one, "{profile:?}, one pool thread");
+            for packages in [Packages::default(), release] {
+                let wasm = |executor| {
+                    let store = MemoryStore::default();
+                    let host = Host {
+                        render_tir: &[],
+                        sources,
+                        store: &store,
+                        clock: &NoClock,
+                        executor,
+                    };
+                    let goal = Goal::Program {
+                        entry: "main".into(),
+                    };
+                    let out = build_packages(&host, "bytes_bench", &packages, &goal);
+                    assert!(!out.diags.has_errors(), "{}", out.render());
+                    out.wasm.expect("wasm")
+                };
+                let one = wasm(Executor::Serial(SerialOrder::Priority));
+                let profile = packages.build_profile;
+                assert_eq!(wasm(Executor::Pool(8)), one, "{profile:?}, eight threads");
+                assert_eq!(wasm(Executor::Pool(1)), one, "{profile:?}, one pool thread");
+            }
         }
     }
 

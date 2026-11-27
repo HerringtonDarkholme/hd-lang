@@ -57,7 +57,7 @@ pub fn mutation_targets(
 pub struct Instances<'a> {
     pub table: &'a InstanceTable,
     pub order: &'a [InstId],
-    pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
+    pub body: &'a (dyn Fn(InstId) -> Option<&'a Body> + Sync),
 }
 
 struct Scan<'a> {
