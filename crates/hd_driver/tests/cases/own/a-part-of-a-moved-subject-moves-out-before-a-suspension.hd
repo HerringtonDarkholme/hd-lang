@@ -1,0 +1,29 @@
+# @dump: own
+# `extract` is a part of the moved `match` subject, a value, not a frame
+# slot of the parameter, so no borrow of it lives across `add!`'s
+# suspension: it moves out of the subject (`Read move [%8 as #1 .1]`).
+# hdjq's `compile_pattern_body` (#2432).
+struct Query:
+    n: i64
+
+enum Body:
+    Bind(r: *mut Query)
+    Each(update: *mut Query, extract: (*mut Query)?)
+
+struct C:
+    total: i64
+
+impl C:
+    fn add!(&mut self, q: *mut Query) -> Result[void, string]:
+        self.total += q.n
+        .Ok(())
+
+    fn body!(&mut self, body: Body) -> Result[void, string]:
+        match body:
+            .Bind(r) => self.add!(r)?
+            .Each(update, extract) =>
+                self.add!(update)?
+                match extract:
+                    .Some(x) => self.add!(x)?
+                    .None => pass
+        .Ok(())

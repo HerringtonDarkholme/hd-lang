@@ -300,6 +300,10 @@ impl Tables {
         let (mut word, mut below_start, mut below) = (word, 0, 0);
         let (mut derefs, mut elem, mut first_deref) = (0, false, false);
         let (mut seen_deref, mut above, mut pinned) = (false, false, false);
+        // Whether the walk went through a value: a borrow rooted at one is
+        // of no frame slot of a parameter, though that value was read out of
+        // one (a moved `match` subject), so it may not cross a suspension.
+        let mut through_value = false;
         for _ in 0..DEPTH {
             let p = b.view(word);
             let start = u32_of(self.chain.len());
@@ -351,10 +355,11 @@ impl Tables {
                     let one = derefs == 1 && first_deref && !above;
                     out.excl =
                         (one && f.excl != NONE && (!param || f.stores == 0)).then_some((l, f.excl));
-                    out.frame = param && f.stores == 0 && derefs == 0 && !elem;
+                    out.frame = param && f.stores == 0 && derefs == 0 && !elem && !through_value;
                     return out;
                 }
                 Root::Value(v) => {
+                    through_value = true;
                     if first
                         && let Some(&local) = self.reference_roots.get(v as usize)
                         && local != NONE
