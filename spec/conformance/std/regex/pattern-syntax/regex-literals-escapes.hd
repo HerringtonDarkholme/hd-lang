@@ -1,5 +1,5 @@
 # test: literals, the dot, escaped punctuation, control escapes, and the \d \w \s classes with their negations
-# Spec std/regex Literals And Escapes: std-regex.syntax.literal, std-regex.syntax.dot, std-regex.syntax.escape.meta, std-regex.syntax.escape.control, std-regex.syntax.escape.digit, std-regex.syntax.escape.word, std-regex.syntax.escape.space, std-regex.syntax.brace-literal, std-regex.find.chars (task #243).
+# Spec std/regex Literals And Escapes: std-regex.syntax.literal, std-regex.syntax.dot.flags, std-regex.syntax.escape.meta, std-regex.syntax.escape.controls, std-regex.syntax.escape.digit, std-regex.syntax.escape.word, std-regex.syntax.escape.space-ascii, std-regex.syntax.brace-literal, std-regex.find.chars (task #243).
 use std.regex.{Regex, Match}
 use std.text.r
 
@@ -32,11 +32,11 @@ tests:
         assert_equal(found("a{x}", "a{x}"), .Some("0-4:a{x}"), reason="no digits")
         assert_equal(found("a}]", "a}]"), .Some("0-3:a}]"), reason="closing brace and bracket")
 
-    it("\\d and \\w are ASCII, \\s is Unicode White_Space"):
+    it("\\d and \\w are ASCII, \\s uses ASCII whitespace"):
         assert_equal(found(r"\d+", "ab123c"), .Some("2-5:123"), reason="digits")
         assert_equal(found(r"\d", "٣"), .None, reason="an Arabic-Indic digit is not \\d")
         assert_equal(found(r"\w+", "é_ab9-"), .Some("2-6:_ab9"), reason="é is not \\w")
-        assert_equal(found(r"\s", "a\u{3000}b"), .Some("1-4:\u{3000}"), reason="ideographic space")
+        assert_equal(found(r"\s", "a\u{3000}b"), .None, reason="RE2 space is ASCII")
         assert_equal(found(r"\D+", "12ab3"), .Some("2-4:ab"), reason="non-digits")
         assert_equal(found(r"\W", "ab-c"), .Some("2-3:-"), reason="non-word")
         assert_equal(found(r"\S+", "  hi "), .Some("2-4:hi"), reason="non-space")

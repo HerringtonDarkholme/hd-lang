@@ -1,0 +1,11 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+use std.regex.Regex
+
+fn group_count(regex: &Regex) -> usize:
+    # subject
+    regex.capture_names().len()
+
+pub fn main() -> void $ Console:
+    pattern := Regex::new("(?<x>a)(b)?(?P<y>c)?").unwrap()
+    println(group_count(&pattern))

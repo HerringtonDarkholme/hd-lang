@@ -1,5 +1,5 @@
 # test: the quantifiers * + ? {m} {m,} {m,n} and their lazy forms
-# Spec std/regex Repetition: std-regex.repeat.star, std-regex.repeat.plus, std-regex.repeat.optional, std-regex.repeat.exact, std-regex.repeat.at-least, std-regex.repeat.between, std-regex.repeat.counts, std-regex.repeat.greedy (task #243).
+# Spec std/regex Repetition: std-regex.repeat.star, std-regex.repeat.plus, std-regex.repeat.optional, std-regex.repeat.exact, std-regex.repeat.at-least, std-regex.repeat.between, std-regex.repeat.counts, std-regex.repeat.greediness-flags (task #243).
 use std.regex.{Regex, Match}
 fn found(pattern: string, text: string) -> string?:
     match Regex::new(pattern):

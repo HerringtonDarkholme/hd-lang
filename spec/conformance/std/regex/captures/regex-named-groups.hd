@@ -1,5 +1,5 @@
 # test: named groups in both spellings take numbers in order, and name finds them
-# Spec std/regex Captures: std-regex.syntax.group.named, std-regex.syntax.group.name, std-regex.syntax.group.number, std-regex.captures.name, std-regex.captures.name.absent (task #244).
+# Spec std/regex Captures: std-regex.syntax.group.named, std-regex.syntax.group.name, std-regex.syntax.group.capture-numbering, std-regex.captures.name, std-regex.captures.name.absent (task #244).
 use std.regex.{Regex, Match}
 use std.text.r
 

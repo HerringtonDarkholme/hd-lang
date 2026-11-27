@@ -65,16 +65,21 @@ value. The forms below are the whole syntax.
 | Rule | Form | Matches |
 | --- | --- | --- |
 | r[std-regex.syntax.literal] Literal | a character with no meaning below | that character |
-| r[std-regex.syntax.dot] Any character | `.` | any one character except `\n` |
+| r[std-regex.syntax.dot.flags] Any character | `.` | any one character except `\n`, or every character while `s` is set |
 | r[std-regex.syntax.escape.meta] Escaped punctuation | `\` and an ASCII punctuation character, as in `\.` or `\\` | that character |
-| r[std-regex.syntax.escape.control] Control escape | `\n`, `\t`, `\r` | a line feed, a tab, a carriage return |
+| r[std-regex.syntax.escape.controls] Control escape | `\a`, `\f`, `\t`, `\n`, `\r`, `\v` | U+0007, U+000C, U+0009, U+000A, U+000D, U+000B respectively |
 | r[std-regex.syntax.escape.digit] Digit | `\d`; `\D` | an ASCII digit `0` to `9`; any other character |
 | r[std-regex.syntax.escape.word] Word | `\w`; `\W` | an ASCII letter, digit, or `_`; any other character |
-| r[std-regex.syntax.escape.space] Space | `\s`; `\S` | a character with the Unicode White_Space property; any other character |
+| r[std-regex.syntax.escape.space-ascii] Space | `\s`; `\S` | an ASCII tab, line feed, form feed, carriage return, or space; any other character |
+| r[std-regex.syntax.escape.hex] Hexadecimal scalar | `\xHH` or `\x{H...}` | the Unicode scalar with that hexadecimal value |
+| r[std-regex.syntax.escape.property] Unicode property | `\pL`, `\pN`, `\p{L}`, `\p{Lu}`, `\p{Greek}` | a character in that general category or script |
+| r[std-regex.syntax.escape.property-negated] Negated property | `\P` instead of `\p`, or `^` first inside its braces | a character outside the property; using both negations cancels them |
 
 1. r[std-regex.syntax.punctuation] The ASCII punctuation characters are those from `!` to `/`, from `:` to `@`, from `[` to `` ` ``, and from `{` to `~`.
-2. r[std-regex.syntax.escape.other] Any other escape, such as `\b`, `\q`, or `\1`, or a `\` that ends the pattern, is an error. Error: `BadEscape`.
-3. r[std-regex.syntax.brace-literal] A `{` that does not begin a counted repetition, as in `a{` or `a{x}`, is a literal. So are `}` and `]` outside a class.
+2. r[std-regex.syntax.escape.rejected] Any other escape, such as `\q`, `\u0041`, `\0`, or `\1`, or a `\` that ends the pattern, is an error. Error: `BadEscape`.
+3. r[std-regex.syntax.escape.hex-valid] Hex escapes require two digits without braces or at least one within; non-scalar values produce `BadEscape` at the backslash.
+4. r[std-regex.syntax.escape.properties] Property names are Unicode 17.0.0 general categories, their one-letter unions, and script names explicitly listed in its Scripts.txt, plus `Any` for every scalar; an unknown or missing name is `BadEscape` at the backslash.
+5. r[std-regex.syntax.brace-literal] A `{` that does not begin a counted repetition, as in `a{` or `a{x}`, is a literal. So are `}` and `]` outside a class.
 
 ```text
 use std.regex.{Regex, Match}
@@ -99,13 +104,13 @@ fn demo() -> List[string]:
 | r[std-regex.syntax.class] Class | `[` items `]` | a character that some item matches |
 | r[std-regex.syntax.class.negated] Negated class | `[^` items `]` | a character that no item matches, `\n` included |
 
-1. r[std-regex.syntax.class.item] An item is a character, a range `a-z` of two characters, or one of `\d`, `\D`, `\w`, `\W`, `\s`, and `\S`.
+1. r[std-regex.syntax.class.items-with-properties] An item is a character, a range `a-z` of two characters, or one of `\d`, `\D`, `\w`, `\W`, `\s`, `\S`, and the Unicode property escapes.
 2. r[std-regex.syntax.class.char] An item's character is any character but `\`, or an escape of [Literals And Escapes](#literals-and-escapes) that stands for one character.
 3. r[std-regex.syntax.class.range] A range `a-z` matches every character from `a` to `z`, compared by scalar value.
 4. r[std-regex.syntax.class.close-first] A `]` right after `[` or `[^` is an item, not the end, so `[]a]` matches `]` or `a`.
 5. r[std-regex.syntax.class.dash] A `-` first, last, or right after a range is an item, as in `[-a]` or `[a-]`.
 6. r[std-regex.syntax.class.unclosed] A class with no closing `]` is an error, at its `[`. Error: `MissingBracket`.
-7. r[std-regex.syntax.class.bad-range] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is `\d`, `\w`, `\s`, or their negations, at the same place. Error: `BadRange`.
+7. r[std-regex.syntax.class.noncharacter-endpoints] A range whose end is below its start is an error, at the range's first character. So is one whose start or end is a class escape rather than one character, at the same place. Error: `BadRange`.
 
 ```text
 use std.regex.Regex
@@ -124,23 +129,38 @@ fn demo() -> List[bool]:
 
 | Rule | Form | Matches |
 | --- | --- | --- |
-| r[std-regex.syntax.begin] Begin | `^` | the empty text at the start of the searched text |
-| r[std-regex.syntax.end] End | `$` | the empty text at the end of the searched text |
+| r[std-regex.syntax.begin-context] Begin | `^` | the empty text at the start of the searched text, or just after `\n` while `m` is set |
+| r[std-regex.syntax.end-context] End | `$` | the empty text at the end of the searched text, or just before `\n` while `m` is set |
 | r[std-regex.syntax.group] Group | `(` pattern `)` | what the inner pattern matches |
 | r[std-regex.syntax.group.plain] Plain group | `(?:` pattern `)` | what the inner pattern matches |
 | r[std-regex.syntax.group.named] Named group | `(?P<name>` pattern `)` or `(?<name>` pattern `)` | what the inner pattern matches |
 | r[std-regex.syntax.alternation] Alternation | pattern `\|` pattern | what either side matches |
 | r[std-regex.syntax.empty] Empty | nothing, as in `()`, `a\|`, or the pattern `""` | the empty text |
 
-1. r[std-regex.syntax.anchor.text] `^` and `$` see only the ends of the whole text. A `\n` inside it is no start or end.
-2. r[std-regex.syntax.group.number] A `( )` group and a named group are capture groups, numbered from 1 in the order of their `(`. A `(?: )` group has no number.
+1. r[std-regex.syntax.anchor.modes] Without `m`, `^` and `$` see only the ends of the whole text; `\A` and `\z` always see only its start and end, respectively.
+2. r[std-regex.syntax.group.capture-numbering] A `( )` group and a named group are capture groups, numbered from 1 in the order of their `(`. A `(?: )` group, an inline flag setting, and a scoped flag group have no number.
 3. r[std-regex.syntax.group.name] A group's name is an ASCII letter or `_`, then any number of ASCII letters, digits, and `_`.
 4. r[std-regex.syntax.group.bad-name] A named group whose name breaks that rule, or that has no `>` after `<`, is an error, at the `(`. Error: `BadGroupName`.
 5. r[std-regex.syntax.group.duplicate-name] A name that an earlier group already has is an error, at the later group's `(`. Error: `DuplicateGroupName`.
-6. r[std-regex.syntax.group.unsupported] A `(?` that begins none of `(?:`, `(?P<`, and `(?<` is an error, at the `(`. So are `(?<=` and `(?<!`. Error: `UnsupportedGroup`.
+6. r[std-regex.syntax.group.invalid-prefix] `(?` followed by neither a group form nor valid flags is `UnsupportedGroup` at the `(`; this includes lookaround. Error: `UnsupportedGroup`.
 7. r[std-regex.syntax.group.unclosed] A `(` with no matching `)` is an error, at the `(`. Error: `MissingParen`.
 8. r[std-regex.syntax.group.unopened] A `)` with no matching `(` is an error, at the `)`. Error: `UnmatchedParen`.
 9. r[std-regex.syntax.precedence] Repetition binds tighter than concatenation, and concatenation binds tighter than `|`. So `ab|cd*` is `(?:ab)|(?:c(?:d*))`.
+
+10. r[std-regex.syntax.word-boundary] `\b` matches between an ASCII word character and a non-word character; missing neighbors are non-word, and `\B` matches exactly where `\b` does not.
+
+### Inline Flags
+
+1. r[std-regex.flags.forms] `(?flags)` sets flags for the rest of its enclosing group, and `(?flags:pattern)` applies them only inside that noncapturing group.
+2. r[std-regex.flags.clear] Flags before `-` are set and flags after it are cleared; at least one flag is required, including after any `-`.
+3. r[std-regex.flags.kinds] The flags are `i` for Unicode simple case folding, `s` for dot matching line feeds, `m` for line anchors, and `U` for swapping greedy and lazy repetition.
+4. r[std-regex.flags.scope] Entering a group inherits its outer flags, and leaving it restores them; a setting also affects later alternatives of that group.
+5. r[std-regex.flags.fold] With `i`, a literal or positive class item matches all its Unicode simple-fold equivalents, before applying any item or outer-class negation.
+6. r[std-regex.flags.quantifier] A flag setting contributes no item and leaves the preceding item repeatable; with no preceding item, a quantifier is `NothingToRepeat`.
+
+> **Why.** These are RE2 and Go's inline forms, so a caller can prepend
+> its flag string without a second constructor. Folding adds no
+> backreference, lookaround, or locale-dependent comparison.
 
 ```text
 use std.regex.Regex
@@ -171,7 +191,7 @@ class, an anchor, or a group.
 | r[std-regex.repeat.between] Between | `{m,n}` | from `m` to `n` times | `{m,n}?` |
 
 1. r[std-regex.repeat.counts] `m` and `n` are runs of ASCII digits.
-2. r[std-regex.repeat.greedy] A quantifier prefers more repetitions, and its lazy form prefers fewer. The preference picks among matches that start at one position; see [Searching](#searching).
+2. r[std-regex.repeat.greediness-flags] A quantifier prefers more repetitions and its lazy form prefers fewer; while `U` is set, those preferences are swapped. The preference picks among matches that start at one position; see [Searching](#searching).
 3. r[std-regex.repeat.bad-count] A count above 1000, or an `n` below `m`, is an error, at the `{`. Error: `BadRepeat`.
 4. r[std-regex.repeat.nothing] A quantifier with no item before it is an error, at the quantifier. That covers one at the start of the pattern or a group, and one after `|`. It also covers one right after another quantifier, as in `a**` or `a{2}{3}`. Error: `NothingToRepeat`.
 
@@ -186,9 +206,8 @@ fn year(line: string) -> string?:
 ```
 
 > **Why.** This is the syntax that RE2 and Go's `regexp` share, without
-> flags, `\b`, lookaround, and Unicode classes. Each left-out form is an
-> error today, not a literal, so adding it later changes no pattern's
-> meaning.
+> backreferences and lookaround. Inline flags, Unicode properties and
+> ASCII word boundaries keep the same linear-time matching model.
 
 ## Searching
 
@@ -228,8 +247,20 @@ pub struct Match:
 1. r[std-regex.match.decl-struct] `std.regex` declares the struct `Match` with the public fields above.
 2. r[std-regex.match.offsets] `start` and `end` are byte offsets into the searched text, with `start <= end`, as `string.slice` takes them.
 3. r[std-regex.match.text] `text` is `text.slice(start, end)` of the searched text.
+> **Note.** Offsets stay in bytes. To report the codepoint offset of a
+> match, count `text.slice(0, found.start).chars()` rather than dividing
+> the byte offset by a fixed width.
+
 4. r[std-regex.match.traits] `Match` implements `Eq` and `Debug`.
 5. r[std-regex.match.value] A `Match` is a value: copying it copies its fields, so a change to one copy leaves the other as it was.
+
+```text
+use std.regex.Regex
+
+fn codepoint_offset(text: string) -> usize?:
+    found := Regex::new("é").expect("compiles").find(text)?
+    .Some(text.slice(0, found.start).chars().count())
+```
 
 ### All Matches
 
@@ -240,7 +271,7 @@ pub struct Match:
 1. r[std-regex.find-all.next] `find_all` runs a series of searches. The first starts at offset 0, and each finds the match `find` would, among those that start at or after its offset.
 2. r[std-regex.find-all.empty] After a match that is not empty, the next search starts at its end. After an empty match, it starts one character later, and none follows an empty match at the end of the text.
 3. r[std-regex.find-all.drop] An empty match that starts where the previous match ended is dropped.
-4. r[std-regex.find-all.anchors] `^` and `$` still see only the ends of the whole text, wherever a search starts.
+4. r[std-regex.find-all.anchor-context] Anchors and word boundaries keep their original-text context across searches; advancing the search offset creates no text boundary.
 
 ```text
 use std.regex.Regex
@@ -271,8 +302,8 @@ fn spots() -> List[usize]:
 | Form | Written-out size |
 | --- | --- |
 | a character, `.`, an escape, a class, or an anchor | 1 |
-| the empty pattern | 0 |
-| a group | the size of its inner pattern |
+| the empty pattern or a flag setting without a body | 0 |
+| a group, including a scoped flag group | the size of its inner pattern |
 | a concatenation | the sum of its parts |
 | an alternation of k branches | the sum of the branches, plus 2 × (k − 1) |
 | `e*`, `e{0,}`, and their lazy forms | s + 2 |
@@ -306,6 +337,7 @@ fn quick(text: string) -> bool:
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-regex.captures] `captures` | `pub fn captures(&self, text: string) -> Captures?` | the groups of the match `find` returns, or `.None` |
+| r[std-regex.regex.capture-names] `capture_names` | `pub fn capture_names(&self) -> List[string?]` | one entry per group index, with `.None` for group 0 and unnamed groups, even when a group does not participate |
 | r[std-regex.captures-all] `captures_all` | `pub fn captures_all(&self, text: string) -> List[Captures]` | the groups of each match `find_all` returns, in order |
 
 `Captures` has these methods:
@@ -452,11 +484,11 @@ pub enum RegexError:
 | r[std-regex.error.kind.missing-paren] Missing paren | `MissingParen` | [`std-regex.syntax.group.unclosed`](#r-std-regex.syntax.group.unclosed) | `missing closing )` |
 | r[std-regex.error.kind.unmatched-paren] Unmatched paren | `UnmatchedParen` | [`std-regex.syntax.group.unopened`](#r-std-regex.syntax.group.unopened) | `unexpected )` |
 | r[std-regex.error.kind.missing-bracket] Missing bracket | `MissingBracket` | [`std-regex.syntax.class.unclosed`](#r-std-regex.syntax.class.unclosed) | `missing closing ]` |
-| r[std-regex.error.kind.bad-escape] Bad escape | `BadEscape` | [`std-regex.syntax.escape.other`](#r-std-regex.syntax.escape.other) | `invalid escape` |
-| r[std-regex.error.kind.bad-range] Bad range | `BadRange` | [`std-regex.syntax.class.bad-range`](#r-std-regex.syntax.class.bad-range) | `invalid character class range` |
+| r[std-regex.error.kind.bad-escape] Bad escape | `BadEscape` | [`std-regex.syntax.escape.rejected`](#r-std-regex.syntax.escape.rejected) | `invalid escape` |
+| r[std-regex.error.kind.bad-range] Bad range | `BadRange` | [`std-regex.syntax.class.noncharacter-endpoints`](#r-std-regex.syntax.class.noncharacter-endpoints) | `invalid character class range` |
 | r[std-regex.error.kind.nothing-to-repeat] Nothing to repeat | `NothingToRepeat` | [`std-regex.repeat.nothing`](#r-std-regex.repeat.nothing) | `missing argument to repetition operator` |
 | r[std-regex.error.kind.bad-repeat] Bad repeat | `BadRepeat` | [`std-regex.repeat.bad-count`](#r-std-regex.repeat.bad-count) | `invalid repeat count` |
-| r[std-regex.error.kind.unsupported-group] Unsupported group | `UnsupportedGroup` | [`std-regex.syntax.group.unsupported`](#r-std-regex.syntax.group.unsupported) | `unsupported group` |
+| r[std-regex.error.kind.unsupported-group] Unsupported group | `UnsupportedGroup` | [`std-regex.syntax.group.invalid-prefix`](#r-std-regex.syntax.group.invalid-prefix) | `unsupported group` |
 | r[std-regex.error.kind.bad-group-name] Bad group name | `BadGroupName` | [`std-regex.syntax.group.bad-name`](#r-std-regex.syntax.group.bad-name) | `invalid named capture` |
 | r[std-regex.error.kind.duplicate-group-name] Duplicate group name | `DuplicateGroupName` | [`std-regex.syntax.group.duplicate-name`](#r-std-regex.syntax.group.duplicate-name) | `duplicate capture group name` |
 | r[std-regex.error.kind.too-large] Too large | `TooLarge` | [`std-regex.error.too-large`](#r-std-regex.error.too-large) | `expression too large` |
@@ -482,9 +514,5 @@ fn broken() -> RegexError?:
 
 ## Not Yet Specified
 
-These are not in this version of `std.regex`:
-
-- flags, such as `(?i)`, `(?m)`, and `(?s)`, which are `UnsupportedGroup`
-  errors today;
-- `\b` and the Unicode classes `\p{...}`, which are `BadEscape` errors;
-- a replacement computed by a function from each match's `Captures`.
+A replacement computed by a function from each match's `Captures` is not
+yet specified.

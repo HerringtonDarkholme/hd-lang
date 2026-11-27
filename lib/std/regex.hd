@@ -10,7 +10,8 @@ use std.collections.UniqList
 use std.format.DebugWriter
 use std.encoding.{Deserialize, Deserializer, ValueKind, member_name}
 use std.meta.{Facts, Member, VariantInfo}
-use std.rt.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
+use std.regex.unicode.{unicode_property, unicode_folds}
+use std.rt.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index, char_from_scalar}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
@@ -94,7 +95,8 @@ impl Regex:
     pub fn new(pattern: string) -> Result[Regex, RegexError]:
         source := Pattern::of(pattern)
         let mut names: List[string] = [""]
-        parsed := parse_alternation(source, 0, &mut names)?
+        let mut context = ParseContext { flags: 0, folds: [] }
+        parsed := parse_alternation(source, 0, &mut names, &mut context)?
         if parsed.next < source.chars.len():
             return .Err(RegexError.UnmatchedParen(source.offsets[parsed.next]))
         if program_size(parsed.node) > max_program():
@@ -121,6 +123,14 @@ impl Regex:
                 names: names,
             },
         )
+
+    ## Capture names by group index, including the unnamed whole match at zero.
+    ## See [std-regex.regex.capture-names](../../spec/std/regex.md#r-std-regex.regex.capture-names).
+    pub fn capture_names(&self) -> List[string?]:
+        let mut out: List[string?] = []
+        for name in self.names:
+            out.push(if name == "": .None else: .Some(name))
+        out
 
     # The pattern as written.
     ## The pattern the regex was compiled from.
@@ -475,6 +485,7 @@ enum Node:
     Class(items: List[ClassItem], negated: bool)
     Begin
     End
+    Assert(kind: i32)
     Group(body: *Node, index: usize)
     Concat(items: List[Node])
     Alternate(branches: List[Node])
@@ -486,22 +497,30 @@ enum ClassItem:
     Digit(negated: bool)
     Word(negated: bool)
     Space(negated: bool)
+    Scalars(ranges: List[i32], negated: bool)
 
 # A parsed piece and the index of the character after it.
 struct Step:
     node: Node
     next: usize
+    flags_only: bool = false
+
+# Inline flags share the parser scope; case-fold data is decoded only if needed.
+struct ParseContext:
+    flags: u32
+    folds: List[i32]
 
 # `a|b|c`: one or more concatenations.
 fn parse_alternation(
     source: Pattern,
     start: usize,
     names: &mut List[string],
+    context: &mut ParseContext,
 ) -> Result[Step, RegexError]:
     let mut branches: List[Node] = []
     let at = start
     while true:
-        branch := parse_concat(source, at, names)?
+        branch := parse_concat(source, at, names, context)?
         branches.push(branch.node)
         at = branch.next
         if source.has(at, '|'):
@@ -518,21 +537,43 @@ fn parse_concat(
     source: Pattern,
     start: usize,
     names: &mut List[string],
+    context: &mut ParseContext,
 ) -> Result[Step, RegexError]:
     let mut items: List[Node] = []
+    let pending: Node? = .None
+    let quantified = false
     let at = start
     while at < source.chars.len():
         c := source.chars[at]
         if c == '|' || c == ')':
             break
-        # A quantifier with no atom before it, including one right after
-        # another quantifier (r-std-regex.repeat.nothing).
         if quantifier_at(source, at):
-            return .Err(RegexError.NothingToRepeat(source.offset(at)))
-        atom := parse_atom(source, at, names)?
-        repeated := parse_repeat(source, atom)?
-        items.push(repeated.node)
-        at = repeated.next
+            if quantified || pending.is_none():
+                return .Err(RegexError.NothingToRepeat(source.offset(at)))
+            repeated := parse_repeat(
+                source,
+                Step { node: pending.unwrap(), next: at },
+                context.flags,
+            )?
+            pending = .Some(repeated.node)
+            quantified = true
+            at = repeated.next
+            continue
+        atom := parse_atom(source, at, names, context)?
+        at = atom.next
+        if atom.flags_only:
+            # Go's parser keeps its previous item across a flag setting.
+            # An immediately repeated quantifier is still rejected above.
+            quantified = false
+            continue
+        match pending:
+            .Some(node) => items.push(node)
+            .None => pass
+        pending = .Some(atom.node)
+        quantified = false
+    match pending:
+        .Some(node) => items.push(node)
+        .None => pass
     if items.len() == 0:
         return .Ok(Step { node: Node.Empty, next: at })
     if items.len() == 1:
@@ -599,7 +640,7 @@ fn char_digit(c: char) -> usize:
     0
 
 # A quantifier after `atom`, if one follows, with its lazy `?`.
-fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
+fn parse_repeat(source: Pattern, atom: Step, flags: u32) -> Result[Step, RegexError]:
     at := atom.next
     let min: usize = 0
     let max: usize? = .None
@@ -624,38 +665,70 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
             if bad:
                 return .Err(RegexError.BadRepeat(source.offset(at)))
         _ => return .Ok(atom)
-    let greedy = true
+    let greedy = flags & 8 == 0
     if source.has(next, '?'):
-        greedy = false
+        greedy = !greedy
         next = next + 1
     # Boxed because the returned recursive AST node stores its child.
     .Ok(Step { node: Node.Repeat(box(atom.node), min, max, greedy), next: next })
 
-fn parse_atom(source: Pattern, at: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+fn parse_atom(
+    source: Pattern,
+    at: usize,
+    names: &mut List[string],
+    context: &mut ParseContext,
+) -> Result[Step, RegexError]:
     c := source.chars[at]
     if c == '(':
-        return parse_group(source, at, names)
+        return parse_group(source, at, names, context)
     if c == '[':
-        return parse_class(source, at)
+        return parse_class(source, at, context)
     if c == '.':
-        return .Ok(Step { node: Node.AnyChar, next: at + 1 })
+        node := if context.flags & 2 != 0:
+            Node.Class([ClassItem.Scalars([+0, +1114111], false)], false)
+        else:
+            Node.AnyChar
+        return .Ok(Step { node: node, next: at + 1 })
     if c == '^':
-        return .Ok(Step { node: Node.Begin, next: at + 1 })
+        return .Ok(
+            Step { node: if context.flags & 4 != 0: Node.Assert(0) else: Node.Begin, next: at + 1 }
+        )
     if c == '$':
-        return .Ok(Step { node: Node.End, next: at + 1 })
+        return .Ok(
+            Step { node: if context.flags & 4 != 0: Node.Assert(1) else: Node.End, next: at + 1 }
+        )
     if c == '\\':
+        if source.has(at + 1, 'A'):
+            return .Ok(Step { node: Node.Begin, next: at + 2 })
+        if source.has(at + 1, 'z'):
+            return .Ok(Step { node: Node.End, next: at + 2 })
+        if source.has(at + 1, 'b') || source.has(at + 1, 'B'):
+            return .Ok(
+                Step { node: Node.Assert(if source.has(at + 1, 'b'): +2 else: +3), next: at + 2 }
+            )
         escaped := parse_escape(source, at)?
         node := match escaped.item:
-            .Some(item) => Node.Class([item], false)
-            .None => Node.Literal(escaped.value)
-        return .Ok(Step { node: node, next: at + 2 })
-    .Ok(Step { node: Node.Literal(c), next: at + 1 })
+            .Some(item) => finish_class([item], false, context)
+            .None => literal_node(escaped.value, context)
+        return .Ok(Step { node: node, next: escaped.next })
+    .Ok(Step { node: literal_node(c, context), next: at + 1 })
 
-# `( )`, `(?: )`, `(?P<name> )`, and `(?<name> )`; any other `(?` is an
-# unsupported group (r-std-regex.syntax.group.unsupported). A capture group
+fn literal_node(value: char, context: &mut ParseContext) -> Node:
+    if context.flags & 1 == 0:
+        return Node.Literal(value)
+    finish_class([ClassItem.Range(value, value)], false, context)
+
+# Capturing, noncapturing, named and inline-flag groups; any other
+# `(?` prefix is an unsupported group (r-std-regex.syntax.group.invalid-prefix). A capture group
 # takes the next number when its `(` is read
-# (r-std-regex.syntax.group.number).
-fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+# (r-std-regex.syntax.group.capture-numbering).
+fn parse_group(
+    source: Pattern,
+    open: usize,
+    names: &mut List[string],
+    context: &mut ParseContext,
+) -> Result[Step, RegexError]:
+    saved := context.flags
     let start = open + 1
     let capturing = true
     let name = ""
@@ -673,7 +746,12 @@ fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result
         ):
             name_start = .Some(start + 2)
         else:
-            return .Err(RegexError.UnsupportedGroup(source.offset(open)))
+            parsed := inline_flags(source, start + 1, context.flags, open)?
+            context.flags = parsed._0
+            if !parsed._2:
+                return .Ok(Step { node: Node.Empty, next: parsed._1, flags_only: true })
+            capturing = false
+            start = parsed._1
         match name_start:
             .None => pass
             .Some(name_at) =>
@@ -690,13 +768,48 @@ fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result
     index := names.len()
     if capturing:
         names.push(name)
-    inner := parse_alternation(source, start, names)?
+    inner := parse_alternation(source, start, names, context)?
+    context.flags = saved
     if !source.has(inner.next, ')'):
         return .Err(RegexError.MissingParen(source.offset(open)))
     if capturing:
         # Boxed because the returned recursive AST node stores its child.
         return .Ok(Step { node: Node.Group(box(inner.node), index), next: inner.next + 1 })
     .Ok(Step { node: inner.node, next: inner.next + 1 })
+
+# Go regexp/syntax's inline-flag scope: set before '-', clear after it.
+fn inline_flags(
+    source: Pattern,
+    start: usize,
+    initial: u32,
+    open: usize,
+) -> Result[(u32, usize, bool), RegexError]:
+    let flags = initial
+    let clear = false
+    let any = false
+    let at = start
+    while at < source.chars.len():
+        c := source.chars[at]
+        if c == ':' || c == ')':
+            if !any:
+                break
+            return .Ok((flags, at + 1, c == ':'))
+        if c == '-':
+            if clear:
+                break
+            clear = true
+            any = false
+        else:
+            let bit: u32 = match c:
+                'i' => 1
+                's' => 2
+                'm' => 4
+                'U' => 8
+                _ => return .Err(RegexError.UnsupportedGroup(source.offset(open)))
+            flags = if clear: flags & ~bit else: flags | bit
+            any = true
+        at += 1
+    .Err(RegexError.UnsupportedGroup(source.offset(open)))
 
 # Whether characters `start` to `end` form a group name: an ASCII letter or
 # `_`, then ASCII letters, digits, and `_` (r-std-regex.syntax.group.name).
@@ -717,26 +830,92 @@ fn group_name(source: Pattern, start: usize, end: usize) -> bool:
 struct Escape:
     item: ClassItem?
     value: char
+    next: usize
 
 fn parse_escape(source: Pattern, at: usize) -> Result[Escape, RegexError]:
-    match source.at(at + 1):
-        .None => .Err(RegexError.BadEscape(source.offset(at)))
-        .Some(e) =>
-            if e == 'd' || e == 'D':
-                return .Ok(Escape { item: .Some(ClassItem.Digit(e == 'D')), value: e })
-            if e == 'w' || e == 'W':
-                return .Ok(Escape { item: .Some(ClassItem.Word(e == 'W')), value: e })
-            if e == 's' || e == 'S':
-                return .Ok(Escape { item: .Some(ClassItem.Space(e == 'S')), value: e })
-            if e == 'n':
-                return .Ok(Escape { item: .None, value: '\n' })
-            if e == 't':
-                return .Ok(Escape { item: .None, value: '\t' })
-            if e == 'r':
-                return .Ok(Escape { item: .None, value: '\r' })
-            if ascii_punctuation(e):
-                return .Ok(Escape { item: .None, value: e })
-            .Err(RegexError.BadEscape(source.offset(at)))
+    e := source.at(at + 1).ok_or(RegexError.BadEscape(source.offset(at)))?
+    next := at + 2
+    if e == 'd' || e == 'D':
+        return .Ok(Escape { item: .Some(ClassItem.Digit(e == 'D')), value: e, next: next })
+    if e == 'w' || e == 'W':
+        return .Ok(Escape { item: .Some(ClassItem.Word(e == 'W')), value: e, next: next })
+    if e == 's' || e == 'S':
+        return .Ok(Escape { item: .Some(ClassItem.Space(e == 'S')), value: e, next: next })
+    if e == 'p' || e == 'P':
+        let end = next
+        let start = next
+        if source.has(next, '{'):
+            start += 1
+            end = start
+            while end < source.chars.len() && !source.has(end, '}'):
+                end += 1
+            if !source.has(end, '}'):
+                return .Err(RegexError.BadEscape(source.offset(at)))
+        else:
+            if source.at(end).is_none():
+                return .Err(RegexError.BadEscape(source.offset(at)))
+            end += 1
+        let negated = e == 'P'
+        if source.has(start, '^'):
+            start += 1
+            negated = !negated
+        set := unicode_property(source.piece(start, end))
+            .ok_or(RegexError.BadEscape(source.offset(at)))?
+        return .Ok(
+            Escape {
+                item: .Some(ClassItem.Scalars(set, negated)),
+                value: e,
+                next: if source.has(next, '{'): end + 1 else: end
+            }
+        )
+    if e == 'x':
+        let end = next + 2
+        let start = next
+        if source.has(next, '{'):
+            start += 1
+            end = start
+            while end < source.chars.len() && !source.has(end, '}'):
+                end += 1
+            if !source.has(end, '}'):
+                return .Err(RegexError.BadEscape(source.offset(at)))
+        if end > source.chars.len() || end == start:
+            return .Err(RegexError.BadEscape(source.offset(at)))
+        let point: u32 = 0
+        let index = start
+        while index < end:
+            c := source.chars[index]
+            let digit: u32 = 0
+            if c >= '0' && c <= '9':
+                digit = char_scalar(c) - 48
+            else if c >= 'a' && c <= 'f':
+                digit = char_scalar(c) - 87
+            else if c >= 'A' && c <= 'F':
+                digit = char_scalar(c) - 55
+            else:
+                return .Err(RegexError.BadEscape(source.offset(at)))
+            # The next hex digit must stay within the Unicode scalar maximum.
+            if point > 0x10ffff / 16:
+                return .Err(RegexError.BadEscape(source.offset(at)))
+            point = point * 16 + digit
+            index += 1
+        value := char_from_scalar(point).ok_or(RegexError.BadEscape(source.offset(at)))?
+        return .Ok(
+            Escape { item: .None, value: value, next: if source.has(next, '{'): end + 1 else: end }
+        )
+    let control: char? = match e:
+        'n' => .Some('\n')
+        't' => .Some('\t')
+        'r' => .Some('\r')
+        'f' => char_from_scalar(12)
+        'v' => char_from_scalar(11)
+        'a' => char_from_scalar(7)
+        _ => .None
+    match control:
+        .Some(value) => return .Ok(Escape { item: .None, value: value, next: next })
+        .None => pass
+    if ascii_punctuation(e):
+        return .Ok(Escape { item: .None, value: e, next: next })
+    .Err(RegexError.BadEscape(source.offset(at)))
 
 fn ascii_punctuation(c: char) -> bool:
     (
@@ -747,7 +926,11 @@ fn ascii_punctuation(c: char) -> bool:
     )
 
 # `[...]` and `[^...]`. A `]` first is a literal (r-std-regex.syntax.class).
-fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
+fn parse_class(
+    source: Pattern,
+    open: usize,
+    context: &mut ParseContext,
+) -> Result[Step, RegexError]:
     let at = open + 1
     let negated = false
     if source.has(at, '^'):
@@ -787,7 +970,7 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
                 else:
                     items.push(ClassItem.Range(low.value, low.value))
                     at = low.next
-    .Ok(Step { node: Node.Class(items, negated), next: at + 1 })
+    .Ok(Step { node: finish_class(items, negated, context), next: at + 1 })
 
 struct ClassChar:
     item: ClassItem?
@@ -798,8 +981,73 @@ fn class_char(source: Pattern, at: usize) -> Result[ClassChar, RegexError]:
     c := source.chars[at]
     if c == '\\':
         escaped := parse_escape(source, at)?
-        return .Ok(ClassChar { item: escaped.item, value: escaped.value, next: at + 2 })
+        return .Ok(ClassChar { item: escaped.item, value: escaped.value, next: escaped.next })
     .Ok(ClassChar { item: .None, value: c, next: at + 1 })
+
+# Fold each positive item before its complement, as RE2 does. In particular,
+# (?i)\\W excludes Kelvin sign and long s as well as ASCII word characters.
+fn finish_class(items: List[ClassItem], negated: bool, context: &mut ParseContext) -> Node:
+    if context.flags & 1 == 0:
+        return Node.Class(items, negated)
+    let mut out: List[i32] = []
+    for item in items:
+        pair := match item:
+            .Range(low, high) => ([i32(char_scalar(low)), i32(char_scalar(high))], false)
+            .Scalars(ranges, reverse) => (ranges, reverse)
+            .Digit(reverse) => ([+48, +57], reverse)
+            .Word(reverse) => ([+48, +57, +65, +90, +95, +95, +97, +122], reverse)
+            .Space(reverse) => ([+9, +10, +12, +13, +32, +32], reverse)
+        folded := folded_ranges(pair._0, context)
+        push_ranges(&mut out, folded, pair._1)
+    Node.Class([ClassItem.Scalars(merge_ranges(out), false)], negated)
+
+# A single sorted range union. It is also what makes a complement unambiguous.
+fn merge_ranges(ranges: List[i32]) -> List[i32]:
+    let mut pairs: List[(i32, i32)] = []
+    let index: usize = 0
+    while index < ranges.len():
+        pairs.push((ranges[index], ranges[index + 1]))
+        index += 2
+    pairs.sort()
+    let mut out: List[i32] = []
+    for pair in pairs:
+        if out.len() > 0 && pair._0 <= out[out.len() - 1] + 1:
+            last := out.len() - 1
+            if pair._1 > out[last]:
+                out[last] = pair._1
+        else:
+            out.push(pair._0)
+            out.push(pair._1)
+    out
+
+# Search only fold keys that fall in each source range. The complete
+# equivalence pairs make this one pass, with no closure/fixpoint iteration.
+fn folded_ranges(ranges: List[i32], context: &mut ParseContext) -> List[i32]:
+    if context.folds.len() == 0:
+        context.folds = unicode_folds()
+    folds := &context.folds
+    let mut out: List[i32] = []
+    let index: usize = 0
+    while index < ranges.len():
+        first := ranges[index]
+        last := ranges[index + 1]
+        out.push(first)
+        out.push(last)
+        let low: usize = 0
+        let high = folds.len() / 2
+        while low < high:
+            mid := low + (high - low) / 2
+            if folds[2 * mid] < first:
+                low = mid + 1
+            else:
+                high = mid
+        while low < folds.len() / 2 && folds[2 * low] <= last:
+            target := folds[2 * low + 1]
+            out.push(target)
+            out.push(target)
+            low += 1
+        index += 2
+    merge_ranges(out)
 
 # The VM's instructions, as `compile` writes them; `lower` turns them into
 # a `Program`. `Split` tries `first` before `second`. A character is its
@@ -811,6 +1059,7 @@ enum Inst:
     Class(ranges: List[i32], negated: bool)
     Begin
     End
+    Assert(kind: i32)
     Split(first: usize, second: usize)
     Jump(target: usize)
     Save(slot: usize)
@@ -861,6 +1110,7 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
         .Class(items, negated) => program.push(Inst.Class(class_ranges(items), negated))
         .Begin => program.push(Inst.Begin)
         .End => program.push(Inst.End)
+        .Assert(kind) => program.push(Inst.Assert(kind))
         .Group(body, index) =>
             program.push(Inst.Save(2 * index))
             compile(*body, program)
@@ -944,6 +1194,7 @@ struct Program:
     right: UniqList[usize]
     points: UniqList[i32]
     ranges: UniqList[i32]
+    contextual: bool
 
 fn lower(program: List[Inst]) -> Program:
     let mut ops = UniqList::[i32].new()
@@ -951,6 +1202,7 @@ fn lower(program: List[Inst]) -> Program:
     let mut right = UniqList::[usize].new()
     let mut points = UniqList::[i32].new()
     let mut ranges = UniqList::[i32].new()
+    let contextual = false
     for inst in program:
         let op = +0
         let first: usize = 0
@@ -978,11 +1230,22 @@ fn lower(program: List[Inst]) -> Program:
                 first = slot
             .Begin => op = +8
             .End => op = +9
+            .Assert(kind) =>
+                op = +10
+                point = kind
+                contextual = true
         ops.push(op)
         left.push(first)
         right.push(second)
         points.push(point)
-    Program { ops: ops, left: left, right: right, points: points, ranges: ranges }
+    Program {
+        ops: ops,
+        left: left,
+        right: right,
+        points: points,
+        ranges: ranges,
+        contextual: contextual,
+    }
 
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
@@ -1346,6 +1609,7 @@ fn summarize(node: Node) -> Summary:
         .Empty => exact_summary("", no_bytes())
         .Begin => exact_summary("", no_bytes())
         .End => exact_summary("", no_bytes())
+        .Assert(_) => exact_summary("", no_bytes())
         .Literal(value) =>
             text := "$value"
             lead := i32(bytes_at(text, 0))
@@ -1875,7 +2139,7 @@ fn advance(vm: &mut Vm) -> bool:
 # would start there (regex-automata's meta engine narrows a capture
 # search to the DFA's span the same way).
 fn locate(vm: &mut Vm, from: usize) -> bool:
-    if !vm.dfa:
+    if !vm.dfa || vm.program.contextual:
         return run(vm, from, false)
     if !search(vm, from, false):
         return false
@@ -2212,11 +2476,34 @@ fn add_thread(
                 if at != 0:
                     break
                 pc = pc + 1
-            else:
+            else if op == 9:
                 if at != size:
                     break
                 pc = pc + 1
+            else:
+                if !assertion(program.points[pc], vm.text, at, size):
+                    break
+                pc = pc + 1
     length
+
+# Assertions read neighboring ASCII bytes only: a multibyte scalar cannot
+# be an ASCII word character, so its continuation bytes cannot create a boundary.
+fn assertion(kind: i32, text: string, at: usize, size: usize) -> bool:
+    if kind == 0:
+        return at == 0 || bytes_at(text, at - 1) == 10
+    if kind == 1:
+        return at == size || bytes_at(text, at) == 10
+    before := at > 0 && word_byte(bytes_at(text, at - 1))
+    after := at < size && word_byte(bytes_at(text, at))
+    (before != after) == (kind == 2)
+
+fn word_byte(byte: u8) -> bool:
+    (
+        (byte >= 48 && byte <= 57)
+        || (byte >= 65 && byte <= 90)
+        || (byte >= 97 && byte <= 122)
+        || byte == 95
+    )
 
 # One direction of the lazy DFA, as regex-automata's hybrid DFA builds one
 # (src/hybrid/dfa.rs, Lazy::cache_next_state): a state is the list of
@@ -2634,6 +2921,8 @@ fn reverse_start(vm: &mut Vm, from: usize, end: usize) -> i64:
 # `vm.found`. The forward DFA finds the end and the reverse DFA the start,
 # and the Pike VM runs the search when either one's cache gives out.
 fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
+    if vm.program.contextual:
+        return run(vm, from, earliest)
     end := forward_end(vm, from, earliest)
     if end == -2:
         return run(vm, from, earliest)
@@ -2742,8 +3031,8 @@ fn group_text(group: Match?) -> string:
         .None => ""
 
 # The ranges of scalar values a class's items match. `\d` and `\w` are
-# ASCII; `\s` is Unicode White_Space (r-std-regex.syntax.escape.digit,
-# r-std-regex.syntax.escape.space).
+# ASCII; `\s` uses RE2/Go ASCII whitespace (r-std-regex.syntax.escape.digit,
+# r-std-regex.syntax.escape.space-ascii).
 fn class_ranges(items: List[ClassItem]) -> List[i32]:
     let mut ranges: List[i32] = []
     for item in items:
@@ -2751,36 +3040,11 @@ fn class_ranges(items: List[ClassItem]) -> List[i32]:
             .Range(low, high) =>
                 ranges.push(i32(char_scalar(low)))
                 ranges.push(i32(char_scalar(high)))
+            .Scalars(bounds, negated) => push_ranges(&mut ranges, bounds, negated)
             .Digit(negated) => push_ranges(&mut ranges, [+48, +57], negated)
             .Word(negated) =>
                 push_ranges(&mut ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
-            .Space(negated) =>
-                push_ranges(
-                    &mut ranges,
-                    [
-                        +9,
-                        +13,
-                        +32,
-                        +32,
-                        +133,
-                        +133,
-                        +160,
-                        +160,
-                        +5760,
-                        +5760,
-                        +8192,
-                        +8202,
-                        +8232,
-                        +8233,
-                        +8239,
-                        +8239,
-                        +8287,
-                        +8287,
-                        +12288,
-                        +12288,
-                    ],
-                    negated,
-                )
+            .Space(negated) => push_ranges(&mut ranges, [+9, +10, +12, +13, +32, +32], negated)
     ranges
 
 # Pushes the sorted ranges `set`, or, when `negated`, the ranges between
@@ -2798,8 +3062,9 @@ fn push_ranges(ranges: &mut List[i32], set: List[i32], negated: bool) -> void:
             ranges.push(set[index] - 1)
         low = set[index + 1] + 1
         index = index + 2
-    ranges.push(low)
-    ranges.push(+1114111)
+    if low <= 1114111:
+        ranges.push(low)
+        ranges.push(+1114111)
 
 fn word_char(c: char) -> bool:
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
