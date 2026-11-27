@@ -726,44 +726,24 @@ fn text_report(diags: &[Diag], o: &Options) -> String {
 #[cfg(all(test, unix))]
 mod stored_report_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// `check_one` of the package at `root`, listed now: its report and
     /// the cache lookups it made.
-    fn run(root: &Path, store: &Counted, o: &Options, only: Option<&str>) -> (Vec<Diag>, usize) {
+    fn run(
+        root: &Path,
+        store: &CountingStore,
+        o: &Options,
+        only: Option<&str>,
+    ) -> (Vec<Diag>, usize) {
         let t = Target {
             program: disk::load_package(root, "main").expect("package"),
             only: only.map(str::to_owned),
             member: None,
         };
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let (diags, _) = check_one(t, o, store);
-        (diags, store.gets.load(Ordering::Relaxed))
+        (diags, store.gets())
     }
 
     /// Waits until every file written so far has a stamp.
@@ -801,7 +781,7 @@ mod stored_report_tests {
             tests: true,
             ..Options::default()
         };
-        let store = Counted::default();
+        let store = CountingStore::default();
         for run_name in ["cold", "warm"] {
             let (diags, _) = run(&root, &store, &o, None);
             let found: Vec<_> = diags
@@ -890,7 +870,7 @@ mod stored_report_tests {
                 ..Options::default()
             },
         ];
-        let store = Counted::default();
+        let store = CountingStore::default();
         let mut reports = Vec::new();
         for o in &runs {
             for only in [None, Some("src/f1/mod.hd")] {
@@ -985,16 +965,16 @@ mod stored_report_tests {
         let text = |n: i32| format!("pub fn main() -> void:\n    unread := +{n}\n");
         std::fs::write(&file, text(1)).expect("file");
         settle();
-        let store = Counted::default();
+        let store = CountingStore::default();
         let run = |path: &Path, o: &Options| {
             let t = Target {
                 program: disk::load_file(path).expect("file"),
                 only: None,
                 member: None,
             };
-            store.gets.store(0, Ordering::Relaxed);
+            store.reset();
             let (diags, _) = check_one(t, o, &store);
-            (diags, store.gets.load(Ordering::Relaxed))
+            (diags, store.gets())
         };
         let lint = Options {
             lint: Some(hd_lint::Policy::default()),

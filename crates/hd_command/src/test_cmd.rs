@@ -2108,32 +2108,7 @@ fn shell_quoted(word: &str) -> String {
 #[cfg(all(test, unix))]
 mod stored_build_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// A package `shop` of `n` modules, each with a `tests:` block, and a
     /// doc test in the first.
@@ -2171,17 +2146,14 @@ mod stored_build_tests {
         let o = parse(&[]).expect("options");
         for n in [1, 40] {
             let dir = package(&format!("test-stored-build-{n}"), n);
-            let store = Counted::default();
+            let store = CountingStore::default();
             let load = || disk::load_package(&dir, "main").expect("package");
             let (key, client) =
                 stored_build(&load(), (None, None, false), &o, &store).expect("a key");
             assert!(key.read(&store, client).is_none(), "{n}: cold");
             let mut stamps = affected::Stamps::at(&dir, false);
             let prep = prepare(&mut load(), (&dir, None, None), &o, &store, &mut stamps);
-            assert!(
-                store.gets.load(Ordering::Relaxed) > n,
-                "{n}: the build looks up"
-            );
+            assert!(store.gets() > n, "{n}: the build looks up");
             assert_eq!(
                 prep.selected.len(),
                 n + 1,
@@ -2190,12 +2162,12 @@ mod stored_build_tests {
             assert!(prep.built.iter().all(|b| b.frames.is_some()));
             let bytes = encode_prepared(&prep).expect("encodes");
             key.write(&store, client, &bytes);
-            store.gets.store(0, Ordering::Relaxed);
+            store.reset();
             let (key, client) =
                 stored_build(&load(), (None, None, false), &o, &store).expect("a key");
             let warm =
                 decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-            assert_eq!(store.gets.load(Ordering::Relaxed), 2, "{n}: warm");
+            assert_eq!(store.gets(), 2, "{n}: warm");
             assert_eq!(encode_prepared(&warm), Some(bytes), "{n}");
             assert!(warm.built.iter().all(|b| b.frames.is_none()));
         }
@@ -2218,22 +2190,22 @@ mod stored_build_tests {
         )
         .expect("file");
         std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
-        let store = Counted::default();
+        let store = CountingStore::default();
         let load = || disk::load_file(&dir.join("alone.hd")).expect("file");
         let at = (Some("alone.hd"), None, true);
         let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
         assert!(key.read(&store, client).is_none(), "cold");
         let mut stamps = affected::Stamps::at(&dir, true);
         let prep = prepare(&mut load(), (&dir, at.0, None), &o, &store, &mut stamps);
-        assert!(store.gets.load(Ordering::Relaxed) > 3, "the build looks up");
+        assert!(store.gets() > 3, "the build looks up");
         assert_eq!(prep.selected.len(), 1);
         let bytes = encode_prepared(&prep).expect("encodes");
         key.write(&store, client, &bytes);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
         let warm =
             decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-        assert_eq!(store.gets.load(Ordering::Relaxed), 2, "warm");
+        assert_eq!(store.gets(), 2, "warm");
         assert_eq!(encode_prepared(&warm), Some(bytes));
     }
 }

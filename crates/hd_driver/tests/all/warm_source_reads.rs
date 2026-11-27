@@ -10,6 +10,7 @@ use hd_base::Hash128;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
 use hd_project::{MemorySources, SourceEntry, SourceSet};
 use hd_sched::SerialOrder;
+use hd_testkit::CountingStore;
 
 /// A source set that counts the files read through it.
 struct Counted {
@@ -222,35 +223,9 @@ fn a_module_an_earlier_repl_input_left_unread_is_read_when_a_later_one_reaches_i
     assert!(!second.diags.has_errors(), "{}", second.render());
 }
 
-/// A store that counts the lookups made through it and the bytes they
-/// returned.
-#[derive(Default)]
-struct CountedStore {
-    store: hd_cache::MemoryStore,
-    gets: AtomicUsize,
-    bytes: AtomicUsize,
-}
-
-impl hd_cache::CacheStore for CountedStore {
-    fn get(&self, kind: hd_cache::EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-        let got = self.store.get(kind, key);
-        self.gets.fetch_add(1, Ordering::Relaxed);
-        self.bytes
-            .fetch_add(got.as_ref().map_or(0, |b| b.len()), Ordering::Relaxed);
-        got
-    }
-    fn put(&self, kind: hd_cache::EntryKind, key: &Hash128, bytes: &[u8]) {
-        self.store.put(kind, key, bytes);
-    }
-    fn touch(&self, kind: hd_cache::EntryKind, key: &Hash128) {
-        self.store.touch(kind, key);
-    }
-}
-
 /// The lookups and bytes read of a check of `sources` through `store`.
-fn lookups(sources: &Counted, store: &CountedStore) -> (usize, usize, Output) {
-    store.gets.store(0, Ordering::Relaxed);
-    store.bytes.store(0, Ordering::Relaxed);
+fn lookups(sources: &Counted, store: &CountingStore) -> (usize, usize, Output) {
+    store.reset();
     sources.reads.store(0, Ordering::Relaxed);
     let host = Host {
         render_tir: &[],
@@ -260,11 +235,7 @@ fn lookups(sources: &Counted, store: &CountedStore) -> (usize, usize, Output) {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let out = build_packages(&host, "app", &Packages::default(), &Goal::Analyze);
-    (
-        store.gets.load(Ordering::Relaxed),
-        store.bytes.load(Ordering::Relaxed),
-        out,
-    )
+    (store.gets(), store.bytes(), out)
 }
 
 /// Cost Model (#1510): a warm `hd check` with nothing changed takes the
@@ -275,7 +246,7 @@ fn lookups(sources: &Counted, store: &CountedStore) -> (usize, usize, Output) {
 fn a_warm_no_change_check_does_the_same_lookups_at_ten_times_the_modules() {
     let mut warm = Vec::new();
     for modules in [100, 1_000] {
-        let store = CountedStore::default();
+        let store = CountingStore::default();
         let mut sources = package(&format!("package-result-{modules}"), modules);
         let (cold, _, out) = lookups(&sources, &store);
         assert!(out.diags.is_empty(), "{}", out.render());
@@ -311,12 +282,11 @@ fn warned(name: &str, modules: usize) -> Counted {
 /// read, and its output.
 fn lookups_of(
     sources: &Counted,
-    store: &CountedStore,
+    store: &CountingStore,
     packages: &Packages<'_>,
     goal: &Goal,
 ) -> (usize, usize, Output) {
-    store.gets.store(0, Ordering::Relaxed);
-    store.bytes.store(0, Ordering::Relaxed);
+    store.reset();
     sources.reads.store(0, Ordering::Relaxed);
     let host = Host {
         render_tir: &[],
@@ -326,11 +296,7 @@ fn lookups_of(
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let out = build_packages(&host, "app", packages, goal);
-    (
-        store.gets.load(Ordering::Relaxed),
-        store.bytes.load(Ordering::Relaxed),
-        out,
-    )
+    (store.gets(), store.bytes(), out)
 }
 
 /// Cost Model (#1510): a warm check whose run reported a diagnostic
@@ -341,7 +307,7 @@ fn lookups_of(
 fn a_warm_check_with_a_diagnostic_replays_it_with_the_same_lookups_at_ten_times_the_modules() {
     let mut warm = Vec::new();
     for modules in [100, 1_000] {
-        let store = CountedStore::default();
+        let store = CountingStore::default();
         let sources = warned(&format!("warned-{modules}"), modules);
         let (_, _, cold) = lookups(&sources, &store);
         assert!(cold.render().contains("m1.hd"), "{}", cold.render());
@@ -365,7 +331,7 @@ fn a_warm_check_with_a_diagnostic_replays_it_with_the_same_lookups_at_ten_times_
 /// one.
 #[test]
 fn an_edit_an_added_file_and_a_removed_file_each_miss_the_stored_result() {
-    let store = CountedStore::default();
+    let store = CountingStore::default();
     let mut sources = warned("warned-changes", 20);
     let check = |sources: &Counted| lookups(sources, &store).2;
     let cold = check(&sources);
@@ -411,7 +377,7 @@ fn a_warm_file_check_and_a_warm_test_check_take_their_stored_results() {
     for (packages, goal) in runs {
         let mut warm = Vec::new();
         for modules in [100, 1_000] {
-            let store = CountedStore::default();
+            let store = CountingStore::default();
             let mut sources = warned(&format!("roots-{goal:?}-{modules}"), modules);
             sources.files.insert(
                 "main.hd",

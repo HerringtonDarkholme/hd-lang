@@ -1972,46 +1972,21 @@ fn build_file(
 #[cfg(all(test, unix))]
 mod stored_artifact_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// `hd build`'s artifact of the package at `root`, listed now, and
     /// whether it was the stored one.
-    fn build(root: &Path, store: &Counted) -> (Vec<u8>, bool) {
+    fn build(root: &Path, store: &CountingStore) -> (Vec<u8>, bool) {
         let mut program = disk::load_package(root, "main").expect("package");
         program.only_program("main");
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let mut rep = Reporter::stdout(false);
         let (wasm, _) =
             compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
                 .expect("built");
         // A hit: the set's stamp table and the stored artifact.
-        (wasm, store.gets.load(Ordering::Relaxed) == 2)
+        (wasm, store.gets() == 2)
     }
 
     /// Waits until every file written so far has a stamp.
@@ -2048,15 +2023,15 @@ mod stored_artifact_tests {
 
     /// `hd run`'s module of the package at `root`, listed now, and the
     /// lookups that took it.
-    fn compiled<'a>(program: &'a disk::Program, store: &Counted) -> (Compiled<'a>, usize) {
+    fn compiled<'a>(program: &'a disk::Program, store: &CountingStore) -> (Compiled<'a>, usize) {
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let mut rep = Reporter::stderr(false);
         let Ok(built) = compile_traced_in(program, (profile_of(false), pipeline), &mut rep, store)
         else {
             panic!("built");
         };
-        (built, store.gets.load(Ordering::Relaxed))
+        (built, store.gets())
     }
 
     fn load(root: &Path) -> disk::Program {
@@ -2096,7 +2071,7 @@ mod stored_artifact_tests {
         for n in [1, 40] {
             let dir = panicking(&format!("run-stored-module-{n}"), n);
             settle();
-            let store = Counted::default();
+            let store = CountingStore::default();
             let program = load(&dir);
             let (cold, gets) = compiled(&program, &store);
             assert!(
@@ -2165,7 +2140,7 @@ mod stored_artifact_tests {
         };
         std::fs::write(&file, text("")).expect("file");
         settle();
-        let store = Counted::default();
+        let store = CountingStore::default();
         let program = disk::load_file(&file).expect("file");
         let (cold, gets) = compiled(&program, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
@@ -2196,7 +2171,7 @@ mod stored_artifact_tests {
     #[test]
     fn a_warm_stdin_run_is_keyed_by_its_text() {
         let main = |n: i32| format!("pub fn main() -> void:\n    let _ = [{n}]\n");
-        let store = Counted::default();
+        let store = CountingStore::default();
         let one = disk::load_stdin(&main(1)).expect("stdin");
         let (cold, gets) = compiled(&one, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
@@ -2229,7 +2204,7 @@ mod stored_artifact_tests {
             |n: i32| format!("pub fn main() -> void $ Console:\n    println(\"{{{n} + 1}}\")\n");
         std::fs::write(root.join("src/main.hd"), main(1)).expect("main");
         std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
-        let store = Counted::default();
+        let store = CountingStore::default();
         let (cold, hit) = build(&root, &store);
         assert!(!hit, "cold");
         let (warm, hit) = build(&root, &store);
