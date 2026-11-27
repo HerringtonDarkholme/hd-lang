@@ -181,9 +181,17 @@ export async function settle(...roots: readonly string[]): Promise<number> {
       newest = Math.max(newest, stats.mtimeMs, stats.ctimeMs);
     }
   }
-  const wait = settleWaitMs(newest, Date.now());
-  if (wait > 0) {
-    await new Promise((resolve) => setTimeout(resolve, wait));
+  // A timer may fire up to a millisecond before `Date.now()` reaches its
+  // deadline, and stamps carry fractions of a millisecond, so check again
+  // after each wait rather than trusting one.
+  let waited = 0;
+  for (
+    let wait = settleWaitMs(newest, Date.now());
+    wait > 0;
+    wait = settleWaitMs(newest, Date.now())
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, Math.ceil(wait)));
+    waited += wait;
   }
-  return wait;
+  return waited;
 }
