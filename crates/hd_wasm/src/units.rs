@@ -47,6 +47,46 @@ impl<'i, 'a> Keys<'i, 'a> {
     /// The keys of a link whose prepared facts are `facts`.
     /// Cost: one pass over the program-wide facts and the loan facts.
     pub(crate) fn new(input: &'i Input<'a>, store: &'a dyn UnitStore, facts: &Facts) -> Self {
+        // No `..`: adding a link fact must audit its effect on stored units.
+        let Facts {
+            track_origins,
+            #[cfg(feature = "checked-report")]
+            count_audit,
+            #[cfg(feature = "checked-report")]
+            allocation_kind_reporting,
+            // ruled out: initializer order is used only by finish-time folding and helpers.
+            init_insts: _,
+            open_world,
+            driven,
+            blocking_driven,
+            blocking_only,
+            runtime,
+            // ruled out: Module::inst records keyed reads; numeric indices belong to this link.
+            inst_of: _,
+            // ruled out: derived from hashed current/callee bodies and types, read via Module::inst.
+            indirect_params: _,
+            addressed,
+            objects,
+            binding_slots,
+            release,
+            optimized,
+            // ruled out: only finish-time reachability/helpers select collector initializers.
+            cycle_insts: _,
+            // ruled out: only the finish-time ThreadStart helper selects runtime initializers.
+            rt_insts: _,
+            // ruled out: only merged-module optimization removes std initializer releases.
+            std_insts: _,
+            // ruled out: only Module::finish rewrites cold direct calls through the function table.
+            cold_insts: _,
+            inline_counts,
+            threads,
+            lent,
+            kept,
+            // ruled out: collect_loans projects these sites from the per-instance hashed kept triples.
+            kept_sites: _,
+            crossed,
+            dyn_types,
+        } = facts;
         let mut memo = CanonMemo::default();
         let env = input.env;
         let canon = |memo: &mut CanonMemo, t: Ty| {
@@ -56,49 +96,46 @@ impl<'i, 'a> Keys<'i, 'a> {
         h.hash(store.fingerprint());
         #[cfg(feature = "checked-report")]
         {
-            h.u8(u8::from(facts.count_audit));
-            h.u8(u8::from(facts.allocation_kind_reporting));
+            h.u8(u8::from(*count_audit));
+            h.u8(u8::from(*allocation_kind_reporting));
         }
         for flag in [
-            facts.track_origins,
-            facts.open_world,
-            facts.release,
-            facts.optimized,
-            facts.inline_counts,
-            facts.threads,
+            *track_origins,
+            *open_world,
+            *release,
+            *optimized,
+            *inline_counts,
+            *threads,
             input.promote_args,
         ] {
             h.u8(u8::from(flag));
         }
-        h.str(&format!("{:?} {:?}", facts.runtime, input.float_ops));
-        for set in [&facts.driven, &facts.blocking_driven, &facts.blocking_only] {
+        h.str(&format!("{:?} {:?}", runtime, input.float_ops));
+        for set in [driven, blocking_driven, blocking_only] {
             sorted(&mut h, set.iter().map(|&d| env.path_hash(d)));
         }
-        let mut addressed: Vec<_> = facts.addressed.iter().collect();
+        let mut addressed: Vec<_> = addressed.iter().collect();
         addressed.sort_stable_by_key(|(k, _)| **k);
         h.len(addressed.len());
         for (k, a) in addressed {
             h.hash(*k);
             h.str(&format!("{a:?}"));
         }
-        sorted(&mut h, facts.objects.iter().copied());
+        sorted(&mut h, objects.iter().copied());
         sorted(
             &mut h,
-            facts
-                .binding_slots
+            binding_slots
                 .iter()
                 .map(|(k, &at)| pair(*k, Hash128(u128::from(at)))),
         );
         sorted(
             &mut h,
-            facts
-                .lent
-                .iter()
+            lent.iter()
                 .map(|(&t, &excl)| pair(canon(&mut memo, t), Hash128(u128::from(excl)))),
         );
         sorted(
             &mut h,
-            facts.dyn_types.iter().map(|(&d, tys)| {
+            dyn_types.iter().map(|(&d, tys)| {
                 let mut k = StableHasher::new("dyn-types");
                 k.hash(env.path_hash(d));
                 for &t in tys {
@@ -112,13 +149,13 @@ impl<'i, 'a> Keys<'i, 'a> {
 
         // Each instance's loan rows, in a stable order.
         let mut rows: HashMap<InstId, Vec<Hash128>> = HashMap::default();
-        for &(id, site, step) in &facts.kept {
+        for &(id, site, step) in kept {
             let mut k = StableHasher::new("kept");
             k.u32(site);
             k.u32(step);
             rows.entry(id).or_default().push(k.finish());
         }
-        for (&(id, at), crossed) in &facts.crossed {
+        for (&(id, at), crossed) in crossed {
             let mut k = StableHasher::new("crossed");
             k.u32(at);
             match crossed.root {

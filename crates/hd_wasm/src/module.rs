@@ -5,6 +5,10 @@
 //! first, then instances in content order, then helpers in their order,
 //! and encodes the module.
 
+// Keep Facts' instance index private while its child audits every field.
+#[path = "units.rs"]
+pub(super) mod units;
+
 use crate::op::{LabelListId, Op as Instruction};
 use hd_base::SliceSort as _;
 use std::collections::{BTreeMap, BTreeSet};
