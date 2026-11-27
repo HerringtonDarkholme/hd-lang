@@ -697,7 +697,7 @@ fn compile_standalone_in(
     // same inputs stored (#1510): one lookup beside the stamp table, no
     // per-module entry. A build that writes its text (`HD_WAT`) builds,
     // for the functions' names.
-    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v2")
+    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1")
         .filter(|_| !wat::requested());
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
         if rep.diags(&program.problems) {
@@ -714,7 +714,6 @@ fn compile_standalone_in(
         hd_run::frames::cut_names(&mut wasm);
         wasm.extend(section);
     }
-    hd_run::frames::retain_function_names(&mut wasm).map_err(|error| rep.fail(&error))?;
     // Only a build that reported nothing: a hit reports nothing either.
     if let Some((key, client)) = stored
         && (rep.errors, rep.warnings) == reported
@@ -1742,7 +1741,7 @@ fn build_artifact(
     let store = hd_cache::DeferredStore::new(disk_store());
     let tag = if native {
         Some(format!(
-            "cli-native-output-v2:{:032x}",
+            "cli-native-output-v1:{:032x}",
             engine::native_key().map_err(|e| rep.fail(&e))?.0
         ))
     } else {
