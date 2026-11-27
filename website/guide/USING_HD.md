@@ -40,8 +40,10 @@ The host implements that trait as a *provider*:
 - **Checked before it starts.** The host's registrations are checked against
   the module's contract (identity, method schemas, suspension, codecs)
   before the module links. A mismatch refuses to start and names the trait.
-- **No dynamic loading.** hd never discovers or loads a native library for a
-  host trait. The host passes its providers in by value.
+- **No dynamic loading by Rust providers.** The host passes its Rust
+  providers in by value. The one library hd loads itself is a C provider
+  a package's `[host]` table names, from its `native/<target-triple>/`
+  folder.
 - **Waiting calls.** A host method can answer at once or return a pending
   call. Aborting a call or closing the instance runs its abort hook at most
   once, and a late answer is ignored.

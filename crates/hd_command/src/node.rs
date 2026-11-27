@@ -112,6 +112,112 @@ impl From<String> for Refusal {
     }
 }
 
+/// The library of one C-bound root trait, selected from its declaring
+/// package's `native/<target-triple>/` folder (`cli.host.c.file`).
+#[derive(Clone, Debug)]
+// A build without Wasmtime selects them only to refuse a missing file.
+#[cfg_attr(not(feature = "wasmtime"), allow(dead_code))]
+pub struct CLibrary {
+    pub module: String,
+    pub path: PathBuf,
+    /// The `c` of the trait's `[host]` entry.
+    pub name: String,
+    /// The declaring package, as its manifest names it.
+    pub package: String,
+    pub triple: String,
+}
+
+/// The target triple this `hd` runs on, whose folder holds a C provider.
+pub(crate) const TARGET_TRIPLE: &str = env!("HD_TARGET_TRIPLE");
+
+/// The file name of the C library `name` on this target: `libNAME.so`,
+/// `libNAME.dylib` or `NAME.dll` (`cli.host.c.file`).
+pub(crate) fn c_file(name: &str) -> String {
+    if cfg!(windows) {
+        format!("{name}.dll")
+    } else if cfg!(target_vendor = "apple") {
+        format!("lib{name}.dylib")
+    } else {
+        format!("lib{name}.so")
+    }
+}
+
+/// The libraries of the module's C-bound root traits, selected after the
+/// root manifest's consent, from each declaring package's
+/// `native/<target-triple>/` folder (`cli.host.c.file`). A missing file
+/// refuses the run before the guest starts, naming the package, the triple
+/// and the trait (`cli.host.c.target-missing`). Nothing is loaded here.
+/// Cost: as [`manifest_providers`], one lookup per C-bound root.
+pub(crate) fn manifest_c_libraries(
+    contract: Option<&hd_host_abi::schema::Contract>,
+    tables: &[hd_host_abi::c::Table],
+    program: Option<&crate::disk::Program>,
+    grants: &Grants,
+) -> Result<Vec<CLibrary>, Refusal> {
+    let Some(contract) = contract.filter(|_| !tables.is_empty()) else {
+        return Ok(Vec::new());
+    };
+    let c: std::collections::BTreeSet<&str> = tables.iter().map(|t| t.module.as_str()).collect();
+    let providers = Providers::new(program.map_or(&[][..], |p| &p.host_packages[..]));
+    let mut selected = Vec::new();
+    for interface in contract
+        .interfaces
+        .iter()
+        .filter(|i| !i.handle && c.contains(i.module.as_str()))
+    {
+        let name = interface.identity.to_string();
+        grants
+            .consent
+            .package(interface)
+            .map_err(|why| why.message(interface))?;
+        let identity = &interface.identity;
+        let package = providers.package(identity).ok_or_else(|| {
+            format!(
+                "no selected package manifest provides {name}; run this program in its app package"
+            )
+        })?;
+        let root = program
+            .and_then(|p| p.package_directory(package.package))
+            .ok_or_else(|| format!("no package directory provides {name}"))?;
+        let entry = providers
+            .entry(package, &identity.trait_path)
+            .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
+        let Some(library) = &entry.c else {
+            return Err(format!(
+                "{}:{}: {name} was built for a C provider, and its `[host]` entry names none; rebuild the program",
+                package.manifest, entry.line
+            )
+            .into());
+        };
+        let package_name = crate::disk::package_name(root).unwrap_or_default();
+        let root = hd_run::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
+        let file = root
+            .join("native")
+            .join(TARGET_TRIPLE)
+            .join(c_file(library));
+        let path = hd_run::canonicalize(&file)
+            .ok()
+            .filter(|path| path.starts_with(&root) && path.is_file())
+            .ok_or_else(|| {
+                Refusal(
+                    Some(hd_diag::Code::NativeProviderMissing),
+                    format!(
+                        "package `{package_name}` has no C provider `{library}` for target `{TARGET_TRIPLE}`: {name} needs the file native/{TARGET_TRIPLE}/{} inside the package",
+                        c_file(library)
+                    ),
+                )
+            })?;
+        selected.push(CLibrary {
+            module: interface.module.clone(),
+            path,
+            name: library.clone(),
+            package: package_name,
+            triple: TARGET_TRIPLE.to_owned(),
+        });
+    }
+    Ok(selected)
+}
+
 /// Resolve only reachable package providers. A CLI flag cannot supply the
 /// missing manifest consent, and no provider module is imported here. A
 /// trait whose `[host]` entry names only a C library has no provider on a

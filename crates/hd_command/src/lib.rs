@@ -933,6 +933,25 @@ pub(crate) fn host_contract(wasm: &[u8]) -> Result<Option<hd_host_abi::schema::C
         .map_err(|e| format!("the built host contract: {e}"))
 }
 
+/// The C tables of a built module's C-bound root interfaces
+/// (`hd_host_abi::c`), and their import modules: one more walk over its
+/// section headers.
+pub(crate) fn host_c_tables(
+    wasm: &[u8],
+) -> Result<
+    (
+        Vec<hd_host_abi::c::Table>,
+        std::collections::BTreeSet<String>,
+    ),
+    String,
+> {
+    let tables = hd_host_abi::schema::module_metadata(wasm)
+        .map(|m| m.c_tables)
+        .map_err(|e| format!("the built host contract: {e}"))?;
+    let modules = tables.iter().map(|t| t.module.clone()).collect();
+    Ok((tables, modules))
+}
+
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
 /// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
@@ -1008,7 +1027,11 @@ fn execute_with(
     } else {
         choice
     };
-    let engine = match choice.for_module(contract) {
+    let (c_tables, c) = match host_c_tables(wasm) {
+        Ok(tables) => tables,
+        Err(e) => return rep.fail(&e),
+    };
+    let engine = match choice.for_module(contract, &c) {
         Ok(engine) => engine,
         Err(e) => {
             rep.diag(&report::Diag::error(
@@ -1034,18 +1057,29 @@ fn execute_with(
             .collect(),
         program: program.to_owned(),
     };
-    let providers = if engine == engine::EngineKind::Node {
-        match node::manifest_providers(contract, provider_program, &host.grants) {
-            Ok(providers) => providers,
-            Err(refusal) => {
-                rep.diag(&refusal.diag());
-                return rep.finish(HD_FAILURE);
-            }
-        }
+    let selected = if engine == engine::EngineKind::Node {
+        node::manifest_providers(contract, provider_program, &host.grants)
+            .map(|providers| (providers, Vec::new()))
     } else {
-        Vec::new()
+        // The libraries of the C-bound root traits (`cli.host.c.file`).
+        node::manifest_c_libraries(contract, &c_tables, provider_program, &host.grants)
+            .map(|c| (Vec::new(), c))
     };
-    match engine::run(engine, level, built.image(), &host, &providers, sampling) {
+    let (providers, c_libraries) = match selected {
+        Ok(selected) => selected,
+        Err(refusal) => {
+            rep.diag(&refusal.diag());
+            return rep.finish(HD_FAILURE);
+        }
+    };
+    match engine::run(
+        engine,
+        level,
+        built.image(),
+        &host,
+        (&providers, &c_libraries),
+        sampling,
+    ) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -1768,12 +1802,13 @@ fn build_artifact(
         && let Ok(image) = hd_run::artifact::Native::open(&out)
         && image.key == key
         && let Ok(contract) = host_contract(&image.metadata)
+        && let Ok((_, c)) = host_c_tables(&image.metadata)
         && (contract.is_none()
             || (dir.join(format!("{stem}.host.mjs")).is_file()
                 && dir.join(format!("{stem}.host.rs")).is_file()))
         && run_choice.is_none_or(|choice| {
             matches!(
-                choice.for_module(contract.as_ref()),
+                choice.for_module(contract.as_ref(), &c),
                 Ok(engine::EngineKind::Wasmtime)
             )
         })
@@ -1793,9 +1828,10 @@ fn build_artifact(
     };
     if native {
         let contract = host_contract(&built.wasm).map_err(|e| rep.fail(&e))?;
+        let (_, c) = host_c_tables(&built.wasm).map_err(|e| rep.fail(&e))?;
         if run_choice.is_some_and(|choice| {
             !matches!(
-                choice.for_module(contract.as_ref()),
+                choice.for_module(contract.as_ref(), &c),
                 Ok(engine::EngineKind::Wasmtime)
             )
         }) {
@@ -2245,7 +2281,7 @@ mod stored_artifact_tests {
             OptLevel::Dev,
             hd_run::artifact::Image::Wasm(wasm),
             &host,
-            &[],
+            (&[], &[]),
             None,
         )
         .expect("the engine runs");

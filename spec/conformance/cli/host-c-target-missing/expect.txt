@@ -1,0 +1,5 @@
+# A package without its C provider's library for the running target refuses the run before the guest starts. With no `--engine`, a module whose every package host trait has a C provider runs on Wasmtime, in a build that has it, and is refused there; a build without Wasmtime runs it on Node, which refuses a C-only trait.
+run: hd run --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"native-provider-missing","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]

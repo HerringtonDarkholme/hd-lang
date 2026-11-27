@@ -1361,7 +1361,9 @@ fn build_programs(
             kind: engine,
             named: false,
         }
-        .for_module(contract.as_ref())
+        // `hd test` binds no C provider yet: a C-bound trait's test runs
+        // on Node, through its `js` provider.
+        .for_module(contract.as_ref(), &std::collections::BTreeSet::new())
         .map_err(|e| rep.fail(&e))?;
         let providers = if kind == crate::engine::EngineKind::Node {
             crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants).map_err(

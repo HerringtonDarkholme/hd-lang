@@ -65,6 +65,15 @@ pub struct Host {
     /// The embedder's native package providers, by contract interface
     /// (`host/package.rs`); empty for every other run.
     pub(crate) natives: Vec<Option<super::package::Native>>,
+    /// The libraries the invoker selected for the module's C-bound root
+    /// traits (`crate::native::c`); empty for every other run.
+    pub(crate) c_libraries: std::sync::Arc<[crate::native::c::Library]>,
+    /// The created C providers, by contract interface, which drop, and so
+    /// `destroy`, with the instance, trap or not (`cli.host.c.create`).
+    pub(crate) c_providers: Vec<Option<crate::native::c::Provider>>,
+    /// The guest heap a C call's pointer arguments address
+    /// (`module.host.package.c-references`), once the instance exists.
+    pub(crate) c_heap: Option<wasmtime::Extern>,
     /// The returned native handles this instance issued
     /// (`module.host.package.native-handles`).
     pub(crate) handles: crate::native::Handles,
@@ -124,6 +133,9 @@ impl Host {
             deadline,
             fixture: crate::profiles::State::default(),
             natives: Vec::new(),
+            c_libraries: std::sync::Arc::from(Vec::new()),
+            c_providers: Vec::new(),
+            c_heap: None,
             handles: crate::native::Handles::default(),
             testing: None,
             environment: None,

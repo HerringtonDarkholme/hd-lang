@@ -96,6 +96,7 @@ fn drive(
             io,
             Some((&interrupt, SCENARIO_CLEANUP)),
             None,
+            &[],
         )
     } else {
         engine.instantiate_with(&module, setup, io)

@@ -28,18 +28,65 @@ use wasmtime::Linker;
 
 use super::reply::{bytes, handle, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
+use crate::native::c::{Library, Provider};
+use crate::native::c_call::{Arg, Kind, Plan};
 use crate::native::{Answer, Bindings, Dispatch, HostError, Unregistered};
+use hd_host_abi::c::{Num, Param, Ret, Table};
 
-/// A module's package host contract and the imports it describes.
+/// A module's package host contract and the imports it describes, with
+/// the C table of each C-bound root interface (`hd_host_abi::c`).
 pub(crate) struct Package {
     contract: Contract,
     imports: Imports,
+    /// Per contract interface, its C table and each method's slot by name,
+    /// or `None` for an interface that no C provider serves.
+    c: Vec<Option<CInterface>>,
+}
+
+/// A C-bound root interface's table, and each method's slot index and row
+/// by method name, indexed once.
+pub(crate) struct CInterface {
+    table: Table,
+    slots: HashMap<String, (usize, usize)>,
 }
 
 impl Package {
-    pub(crate) fn new(contract: Contract) -> Self {
+    /// Cost: one pass over the contract's methods and the tables' methods.
+    pub(crate) fn new(contract: Contract, c_tables: Vec<Table>) -> Self {
         let imports = Imports::new(&contract);
-        Self { contract, imports }
+        let mut by_module: HashMap<String, Table> = c_tables
+            .into_iter()
+            .map(|t| (t.module.clone(), t))
+            .collect();
+        let c = contract
+            .interfaces
+            .iter()
+            .map(|i| {
+                let table = by_module.remove(&i.module)?;
+                let mut slots = HashMap::default();
+                let mut at = 0;
+                for (row, m) in table.methods.iter().enumerate() {
+                    slots.insert(m.name.clone(), (at, row));
+                    at += 1 + usize::from(m.suspends);
+                }
+                Some(CInterface { table, slots })
+            })
+            .collect();
+        Self {
+            contract,
+            imports,
+            c,
+        }
+    }
+
+    /// Interface `index`'s C table, when a C provider serves it.
+    fn c_interface(&self, index: usize) -> Option<&CInterface> {
+        self.c.get(index).and_then(Option::as_ref)
+    }
+
+    /// Whether any root interface is served by a C provider.
+    pub(crate) fn has_c(&self) -> bool {
+        self.c.iter().any(Option::is_some)
     }
 
     /// Whether the contract describes the import `module` `name`.
@@ -47,9 +94,15 @@ impl Package {
         self.imports.describes(module, name)
     }
 
-    /// The first root interface, the one a refusal names.
+    /// The first root interface no C provider serves, the one a refusal
+    /// names when no embedder registered a provider.
     fn first_root(&self) -> Option<&Interface> {
-        self.contract.interfaces.iter().find(|i| !i.handle)
+        self.contract
+            .interfaces
+            .iter()
+            .enumerate()
+            .find(|(n, i)| !i.handle && self.c_interface(*n).is_none())
+            .map(|(_, i)| i)
     }
 }
 
@@ -81,7 +134,9 @@ pub(crate) fn preflight(
             Some(root) => Err(refused(
                 Unregistered::new(&root.identity.to_string()).to_string(),
             )),
-            None => Ok(Vec::new()),
+            None => Ok(package.map_or_else(Vec::new, |p| {
+                p.contract.interfaces.iter().map(|_| None).collect()
+            })),
         };
     };
     let companion = bindings.contract();
@@ -127,6 +182,11 @@ pub(crate) fn preflight(
     };
     for (index, interface) in interfaces.iter().enumerate() {
         let name = interface.identity.to_string();
+        // A C provider serves it (`c_preflight`); no registration does.
+        if package.is_some_and(|p| p.c_interface(index).is_some()) {
+            natives.push(None);
+            continue;
+        }
         if interface.handle {
             // A handle trait has no registration: a result's handle brings
             // its trait object and the companion's dispatch, which names
@@ -178,6 +238,267 @@ pub(crate) fn preflight(
     Ok(natives)
 }
 
+/// Opens and creates the C provider of each C-bound root interface from
+/// `libraries` before anything is linked or the guest starts, in contract
+/// interface order (`cli.host.c.entry`, `cli.host.c.check`,
+/// `cli.host.c.create`). A provider runs only with the app manifest's
+/// consent to its trait (`native-two-keys`). Each called method must have
+/// a slot the library filled; a suspending one, whose token arrives with
+/// #2388 step 5, refuses the run. A refusal drops, and so destroys, the
+/// providers made before it.
+///
+/// Cost: one library open, one symbol probe and one `create` per C-bound
+/// root, and one slot probe per called method.
+pub(crate) fn c_preflight(
+    package: Option<&Package>,
+    libraries: &[Library],
+    consent: &Consent,
+) -> Result<Vec<Option<Provider>>, StartError> {
+    let Some(package) = package.filter(|p| p.has_c()) else {
+        return Ok(Vec::new());
+    };
+    if !crate::native::c_call::supported() {
+        return Err(refused(
+            "this target has no C call bridge: C providers run on x86-64 and arm64".into(),
+        ));
+    }
+    let by_module: HashMap<&str, &Library> =
+        libraries.iter().map(|l| (l.module.as_str(), l)).collect();
+    let mut providers = Vec::with_capacity(package.c.len());
+    for (index, interface) in package.contract.interfaces.iter().enumerate() {
+        let Some(c) = package.c_interface(index) else {
+            providers.push(None);
+            continue;
+        };
+        let name = interface.identity.to_string();
+        consent
+            .package(interface)
+            .map_err(|why| refused(why.message(interface)))?;
+        let library = by_module.get(interface.module.as_str()).ok_or_else(|| {
+            refused(format!(
+                "no C provider library was selected for package host trait {name:?}"
+            ))
+        })?;
+        if let Some(m) = interface.methods.iter().find(|m| m.suspends) {
+            return Err(refused(format!(
+                "the C provider of {name:?} cannot run its suspending method `{}` yet: Wasmtime binds a C provider's suspending methods from #2388 step 5",
+                m.member
+            )));
+        }
+        let provider = crate::native::c::open(library, &name, &c.table).map_err(refused)?;
+        for m in &interface.methods {
+            let slot = c.slots.get(&m.name).map(|&(slot, _)| slot);
+            if slot.and_then(|slot| provider.slot(slot)).is_none() {
+                return Err(refused(format!(
+                    "the C provider `{}` of package `{}` leaves the slot of {name:?}'s method `{}` empty",
+                    library.name, library.package, m.member
+                )));
+            }
+        }
+        providers.push(Some(provider));
+    }
+    Ok(providers)
+}
+
+/// The C call kinds of a slot's parameters, `self` first, as its row of the
+/// C value table passes them (`module.host.package.c-references`).
+fn c_kinds(row: &hd_host_abi::c::Method) -> Vec<Kind> {
+    let pointer = Kind::Int(u8::try_from(std::mem::size_of::<usize>()).unwrap_or(8));
+    let mut kinds = vec![pointer];
+    for (_, p) in &row.params {
+        match *p {
+            Param::Bool => kinds.push(Kind::Int(1)),
+            Param::Num(Num::F32) => kinds.push(Kind::F32),
+            Param::Num(Num::F64) => kinds.push(Kind::F64),
+            Param::Num(Num::Usize) => kinds.push(pointer),
+            Param::Num(n) => kinds.push(Kind::Int(n.bytes())),
+            Param::Ref { .. } => kinds.push(pointer),
+            Param::List { .. } | Param::Str => kinds.extend([pointer, pointer]),
+        }
+    }
+    kinds
+}
+
+/// The guest heap's base address and size, which a C call's pointer
+/// arguments are offsets into.
+fn heap(caller: &mut wasmtime::Caller<'_, Host>) -> Result<(usize, usize), Stop> {
+    match caller.data().c_heap.clone() {
+        Some(wasmtime::Extern::Memory(memory)) => Ok((
+            memory.data_ptr(&*caller) as usize,
+            memory.data_size(&*caller),
+        )),
+        Some(wasmtime::Extern::SharedMemory(memory)) => {
+            let data = memory.data();
+            Ok((data.as_ptr() as usize, data.len()))
+        }
+        _ => Err(Stop::Contract(
+            "a C provider's call needs the guest heap, which the module does not export".into(),
+        )),
+    }
+}
+
+/// Defines the import of the C-bound method `row`, slot `slot` of
+/// interface `interface`: each Wasm parameter becomes its C argument, a
+/// pointer offset by the guest heap's base after a bounds check, and the
+/// slot's result becomes the import's (`module.host.package.c-types`).
+#[allow(unsafe_code)]
+fn define_c(
+    linker: &mut Linker<Host>,
+    (m, n): (&str, &str),
+    ty: wasmtime::FuncType,
+    (interface, slot, label): (usize, usize, String),
+    row: &hd_host_abi::c::Method,
+) -> Result<(), StartError> {
+    let kinds = c_kinds(row);
+    let float = matches!(row.result, Ret::Num(Num::F32 | Num::F64));
+    let plan = Plan::new(&kinds, float).ok_or_else(|| {
+        refused(format!(
+            "{label} takes more arguments than this hd passes to a C provider: past the registers, at most {} stack words until #2388 step 6",
+            crate::native::c_call::STACK_WORDS
+        ))
+    })?;
+    let wasm_params = kinds.len() - 1;
+    let gives = usize::from(!matches!(row.result, Ret::Void));
+    if ty.params().len() != wasm_params || ty.results().len() != gives {
+        return Err(refused(format!(
+            "the import `{m}` `{n}` of C provider method {label} has an unexpected signature"
+        )));
+    }
+    let params_of = row.params.iter().map(|(_, p)| *p).collect::<Vec<_>>();
+    let result = row.result.clone();
+    linker
+        .func_new(m, n, ty, move |mut caller, params, out| {
+            let fail = |why: &str| Stop::Contract(format!("{label}: {why}"));
+            let (base, size) = heap(&mut caller)?;
+            let host = caller.data();
+            let Some(provider) = host.c_providers.get(interface).and_then(Option::as_ref) else {
+                unreachable!("ruled out: c_preflight created every C-bound root's provider")
+            };
+            let Some(f) = provider.slot(slot) else {
+                unreachable!("ruled out: c_preflight refused an empty slot of a called method")
+            };
+            let mut args = Vec::with_capacity(plan_len(&params_of) + 1);
+            args.push(Arg::Int(provider.this() as u64));
+            let int = |k: usize| params.get(k).and_then(wasmtime::Val::i32).unwrap_or(0);
+            // An offset `at` and a byte length inside the heap, as an address.
+            let place = |at: i32, bytes: u64| -> Result<u64, Stop> {
+                let at = u64::from(at.cast_unsigned());
+                at.checked_add(bytes)
+                    .filter(|end| *end <= size as u64)
+                    .map(|_| base as u64 + at)
+                    .ok_or_else(|| fail("a pointer argument leaves the guest heap"))
+            };
+            let mut k = 0;
+            for p in &params_of {
+                match *p {
+                    Param::Bool => args.push(Arg::Int(u64::from(int(k) != 0))),
+                    Param::Num(Num::F32) => {
+                        args.push(Arg::F32(
+                            params.get(k).and_then(wasmtime::Val::f32).unwrap_or(0.0),
+                        ));
+                    }
+                    Param::Num(Num::F64) => {
+                        args.push(Arg::F64(
+                            params.get(k).and_then(wasmtime::Val::f64).unwrap_or(0.0),
+                        ));
+                    }
+                    Param::Num(Num::I64 | Num::U64) => args.push(Arg::Int(
+                        params
+                            .get(k)
+                            .and_then(wasmtime::Val::i64)
+                            .unwrap_or(0)
+                            .cast_unsigned(),
+                    )),
+                    Param::Num(num) => args.push(Arg::Int(extend(num, int(k)))),
+                    Param::Ref { num, .. } => {
+                        args.push(Arg::Int(place(int(k), u64::from(num.bytes()))?));
+                    }
+                    Param::List { num, .. } => {
+                        let len = u64::from(int(k + 1).cast_unsigned());
+                        let bytes = len
+                            .checked_mul(u64::from(num.bytes()))
+                            .ok_or_else(|| fail("a list argument leaves the guest heap"))?;
+                        args.push(Arg::Int(place(int(k), bytes)?));
+                        args.push(Arg::Int(len));
+                        k += 1;
+                    }
+                    Param::Str => {
+                        let len = u64::from(int(k + 1).cast_unsigned());
+                        args.push(Arg::Int(place(int(k), len)?));
+                        args.push(Arg::Int(len));
+                        k += 1;
+                    }
+                }
+                k += 1;
+            }
+            // SAFETY: the table's contract hash matched the module's C
+            // table (`c_preflight`), so the slot takes these parameters and
+            // returns this result; each pointer lies inside the guest heap,
+            // which only this instance's thread grows (`cli.host.c.thread`).
+            let raw = unsafe { crate::native::c_call::call(f, &plan, &args) };
+            if let Some(slot) = out.first_mut() {
+                *slot = c_result(&result, raw);
+            }
+            Ok(())
+        })
+        .map_err(|error| StartError::Engine(error.to_string()))?;
+    Ok(())
+}
+
+/// How many C arguments `params` take after `self`.
+fn plan_len(params: &[Param]) -> usize {
+    params
+        .iter()
+        .map(|p| match p {
+            Param::List { .. } | Param::Str => 2,
+            _ => 1,
+        })
+        .sum()
+}
+
+/// A narrow integer argument, from its Wasm `i32`, extended to 64 bits by
+/// its type's signedness. Each cast keeps the bits of the narrow type, as
+/// meant.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn extend(num: Num, value: i32) -> u64 {
+    match num {
+        Num::I8 => i64::from(value as i8).cast_unsigned(),
+        Num::I16 => i64::from(value as i16).cast_unsigned(),
+        Num::I32 => i64::from(value).cast_unsigned(),
+        Num::U8 => u64::from(value as u8),
+        Num::U16 => u64::from(value as u16),
+        _ => u64::from(value.cast_unsigned()),
+    }
+}
+
+/// A C slot's result register `raw` as its Wasm value: `bool` from its low
+/// byte, a narrow integer truncated and extended by its signedness, a
+/// 64-bit one whole, a float from its register's bits. Each cast keeps the
+/// bits of the result's type, as meant.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+fn c_result(result: &Ret, raw: u64) -> wasmtime::Val {
+    let low = raw as u32;
+    match result {
+        Ret::Bool => wasmtime::Val::I32(i32::from(raw as u8 != 0)),
+        Ret::Num(Num::F32) => wasmtime::Val::F32(low),
+        Ret::Num(Num::F64) => wasmtime::Val::F64(raw),
+        Ret::Num(Num::I64 | Num::U64) => wasmtime::Val::I64(raw.cast_signed()),
+        Ret::Num(Num::I8) => wasmtime::Val::I32(i32::from(raw as i8)),
+        Ret::Num(Num::I16) => wasmtime::Val::I32(i32::from(raw as i16)),
+        Ret::Num(Num::U8) => wasmtime::Val::I32(i32::from(raw as u8)),
+        Ret::Num(Num::U16) => wasmtime::Val::I32(i32::from(raw as u16)),
+        Ret::Num(_) => wasmtime::Val::I32(low.cast_signed()),
+        // ruled out: module.host.package.c-types gives a method that
+        // returns at once no bytes or `Result`, and `define_c` gives a
+        // `void` method no result.
+        Ret::Void | Ret::Bytes | Ret::Result(_) => wasmtime::Val::I32(0),
+    }
+}
+
 /// The handle number a handle method or `$release` gets first. The
 /// registry issues positive numbers only, so a negative one reads as 0,
 /// which names no handle.
@@ -210,6 +531,22 @@ pub(crate) fn define(
         let declared = &package.contract.interfaces[interface];
         let method = &declared.methods[index];
         let label = format!("{}.{}", declared.identity, method.member);
+        // A C-bound method's import takes C arguments (`define_c`); a
+        // suspending one refused the run in `c_preflight`.
+        if let Some(c) = package.c_interface(interface) {
+            let Some(&(slot, row)) = c.slots.get(&method.name) else {
+                unreachable!("ruled out: a C table lists every method of its trait")
+            };
+            define_c(
+                &mut *linker,
+                (m, n),
+                ty,
+                (interface, slot, label),
+                &c.table.methods[row],
+            )?;
+            defined.insert((m.to_owned(), n.to_owned()));
+            continue;
+        }
         // `.start` and a plain call take one argument length when the
         // method takes any argument, after the handle a handle method is
         // called on; `.finish` and `$release` take a handle. A plain call

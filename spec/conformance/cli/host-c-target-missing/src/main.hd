@@ -1,0 +1,7 @@
+@host
+pub trait Probe:
+    fn read(&self) -> i32
+
+pub fn main() -> void $ Console + Probe:
+    println("guest started")
+    println("${$.use(Probe).read()}")

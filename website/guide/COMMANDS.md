@@ -71,7 +71,8 @@ An implementation may offer more than one engine to run programs on.
 `hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
 `HD_ENGINE` gives the name when the flag is absent. The released binary
 defaults to Wasmtime in process; developer and test builds default to Node.
-A package that needs its own host trait selects Node before startup.
+A package that needs its own host trait selects Node before startup,
+unless every such trait has a C provider, which selects Wasmtime.
 Explicit `--engine node` works in the released binary too. A program behaves the same
 on each; only speed and memory use differ. One difference is security:
 the `wasmtime` engine opens files relative to each granted directory, so
