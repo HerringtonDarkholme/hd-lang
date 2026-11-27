@@ -69,8 +69,9 @@ interface ControlWorkerData {
   reactor?: Flag;
 }
 
+type SpecialJob = FileJob | { fd: number };
 interface JobWorkerData {
-  job: FileJob;
+  job: SpecialJob;
 }
 
 const data = workerData as ControlWorkerData | JobWorkerData | null;
@@ -80,8 +81,9 @@ const disconnect = (): void => process.disconnect!();
 const sendAndDisconnect = (result: unknown): void => {
   process.send!(result as Serializable, disconnect);
 };
-// `FsRead.open` keeps its child, which holds the open file.
-const opensFile = (job: FileJob): boolean => job.module === "hd:FsRead" && job.name === "open";
+// An opened file or inherited descriptor keeps its child until disposal.
+const opensFile = (job: SpecialJob): boolean =>
+  "fd" in job || (job.module === "hd:FsRead" && job.name === "open");
 
 if (data && "port" in data) {
   const operations = new Map<number, FileState | ReadState>();
@@ -282,8 +284,13 @@ if (data && "port" in data) {
   const { port, flag } = data;
   serve(port, flag, run, (request) => request.op === "close");
 } else if (data && "job" in data) {
-  const { module, name, args } = data.job;
-  const result = fileOperation(module, name, args) as { ok: boolean; value: unknown };
+  const job = data.job;
+  // An inherited descriptor is already open; stdin keeps its original
+  // access mode and error codes without reopening a filesystem path.
+  const result = ("fd" in job ? Ok(job.fd) : fileOperation(job.module, job.name, job.args)) as {
+    ok: boolean;
+    value: unknown;
+  };
   if (!opensFile(data.job) || !result.ok) {
     parentPort!.postMessage(result);
   } else {
@@ -310,10 +317,9 @@ if (data && "port" in data) {
     if (!process.connected) {
       return;
     }
-    const job = childMessage as FileJob;
-    const { module, name, args } = job;
+    const job = childMessage as SpecialJob;
     const operationWorker = new Worker(new URL(import.meta.url), {
-      workerData: { job: { module, name, args } },
+      workerData: { job },
     });
     worker = operationWorker;
     operationWorker.on("error", (error: Error) => {

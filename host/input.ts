@@ -5,6 +5,8 @@ import { createReadStream, fstatSync } from "node:fs";
 import { Socket } from "node:net";
 import { isatty, ReadStream } from "node:tty";
 import { workerData } from "node:worker_threads";
+import { fork } from "node:child_process";
+import { Readable } from "node:stream";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 interface Available {
@@ -114,6 +116,84 @@ const serve = (): void => {
   }
 };
 
+let specialClosed: Promise<void> | null = null;
+
+// Reuse FsRead's blocking helper with an inherited stdin descriptor. Its
+// IPC supervisor stays responsive while the read thread blocks (fs.ts).
+// cost: one child per special stdin, one IPC round trip per 64 KiB read.
+function specialInput(fd: number): Readable {
+  let opened = false;
+  let reading = false;
+  let requested = false;
+  let ended = false;
+  const stream = new Readable({
+    highWaterMark: 0,
+    read() {
+      requested = true;
+      pull();
+    },
+    destroy(error, complete) {
+      child.kill("SIGKILL");
+      complete(error);
+    },
+  });
+  // cost: one child for this descriptor, reaped when stdin closes.
+  const child = fork(new URL("./fs.ts", import.meta.url), [], {
+    execArgv: [],
+    serialization: "advanced",
+    stdio: [fd, "ignore", "ignore", "ipc"],
+    windowsHide: true,
+  });
+  specialClosed = new Promise<void>((resolve) => {
+    child.once("close", (code, signal) => {
+      if (!ended && !stream.destroyed) {
+        stream.destroy(new Error(`stdin helper stopped (${signal ?? code})`));
+      }
+      resolve();
+    });
+  });
+  function pull(): void {
+    if (!opened || !requested || reading || ended || stream.destroyed) {
+      return;
+    }
+    requested = false;
+    reading = true;
+    child.send({ max: 65536 }, (error) => {
+      if (error) {
+        stream.destroy(error);
+      }
+    });
+  }
+  child.on("error", (error) => stream.destroy(error));
+  child.on("message", (result: Dynamic) => {
+    if (!result.ok) {
+      stream.destroy(
+        Object.assign(new Error(result.error?.message ?? "stdin helper read failed"), {
+          errno: result.error?.errno,
+        }),
+      );
+    } else if (!opened) {
+      opened = true;
+      pull();
+    } else {
+      reading = false;
+      const bytes = Buffer.from(result.value as Uint8Array);
+      if (bytes.length === 0) {
+        ended = true;
+        stream.push(null);
+      } else {
+        stream.push(bytes);
+      }
+    }
+  });
+  child.send({ fd: 0 }, (error) => {
+    if (error) {
+      stream.destroy(error);
+    }
+  });
+  return stream;
+}
+
 function open(fd: number | null): void {
   if (initialized) {
     return;
@@ -128,6 +208,15 @@ function open(fd: number | null): void {
     // This is Node's stdio split, without a worker's redirected process.stdin.
     if (isatty(fd)) {
       source = new ReadStream(fd);
+    } else if (
+      process.platform === "darwin" &&
+      !stat.isFile() &&
+      !stat.isSocket() &&
+      !(stat.isFIFO() && stat.dev === 0)
+    ) {
+      // XNU pipe_stat zeroes st_dev for anonymous pipes. A vnode-backed
+      // FIFO retains its filesystem device, even after its name is unlinked.
+      source = specialInput(fd);
     } else if (stat.isFIFO() || stat.isSocket()) {
       source = new Socket({ fd, readable: true, writable: false });
     } else {
@@ -154,21 +243,28 @@ function open(fd: number | null): void {
   }
 }
 
+function startInput(request: Dynamic): { ok: number } {
+  open(request.fd);
+  const operation = nextOperation++;
+  const state = notifyResult<InputState>(
+    { kind: request.kind, max: request.max ?? 0, parts: [], result: null },
+    workerData as Dynamic,
+    `wait:${operation}`,
+  );
+  operations.set(operation, state);
+  if (state.kind === "bytes" && state.max === 0) {
+    serveBytes(state);
+  } else {
+    waiting.add(state);
+  }
+  serve();
+  return { ok: operation };
+}
+
 const run = (request: Dynamic): Dynamic => {
   switch (request.op) {
-    case "wait_start": {
-      open(request.fd);
-      const operation = nextOperation++;
-      const state = notifyResult<InputState>(
-        { kind: request.kind, max: request.max ?? 0, parts: [], result: null },
-        workerData as Dynamic,
-        `wait:${operation}`,
-      );
-      operations.set(operation, state);
-      waiting.add(state);
-      serve();
-      return { ok: operation };
-    }
+    case "wait_start":
+      return startInput(request);
     case "wait_poll": {
       const state = operations.get(request.operation);
       if (!state) {
@@ -195,6 +291,12 @@ const run = (request: Dynamic): Dynamic => {
       }
       return { ok: null };
     }
+    case "close": {
+      waiting.clear();
+      operations.clear();
+      source?.destroy();
+      return (specialClosed ?? Promise.resolve()).then(() => ({ ok: null }));
+    }
     default:
       throw new Error("unknown input control call");
   }
@@ -203,5 +305,12 @@ const run = (request: Dynamic): Dynamic => {
 const { port, flag } = workerData as Dynamic;
 port.on("message", ({ id, request }: { id: number; request: Dynamic }) => {
   const result = run(request);
-  postReply(port, flag, id, result);
+  if (request.op === "close") {
+    result.then((reply: Dynamic) => {
+      postReply(port, flag, id, reply);
+      port.close();
+    });
+  } else {
+    postReply(port, flag, id, result);
+  }
 });
