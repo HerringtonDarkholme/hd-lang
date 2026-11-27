@@ -49,7 +49,6 @@ mod tests {
     use crate::ir::{
         BodyKind, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
     };
-    use crate::own::splice;
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
@@ -171,50 +170,16 @@ mod tests {
         let mut b = body(Ty(43), false, 1);
         state(&mut b);
         let i = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
-        for info in [
+        let infos = [
             Info::new(At::Cold, Part::Arguments, 0),
             Info::new(At::Operation, Part::Row, 0),
             Info::new(At::Operation, Part::Arguments, 2),
-        ] {
-            let mut wrong = b.clone();
-            wrong.data[i][1] = info.write(&mut wrong);
-            assert!(!verify_owned(&wrong, &Facts).is_empty());
-        }
-        let mut wrong = b.clone();
-        wrong.tags[i] = Tag::Release;
-        assert!(!verify_owned(&wrong, &Facts).is_empty());
-        let mut wrong = b.clone();
-        wrong.data[i][0] = wrong.sub_root[0];
-        assert!(!verify_owned(&wrong, &Facts).is_empty());
+        ];
+        crate::own::tests::assert_contract_enforced(&b, i, &infos, &Facts);
         let mut wrong = b.clone();
         let record = wrong.data[i][1] as usize;
         wrong.extra[record + 3] = 1; // Arguments has no element index.
         assert!(Info::read(&wrong, i).is_none());
         assert!(!verify_owned(&wrong, &Facts).is_empty());
-        for mode in 0..3 {
-            let mut wrong = b.clone();
-            let topo = Topology::new(&wrong);
-            let target = wrong.data[i][0] as usize;
-            let mut edits = splice::Tables::default();
-            if mode != 1 {
-                edits.remove(u32_of(i));
-            }
-            if mode != 0 {
-                edits.insert(
-                    topo.blk[target],
-                    if mode == 1 {
-                        topo.pos[i] + 1
-                    } else {
-                        topo.pos[target]
-                    },
-                    Tag::Retain,
-                    wrong.data[i],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            }
-            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
-            assert!(!verify_owned(&wrong, &Facts).is_empty());
-        }
     }
 }

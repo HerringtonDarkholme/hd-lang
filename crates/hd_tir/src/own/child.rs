@@ -154,47 +154,15 @@ mod tests {
 
     #[test]
     fn missing_duplicate_and_separated_bundles_are_rejected() {
-        for mode in 0..3 {
-            let mut b = stated();
-            let topo = Topology::new(&b);
-            let release = (0..b.len())
-                .find(|&i| {
-                    b.tags[i] == Tag::Release
-                        && Info::read(&b, i)
-                            .is_some_and(|c| c.at == At::Operation && c.part == Part::Child)
-                })
-                .unwrap();
-            let point = b.data[release][0] as usize;
-            let mut edits = splice::Tables::default();
-            if mode == 0 {
-                edits.remove(u32_of(release));
-            } else if mode == 1 {
-                edits.insert(
-                    topo.blk[point],
-                    topo.pos[point] + 1,
-                    Tag::Release,
-                    b.data[release],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            } else {
-                let call = b.tags.iter().position(|&t| t == Tag::Call).unwrap();
-                edits.insert(
-                    topo.blk[point],
-                    topo.pos[point] + 1,
-                    Tag::Call,
-                    b.data[call],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            }
-            splice::apply(&mut b, &topo, &mut edits).unwrap();
-            let errors = verify_owned(&b, &Cx);
-            assert!(
-                errors.iter().any(|e| e.what.contains("absent or repeated")),
-                "{mode}: {errors:?}"
-            );
-        }
+        let b = stated();
+        let release = (0..b.len())
+            .find(|&i| {
+                b.tags[i] == Tag::Release
+                    && Info::read(&b, i)
+                        .is_some_and(|c| c.at == At::Operation && c.part == Part::Child)
+            })
+            .unwrap();
+        crate::own::tests::assert_bundle_adjacent(&b, release);
     }
 
     fn frame_release(b: &Body, sub: usize) -> Option<usize> {
