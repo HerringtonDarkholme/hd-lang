@@ -701,6 +701,7 @@ const hd_Dätä *hd_disk_Dätä(void) { return &odd; }
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("disk-sdk.h"), &text).unwrap();
         std::fs::write(dir.join("disk.c"), library).unwrap();
+        // cost: one C compiler process for this test's one source file.
         let out = std::process::Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()))
             .current_dir(&dir)
             .args([
