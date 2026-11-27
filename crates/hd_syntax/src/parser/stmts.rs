@@ -3,7 +3,7 @@
 use hd_diag::Code;
 
 use super::items::Place;
-use super::{Ctx, Event, Parser};
+use super::{Ctx, Event, Marker, Parser};
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -257,6 +257,12 @@ impl Parser<'_> {
 
     fn let_statement(&mut self, ctx: Ctx) {
         let marker = self.start();
+        self.let_rest(marker, ctx);
+    }
+
+    /// `let pattern [: T] = e [else: ...]` from `let`, completing `marker`
+    /// as a `LetStmt`: a statement's own, or one a `pub` already opened.
+    pub(crate) fn let_rest(&mut self, marker: Marker, ctx: Ctx) {
         self.bump(); // let
         let binding = self.pos();
         self.pattern(true);
