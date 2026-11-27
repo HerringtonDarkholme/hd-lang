@@ -6,3 +6,4 @@ check:host-sources	8	same step
 check:spec-sync	8	same step
 check:cost	8	same step
 check:typescript-sources	8	same step
+test	90	Node tests step: 44 s locally on Node 26 at --test-concurrency=2 (2026-11-27), no CI run yet; fails at 270 s

@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import dgram from "node:dgram";
 import net from "node:net";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.ts";
 import { Ok } from "./wire.ts";
@@ -26,29 +33,15 @@ function finishClock(host: Dynamic, clock: number): void {
 // transport are unmodified production sources copied beside that wrapper.
 async function heldLookupHost(testContext: TestContext): Promise<Dynamic> {
   const root = fixture(testContext, {});
-  for (const name of [
-    "node.ts",
-    "node-files.ts",
-    "core.ts",
-    "operation-queue.ts",
-    "core-package.ts",
-    "session.ts",
-    "output.ts",
-    "output-worker.ts",
-    "worker-control.ts",
-    "workers.ts",
-    "checked-report.ts",
-    "float.ts",
-    "journal.ts",
-    "run-support.ts",
-    "wire.ts",
-    "package-contract.ts",
-    "package-providers.ts",
-    "gen/abi.ts",
-  ]) {
-    mkdirSync(dirname(join(root, name)), { recursive: true });
-    copyFileSync(new URL(`./${name}`, import.meta.url), join(root, name));
+  // Every production source, so a new import of node.ts cannot go missing
+  // (#2418); net.ts is the held wrapper written below.
+  const host = fileURLToPath(new URL(".", import.meta.url));
+  for (const name of readdirSync(host)) {
+    if (name.endsWith(".ts") && !name.endsWith(".test.ts") && name !== "net.ts") {
+      copyFileSync(join(host, name), join(root, name));
+    }
   }
+  cpSync(join(host, "gen"), join(root, "gen"), { recursive: true });
   const entered = join(root, "entered"),
     release = join(root, "release"),
     finished = join(root, "finished");

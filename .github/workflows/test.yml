@@ -261,6 +261,12 @@ jobs:
             node scripts/check-budget.ts "check:$check" -- pnpm run -s "check:$check"
           done
 
+      # Host, metrics, spec-tool and script tests (pnpm test). No workflow ran
+      # them, so three host failures sat unseen on main (#2418).
+      - name: Node tests
+        if: ${{ !cancelled() }}
+        run: node scripts/check-budget.ts test -- pnpm run -s test
+
       - name: Check formatting
         if: ${{ !cancelled() }}
         run: cargo fmt --all -- --check
