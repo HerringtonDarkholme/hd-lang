@@ -1,0 +1,3 @@
+run: hd --version
+run: hd --version extra
+exit: 101

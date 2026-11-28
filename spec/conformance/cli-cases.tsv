@@ -414,3 +414,4 @@ native-build-artifacts	cli.build.output.artifact,cli.build.output.file-artifact,
 console-crlf	cli.test.process,cli.test.process.tasks,cli.engine.same-behavior
 deep-recursion	cli.file.run,cli.engine.same-behavior
 guest-profile	cli.sampling.run,cli.sampling.output,cli.sampling.names,cli.sampling.node,cli.sampling.arguments,cli.sampling.empty-path
+command-version	cli.command.version,cli.exit.hd-failure

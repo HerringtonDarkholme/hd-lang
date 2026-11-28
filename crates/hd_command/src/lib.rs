@@ -67,6 +67,7 @@ use hd_run::{HostSetup, Outcome};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
+  hd --version
   hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
   hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
   hd [--cap NAME=VALUE]... FILE.cwasm [-- ARGS]
@@ -163,6 +164,10 @@ fn command_main() -> ExitCode {
         return fail(&error);
     }
     match (command, &arguments[1..]) {
+        ("--version", []) => {
+            println!("hd {}", disk::TOOLCHAIN);
+            ExitCode::SUCCESS
+        }
         ("help" | "--help", []) => {
             print!("{}", help::list());
             ExitCode::SUCCESS
@@ -275,8 +280,8 @@ fn compiles(command: &str, arguments: &[OsString]) -> bool {
         "run" | "build" | "check" | "lint" | "test" | "doc" => true,
         "install" => !arguments.iter().any(|a| a == "--list"),
         "uninstall" | "--installed" => false,
-        "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
-        | "cache" | "--repl" => false,
+        "help" | "--help" | "--version" | "new" | "clean" | "add" | "update" | "remove"
+        | "fetch" | "fmt" | "cache" | "--repl" => false,
         _ => arguments
             .iter()
             .take_while(|a| *a != "--")
@@ -2452,7 +2457,16 @@ mod limit_tests {
             assert!(compiles(command, &args(&[command])));
         }
         for command in [
-            "help", "--help", "new", "clean", "add", "update", "remove", "fetch", "fmt",
+            "help",
+            "--help",
+            "--version",
+            "new",
+            "clean",
+            "add",
+            "update",
+            "remove",
+            "fetch",
+            "fmt",
         ] {
             assert!(!compiles(command, &args(&[command, "main.hd"])));
         }

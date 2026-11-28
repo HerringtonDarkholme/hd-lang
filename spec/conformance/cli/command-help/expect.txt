@@ -23,6 +23,7 @@ stdout:   uninstall   remove one installed executable
 stdout:   clean       remove the package's build directory, or with --cache the dependency cache
 stdout:   fmt         format the package's source files, or FILE
 stdout:   cache gc    evict compiled entries down to the size cap
+stdout:   --version   print the compiler version
 stdout:   help        print the commands, or one command's flags
 stdout:
 stdout: global flag:
