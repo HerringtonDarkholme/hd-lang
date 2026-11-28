@@ -1,6 +1,7 @@
 # test: messages copy fields and share bodies, while providers use local borrowed requests
 # expect: test
-use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, Url, get}
+use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.url.{Url}
 
 struct Counting:
     seen: i32

@@ -1,4 +1,5 @@
-use std.http.{Request, Url}
+use std.http.{Request}
+use std.url.{Url}
 fn timed!() -> string $ Http:
     match REQUEST.send!():
         .Ok(r) => "status ${r.status.code()}"

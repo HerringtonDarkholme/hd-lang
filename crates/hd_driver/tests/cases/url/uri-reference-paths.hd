@@ -1,0 +1,15 @@
+# @dump: stdout
+# @build: wasmtime dev | wasmtime checked | wasmtime release
+use std.url.Url
+
+pub fn main() -> void $ Console:
+    for text in ["notes%20file.md", "caf%C3%A9.md", "literal+plus.md", "folder%2Ffile.md"]:
+        url := Url::parse(text).expect("valid URI reference")
+        println("${url.path} | ${url.raw_path} | $url")
+    for text in ["bad%", "a%C3", "https://x/?a=%FF"]:
+        match Url::parse(text):
+            .Err(error) => println("$error")
+            .Ok(url) => println("unexpected: $url")
+    let mut changed = Url::parse("a%3Fb").expect("encoded question mark")
+    changed.raw_path = "a?b"
+    println(changed.to_string())

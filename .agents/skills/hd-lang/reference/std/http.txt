@@ -16,7 +16,6 @@ std.http.Body.json  pub fn json[T < Deserialize](&self) -> Result[T, BodyError]
 std.http.Body.form  pub fn form[T < Deserialize](&self) -> Result[T, BodyError]
 std.http.BodyError  pub enum BodyError  -- A typed message-body read failure.
 std.http.FormError  pub enum FormError  -- A typed query or form conversion failure.
-std.http.UrlError  pub enum UrlError
 std.http.Headers  pub struct Headers  -- Ordered header pairs. Repeated names retain their individual values.
 std.http.Headers.new  pub fn new() -> Headers
 std.http.Headers.get  pub fn get(&self, name: HeaderName) -> string?  -- Joins repeated values, except Set-Cookie, whose first line is returned.
@@ -38,13 +37,6 @@ std.http.MultipartError  pub enum MultipartError  -- Why a buffered multipart me
 std.http.SameSite  pub enum SameSite  -- The SameSite policy of a response cookie.
 std.http.Cookie  pub struct Cookie  -- A response cookie. Outgoing defaults are secure; parsed defaults reflect the wire.
 std.http.Cookie.expired  pub fn expired(name: string) -> Cookie
-std.http.Url  pub struct Url  -- Parsed absolute HTTP URL. Public components are values, not references.
-std.http.Url.parse  pub fn parse(text: string) -> Result[Url, UrlError]
-std.http.Url.resolve  pub fn resolve(&self, reference: string) -> Result[Url, UrlError]
-std.http.Url.query_as  pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]
-std.http.Url.set_query_as  pub fn set_query_as[T < Serialize](&mut self, value: T) -> void
-std.http.Url.param  pub fn param(&self, name: string) -> string?
-std.http.Url.add_param  pub fn add_param[T < Display](&mut self, name: string, value: T) -> void
 std.http.Method  pub enum Method  -- An HTTP method: a standard one, or `Other(name)`.
 std.http.Request  pub struct Request  -- A request used for both incoming and outgoing messages.
 std.http.Request.new  pub fn new(method: Method, url: Url) -> Request

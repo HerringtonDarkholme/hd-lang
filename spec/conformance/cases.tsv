@@ -100,7 +100,7 @@ std/http/multipart-forms/http-multipart.hd	runtime	accept	std/http.md#multipart-
 std/http/response-cookies/http-response-cookies.hd	runtime	accept	std/http.md#response-cookies
 std/http/requests-and-responses/http-reviewed-examples.hd	runtime	accept	std/http.md#requests-and-responses
 std/http/named-status-codes/http-status-codes.hd	runtime	accept	std/http.md#r-std-http.status.numeric-equality
-std/http/parsed-urls/http-url-parts.hd	runtime	accept	std/http.md#parsed-urls
+std/http/parsed-urls/http-url-parts.hd	runtime	accept	std/url.md#parsed-urls
 lang/types/opaque-result-types/impl-trait-associated-and-nested.hd	runtime	accept	lang/04-type-system.md#opaque-result-types
 lang/types/opaque-result-types/impl-trait-operator-bound.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.head-only
 lang/types/opaque-result-types/impl-trait-for-loop.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.codegen
@@ -7496,6 +7496,9 @@ lang/modules/name-resolution-across-packages/public-binding-across-packages.hd	r
 std/console/terminal-streams/is-terminal.hd	runtime	accept	std/console.md#r-std-console.terminal.query
 std/process/inherited-standard-streams/scripted-status.hd	runtime	accept	std/process.md#r-std-process.command.status
 lang/expressions/unary-and-binary-operators/exponentiation/power-f32-matches-width-libm.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.f32-libm
+std/url/parsed-urls/uri-references.hd	runtime	accept	std/url.md#parsed-urls
+std/url/url-errors/uri-errors.hd	runtime	accept	std/url.md#url-errors
+std/url/typed-queries/uri-query-values.hd	runtime	accept	std/url.md#typed-queries
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

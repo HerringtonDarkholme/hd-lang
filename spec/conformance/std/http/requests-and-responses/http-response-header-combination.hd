@@ -1,6 +1,7 @@
 # test: scripted responses permit combined fields and retain separate cookies
 use std.convert.From
-use std.http.{HeaderName, Headers, Http, Request, Response, ScriptedHttp, Url}
+use std.http.{HeaderName, Headers, Http, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.testing.assert_equal
 
 fn check!(headers: List[(string, string)]) -> void:

@@ -2,7 +2,8 @@
 use std.meta.annotate
 use std.ops.Fn
 use std.hash.Hash
-use std.http.Url as HttpUrl
+use std.url.Url as HttpUrl
+use std.url_internal.UrlWire
 use std.meta.Inspectable
 use std.regex.{Regex, RegexError}
 use std.meta.{Facts, Field, Member, Structure, Variant, Walker}
@@ -754,7 +755,15 @@ impl[F < Validate] Rule[F] for Url[F]:
             .None =>
                 context.definition("url requires text")
                 return
-        if HttpUrl::parse(text).is_err():
+        valid := match HttpUrl::parse(text):
+            .Ok(url) =>
+                (
+                    (url.scheme == .Some("http") || url.scheme == .Some("https"))
+                    && url.host.map(fn(host): !host.is_empty()).unwrap_or(false)
+                    && !url.has_user_info()
+                )
+            .Err(error) => false
+        if !valid:
             context.reject("url", rule_message(self.message, "must be an absolute HTTP URL"))
 
 @annotate::[F](.Field)
@@ -964,7 +973,7 @@ pub fn pattern(source: string, message: string? = .None) -> Pattern[string]:
 pub fn email(message: string? = .None) -> Email[string]:
     Email::[string] { message: message }
 
-## An absolute HTTP(S) URL accepted by `std.http.Url.parse`.
+## An absolute HTTP(S) URL accepted by `std.url.Url.parse`.
 pub fn url(message: string? = .None) -> Url[string]:
     Url::[string] { message: message }
 

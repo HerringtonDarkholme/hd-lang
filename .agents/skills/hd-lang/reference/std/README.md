@@ -46,7 +46,8 @@ item's full text and examples, run `hd doc std.time.sleep` inside any package.
 | `std.task` | [task.txt](task.txt) | 32 | `Layer`, `apply`, `race`, `BlockOn`, `block_on`, `CleanupEnd`, `Backoff`, `TimedOut`, ... |
 | `std.sync` | [sync.txt](sync.txt) | 13 | `Arc`, `Weak` |
 | `std.thread` | [thread.txt](thread.txt) | 6 | `Scope`, `Handle`, `scope`, `background` |
-| `std.http` | [http.txt](http.txt) | 117 | `HttpStatus`, `HeaderName`, `HeaderError`, `Body`, `BodyError`, `FormError`, `UrlError`, `Headers`, ... |
+| `std.http` | [http.txt](http.txt) | 109 | `HttpStatus`, `HeaderName`, `HeaderError`, `Body`, `BodyError`, `FormError`, `Headers`, ... |
+| `std.url` | [url.txt](url.txt) | 8 | `Url`, `UrlError` |
 | `std.net` | [net.txt](net.txt) | 39 | `NetError`, `Net`, `lookup`, `connect`, `listen`, `bind_udp`, `TcpStream`, `TcpListener`, ... |
 | `std.crypto` | [crypto.txt](crypto.txt) | 2 | `Digest` |
 | `std.crypto.sha256` | [crypto.sha256.txt](crypto.sha256.txt) | 6 | `sha256`, `Sha256` |

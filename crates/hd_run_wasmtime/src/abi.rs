@@ -283,7 +283,7 @@ impl Wire for EntryKind {
 /// `File`, a host handle: its handle number.
 pub type File = Handle;
 
-/// `FormError` of `lib/std/http.hd`.
+/// `FormError` of `lib/std/url_internal.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormError {
     Unsupported { field: String },

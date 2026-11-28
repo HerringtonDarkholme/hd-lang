@@ -11,7 +11,8 @@ Don't walk a `Json` tree by hand.
 ## The program
 
 ```hd
-use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, Url, UrlError, get}
+use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.url.{Url, UrlError}
 use std.encoding.json.{decode, encode}
 use std.encoding.{Deserialize, Serialize}
 use std.testing.Arbitrary

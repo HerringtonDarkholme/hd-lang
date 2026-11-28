@@ -80,7 +80,7 @@ logic.
 2. r[std-validate.length.bytes] `byte_length` counts the UTF-8 bytes of a string, separately from scalar length.
 3. r[std-validate.pattern.search] `pattern` compiles `source` with `std.regex.Regex::new` and uses `is_match`, so anchors are required for a whole-text constraint.
 4. r[std-validate.email.whatwg] `email` accepts exactly the WHATWG HTML valid e-mail address grammar: an ASCII atom local part and DNS-style ASCII domain. Plus addressing and a one-label domain are accepted; quoted local parts, spaces, IP-literal domains, and IDN conversion are not.
-5. r[std-validate.url.absolute] `url` accepts exactly the absolute HTTP or HTTPS URL text that `std.http.Url.parse` accepts. A relative URL is rejected.
+5. r[std-validate.url.absolute] `url` accepts an absolute HTTP or HTTPS URI with a nonempty host and no user-info, parsed by `std.url.Url.parse`. A relative URI is rejected.
 6. r[std-validate.uuid.syntax] `uuid` accepts five hexadecimal groups of lengths 8, 4, 4, 4, and 12 separated by hyphens, case-insensitively. It does not restrict version or variant bits.
 
 ## Reader Names

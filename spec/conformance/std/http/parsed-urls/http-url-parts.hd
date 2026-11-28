@@ -1,7 +1,6 @@
 # test: Parsed HTTP URLs retain escaped path separators and explicit empty queries.
-# Spec: std-http.parsed-url.raw-path, std-http.parsed-url.empty-query.
-use std.http.{Url, UrlError, HttpError}
-use std.convert.From
+# Spec: std-url.parsed-url.raw-path, std-url.parsed-url.empty-query.
+use std.url.{Url, UrlError}
 
 fn parsed(text: string) -> Url:
     match Url::parse(text):
@@ -11,8 +10,8 @@ fn parsed(text: string) -> Url:
 tests:
     it("URL components are decoded values with ordered repeated query pairs"):
         url := parsed("HTTPS://EXAMPLE.COM:8443/a%2Fb?q=one+two&q=three%2Bfour&empty=#frag%20ment")
-        assert_equal(url.scheme, "https", reason="scheme ASCII case")
-        assert_equal(url.host, "example.com", reason="host ASCII case")
+        assert_equal(url.scheme, .Some("https"), reason="scheme ASCII case")
+        assert_equal(url.host, .Some("example.com"), reason="host ASCII case")
         assert_equal(url.port, .Some(8443), reason="explicit port")
         assert_equal(url.path, "/a/b", reason="decoded path")
         assert_equal(
@@ -145,7 +144,7 @@ tests:
         url := parsed("http://[2001:DB8::1]:80/a")
         assert_equal(
             url.host,
-            "[2001:db8::1]",
+            .Some("[2001:db8::1]"),
             reason="bracketed literal remains an authority host",
         )
         assert_equal(url.port, .Some(80), reason="port separated from literal")
@@ -161,11 +160,8 @@ tests:
         assert_equal(parsed("https://x:0").port, .Some(0), reason="u16 lower boundary")
         assert_equal(parsed("https://x:65535").port, .Some(65535), reason="u16 upper boundary")
 
-    it("invalid absolute URLs retain their input and relative URLs need a base"):
+    it("invalid URI syntax retains its input"):
         for text in [
-            "ftp://x/",
-            "https:missing-authority",
-            "https://",
             "https://bücher.example/",
             "https://x:65536/",
             "https://x:-1/",
@@ -175,41 +171,20 @@ tests:
             "https://[1:2:3:4:5:6:7]/",
             "https://[::1:2:3:4:5:6:7:8]/",
             "https://[::ffff:999.0.2.1]/",
-            "https://x/%GG",
-            "https://x/%FF",
-            "https://x/?a=%C3%28",
-            "https://x/#%FF",
             "https://x/\r\n",
         ]:
             assert_equal(Url::parse(text), .Err(UrlError.Invalid(text)), reason="invalid URL")
-        for text in ["relative/path", "/absolute/path", "//x/path"]:
-            assert_equal(
-                Url::parse(text),
-                .Err(UrlError.RelativeWithoutBase(text)),
-                reason="no base for a relative reference",
-            )
+    it("relative references and non-HTTP schemes are valid URI values"):
+        for text in [
+            "relative/path",
+            "/absolute/path",
+            "//x/path",
+            "ftp://x/",
+            "https:missing-authority",
+            "https://",
+        ]:
+            assert(Url::parse(text).is_ok(), reason="URI syntax is independent of HTTP")
 
-    it("user-info is rejected with an Authorization hint"):
+    it("user-info is retained by URI parsing"):
         text := "https://user:password@example.com/private"
-        match Url::parse(text):
-            .Err(error) =>
-                assert_equal(
-                    error,
-                    UrlError.Invalid(text),
-                    reason="input retained in the typed payload",
-                )
-                assert(error.to_string().contains("Authorization"), reason="actionable alternative")
-                assert(
-                    !error.to_string().contains("password"),
-                    reason="credential text omitted from display",
-                )
-                converted := HttpError::from(error)
-                assert(
-                    converted.to_string().contains("Authorization"),
-                    reason="hint survives ordinary error propagation",
-                )
-                assert(
-                    !converted.to_string().contains("password"),
-                    reason="propagated error also omits credentials",
-                )
-            .Ok(_) => panic("user-info must not enter a request URL")
+        assert_equal(Url::parse(text).map(fn(url): url.to_string()), .Ok(text))

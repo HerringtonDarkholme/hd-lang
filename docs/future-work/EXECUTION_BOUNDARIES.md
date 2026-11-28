@@ -628,7 +628,8 @@ generates. The stub types of B3 have no declaration at all.
 
 ```text
 # hypothetical syntax; std.remote
-use std.http.{Body, Http, Request, Response, Url}
+use std.http.{Body, Http, Request, Response}
+use std.url.{Url}
 
 pub trait Remote:                            # a marker; the compiler checks R1 and R2 on each trait that extends it
     pass
@@ -972,7 +973,8 @@ pub fn main!() -> Result[void, ApiError] $ Net + HttpServer:
 # src/browser.hd: the web executable's entry
 use pkg.ui.Page
 use pkg.users.{UserError, Users}
-use std.http.{Http, Url}
+use std.http.{Http}
+use std.url.{Url}
 use std.remote.{http_transport, remote}
 
 pub fn main!() -> void $ Page + Http:

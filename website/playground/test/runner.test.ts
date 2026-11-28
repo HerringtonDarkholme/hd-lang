@@ -274,7 +274,8 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   globals.XMLHttpRequest = FakeRequest;
   try {
     const source = [
-      "use std.http.{Http, HttpError, Method, Request, Url, get}",
+      "use std.http.{Http, HttpError, Method, Request, get}",
+      "use std.url.Url",
       "",
       "fn ping!(url: string) -> string $ Http:",
       "    match get!(url):",
@@ -340,7 +341,8 @@ test("Http rejects disabled redirects before constructing a browser request", as
   globals.XMLHttpRequest = UnexpectedRequest;
   try {
     const source = [
-      "use std.http.{Http, Request, Url}",
+      "use std.http.{Http, Request}",
+      "use std.url.Url",
       "",
       "pub fn main!() -> void $ Console + Http:",
       '    match Request::get(Url::parse("http://127.0.0.1:8123/redirect").expect("URL")).send!(0):',

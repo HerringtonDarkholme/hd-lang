@@ -9,8 +9,8 @@ use std.http.{
     MultipartError,
     MultipartPart,
     Request,
-    Url,
 }
+use std.url.{Url}
 use std.crypto.sha256.sha256
 
 fn request() -> Request:

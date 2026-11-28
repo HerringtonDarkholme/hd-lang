@@ -154,6 +154,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/validate.md` | `std-validate` |
 | `std/process.md` | `std-process` |
 | `std/http.md` | `std-http` |
+| `std/url.md` | `std-url` |
 | `std/net.md` | `std-net` |
 | `std/ops.md` | `std-ops` |
 | `std/testing.md` | `std-testing` |

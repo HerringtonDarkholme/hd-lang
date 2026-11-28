@@ -1,6 +1,7 @@
 # test: successful wire response conversion preserves the message and optional final URL
 use std.convert.From
-use std.http.{Body, Headers, Response, Url, response_to_wire}
+use std.http.{Body, Headers, Response, response_to_wire}
+use std.url.{Url}
 
 tests:
     use std.testing.assert_equal

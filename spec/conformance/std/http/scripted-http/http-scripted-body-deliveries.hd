@@ -1,5 +1,6 @@
 # Rules: std-http.scripted.reply-body-snapshot, std-http.scripted.delivery-body-fresh, std-http.scripted.status-body-snapshot.
-use std.http.{Http, BodyError, HttpError, Request, Response, ScriptedHttp, Url}
+use std.http.{Http, BodyError, HttpError, Request, Response, ScriptedHttp}
+use std.url.{Url}
 
 tests:
     use std.testing.assert_equal

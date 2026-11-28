@@ -37,7 +37,7 @@ std.validate.max_length  pub fn max_length[F < HasLength](maximum: usize, messag
 std.validate.byte_length  pub fn byte_length(minimum: usize, maximum: usize, message: string? = .None) -> ByteLength[string]  -- An inclusive UTF-8 byte-length range.
 std.validate.pattern  pub fn pattern(source: string, message: string? = .None) -> Pattern[string]  -- A regular expression that must match the text.
 std.validate.email  pub fn email(message: string? = .None) -> Email[string]  -- A WHATWG HTML valid email address.
-std.validate.url  pub fn url(message: string? = .None) -> Url[string]  -- An absolute HTTP(S) URL accepted by `std.http.Url.parse`.
+std.validate.url  pub fn url(message: string? = .None) -> Url[string]  -- An absolute HTTP(S) URL accepted by `std.url.Url.parse`.
 std.validate.uuid  pub fn uuid(message: string? = .None) -> Uuid[string]  -- A hyphenated 8-4-4-4-12 hexadecimal UUID.
 std.validate.one_of  pub fn one_of[F < Eq](values: List[F], message: string? = .None) -> OneOf[F]  -- Membership in the listed values.
 std.validate.unique  pub fn unique[F < Eq & Hash & Validate](message: string? = .None) -> Unique[List[F]]  -- No two list elements compare equal.

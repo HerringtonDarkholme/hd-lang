@@ -2,7 +2,8 @@
 # Spec std/serde Absent Optional Members: std-serde.skip-none.fact.phantom, std-serde.skip-none.constructor, std-serde.skip-none.absence.default, std-serde.skip-none.absence.optional, std-serde.skip-none.named-omit.v2, std-serde.skip-none.present, std-serde.skip-none.read.
 use std.encoding.{Serialize, Deserialize, skip_none}
 use std.encoding.json.{decode, encode, from_json, parse, to_json}
-use std.http.{Request, Url}
+use std.http.{Request}
+use std.url.{Url}
 use std.meta.Structure
 
 @derive(Serialize, Deserialize)

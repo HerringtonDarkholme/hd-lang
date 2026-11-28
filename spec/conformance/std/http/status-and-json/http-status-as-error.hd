@@ -1,5 +1,6 @@
 # test: send returns raw statuses, while get and ok retain 400–599 response bodies
-use std.http.{Headers, Http, HttpError, HttpStatus, Request, Response, ScriptedHttp, Url, get}
+use std.http.{Headers, Http, HttpError, HttpStatus, Request, Response, ScriptedHttp, get}
+use std.url.{Url}
 use std.encoding.Deserialize
 
 @derive(Deserialize)

@@ -2,7 +2,8 @@
 # expect: test
 # Rules: std-http.decode.provider-request-headers, std-http.decode.explicit-accept-encoding,
 # std-http.decode.all-body-readers, std-http.decode.scripted.
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.testing.{assert, assert_equal}
 
 fn url() -> Url:

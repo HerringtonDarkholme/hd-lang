@@ -10,8 +10,8 @@ use std.http.{
     Request,
     Response,
     ScriptedHttp,
-    Url,
 }
+use std.url.{Url}
 use std.task.{timeout, apply}
 use std.testing.assert_equal
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp}

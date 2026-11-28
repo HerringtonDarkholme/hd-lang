@@ -151,7 +151,7 @@
       { "name": "Symlink", "fields": [] }
     ] },
     "File": { "kind": "handle" },
-    "FormError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
+    "FormError": { "kind": "enum", "module": "lib/std/url_internal.hd", "generics": [], "variants": [
       { "name": "Unsupported", "fields": [{ "name": "field", "type": "string" }] },
       { "name": "Missing", "fields": [{ "name": "field", "type": "string" }] },
       { "name": "Invalid", "fields": [{ "name": "field", "type": "string" }, { "name": "text", "type": "string" }] }

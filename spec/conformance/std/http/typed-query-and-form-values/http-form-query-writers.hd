@@ -1,6 +1,7 @@
 # test: Query writers encode typed scalar, repeated-list and one-level deepObject values once.
-# Spec: std-http.form-codec.query-writer, std-http.form-codec.repeated-scalars.
-use std.http.{Url, FormError}
+# Spec: std-url.form-codec.query-writer, std-http.form-codec.repeated-scalars.
+use std.http.{FormError}
+use std.url.{Url}
 use std.encoding.{Serialize, Deserialize, rename}
 
 fn parsed(text: string) -> Url:

@@ -2,7 +2,8 @@
 # test: Result deadlines stay flat, map timeout errors and compose with retry
 # Spec std/task: std-task.policy.time-limit.completed, std-task.policy.time-limit.expired, std-task.policy.time-limit.cleanup-deadline, std-task.policy.time-limit.flat.
 use std.convert.From
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.net.NetError
 use std.task.{Backoff, TimedOut, retry, timeout, apply}
 use std.testing.assert_equal

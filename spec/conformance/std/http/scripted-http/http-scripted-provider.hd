@@ -1,6 +1,7 @@
 # test: ScriptedHttp keys on parsed URL Display, answers every method and records bodies independently
 # expect: test
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.url.{Url}
 fn status!(url: string) -> u16 $ Http:
     match get!(url):
         .Ok(response) => response.status.code()
