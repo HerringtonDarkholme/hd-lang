@@ -1868,11 +1868,9 @@
           local.get $t3
           i32.eqz
           if
-            i32.const 372 ;; &vtable[stored#1]
-            local.set $key.1
     ;; 11 |     loader!(key, keys)
             local.get $t1
-            local.get $key.1
+            i32.const 372 ;; &vtable[stored#1]
             i32.store $heap offset=12
             local.get $t1
             i32.load $heap
@@ -2519,11 +2517,9 @@
           local.get $t3
           i32.eqz
           if
-            i32.const 384 ;; &vtable[pause#1]
-            local.set $step
     ;; 26 |     step!()
             local.get $t1
-            local.get $step
+            i32.const 384 ;; &vtable[pause#1]
             i32.store $heap
             local.get $t1
             i32.load $heap
@@ -3616,11 +3612,9 @@
           local.get $t4
           i32.eqz
           if
-            i32.const 408 ;; &vtable[live#1]
-            local.set $keys
     ;; 19 |     size := loader!(key, keys)
             local.get $t1
-            local.get $keys
+            i32.const 408 ;; &vtable[live#1]
             i32.store $heap offset=8
             local.get $t1
             i32.load $heap offset=4

@@ -32,9 +32,8 @@
     i32.store $heap offset=4
     local.get $t0
     ;; 22 |     $.with(Namer=f):
-    i32.const 192 ;; &vtable[rt:dyn_slot]
+    i32.const 1
     ;; 23 |         ask()
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $s.1

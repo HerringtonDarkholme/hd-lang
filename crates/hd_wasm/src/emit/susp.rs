@@ -2335,7 +2335,7 @@ fn direct_body(f: &mut crate::module::Func) {
     }
     f.origin_at = outer;
     f.op(I::Drop);
-    crate::opt::fold_local_constants(f);
+    crate::opt::fold_local_constants(f, &|_, _| None);
     crate::opt::fold_constant_branches(f);
     crate::opt::drops(f);
     f.rebuild_callees();

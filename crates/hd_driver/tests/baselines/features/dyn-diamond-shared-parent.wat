@@ -842,7 +842,7 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $mutable.0 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -875,11 +875,9 @@
     i32.const 0
     call $rt:new/class-1
     ;; 43 |     let boxed: *dyn Top = box(S {})
-    i32.const 300 ;; &vtable[]
-    local.set $boxed.1
     local.tee $boxed.0
     ;; 44 |     println(read(boxed))
-    local.get $boxed.1
+    i32.const 300 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
@@ -903,24 +901,24 @@
     call $"println[i32]"
     ;; 48 |     println(reader(boxed))
     local.get $boxed.0
-    local.get $boxed.1
+    i32.const 300 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $boxed.0
-    local.get $boxed.1
+    i32.const 300 ;; &vtable[]
     ;; 42 |     println(read(&S {}))
     call $read
-    local.set $boxed.1
+    local.set $mutable.0
     local.get $boxed.0
     if
       local.get $boxed.0
       call $rt:release_ref
     end
     ;; (no span)
-    local.get $boxed.1
+    local.get $mutable.0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -990,7 +988,7 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $mutable.0 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -1023,11 +1021,9 @@
     i32.const 0
     call $rt:new
     ;; 43 |     let boxed: *dyn Top = box(S {})
-    i32.const 644 ;; &vtable[]
-    local.set $boxed.1
     local.tee $boxed.0
     ;; 44 |     println(read(boxed))
-    local.get $boxed.1
+    i32.const 644 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
@@ -1053,17 +1049,17 @@
     call $"println[i32]"
     ;; 48 |     println(reader(boxed))
     local.get $boxed.0
-    local.get $boxed.1
+    i32.const 644 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $boxed.0
-    local.get $boxed.1
+    i32.const 644 ;; &vtable[]
     ;; 42 |     println(read(&S {}))
     call $read
-    local.set $boxed.1
+    local.set $mutable.0
     local.get $boxed.0
     if
       local.get $boxed.0
@@ -1072,7 +1068,7 @@
       call $skipped_test
     end
     ;; (no span)
-    local.get $boxed.1
+    local.get $mutable.0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"

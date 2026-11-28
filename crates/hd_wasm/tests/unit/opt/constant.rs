@@ -18,6 +18,40 @@ mod tests {
     }
 
     #[test]
+    fn a_load_of_static_data_at_a_constant_address_is_its_word() {
+        use hd_wasm::testing::module::{SymId, mem};
+        let code = SymId(7);
+        // A closure object's address, through a local, then its code at
+        // offset 0 and an unknown word at offset 4.
+        let mut f = function(Vec::new());
+        f.body = vec![
+            Ins::VTable(3),
+            Ins::Op(I::LocalSet(1)),
+            Ins::Op(I::LocalGet(1)),
+            Ins::Op(I::I32Load(mem(0, 0, 2))),
+            Ins::Op(I::LocalGet(1)),
+            Ins::Op(I::I32Load(mem(0, 4, 2))),
+        ];
+        f.origins = Some((0..f.body.len()).map(|i| u32::try_from(i).ok()).collect());
+        let words = |k: usize, offset: u64| (k == 3 && offset == 0).then_some(Ins::TableSlot(code));
+        assert!(run(&mut f, &words));
+        assert_eq!(
+            f.body
+                .iter()
+                .filter(|i| matches!(i, Ins::TableSlot(s) if *s == code))
+                .count(),
+            1
+        );
+        assert_eq!(
+            f.body
+                .iter()
+                .filter(|i| matches!(i, Ins::Op(I::I32Load(_))))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn constants_cross_selected_arms_but_effects_and_labels_stay() {
         let mut f = function(vec![
             I::I32Const(32),
@@ -43,7 +77,7 @@ mod tests {
             I::I64ExtendI32U,
             I::I64Shl,
         ]);
-        assert!(run(&mut f));
+        assert!(run(&mut f, &|_, _| None));
         assert!(!f.body.iter().any(|i| matches!(
             i,
             Ins::Op(I::If(_) | I::Else | I::Unreachable | I::I64Shl | I::I32LtU | I::I32GtU)
@@ -73,7 +107,7 @@ mod tests {
                 I::End,
                 I::LocalGet(1),
             ]);
-            run(&mut f);
+            run(&mut f, &|_, _| None);
             assert!(matches!(f.body.last(), Some(Ins::Op(I::LocalGet(1)))));
         }
         // A no-else conditional joins its skipped path too.
@@ -85,7 +119,7 @@ mod tests {
             I::End,
             I::LocalGet(1),
         ]);
-        run(&mut f);
+        run(&mut f, &|_, _| None);
         assert!(matches!(f.body.last(), Some(Ins::Op(I::LocalGet(1)))));
     }
 
@@ -109,7 +143,7 @@ mod tests {
             Some((2, I::I64Const(i64::MAX)))
         ));
         let mut f = function(vec![I::LocalGet(0), I::I32Const(32), I::I32Shl]);
-        assert!(run(&mut f));
+        assert!(run(&mut f, &|_, _| None));
         assert!(matches!(f.body.as_slice(), [Ins::Op(I::LocalGet(0))]));
         // Keep trapping division for runtime; Wasm MIN % -1 is zero.
         assert!(
@@ -163,7 +197,7 @@ mod tests {
             let mut f = function(body);
             let n = f.body.len();
             let mut visits = 0;
-            assert!(!run_with(&mut f, &mut || visits += 1));
+            assert!(!run_with(&mut f, &|_, _| None, &mut || visits += 1));
             assert_eq!(f.body.len(), n);
             assert_eq!(
                 f.body
@@ -187,7 +221,7 @@ mod tests {
             I::LocalSet(0),
             I::Drop,
         ]);
-        run(&mut f);
+        run(&mut f, &|_, _| None);
         assert!(matches!(f.body[3], Ins::Op(I::LocalGet(1))));
         let mut f = function(vec![
             I::I32Const(3),
@@ -195,7 +229,7 @@ mod tests {
             I::LocalGet(1),
             I::I32Eqz,
         ]);
-        run(&mut f);
+        run(&mut f, &|_, _| None);
         assert!(matches!(f.body.last(), Some(Ins::Op(I::I32Const(0)))));
     }
 
@@ -232,7 +266,7 @@ mod tests {
             let mut f = function(body);
             let n = f.body.len();
             let mut visits = 0;
-            run_with(&mut f, &mut || visits += 1);
+            run_with(&mut f, &|_, _| None, &mut || visits += 1);
             assert_eq!(visits, 3 * n);
             assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
         }

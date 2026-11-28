@@ -7303,11 +7303,9 @@
           local.get $t4
           i32.eqz
           if
-            i32.const 440 ;; &vtable[read#1]
-            local.set $pause
     ;; 12 |     pause!() + *value
             local.get $t1
-            local.get $pause
+            i32.const 440 ;; &vtable[read#1]
             i32.store $heap offset=8
             local.get $t1
             i32.load $heap offset=8
@@ -9619,11 +9617,9 @@
           local.get $t4
           i32.eqz
           if
-            i32.const 780 ;; &vtable[read#1]
-            local.set $pause
     ;; 12 |     pause!() + *value
             local.get $t1
-            local.get $pause
+            i32.const 780 ;; &vtable[read#1]
             i32.store $heap offset=8
             local.get $t1
             i32.load $heap offset=8

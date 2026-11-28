@@ -117,8 +117,6 @@
                 end
                 br_table 1 2 0
               end
-              i32.const 532 ;; &vtable[scoped#1]
-              local.set $provider0.vtable
               i32.const 4
               i32.const -2147483647
               call $rt:new/class-1
@@ -128,7 +126,7 @@
               i32.store $heap offset=32
               local.get $t1
               i32.load $heap offset=32
-              local.get $provider0.vtable
+              i32.const 532 ;; &vtable[scoped#1]
               i32.store $heap
     ;; 29 |     a := total(text(1), nap!(first))
               i32.const 1

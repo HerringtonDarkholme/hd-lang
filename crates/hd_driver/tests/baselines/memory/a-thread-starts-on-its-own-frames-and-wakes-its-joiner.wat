@@ -24,7 +24,7 @@
     call $end
     call $retire
   )
-  (func $run (result i32) (local $code i32) (local $threads i32) (local $t0 i32) (local $stopped i32) (local $t1 i32) (local $t2 i32) (local $thread i32) (local $state i32)
+  (func $run (result i32) (local $threads i32) (local $t0 i32) (local $value i32) (local $stopped i32) (local $t1 i32) (local $t2 i32) (local $thread i32) (local $state i32)
     ;; 19 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: true).join())
     global.get $stack
     global.get $stack_limit
@@ -40,8 +40,6 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    i32.const 448 ;; &vtable[run#1]
-    local.set $code
     block
       local.get $t0
       i64.const 0
@@ -52,11 +50,11 @@
       local.tee $threads
       i32.const 88 ;; &empty-buffer
       i32.store $heap
-      local.get $code
+      i32.const 448 ;; &vtable[run#1]
       local.get $threads
       i32.const 0
       call $run#1
-      local.set $code
+      local.set $value
       local.get $threads
       i32.load $heap
       local.get $threads
@@ -177,7 +175,7 @@
       end
       br 0
     end
-    local.get $code
+    local.get $value
     local.get $t0
     i32.const 16
     i32.add

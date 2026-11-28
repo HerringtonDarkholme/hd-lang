@@ -133,27 +133,23 @@
     i32.const 1
     i32.store $heap
     local.get $t1
-    i32.const 436 ;; &vtable[rt:dyn_slot]
-    local.set $t1
     local.tee $value
-    local.tee $seen
     if
-      local.get $seen
+      local.get $value
       call $retain
     end
+    local.get $t1
+    if
+      local.get $t1
+      call $rt:release_ref'2
+    end
+    local.get $value
+    i32.const 0
+    call_indirect $table0 (param i32) (result i32)
+    local.set $t1
     local.get $value
     if
       local.get $value
-      call $rt:release_ref'2
-    end
-    local.get $seen
-    local.get $t1
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.set $t1
-    local.get $seen
-    if
-      local.get $seen
       call $rt:release_ref'2
     end
     local.get $t2

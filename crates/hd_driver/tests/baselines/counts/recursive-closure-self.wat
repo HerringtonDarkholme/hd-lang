@@ -23,15 +23,13 @@
     ;; 6 |         if n == 0: 0
     end
   )
-  (func $sum_to (param $limit i32) (result i32) (local $t0 i32)
+  (func $sum_to (param $limit i32) (result i32)
     ;; 5 |     sum := fn(n: i32) -> i32:
     i32.const 200 ;; &vtable[sum_to#1]
     ;; 8 |     sum(limit)
-    local.tee $t0
     local.get $limit
     i32.const 0
-    local.get $t0
-    i32.load $heap
+    i32.const 0
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
 )

@@ -28,11 +28,17 @@ struct Frame {
 /// stacks, plus per folded read the open frames and a binary search of its
 /// local's writes. Two input walks and one compaction walk of at most three
 /// times the input; there is no nesting-dependent retry.
-pub fn run(f: &mut Func) -> bool {
-    run_with(f, &mut || {})
+pub fn run(f: &mut Func, words: &StaticWords<'_>) -> bool {
+    run_with(f, words, &mut || {})
 }
 
-pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
+/// The `i32` words of immutable static data: word `offset / 4` of static
+/// vtable `k` ([`crate::module::Module::fn_object`] among them), as the
+/// instruction that pushes it, a table slot or another vtable's address;
+/// `None` where nothing is known.
+pub type StaticWords<'a> = dyn Fn(usize, u64) -> Option<Ins> + Sync + 'a;
+
+pub fn run_with(f: &mut Func, words: &StaticWords<'_>, visit: &mut impl FnMut()) -> bool {
     let mut frames = vec![Frame {
         end: f.body.len(),
         ..Frame::default()
@@ -175,6 +181,22 @@ pub fn run_with(f: &mut Func, visit: &mut impl FnMut()) -> bool {
                 at = frame.end;
                 continue;
             }
+            // A load from immutable static data at a constant address is
+            // the word stored there: a closure object's code, a vtable's
+            // slot or parent.
+            Ins::Op(I::I32Load(arg))
+                if arg.memory_index == crate::module::HEAP
+                    && let Some(&Ins::VTable(k)) = out.last()
+                    && let Some(word) = words(k, arg.offset) =>
+            {
+                let source = origins.pop().or(origins.first(at..at + 1));
+                pop_exposed(&mut out, &mut exposed);
+                out.push(word);
+                origins.repeat(source, 1);
+                at += 1;
+                changed = true;
+                continue;
+            }
             Ins::Op(op) => {
                 if let Some((n, value)) = evaluate(op, &out) {
                     let mut source = origins.first(at..at + 1);
@@ -305,6 +327,8 @@ pub fn compact_tees(f: &mut Func, exposed: &[(usize, u32)], visit: &mut impl FnM
 
 fn same_literal(a: Ins, b: Ins) -> bool {
     match (a, b) {
+        (Ins::VTable(a), Ins::VTable(b)) => a == b,
+        (Ins::TableSlot(a), Ins::TableSlot(b)) => a == b,
         (Ins::Op(I::I32Const(a)), Ins::Op(I::I32Const(b))) => a == b,
         (Ins::Op(I::I64Const(a)), Ins::Op(I::I64Const(b))) => a == b,
         (Ins::Op(I::F32Const(a)), Ins::Op(I::F32Const(b))) => a.bits() == b.bits(),
@@ -313,10 +337,13 @@ fn same_literal(a: Ins, b: Ins) -> bool {
     }
 }
 
+/// A constant: a number, or an address or a table slot the link fixes.
 fn literal(ins: &Ins) -> bool {
     matches!(
         ins,
         Ins::Op(I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_))
+            | Ins::VTable(_)
+            | Ins::TableSlot(_)
     )
 }
 

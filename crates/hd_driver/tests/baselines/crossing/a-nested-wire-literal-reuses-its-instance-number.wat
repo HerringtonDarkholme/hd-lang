@@ -302,32 +302,31 @@
     i32.const 1
     i32.add
   )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i32)
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64)
     ;; ...
     ;; 15 |         run(fn() -> i32: n + 1)
     i64.const 7420542673795363667
     i32.const 592 ;; &vtable[make#2]
-    local.tee $ctx
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t0
     i32.const 24
     i32.const -2147483647
     call $rt:new/class-2
-    local.tee $t1
+    local.tee $ctx
     i32.const 14
     i32.store $heap
-    local.get $t1
     local.get $ctx
+    i32.const 592 ;; &vtable[make#2]
     i32.store $heap offset=4
-    local.get $t1
+    local.get $ctx
     local.get $env
     i32.store $heap offset=8
-    local.get $t1
+    local.get $ctx
     local.get $t0
     i64.store $heap offset=16
-    local.get $t1
+    local.get $ctx
     call $"run[i32]"
-    local.get $t1
+    local.get $ctx
     ;; ...
   )
 )
@@ -407,32 +406,31 @@
     i32.const 1
     i32.add
   )
-  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i32)
+  (func $make#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i64)
     ;; ...
     ;; 15 |         run(fn() -> i32: n + 1)
     i64.const 7420542673795363667
     i32.const 932 ;; &vtable[make#2]
-    local.tee $ctx
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t0
     i32.const 24
     i32.const -2147483647
     call $rt:new
-    local.tee $t1
+    local.tee $ctx
     i32.const 14
     i32.store $heap
-    local.get $t1
     local.get $ctx
+    i32.const 932 ;; &vtable[make#2]
     i32.store $heap offset=4
-    local.get $t1
+    local.get $ctx
     local.get $env
     i32.store $heap offset=8
-    local.get $t1
+    local.get $ctx
     local.get $t0
     i64.store $heap offset=16
-    local.get $t1
+    local.get $ctx
     call $"run[i32]"
-    local.get $t1
+    local.get $ctx
     ;; ...
   )
 )

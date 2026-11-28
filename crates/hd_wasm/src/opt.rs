@@ -100,9 +100,14 @@ pub fn delete_empty_loops(f: &mut Func) -> bool {
     empty_loops::run(f)
 }
 
-/// Propagate literal local values after instruction scheduling exposes them.
-pub fn fold_local_constants(f: &mut crate::module::Func) -> bool {
-    constant::run(f)
+/// Propagate literal local values after instruction scheduling exposes
+/// them, and fold loads from immutable static data, `words`
+/// ([`constant::StaticWords`]).
+pub fn fold_local_constants(
+    f: &mut crate::module::Func,
+    words: &constant::StaticWords<'_>,
+) -> bool {
+    constant::run(f, words)
 }
 
 use hd_base::SliceSort as _;

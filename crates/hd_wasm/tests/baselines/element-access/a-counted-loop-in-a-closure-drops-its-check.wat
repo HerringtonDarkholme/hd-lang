@@ -40,10 +40,7 @@
     ;; 12 |         sum
     local.get $sum
   )
-  (func $sums (param $rows i32) (result i32) (local $total i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $r i32) (local $t2 i32) (local $t3 i32)
-    ;; 7 |     total := fn(xs: List[i32]) -> i32:
-    i32.const 284 ;; &vtable[sums#1]
-    local.set $total
+  (func $sums (param $rows i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $r i32) (local $t2 i32) (local $t3 i32)
     ;; 13 |     let mut out: List[i32] = []
     i32.const 80 ;; &empty-buffer
     local.set $out
@@ -76,7 +73,7 @@
     ;; 15 |         out.push(total(r))
         local.get $r
         call $rt:retain_coll
-        local.get $total
+        i32.const 284 ;; &vtable[sums#1]
         local.get $r
         i32.const 0
         call $sums#1

@@ -1426,6 +1426,26 @@ impl ReservedVtable {
 /// slots ([`Module::vtable_full`]).
 type VTable = (Vec<SymId>, Vec<usize>, Vec<SymId>);
 
+/// The word at byte `offset` of static vtable `v`, as it is laid out: its
+/// slots' table slots, its parents' addresses, then its drive slots. A
+/// vtable is immutable data, so a load of it at a constant address folds
+/// to this ([`crate::opt::fold_local_constants`]).
+fn static_word(v: &VTable, offset: u64) -> Option<Ins> {
+    if !offset.is_multiple_of(4) {
+        return None;
+    }
+    let (slots, parents, drives) = v;
+    let i = usize::try_from(offset / 4).ok()?;
+    if let Some(&s) = slots.get(i) {
+        return Some(Ins::TableSlot(s));
+    }
+    let i = i - slots.len();
+    if let Some(&p) = parents.get(i) {
+        return Some(Ins::VTable(p));
+    }
+    drives.get(i - parents.len()).map(|&s| Ins::TableSlot(s))
+}
+
 /// The content hash [`Module::vtable_at`] indexes a vtable by.
 fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
     let mut h = hd_base::StableHasher::new("vtable");
@@ -2826,6 +2846,8 @@ impl Module {
             });
             self.reach();
         }
+        let vtables = &self.vtables;
+        let words = |k: usize, offset: u64| static_word(vtables.get(k)?, offset);
         hd_sched::par_each_mut(&mut self.funcs, |_, f| {
             let Some(f) = f else { return };
             // Branches and labels that only fall through split the
@@ -2837,9 +2859,10 @@ impl Module {
                     crate::opt::locals(f, arity);
                 }
             }
-            if crate::opt::fold_local_constants(f) {
+            if crate::opt::fold_local_constants(f, &words) {
                 crate::opt::locals(f, arity);
                 crate::opt::blocks(f, arity);
+                f.rebuild_callees();
             }
             if crate::opt::delete_empty_loops(f) {
                 crate::opt::locals(f, arity);

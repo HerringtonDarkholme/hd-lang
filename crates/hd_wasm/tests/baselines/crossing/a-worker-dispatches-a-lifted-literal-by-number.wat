@@ -713,10 +713,8 @@
                 end
               end
               local.get $provider0.vtable
-              i32.const 2356 ;; &vtable[rt:dyn_slot, rt:drive]
-              local.set $provider0.vtable
               local.get $t1
-              local.get $provider0.vtable
+              i32.const 2356 ;; &vtable[rt:dyn_slot, rt:drive]
               i32.store $heap offset=12
               local.set $provider0.vtable
               local.get $t1
@@ -751,10 +749,8 @@
                 local.get $provider0.vtable
                 call $retain
               end
-              i32.const 2372 ;; &vtable[main#1]
-              local.set $provider0.vtable
               local.get $t1
-              local.get $provider0.vtable
+              i32.const 2372 ;; &vtable[main#1]
               i32.store $heap offset=32
               local.get $t1
               i32.load $heap offset=32
@@ -1006,10 +1002,8 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=60
-            i32.const 2384 ;; &vtable[main#3]
-            local.set $provider0.vtable
             local.get $t1
-            local.get $provider0.vtable
+            i32.const 2384 ;; &vtable[main#3]
             i32.store $heap offset=68
             local.get $t1
             i32.load $heap offset=68
@@ -1880,11 +1874,9 @@
           local.get $t3
           i32.eqz
           if
-            i32.const 2468 ;; &vtable[pause#1]
-            local.set $step
     ;; 24 |     step!()
             local.get $t1
-            local.get $step
+            i32.const 2468 ;; &vtable[pause#1]
             i32.store $heap
             local.get $t1
             i32.load $heap

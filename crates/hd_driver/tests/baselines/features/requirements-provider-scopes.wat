@@ -17,9 +17,8 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
+    i32.const 1
     ;; 40 |         apply(fn() -> usize: tag.name().len())
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $s.1
@@ -61,9 +60,8 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
+    i32.const 1
     ;; 26 |         read_tag()
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $s.1
@@ -101,9 +99,8 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
+    i32.const 1
     ;; 46 |         read_tag() + f()
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $t1
@@ -136,9 +133,8 @@
     local.get $a.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
+    i32.const 1
     ;; 30 |         outer := read_tag()
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $a.0
     local.tee $a.1
@@ -157,9 +153,8 @@
     local.get $b.1
     i32.store $heap offset=4
     local.get $a.1
-    i32.const 192 ;; &vtable[rt:dyn_read]
+    i32.const 1
     ;; 32 |             outer + read_tag()
-    i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $b.0
     local.tee $b.1

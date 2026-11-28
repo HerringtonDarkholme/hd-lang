@@ -149,7 +149,7 @@
     local.get $value.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 364 ;; &vtable[rt:type_id]
+    i32.const 3
     ;; ...
     local.get $t0
     ;; ...
@@ -160,7 +160,7 @@
     local.get $value
     i32.store $heap
     local.get $t0
-    i32.const 368 ;; &vtable[rt:type_id]
+    i32.const 4
     ;; ...
     local.get $t0
     ;; ...
@@ -178,7 +178,7 @@
     local.get $value.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 704 ;; &vtable[rt:type_id]
+    i32.const 3
     ;; ...
     local.get $t0
     ;; ...
@@ -189,7 +189,7 @@
     local.get $value
     i32.store $heap
     local.get $t0
-    i32.const 708 ;; &vtable[rt:type_id]
+    i32.const 4
     ;; ...
     local.get $t0
     ;; ...

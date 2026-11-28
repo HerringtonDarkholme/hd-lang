@@ -41,13 +41,12 @@
     local.get $t0
     local.get $t1
   )
-  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code i32)
+  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i64) (local $code i32)
     ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     i64.const -2549619231260123173
     i32.const 876 ;; &vtable[demo#1]
-    local.tee $t0
     call $"crossing_number[fn((u32, Image)) -> Image]"
-    local.set $t1
+    local.set $t0
     i32.const 32
     i32.const -2147483647
     call $rt:new/class-3
@@ -55,7 +54,7 @@
     i32.const 22
     i32.store $heap
     local.get $code
-    local.get $t0
+    i32.const 876 ;; &vtable[demo#1]
     i32.store $heap offset=4
     local.get $code
     local.get $side
@@ -67,7 +66,7 @@
     local.get $photo.pixels
     i32.store $heap offset=8
     local.get $code
-    local.get $t1
+    local.get $t0
     i64.store $heap offset=24
     local.get $code
     i32.const 0

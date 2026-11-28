@@ -5,11 +5,9 @@
   (func $exercise (param $first i32) (param $value i32) (result i32) (local $t0 i32)
     ;; 27 |     (holder().value)(value) + (tuple(first)._0)(value)
     i32.const 964 ;; &vtable[read#adapter]
-    local.tee $t0
     local.get $value
     i32.const 0
-    local.get $t0
-    i32.load $heap
+    i32.const 2
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.set $t0
     block

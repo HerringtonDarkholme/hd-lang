@@ -142,11 +142,8 @@
               end
             end
             local.get $s.0
-            i32.const 424 ;; &vtable[rt:dyn_read]
-            local.set $pending
-            local.tee $s.0
     ;; 45 |         tagged()
-            local.get $pending
+            i32.const 424 ;; &vtable[rt:dyn_read]
             call $tagged'1
     ;; 44 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
             local.set $s.1
@@ -2172,11 +2169,9 @@
           local.get $t3
           i32.eqz
           if
-            i32.const 436 ;; &vtable[pause#1]
-            local.set $step
     ;; 51 |     step!()
             local.get $t1
-            local.get $step
+            i32.const 436 ;; &vtable[pause#1]
             i32.store $heap
             local.get $t1
             i32.load $heap

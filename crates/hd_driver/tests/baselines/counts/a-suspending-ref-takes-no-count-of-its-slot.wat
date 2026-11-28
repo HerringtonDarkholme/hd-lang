@@ -652,8 +652,6 @@
           local.get $t4
           i32.eqz
           if
-            i32.const 368 ;; &vtable[bump#1]
-            local.set $step
     ;; 12 |     t.n += step!()
             local.get $t1
             i32.load $heap
@@ -663,7 +661,7 @@
             local.get $t5
             i64.store $heap offset=8
             local.get $t1
-            local.get $step
+            i32.const 368 ;; &vtable[bump#1]
             i32.store $heap offset=16
             local.get $t1
             i32.load $heap offset=16

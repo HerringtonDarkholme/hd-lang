@@ -16,8 +16,7 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
-    i32.load $heap
+    i32.const 1
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $s.1
@@ -44,8 +43,7 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_read]
-    i32.load $heap
+    i32.const 1
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
     local.tee $s.1

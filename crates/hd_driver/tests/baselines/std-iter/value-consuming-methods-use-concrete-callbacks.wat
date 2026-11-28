@@ -35,7 +35,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $cursor i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -66,13 +66,7 @@
     local.set $self.source.end
     local.get $values
     i32.const 0
-    local.get $self.source.end
-    ;; 11 |         .filter_map(fn(value: i32) -> i32?:
-    i32.const 280 ;; &vtable[sum_positive#1]
-    ;; 10 |     values.iter()
     local.set $values
-    local.set $self.source.end
-    local.set $self.source.at
     local.set $self.source.items
     block
       local.get $t0
@@ -85,13 +79,13 @@
       local.get $self.source.items
       i32.store $heap
       local.get $cursor
-      local.get $self.source.at
+      local.get $values
       i32.store $heap offset=4
       local.get $cursor
       local.get $self.source.end
       i32.store $heap offset=8
       local.get $cursor
-      local.get $values
+      i32.const 280 ;; &vtable[sum_positive#1]
       i32.store $heap offset=12
       loop
         local.get $cursor
@@ -250,7 +244,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $cursor i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -281,13 +275,7 @@
     local.set $self.source.end
     local.get $values
     i32.const 0
-    local.get $self.source.end
-    ;; 11 |         .filter_map(fn(value: i32) -> i32?:
-    i32.const 620 ;; &vtable[sum_positive#1]
-    ;; 10 |     values.iter()
     local.set $values
-    local.set $self.source.end
-    local.set $self.source.at
     local.set $self.source.items
     block
       local.get $t0
@@ -300,13 +288,13 @@
       local.get $self.source.items
       i32.store $heap
       local.get $cursor
-      local.get $self.source.at
+      local.get $values
       i32.store $heap offset=4
       local.get $cursor
       local.get $self.source.end
       i32.store $heap offset=8
       local.get $cursor
-      local.get $values
+      i32.const 620 ;; &vtable[sum_positive#1]
       i32.store $heap offset=12
       loop
         local.get $cursor

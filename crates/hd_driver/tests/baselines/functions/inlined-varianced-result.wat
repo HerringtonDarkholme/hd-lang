@@ -18,11 +18,9 @@
   (func $use_view (param $value i32) (result i32) (local $t0 i32)
     ;; 23 |     view()(value) + control()(value)
     i32.const 200 ;; &vtable[read#adapter]
-    local.tee $t0
     local.get $value
     i32.const 0
-    local.get $t0
-    i32.load $heap
+    i32.const 0
     call_indirect $table0 (param i32 i32 i32) (result i32)
     i32.const 1
     call_indirect $table0 (result i32)

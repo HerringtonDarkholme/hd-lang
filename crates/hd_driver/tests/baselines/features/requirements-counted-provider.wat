@@ -650,11 +650,9 @@
           local.get $t3
           i32.eqz
           if
-            i32.const 368 ;; &vtable[pause#1]
-            local.set $step
     ;; 27 |     step!()
             local.get $t1
-            local.get $step
+            i32.const 368 ;; &vtable[pause#1]
             i32.store $heap
             local.get $t1
             i32.load $heap
