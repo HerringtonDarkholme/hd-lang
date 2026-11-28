@@ -1742,6 +1742,7 @@ lang/data/construction-and-access/a-copy-makes-its-own-embedded-parts-when-the-s
 lang/data/construction-and-access/a-copy-replacing-nothing-is-a-distinct-value.hd	runtime	accept	lang/08-data-and-enums.md#r-data.update.new-value
 lang/data/struct-declarations/a-data-field-default-runs-per-construction.hd	runtime	accept	lang/08-data-and-enums.md#field-defaults
 lang/functions/function-types-and-values/a-generic-caller-forwards-its-arguments.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+lang/functions/function-types-and-values/a-dispatch-table-stores-function-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.local.fn-static
 lang/data/construction-and-access/a-generic-data-type-copies-with-substituted-fields.hd	runtime	accept	lang/08-data-and-enums.md#r-data.update.new-value
 lang/names/member-resolution/field-reads-of-generic-nested-tuple-and-embedded-values.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.field-lookup.select
 lang/functions/parameters/a-generic-function-default-runs-at-each-instantiation.hd	runtime	accept	lang/07-functions.md#default-values

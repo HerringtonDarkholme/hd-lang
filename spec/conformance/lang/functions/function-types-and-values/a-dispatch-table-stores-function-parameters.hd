@@ -1,0 +1,46 @@
+# test: a dispatch table stores `fn(...)` parameters passed through a helper, named functions and capturing closures alike
+# Spec 13 Local References: ref.local.fn-static.
+# expect-stdout: 42 7 7 4 none
+struct Function:
+    arity: i32
+    callback: fn(List[i64]) -> i64
+
+fn arg_func1(f: fn(i64) -> i64) -> Function:
+    Function { arity: 1, callback: fn(xs: List[i64]) -> i64: f(xs[0]) }
+
+fn arg_func2(f: fn(i64, i64) -> i64) -> Function:
+    Function { arity: 2, callback: fn(xs: List[i64]) -> i64: f(xs[0], xs[1]) }
+
+fn keep(f: fn(List[i64]) -> i64) -> Function:
+    Function { arity: 0, callback: f }
+
+fn double(x: i64) -> i64:
+    x * 2
+
+fn add(x: i64, y: i64) -> i64:
+    x + y
+
+fn count(xs: List[i64]) -> i64:
+    i64(xs.len())
+
+fn table(offset: i64) -> Map[string, Function]:
+    {
+        "double": arg_func1(double),
+        "add": arg_func2(add),
+        "shift": arg_func1(fn(x: i64) -> i64: x + offset),
+        "count": keep(count),
+    }
+
+fn call(funcs: &Map[string, Function], name: string, xs: List[i64]) -> string:
+    match funcs.get(name):
+        .Some(f) => "${(f.callback)(xs)}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    funcs := table(5)
+    a := call(&funcs, "double", [21])
+    b := call(&funcs, "add", [3, 4])
+    c := call(&funcs, "shift", [2])
+    d := call(&funcs, "count", [1, 2, 3, 4])
+    e := call(&funcs, "missing", [])
+    println("$a $b $c $d $e")
