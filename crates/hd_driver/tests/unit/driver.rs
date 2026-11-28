@@ -1411,6 +1411,44 @@ mod instantiation_chain_tests {
         }
         assert!(counts[1] <= 11 * counts[0], "decoded bodies: {counts:?}");
     }
+
+    /// A chain of `n` generic aliases, each naming the one before twice,
+    /// writes each distinct type once when the dev link fingerprints the
+    /// declarations (#2423): the rows grow with `n`, not `n²`.
+    #[test]
+    fn an_alias_chain_fingerprints_its_declarations_in_linear_work() {
+        let mut rows = Vec::new();
+        for n in [200, 800] {
+            use std::fmt::Write as _;
+            let mut source = String::from("trait Source:\n    type Item\n\n");
+            source.push_str("type A0[S < Source] = S::Item\n");
+            for i in 1..=n {
+                let p = i - 1;
+                let _ = writeln!(source, "type A{i}[S < Source] = (A{p}[S], A{p}[S])");
+            }
+            let _ = writeln!(source, "fn id[S < Source](s: S, v: A{n}[S]) -> A{n}[S]: v");
+            source.push_str("pub fn main() -> void $ Console: println(1)\n");
+            let mut sources = MemorySources::default();
+            sources.insert("main.hd", &source);
+            let store = warm_std_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let goal = Goal::Program {
+                entry: "main".into(),
+            };
+            let out = build_packages(&host, "aliases", &Packages::default(), &goal);
+            assert!(out.wasm.is_some(), "{}", out.render());
+            let work = out.counters.decl_rows;
+            assert!((n..=11 * n).contains(&work), "{n} aliases: {work} rows");
+            rows.push(work);
+        }
+        assert!(rows[1] <= 5 * rows[0], "declaration rows: {rows:?}");
+    }
 }
 
 mod secondary_label_codec_tests {

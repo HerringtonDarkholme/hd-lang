@@ -2483,9 +2483,15 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
 /// in a module's blob; and every path those tables hold (each with its
 /// ancestors). An item added to or removed from the module leaves the
 /// others' fingerprints as they were, as rustc's per-item `hir_owner`
-/// hashes do. Cost: one encoding of the record.
-pub fn item_fingerprint(names: &Names<'_>, it: &Item) -> StageResult<(Hash128, Vec<PathId>)> {
-    let mut t = TableWriter::new(names.pool, names.paths, names.syms);
+/// hashes do. A type `hashed` gives a hash for is written as that hash,
+/// not its rows, and listed in `tys` instead of adding its paths, so over
+/// a memo of type hashes the cost is the record's own words.
+pub fn item_fingerprint(
+    names: &Names<'_>,
+    it: &Item,
+    hashed: &dyn Fn(Ty) -> Option<Hash128>,
+) -> StageResult<ItemFingerprint> {
+    let mut t = TableWriter::hashing(names.pool, names.paths, names.syms, hashed);
     let mut body = Writer::default();
     body.u32(t.def(it.def));
     body.u8(impl_tag(it));
@@ -2501,7 +2507,22 @@ pub fn item_fingerprint(names: &Names<'_>, it: &Item) -> StageResult<(Hash128, V
     w.bytes.extend_from_slice(&body.bytes);
     let mut h = StableHasher::new("item-fingerprint-v1");
     h.bytes(&w.bytes);
-    Ok((h.finish(), t.paths().collect()))
+    Ok(ItemFingerprint {
+        hash: h.finish(),
+        paths: t.paths().collect(),
+        tys: t.hashed_tys().to_vec(),
+        rows: t.ty_rows(),
+    })
+}
+
+/// What [`item_fingerprint`] gives: the record's hash, the paths its
+/// tables hold, the types it wrote as their hash, and how many type rows
+/// it wrote (its work).
+pub struct ItemFingerprint {
+    pub hash: Hash128,
+    pub paths: Vec<PathId>,
+    pub tys: Vec<Ty>,
+    pub rows: usize,
 }
 
 /// An item's index tag: its impl kind's position in `ImplKind::ALL`, with

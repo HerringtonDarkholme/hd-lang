@@ -106,6 +106,9 @@ pub struct Counters {
     pub units_emitted: Vec<String>,
     /// How many units a dev link took from the store (#2423).
     pub units_reused: usize,
+    /// The type rows a dev link's declaration graph wrote to fingerprint
+    /// the program's declarations, each distinct type once (#2423).
+    pub decl_rows: usize,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
     /// Generic instance bodies built (`hd_mono::instantiate`): one per

@@ -12908,6 +12908,7 @@ impl hd_wasm::UnitStore for DevUnits<'_, '_, '_> {
         let mut c = lock(&self.run.counters);
         c.units_emitted = emitted;
         c.units_reused = reused;
+        c.decl_rows = self.decls.get().map_or(0, |d| d.rows);
     }
 }
 
