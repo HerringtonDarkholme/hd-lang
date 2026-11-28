@@ -1,0 +1,14 @@
+# @dump: own stdout
+# @build: dev | checked | release | release checked
+# Copying an element reference forwards the view; its loop's header owns
+# the backing buffer until the last use of that view in the iteration.
+fn total(values: &List[string]) -> usize:
+    let size = 0usize
+    for item in &*values:
+        copied := item
+        size += copied.len()
+    size
+
+pub fn main() -> void $ Console:
+    values := ["one", "second"]
+    println(total(&values))

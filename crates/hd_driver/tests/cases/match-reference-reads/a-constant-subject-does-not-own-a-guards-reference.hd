@@ -1,0 +1,18 @@
+# @dump: own stdout
+# @build: dev | checked | release
+# A reference read in a guard belongs to its call result, not the unrelated
+# constant scrutinee. Constants have no borrowed-read descendants in the tour.
+struct Guard:
+    text: string
+
+fn view(value: &Guard) -> &Guard:
+    value
+
+fn choose(value: &Guard) -> usize:
+    match 7usize:
+        number if view(value).text.len() > 0 => number
+        _ => 0
+
+pub fn main() -> void $ Console:
+    guard := Guard { text: "guard" }
+    println(choose(&guard))

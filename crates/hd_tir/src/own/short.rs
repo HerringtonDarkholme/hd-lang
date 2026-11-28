@@ -955,6 +955,45 @@ mod tests {
     }
 
     #[test]
+    fn drops_distinguish_storage_owners_from_nonowning_reference_views() {
+        use crate::ir::Coercion;
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::from_raw(1);
+        let block = b.open_block();
+        let local = b.local(Ty::I32, Symbol::from_raw(0), local_flags::PARAM, syn);
+        let scalar = b.get(local, Ty::I32, syn);
+        let word = local.raw() | crate::ir::place::BARE_LOCAL;
+        let reference = b.emit(Tag::Ref, word, 0, REFERENCE, syn);
+        let owned = b.emit(Tag::Ref, word, ref_word::TAKES, REFERENCE, syn);
+        let mut deep = reference;
+        for _ in 0..20 {
+            deep = b.coerce(Coercion::Identity, NONE, deep, REFERENCE, syn);
+        }
+        let root = b.close_block(block, None, Ty::VOID, syn);
+        // This queries the post-ownership reference flags; checker TIR
+        // invariant 22 rejects TAKES before ownership elaborates it.
+        let body = b
+            .finish_tolerating(root, &[], &[22])
+            .expect("owned reference views");
+        let topo = Topology::new(&body);
+        let facts = facts();
+        let pass = Pass {
+            b: &body,
+            topo: &topo,
+            cx: &facts,
+            loans: HashSet::default(),
+        };
+        assert!(pass.drops_nothing(Root::Value(scalar.0)));
+        assert!(!pass.drops_nothing(Root::Value(reference.0)));
+        assert!(!pass.drops_only_a_ref(Root::Local(local.raw())));
+        assert!(pass.drops_only_a_ref(Root::Value(reference.0)));
+        assert!(!pass.drops_only_a_ref(Root::Value(owned.0)));
+        assert!(!pass.drops_only_a_ref(Root::Value(scalar.0)));
+        // An inconclusive long chain must conservatively retain its owner.
+        assert!(!pass.drops_only_a_ref(Root::Value(deep.0)));
+    }
+
+    #[test]
     fn a_shared_element_reference_marks_only_its_own_adjacent_check() {
         for hoisted in [false, true] {
             let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

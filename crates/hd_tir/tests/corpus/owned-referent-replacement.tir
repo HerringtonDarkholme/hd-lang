@@ -1,0 +1,16 @@
+# expect: owned
+body 1 Fn
+local 2 0 - 32
+local 79 1 - 0
+sub 5 0 1 - 0
+labels
+caps
+modes
+extra 3 2 0 1073741824 5 0 1 2 3 4
+const 2 7
+%0 = Ref 2147483648 1 : 79 @-
+%1 = Store 2147483649 0 : 18 @-
+%2 = Drop 0 - : 18 @-
+%3 = Store 0 2147483648 : 18 @-
+%4 = Read 2147483648 1 : 2 @-
+%5 = Block 4 4 : 2 @-
