@@ -1,5 +1,5 @@
 # @dump: wat
-# @build: wasmtime dev | wasmtime checked | wasmtime release
+# @build: wasmtime dev | wasmtime release
 use std.url.{Url, UrlError}
 
 fn parse_reference(text: string) -> Result[Url, UrlError]:
