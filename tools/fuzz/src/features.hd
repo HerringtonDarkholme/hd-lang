@@ -1,0 +1,223 @@
+use std.random.Rng
+use std.text.StringBuilder
+
+pub fn declarations() -> string:
+    """struct Packet[T]:
+    value: T
+
+fn packet_value[T](packet: &Packet[T]) -> T:
+    packet.value
+
+trait Measure:
+    fn measure(&self, salt: i64) -> i64
+
+struct Meter:
+    number: i64
+    values: List[i64]
+
+impl Measure for Meter:
+    fn measure(&self, salt: i64) -> i64:
+        self.number.wrapping_add(salt).wrapping_add(self.values[0])
+
+fn dynamic_meter(meter: *dyn Measure, salt: i64) -> i64:
+    meter.measure(salt)
+
+fn generic_meter[T < Measure](meter: &T, salt: i64) -> i64:
+    meter.measure(salt)
+
+struct Callback:
+    run: fn(i64) -> i64
+
+fn invoke_callback(callback: &Callback, value: i64) -> i64:
+    (callback.run)(value)
+
+fn ready!(value: i64) -> i64:
+    value.wrapping_mul(3i64)
+
+fn combined!(left: i64, right: i64) -> i64:
+    let (a, b) = join!(ready(left), ready(right))
+    a.wrapping_add(b)
+
+@inline(.Never)
+fn drive(work: Suspend[i64]) -> i64:
+    match block_on(work):
+        .Completed(value) => value
+        .Cancelled => panic("unexpected cancellation")
+        .Abandoned => panic("unexpected abandonment")
+
+fn bump_list(values: &mut List[i64], delta: i64) -> void:
+    for item in &mut *values:
+        *item = (*item).wrapping_add(delta)
+
+fn repeated(values: &List[i64], rounds: usize) -> i64:
+    let total = 0i64
+    for _ in 0..rounds:
+        for index in 0..values.len():
+            total = total.wrapping_add(values[index]).wrapping_add(values[index])
+    total
+
+fn delayed!(value: i64) -> i64 \$ Clock:
+    sleep!(1ms)
+    value.wrapping_mul(5i64)
+
+fn staged!(left: i64, right: i64) -> i64:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    \$.with(Clock=clock):
+        let (a, b) = join!(delayed(left), delayed(right))
+        a.wrapping_add(b).wrapping_add(clock.now().unix_milliseconds())
+
+struct Wide:
+    a: i64
+    b: i64
+    c: i64
+    d: i64
+    e: i64
+    f: i64
+    g: i64
+    h: i64
+    i: i64
+    j: i64
+    k: i64
+    l: i64
+    m: i64
+    n: i64
+    o: i64
+    p: i64
+    q: i64
+    text: string
+
+@inline(.Never)
+fn invoke_change(change: fn() -> void) -> void:
+    change()
+
+fn wide!(mut value: Wide) -> i64:
+    change := fn() -> void:
+        value.a = value.a.wrapping_add(value.q)
+        value.text = value.text + "!"
+    invoke_change(change)
+    value.a.wrapping_add(value.b).wrapping_add(value.c).wrapping_add(value.d)
+        .wrapping_add(value.e).wrapping_add(value.f).wrapping_add(value.g)
+        .wrapping_add(value.h).wrapping_add(value.i).wrapping_add(value.j)
+        .wrapping_add(value.k).wrapping_add(value.l).wrapping_add(value.m)
+        .wrapping_add(value.n).wrapping_add(value.o).wrapping_add(value.p)
+        .wrapping_add(value.q).wrapping_add(i64(value.text.len()))
+
+"""
+
+# Each edge decreases the runtime fuel. A generated graph has a cycle
+# through every function, plus independently chosen alternate/self edges.
+# Only one successor executes at each level, so calls cost O(fuel).
+pub fn graph(rng: *mut Rng, count: usize) -> string:
+    out := StringBuilder::new()
+    for index in 0..count:
+        next := (index + 1) % count
+        other := rng.int(0usize..count)
+        factor := rng.int(1i64..=9i64)
+        out.push(
+            """fn generated_${index}(value: i64, fuel: usize) -> i64:
+    if fuel == 0: return value
+    if (value & 1i64) == 0i64:
+        generated_${next}(value.wrapping_mul(${factor}i64), fuel - 1)
+    else:
+        generated_${other}(value.wrapping_add(${factor}i64), fuel - 1)
+
+""",
+        )
+    out.build()
+
+pub fn block(kind: usize, serial: usize, a: string, b: string, c: string, rng: *mut Rng) -> string:
+    name := "local_${serial}"
+    saved := "saved_${serial}"
+    value := "value_${serial}"
+    match kind:
+        11 =>
+            match rng.int(0usize..3usize):
+                0 =>
+                    """    ${name} := Packet { value: Packet { value: (${a}, [${b}, ${c}], "nested") } }
+    ${saved} := packet_value(&${name})
+    inner_${serial} := packet_value(&${saved})
+    ${value} := inner_${serial}._0.wrapping_add(inner_${serial}._1[1]).wrapping_add(i64(inner_${serial}._2.len()))
+"""
+                1 =>
+                    """    let ${name}: Packet[(i64, List[string])?] = Packet { value: .Some((${a}, ["one", "second"])) }
+    let .Some(${saved}) = packet_value(&${name}) else: panic("present optional")
+    ${value} := ${saved}._0.wrapping_add(i64(${saved}._1.len())).wrapping_add(${b})
+"""
+                _ =>
+                    """    ${name} := Packet { value: {"key": Packet { value: (${a}, ${b}) }} }
+    ${saved} := packet_value(&${name})
+    inner_${serial} := packet_value(&${saved}["key"])
+    ${value} := inner_${serial}._0.wrapping_add(inner_${serial}._1).wrapping_add(${c})
+"""
+        12 =>
+            """    ${saved} := Meter { number: ${a}, values: [${b}, ${c}] }
+    let ${name}: *dyn Measure = box(${saved})
+    ${value} := dynamic_meter(${name}, ${b}).wrapping_add(generic_meter(&${saved}, ${c}))
+"""
+        13 =>
+            """    let ticks_${serial} = 0i64
+    let mut ${name}: List[Callback] = []
+    for index_${serial} in 0..${rng.int(2usize..6usize)}:
+        captured_${serial} := (${a}).wrapping_add(i64(index_${serial}))
+        ${name}.push(Callback { run: fn(number: i64) -> i64:
+            ticks_${serial} = ticks_${serial}.wrapping_add(1i64)
+            number.wrapping_add(captured_${serial})
+        })
+    ${saved} := ${name}
+    let ${value} = ${b}
+    for callback_${serial} in ${saved}:
+        ${value} = ${value}.wrapping_add(invoke_callback(&callback_${serial}, ${c}))
+    for callback_${serial} in ${name}:
+        ${value} = ${value}.wrapping_add(invoke_callback(&callback_${serial}, ${b}))
+    ${value} = ${value}.wrapping_add(ticks_${serial})
+"""
+        14 =>
+            """    ${value} := generated_0(${a}, ${rng.int(5usize..21usize)}).wrapping_add(generated_1(${b}, ${rng.int(5usize..21usize)}))
+"""
+        15 =>
+            """    ${value} := drive(combined(${a}, ${b})).wrapping_add(drive(ready(${c})))
+"""
+        16 =>
+            """    let mut ${name} = [${a}, ${b}, ${c}]
+    ${saved} := ${name}
+    bump_list(&mut ${name}, ${b})
+    ${value} := repeated(&${name}, ${rng.int(2usize..8usize)}).wrapping_add(repeated(&${saved}, ${rng.int(2usize..8usize)}))
+"""
+        17 =>
+            """    ${name} := Wide {
+        a: ${a}, b: ${b}, c: ${c}, d: 4i64, e: 5i64, f: 6i64,
+        g: 7i64, h: 8i64, i: 9i64, j: 10i64, k: 11i64, l: 12i64,
+        m: 13i64, n: 14i64, o: 15i64, p: 16i64, q: 17i64, text: "wide",
+    }
+    ${value} := drive(wide(${name})).wrapping_add(${name}.a)
+"""
+        18 =>
+            """    ${saved} := ${a}
+    fn pick_${serial}[T](item: T, salt: i64 = ${saved}) -> (T, i64):
+        (item, salt)
+    fn recur_${serial}(item: i64, fuel: usize) -> i64:
+        if fuel == 0: return item
+        recur_${serial}(item.wrapping_add(${saved}), fuel - 1)
+    first_${serial} := pick_${serial}((${b}, ${c}))
+    selected_${serial} := pick_${serial}::[(i64, i64)]
+    second_${serial} := selected_${serial}((${a}, ${b}), ${c})
+    ${value} := first_${serial}._0._0.wrapping_add(first_${serial}._1).wrapping_add(second_${serial}._0._1).wrapping_add(recur_${serial}(${c}, ${rng.int(2usize..9usize)}))
+"""
+        19 =>
+            """    struct Inside_${serial}:
+        number: i64
+    trait LocalMeasure_${serial}:
+        fn measure(&self) -> i64
+    impl LocalMeasure_${serial} for Inside_${serial}:
+        fn measure(&self) -> i64: self.number
+    enum LocalChoice_${serial}:
+        Some(value: Inside_${serial})
+        Empty
+    ${name} := LocalChoice_${serial}.Some(Inside_${serial} { number: ${a} })
+    ${value} := match ${name}:
+        .Some(inner_${serial}) => inner_${serial}.measure().wrapping_add(${b})
+        .Empty => ${c}
+"""
+        _ =>
+            """    ${value} := drive(staged(${a}, ${b})).wrapping_add(${c})
+"""

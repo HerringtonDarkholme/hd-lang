@@ -32,7 +32,7 @@ pub fn main!() -> ExitCode $ Args + Console + FsWrite + Process + Clock:
             return ExitCode(2)
     unfinished := stats.generated - stats.accepted - stats.rejected
     println(
-        "generated=${stats.generated} accepted=${stats.accepted} rejected=${stats.rejected} unfinished=${unfinished} findings=${stats.findings} reduction_trials=${stats.reductions}",
+        "generated=${stats.generated} accepted=${stats.accepted} rejected=${stats.rejected} unfinished=${unfinished} findings=${stats.findings} expected_overflows=${stats.expected_overflows} reduction_trials=${stats.reductions}",
     )
     if stats.findings > 0:
         return ExitCode(1)

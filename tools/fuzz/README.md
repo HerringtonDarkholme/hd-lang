@@ -3,15 +3,18 @@
 This hd package generates deterministic, bounded programs and compares their
 checksums across dev, checked, and release profiles on Wasmtime. It follows the
 typed generation and checksum approach of [Csmith](https://github.com/csmith-project/csmith)
-and [YARPGen](https://github.com/intel/yarpgen). Integer operations that can
-overflow use `wrapping_*`; list indices and loop bounds are valid by construction.
+and [YARPGen](https://github.com/intel/yarpgen). Expression trees carry one of all nine integer types. Ordinary masked
+arithmetic stays in range; wrapping arithmetic explores the full range. Selected
+seeds deliberately overflow in dev and checked builds and compare release output
+with an explicitly wrapping reference. List indices and loop bounds are valid
+by construction.
 
 Run from the repository root with an **existing Wasmtime-enabled hd**:
 
 ```sh
 scripts/fuzz-programs.sh --count 1000
 HD=/absolute/path/to/hd scripts/fuzz-programs.sh --seed 123 --count 1
-scripts/fuzz-programs.sh --minutes 10 --keep-going
+scripts/fuzz-programs.sh --count 10000 --minutes 10 --keep-going
 # Optional package-manager alias for the same shell launcher:
 pnpm fuzz:programs --count 1000
 ```
@@ -31,23 +34,46 @@ hd run --engine wasmtime --time-limit 1h -- --hd /absolute/path/to/hd --count 10
 ```
 
 Options are derived with `std.cli`; `--help` lists them. `--seed` defaults to 1,
-`--count` to 1000, and `--minutes` to 0 (count mode). A positive `--minutes`
-replaces the count limit and bounds the entire campaign, including reduction.
+`--count` to 1000, and `--minutes` to 0 (no additional time bound). With both
+limits, the first one reached stops the campaign. The time bound includes
+reduction; saved original findings and counts survive cancellation.
 `--keep-going` continues after findings. `--hd` can select a compiler under test
 separately from the driver. `--directory` defaults to `../../target/fuzz`,
 relative to `tools/fuzz/`; use an absolute path to avoid ambiguity.
 
-Every seed shuffles eleven construct families and adds up to seven extra blocks:
-struct value copies, enums and match, nested tuples, optionals and let-else,
-list and map copies/mutations, UTF-8 strings, bounded loops with break/continue,
-direct and generic `F < Fn` closures, borrowed mutation, and shared boxes.
-Later blocks use earlier values. Expression generation is iterative, with at
-most three extra layers. Every program prints one signed 64-bit checksum.
+Every seed shuffles twenty-one construct families and adds up to seven extra
+blocks. They combine struct/enum/tuple/optional values, lists, maps, UTF-8
+strings, loops, generic `F < Fn` calls, borrowed mutation and box aliasing with:
 
-The dev and release runs execute the same source. Checked uses the existing
-`hd test` profile: a wrapper captures the same `main` through `MemoryConsole`
-and asserts its output equals dev's checksum. A passing checked test must report
-exactly one passing case. There is no engine comparison.
+- generic packets over nested packet, tuple, optional, list and map types;
+- generic and dynamic trait dispatch;
+- closures captured in loops, stored in structs, copied and invoked later;
+- a random cyclic function graph, with alternate and self edges;
+- ready and pending bang calls, `join!`, virtual-clock sleeps and wide captured parameter cells;
+- named local generic functions, captured defaults, and local types/traits/impls;
+- repeated indexed reads in nested loops around borrowed mutation.
+
+Deep random expression trees are interleaved with those blocks. Every program
+uses `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64` and `usize`, and later
+blocks consume earlier witnesses. Tree budgets sample 63–191 nodes and depth 6–20;
+planning and rendering use explicit worklists. Recursive generated calls decrease
+a fuel argument and execute one successor per level. These are sampling bounds,
+not limits of the hd language.
+
+For ordinary seeds, dev and release execute the same source. Checked captures
+the same `main` through `MemoryConsole` and asserts its output equals dev's
+checksum. Exactly one checked case must pass. Every eighth seed deliberately
+adds one to its chosen integer type's maximum: dev and checked must report
+`integer-overflow`, while release must match a fourth execution whose probe uses
+`wrapping_add`. Other panics, missing panics and differing checksums are findings.
+There is no engine comparison.
+
+For the requested three-hour hunt, set the outer engine deadline beyond the
+campaign's own deadline, so its cancellation cleanup can save the final counts:
+
+```sh
+HD_FUZZ_TIME_LIMIT=181min scripts/fuzz-programs.sh --count 10000 --minutes 180 --keep-going
+```
 
 The output directory contains:
 
@@ -66,13 +92,21 @@ Exit status is 1 for findings, 2 for setup errors or a rejection rate at least
 reduced source and a failing stage case; also file defects encountered while
 implementing or using the fuzzer.
 
-Reduction first tries hierarchical line deletion, then replaces recorded
-expressions with `0i64`, preserving the original failure signature. It visits
-at most `2L - 1 + E` candidates for L original lines and E expression sites;
+Reduction preserves the failure signature, following the property-preserving
+approach of [C-Reduce](https://github.com/csmith-project/creduce). It tries
+hierarchical line deletion, then replaces each recorded
+expression with a zero of its own type. It preserves the failure signature,
+including panic categories and the overflow oracle's raw/wrapping probe pair. It tries typed AST subtree cuts without storing copies of every subtree. Two
+line passes surround expression simplification. They visit at most
+`4L - 2 + E + N` candidates for L original lines, E legacy expressions and
+N expression-tree nodes;
 candidate rendering and compilation cost their actual source size. There is
 no recursive traversal or unbounded fixpoint. The generator's work is
-proportional to emitted text and recorded expressions; campaign work is one
-check and three profile runs per seed, plus reduction for findings. Output
+proportional to tree nodes, emitted text and recorded expressions. Each planned
+node is visited once; each rendered node pushes at most five pieces. Counted
+work tests cover 1,001 and 10,001-node budgets at depth 20. Campaign work is one
+check and three profile runs per seed, with one additional wrapping-reference
+run for intentional overflow, plus reduction for findings. Output
 writes are proportional to the current seed, without rescanning the corpus.
 
 Focused package checks, from this directory:

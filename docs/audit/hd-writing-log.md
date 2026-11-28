@@ -1552,3 +1552,14 @@ says that the check covered syntax only.
 | 2026-11-27 | #2441 inherited frame stage | syntax | WIP declared `mine: *mut dyn Cursor = ...` without `let` | ``missing-let: the file does not parse, so `hd fmt` leaves it as it is`` | yes | Add `let` before the typed binding. | Claude Opus 5.5 |
 
 | 2026-11-28 | #2441 C provider REPL stage | type | Passed `$.use(Disk)` to `fn read(disk: *mut dyn Disk)` | `mutable-upgrade: in argument: expected *mut dyn Disk, found *dyn Disk; a read-only reference never becomes writable` | yes | Use `*dyn Disk` for the read-only receiver. | GPT-6 Codex |
+
+| 2026-11-28 | #2457 instrumented campaign | API | Set `HD_FUZZ_TIME_LIMIT=14m` | ``error: --time-limit: `14m` is not a DURATION; use a whole number followed by ms, s, min or h`` | yes | Use `14min`. | GPT-6 Codex |
+
+| 2026-11-28 | #2457 typed reducer metadata | type | Checked before updating src/runner.hd:208:26 after replacing expression strings with (source, zero) tuples | `type-mismatch: in operand: expected (string, string), found string` | yes | Destructure the tuple and supply a typed zero in the test fixture. | GPT-6 Codex |
+| 2026-11-28 | #2457 typed reducer metadata | type | Checked before updating src/runner.hd:208:51 after replacing expression strings with (source, zero) tuples | `type-mismatch: in argument: expected string, found (string, string)` | yes | Destructure the tuple and supply a typed zero in the test fixture. | GPT-6 Codex |
+| 2026-11-28 | #2457 typed reducer metadata | type | Checked before updating src/runner.hd:210:35 after replacing expression strings with (source, zero) tuples | `type-mismatch: in argument: expected string, found (string, string)` | yes | Destructure the tuple and supply a typed zero in the test fixture. | GPT-6 Codex |
+| 2026-11-28 | #2457 typed reducer metadata | type | Checked before updating src/runner.hd:351:60 after replacing expression strings with (source, zero) tuples | `type-mismatch: in list element: expected (string, string), found string` | yes | Destructure the tuple and supply a typed zero in the test fixture. | GPT-6 Codex |
+
+| 2026-11-28 | #2457 targeted feature templates | semantic | Added a match arm after the prior wildcard in src/features.hd:194 | `unreachable-match-arm: the arms before this one match all of its values` | yes | Make the prior wide-value arm explicit as case 17. | GPT-6 Codex |
+| 2026-11-28 | #2457 targeted feature templates | semantic | Added a match arm after the prior wildcard in src/features.hd:205 | `unreachable-match-arm: the arms before this one match all of its values` | yes | Make the prior wide-value arm explicit as case 17. | GPT-6 Codex |
+| 2026-11-28 | #2457 targeted feature templates | semantic | Added a match arm after the prior wildcard in src/features.hd:219 | `unreachable-match-arm: the arms before this one match all of its values` | yes | Make the prior wide-value arm explicit as case 17. | GPT-6 Codex |

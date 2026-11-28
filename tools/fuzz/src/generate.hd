@@ -1,16 +1,20 @@
 use std.random.Rng
 use std.text.StringBuilder
+use pkg.expression.{Expression, tree}
+use pkg.features
 
 # Generation parameters bound program size, not the language. Expression
-# construction is iterative; each expression has at most three extra layers.
+# construction and rendering use iterative worklists.
 pub struct Program:
     pub source: string
-    pub expressions: List[string]
+    pub expressions: List[(string, string)]
+    pub overflow: (string, string)? = .None
+    pub trees: List[Expression] = []
 
 struct State:
     rng: *mut Rng
     values: List[string]
-    expressions: List[string]
+    expressions: List[(string, string)]
 
 impl State:
     fn literal(&mut self) -> string:
@@ -37,11 +41,14 @@ impl State:
                 2 => "(${text}).wrapping_mul(${other})"
                 3 => "(${text} ^ ${other})"
                 _ => "(if ${text} < ${other}: ${text} else: ${other})"
-        self.expressions.push(text)
+        self.expressions.push((text, "0i64"))
         text
 
 fn declarations() -> string:
     """use std.ops.Fn
+use std.meta.inline
+use std.task.{block_on, join}
+use std.time.{Clock, ManualClock, Timestamp, sleep}
 
 struct Record:
     number: i64
@@ -215,7 +222,7 @@ fn block(state: *mut State, out: *mut StringBuilder, kind: usize, serial: usize)
                 """    ${value} := read_record(&${name}).wrapping_add(read_record(&${saved}))
 """,
             )
-        _ =>
+        10 =>
             out.push(
                 """    ${name} := box(${record})
     ${saved} := ${name}
@@ -226,27 +233,69 @@ fn block(state: *mut State, out: *mut StringBuilder, kind: usize, serial: usize)
                 """    ${value} := read_record(&*${saved}).wrapping_add(${name}.number)
 """,
             )
+        _ => out.push(features.block(kind, serial, a, b, c, state.rng))
     state.values.push(value)
 
 pub fn generate(seed: u64) -> Program:
     state := box(State { rng: Rng::new(seed), values: ["0i64"], expressions: [] })
     out := StringBuilder::new()
+    let mut trees: List[Expression] = []
     out.push(
         """# fuzz seed ${seed}
 """,
     )
     out.push(declarations())
+    out.push(features.declarations())
+    out.push(features.graph(state.rng, state.rng.int(4usize..9usize)))
+    widths := ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize"]
+    maxima := [
+        "127",
+        "32767",
+        "2147483647",
+        "9223372036854775807",
+        "255",
+        "65535",
+        "4294967295",
+        "18446744073709551615",
+        "4294967295",
+    ]
+    overflow_index := usize((seed / 8u64) % 9u64)
+    overflow_type := widths[overflow_index]
+    let overflow: (string, string)? = .None
+    if seed % 8u64 == 0u64:
+        raw := """fn overflow_probe(value: ${overflow_type}) -> ${overflow_type}:
+    value + 1${overflow_type}
+
+"""
+        overflow = .Some(("value + 1${overflow_type}", "value.wrapping_add(1${overflow_type})"))
+        out.push(raw)
     out.push(
         """fn checksum() -> i64:
 """,
     )
-    let mut kinds = [for kind in 0..11usize => kind]
+    let mut kinds = [for kind in 0..21usize => kind]
     state.rng.shuffle(&mut kinds)
     for (serial, kind) in kinds.enumerate():
         block(state, out, kind, serial)
+        if serial < 18 && serial % 2 == 1:
+            ty := widths[serial / 2]
+            expr := tree(
+                state.rng,
+                &state.values,
+                ty,
+                state.rng.int(63usize..192usize),
+                state.rng.int(6usize..21usize),
+            )
+            out.push(
+                """    typed_${ty} := ${expr.text}
+    integer_${ty} := i64(typed_${ty})
+""",
+            )
+            state.values.push("integer_${ty}")
+            trees.push(expr)
     extra := state.rng.int(0usize..8usize)
     for n in 0..extra:
-        block(state, out, state.rng.int(0usize..11usize), kinds.len() + n)
+        block(state, out, state.rng.int(0usize..21usize), kinds.len() + n)
     out.push(
         """    let total = 0i64
 """,
@@ -256,6 +305,11 @@ pub fn generate(seed: u64) -> Program:
             """    total = total.wrapping_add(${value})
 """,
         )
+    if overflow.is_some():
+        out.push(
+            """    total = total.wrapping_add(i64(overflow_probe(${maxima[overflow_index]}${overflow_type})))
+""",
+        )
     out.push(
         """    total
 
@@ -263,7 +317,7 @@ pub fn main() -> void \$ Console:
     println(checksum())
 """,
     )
-    Program { source: out.build(), expressions: state.expressions }
+    Program { source: out.build(), expressions: state.expressions, overflow, trees }
 
 tests:
     it("one seed reproduces exactly"):
@@ -272,9 +326,11 @@ tests:
         assert_equal(a.source, b.source)
         assert_equal(a.expressions, b.expressions)
 
-    it("every program covers all eleven constructs"):
+    it("every program covers all twenty-one constructs and integer widths"):
         source := generate(1u64).source
-        for kind in 0..11usize:
+        for ty in ["i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize"]:
+            assert(source.contains("typed_${ty} :="))
+        for kind in 0..21usize:
             assert(
                 source.contains(
                     """# construct ${kind}

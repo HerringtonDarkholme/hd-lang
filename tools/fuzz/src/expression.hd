@@ -1,0 +1,127 @@
+use std.random.Rng
+use std.text.StringBuilder
+
+# A typed tree is planned and rendered with worklists. Leaves read prior
+# witnesses; every operation preserves the chosen integer type. Bounds here
+# sample program sizes, and impose no language limit.
+pub struct Expression:
+    pub text: string
+    pub nodes: usize
+    pub depth: usize
+    pub work: usize
+    plan: List[Node]
+    type_name: string
+
+struct Node:
+    operation: usize = 0
+    left: usize = 0
+    right: usize = 0
+    text: string = ""
+
+enum Piece:
+    Node(index: usize)
+    Text(value: string)
+
+pub fn tree(
+    rng: *mut Rng,
+    inputs: &List[string],
+    ty: string,
+    max_nodes: usize,
+    max_depth: usize,
+) -> Expression:
+    let mut nodes = [Node {}]
+    let mut pending = [(0usize, 1usize, true)]
+    let depth_seen = 1usize
+    let work = 0usize
+    while !pending.is_empty():
+        let (index, depth, spine) = pending.pop().expect("pending node")
+        depth_seen = if depth > depth_seen: depth else: depth_seen
+        work += 1
+        if (
+            depth < max_depth
+            && nodes.len() + 2 <= max_nodes
+            && (spine || rng.int(0usize..4usize) != 0)
+        ):
+            left := nodes.len()
+            nodes.push(Node {})
+            right := nodes.len()
+            nodes.push(Node {})
+            guard := inputs[rng.int(0usize..inputs.len())]
+            nodes[index] = Node { operation: rng.int(1usize..8usize), left, right, text: guard }
+            pending.push((right, depth + 1, false))
+            pending.push((left, depth + 1, spine))
+        else:
+            value := if rng.bool():
+                inputs[rng.int(0usize..inputs.len())]
+            else:
+                "${rng.int(-1000i64..=1000i64)}i64"
+            nodes[index] = Node { text: "${ty}(${value})" }
+    let (text, render_work) = render(&nodes, ty, nodes.len(), &[])
+    Expression {
+        text,
+        nodes: nodes.len(),
+        depth: depth_seen,
+        work: work + render_work,
+        plan: nodes,
+        type_name: ty,
+    }
+
+impl Expression:
+    pub fn candidate(&self, cut: usize, removed: &List[bool]) -> string:
+        render(&self.plan, self.type_name, cut, removed)._0
+
+fn render(nodes: &List[Node], ty: string, cut: usize, removed: &List[bool]) -> (string, usize):
+    let work = 0usize
+    out := StringBuilder::new()
+    let mut pieces = [Piece.Node(0)]
+    while !pieces.is_empty():
+        piece := pieces.pop().expect("render piece")
+        work += 1
+        match piece:
+            .Text(value) => out.push(value)
+            .Node(index) =>
+                if index == cut || (index < removed.len() && removed[index]):
+                    out.push("0${ty}")
+                    continue
+                node := nodes[index]
+                if node.operation == 0:
+                    out.push(node.text)
+                    continue
+                let (open, middle, close) = match node.operation:
+                    1 => ("(", ").wrapping_add(", ")")
+                    2 => ("(", ").wrapping_sub(", ")")
+                    3 => ("(", ").wrapping_mul(", ")")
+                    4 => ("(", " ^ ", ")")
+                    # Masked ordinary arithmetic also exercises checked
+                    # operations, without an accidental generated overflow.
+                    5 => ("((", " & 31${ty}) + (", " & 31${ty}))")
+                    6 => ("((", " & 7${ty}) * (", " & 7${ty}))")
+                    _ => ("(if (${node.text} & 1i64) == 0i64: ", " else: ", ")")
+                pieces.push(.Text(close))
+                pieces.push(.Node(node.right))
+                pieces.push(.Text(middle))
+                pieces.push(.Node(node.left))
+                pieces.push(.Text(open))
+    (out.build(), work)
+
+tests:
+    it("tree planning and rendering count linear work at width and depth"):
+        for budget in [1001usize, 10001usize]:
+            expr := tree(Rng::new(42), &["input"], "u16", budget, 20)
+            assert_equal(expr.nodes, budget)
+            assert_equal(expr.depth, 20usize)
+            assert(expr.work <= 8 * expr.nodes)
+            assert(expr.text.contains("wrapping_"))
+
+    it("typed trees reproduce their seed"):
+        a := tree(Rng::new(7), &["first", "second"], "i8", 127, 12)
+        b := tree(Rng::new(7), &["first", "second"], "i8", 127, 12)
+        assert_equal(a.text, b.text)
+        assert_equal(a.nodes, b.nodes)
+
+    it("subtree candidates preserve the integer type without copying subtree text"):
+        expr := tree(Rng::new(42), &["input"], "u16", 127, 12)
+        removed := [for _ in 0..expr.nodes => false]
+        assert_equal(expr.candidate(0, &removed), "0u16")
+        assert(expr.candidate(1, &removed).contains("0u16"))
+        assert(expr.candidate(1, &removed).len() < expr.text.len())
