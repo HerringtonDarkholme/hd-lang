@@ -8,6 +8,7 @@ pub trait Disk:
     fn write(&mut self, path: string, data: &List[u8]) -> i32
     fn fill(&mut self, into: &mut List[i32], at: &mut u64) -> void
     fn peek(&self, value: &f64) -> u16
+    fn narrow(&self, small: i8, half: i16) -> i16
     fn wait!(&mut self, ms: u32, strict: bool) -> i32
     fn read!(&mut self, limit: usize) -> List[u8]
     fn take!(&mut self) -> Result[List[u8], i32]

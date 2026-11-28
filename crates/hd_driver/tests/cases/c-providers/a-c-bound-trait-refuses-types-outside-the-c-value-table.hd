@@ -12,6 +12,8 @@ pub trait Disk:
     fn names(&self, list: &List[string]) -> i32
     fn label(&self) -> string
     fn all(&self) -> List[u8]
+    fn view(&self) -> &u8
+    fn console(&mut self) -> *mut dyn Console
     fn send!(&mut self, text: string) -> i32
     fn read_into!(&mut self, into: &mut List[u8]) -> i64
     fn text!(&mut self) -> string

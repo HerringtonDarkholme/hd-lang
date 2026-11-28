@@ -222,6 +222,7 @@ impl<'a, 'c> Checker<'_, 'a, 'c> {
 
     /// Open lexical scopes, open loops and pending goals.
     #[must_use]
+    #[inline(never)]
     pub fn depths(&self) -> (usize, usize, usize) {
         (
             self.ck.scopes.depth(),

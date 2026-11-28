@@ -5,9 +5,11 @@ error: main.hd:11:5: boundary-not-safe: &string cannot cross to a C provider her
 error: main.hd:12:5: boundary-not-safe: &List[string] cannot cross to a C provider here: a local reference crosses to C only to a number or to a list of numbers
 error: main.hd:13:5: boundary-not-safe: string cannot cross from a C provider here: a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion
 error: main.hd:14:5: boundary-not-safe: List[u8] cannot cross from a C provider here: a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion
-error: main.hd:15:5: boundary-not-safe: string cannot cross to a C provider here: a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works
-error: main.hd:16:5: boundary-not-safe: &mut List[u8] cannot cross to a C provider here: a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works
-error: main.hd:17:5: boundary-not-safe: string cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
-error: main.hd:18:5: boundary-not-safe: Result[i32, string] cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
-error: main.hd:19:5: boundary-not-safe: () cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
-error: main.hd:20:5: boundary-not-safe: bool cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
+error: main.hd:15:5: boundary-not-safe: &u8 cannot cross from a C provider here: a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion
+error: main.hd:16:5: boundary-not-safe: *mut dyn Console cannot cross from a C provider here: a C provider returns a handle of a program's own trait, not of std's
+error: main.hd:17:5: boundary-not-safe: string cannot cross to a C provider here: a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works
+error: main.hd:18:5: boundary-not-safe: &mut List[u8] cannot cross to a C provider here: a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works
+error: main.hd:19:5: boundary-not-safe: string cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
+error: main.hd:20:5: boundary-not-safe: Result[i32, string] cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
+error: main.hd:21:5: boundary-not-safe: () cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
+error: main.hd:22:5: boundary-not-safe: bool cannot cross from a C provider here: a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error
