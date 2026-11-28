@@ -3902,6 +3902,14 @@ impl Run<'_> {
     /// root package's key and settings, and the program's declarations
     /// ([`Run::program_api_hash`]).
     pub(super) fn hash_owned_settings(&self, k: &mut StableHasher) {
+        self.hash_run_settings(k);
+        k.hash(self.program_api_hash());
+    }
+
+    /// [`Run::hash_owned_settings`] without the program's declarations:
+    /// a stored unit's key holds only the declarations its emission
+    /// reaches (`unit_decls`).
+    pub(super) fn hash_run_settings(&self, k: &mut StableHasher) {
         k.hash(self.toolchain);
         k.hash(self.pipeline);
         k.u8(self.build_profile as u8);
@@ -3909,7 +3917,6 @@ impl Run<'_> {
         k.u8(u8::from(self.verifies_own()));
         k.hash(self.package_key);
         k.hash(self.root_settings);
-        k.hash(self.program_api_hash());
     }
 
     /// The store key of generic instance `(def, args)`'s owned form in a

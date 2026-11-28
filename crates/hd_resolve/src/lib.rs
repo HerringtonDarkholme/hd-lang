@@ -39,8 +39,8 @@ pub use iface::{
     decode_lazy_in, decode_module_uses, decode_private_names, deep_hash, encode_docs, encode_items,
     encode_module_uses, encode_private_names, fill_trait_args, fill_type_args,
     generic_kind_mismatch, header_parts, impl_table, instantiate_alias, interface_items,
-    lifetime_arg, mentioned_defs, params_owner, private_impl_items, show_ty, show_ty_full,
-    show_ty_full_in, show_ty_in, show_ty_rows_in, ty_parts, unit_iface,
+    item_fingerprint, lifetime_arg, mentioned_defs, params_owner, private_impl_items, show_ty,
+    show_ty_full, show_ty_full_in, show_ty_in, show_ty_rows_in, ty_parts, unit_iface,
 };
 pub use known::KnownItems;
 pub use locals::{Innermost, Locals};

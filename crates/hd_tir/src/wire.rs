@@ -13,8 +13,8 @@
 use hd_base::SliceSort as _;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{
-    DefId, Hash128, LocalId, NodeIdx, NotImplemented, Range32, Stage, StageResult, SubId, Symbol,
-    hash128,
+    DefId, Hash128, LocalId, NodeIdx, NotImplemented, PathId, Range32, Stage, StageResult, SubId,
+    Symbol, hash128,
 };
 use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
@@ -404,11 +404,23 @@ pub fn write_body(
     paths: &PathTable,
     syms: &ShardedInterner,
 ) -> StageResult<Vec<u8>> {
+    Ok(write_body_named(b, pool, paths, syms)?.0)
+}
+
+/// [`write_body`], with every path the body names (its tables' path
+/// rows, each declaration with its ancestors): what a key on the
+/// declarations the body reads starts from.
+pub fn write_body_named(
+    b: &Body,
+    pool: &InternPool,
+    paths: &PathTable,
+    syms: &ShardedInterner,
+) -> StageResult<(Vec<u8>, Vec<PathId>)> {
     let out = encode(compact(b)?.as_ref(), pool, paths, syms)?;
     debug_assert!(
         matches!(
-            read_body(&out, pool, paths, syms).map(|back| encode(&back, pool, paths, syms)),
-            Some(Ok(again)) if again == out
+            read_body(&out.0, pool, paths, syms).map(|back| encode(&back, pool, paths, syms)),
+            Some(Ok(again)) if again.0 == out.0
         ),
         "item {}: a decoded body encodes differently",
         b.item.raw()
@@ -416,13 +428,13 @@ pub fn write_body(
     Ok(out)
 }
 
-/// [`write_body`] of a compacted body.
+/// [`write_body_named`] of a compacted body.
 fn encode(
     b: &Body,
     pool: &InternPool,
     paths: &PathTable,
     syms: &ShardedInterner,
-) -> StageResult<Vec<u8>> {
+) -> StageResult<(Vec<u8>, Vec<PathId>)> {
     let mut t = TableWriter::new(pool, paths, syms);
     let mut extra = b.extra.clone();
     for i in 0..b.len() {
@@ -532,7 +544,7 @@ fn encode(
     }
     let mut out = hashed.to_le_bytes().to_vec();
     out.extend_from_slice(&w.bytes);
-    Ok(out)
+    Ok((out, t.paths().collect()))
 }
 
 /// Whether `b` holds the ownership passes' output, which only an owned
@@ -680,6 +692,82 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         b.forwarded_reads = pairs(col(r));
     }
     Some(())
+}
+
+/// The source locations of a body's wire form ([`write_body`]): what a
+/// panic frame's line reads of it.
+pub struct Locations {
+    /// The body's kind, when asked for or read anyway.
+    pub kind: Option<BodyKind>,
+    /// Each instruction's syntax node.
+    pub syn: Vec<NodeIdx>,
+    /// Each operation whose `usize` type is a literal's default, with the
+    /// name of the local it reads, if any (`Body::fallback`).
+    pub fallback: Vec<(u32, Option<String>)>,
+}
+
+/// [`Locations`] of the body `bytes` encode, read without interning its
+/// tables or decoding its columns: the locations sit past the hashed
+/// prefix, whose length the first word gives. The tables are stepped over
+/// only for the kind (`kind`) or for a body with fallback rows, whose
+/// local names come from the symbol table and the `local_name` column.
+/// Cost: the locations' words, and with the tables one step per table row
+/// and per column.
+#[must_use]
+pub fn read_locations(bytes: &[u8], kind: bool) -> Option<Locations> {
+    let hashed = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
+    let mut at = Reader::new(bytes.get(4usize.checked_add(hashed)?..)?);
+    let syn = col(&mut at).into_iter().map(NodeIdx::from_raw).collect();
+    let n = at.count();
+    at.skip(n.checked_mul(4)?);
+    let rows = col(&mut at);
+    if !at.ok() {
+        return None;
+    }
+    if !kind && rows.is_empty() {
+        return Some(Locations {
+            kind: None,
+            syn,
+            fallback: Vec::new(),
+        });
+    }
+    let mut r = Reader::new(bytes.get(4..)?);
+    for _ in 0..r.count() {
+        r.u32();
+        r.u8();
+        r.blob();
+    }
+    let syms: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();
+    for _ in 0..r.count() {
+        r.u8();
+        let n = r.count();
+        r.skip(n.checked_mul(4)?);
+    }
+    r.u32();
+    let kind = *KINDS.get(r.u8() as usize)?;
+    // phase, then tags, data, ty, extra and local_ty before local_name.
+    r.u8();
+    for _ in 0..5 {
+        let n = r.count();
+        r.skip(n.checked_mul(4)?);
+    }
+    let local_name = col(&mut r);
+    let fallback = rows
+        .chunks_exact(2)
+        .map(|c| {
+            let name = c[1]
+                .checked_sub(1)
+                .and_then(|l| local_name.get(l as usize))
+                .and_then(|&s| syms.get(s as usize))
+                .map(|s| (*s).to_owned());
+            (c[0], name)
+        })
+        .collect();
+    r.ok().then_some(Locations {
+        kind: Some(kind),
+        syn,
+        fallback,
+    })
 }
 
 fn col(r: &mut Reader<'_>) -> Vec<u32> {

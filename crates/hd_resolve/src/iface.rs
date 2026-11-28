@@ -2477,6 +2477,33 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     Ok(out.bytes)
 }
 
+/// One item's fingerprint and the declarations its record names: the hash
+/// of its record as [`encode_items`] writes it, with tables of its own, so
+/// paths, symbols and types are named by content, not by their positions
+/// in a module's blob; and every path those tables hold (each with its
+/// ancestors). An item added to or removed from the module leaves the
+/// others' fingerprints as they were, as rustc's per-item `hir_owner`
+/// hashes do. Cost: one encoding of the record.
+pub fn item_fingerprint(names: &Names<'_>, it: &Item) -> StageResult<(Hash128, Vec<PathId>)> {
+    let mut t = TableWriter::new(names.pool, names.paths, names.syms);
+    let mut body = Writer::default();
+    body.u32(t.def(it.def));
+    body.u8(impl_tag(it));
+    let (own, params) = param_names(it);
+    body.u8(u8::from(own) | if it.configured() { CONFIGURED } else { 0 });
+    body.len_of(params);
+    for g in params {
+        body.u32(t.sym(g.name));
+    }
+    put_item(&mut body, &mut t, it)?;
+    let mut w = Writer::default();
+    t.write(&mut w);
+    w.bytes.extend_from_slice(&body.bytes);
+    let mut h = StableHasher::new("item-fingerprint-v1");
+    h.bytes(&w.bytes);
+    Ok((h.finish(), t.paths().collect()))
+}
+
 /// An item's index tag: its impl kind's position in `ImplKind::ALL`, with
 /// `INHERENT` set for an inherent block; `TRAIT` for a trait; else
 /// `NOT_IMPL`.

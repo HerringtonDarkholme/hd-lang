@@ -107,6 +107,12 @@ impl<'a> TableWriter<'a> {
         self.path(PathId::from_raw(d.raw()))
     }
 
+    /// Every path the blob names so far, each once, with its ancestors:
+    /// the declarations its items and types name.
+    pub fn paths(&self) -> impl Iterator<Item = PathId> + '_ {
+        self.path_rows.iter().map(|&(_, p)| p)
+    }
+
     pub fn sym(&mut self, s: Symbol) -> u32 {
         if let Some(&r) = self.sym_index.get(&s) {
             return r;

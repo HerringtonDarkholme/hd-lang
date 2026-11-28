@@ -294,11 +294,20 @@ pub struct Input<'a> {
 /// or in the reads it records (`crates/hd_wasm/DESIGN.md` §23.41).
 pub trait UnitStore: Sync {
     /// What every unit's key holds of the run: the toolchain, the
-    /// pipeline and profile, and the program's declarations.
+    /// pipeline and profile, and the root's settings. Not the program's
+    /// declarations: each unit is keyed on the ones it reaches
+    /// ([`UnitStore::decls`]).
     fn fingerprint(&self) -> Hash128;
     /// The hash of everything instance `id`'s body holds but its node
-    /// indices (`hd_tir::wire::content_hash`), as emission reads it.
-    fn body_hash(&self, id: InstId) -> Option<Hash128>;
+    /// indices (`hd_tir::wire::content_hash`), as emission reads it, and
+    /// every declaration the body names, with its ancestors.
+    fn body_hash(&self, id: InstId) -> Option<(Hash128, Vec<DefId>)>;
+    /// The hash of every non-std declaration that `defs` and the
+    /// declarations `tys` name reach (each declaration's record, the
+    /// declarations it names, and the impls that name it), by stable
+    /// path: what a unit's emission can read of the program's
+    /// declarations. `None` when one has no record the store can hash.
+    fn decls(&self, defs: &[DefId], tys: &[Ty]) -> Option<Hash128>;
     /// The unit stored under `key`: the reads it recorded, its types and
     /// its bytes.
     fn get(&self, key: Hash128) -> Option<StoredUnit>;

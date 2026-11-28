@@ -77,6 +77,7 @@ mod stamps;
 #[cfg(feature = "testing")]
 pub mod testing;
 mod texts;
+mod unit_decls;
 pub mod work;
 pub use hd_base::lines::count_indexed_bytes;
 pub use texts::Texts;
@@ -1125,6 +1126,24 @@ impl ProgramItems {
                     let (kind, inherent) = items.impl_kind(i)?;
                     let held = self.slots[def.raw() as usize] == Some((u32_of(s), u32_of(i)));
                     (held && want(kind, inherent)).then(|| items.get(i))?
+                })
+            })
+    }
+
+    /// The items this program holds, each in its current version, but
+    /// those `std` says are std's, reading every record.
+    fn program_items<'s>(
+        &'s self,
+        std: &'s dyn Fn(DefId) -> bool,
+    ) -> impl Iterator<Item = &'s Item> + 's {
+        self.sources
+            .iter()
+            .enumerate()
+            .flat_map(move |(s, source)| {
+                let items = source.items();
+                items.defs().iter().enumerate().filter_map(move |(i, def)| {
+                    let held = self.slots[def.raw() as usize] == Some((u32_of(s), u32_of(i)));
+                    (held && !std(*def)).then(|| items.get(i))?
                 })
             })
     }
@@ -3534,8 +3553,11 @@ fn build_packages_inner(
         pipeline: run.pipeline,
     };
     // The run is finished. Move its parses instead of cloning their trees.
-    for (input, parse) in position_inputs.iter_mut().zip(run.parse) {
+    for (m, (input, parse)) in position_inputs.iter_mut().zip(run.parse).enumerate() {
         input.parse = parse.into_inner().map(Arc::new);
+        input.code_lines = run.skim[m]
+            .get()
+            .map(|s| Arc::from(s.file.code_line_numbers.as_slice()));
     }
     output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
     #[cfg(feature = "checked-report")]
@@ -4063,6 +4085,16 @@ impl Run<'_> {
         self.host.render_tir.iter().any(|p| {
             let p = p.strip_suffix('*').unwrap_or(p);
             dir.starts_with(p) || p.starts_with(&dir)
+        })
+    }
+
+    /// Whether `def` is declared in a std module, whose declarations the
+    /// toolchain's hash covers. A declaration in no module of the table
+    /// is not.
+    fn is_std_def(&self, def: DefId) -> bool {
+        let node = self.paths.def_module(PathId::from_raw(def.raw()));
+        self.module_nodes.get(&node).is_some_and(|m| {
+            usize::from(self.table.modules[m.idx()].package) + 1 == self.table.packages.len()
         })
     }
 
@@ -9466,6 +9498,15 @@ impl Run<'_> {
             },
             &|d| tracked.contains(&d),
         );
+        // Where each body's frames stand, so a later run's positions read
+        // no parse (`positions::write_frame_sites`).
+        if let Some(parse) = self.parse[m].get() {
+            let text = &self.texts[m];
+            positions::write_frame_sites(&mut fw, keep, &|node| {
+                let at = positions::site(parse, text, node)?;
+                Some(positions::code_line_of(lines.starts, text, at))
+            });
+        }
         let generic_edges = encode_generic_edges(generic_edges, reach, &lines);
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
@@ -12576,7 +12617,7 @@ impl Run<'_> {
             let package_selectors = |d| self.package_host_selectors(d);
             let c_tables = self.c_link_tables(env);
             let package_c = |d| c_tables.get(&d).cloned();
-            let dev_units = self.dev_units(&body);
+            let dev_units = self.dev_units(p, &body);
             let instances = hd_opt::whole::Instances {
                 table: &c.collected.table,
                 order: &c.order,
@@ -12745,8 +12786,11 @@ impl Run<'_> {
 /// the types (`hd_types::wire` tables, as a TIR body's) and the unit.
 struct DevUnits<'r, 'a, 'b> {
     run: &'r Run<'a>,
+    p: &'r ProgramTables,
     body: &'b (dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body> + Sync),
     fingerprint: Hash128,
+    /// The program's non-std declarations' deep hashes, made on first use.
+    decls: OnceLock<unit_decls::Decls>,
 }
 
 impl<'a> Run<'a> {
@@ -12758,6 +12802,7 @@ impl<'a> Run<'a> {
     /// and a build of std itself, whose std is not the toolchain's.
     fn dev_units<'r, 'b>(
         &'r self,
+        p: &'r ProgramTables,
         body: &'b (dyn Fn(hd_base::InstId) -> Option<&'b hd_tir::ir::Body> + Sync),
     ) -> Option<DevUnits<'r, 'a, 'b>> {
         if self.summaries.is_some()
@@ -12769,12 +12814,14 @@ impl<'a> Run<'a> {
         {
             return None;
         }
-        let mut k = hd_base::StableHasher::new("emit-unit-run-v1");
-        self.hash_owned_settings(&mut k);
+        let mut k = hd_base::StableHasher::new("emit-unit-run-v2");
+        self.hash_run_settings(&mut k);
         Some(DevUnits {
             run: self,
+            p,
             body,
             fingerprint: k.finish(),
+            decls: OnceLock::new(),
         })
     }
 }
@@ -12783,10 +12830,22 @@ impl hd_wasm::UnitStore for DevUnits<'_, '_, '_> {
     fn fingerprint(&self) -> Hash128 {
         self.fingerprint
     }
-    fn body_hash(&self, id: hd_base::InstId) -> Option<Hash128> {
+    fn body_hash(&self, id: hd_base::InstId) -> Option<(Hash128, Vec<DefId>)> {
         let r = self.run;
-        let bytes = hd_tir::wire::write_body((self.body)(id)?, &r.pool, &r.paths, &r.syms).ok()?;
-        Some(hd_tir::wire::content_hash(&bytes))
+        let (bytes, paths) =
+            hd_tir::wire::write_body_named((self.body)(id)?, &r.pool, &r.paths, &r.syms).ok()?;
+        let defs = paths.iter().map(|p| DefId::from_raw(p.raw())).collect();
+        Some((hd_tir::wire::content_hash(&bytes), defs))
+    }
+    fn decls(&self, defs: &[DefId], tys: &[Ty]) -> Option<Hash128> {
+        let r = self.run;
+        let names = r.names();
+        self.decls
+            .get_or_init(|| {
+                let _span = phase("link: unit declarations");
+                unit_decls::Decls::new(&names, self.p.items.program_items(&|d| r.is_std_def(d)))
+            })
+            .of(&names, defs, tys)
     }
     fn get(&self, key: Hash128) -> Option<hd_wasm::StoredUnit> {
         let r = self.run;

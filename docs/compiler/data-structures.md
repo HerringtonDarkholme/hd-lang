@@ -832,7 +832,7 @@ The keys are recomputed from the skims, not stored.
 | Kind | Content |
 | --- | --- |
 | `iface` | §3.16 |
-| `check` | diagnostics; module meta; items (private signatures and inferred results); the TIR, one section of bodies; row results; the init summary; `dbg` references; frame names; a REPL input's bindings |
+| `check` | diagnostics; module meta; items (private signatures and inferred results); the TIR, one section of bodies; row results; the init summary; `dbg` references; frame names and frame sites; a REPL input's bindings |
 | `graph` | one part: a unit's header findings (`hdr`), the coherence result (`coh`) or a unit's init order (`init`) |
 | `depfiles` | the embedded std's file skims; a source set's last-run record (§3.20.3) |
 | `parse` | empty: the source parses cleanly |

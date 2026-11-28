@@ -714,7 +714,9 @@ fn compile_standalone_in(
     let (built, text) = build_traced(program, (profile, pipeline), rep, store)?;
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
+        let span = hd_base::trace::span("phase", || "positions section".to_owned());
         let section = frames.positions_section(&wasm, sources);
+        drop(span);
         hd_run::frames::cut_inlined(&mut wasm);
         hd_run::frames::cut_names(&mut wasm);
         wasm.extend(section);

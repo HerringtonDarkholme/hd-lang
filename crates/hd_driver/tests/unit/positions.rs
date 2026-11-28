@@ -45,6 +45,7 @@ mod tests {
                 })
                 .collect();
             let line_starts = lf_line_starts(&parse, text);
+            assert_eq!(text_line_starts(text), line_starts, "{text:?}");
             let positions = positions_of(
                 vec![(
                     "pkg".into(),
@@ -64,12 +65,13 @@ mod tests {
                                     name: "f".into(),
                                     hidden: false,
                                     fallback: Arc::from([]),
+                                    sites: None,
                                 },
                             )]
                             .into_iter()
                             .collect(),
-                            parse: Arc::new(parse),
-                            line_starts,
+                            parse: OnceLock::from(Arc::new(parse)),
+                            line_starts: OnceLock::from(line_starts),
                         })),
                     }),
                 )],
@@ -120,25 +122,48 @@ mod tests {
             );
             assert!(!output.diags.has_errors(), "{}", output.render());
             let reused = output.positions(&mut pool);
-            let missing: Vec<_> = (0..output.modules.len())
-                .map(|_| Arc::new(ModuleInput::default()))
-                .collect();
-            let retained = std::mem::replace(position_inputs_mut(&mut output), missing);
+            // A warm run's inputs: no bodies and no parse, only the skims'
+            // code lines, which the entries' frame sites are relative to.
+            let warm = |keep_lines: bool| -> Vec<_> {
+                position_inputs(&output)
+                    .iter()
+                    .map(|i| {
+                        Arc::new(ModuleInput {
+                            code_lines: i.code_lines.clone().filter(|_| keep_lines),
+                            ..ModuleInput::default()
+                        })
+                    })
+                    .collect()
+            };
+            let (sited, unsited) = (warm(true), warm(false));
+            let retained = std::mem::replace(position_inputs_mut(&mut output), sited);
             let wire = output.positions(&mut PositionPool::default());
+            *position_inputs_mut(&mut output) = unsited;
+            let parsed = output.positions(&mut PositionPool::default());
             *position_inputs_mut(&mut output) = retained;
             let table = hd_run::frames::LineTable::parse(output.wasm.as_ref().expect("Wasm"))
                 .expect("line table");
-            let mut anchors = 0;
-            for (_, _, rows) in table.functions() {
-                for hd_run::frames::Anchored { item, inst } in rows.into_iter().flatten() {
-                    assert_eq!(reused.name(&item), wire.name(&item));
-                    assert_eq!(reused.line(&item, inst), wire.line(&item, inst));
-                    assert_eq!(reused.span(&item, inst), wire.span(&item, inst));
-                    assert_eq!(reused.fallback(&item, inst), wire.fallback(&item, inst));
-                    anchors += 1;
+            let anchors: Vec<_> = table
+                .functions()
+                .into_iter()
+                .flat_map(|(_, _, rows)| rows.into_iter().flatten())
+                .collect();
+            for hd_run::frames::Anchored { item, inst } in &anchors {
+                assert_eq!(reused.name(item), wire.name(item));
+                assert_eq!(reused.line(item, *inst), wire.line(item, *inst));
+                assert_eq!(reused.line(item, *inst), parsed.line(item, *inst));
+                assert_eq!(reused.fallback(item, *inst), wire.fallback(item, *inst));
+            }
+            // The frames' lines read no parse of a module (#2423).
+            for (_, _, source) in position_modules(&wire) {
+                if let Some(Some(read)) = source.read.get() {
+                    assert!(read.parse.get().is_none(), "{} was parsed", source.file);
                 }
             }
-            assert!(anchors > 10);
+            for hd_run::frames::Anchored { item, inst } in &anchors {
+                assert_eq!(reused.span(item, *inst), wire.span(item, *inst));
+            }
+            assert!(anchors.len() > 10);
             if round == 0 {
                 assert!(
                     position_inputs(&output)
@@ -152,8 +177,9 @@ mod tests {
                         .iter()
                         .find(|(p, _, _)| p == &output.modules[m])
                     && let Some(Some(read)) = source.read.get()
+                    && let Some(read_parse) = read.parse.get()
                 {
-                    assert!(Arc::ptr_eq(parse, &read.parse));
+                    assert!(Arc::ptr_eq(parse, read_parse));
                 }
             }
         }

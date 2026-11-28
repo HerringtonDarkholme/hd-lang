@@ -192,3 +192,73 @@ fn dropping_a_child_traits_only_called_slot_emits_its_widenings_again() {
         build(&MemoryStore::default(), &main_file(&edited)).wasm
     );
 }
+
+/// The program `declarations.hd`, with each of `edits` (`from`, `to`)
+/// made once, built warm over its cold build: the units the warm build
+/// emitted, after checking its module is the cold build's of the edited
+/// source.
+fn declarations_edit(edits: &[(&str, &str)]) -> Vec<String> {
+    let source = include_str!("programs/emitted_unit_edit/declarations.hd");
+    let mut edited = source.to_owned();
+    for (from, to) in edits {
+        let next = edited.replace(from, to);
+        assert_ne!(next, edited, "the edit {from:?} applies");
+        edited = next;
+    }
+    let store = MemoryStore::default();
+    build(&store, &main_file(source));
+    let warm = build(&store, &main_file(&edited));
+    assert_eq!(
+        warm.wasm,
+        build(&MemoryStore::default(), &main_file(&edited)).wasm
+    );
+    own_emitted(&warm).into_iter().map(str::to_owned).collect()
+}
+
+/// A unit's key holds only the declarations its code reaches, so a
+/// function no unit calls emits no unit again (#2423).
+#[test]
+fn adding_an_unused_function_emits_no_unit() {
+    let emitted = declarations_edit(&[("#~ ", "")]);
+    assert_eq!(emitted, Vec::<String>::new());
+}
+
+/// A field added to a struct changes the layout `area` reads, though its
+/// body names the same fields: `area` is emitted again.
+#[test]
+fn a_field_added_to_a_used_struct_emits_its_readers() {
+    let emitted = declarations_edit(&[("    h: i64", "    h: i64\n    d: i64 = 0")]);
+    assert!(emitted.iter().any(|p| p == "own/main/area"), "{emitted:?}");
+    assert!(
+        !emitted.iter().any(|p| p == "own/main/twice"),
+        "{emitted:?}"
+    );
+}
+
+/// A callee's new signature emits it and its caller again, and nothing
+/// that calls neither.
+#[test]
+fn a_used_callees_signature_change_emits_its_callers() {
+    let emitted = declarations_edit(&[
+        (
+            "fn bump(x: i64) -> i64:",
+            "fn bump(x: i64, by: i64 = 1) -> i64:",
+        ),
+        ("    x + 1", "    x + by"),
+    ]);
+    assert!(emitted.iter().any(|p| p == "own/main/bump"), "{emitted:?}");
+    assert!(emitted.iter().any(|p| p == "own/main/twice"), "{emitted:?}");
+    assert!(!emitted.iter().any(|p| p == "own/main/area"), "{emitted:?}");
+}
+
+/// An impl that names a type is reached from the type: `Shape` stops
+/// being a copy type, so `area`, which takes one, is emitted again.
+#[test]
+fn an_impl_added_for_a_used_type_emits_its_users() {
+    let emitted = declarations_edit(&[("#copy: ", "")]);
+    assert!(emitted.iter().any(|p| p == "own/main/area"), "{emitted:?}");
+    assert!(
+        !emitted.iter().any(|p| p == "own/main/twice"),
+        "{emitted:?}"
+    );
+}

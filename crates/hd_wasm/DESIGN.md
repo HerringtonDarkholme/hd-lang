@@ -2955,7 +2955,7 @@ object files.
   recursive boundary codec or a package host interface, which the module
   numbers, is not stored; nor is one the merge emits again in order.
 - Key (`units.rs`): the run's fingerprint (toolchain, pipeline, profile,
-  the program's declarations, as a dev owned form's key), the link's
+  settings; not the program's declarations), the link's
   program-wide facts (flags, runtime, driven methods, addressed bindings,
   loan types, coinductive flags), the instance's key and its content: its
   body without node indices (`hd_tir::wire::content_hash`), sub-body,
@@ -2965,6 +2965,23 @@ object files.
   builds. A vtable keeps only the slots some trait-value call names
   (#2415, #2420), so a dyn call's slot index and a widening's parent
   offset depend on the whole program's calls.
+- Declarations (`UnitStore::decls`, `hd_driver/src/unit_decls.rs`): the
+  content holds the declarations its emission can read, not one hash of
+  every declaration, as rustc keys a query on its inputs' fingerprints.
+  They are the non-std declarations its body names (the body wire
+  form's path rows), its type arguments, its call targets' items,
+  arguments and results, and its loan rows' types, each with its
+  ancestors (a method's impl). Each is hashed deeply: a graph of the
+  program's non-std items, each an item's record hash
+  (`hd_resolve::item_fingerprint`, its own tables, so names are paths)
+  with an edge to every declaration it names and from every declaration
+  an impl names to the impl (a type's `!Copy`, drop hook, associated
+  types and trait impls), condensed by Tarjan's algorithm; a component's
+  hash holds its members and the components it reaches. So adding a
+  function no unit reaches emits none again, and a struct's new field
+  emits every unit that reaches the struct. Cost: one record encoding
+  per non-std item and one visit per node and edge per link (3 ms for
+  md-reader), and one probe per declaration a unit names.
 - Reads: emission reaches another instance only by key, through
   `Module::inst`, which records it. A stored unit keeps each read
   instance's content and is reused only while each is unchanged, as

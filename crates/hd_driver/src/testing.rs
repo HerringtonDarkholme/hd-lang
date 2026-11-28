@@ -22,9 +22,35 @@ pub use crate::skims::FileSkim;
 /// The line, frame-name and module tables behind `Positions`.
 pub mod positions {
     pub use crate::positions::{
-        Body, Module, ModuleInput, ModuleSource, Positions, lf_line_starts, path_of, quoted,
-        read_frame_names, write_frame_names,
+        Body, Module, ModuleInput, ModuleSource, Positions, path_of, quoted, text_line_starts,
+        write_frame_names,
     };
+
+    /// The frame names `write_frame_names` wrote, by body path, each with
+    /// whether its frames are left out.
+    #[must_use]
+    pub fn read_frame_names(bytes: &[u8]) -> Option<hd_base::HashMap<String, (String, bool)>> {
+        Some(
+            crate::positions::read_frames(bytes)?
+                .0
+                .into_iter()
+                .map(|(path, name, hidden)| (path, (name, hidden)))
+                .collect(),
+        )
+    }
+
+    /// The LF line starts of a parse's lines: the lexer records bare CR
+    /// lines too, and positions count LF.
+    #[must_use]
+    pub fn lf_line_starts(parse: &hd_syntax::Parse, text: &str) -> Vec<u32> {
+        parse
+            .tokens
+            .line_start
+            .iter()
+            .copied()
+            .filter(|&start| start == 0 || text.as_bytes().get(start as usize - 1) == Some(&b'\n'))
+            .collect()
+    }
 
     /// The position inputs an output keeps, one per file.
     #[must_use]

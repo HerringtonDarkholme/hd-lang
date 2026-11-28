@@ -132,6 +132,9 @@ pub struct FileSkim {
     pub len: u32,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
     pub code_lines: Vec<u32>,
+    /// The LF line, from 0, each code line starts: what a frame's line in
+    /// a `check` entry is relative to, so positions read no text.
+    pub code_line_numbers: Vec<u32>,
     /// The byte range of each `use` line outside a `tests:` block
     /// (`HeaderSkeleton::uses`): the uses that make unit edges.
     pub use_lines: Vec<(u32, u32)>,
@@ -231,6 +234,7 @@ impl FileSkim {
                     .collect()
             }),
             entry: OnceLock::new(),
+            code_line_numbers: lf_lines_of(text, &sk.code_lines),
             code_lines: sk.code_lines,
             use_lines: sk.uses,
             use_paths,
@@ -247,8 +251,9 @@ impl FileSkim {
         w.hash(self.doc_hash);
         w.u32(self.len);
         w.len_of(&self.code_lines);
-        for &l in &self.code_lines {
+        for (&l, &n) in self.code_lines.iter().zip(&self.code_line_numbers) {
             w.u32(l);
+            w.u32(n);
         }
         w.len_of(&self.use_lines);
         for &(lo, hi) in &self.use_lines {
@@ -307,7 +312,7 @@ impl FileSkim {
         let token_hash = r.hash();
         let doc_hash = r.hash();
         let len = r.u32();
-        let code_lines = (0..r.count()).map(|_| r.u32()).collect();
+        let (code_lines, code_line_numbers) = (0..r.count()).map(|_| (r.u32(), r.u32())).unzip();
         let use_lines: Vec<(u32, u32)> = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
         let use_paths = use_lines.iter().map(|_| r.str().to_owned()).collect();
         let use_shapes = use_lines.iter().map(|_| UseShape::read(r)).collect();
@@ -338,6 +343,7 @@ impl FileSkim {
             doc_hash,
             len,
             code_lines,
+            code_line_numbers,
             use_lines,
             use_paths,
             use_shapes,
@@ -352,6 +358,22 @@ impl FileSkim {
             entry,
         }
     }
+}
+
+/// The LF line, from 0, of each of `starts` (sorted offsets) in `text`:
+/// one pass over the text up to the last.
+fn lf_lines_of(text: &str, starts: &[u32]) -> Vec<u32> {
+    let (mut at, mut line) = (0usize, 0u32);
+    starts
+        .iter()
+        .map(|&s| {
+            let s = (s as usize).min(text.len()).max(at);
+            let newlines = text.get(at..s).unwrap_or_default().matches('\n').count();
+            line = line.saturating_add(u32::try_from(newlines).unwrap_or(u32::MAX));
+            at = s;
+            line
+        })
+        .collect()
 }
 
 /// The module path a `use` line (`HeaderSkeleton::uses`, from its `use`)

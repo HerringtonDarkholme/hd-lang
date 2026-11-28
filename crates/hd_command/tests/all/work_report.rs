@@ -396,6 +396,7 @@ fn a_trace_names_each_task_and_the_serial_phases() {
         "records",
         "publish",
         "settle",
+        "positions section",
     ] {
         assert!(named("phase", phase), "{phase}: {json}");
     }

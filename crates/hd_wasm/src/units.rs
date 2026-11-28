@@ -20,6 +20,10 @@ use hd_types::Ty;
 use crate::module::Facts;
 use crate::{Entry, Input, UnitStore};
 
+/// A body's hash and the declarations it names; `None` for a body with no
+/// wire form.
+type BodyNames = Option<(Hash128, Box<[DefId]>)>;
+
 /// One link's unit keys.
 pub(crate) struct Keys<'i, 'a> {
     input: &'i Input<'a>,
@@ -34,11 +38,12 @@ pub(crate) struct Keys<'i, 'a> {
     /// ([`Keys::body_hash`]), so n closures of one body hash it once, not
     /// n times.
     body_of: Vec<u32>,
-    /// Each distinct body's hash, made on first use.
-    bodies: Vec<OnceLock<Option<Hash128>>>,
+    /// Each distinct body's hash and the declarations it names, made on
+    /// first use.
+    bodies: Vec<OnceLock<BodyNames>>,
     /// Each instance's kept loans and crossed objects (`Facts::kept`,
-    /// `Facts::crossed`), hashed.
-    loans: HashMap<InstId, Hash128>,
+    /// `Facts::crossed`), hashed, with the types the crossed steps name.
+    loans: HashMap<InstId, (Hash128, Vec<Ty>)>,
     /// The entry's roots and held item ([`Entry::root`], [`Entry::held`]).
     roots: hd_base::HashSet<DefId>,
 }
@@ -152,38 +157,43 @@ impl<'i, 'a> Keys<'i, 'a> {
         let link = h.finish();
 
         // Each instance's loan rows, in a stable order.
-        let mut rows: HashMap<InstId, Vec<Hash128>> = HashMap::default();
+        let mut rows: HashMap<InstId, (Vec<Hash128>, Vec<Ty>)> = HashMap::default();
         for &(id, site, step) in kept {
             let mut k = StableHasher::new("kept");
             k.u32(site);
             k.u32(step);
-            rows.entry(id).or_default().push(k.finish());
+            rows.entry(id).or_default().0.push(k.finish());
         }
         for (&(id, at), crossed) in crossed {
             let mut k = StableHasher::new("crossed");
             k.u32(at);
+            let row = rows.entry(id).or_default();
             match crossed.root {
                 None => k.u8(0),
                 Some(root) => {
                     place_root(&mut k, root, |t| canon(&mut memo, t), |d| env.path_hash(d));
+                    if let hd_tir::ir::PlaceRoot::Global(_, t) = root {
+                        row.1.push(t);
+                    }
                 }
             }
             k.len(crossed.steps.len());
             for &(step, t) in &crossed.steps {
                 k.len(step);
                 k.hash(canon(&mut memo, t));
+                row.1.push(t);
             }
-            rows.entry(id).or_default().push(k.finish());
+            row.0.push(k.finish());
         }
         let loans = rows
             .into_iter()
-            .map(|(id, mut rows)| {
+            .map(|(id, (mut rows, tys))| {
                 rows.sort_stable();
                 let mut k = StableHasher::new("loans");
                 for &r in &rows {
                     k.hash(r);
                 }
-                (id, k.finish())
+                (id, (k.finish(), tys))
             })
             .collect();
         let roots = match &input.entry {
@@ -222,16 +232,25 @@ impl<'i, 'a> Keys<'i, 'a> {
     /// Instance `id`'s content: the body emission reads, without its node
     /// indices; its sub-body, default mask and lends; whether it is an
     /// entry root or the held item; its call targets; its loan rows; its
-    /// slot facts.
-    /// Cost: one wire encoding of its body, on first use.
+    /// slot facts; and the program's declarations its emission can read
+    /// ([`UnitStore::decls`]): those its body, its type arguments, its
+    /// call targets and its loan rows name, each by its fingerprint, as
+    /// rustc keys a query on its inputs' fingerprints. So adding or
+    /// changing a declaration no unit reaches re-emits none.
+    /// Cost: one wire encoding of its body, on first use, and one probe
+    /// per declaration it names.
     pub(crate) fn content(&self, id: InstId) -> Option<Hash128> {
         *self.contents[id.idx()].get_or_init(|| {
             let input = self.input;
             let t = &input.collected.table;
             let env = input.env;
             let item = t.item[id.idx()];
-            let mut h = StableHasher::new("emit-unit-content-v1");
-            h.hash(self.body_hash(id)?);
+            let mut h = StableHasher::new("emit-unit-content-v2");
+            let (body, names) = self.body_hash(id)?;
+            h.hash(body);
+            let mut defs = names.to_vec();
+            defs.push(item);
+            let mut tys = input.pool.list_items(t.args[id.idx()]).to_vec();
             h.str(&format!("{:?}", t.sub[id.idx()]));
             h.u64(hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]));
             h.u64(env.lends(item, t.args[id.idx()]));
@@ -246,8 +265,14 @@ impl<'i, 'a> Keys<'i, 'a> {
             for (&at, target) in calls {
                 h.u32(at);
                 target_hash(&mut h, target, &mut canon, env);
+                target_names(input.pool, target, &mut defs, &mut tys);
             }
-            h.hash(self.loans.get(&id).copied().unwrap_or_default());
+            if let Some((loans, crossed)) = self.loans.get(&id) {
+                h.hash(*loans);
+                tys.extend_from_slice(crossed);
+            } else {
+                h.hash(Hash128::default());
+            }
             // The kept slots of each trait whose table layout its code
             // reads and the final digest of each table it builds
             // (`Collected::slot_facts`, #2415): a table keeps only the
@@ -261,17 +286,24 @@ impl<'i, 'a> Keys<'i, 'a> {
                     .copied()
                     .unwrap_or_default(),
             );
+            h.hash(self.store.decls(&defs, &tys)?);
             Some(h.finish())
         })
     }
 
-    /// The hash of instance `id`'s body, once per distinct body.
-    fn body_hash(&self, id: InstId) -> Option<Hash128> {
+    /// The hash of instance `id`'s body and the declarations it names,
+    /// once per distinct body.
+    fn body_hash(&self, id: InstId) -> Option<(Hash128, &[DefId])> {
         let at = *self.body_of.get(id.idx())? as usize;
-        *self
+        let (hash, names) = self
             .bodies
             .get(at)?
-            .get_or_init(|| self.store.body_hash(id))
+            .get_or_init(|| {
+                let (hash, names) = self.store.body_hash(id)?;
+                Some((hash, names.into_boxed_slice()))
+            })
+            .as_ref()?;
+        Some((*hash, names))
     }
 
     /// The content of the instance keyed `key`; for a key the link has
@@ -386,6 +418,46 @@ fn call_target_hash(
             h.str(method);
             h.hash(canon(*self_ty));
         }
+    }
+}
+
+/// The declarations call target `ct` names: its item, and the types of
+/// its arguments and result, whose layouts a caller's code reads.
+fn call_target_names(
+    pool: &hd_types::InternPool,
+    ct: &hd_mono::CallTarget,
+    defs: &mut Vec<DefId>,
+    tys: &mut Vec<Ty>,
+) {
+    defs.push(ct.item);
+    tys.push(ct.ret);
+    tys.extend_from_slice(pool.list_items(ct.args));
+    if let hd_mono::TargetKind::Builtin { self_ty, .. } = &ct.kind {
+        tys.push(*self_ty);
+    }
+}
+
+/// [`call_target_names`] of each call a target makes.
+fn target_names(
+    pool: &hd_types::InternPool,
+    target: &Target,
+    defs: &mut Vec<DefId>,
+    tys: &mut Vec<Ty>,
+) {
+    match target {
+        Target::Call(ct)
+        | Target::CrossingNumber { call: ct, .. }
+        | Target::Default { call: ct, .. }
+        | Target::MapInline(ct) => call_target_names(pool, ct, defs, tys),
+        Target::MapKey { hash, eq } => {
+            call_target_names(pool, hash, defs, tys);
+            call_target_names(pool, eq, defs, tys);
+        }
+        Target::ConstDefault(_)
+        | Target::VTable(_)
+        | Target::Dyn
+        | Target::Closure(_)
+        | Target::KnownClosure(_) => {}
     }
 }
 
