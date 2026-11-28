@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# A function item before `::` names no type, trait or module to own the
+# path: it is a value, and `make::shifted` a bound reference on it
+# (fn.ref.bound), so the method is looked up on the function's type.
+struct Point:
+    x: i32
+
+impl Point:
+    fn shifted(&self, by: i32) -> i32:
+        self.x + by
+
+fn make() -> Point:
+    Point { x: 1 }
+
+pub fn main() -> void $ Console:
+    f := make::shifted
+    println("${f(1)}")

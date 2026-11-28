@@ -2401,10 +2401,16 @@ pub fn boundary(
     c: &CLibraries<'_>,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
-    let (c_roots, roots): (Vec<_>, Vec<_>) = roots
-        .iter()
-        .partition(|&&(def, _)| (c.library)(def).is_some());
-    let roots: &[(DefId, bool)] = &roots;
+    // Each C-bound root with its library, asked once.
+    let mut c_roots = Vec::new();
+    let mut plain = Vec::new();
+    for &(def, package) in roots {
+        match (c.library)(def) {
+            Some(library) => c_roots.push((def, package, library)),
+            None => plain.push((def, package)),
+        }
+    }
+    let roots: &[(DefId, bool)] = &plain;
     let serialize = cx.names.known.serialize;
     let deserialize = cx.names.known.deserialize;
     let mut traits = roots.to_vec();
@@ -2517,10 +2523,8 @@ pub fn boundary(
     // A C-bound root, then each handle trait a checked method returns
     // (`module.host.package.c-handles`), each checked once, with the
     // library it shares with the trait that returns it.
-    let mut c_library: hd_base::HashMap<DefId, String> = c_roots
-        .iter()
-        .filter_map(|r| Some((r.0, (c.library)(r.0)?)))
-        .collect();
+    let mut c_library: hd_base::HashMap<DefId, String> =
+        c_roots.iter().map(|r| (r.0, r.2.clone())).collect();
     // The trait each library's entry name is taken by in this walk.
     let short = |def: DefId| {
         let path = cx.names.path(def);
@@ -2537,11 +2541,13 @@ pub fn boundary(
         .iter()
         .map(|(&d, library)| ((library.clone(), short(d)), d))
         .collect();
-    // Each entry: a trait, and for a root whether its package's marker
-    // check, not this one, reports a type parameter list.
-    let mut c_todo: Vec<(DefId, Option<bool>)> =
-        c_roots.iter().map(|&(d, p)| (d, Some(p))).collect();
-    while let Some((def, root)) = c_todo.pop() {
+    // Each entry: a trait, for a root whether its package's marker
+    // check, not this one, reports a type parameter list, and its library.
+    let mut c_todo: Vec<(DefId, Option<bool>, String)> = c_roots
+        .into_iter()
+        .map(|(d, p, l)| (d, Some(p), l))
+        .collect();
+    while let Some((def, root, library)) = c_todo.pop() {
         let what = if root.is_some() {
             "host capability"
         } else {
@@ -2551,10 +2557,7 @@ pub fn boundary(
             generic(def, what, &mut out);
         }
         shape(def, what, &mut out);
-        let Some(library) = c_library.get(&def).cloned() else {
-            continue;
-        };
-        for (handle, method) in c_trait(cx, def, &mut out) {
+        for (handle, method) in c_trait(cx, def, &mut out)? {
             let report = |out: &mut Vec<Finding>, message: String| {
                 out.push(Finding {
                     item: method,
@@ -2596,7 +2599,7 @@ pub fn boundary(
             }
             c_entries.insert((library.clone(), name), handle);
             c_library.insert(handle, library.clone());
-            c_todo.push((handle, None));
+            c_todo.push((handle, None, library.clone()));
         }
     }
     let mut bound = queued.clone();
@@ -2706,10 +2709,20 @@ enum CPlace {
 ///
 /// Cost: each method once, and each signature type once; no type is
 /// walked deeper than a reference to a list of numbers.
-fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<(DefId, DefId)> {
+fn c_trait(
+    cx: &HeaderCx<'_>,
+    def: DefId,
+    out: &mut Vec<Finding>,
+) -> StageResult<Vec<(DefId, DefId)>> {
     let mut handles = Vec::new();
+    // ruled out: a C-bound root is a package `@host` trait (the driver's
+    // `host_boundaries` keeps trait items), and a handle is the trait of
+    // a returned trait value ([`c_handle`]).
     let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
-        return handles;
+        return Err(hd_base::NotImplemented::bug(
+            hd_base::Stage::HeaderCheck,
+            "a C-bound trait that is no trait item",
+        ));
     };
     if !t.supers.is_empty() {
         out.push(Finding {
@@ -2722,11 +2735,13 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<(DefId,
         });
     }
     for &(_, m) in &t.methods {
-        let Some(mi) = cx.lookup.item(m) else {
-            continue;
-        };
-        let Some(sig) = mi.sig() else {
-            continue;
+        // ruled out: a trait's methods are its own method items, each
+        // with a signature.
+        let Some(sig) = cx.lookup.item(m).and_then(Item::sig) else {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::HeaderCheck,
+                "a trait method with no signature",
+            ));
         };
         if !sig.suspends
             && let Some(handle) = c_handle(&cx.names, sig.ret)
@@ -2764,7 +2779,7 @@ fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<(DefId,
             });
         }
     }
-    handles
+    Ok(handles)
 }
 
 /// The trait of `t` when it is a returned host handle a C provider may
