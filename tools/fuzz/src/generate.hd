@@ -41,25 +41,41 @@ impl State:
         text
 
 fn declarations() -> string:
-    out := StringBuilder::new()
-    out.push("use std.ops.Fn\n\n")
-    out.push("struct Record:\n    number: i64\n    text: string\n    items: List[i64]\n\n")
-    out.push("enum Choice:\n    One(value: i64)\n    Two(pair: (i64, i64))\n    Empty\n\n")
-    out.push(
-        "fn optional(value: i64?, other: i64) -> i64:\n    let .Some(found) = value else: return other\n    found\n\n",
-    )
-    out.push(
-        "fn choose(value: Choice) -> i64:\n    match value:\n        .One(number) => number\n        .Two(pair) => pair._0.wrapping_add(pair._1)\n        .Empty => 0i64\n\n",
-    )
-    out.push("fn direct(body: fn(i64) -> i64, value: i64) -> i64: body(value)\n\n")
-    out.push("fn generic[F < Fn[(i64,), i64]](body: F, value: i64) -> i64: body(value)\n\n")
-    out.push(
-        "fn read_record(value: &Record) -> i64:\n    value.number.wrapping_add(i64(value.text.len())).wrapping_add(i64(value.items.len()))\n\n",
-    )
-    out.push(
-        "fn change_record(value: &mut Record, delta: i64) -> void:\n    value.number = value.number.wrapping_add(delta)\n    value.items.push(value.number)\n    value.text = value.text + \"!\"\n\n",
-    )
-    out.build()
+    """use std.ops.Fn
+
+struct Record:
+    number: i64
+    text: string
+    items: List[i64]
+
+enum Choice:
+    One(value: i64)
+    Two(pair: (i64, i64))
+    Empty
+
+fn optional(value: i64?, other: i64) -> i64:
+    let .Some(found) = value else: return other
+    found
+
+fn choose(value: Choice) -> i64:
+    match value:
+        .One(number) => number
+        .Two(pair) => pair._0.wrapping_add(pair._1)
+        .Empty => 0i64
+
+fn direct(body: fn(i64) -> i64, value: i64) -> i64: body(value)
+
+fn generic[F < Fn[(i64,), i64]](body: F, value: i64) -> i64: body(value)
+
+fn read_record(value: &Record) -> i64:
+    value.number.wrapping_add(i64(value.text.len())).wrapping_add(i64(value.items.len()))
+
+fn change_record(value: &mut Record, delta: i64) -> void:
+    value.number = value.number.wrapping_add(delta)
+    value.items.push(value.number)
+    value.text = value.text + "!"
+
+"""
 
 # Each block yields an i64 witness. Later expressions can use any earlier
 # witness, so the constructs interact instead of running as isolated samples.
@@ -71,12 +87,20 @@ fn block(state: *mut State, out: *mut StringBuilder, kind: usize, serial: usize)
     b := state.expression()
     c := state.expression()
     record := "Record { number: ${a}, text: \"λ🦀\", items: [${b}, ${c}] }"
-    out.push("    # construct ${kind}\n")
+    out.push(
+        """    # construct ${kind}
+""",
+    )
     match kind:
         0 =>
-            out.push("    ${name} := ${record}\n    ${saved} := ${name}\n")
             out.push(
-                "    ${value} := read_record(&${saved}).wrapping_add(${name}.items[${state.rng.int(0usize..2usize)}])\n",
+                """    ${name} := ${record}
+    ${saved} := ${name}
+""",
+            )
+            out.push(
+                """    ${value} := read_record(&${saved}).wrapping_add(${name}.items[${state.rng.int(0usize..2usize)}])
+""",
             )
         1 =>
             selected := match state.rng.int(0usize..3usize):
@@ -84,40 +108,66 @@ fn block(state: *mut State, out: *mut StringBuilder, kind: usize, serial: usize)
                 1 => "Choice.Two((${a}, ${b}))"
                 _ => "Choice.Empty"
             out.push(
-                "    ${name} := ${selected}\n    ${value} := choose(${name}).wrapping_add(${c})\n",
+                """    ${name} := ${selected}
+    ${value} := choose(${name}).wrapping_add(${c})
+""",
             )
         2 =>
-            out.push("    ${name} := (${a}, ${record}, [${b}, ${c}])\n")
             out.push(
-                "    ${value} := ${name}._0.wrapping_add(read_record(&${name}._1)).wrapping_add(${name}._2[1])\n",
+                """    ${name} := (${a}, ${record}, [${b}, ${c}])
+""",
+            )
+            out.push(
+                """    ${value} := ${name}._0.wrapping_add(read_record(&${name}._1)).wrapping_add(${name}._2[1])
+""",
             )
         3 =>
             selected := if state.rng.bool(): ".Some(${a})" else: ".None"
             out.push(
-                "    let ${name}: i64? = ${selected}\n    ${value} := optional(${name}, ${b})\n",
+                """    let ${name}: i64? = ${selected}
+    ${value} := optional(${name}, ${b})
+""",
             )
         4 =>
-            out.push("    let mut ${name} = [${a}, ${b}, ${c}]\n    ${saved} := ${name}\n")
             out.push(
-                "    ${name}[${state.rng.int(0usize..3usize)}] = ${b}\n    ${name}.push(${c})\n",
+                """    let mut ${name} = [${a}, ${b}, ${c}]
+    ${saved} := ${name}
+""",
             )
             out.push(
-                "    let ${value} = ${saved}[${state.rng.int(0usize..3usize)}]\n    for item_${serial} in ${name}:\n        ${value} = ${value}.wrapping_add(item_${serial})\n",
+                """    ${name}[${state.rng.int(0usize..3usize)}] = ${b}
+    ${name}.push(${c})
+""",
+            )
+            out.push(
+                """    let ${value} = ${saved}[${state.rng.int(0usize..3usize)}]
+    for item_${serial} in ${name}:
+        ${value} = ${value}.wrapping_add(item_${serial})
+""",
             )
         5 =>
             out.push(
-                "    let mut ${name}: Map[string, i64] = {\"a\": ${a}, \"b\": ${b}}\n    ${saved} := ${name}\n",
+                """    let mut ${name}: Map[string, i64] = {"a": ${a}, "b": ${b}}
+    ${saved} := ${name}
+""",
             )
             out.push(
-                "    ${name}[\"a\"] = ${b}\n    ${name}[\"c\"] = ${c}\n    let ${value} = ${saved}[\"a\"]\n",
+                """    ${name}["a"] = ${b}
+    ${name}["c"] = ${c}
+    let ${value} = ${saved}["a"]
+""",
             )
             out.push(
-                "    for (key_${serial}, item_${serial}) in ${name}:\n        ${value} = ${value}.wrapping_add(*item_${serial}).wrapping_add(i64(key_${serial}.len()))\n",
+                """    for (key_${serial}, item_${serial}) in ${name}:
+        ${value} = ${value}.wrapping_add(*item_${serial}).wrapping_add(i64(key_${serial}.len()))
+""",
             )
         6 =>
             text := if state.rng.bool(): "λ🦀abc" else: "éz"
             out.push(
-                "    ${name} := \"${text}\" + \"more\"\n    ${value} := i64(${name}.len()).wrapping_add(i64(${name}.chars().count())).wrapping_add(${a})\n",
+                """    ${name} := "${text}" + "more"
+    ${value} := i64(${name}.len()).wrapping_add(i64(${name}.chars().count())).wrapping_add(${a})
+""",
             )
         7 =>
             limit := state.rng.int(2usize..10usize)
@@ -125,37 +175,71 @@ fn block(state: *mut State, out: *mut StringBuilder, kind: usize, serial: usize)
             stop := state.rng.int(0usize..limit)
             inner := state.rng.int(1usize..4usize)
             out.push(
-                "    let ${value} = ${a}\n    for index_${serial} in 0..${limit}:\n        if index_${serial} == ${skip}: continue\n",
+                """    let ${value} = ${a}
+    for index_${serial} in 0..${limit}:
+        if index_${serial} == ${skip}: continue
+""",
             )
             out.push(
-                "        let inner_${serial} = 0usize\n        while inner_${serial} < ${inner}:\n            inner_${serial} += 1\n            ${value} = ${value}.wrapping_add(i64(index_${serial})).wrapping_mul(${b})\n",
+                """        let inner_${serial} = 0usize
+        while inner_${serial} < ${inner}:
+            inner_${serial} += 1
+            ${value} = ${value}.wrapping_add(i64(index_${serial})).wrapping_mul(${b})
+""",
             )
-            out.push("        if index_${serial} == ${stop}: break\n")
+            out.push(
+                """        if index_${serial} == ${stop}: break
+""",
+            )
         8 =>
             out.push(
-                "    ${saved} := ${a}\n    let ticks_${serial} = 0i64\n    ${name} := fn(number: i64) -> i64:\n        ticks_${serial} = ticks_${serial}.wrapping_add(1)\n        number.wrapping_add(${saved})\n",
+                """    ${saved} := ${a}
+    let ticks_${serial} = 0i64
+    ${name} := fn(number: i64) -> i64:
+        ticks_${serial} = ticks_${serial}.wrapping_add(1)
+        number.wrapping_add(${saved})
+""",
             )
             out.push(
-                "    ${value} := generic(fn(number: i64) -> i64: number.wrapping_add(${saved}), ${b}).wrapping_add(direct(${name}, ${c})).wrapping_add(ticks_${serial})\n",
+                """    ${value} := generic(fn(number: i64) -> i64: number.wrapping_add(${saved}), ${b}).wrapping_add(direct(${name}, ${c})).wrapping_add(ticks_${serial})
+""",
             )
         9 =>
             out.push(
-                "    let mut ${name} = ${record}\n    ${saved} := ${name}\n    change_record(&mut ${name}, ${b})\n",
+                """    let mut ${name} = ${record}
+    ${saved} := ${name}
+    change_record(&mut ${name}, ${b})
+""",
             )
-            out.push("    ${value} := read_record(&${name}).wrapping_add(read_record(&${saved}))\n")
+            out.push(
+                """    ${value} := read_record(&${name}).wrapping_add(read_record(&${saved}))
+""",
+            )
         _ =>
             out.push(
-                "    ${name} := box(${record})\n    ${saved} := ${name}\n    change_record(&mut *${name}, ${b})\n",
+                """    ${name} := box(${record})
+    ${saved} := ${name}
+    change_record(&mut *${name}, ${b})
+""",
             )
-            out.push("    ${value} := read_record(&*${saved}).wrapping_add(${name}.number)\n")
+            out.push(
+                """    ${value} := read_record(&*${saved}).wrapping_add(${name}.number)
+""",
+            )
     state.values.push(value)
 
 pub fn generate(seed: u64) -> Program:
     state := box(State { rng: Rng::new(seed), values: ["0i64"], expressions: [] })
     out := StringBuilder::new()
-    out.push("# fuzz seed ${seed}\n")
+    out.push(
+        """# fuzz seed ${seed}
+""",
+    )
     out.push(declarations())
-    out.push("fn checksum() -> i64:\n")
+    out.push(
+        """fn checksum() -> i64:
+""",
+    )
     let mut kinds = [for kind in 0..11usize => kind]
     state.rng.shuffle(&mut kinds)
     for (serial, kind) in kinds.enumerate():
@@ -163,10 +247,22 @@ pub fn generate(seed: u64) -> Program:
     extra := state.rng.int(0usize..8usize)
     for n in 0..extra:
         block(state, out, state.rng.int(0usize..11usize), kinds.len() + n)
-    out.push("    let total = 0i64\n")
+    out.push(
+        """    let total = 0i64
+""",
+    )
     for value in state.values:
-        out.push("    total = total.wrapping_add(${value})\n")
-    out.push("    total\n\npub fn main() -> void \$ Console:\n    println(checksum())\n")
+        out.push(
+            """    total = total.wrapping_add(${value})
+""",
+        )
+    out.push(
+        """    total
+
+pub fn main() -> void \$ Console:
+    println(checksum())
+""",
+    )
     Program { source: out.build(), expressions: state.expressions }
 
 tests:
@@ -179,4 +275,9 @@ tests:
     it("every program covers all eleven constructs"):
         source := generate(1u64).source
         for kind in 0..11usize:
-            assert(source.contains("# construct ${kind}\n"))
+            assert(
+                source.contains(
+                    """# construct ${kind}
+""",
+                ),
+            )
