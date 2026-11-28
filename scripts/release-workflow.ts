@@ -12,7 +12,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { manifestVersion } from "./release.ts";
 
@@ -32,6 +32,22 @@ const git = (...args: string[]): string => command("git", args).trim();
 const gh = (...args: string[]): string => command("gh", args);
 export const archiveName = (target: string): string =>
   `hd-${target}.${target.includes("windows") ? "zip" : "tar.gz"}`;
+
+// Windows ships bsdtar with ZIP support. Git Bash's GNU tar interprets drive
+// letters as remote archive hosts and does not produce ZIP archives.
+// https://learn.microsoft.com/en-us/windows/tar/
+export function archiveTool(
+  platform: NodeJS.Platform = process.platform,
+  systemRoot = process.env.SystemRoot,
+): string {
+  if (platform !== "win32") {
+    return "tar";
+  }
+  if (!systemRoot) {
+    throw new Error("SystemRoot is required to locate Windows' native tar.exe");
+  }
+  return win32.join(systemRoot, "System32", "tar.exe");
+}
 
 export function releaseNotes(changelog: string, version: string): string {
   const escaped = version.replaceAll(".", "\\.");
@@ -136,11 +152,12 @@ export async function pack(target: string): Promise<void> {
     copyFileSync(name, join(bundle, name));
   }
   const archive = join(work, archiveName(target));
+  const tar = archiveTool();
   const options = target.includes("windows") ? ["-a", "-cf"] : ["-czf"];
-  command("tar", [...options, archive, "-C", bundle, binary, ".node-version"]);
+  command(tar, [...options, archive, "-C", bundle, binary, ".node-version"]);
   const unpacked = join(work, `smoke-${target}`);
   mkdirSync(unpacked, { recursive: true });
-  command("tar", ["-xf", archive, "-C", unpacked]);
+  command(tar, ["-xf", archive, "-C", unpacked]);
   const executable = join(unpacked, binary);
   const shown = command(executable, ["--version"]).trim();
   if (shown !== `hd ${version}`) {
