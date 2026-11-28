@@ -1,6 +1,7 @@
 # test: CookieJar is serializable data with explicit time and RFC6265 domain, path, expiry and Secure matching
 use std.convert.From
-use std.http.{CookieJar, Headers, Response, Url}
+use std.http.{CookieJar, Headers, Response}
+use std.url.{Url}
 use std.encoding.json.{decode, encode}
 use std.time.Timestamp
 use std.testing.assert_equal
@@ -223,3 +224,9 @@ tests:
             [("root", "yes")],
             reason="HTTP's empty path means slash",
         )
+
+    it("a reference without a host has no cookie domain"):
+        let mut jar = CookieJar::new()
+        jar.store(&url("relative/path"), &response(["session=one"]), now(0))
+        assert_equal(jar.cookies_for(&url("relative/path"), now(0)), [])
+        assert_equal(jar.cookies_for(&url("https://example.test/path"), now(0)), [])

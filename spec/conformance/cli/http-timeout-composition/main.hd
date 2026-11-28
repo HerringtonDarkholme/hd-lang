@@ -1,4 +1,5 @@
-use std.http.{Http, HttpError, Request, Url}
+use std.http.{Http, HttpError, Request}
+use std.url.{Url}
 use std.process.{Command, Process}
 use std.task.{timeout, apply}
 use std.time.{Clock, ms}
@@ -15,5 +16,4 @@ pub fn main!() -> void $ Console + Http + Process + Clock:
             .Err(HttpError.Timeout) => "timed out"
             .Err(other) => "other error: $other"
             .Ok(response) => "answered ${response.status.code()}"
-        ,
     )

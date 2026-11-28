@@ -1,5 +1,6 @@
 # Spec std/http Request Builder: std-http.request.form-preparation-error.
-use std.http.{BodyError, FormError, Request, Url}
+use std.http.{BodyError, FormError, Request}
+use std.url.{Url}
 use std.testing.assert_equal
 use std.encoding.Serialize
 

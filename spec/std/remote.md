@@ -63,7 +63,8 @@ A **served function** is a closure that a home serves as a remote object:
 frame is the body of a `POST`, and the reply is the body of its response.
 
 ```text
-use std.http.{Http, Url}
+use std.http.{Http}
+use std.url.{Url}
 use std.remote.{CrossError, Remote, http_transport, remote}
 
 trait Greeter < Remote:

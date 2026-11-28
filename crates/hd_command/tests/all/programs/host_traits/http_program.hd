@@ -1,10 +1,13 @@
-use std.http.{Http, HttpError, Method, Request, Response, Url, get}
+use std.http.{Http, HttpError, Method, Request, Response, get}
+use std.url.{Url}
 use std.cli.{Args, args}
 
 fn show!(r: Result[Response, HttpError]) -> string:
     match r:
-        .Ok(response) => "${response.status.code()} ${response.text().expect("body")} ${debug(response.header(.SetCookie))} ${response.headers.entries().len()}"
-        .Err(.Status(response)) => "status error ${response.status.code()} ${response.text().expect("body")}"
+        .Ok(response) =>
+            "${response.status.code()} ${response.text().expect("body")} ${debug(response.header(.SetCookie))} ${response.headers.entries().len()}"
+        .Err(.Status(response)) =>
+            "status error ${response.status.code()} ${response.text().expect("body")}"
         .Err(e) => "${debug(e)}"
 
 pub fn main!() -> void $ Console + Http + Args:

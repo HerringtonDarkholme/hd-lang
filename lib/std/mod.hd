@@ -1,6 +1,6 @@
 # std's root module: the top-level modules another package may use
 # (spec/lang/10-modules.md#r-module.vis.parent). Every public top-level
-# module is re-exported as it is; `std.rt` stays std's own
+# module is re-exported as it is; internal shared modules and `std.rt` stay std's own
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 pub use std.{
     arena,
@@ -39,5 +39,6 @@ pub use std.{
     text,
     thread,
     time,
+    url,
     validate,
 }

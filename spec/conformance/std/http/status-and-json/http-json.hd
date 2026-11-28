@@ -1,7 +1,8 @@
 # test: JSON response reads return BodyError, while send errors remain HttpError
 # expect: test
 use std.convert.From
-use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp, Url}
+use std.http.{BodyError, Http, HttpError, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.encoding.json.JsonError
 use std.encoding.{Deserialize, Serialize}
 

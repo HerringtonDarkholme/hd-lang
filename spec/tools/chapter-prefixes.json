@@ -53,5 +53,6 @@
   "std/process.md": "std-process",
   "std/http.md": "std-http",
   "std/net.md": "std-net",
-  "cli/command-line.md": "cli"
+  "cli/command-line.md": "cli",
+  "std/url.md": "std-url"
 }

@@ -1,6 +1,7 @@
 # test: HTTP method equality compares variants and payloads, not wire spelling
 # Spec std/http: std-http.method.eq.variant-payload.
-use std.http.{Method, Request, Url}
+use std.http.{Method, Request}
+use std.url.{Url}
 
 tests:
     use std.testing.assert

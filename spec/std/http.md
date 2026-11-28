@@ -41,7 +41,6 @@ A `Body` is a value whose copies share private consumption state.
 
 Query pairs and URL-encoded bodies share one serde codec.
 
-1. r[std-http.form-codec.query-reader] `Url.query_as[T < Deserialize](&self) -> Result[T, FormError]` decodes its query pairs into `T`.
 2. r[std-http.form-codec.parameter-record] The root value is a struct whose fields are parameters named by their serde wire names.
 3. r[std-http.form-codec.scalar] Scalar values use the existing serde textual conversions.
 4. r[std-http.form-codec.deep-object] A struct-valued parameter uses one bracket level, `parameter[property]`, whose properties are scalars or optional scalars.
@@ -64,15 +63,6 @@ Query pairs and URL-encoded bodies share one serde codec.
 21. r[std-http.form-codec.body-empty-value] A form part without `=` has an empty value.
 22. r[std-http.form-codec.body-decode] Form names and values percent-decode UTF-8 and interpret `+` as space.
 23. r[std-http.form-codec.strict-input] Invalid percent-encoding or invalid UTF-8 returns `FormError`, including in unknown pairs.
-24. r[std-http.form-codec.query-writer] `Url.set_query_as[T < Serialize](&mut self, value: T) -> void` replaces the query using the same serde codec.
-25. r[std-http.form-codec.query-write-order] Writing retains member declaration order and list or tuple item order as decoded query pairs.
-26. r[std-http.form-codec.query-write-absence] Writing an absent optional value emits no pair.
-27. r[std-http.form-codec.query-write-empty] Every query write clears the explicit empty-query presence bit.
-28. r[std-http.form-codec.query-write-error] A failed query write retains a private `FormError`, which later `query_as` returns directly.
-29. r[std-http.form-codec.query-replacement] A successful `set_query_as` replaces the query and clears its pending preparation error.
-30. r[std-http.form-codec.query-append-error] `add_param` does not clear a pending query preparation error.
-31. r[std-http.form-codec.query-resolve-inherit] Resolution retains a pending query error exactly when RFC 3986 inherits the base query, including empty and fragment-only references.
-32. r[std-http.form-codec.query-resolve-replace] A reference replacing the query clears its pending error, including an explicit query, new path, authority or scheme.
 
 ## Named Status Codes
 
@@ -239,51 +229,12 @@ Query pairs and URL-encoded bodies share one serde codec.
 8. r[std-http.form-error.display-missing] `FormError.Missing(field)` displays `missing field FIELD`.
 9. r[std-http.form-error.display-invalid] `FormError.Invalid(field, text)` displays `field FIELD: cannot read TEXT`.
 10. r[std-http.form-error.traits] `FormError` implements structural `Eq` and `Debug`.
-11. r[std-http.url-error.declaration] `UrlError` is an error enum with `Invalid(text: string)` and `RelativeWithoutBase(text: string)`.
-12. r[std-http.url-error.display-invalid-text] `UrlError.Invalid(text)` normally displays `invalid URL: TEXT`.
-13. r[std-http.url-error.display-relative] `UrlError.RelativeWithoutBase(text)` displays `relative URL without a base: TEXT`.
-14. r[std-http.url-error.traits] `UrlError` implements structural `Eq` and `Debug`.
-15. r[std-http.url-error.into-http] `From[UrlError] for HttpError` maps either variant to `HttpError.InvalidUrl`, retaining its input text.
-16. r[std-http.url-error.display-user-info] For user-info input, the Invalid error omits credentials from Display and recommends using the Authorization header.
+15. r[std-http.url-error.into-http-encoding] `From[UrlError] for HttpError` maps every variant to `HttpError.InvalidUrl`, retaining its input text.
 
 ## Parsed URLs
 
-1. r[std-http.parsed-url.declaration] `std.http.Url` is a value with these public fields and private encoding metadata.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `scheme` | `string` | HTTP or HTTPS scheme |
-| `host` | `string` | ASCII authority host, including IP-literal brackets |
-| `port` | `u16?` | Explicit port when present |
-| `path` | `string` | Percent-decoded path |
-| `query` | `List[(string, string)]` | Decoded query pairs in order |
-| `fragment` | `string?` | Decoded fragment when present |
-
-2. r[std-http.parsed-url.parse] `Url::parse(text: string) -> Result[Url, UrlError]` parses an absolute HTTP or HTTPS URL satisfying the ASCII-host rule in [URLs](#urls).
-3. r[std-http.parsed-url.relative] Input without a scheme returns `UrlError.RelativeWithoutBase` with the original text.
-4. r[std-http.parsed-url.invalid] Malformed absolute input, unsupported schemes, non-ASCII hosts or invalid ports return `UrlError.Invalid` with the original text.
-5. r[std-http.parsed-url.user-info] An authority containing user-info is rejected as `UrlError.Invalid`.
-6. r[std-http.parsed-url.controls] A literal ASCII control character, space or DEL in the input makes the URL invalid.
-7. r[std-http.parsed-url.scheme-host-case] Parsing lowercases ASCII letters in the scheme and host.
-8. r[std-http.parsed-url.port] A nonempty explicit port must be decimal text within the `u16` range; an absent or empty port becomes `None`.
-9. r[std-http.parsed-url.path] Parsing percent-decodes the path as UTF-8 without interpreting encoded `/` or `?` as component separators.
-10. r[std-http.parsed-url.query] Parsing splits nonempty query parts at `&` and their first `=`, retaining pair order and repeated names.
-11. r[std-http.parsed-url.query-empty-value] A query part without `=` has an empty value.
-12. r[std-http.parsed-url.query-decode] Query names and values percent-decode UTF-8 and interpret `+` as space.
-13. r[std-http.parsed-url.fragment] Parsing percent-decodes the fragment as UTF-8, retaining an explicit empty fragment as `Some("")`.
-14. r[std-http.parsed-url.invalid-escape] Invalid percent escapes or invalid decoded UTF-8 in the path, query or fragment make the input invalid.
-15. r[std-http.parsed-url.raw-path] Display retains the private escaped path while decoding it gives the current public path.
-16. r[std-http.parsed-url.changed-path] Otherwise Display percent-encodes the public path as UTF-8, preserving RFC 3986 path characters and escaping literal `%` and `?`.
-17. r[std-http.parsed-url.raw-path-unicode] Literal non-ASCII path bytes are percent-encoded without changing existing valid escapes.
-18. r[std-http.parsed-url.display-query] Display writes nonempty query pairs as encoded `name=value` parts joined by `&`, encoding each component's UTF-8 bytes separately.
-19. r[std-http.parsed-url.display-fragment] Display writes a present fragment after `#`, percent-encoding its UTF-8 bytes while retaining permitted fragment characters.
-20. r[std-http.parsed-url.empty-query] Parsing an explicit empty query retains a private presence bit, so an empty public list can still display a trailing `?`.
-21. r[std-http.parsed-url.nonempty-query] A nonempty public query list overrides that presence bit in Display.
-22. r[std-http.parsed-url.param] `param(&self, name: string) -> string?` returns the first value whose name equals `name`, or `None` when absent.
-23. r[std-http.parsed-url.add-param] `add_param[T < Display](&mut self, name: string, value: T) -> void` appends the name and the value's Display text as decoded data.
-24. r[std-http.parsed-url.add-param-empty-query] `add_param` clears the earlier empty-query presence bit.
-25. r[std-http.parsed-url.resolve] `resolve(&self, reference: string) -> Result[Url, UrlError]` resolves a reference by RFC 3986 section 5, preserving encoded path separators and query presence.
-26. r[std-http.parsed-url.traits] `Url` implements `Display`, structural `Eq` and `Debug`.
+Parsed URI references are specified in [std.url](url.md#parsed-urls).
+1. r[std-http.url.absolute-target] HTTP requests require an absolute HTTP or HTTPS URI with a nonempty host and no user-info.
 
 ## Requests And Responses
 
@@ -416,7 +367,8 @@ form := Multipart::new()
 14. r[std-http.multipart.set.content-type] The replacement Content-Type is `multipart/form-data; boundary=BOUNDARY` with the chosen boundary.
 
 ```hd
-use std.http.{Multipart, MultipartError, Request, Url}
+use std.http.{Multipart, MultipartError, Request}
+use std.url.{Url}
 
 fn attach(url: Url, form: Multipart) -> Result[Request, MultipartError]:
     request := Request::post(url).set_multipart(form)?
@@ -823,7 +775,8 @@ body reader. Compression is transport policy; no inflater is linked into the
 program Wasm.
 
 ```hd
-use std.http.{Http, HttpError, Request, Url}
+use std.http.{Http, HttpError, Request}
+use std.url.{Url}
 
 fn decoded_text!(url: string) -> Result[string, HttpError] $ Http:
     response := Request::get(Url::parse(url)?).send!()?
@@ -860,7 +813,8 @@ error; the free `get!` calls it automatically:
 
 ```text
 use std.error.Error
-use std.http.{Http, HttpError, Request, Url, get}
+use std.http.{Http, HttpError, Request, get}
+use std.url.{Url}
 use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize)

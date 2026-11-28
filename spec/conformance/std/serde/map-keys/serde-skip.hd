@@ -2,7 +2,8 @@
 # Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.named-read-default, std-serde.skip.positional-read-default, std-serde.skip.named-unknown-fact, std-serde.skip.positional-form.
 use std.encoding.json.{decode, encode, from_json, parse, to_json}
 use std.encoding.{Serialize, Deserialize, Serializer, Deserializer, skip, rename, skip_none}
-use std.http.{Request, Url}
+use std.http.{Request}
+use std.url.{Url}
 use std.meta.Inspectable
 use std.regex.Regex
 use std.ops.Default

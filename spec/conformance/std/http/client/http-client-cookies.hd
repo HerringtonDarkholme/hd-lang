@@ -1,6 +1,7 @@
 # test: Client fills and stores its scoped jar across sends and redirects
 use std.convert.From
-use std.http.{Client, Headers, Http, Request, Response, ScriptedHttp, Url}
+use std.http.{Client, Headers, Http, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.testing.assert_equal
 

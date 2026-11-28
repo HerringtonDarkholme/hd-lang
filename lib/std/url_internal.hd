@@ -1,0 +1,632 @@
+# URI and form implementation shared by std.url and std.http.
+# This module is private to std's root; it adds no public user API.
+use std.text.{Parse, StringBuilder}
+use std.encoding.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
+use std.meta.{Facts, VariantInfo, Member}
+
+## A typed query or form conversion failure.
+@error
+@derive(Debug, Eq)
+pub enum FormError:
+    @error("field ${field} has no form encoding")
+    Unsupported(field: string)
+    @error("missing field ${field}")
+    Missing(field: string)
+    @error("field ${field}: cannot read ${text}")
+    Invalid(field: string, text: string)
+
+# The typed form codec uses serde's record/list/scalar protocol. Its frame
+# stack permits the parameter record plus one deepObject property level.
+struct MessageFormFrame:
+    path: string
+    facts: Facts
+
+fn message_form_path(parent: &string, name: &string) -> string:
+    if parent.is_empty(): *name else: "$parent[$name]"
+
+fn message_form_member_name(frame: &MessageFormFrame, member: &Member) -> Result[string, FormError]:
+    name := member_name(member, frame.facts)
+    path := message_form_path(&frame.path, &name)
+    if name.contains("[") || name.contains("]"):
+        return .Err(.Unsupported(path))
+    .Ok(path)
+
+struct MessageFormWriter:
+    frames: List[MessageFormFrame] = []
+    path: string = ""
+    keyed: bool = false
+    repeated: bool = false
+    started: bool = false
+    finished: bool = false
+    tagged: bool = false
+    tag: string = ""
+    pairs: List[(string, string)] = []
+
+impl MessageFormWriter:
+    fn unsupported(&self) -> FormError:
+        .Unsupported(if self.path.is_empty(): "$" else: self.path)
+
+    fn scalar(&mut self, value: string) -> Result[void, FormError]:
+        if self.frames.is_empty() || !self.keyed || self.finished || self.tagged:
+            return .Err(self.unsupported())
+        self.pairs.push((self.path, value))
+        self.keyed = self.repeated
+        .Ok(())
+
+impl Serializer for MessageFormWriter:
+    type Error = FormError
+    fn null(&mut self) -> Result[void, FormError]:
+        if !self.keyed || self.repeated || self.frames.is_empty() || self.tagged:
+            return .Err(self.unsupported())
+        self.keyed = false
+        .Ok(())
+    fn bool(&mut self, value: bool) -> Result[void, FormError]:
+        self.scalar(if value: "true" else: "false")
+    fn int(&mut self, value: i64) -> Result[void, FormError]:
+        self.scalar("$value")
+    fn uint(&mut self, value: u64) -> Result[void, FormError]:
+        self.scalar("$value")
+    fn float(&mut self, value: f64) -> Result[void, FormError]:
+        self.scalar("$value")
+    fn text(&mut self, value: string) -> Result[void, FormError]:
+        self.scalar(value)
+    fn begin_list(&mut self, len: usize) -> Result[void, FormError]:
+        if !self.keyed || self.repeated || self.frames.len() != 1 || self.tagged:
+            return .Err(self.unsupported())
+        self.repeated = true
+        .Ok(())
+    fn end_list(&mut self) -> Result[void, FormError]:
+        if !self.repeated || self.tagged:
+            return .Err(self.unsupported())
+        self.repeated = false
+        self.keyed = false
+        .Ok(())
+    fn begin_map(&mut self, len: usize) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn key(&mut self, key: string) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn end_map(&mut self) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn begin_variant(&mut self, facts: Facts, variant: &VariantInfo) -> Result[void, FormError]:
+        if self.finished || self.tagged:
+            return .Err(self.unsupported())
+        if !variant.of_data:
+            if self.frames.is_empty() || !self.keyed:
+                return .Err(self.unsupported())
+            self.tagged = true
+            self.tag = variant.name
+            return .Ok(())
+        if self.repeated || self.frames.len() >= 2 || (self.started && self.frames.is_empty()):
+            return .Err(self.unsupported())
+        self.started = true
+        self.frames.push(MessageFormFrame { path: self.path, facts: facts })
+        self.keyed = false
+        .Ok(())
+    fn begin_newtype_variant(
+        &mut self,
+        facts: Facts,
+        variant: &VariantInfo,
+    ) -> Result[void, FormError]:
+        .Err(self.unsupported())
+
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        variant: &VariantInfo,
+        len: usize,
+    ) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn member(&mut self, member: &Member) -> Result[void, FormError]:
+        if self.frames.is_empty() || self.keyed || self.repeated || self.tagged:
+            return .Err(self.unsupported())
+        frame := self.frames[self.frames.len() - 1]
+        self.path = message_form_member_name(&frame, member)?
+        self.keyed = true
+        .Ok(())
+    fn end_variant(&mut self) -> Result[void, FormError]:
+        if self.tagged:
+            self.tagged = false
+            return self.scalar(self.tag)
+        if self.frames.is_empty() || self.keyed || self.repeated:
+            return .Err(self.unsupported())
+        frame := match self.frames.pop():
+            .Some(frame) => frame
+            .None => return .Err(self.unsupported())
+        self.path = frame.path
+        self.keyed = false
+        self.finished = self.frames.is_empty()
+        .Ok(())
+
+pub fn message_form_encode[T < Serialize](value: T) -> Result[List[(string, string)], FormError]:
+    let mut writer = MessageFormWriter {}
+    value.serialize(&mut writer)?
+    if !writer.finished:
+        return .Err(writer.unsupported())
+    .Ok(writer.pairs)
+
+struct MessageFormReader:
+    groups: Map[string, List[string]]
+    frames: List[MessageFormFrame] = []
+    path: string = ""
+    values: List[string] = []
+    current: string? = .None
+    repeated: bool = false
+    tagged: bool = false
+    at: usize = 0
+
+impl MessageFormReader:
+    fn unsupported(&self) -> FormError:
+        .Unsupported(if self.path.is_empty(): "$" else: self.path)
+
+    fn present(&self) -> bool:
+        if self.groups.contains_key(self.path):
+            return true
+        prefix := self.path + "["
+        for (key, _) in self.groups:
+            if key.starts_with(prefix):
+                return true
+        false
+
+    fn read_text(&self) -> Result[string, FormError]:
+        if !self.repeated && self.values.len() > 1:
+            return .Err(.Invalid(self.path, self.values[0]))
+        match self.current:
+            .Some(value) => .Ok(value)
+            .None => .Err(.Missing(self.path))
+
+    fn parse[T < Parse[Error = E], E](&self) -> Result[T, FormError]:
+        text := self.read_text()?
+        match T::parse(text):
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(.Invalid(self.path, text))
+
+impl Deserializer for MessageFormReader:
+    type Error = FormError
+    fn peek(&mut self) -> Result[ValueKind, FormError]:
+        .Ok(if self.current.is_some(): .Text else: .Null)
+    fn is_null(&mut self) -> Result[bool, FormError]:
+        .Ok(if self.repeated: self.current.is_none() else: !self.present())
+    fn bool(&mut self, expected: string) -> Result[bool, FormError]:
+        self.parse::[bool]()
+    fn int(&mut self, expected: string) -> Result[i64, FormError]:
+        self.parse::[i64]()
+    fn uint(&mut self, expected: string) -> Result[u64, FormError]:
+        self.parse::[u64]()
+    fn float(&mut self, expected: string) -> Result[f64, FormError]:
+        self.parse::[f64]()
+    fn text(&mut self, expected: string) -> Result[string, FormError]:
+        self.read_text()
+    fn begin_list(&mut self) -> Result[void, FormError]:
+        if self.repeated || self.frames.len() != 1 || self.tagged:
+            return .Err(self.unsupported())
+        self.repeated = true
+        self.at = 0
+        .Ok(())
+    fn next_item(&mut self) -> Result[bool, FormError]:
+        if !self.repeated:
+            return .Err(self.unsupported())
+        if self.at == self.values.len():
+            self.repeated = false
+            return .Ok(false)
+        self.current = .Some(self.values[self.at])
+        self.at += 1
+        .Ok(true)
+    fn begin_map(&mut self) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn next_key(&mut self) -> Result[string?, FormError]:
+        .Err(self.unsupported())
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, FormError]:
+        if choices.is_empty() || self.tagged:
+            return .Err(self.unsupported())
+        if !choices[0].of_data:
+            if self.frames.is_empty():
+                return .Err(self.unsupported())
+            name := self.read_text()?
+            for index in 0..choices.len():
+                if choices[index].name == name:
+                    self.tagged = true
+                    return .Ok(index)
+            return .Err(.Invalid(self.path, name))
+        if self.repeated || self.frames.len() >= 2 || choices.len() != 1:
+            return .Err(self.unsupported())
+        self.frames.push(MessageFormFrame { path: self.path, facts: facts })
+        .Ok(0)
+    fn begin_newtype_variant(&mut self) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, FormError]:
+        .Err(self.unsupported())
+    fn member(&mut self, member: &Member) -> Result[void, FormError]:
+        if self.tagged || self.frames.is_empty():
+            return .Err(self.unsupported())
+        frame := self.frames[self.frames.len() - 1]
+        self.path = message_form_member_name(&frame, member)?
+        self.values = match self.groups.get(self.path):
+            .Some(values) => values
+            .None => []
+        self.current = self.values.get(0)
+        .Ok(())
+    fn end_variant(&mut self) -> Result[void, FormError]:
+        if self.tagged:
+            self.tagged = false
+            return .Ok(())
+        frame := match self.frames.pop():
+            .Some(frame) => frame
+            .None => return .Err(self.unsupported())
+        self.path = frame.path
+        .Ok(())
+    fn invalid(&mut self, expected: string) -> FormError:
+        .Invalid(self.path, self.current.unwrap_or(""))
+    fn is_absent(&mut self) -> bool:
+        !self.present()
+
+pub fn message_form_decode[T < Deserialize](pairs: &List[(string, string)]) -> Result[T, FormError]:
+    let mut groups: Map[string, List[string]] = {}
+    for (key, value) in pairs:
+        groups.get_or_insert(key, []).push(value)
+    let mut reader = MessageFormReader { groups: groups }
+    T::deserialize(&mut reader)
+
+pub fn message_form_parse(text: &string) -> Result[List[(string, string)], FormError]:
+    let mut pairs: List[(string, string)] = []
+    for part in text.split("&"):
+        if part.is_empty():
+            continue
+        let (name, value) = part.split_once("=").unwrap_or((part, ""))
+        key := match url_decode_component(&name, true):
+            .Ok(key) => key
+            .Err(_) => return .Err(.Invalid("$", name))
+        decoded := match url_decode_component(&value, true):
+            .Ok(decoded) => decoded
+            .Err(_) => return .Err(.Invalid(key, value))
+        pairs.push((key, decoded))
+    .Ok(pairs)
+
+pub enum UrlComponent:
+    Path
+    Query
+    Fragment
+
+fn url_unreserved(byte: u8) -> bool:
+    (
+        (byte >= 65 && byte <= 90)
+        || (byte >= 97 && byte <= 122)
+        || (byte >= 48 && byte <= 57)
+        || "-._~".to_utf8().contains(&byte)
+    )
+
+fn url_subdelimiter(byte: u8) -> bool:
+    "!$&'()*+,;=".to_utf8().contains(&byte)
+
+fn url_component_byte(byte: u8, component: UrlComponent) -> bool:
+    if url_unreserved(byte):
+        return true
+    match component:
+        .Path => url_subdelimiter(byte) || byte == 47 || byte == 58 || byte == 64
+        .Query => false
+        .Fragment => url_subdelimiter(byte) || byte == 47 || byte == 58 || byte == 64 || byte == 63
+
+fn url_hex(byte: u8) -> u8?:
+    if byte >= 48 && byte <= 57:
+        return .Some(byte - 48)
+    if byte >= 65 && byte <= 70:
+        return .Some(byte - 55)
+    if byte >= 97 && byte <= 102:
+        return .Some(byte - 87)
+    .None
+
+fn url_encoded_byte(out: &mut List[u8], byte: u8) -> void:
+    hex := "0123456789ABCDEF".to_utf8()
+    out.push(37)
+    out.push(hex[usize(byte / 16)])
+    out.push(hex[usize(byte % 16)])
+
+fn url_ascii_text(bytes: List[u8]) -> string:
+    match string::from_utf8(bytes):
+        .Ok(text) => text
+        .Err(_) => panic("URI encoding contains only ASCII")
+
+pub fn url_encode_component(text: &string, component: UrlComponent) -> string:
+    let mut out: List[u8] = []
+    for byte in text.to_utf8():
+        if url_component_byte(byte, component):
+            out.push(byte)
+        else:
+            url_encoded_byte(&mut out, byte)
+    url_ascii_text(out)
+
+# Keep valid escapes, including escaped separators; encode literal UTF-8.
+pub fn url_prepare_path(text: &string) -> string?:
+    bytes := text.to_utf8()
+    let mut out: List[u8] = []
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if (
+                at + 2 >= bytes.len()
+                || url_hex(bytes[at + 1]).is_none()
+                || url_hex(bytes[at + 2]).is_none()
+            ):
+                return .None
+            out.push(byte)
+            out.push(bytes[at + 1])
+            out.push(bytes[at + 2])
+            at += 3
+        else:
+            if url_component_byte(byte, .Path):
+                out.push(byte)
+            else:
+                url_encoded_byte(&mut out, byte)
+            at += 1
+    .Some(url_ascii_text(out))
+
+pub fn url_decode_component(text: &string, plus: bool) -> Result[string, usize]:
+    bytes := text.to_utf8()
+    let mut out: List[u8] = []
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if at + 2 >= bytes.len():
+                return .Err(at)
+            high := url_hex(bytes[at + 1]).ok_or(at)?
+            low := url_hex(bytes[at + 2]).ok_or(at)?
+            out.push(high * 16 + low)
+            at += 3
+        else:
+            out.push(if plus && byte == 43: 32 else: byte)
+            at += 1
+    match string::from_utf8(out):
+        .Ok(value) => .Ok(value)
+        .Err(error) =>
+            index := match error:
+                .InvalidSequence(position) => position
+                .Truncated(position) => position
+            # A second linear pass maps the decoded offset back to input bytes.
+            let source = 0
+            let decoded = 0
+            while decoded < index:
+                source += if bytes[source] == 37: 3 else: 1
+                decoded += 1
+            .Err(source)
+
+pub fn url_host_valid(host: &string) -> bool:
+    if host.is_empty():
+        return false
+    bytes := host.to_utf8()
+    for byte in bytes:
+        if byte >= 128:
+            return false
+    if host.starts_with("["):
+        if !host.ends_with("]"):
+            return false
+        address := host.slice(1, host.len() - 1)
+        if address.starts_with("v") || address.starts_with("V"):
+            let (version, rest) = address.slice(1, address.len())
+                .split_once(".")
+                .unwrap_or(("", ""))
+            if version.is_empty() || rest.is_empty():
+                return false
+            for byte in version.to_utf8():
+                if url_hex(byte).is_none():
+                    return false
+            for byte in rest.to_utf8():
+                if !url_unreserved(byte) && !url_subdelimiter(byte) && byte != 58:
+                    return false
+            return true
+        return url_ipv6(&address)
+    let at = 0
+    while at < bytes.len():
+        byte := bytes[at]
+        if byte == 37:
+            if (
+                at + 2 >= bytes.len()
+                || url_hex(bytes[at + 1]).is_none()
+                || url_hex(bytes[at + 2]).is_none()
+            ):
+                return false
+            at += 3
+        else:
+            if !url_unreserved(byte) && !url_subdelimiter(byte):
+                return false
+            at += 1
+    true
+
+# An IPv6 address as RFC 3986 writes it inside brackets, without them.
+pub fn url_ipv6(address: &string) -> bool:
+    match address.split_once("::"):
+        .Some((left, right)) =>
+            if right.contains("::"):
+                return false
+            before := match url_ipv6_groups(&left, false):
+                .Some(count) => count
+                .None => return false
+            after := match url_ipv6_groups(&right, true):
+                .Some(count) => count
+                .None => return false
+            before + after < 8
+        .None => url_ipv6_groups(address, true) == .Some(8)
+
+fn url_ipv6_groups(text: &string, ipv4: bool) -> usize?:
+    if text.is_empty():
+        return .Some(0)
+    parts := text.split(":")
+    let count = 0
+    for at in 0..parts.len():
+        part := parts[at]
+        if ipv4 && at + 1 == parts.len() && part.contains("."):
+            if !url_ipv4(&part):
+                return .None
+            count += 2
+        else:
+            if part.is_empty() || part.len() > 4:
+                return .None
+            for byte in part.to_utf8():
+                if url_hex(byte).is_none():
+                    return .None
+            count += 1
+    .Some(count)
+
+pub fn url_ipv4(text: &string) -> bool:
+    parts := text.split(".")
+    if parts.len() != 4:
+        return false
+    for part in parts:
+        if part.is_empty() || part.len() > 3 || (part.len() > 1 && part.starts_with("0")):
+            return false
+        let value = 0
+        for byte in part.to_utf8():
+            if byte < 48 || byte > 57:
+                return false
+            value = value * 10 + usize(byte - 48)
+        if value > 255:
+            return false
+    true
+
+pub trait UrlWire:
+    fn escaped_path(&self) -> string
+    fn form_error(&self) -> FormError?
+    fn has_user_info(&self) -> bool
+
+# RFC 3986 components keep an absent query distinct from an empty one.
+pub struct ClientUrl:
+    pub scheme: string?
+    pub authority: string?
+    pub path: string
+    pub query: string?
+    pub fragment: string?
+
+pub fn client_url_parts(url: string) -> ClientUrl:
+    let rest = url
+    let fragment: string? = .None
+    match rest.split_once("#"):
+        .Some((before, value)) =>
+            rest = before
+            fragment = .Some(value)
+        .None => pass
+    let query: string? = .None
+    match rest.split_once("?"):
+        .Some((before, value)) =>
+            rest = before
+            query = .Some(value)
+        .None => pass
+    let scheme: string? = .None
+    match rest.split_once(":"):
+        .Some((name, after)) =>
+            let valid = !name.is_empty()
+            for (at, byte) in name.to_utf8().iter().enumerate():
+                letter := (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+                if (
+                    !letter
+                    && (
+                        at == 0
+                        || !((byte >= 48 && byte <= 57) || byte == 43 || byte == 45 || byte == 46)
+                    )
+                ):
+                    valid = false
+            if valid:
+                scheme = .Some(name)
+                rest = after
+        .None => pass
+    let authority: string? = .None
+    if rest.starts_with("//"):
+        tail := rest.slice(2, rest.len())
+        end := tail.find("/").unwrap_or(tail.len())
+        authority = .Some(tail.slice(0, end))
+        rest = tail.slice(end, tail.len())
+    ClientUrl { scheme: scheme, authority: authority, path: rest, query: query, fragment: fragment }
+
+pub fn redirect_url(base: string, location: string) -> string:
+    origin := client_url_parts(base)
+    reference := client_url_parts(location)
+    let mut target = reference
+    if reference.scheme.is_some():
+        target.path = client_url_path(reference.path)
+    else:
+        target.scheme = origin.scheme
+        if reference.authority.is_some():
+            target.path = client_url_path(reference.path)
+        else:
+            target.authority = origin.authority
+            if reference.path.is_empty():
+                target.path = origin.path
+                if reference.query.is_none():
+                    target.query = origin.query
+            else if reference.path.starts_with("/"):
+                target.path = client_url_path(reference.path)
+            else:
+                directory := if origin.authority.is_some() && origin.path.is_empty():
+                    "/"
+                else:
+                    origin.path.rfind("/").map(fn(at): origin.path.slice(0, at + 1)).unwrap_or("")
+                target.path = client_url_path(directory + reference.path)
+    out := StringBuilder::new()
+    match target.scheme:
+        .Some(scheme) => out.push(scheme + ":")
+        .None => pass
+    match target.authority:
+        .Some(authority) => out.push("//" + authority)
+        .None => pass
+    out.push(target.path)
+    match target.query:
+        .Some(query) => out.push("?" + query)
+        .None => pass
+    match target.fragment:
+        .Some(fragment) => out.push("#" + fragment)
+        .None => pass
+    out.build()
+
+# RFC 3986 section 5.2.4. Each byte is visited once; each segment is
+# pushed/popped once. Avoid repeated suffix copies and output-prefix scans.
+fn client_url_path(path: string) -> string:
+    bytes := path.to_utf8()
+    let mut segments: List[string] = []
+    let at = 0
+    while at < bytes.len():
+        if path_bytes_at(&bytes, at, &"../".to_utf8()):
+            at += 3
+        else if path_bytes_at(&bytes, at, &"./".to_utf8()):
+            at += 2
+        else if path_bytes_at(&bytes, at, &"/./".to_utf8()):
+            at += 2
+        else if path_bytes_at(&bytes, at, &"/../".to_utf8()):
+            at += 3
+            _ := segments.pop()
+        else if at + 2 == bytes.len() && path_bytes_at(&bytes, at, &"/.".to_utf8()):
+            segments.push("/")
+            at = bytes.len()
+        else if at + 3 == bytes.len() && path_bytes_at(&bytes, at, &"/..".to_utf8()):
+            _ := segments.pop()
+            segments.push("/")
+            at = bytes.len()
+        else if (
+            (at + 1 == bytes.len() && bytes[at] == 46)
+            || (at + 2 == bytes.len() && path_bytes_at(&bytes, at, &"..".to_utf8()))
+        ):
+            at = bytes.len()
+        else:
+            let end = at + 1
+            while end < bytes.len() && bytes[end] != 47:
+                end += 1
+            segments.push(path.slice(at, end))
+            at = end
+    segments.join("")
+
+fn path_bytes_at(bytes: &List[u8], at: usize, pattern: &List[u8]) -> bool:
+    if pattern.len() > bytes.len() - at:
+        return false
+    for index in 0..pattern.len():
+        if bytes[at + index] != pattern[index]:
+            return false
+    true
+
+pub fn url_invalid_message(text: &string) -> string:
+    parts := client_url_parts(*text)
+    if parts.authority.unwrap_or("").contains("@"):
+        "invalid URL: credentials are not supported; use the Authorization header"
+    else:
+        "invalid URL: $text"

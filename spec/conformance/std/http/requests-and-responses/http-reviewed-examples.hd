@@ -22,10 +22,10 @@ use std.http.{
     Request,
     Response,
     ScriptedHttp,
-    Url,
     get,
     post,
 }
+use std.url.{Url}
 
 @derive(Serialize, Deserialize)
 struct NewOrder:
@@ -147,7 +147,7 @@ fn with_headers!(
 
 fn atoms(req: &Request) -> Response:
     # A parsed URL's parts are fields; one key at a time is param.
-    origin := "${req.url.scheme}://${req.url.host}"
+    origin := "${req.url.scheme.unwrap_or("")}://${req.url.host.unwrap_or("")}"
     let mut next = req.url
     next.add_param("cursor", 42)
     # The body is shared and read once; the message readers are shorthands.

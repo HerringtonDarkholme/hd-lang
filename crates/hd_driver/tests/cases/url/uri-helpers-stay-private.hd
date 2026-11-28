@@ -1,0 +1,2 @@
+# @dump: diagnostics
+use std.url_internal.url_decode_component

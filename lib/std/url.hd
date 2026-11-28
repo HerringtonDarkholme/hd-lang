@@ -1,0 +1,307 @@
+# Scheme-independent URI references (RFC 3986).
+use std.text.StringBuilder
+use std.encoding.{Deserialize, Serialize}
+use std.url_internal.{
+    FormError,
+    url_invalid_message,
+    UrlComponent,
+    UrlWire,
+    message_form_decode,
+    message_form_encode,
+    message_form_parse,
+    url_decode_component,
+    url_encode_component,
+    url_prepare_path,
+    url_host_valid,
+    client_url_parts,
+    redirect_url,
+}
+
+@error
+@derive(Debug, Eq)
+pub enum UrlError:
+    @error("${url_invalid_message(&text)}")
+    Invalid(text: string)
+    @error("relative URL without a base: ${text}")
+    RelativeWithoutBase(text: string)
+    @error("invalid URL encoding at byte ${offset}")
+    InvalidEncoding(text: string, offset: usize)
+
+## Parsed URI reference. Public components are values, not references.
+@derive(Debug, Eq)
+pub struct Url:
+    pub scheme: string?
+    pub host: string?
+    pub port: u16?
+    pub path: string
+    pub query: List[(string, string)] = []
+    pub fragment: string? = .None
+    pub raw_path: string
+    user_info: string? = .None
+    force_query: bool
+    query_error: FormError? = .None
+
+impl Url:
+    pub fn parse(text: string) -> Result[Url, UrlError]:
+        for byte in text.to_utf8():
+            if byte <= 32 || byte == 127:
+                return .Err(.Invalid(text))
+        # Validate every component, preserving byte positions in the original input.
+        _ := url_decode_component(&text, false)
+            .map_err(fn(offset): UrlError.InvalidEncoding(text, offset))?
+        parts := client_url_parts(text)
+        scheme := parts.scheme.map(fn(value): header_ascii_lower(&value))
+        if scheme.is_none() && !parts.path.starts_with("/"):
+            first := parts.path.split_once("/").map(fn(pair): pair._0).unwrap_or(parts.path)
+            if first.contains(":"):
+                return .Err(.Invalid(text))
+        let host: string? = .None
+        let port: u16? = .None
+        let user_info: string? = .None
+        match parts.authority:
+            .Some(original) =>
+                let authority = original
+                match authority.rfind("@"):
+                    .Some(at) =>
+                        user_info = .Some(authority.slice(0, at))
+                        authority = authority.slice(at + 1, authority.len())
+                    .None => pass
+                let name = ""
+                let port_text: string? = .None
+                if authority.starts_with("["):
+                    close := authority.find("]").ok_or(UrlError.Invalid(text))?
+                    name = authority.slice(0, close + 1)
+                    tail := authority.slice(close + 1, authority.len())
+                    if !tail.is_empty():
+                        if !tail.starts_with(":"):
+                            return .Err(.Invalid(text))
+                        port_text = .Some(tail.slice(1, tail.len()))
+                else:
+                    let (server, tail) = authority.split_once(":").unwrap_or((authority, ""))
+                    name = server
+                    if authority.contains(":"):
+                        port_text = .Some(tail)
+                if !name.is_empty() && !url_host_valid(&name):
+                    return .Err(.Invalid(text))
+                host = .Some(header_ascii_lower(&name))
+                match port_text:
+                    .Some(digits) =>
+                        if !digits.is_empty():
+                            for byte in digits.to_utf8():
+                                if byte < 48 || byte > 57:
+                                    return .Err(.Invalid(text))
+                            port = .Some(
+                                digits.parse::[u16]().map_err(fn(error): UrlError.Invalid(text))?
+                            )
+                    .None => pass
+            .None => pass
+        raw_path := url_prepare_path(&parts.path).ok_or(UrlError.Invalid(text))?
+        # The whole-reference validation above already checked encoding errors.
+        path := url_decode_component(&raw_path, false)
+            .map_err(fn(offset): UrlError.InvalidEncoding(text, offset))?
+        query := match parts.query:
+            .Some(raw) =>
+                message_form_parse(&raw).map_err(fn(error): UrlError.Invalid(text))?
+            .None => []
+        let fragment: string? = .None
+        match parts.fragment:
+            .Some(raw) =>
+                fragment = .Some(
+                    url_decode_component(&raw, false)
+                        .map_err(fn(offset): UrlError.InvalidEncoding(text, offset))?
+                )
+            .None => pass
+        .Ok(
+            Url {
+                scheme: scheme,
+                host: host,
+                port: port,
+                path: path,
+                query: query,
+                fragment: fragment,
+                raw_path: raw_path,
+                user_info: user_info,
+                force_query: parts.query.is_some() && query.is_empty(),
+            },
+        )
+
+    pub fn resolve(&self, reference: string) -> Result[Url, UrlError]:
+        _ := Url::parse(reference)?
+        let mut target = Url::parse(redirect_url(self.to_string(), reference))?
+        parts := client_url_parts(reference)
+        if (
+            parts.scheme.is_none()
+            && parts.authority.is_none()
+            && parts.path.is_empty()
+            && parts.query.is_none()
+        ):
+            target.query_error = self.query_error
+        .Ok(target)
+
+    pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]:
+        match self.query_error:
+            .Some(error) => .Err(error)
+            .None => message_form_decode::[T](&self.query)
+
+    pub fn set_query_as[T < Serialize](&mut self, value: T) -> void:
+        self.force_query = false
+        match message_form_encode(value):
+            .Ok(pairs) =>
+                self.query = pairs
+                self.query_error = .None
+            .Err(error) =>
+                self.query = []
+                self.query_error = .Some(error)
+
+    pub fn param(&self, name: string) -> string?:
+        for (key, value) in self.query:
+            if key == name:
+                return .Some(value)
+        .None
+
+    pub fn add_param[T < Display](&mut self, name: string, value: T) -> void:
+        self.force_query = false
+        self.query.push((name, "$value"))
+
+impl UrlWire for Url:
+    fn form_error(&self) -> FormError?:
+        self.query_error
+
+    fn has_user_info(&self) -> bool:
+        self.user_info.is_some()
+
+    fn escaped_path(&self) -> string:
+        if (
+            url_decode_component(&self.raw_path, false) == .Ok(self.path)
+            && url_prepare_path(&self.raw_path) == .Some(self.raw_path)
+        ):
+            self.raw_path
+        else:
+            url_encode_component(&self.path, .Path)
+
+impl Display for Url:
+    fn to_string(&self) -> string:
+        let text = self.scheme.map(fn(value): value + ":").unwrap_or("")
+        match self.host:
+            .Some(host) =>
+                text += "//"
+                match self.user_info:
+                    .Some(user) => text += user + "@"
+                    .None => pass
+                text += host
+                match self.port:
+                    .Some(port) => text += ":$port"
+                    .None => pass
+            .None => pass
+        text += self.escaped_path()
+        if !self.query.is_empty():
+            let mut pairs: List[string] = []
+            for (name, value) in self.query:
+                pairs.push(
+                    "${url_encode_component(&name, .Query)}=${url_encode_component(&value, .Query)}",
+                )
+            text += "?" + pairs.join("&")
+        else if self.force_query:
+            text += "?"
+        match self.fragment:
+            .Some(fragment) => text += "#" + url_encode_component(&fragment, .Fragment)
+            .None => pass
+        text
+
+fn header_ascii_lower(text: &string) -> string:
+    let mut bytes: List[u8] = []
+    for byte in text.to_utf8():
+        bytes.push(if byte >= 65 && byte <= 90: byte + 32 else: byte)
+    match string::from_utf8(bytes):
+        .Ok(value) => value
+        .Err(_) => panic("ASCII lowercasing preserves UTF-8")
+
+tests:
+    it(
+        "URI references decode paths and retain encoded separators",
+        fn():
+            for (text, decoded) in [
+                ("notes%20file.md", "notes file.md"),
+                ("caf%C3%A9.md", "café.md"),
+                ("literal+plus.md", "literal+plus.md"),
+                ("folder%2Ffile.md", "folder/file.md"),
+            ]:
+                url := Url::parse(text).expect("valid relative URI")
+                assert_equal(url.path, decoded)
+                assert_equal(url.raw_path, text)
+                assert_equal(url.scheme, .None)
+                assert_equal(url.host, .None)
+                assert_equal(url.to_string(), text)
+    )
+    it(
+        "URI encoding errors name the original byte offset",
+        fn():
+            for (text, offset) in [
+                ("bad%", 3),
+                ("bad%2", 3),
+                ("bad%GG", 3),
+                ("%FF", 0),
+                ("a%C3", 1),
+                ("caf%C3%28", 3),
+                ("https://example.test/a?x=%FF", 25),
+                ("https://example.test/a#%FF", 23),
+            ]:
+                assert_equal(Url::parse(text), .Err(UrlError.InvalidEncoding(text, offset)))
+    )
+    it("URI references include absolute and relative forms", fn():
+        for text in [
+            "",
+            "../a",
+            "/a",
+            "?x=y",
+            "#frag",
+            "//example.test/a",
+            "file:///tmp/a",
+            "mailto:person@example.test",
+            "urn:isbn:123",
+        ]:
+            url := Url::parse(text).expect("valid URI reference")
+            assert_equal(url.to_string(), text)
+        absolute := Url::parse("HTTPS://EXAMPLE.TEST:443/a").expect("absolute URI")
+        assert_equal(absolute.scheme, .Some("https"))
+        assert_equal(absolute.host, .Some("example.test"))
+        assert_equal(absolute.port, .Some(443))
+        assert_equal(absolute.path, "/a")
+    )
+    it("URI query and fragment use their component decoding rules", fn():
+        url := Url::parse("a+b?x=a+b&x=c%2Bd#caf%C3%A9").expect("components")
+        assert_equal(url.path, "a+b")
+        assert_equal(url.query, [("x", "a b"), ("x", "c+d")])
+        assert_equal(url.fragment, .Some("café"))
+    )
+    it("RFC3986 resolution preserves encoded dots and separators", fn():
+        base := Url::parse("http://a/b/c/d;p?q").expect("base")
+        for (reference, expected) in [
+            ("g:h", "g:h"),
+            ("g", "http://a/b/c/g"),
+            ("./g", "http://a/b/c/g"),
+            ("g/", "http://a/b/c/g/"),
+            ("/g", "http://a/g"),
+            ("//g", "http://g"),
+            ("?y", "http://a/b/c/d;p?y="),
+            ("#s", "http://a/b/c/d;p?q=#s"),
+            ("", "http://a/b/c/d;p?q="),
+            (".", "http://a/b/c/"),
+            ("..", "http://a/b/"),
+            ("../..", "http://a/"),
+            ("../../g", "http://a/g"),
+            ("../../../g", "http://a/g"),
+            ("/./g", "http://a/g"),
+            ("/../g", "http://a/g"),
+            ("g/./h", "http://a/b/c/g/h"),
+            ("g/../h", "http://a/b/c/h"),
+            ("%2E%2E/g", "http://a/b/c/%2E%2E/g"),
+        ]:
+            assert_equal(base.resolve(reference).map(fn(url): url.to_string()), .Ok(expected))
+        assert(base.resolve("%FF/../g").is_err())
+    )
+    it("a public raw path cannot introduce a query delimiter", fn():
+        let mut url = Url::parse("a%3Fb").expect("encoded delimiter")
+        url.raw_path = "a?b"
+        assert_equal(url.to_string(), "a%3Fb")
+    )

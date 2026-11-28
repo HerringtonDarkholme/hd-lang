@@ -5,7 +5,8 @@
 use std.meta.inline
 use std.ops.Fn
 use std.hash.Hash
-use std.http.{Http, HttpError, Request, Response, Url}
+use std.http.{Http, HttpError, Request, Response}
+use std.url.{Url}
 use std.meta.Wire
 use std.num.Integer
 use std.random.Random

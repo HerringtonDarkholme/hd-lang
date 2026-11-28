@@ -3,7 +3,7 @@
 use std.meta.inline
 use std.collections.UniqList
 use std.ops.{Fn, Tuple}
-use std.http.Url
+use std.url.Url
 use std.testing.assert_equal
 
 struct Packet:

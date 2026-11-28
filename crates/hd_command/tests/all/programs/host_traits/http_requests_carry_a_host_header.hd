@@ -1,4 +1,5 @@
-use std.http.{Http, Request, Url, get}
+use std.http.{Http, Request, get}
+use std.url.{Url}
 use std.cli.{Args, args}
 
 pub fn main!() -> void $ Console + Http + Args:
@@ -6,6 +7,10 @@ pub fn main!() -> void $ Console + Http + Args:
     match get!("${base}/host"):
         .Ok(r) => println(r.text().expect("body"))
         .Err(e) => println(debug(e))
-    match Request::get(Url::parse("${base}/host").expect("URL")).set_header(.Host, "example.test").send!():
+    match (
+        Request::get(Url::parse("${base}/host").expect("URL"))
+            .set_header(.Host, "example.test")
+            .send
+    )!():
         .Ok(r) => println(r.text().expect("body"))
         .Err(e) => println(debug(e))

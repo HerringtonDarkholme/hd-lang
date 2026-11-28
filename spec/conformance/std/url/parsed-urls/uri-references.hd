@@ -1,0 +1,93 @@
+# test: URI references decode UTF-8 paths and report original encoding offsets.
+# Spec: std-url.parsed-url.parse, std-url.parsed-url.path-plus, std-url.parsed-url.invalid-escape.
+use std.url.{Url, UrlError}
+
+tests:
+    it(
+        "URI references decode paths and retain encoded separators",
+        fn():
+            for (text, decoded) in [
+                ("notes%20file.md", "notes file.md"),
+                ("caf%C3%A9.md", "café.md"),
+                ("literal+plus.md", "literal+plus.md"),
+                ("folder%2Ffile.md", "folder/file.md"),
+            ]:
+                url := Url::parse(text).expect("valid relative URI")
+                assert_equal(url.path, decoded)
+                assert_equal(url.raw_path, text)
+                assert_equal(url.scheme, .None)
+                assert_equal(url.host, .None)
+                assert_equal(url.to_string(), text)
+    )
+    it(
+        "URI encoding errors name the original byte offset",
+        fn():
+            for (text, offset) in [
+                ("bad%", 3),
+                ("bad%2", 3),
+                ("bad%GG", 3),
+                ("%FF", 0),
+                ("a%C3", 1),
+                ("caf%C3%28", 3),
+                ("https://example.test/a?x=%FF", 25),
+                ("https://example.test/a#%FF", 23),
+            ]:
+                assert_equal(Url::parse(text), .Err(UrlError.InvalidEncoding(text, offset)))
+    )
+    it("URI references include absolute and relative forms", fn():
+        for text in [
+            "",
+            "../a",
+            "/a",
+            "?x=y",
+            "#frag",
+            "//example.test/a",
+            "file:///tmp/a",
+            "mailto:person@example.test",
+            "urn:isbn:123",
+        ]:
+            url := Url::parse(text).expect("valid URI reference")
+            assert_equal(url.to_string(), text)
+        absolute := Url::parse("HTTPS://EXAMPLE.TEST:443/a").expect("absolute URI")
+        assert_equal(absolute.scheme, .Some("https"))
+        assert_equal(absolute.host, .Some("example.test"))
+        assert_equal(absolute.port, .Some(443))
+        assert_equal(absolute.path, "/a")
+    )
+    it("URI query and fragment use their component decoding rules", fn():
+        url := Url::parse("a+b?x=a+b&x=c%2Bd#caf%C3%A9").expect("components")
+        assert_equal(url.path, "a+b")
+        assert_equal(url.query, [("x", "a b"), ("x", "c+d")])
+        assert_equal(url.fragment, .Some("café"))
+    )
+    it("RFC3986 resolution preserves encoded dots and separators", fn():
+        base := Url::parse("http://a/b/c/d;p?q").expect("base")
+        for (reference, expected) in [
+            ("g:h", "g:h"),
+            ("g", "http://a/b/c/g"),
+            ("./g", "http://a/b/c/g"),
+            ("g/", "http://a/b/c/g/"),
+            ("/g", "http://a/g"),
+            ("//g", "http://g"),
+            ("?y", "http://a/b/c/d;p?y="),
+            ("#s", "http://a/b/c/d;p?q=#s"),
+            ("", "http://a/b/c/d;p?q="),
+            (".", "http://a/b/c/"),
+            ("..", "http://a/b/"),
+            ("../..", "http://a/"),
+            ("../../g", "http://a/g"),
+            ("../../../g", "http://a/g"),
+            ("/./g", "http://a/g"),
+            ("/../g", "http://a/g"),
+            ("g/./h", "http://a/b/c/g/h"),
+            ("g/../h", "http://a/b/c/h"),
+            ("%2E%2E/g", "http://a/b/c/%2E%2E/g"),
+        ]:
+            assert_equal(base.resolve(reference).map(fn(url): url.to_string()), .Ok(expected))
+        assert(base.resolve("%FF/../g").is_err())
+    )
+    it("a public raw path cannot introduce a query delimiter", fn():
+        let mut url = Url::parse("a%3Fb").expect("encoded delimiter")
+        url.raw_path = "a?b"
+        assert_equal(url.to_string(), "a%3Fb")
+    )

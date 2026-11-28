@@ -1,4 +1,5 @@
 # test: Request has no timeout field
-use std.http.{Request, Url}
+use std.http.{Request}
+use std.url.{Url}
 
 request := Request { url: Url::parse("https://example.test/").expect("fixture URL"), timeout: 0 } # diagnostic: unknown-field

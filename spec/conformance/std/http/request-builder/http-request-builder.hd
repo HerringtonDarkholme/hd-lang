@@ -1,6 +1,7 @@
 # test: Request writers return values, parsed queries encode once, and sends consume the shared body
 # expect: test
-use std.http.{BodyError, Http, HttpError, Method, Request, Response, ScriptedHttp, Url}
+use std.http.{BodyError, Http, HttpError, Method, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.testing.assert_equal
 
 fn url(text: string) -> Url:

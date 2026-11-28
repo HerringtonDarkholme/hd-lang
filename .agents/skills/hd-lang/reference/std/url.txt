@@ -1,0 +1,11 @@
+std.url.UrlError  pub enum UrlError
+std.url.Url  pub struct Url  -- Parsed URI reference. Public components are values, not references.
+std.url.Url.parse  pub fn parse(text: string) -> Result[Url, UrlError]
+std.url.Url.resolve  pub fn resolve(&self, reference: string) -> Result[Url, UrlError]
+std.url.Url.query_as  pub fn query_as[T < Deserialize](&self) -> Result[T, FormError]
+std.url.Url.set_query_as  pub fn set_query_as[T < Serialize](&mut self, value: T) -> void
+std.url.Url.param  pub fn param(&self, name: string) -> string?
+std.url.Url.add_param  pub fn add_param[T < Display](&mut self, name: string, value: T) -> void
+
+Url fields: scheme: string?, host: string?, port: u16?, path: string, raw_path: string, query: List[(string, string)], fragment: string?.
+Malformed percent escapes and decoded UTF-8 return UrlError.InvalidEncoding(text, offset), with the input byte offset.

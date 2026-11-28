@@ -1,0 +1,21 @@
+# test: URI errors retain their input and display the offending byte offset.
+# Spec: std-url.url-error.declaration, std-url.url-error.encoding-display.
+use std.url.{Url, UrlError}
+
+tests:
+    it("encoding failures retain input and report its original byte offset"):
+        text := "a?x=%FF"
+        error := UrlError.InvalidEncoding(text, 4)
+        assert_equal(Url::parse(text), .Err(error))
+        assert_equal(error.to_string(), "invalid URL encoding at byte 4")
+        assert(debug(error).contains("InvalidEncoding"))
+
+    it("invalid and missing-base errors preserve their messages"):
+        assert_equal(UrlError.Invalid("a b").to_string(), "invalid URL: a b")
+        assert_equal(
+            UrlError.RelativeWithoutBase("a").to_string(),
+            "relative URL without a base: a",
+        )
+        error := UrlError.Invalid("https://user:password@example.test/")
+        assert(error.to_string().contains("Authorization"))
+        assert(!error.to_string().contains("password"))

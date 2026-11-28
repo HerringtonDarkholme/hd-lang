@@ -1,0 +1,37 @@
+# test: typed query methods preserve serde values and pending preparation errors.
+# Spec: std-url.form-codec.query-reader, std-url.form-codec.query-writer.
+use std.url.Url
+use std.encoding.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize, Eq, Debug)
+struct Query:
+    name: string
+    ids: List[i32]
+
+@derive(Serialize)
+struct Nested:
+    values: List[List[i32]]
+
+tests:
+    it("query readers and writers share the form serde codec"):
+        let mut url = Url::parse("path?").expect("relative URI")
+        value := Query { name: "a b", ids: [+1, +2] }
+        url.set_query_as(value)
+        assert_equal(url.query_as::[Query](), .Ok(value))
+        assert_equal(url.to_string(), "path?name=a%20b&ids=1&ids=2")
+        assert_equal(url.param("name"), .Some("a b"))
+        url.add_param("extra", "+")
+        assert_equal(url.param("extra"), .Some("+"))
+
+    it("query failures follow inheritance and clear on replacement"):
+        let mut url = Url::parse("https://example.test/path").expect("URI")
+        url.set_query_as(Nested { values: [[+1]] })
+        url.add_param("extra", "value")
+        error := url.query_as::[Query]()
+        assert(error.is_err())
+        inherited := url.resolve("#part").expect("inherited query")
+        assert_equal(inherited.query_as::[Query](), error)
+        replaced := url.resolve("?name=ok&ids=3").expect("replaced query")
+        assert_equal(replaced.query_as::[Query](), .Ok(Query { name: "ok", ids: [+3] }))
+        url.set_query_as(Query { name: "fixed", ids: [] })
+        assert_equal(url.query_as::[Query](), .Ok(Query { name: "fixed", ids: [] }))

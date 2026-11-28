@@ -1,5 +1,6 @@
 # test: validation rejects unsafe fields and pending query errors before provider calls or body reads
-use std.http.{BodyError, FormError, Http, HttpError, Request, Response, ScriptedHttp, Url, post}
+use std.http.{BodyError, FormError, Http, HttpError, Request, Response, ScriptedHttp, post}
+use std.url.{Url}
 use std.encoding.Serialize
 use std.testing.{assert, assert_equal}
 
@@ -54,13 +55,21 @@ tests:
     it("mutated URL fields are rechecked before the provider call"):
         provider := box(Counting { calls: 0 })
         let mut scheme = url()
-        scheme.scheme = "ftp"
+        scheme.scheme = .Some("ftp")
         let mut host = url()
-        host.host = "bücher.example"
+        host.host = .Some("bücher.example")
         let mut path = url()
         path.path = "relative"
         $.with(Http=provider):
-            for target in [scheme, host, path]:
+            for target in [
+                scheme,
+                host,
+                path,
+                Url::parse("relative/path").expect("relative URI"),
+                Url::parse("https:opaque").expect("URI without authority"),
+                Url::parse("https://").expect("empty authority"),
+                Url::parse("https://user:password@example.test/").expect("URI user-info"),
+            ]:
                 request := Request::get(target).set_text("unread")
                 match request.send!():
                     .Err(.InvalidUrl(_)) => pass

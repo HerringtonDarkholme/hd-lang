@@ -1,5 +1,6 @@
 # test: Client follows redirects with fresh request bodies, strips cross-host credentials and enforces limits
-use std.http.{Client, Http, HttpStatus, Method, Request, Response, ScriptedHttp, Url}
+use std.http.{Client, Http, HttpStatus, Method, Request, Response, ScriptedHttp}
+use std.url.{Url}
 use std.time.{Clock, ManualClock, Timestamp}
 use std.testing.assert_equal
 

@@ -1,5 +1,6 @@
 # test: typed message writers return values, replace content types, and detach read-once bodies
-use std.http.{BodyError, FormError, Request, Response, Url}
+use std.http.{BodyError, FormError, Request, Response}
+use std.url.{Url}
 use std.encoding.json.encode
 use std.encoding.{Serialize, Serializer, rename}
 use std.testing.assert_equal

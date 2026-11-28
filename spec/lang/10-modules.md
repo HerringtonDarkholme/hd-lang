@@ -2281,9 +2281,10 @@ use dep.money.coins.{cents}     # valid: money's root re-exports coins
 use dep.money.ledger.{balance}  # error: private-module
 ```
 
-> **Note.** std's root module re-exports every top-level std module but
-> [`std.rt`](#r-module.rt.std-only), so `use std.collections.UniqList`
-> works from every package.
+> **Note.** std's root module re-exports its public modules, so
+> `use std.collections.UniqList` works from every package.
+> Implementation modules stay private; [`std.rt`](#r-module.rt.std-only)
+> additionally has the std-only restriction.
 
 > **Why.** A folder's modules are its implementation, as a Rust module's
 > children are private by default. The parent's `pub use` lines are the one

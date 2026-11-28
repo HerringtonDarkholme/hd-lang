@@ -2,7 +2,8 @@
 # Spec std/http Scripted Http: std-http.scripted.missing-reply, std-http.scripted.received-bodies, std-http.error.not-granted.plain.
 # Also covers std-http.error.not-granted, std-http.error.connect.
 # expect: test
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.url.{Url}
 fn ping!(url: string) -> string $ Http:
     match get!(url):
         .Ok(response) => "status ${response.status.code()}"

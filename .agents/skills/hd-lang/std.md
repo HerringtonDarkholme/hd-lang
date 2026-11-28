@@ -473,7 +473,8 @@ tests:
 ## HTTP and networking
 
 `std.http` has `get!(url)` and `post!(url, value)` (`$ Http`), `Client`, `Request`, `Response`, `Headers`,
-`Url`, `Method`, `HttpStatus`, `Cookie`; tests use `ScriptedHttp`. A server and a client are in
+`Method`, `HttpStatus`, `Cookie`; tests use `ScriptedHttp`. `std.url.Url` parses absolute and relative
+URI references, with a decoded `path` and encoded `raw_path`. A server and a client are in
 [scenarios/http-api.md](scenarios/http-api.md). `std.net` is raw sockets, `$ Net`: `connect!(host, port)`,
 `listen!`, `bind_udp!`, `lookup!(host)`. A stream has `read!(max)`, `write!(bytes)`, `close()`. Tests use
 `ScriptedNet` with `ScriptedStream`.

@@ -3,7 +3,8 @@
 use std.encoding.{Serialize, Deserialize, RenameCase, rename, rename_all, member_name}
 use std.meta.{Member, Facts, Structure}
 use std.encoding.json.{decode, encode, encode_pretty, from_json, parse, to_json}
-use std.http.{Request, Url}
+use std.http.{Request}
+use std.url.{Url}
 use std.regex.Regex
 
 fn member(name: string, facts: Facts) -> Member:

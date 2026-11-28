@@ -1,6 +1,7 @@
 # test: ScriptedHttp queues raw results per encoded URL and repeats the last reply
 # Rules: std-http.scripted.new-empty, std-http.scripted.reply-captured, std-http.scripted.key-url-display, std-http.scripted.queue-order, std-http.scripted.repeat-last, std-http.scripted.error-values, std-http.scripted.raw-status, std-http.scripted.received-bodies.
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
+use std.url.{Url}
 use std.task.{Backoff, retry, apply}
 use std.time.{Clock, ManualClock, Timestamp}
 
