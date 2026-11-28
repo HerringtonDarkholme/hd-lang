@@ -2527,31 +2527,37 @@ impl Cx<'_> {
     }
 
     /// Records the ordinary method instance that release glue calls for a
-    /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
+    /// concrete type implementing `std.rt.Drop`, and for each type its
+    /// fields and payloads hold, at any depth. Absence of an impl is the
     /// common case, just as it is for the optional `Debug` specialization.
+    /// The types are visited in depth-first preorder, fields in order, off
+    /// an explicit stack: a chain of 1,500 structs each holding the next
+    /// costs no native stack depth (#2423). Cost: each distinct type once.
     fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
-        if !self.drop_checked.insert(ty) {
-            return Ok(());
-        }
-        // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
-        if self.pool.adt(ty).is_some()
-            && let Some((trait_, method)) = self.env.drop_items()
-            && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
-        {
-            let target = self.method_target(trait_, method, ty, &[], None, parent)?;
-            if target.kind != TargetKind::Instance {
-                return err("a `std.rt.Drop` implementation without an hd body");
+        let mut stack = vec![ty];
+        while let Some(ty) = stack.pop() {
+            if !self.drop_checked.insert(ty) {
+                continue;
             }
-            self.out.drop_glue.insert(ty, target.key);
-        }
-        let children = match self.pool.get(ty) {
-            TyData::Adt(def, args) => layout::enum_variants(self.pool, self.env, def, args)
-                .unwrap_or_else(|| vec![layout::product_fields(self.pool, self.env, def, args)]),
-
-            _ => Vec::new(),
-        };
-        for child in children.into_iter().flatten() {
-            self.note_drop(child, parent)?;
+            // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
+            if self.pool.adt(ty).is_some()
+                && let Some((trait_, method)) = self.env.drop_items()
+                && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
+            {
+                let target = self.method_target(trait_, method, ty, &[], None, parent)?;
+                if target.kind != TargetKind::Instance {
+                    return err("a `std.rt.Drop` implementation without an hd body");
+                }
+                self.out.drop_glue.insert(ty, target.key);
+            }
+            if let TyData::Adt(def, args) = self.pool.get(ty) {
+                let children = layout::enum_variants(self.pool, self.env, def, args)
+                    .unwrap_or_else(|| {
+                        vec![layout::product_fields(self.pool, self.env, def, args)]
+                    });
+                // Reversed, so the first field is visited first.
+                stack.extend(children.into_iter().flatten().rev());
+            }
         }
         Ok(())
     }
