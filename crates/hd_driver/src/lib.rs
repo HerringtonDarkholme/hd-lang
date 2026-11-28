@@ -12633,6 +12633,9 @@ impl Run<'_> {
             let ready = hd_opt::whole::completes_at_once(env, &instances, &c.collected, &|item| {
                 entry.held(item).is_some()
             });
+            let Some(ready) = self.stage(Stage::Collect, ready) else {
+                return;
+            };
             // Each `Drop` implementation's instance, by its type, for the
             // release shims: one pass over the instances. Types may share
             // one instance (its key), so each type keeps its own entry.

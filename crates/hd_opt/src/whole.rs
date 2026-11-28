@@ -519,13 +519,16 @@ fn drive_method(env: &dyn ProgramEnv, method: DefId) -> bool {
 /// the callers of each instance that may wait over the reversed call
 /// edges. Cost: one `Topology` per distinct body with a point, then
 /// O(instances + slots + e log e) for the e call/slot edges.
-#[must_use]
+///
+/// # Errors
+/// An internal collection inconsistency: a kept bang slot or instance
+/// lacks its body, or a dynamic await has no trait-method callee.
 pub fn completes_at_once(
     env: &dyn ProgramEnv,
     instances: &Instances<'_>,
     collected: &hd_mono::Collected,
     held: &dyn Fn(DefId) -> bool,
-) -> Ready {
+) -> hd_base::StageResult<Ready> {
     let table = instances.table;
     let n = table.item.len();
     let by_key: hd_base::HashMap<hd_base::Hash128, u32> = (table.key.iter().enumerate())
@@ -582,7 +585,14 @@ pub fn completes_at_once(
                 {
                     edges.push((callee, slot));
                 } else {
-                    waits[slot as usize] = true;
+                    // ruled out: compatible kept bang slots have ordinary
+                    // method bodies. Builtin/intrinsic slots are synchronous;
+                    // slot_kept and collection's slot_target queue every kept
+                    // instance as Sub::Body(0).
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Collect,
+                        "a kept bang slot without its collected method instance",
+                    ));
                 }
             }
         }
@@ -594,7 +604,13 @@ pub fn completes_at_once(
             continue;
         }
         let Some(b) = (instances.body)(id) else {
-            continue;
+            // ruled out: collection queues only bodies, generated bodies
+            // included. Intrinsic/builtin targets are not instances, and
+            // the held runtime scenarios were excluded above.
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Collect,
+                "a collected bang instance without its body",
+            ));
         };
         let own = points.entry(std::ptr::from_ref(b)).or_insert_with(|| {
             if !b.tags.iter().any(|&t| is_point(t)) {
@@ -607,7 +623,8 @@ pub fn completes_at_once(
                 .collect()
         });
         let from = edges.len();
-        let ready = own.iter().all(|&at| {
+        let mut ready = true;
+        for &at in own.iter() {
             let callee = match (
                 b.tags[at as usize],
                 collected.calls.get(i).and_then(|c| c.get(&at)),
@@ -618,15 +635,27 @@ pub fn completes_at_once(
                     by_key.get(&t.key)
                 }
                 (Tag::Await, Some(hd_mono::Target::Dyn)) => {
-                    match hd_tir::ir::Callee::from_words(b.record(b.data[at as usize][0])) {
-                        Some(hd_tir::ir::Callee::TraitMethod { method, .. }) => slots.get(&method),
-                        _ => None,
-                    }
+                    // ruled out: collection assigns Target::Dyn only to
+                    // a TraitMethod whose receiver is a trait value.
+                    let Some(hd_tir::ir::Callee::TraitMethod { method, .. }) =
+                        hd_tir::ir::Callee::from_words(b.record(b.data[at as usize][0]))
+                    else {
+                        return Err(hd_base::NotImplemented::bug(
+                            hd_base::Stage::Collect,
+                            "a dynamic await without a trait-method callee",
+                        ));
+                    };
+                    slots.get(&method)
                 }
                 _ => None,
             };
-            callee.inspect(|&&j| edges.push((j, word(i)))).is_some()
-        });
+            if let Some(&j) = callee {
+                edges.push((j, word(i)));
+            } else {
+                ready = false;
+                break;
+            }
+        }
         if ready {
             waits[i] = false;
         } else {
@@ -637,7 +666,7 @@ pub fn completes_at_once(
     // marked once, and each edge is visited at most once after sorting.
     let mut work = 0;
     propagate_waits(&mut waits, &mut edges, &mut work);
-    Ready {
+    Ok(Ready {
         instances: (0..n)
             .filter(|&i| !waits[i])
             .map(|i| table.key[i])
@@ -647,7 +676,7 @@ pub fn completes_at_once(
             .filter(|&(_, i)| !waits[i as usize])
             .map(|(m, _)| m)
             .collect(),
-    }
+    })
 }
 
 fn propagate_waits(waits: &mut [bool], edges: &mut [(u32, u32)], work: &mut u64) {
