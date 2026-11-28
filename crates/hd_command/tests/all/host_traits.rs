@@ -437,13 +437,8 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     );
     write(
         &dir.join("tests/fetch.hd"),
-        &format!(
-            "use std.testing.assert_equal\nuse std.http.get\nuse pkg.status_of\n\n\
-             it(\"reads a page\"):\n    \
-             assert_equal(status_of(\"http://127.0.0.1:{port}/ok\"), 200, reason=\"granted\")\n\n\
-             it(\"is refused another host\"):\n    \
-             assert_equal(status_of(\"http://localhost:{port}/ok\"), 0, reason=\"not granted\")\n"
-        ),
+        &include_str!("programs/host_traits/http_package_fetch.hd")
+            .replace("__PORT__", &port.to_string()),
     );
     let out = run(&dir, &["test"]);
     assert_eq!(
