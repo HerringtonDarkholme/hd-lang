@@ -6140,7 +6140,10 @@ mod packed {
                 // Reads per copied frame approach a bound: one page lookup
                 // where the merge reads the frame's row, one where its commit
                 // checks it.
-                let checked = if settle { 1..3 } else { 0..5 };
+                // Rows are bounded by the merge rule itself, below: as a
+                // ratio of two averages they swing with where the folds fall
+                // (1.3x to 2.1x across runs and platforms).
+                let checked = if settle { 1..3 } else { 0..4 };
                 for (what, (a, b)) in ["read", "written", "files", "pages read", "rows"]
                     .iter()
                     .zip(early.into_iter().zip(late))
@@ -6150,6 +6153,20 @@ mod packed {
                     assert!(
                         b <= 2 * a.max(100),
                         "{what}, settle {settle}: {early:?} {late:?}"
+                    );
+                }
+                if !settle {
+                    // Bentley-Saxe: each changed row is copied once per size
+                    // class it climbs, at most log2 of the index's rows. A
+                    // fold that rewrote a page per changed row (the #2458 bug)
+                    // visited about 20,000 rows per command here; this allows
+                    // about 8,800.
+                    let changed = REPLACED + ADDED;
+                    let index = REPLACED + 160 * ADDED;
+                    let log = u128::from(u128::BITS - index.leading_zeros());
+                    assert!(
+                        u128::from(late[4]) <= changed * log * 100,
+                        "rows per command past {changed} x log2 {log}: {late:?}"
                     );
                 }
                 if settle {
