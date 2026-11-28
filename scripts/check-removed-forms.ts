@@ -7,7 +7,7 @@
 // check, unless the row names the open ticket that deletes it. A row with a
 // ticket whose names are all gone is reported, so the ticket can be closed.
 //
-// The docs (scripts/doc-files.ts) must describe the current language and
+// The docs must describe the current language and
 // tree. A row's doc pattern, a regular expression for the removed syntax or
 // its diagnostics, fails wherever it matches a doc line, unless that line
 // says the form is removed or is a syntax-error. A relative Markdown link, or
@@ -21,7 +21,39 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { HISTORY, docFiles } from "./doc-files.ts";
+// This retained checker owns its legacy document reader until it moves to
+// the released std.url API; hd tasks share tools/src/doc_files.hd.
+interface DocFile {
+  file: string;
+  text: string;
+  dated: boolean;
+}
+function docFiles(root: string): DocFile[] {
+  return execFileSync(
+    "git",
+    [
+      "ls-files",
+      "-z",
+      "--",
+      "docs/**/*.md",
+      "docs/*.md",
+      "README.md",
+      "AGENTS.md",
+      "crates/README.md",
+      "crates/*/DESIGN.md",
+      "website/guide/*.md",
+    ],
+    { cwd: root, encoding: "utf8" },
+  )
+    .split("\0")
+    .filter(Boolean)
+    .map((file) => ({
+      file,
+      text: readFileSync(join(root, file), "utf8"),
+      dated: file.startsWith("docs/audit/"),
+    }));
+}
+const HISTORY = /git (?:history|show)|\b[0-9a-f]{9}\b/;
 
 const root = join(import.meta.dirname, "..");
 const rows = readFileSync(join(root, "scripts", "removed-forms.tsv"), "utf8")

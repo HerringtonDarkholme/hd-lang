@@ -1,0 +1,11 @@
+pub fn number_label(value: f64) -> string:
+    if value.is_finite() && value >= -9223372036854775808.0 && value < 9223372036854775808.0:
+        integer := i64(value)
+        if f64(integer) == value:
+            return "${integer}"
+    if value.is_nan():
+        "NaN"
+    else if !value.is_finite():
+        (if value < 0.0: "-Infinity" else: "Infinity")
+    else:
+        "${value}"

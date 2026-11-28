@@ -1,0 +1,154 @@
+use pkg.numbers.number_label
+use pkg.doc_files.{ToolError, repository_root}
+use std.cli.{Args, Cli}
+use std.console.eprintln
+use std.encoding.json.decode
+use std.fs.{FsRead, FsWrite, read_text, write_text}
+use std.process.{Command, ExitCode, Process}
+use std.encoding.Deserialize
+
+## Check that sloppy-code counts only decrease.
+@derive(Cli)
+struct Options:
+    ## Lower the recorded ceilings to the current counts.
+    update: bool
+    ## Permit the initial ceiling file to be created.
+    initial: bool
+
+@derive(Deserialize)
+struct Site:
+    ruleId: string
+    file: string
+
+fn count_sites(text: string) -> Result[Map[string, usize], ToolError]:
+    sites := decode::[List[Site]](text).map_err(fn(error): ToolError.Host("$error"))?
+    let mut counts: Map[string, usize] = {}
+    for site in sites:
+        crate := site.file.split("/").get(1).unwrap_or("undefined")
+        key := "${site.ruleId}\t${crate}"
+        counts[key] = counts.get(key).unwrap_or(0) + 1
+    .Ok(counts)
+
+fn read_ceilings(text: string) -> Map[string, f64]:
+    let mut ceilings: Map[string, f64] = {}
+    lines := text.split("\n")
+    for index in 1..lines.len():
+        fields := lines[index].split("\t")
+        if fields.len() < 3 || fields[0].is_empty() || fields[1].is_empty() || fields[2].is_empty():
+            continue
+        number := fields[2].trim()
+        value := if number.is_empty(): 0.0 else: number.parse::[f64]().unwrap_or(0.0 / 0.0)
+        ceilings["${fields[0]}\t${fields[1]}"] = value
+    ceilings
+
+fn ceiling_text(counts: Map[string, usize]) -> string:
+    keys := counts.keys().collect::[List[string]]().sorted()
+    rows := keys.map(fn(key): "${key}\t${counts[*key]}")
+    "rule\tcrate\tceiling\n" + (if rows.is_empty(): "" else: rows.join("\n") + "\n")
+
+fn ordered_keys(counts: Map[string, usize], ceilings: Map[string, f64]) -> List[string]:
+    let mut keys: List[string] = []
+    let mut seen: Map[string, bool] = {}
+    for key in counts.keys():
+        seen[key] = true
+        keys.push(key)
+    for key in ceilings.keys():
+        if !seen.contains_key(key):
+            keys.push(key)
+    keys
+
+fn check_messages(
+    counts: Map[string, usize],
+    ceilings: Map[string, f64],
+) -> (List[string], List[string]):
+    let mut failures: List[string] = []
+    let mut lower: List[string] = []
+    for key in ordered_keys(counts, ceilings):
+        now := counts.get(key).unwrap_or(0)
+        ceiling := ceilings.get(key).unwrap_or(0.0)
+        label := number_label(ceiling)
+        fields := key.split("\t")
+        rule := fields[0]
+        crate := fields[1]
+        if f64(now) > ceiling:
+            failures.push(
+                "${crate}: ${now} ${rule} sites, ceiling ${label}. Sloppy code only goes down: handle the case instead.",
+            )
+        else if f64(now) < ceiling:
+            lower.push("${crate}: ${rule} ${now} < ceiling ${label}")
+    (failures, lower)
+
+fn run!(options: Options) -> Result[ExitCode, ToolError] $ Console + Process + FsRead + FsWrite:
+    root := repository_root!()?
+    scan := Command::new("ast-grep")
+        .args(
+            [
+                "scan",
+                "--config",
+                ".ast-grep/sgconfig.yml",
+                "--filter",
+                "^(ban-unsupported|sloppy-.*)$",
+                "--json=compact",
+            ],
+        )
+        .current_dir(root)
+        .run!()
+        .map_err(fn(error): ToolError.Host("check-sloppy needs ast-grep on PATH: $error"))?
+    if scan.status != 0 && scan.status != 1:
+        return .Err(.Host("ast-grep scan failed (status ${scan.status}):\n${scan.stderr}"))
+    counts := count_sites(scan.stdout)?
+    path := root.join("scripts/sloppy-ceiling.tsv")
+    text := read_text!(path).map_err(fn(error): ToolError.Host("$error"))?
+    ceilings := read_ceilings(text)
+    if options.update:
+        let mut raised: List[string] = []
+        for (key, count) in counts:
+            if f64(*count) > ceilings.get(*key).unwrap_or(0.0):
+                raised.push("${key.replace("\t", " ")}: ${count}")
+        if !ceilings.is_empty() && !raised.is_empty() && !options.initial:
+            eprintln("--update never raises a ceiling:\n${raised.join("\n")}")
+            return .Ok(ExitCode(1))
+        write_text!(path, ceiling_text(counts)).map_err(fn(error): ToolError.Host("$error"))?
+        println("wrote ${path}")
+    else:
+        let (failures, lower) = check_messages(counts, ceilings)
+        if !failures.is_empty():
+            eprintln(failures.join("\n"))
+            return .Ok(ExitCode(1))
+        if !lower.is_empty():
+            println("counts below their ceilings (the merge lowers them):\n${lower.join("\n")}")
+    .Ok(ExitCode(0))
+
+pub fn main!() -> ExitCode $ Args + Console + Process + FsRead + FsWrite:
+    options := match Options::parse_args():
+        .Ok(options) => options
+        .Err(error) => return error.exit()
+    match run!(options):
+        .Ok(status) => status
+        .Err(error) =>
+            eprintln("$error")
+            ExitCode(1)
+
+tests:
+    it("counts matches by rule and crate"):
+        counts := count_sites(
+            """[{"ruleId":"sloppy-unwrap","file":"crates/a/src/lib.rs"},{"ruleId":"sloppy-unwrap","file":"crates/a/src/other.rs"}]""",
+        )
+            .expect("scan JSON")
+        assert_equal(counts["sloppy-unwrap\ta"], 2)
+
+    it("preserves report ordering and zero counts for vanished rules"):
+        let mut counts: Map[string, usize] = {}
+        counts["sloppy-unwrap\ta"] = 2
+        ceilings := read_ceilings("rule\tcrate\tceiling\nsloppy-unwrap\ta\t1\nsloppy-panic\tb\t3\n")
+        let (failures, lower) = check_messages(counts, ceilings)
+        assert_equal(
+            failures,
+            [
+                "a: 2 sloppy-unwrap sites, ceiling 1. Sloppy code only goes down: handle the case instead.",
+            ],
+        )
+        assert_equal(lower, ["b: sloppy-panic 0 < ceiling 3"])
+
+    it("writes a header even when no sites remain"):
+        assert_equal(ceiling_text({}), "rule\tcrate\tceiling\n")
