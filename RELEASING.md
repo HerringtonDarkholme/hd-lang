@@ -50,6 +50,9 @@ The release receives five archives named `hd-TARGET.tar.gz` (`.zip` on
 Windows), plus SHA256SUMS. The publisher verifies each transferred archive
 against its producing job's SHA-256 before assembling the combined file.
 Notes give the commit and the exact version's CHANGELOG.md section.
+If that section exceeds GitHub's 125,000-character release-body limit,
+the complete text is attached as `CHANGELOG-vX.Y.Z.md`, included in
+SHA256SUMS, and linked from the body. No entries are truncated.
 
 For a pushed tag, the registry job first runs the package dry run, then
 `scripts/publish-crates.ts --publish`. The **owner** provides the repository

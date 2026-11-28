@@ -194,6 +194,34 @@ async function verifiedAssets(directory: string): Promise<string[]> {
   return files;
 }
 
+// GitHub's release-body API limit; full text is attached, never truncated.
+// https://github.com/cli/cli/issues/7705
+const GITHUB_RELEASE_BODY_LIMIT = 125_000;
+
+export async function writeReleaseNotes(options: {
+  directory: string;
+  version: string;
+  repo: string;
+  completeNotes: string;
+}): Promise<string[]> {
+  const notes = join(options.directory, "notes.md");
+  if (options.completeNotes.length <= GITHUB_RELEASE_BODY_LIMIT) {
+    writeFileSync(notes, options.completeNotes);
+    return [];
+  }
+  const name = `CHANGELOG-v${options.version}.md`;
+  const full = join(options.directory, name);
+  writeFileSync(full, options.completeNotes);
+  appendFileSync(join(options.directory, "SHA256SUMS"), `${await checksum(full)}  ${name}\n`);
+  const url = `https://github.com/${options.repo}/releases/download/v${options.version}/${name}`;
+  const commit = options.completeNotes.split("\n")[0];
+  writeFileSync(
+    notes,
+    `${commit}\n\nThe complete changelog exceeds GitHub's release-body limit.\n\n[Read the complete release notes](${url}) (also verified in SHA256SUMS).\n`,
+  );
+  return [full];
+}
+
 export async function publish(): Promise<void> {
   const directory = resolve("target/release-download");
   const version = manifestVersion(readFileSync("Cargo.toml", "utf8"));
@@ -206,13 +234,18 @@ export async function publish(): Promise<void> {
   const notes = join(directory, "notes.md");
   const heading = `Commit: ${git("rev-parse", "HEAD")}\n\n`;
   const changelog = existsSync("CHANGELOG.md") ? readFileSync("CHANGELOG.md", "utf8") : "";
-  writeFileSync(
-    notes,
+  const completeNotes =
     heading +
-      (dry
-        ? "Draft validation of the tag release path; crates.io publishing is disabled.\n"
-        : releaseNotes(changelog, version)),
-  );
+    (dry
+      ? "Draft validation of the tag release path; crates.io publishing is disabled.\n"
+      : releaseNotes(changelog, version));
+  const noteFiles = await writeReleaseNotes({
+    directory,
+    version,
+    repo: process.env.GITHUB_REPOSITORY ?? "",
+    completeNotes,
+  });
+  files.push(...noteFiles);
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo) {
     throw new Error("GITHUB_REPOSITORY is required");
