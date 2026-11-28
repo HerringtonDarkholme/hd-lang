@@ -29,6 +29,7 @@ interface DocFile {
   dated: boolean;
 }
 function docFiles(root: string): DocFile[] {
+  // cost: one Git listing and one read per tracked document, O(total document bytes).
   return execFileSync(
     "git",
     [
