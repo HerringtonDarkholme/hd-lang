@@ -67,7 +67,7 @@ function's value is `(slot, 0)`. Layout A makes it 4 bytes.
 
 ## How it works
 
-**The rules**, applied to [13 Local References](../../spec/lang/13-values-and-references.md#local-references) and [07 Copied And Shared Captures](../../spec/lang/07-functions.md#copied-and-shared-captures); item 11 below is `fn.capture.fn-static` there, since `fn.capture.no-local-reference` was retired before:
+**The rules**, applied to [13 Local References](../../spec/lang/13-values-and-references.md#local-references) and [07 Copied And Shared Captures](../../spec/lang/07-functions.md#copied-and-shared-captures); item 11 below is `fn.capture.fn-static` there, since `fn.capture.fn-static` was retired before:
 
 ```markdown
 <!-- 13-values-and-references.md, Local References table: replaces ref.local.escape.capture-stored -->
@@ -79,16 +79,14 @@ function's value is `(slot, 0)`. Layout A makes it 4 bytes.
 11. r[ref.local.escape.fn-capture.fix-copy] The copy fix-it is offered only when the closure does not write through the reference.
 
 <!-- 07-functions.md, Copied And Shared Captures: replaces items 11 to 14 and 17; local-field and local-generic stay -->
-11. r[fn.capture.no-local-reference] A closure whose value is a `fn(...)` value must not capture a local reference, as the Function value capture row of [Local References](13-values-and-references.md#local-references) states. Error: `local-reference-escapes`.
+11. r[fn.capture.fn-static] A closure whose value is a `fn(...)` value must not capture a local reference, as the Function value capture row of [Local References](13-values-and-references.md#local-references) states. Error: `local-reference-escapes`.
 ```
 
-Retired (their meaning goes): `ref.local.escape.capture-stored`,
-`ref.local.capture-parameter`, `ref.local.capture-origin`,
-`ref.capture.local-scoped`, `ref.capture.local-stored`,
-`ref.dep.capture-position`, `ref.dep.capture-elide`,
-`ref.dep.capture-elide.ambiguous`, and `fn.capture.local-parameter`,
-`-origins`, `-uses`, `-store`, `no-local-reference-stored`. Thirteen rules
-out, six in. The borrowing forms keep their rules: `ref.generic.outlives.field`
+Step 1 (d7469337e) retired thirteen rules and added six; that commit
+lists the retired IDs. Their meaning goes: the stored-capture
+row, the parameter and origin capture rules, the scoped and stored capture
+rules, the dependent-result capture position and elision, and the
+local-parameter capture rules. The borrowing forms keep their rules: `ref.generic.outlives.field`
 and `.argument`, `fn.capture.local-field` and `fn.capture.local-generic`.
 
 **The representation.** A `fn(..)` value is one `i32`: the payload address

@@ -414,8 +414,8 @@ included. Readings:
 - A home outlives the call that made it, so its factory and an action's
   closure may capture no local reference. hd says that only through a
   type parameter bounded by `'static` (`ref.generic.outlives.box`): a
-  direct `fn!` parameter may hold local captures and is never stored
-  (`fn.capture.local-store`). So `per_request` takes
+  `fn!` value holds no local reference (`fn.capture.fn-static`), so the
+  borrowing closure goes through `F`. So `per_request` takes
   `F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static` and stores
   a `fn!` that calls it, and `action` likewise; the call site is the
   record's, a closure literal. `Home[S, C]` keeps its two parameters.
