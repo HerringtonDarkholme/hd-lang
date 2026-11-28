@@ -156,7 +156,7 @@ jobs:
       - name: Set up stage0 hd for repository tools
         uses: HerringtonDarkholme/setup-hd@v1
         with:
-          version: v0.0.4
+          version: v0.0.5
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

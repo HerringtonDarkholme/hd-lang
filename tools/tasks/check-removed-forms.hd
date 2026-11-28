@@ -1,0 +1,44 @@
+use pkg.doc_files.{DocFile, ToolError, doc_files, repository_root, tracked_files}
+use pkg.removed_forms.{parse_rows, check_sources, check_docs}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.process.{ExitCode, Process}
+use std.console.eprintln
+use std.cli.{Args, Cli}
+
+fn run!() -> Result[ExitCode, ToolError] $ Console + FsRead + Process:
+    root := repository_root!()?
+    text := read_text!(root.join("scripts/removed-forms.tsv"))
+        .map_err(fn(error): ToolError.Host("$error"))?
+    rows := parse_rows(text)?
+    let mut files: List[DocFile] = []
+    for file in tracked_files!(root, ["crates/*.rs", "crates/**/*.rs"])?:
+        content := read_text!(root.join(file)).map_err(fn(error): ToolError.Host("$error"))?
+        files.push(DocFile { file, text: content, dated: false })
+    sources := check_sources(rows, files)?
+    documents := doc_files!(root)?
+    docs := check_docs!(root, documents, rows)?
+    for line in sources.done:
+        println(line)
+    if !sources.failures.is_empty():
+        eprintln("removed forms still in crates/ with no ticket:\n${sources.failures.join("\n")}")
+    if !docs.is_empty():
+        eprintln(
+            "${docs.len()} doc line(s) name a removed form or a missing path:\n${docs.join("\n")}",
+        )
+    .Ok(ExitCode(if sources.failures.is_empty() && docs.is_empty(): 0 else: 1))
+
+## Check that source and prose do not restore removed language forms.
+@derive(Cli)
+struct Options:
+    pass
+
+pub fn main!() -> ExitCode $ Args + Console + FsRead + Process:
+    match Options::parse_args():
+        .Ok(_) => pass
+        .Err(error) => return error.exit()
+    match run!():
+        .Ok(status) => status
+        .Err(error) =>
+            eprintln("$error")
+            ExitCode(1)

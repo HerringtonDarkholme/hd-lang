@@ -1,0 +1,236 @@
+use pkg.doc_files.{DocFile, ToolError, history_pattern}
+use pkg.spec_rules.{group, pattern}
+use std.fs.{FsRead, stat}
+use std.path.Path
+use std.regex.Regex
+use std.text.{StringBuilder, r}
+use std.url.Url
+
+pub struct Row:
+    pub form: string
+    pub names: List[string]
+    pub ticket: string
+    pub doc_pattern: Regex?
+
+pub struct SourceResult:
+    pub done: List[string]
+    pub failures: List[string]
+
+pub fn parse_rows(text: string) -> Result[List[Row], ToolError]:
+    lines := text.split("\n")
+    let mut rows: List[Row] = []
+    for index in 1..lines.len():
+        line := lines[index]
+        if line.trim().is_empty():
+            continue
+        fields := line.split("\t")
+        expression := fields.get(4).unwrap_or("-")
+        let compiled: Regex? = if expression == "-": .None else: .Some(pattern(expression)?)
+        rows.push(
+            Row {
+                form: fields.get(0).unwrap_or(""),
+                names: fields.get(1).unwrap_or("").split(" ").filter(fn(name): !name.is_empty()),
+                ticket: fields.get(2).unwrap_or("-"),
+                doc_pattern: compiled,
+            }
+        )
+    .Ok(rows)
+
+fn escaped(text: string) -> string:
+    special := ['.', '*', '+', '?', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\']
+    output := StringBuilder::new()
+    for character in text.chars():
+        if special.contains(&character):
+            output.push("\\")
+        output.push_char(character)
+    output.build()
+
+pub fn check_sources(rows: List[Row], files: List[DocFile]) -> Result[SourceResult, ToolError]:
+    let mut failures: List[string] = []
+    let mut done: List[string] = []
+    for row in rows:
+        let left = 0
+        for name in row.names:
+            # This is an existence predicate, so consuming the boundary
+            # characters has the same result as the original lookarounds.
+            word := pattern("(^|[^A-Za-z0-9_])${escaped(name)}([^A-Za-z0-9_]|\$)")?
+            hits := files.filter(fn(file): word.is_match(file.text)).map(fn(file): file.file)
+            left += hits.len()
+            if !hits.is_empty() && row.ticket == "-":
+                failures.push("${name} (${row.form}) is back in ${hits.join(", ")}")
+        if left == 0 && row.ticket != "-":
+            done.push("${row.ticket}: every name of \"${row.form}\" is gone; set its ticket to -")
+    .Ok(SourceResult { done, failures })
+
+fn exists!(path: Path) -> bool $ FsRead:
+    stat!(path).map(fn(entry): entry.is_some()).unwrap_or(false)
+
+fn source_path_exists!(root: Path, file: string, target: string) -> bool $ FsRead:
+    parent := Path(file).parent().unwrap_or(Path(""))
+    for base in [root, root.join("$parent"), root.join("$parent").join("src")]:
+        if exists!(base.join(target)):
+            return true
+    false
+
+# The old checker prints the first100 UTF-16 units. Match its diagnostic
+# bytes, including replacement of a high surrogate cut by that boundary.
+fn preview(text: string) -> string:
+    output := StringBuilder::new()
+    let units = 0
+    for character in text.trim().chars():
+        width := if character.to_u32() > 65535: 2 else: 1
+        if units + width > 100:
+            if units < 100:
+                output.push_char('\u{fffd}')
+            break
+        output.push_char(character)
+        units += width
+    output.build()
+
+fn parsed_link(text: string) -> Result[Url, ToolError]:
+    Url::parse(text).map_err(fn(error): ToolError.Host("$error"))
+
+## Decode the URI path used for local filesystem checks.
+## Query and authority components follow std.url, per the owner decision.
+fn link_path(text: string) -> Result[string, ToolError]:
+    parsed_link(text).map(fn(url): url.path)
+
+pub fn check_docs!(
+    root: Path,
+    documents: List[DocFile],
+    rows: List[Row],
+) -> Result[List[string], ToolError] $ FsRead:
+    history := history_pattern()?
+    fence := pattern(r"^\s*```")?
+    link := pattern(r"\]\(([^)\s]+)\)")?
+    scheme := pattern(r"^[a-z]+:")?
+    path := pattern(
+        r"`((?:crates|spec|scripts|docs|lib|website|host|packages|bench|conformance)/[A-Za-z0-9_./-]*|tests/[A-Za-z0-9_./-]*\.rs)(?::\d+)?`",
+    )?
+    says_removed := pattern(r"(?i)removed|syntax[- ]error")?
+    let mut failures: List[string] = []
+    for document in documents:
+        let fenced = false
+        let in_code = false
+        lines := document.text.split("\n")
+        for index in 0..lines.len():
+            line := lines[index]
+            if fence.is_match(line):
+                fenced = !fenced
+            if fenced || history.is_match(line):
+                continue
+            parts := line.split("`")
+            prose := [for piece in 0..parts.len() if (piece % 2 == 0) != in_code => parts[
+                piece
+            ]].join(" ")
+            in_code = if line.trim().is_empty(): false else: (parts.len() % 2 == 0) != in_code
+            let mut found: List[string] = []
+            parent := Path(document.file).parent().unwrap_or(Path(""))
+            for captured in link.captures_all(prose):
+                target := group(captured, 1).split("#")[0]
+                if target.is_empty() || scheme.is_match(target):
+                    continue
+                reference := parsed_link(target)?
+                if reference.scheme.is_some() || reference.host.is_some():
+                    continue
+                decoded := reference.path
+                if !exists!(root.join("$parent").join(decoded)):
+                    found.push("link to missing ${target}")
+            if !document.dated:
+                for captured in path.captures_all(line):
+                    target := group(captured, 1)
+                    if !source_path_exists!(root, document.file, target):
+                        found.push("missing path ${target}")
+                if !says_removed.is_match(line):
+                    for row in rows:
+                        match row.doc_pattern:
+                            .Some(expression) =>
+                                if expression.is_match(line):
+                                    found.push("removed form (${row.form}): ${preview(line)}")
+                            .None => pass
+            for message in found:
+                failures.push("${document.file}:${index + 1}: ${message}")
+    .Ok(failures)
+
+tests:
+    use std.fs.{FsWrite, MemoryFs, create_dir_all, write_text}
+
+    it("finds whole Rust names and reports finished deletion tickets"):
+        rows := parse_rows(
+            "form\tnames\tticket\tnote\tdoc pattern\nold form\tKind::Old\t-\tnote\t-\nfinished\tGone\t#9\tnote\t-\n",
+        )
+            .expect("rows")
+        files := [
+            DocFile { file: "a.rs", text: "Kind::Older; Kind::Old;", dated: false },
+            DocFile { file: "b.rs", text: "PrefixKind::OldName", dated: false },
+        ]
+        result := check_sources(rows, files).expect("source predicates")
+        assert_equal(result.failures, ["Kind::Old (old form) is back in a.rs"])
+        assert_equal(result.done, ["#9: every name of \"finished\" is gone; set its ticket to -"])
+
+    it("checks current docs while keeping dated records and code distinct"):
+        fs := MemoryFs::new()
+        documents := [
+            DocFile {
+                file: "README.md",
+                dated: false,
+                text: "old form\n[missing](nope.md)\n```hd\nold form\n```\nremoved old form\n",
+            },
+            DocFile {
+                file: "docs/audit/old.md",
+                dated: true,
+                text: "old form\n[missing](gone.md)",
+            },
+        ]
+        rows := parse_rows(
+            "form\tnames\tticket\tnote\tdoc pattern\nold syntax\tOld\t-\tnote\told form\n",
+        )
+            .expect("rows")
+        $.with(FsRead=fs):
+            failures := check_docs!(Path("repo"), documents, rows).expect("plain paths")
+            assert_equal(
+                failures,
+                [
+                    "README.md:1: removed form (old syntax): old form",
+                    "README.md:2: link to missing nope.md",
+                    "docs/audit/old.md:2: link to missing gone.md",
+                ],
+            )
+
+    it("uses URI decoding before probing the link's relative path"):
+        fs := MemoryFs::new()
+        $.with(FsRead=fs, FsWrite=fs):
+            assert(create_dir_all!(Path("repo")).is_ok())
+            assert(write_text!(Path("repo/notes file.md"), "notes").is_ok())
+            documents := [
+                DocFile { file: "README.md", dated: false, text: "[notes](notes%20file.md)" },
+            ]
+            assert_equal(check_docs!(Path("repo"), documents, []).ok(), .Some([]))
+
+    it("truncates diagnostic previews with the original UTF-16 boundary"):
+        assert_equal(preview("a".repeat(99) + "😀z"), "a".repeat(99) + "�")
+
+    it("checks the parsed URI path, including reserved escapes and query separation"):
+        for (reference, expected) in [
+            ("notes%20file.md", "notes file.md"),
+            ("caf%C3%A9.md", "café.md"),
+            ("a%2Fb.md", "a/b.md"),
+            ("notes.md?view=raw", "notes.md"),
+            ("//server/path", "/path"),
+            ("a%23b.md", "a#b.md"),
+        ]:
+            assert_equal(link_path(reference).ok(), .Some(expected))
+        assert(link_path("bad%GG").is_err())
+        assert(link_path("bad%FF").is_err())
+
+    it("network references are not checked as repository files"):
+        fs := MemoryFs::new()
+        documents := [
+            DocFile {
+                file: "README.md",
+                dated: false,
+                text: "[network](//server/path)\n[external](HTTPS://example.test/path)",
+            },
+        ]
+        $.with(FsRead=fs):
+            assert_equal(check_docs!(Path("repo"), documents, []).ok(), .Some([]))

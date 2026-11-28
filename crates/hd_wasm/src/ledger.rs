@@ -1,6 +1,6 @@
 //! The decision ledger (`ledger` feature): how often each emitter decision
 //! fired in one link, printed as `LEDGER<TAB>key<TAB>count` rows for
-//! `scripts/ledger.ts`. It counts only with `HD_LEDGER` set, so CI's
+//! `tools/tasks/ledger.hd`. It counts only with `HD_LEDGER` set, so CI's
 //! every-feature test build prints nothing more.
 
 use std::collections::BTreeMap;

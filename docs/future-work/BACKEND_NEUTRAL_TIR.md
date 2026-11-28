@@ -678,7 +678,7 @@ references for step 4 (151 to `count.rs`, 73 to `Walk` in `hd_wasm`),
 is done when its "zero" rows read zero in both columns. The counters
 are the `ledger` feature of `hd_wasm` (`src/ledger.rs`, the `ledger!`
 sites in `emit/`), off in every shipped and web build;
-`node scripts/ledger.ts` builds a compiler with it and prints every
+`bash scripts/hd-tools.sh ledger` builds a compiler with it and prints every
 counter for both corpora: 25 s a pass, plus an incremental cargo build. Bench: the 34 programs of
 `bench/study` and `bench/runtime/progs`, `--release`. Stage: the 318
 `hd_driver` and `hd_wasm` stage cases with a `main` that build as one
