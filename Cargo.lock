@@ -718,14 +718,14 @@ dependencies = [
 
 [[package]]
 name = "hd-lang"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_command",
 ]
 
 [[package]]
 name = "hd_base"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hashbrown 0.17.2",
  "xxhash-rust",
@@ -733,14 +733,14 @@ dependencies = [
 
 [[package]]
 name = "hd_cache"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
 ]
 
 [[package]]
 name = "hd_check"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_check",
@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "hd_command"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_cache",
@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "hd_deps"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_diag",
@@ -804,14 +804,14 @@ dependencies = [
 
 [[package]]
 name = "hd_diag"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
 ]
 
 [[package]]
 name = "hd_doc"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_cache",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "hd_driver"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_cache",
@@ -856,7 +856,7 @@ dependencies = [
 
 [[package]]
 name = "hd_fmt"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_diag",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "hd_host_abi"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_syntax",
@@ -875,14 +875,14 @@ dependencies = [
 
 [[package]]
 name = "hd_intern"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
 ]
 
 [[package]]
 name = "hd_layout"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_mono",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "hd_lint"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_cache",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "hd_mono"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_tir",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "hd_opt"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_mono",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "hd_project"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_diag",
@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "hd_resolve"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_cache",
@@ -955,7 +955,7 @@ dependencies = [
 
 [[package]]
 name = "hd_run"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "ctrlc",
  "hd_base",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "hd_run_wasmtime"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
@@ -1010,14 +1010,14 @@ dependencies = [
 
 [[package]]
 name = "hd_sched"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "rayon",
 ]
 
 [[package]]
 name = "hd_structure"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_intern",
@@ -1028,7 +1028,7 @@ dependencies = [
 
 [[package]]
 name = "hd_syntax"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_diag",
@@ -1056,7 +1056,7 @@ dependencies = [
 
 [[package]]
 name = "hd_tir"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_intern",
@@ -1065,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "hd_types"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hd_base",
  "hd_intern",
@@ -1073,7 +1073,7 @@ dependencies = [
 
 [[package]]
 name = "hd_wasm"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "hashbrown 0.17.2",
  "hd_base",

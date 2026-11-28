@@ -10,7 +10,7 @@ resolver = "2"
 
 [workspace.package]
 # One version for every published crate (crates/README.md, "Publishing").
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 license = "MIT"
 rust-version = "1.97"
@@ -27,31 +27,31 @@ include = ["/src/**", "/build.rs", "/README.md"]
 # Dev-dependencies name a path only, so cargo leaves them out of a
 # published manifest.
 [workspace.dependencies]
-hd_base = { path = "crates/hd_base", version = "=0.0.4" }
-hd_intern = { path = "crates/hd_intern", version = "=0.0.4" }
-hd_diag = { path = "crates/hd_diag", version = "=0.0.4" }
-hd_syntax = { path = "crates/hd_syntax", version = "=0.0.4" }
-hd_fmt = { path = "crates/hd_fmt", version = "=0.0.4" }
-hd_project = { path = "crates/hd_project", version = "=0.0.4" }
-hd_types = { path = "crates/hd_types", version = "=0.0.4" }
-hd_resolve = { path = "crates/hd_resolve", version = "=0.0.4" }
-hd_tir = { path = "crates/hd_tir", version = "=0.0.4" }
-hd_structure = { path = "crates/hd_structure", version = "=0.0.4" }
-hd_check = { path = "crates/hd_check", version = "=0.0.4" }
-hd_lint = { path = "crates/hd_lint", version = "=0.0.4" }
-hd_mono = { path = "crates/hd_mono", version = "=0.0.4" }
-hd_opt = { path = "crates/hd_opt", version = "=0.0.4" }
-hd_host_abi = { path = "crates/hd_host_abi", version = "=0.0.4" }
-hd_layout = { path = "crates/hd_layout", version = "=0.0.4" }
-hd_wasm = { path = "crates/hd_wasm", version = "=0.0.4" }
-hd_run = { path = "crates/hd_run", version = "=0.0.4" }
-hd_run_wasmtime = { path = "crates/hd_run_wasmtime", version = "=0.0.4" }
-hd_sched = { path = "crates/hd_sched", version = "=0.0.4" }
-hd_cache = { path = "crates/hd_cache", version = "=0.0.4" }
-hd_deps = { path = "crates/hd_deps", version = "=0.0.4" }
-hd_driver = { path = "crates/hd_driver", version = "=0.0.4" }
-hd_doc = { path = "crates/hd_doc", version = "=0.0.4" }
-hd_command = { path = "crates/hd_command", version = "=0.0.4" }
+hd_base = { path = "crates/hd_base", version = "=0.0.5" }
+hd_intern = { path = "crates/hd_intern", version = "=0.0.5" }
+hd_diag = { path = "crates/hd_diag", version = "=0.0.5" }
+hd_syntax = { path = "crates/hd_syntax", version = "=0.0.5" }
+hd_fmt = { path = "crates/hd_fmt", version = "=0.0.5" }
+hd_project = { path = "crates/hd_project", version = "=0.0.5" }
+hd_types = { path = "crates/hd_types", version = "=0.0.5" }
+hd_resolve = { path = "crates/hd_resolve", version = "=0.0.5" }
+hd_tir = { path = "crates/hd_tir", version = "=0.0.5" }
+hd_structure = { path = "crates/hd_structure", version = "=0.0.5" }
+hd_check = { path = "crates/hd_check", version = "=0.0.5" }
+hd_lint = { path = "crates/hd_lint", version = "=0.0.5" }
+hd_mono = { path = "crates/hd_mono", version = "=0.0.5" }
+hd_opt = { path = "crates/hd_opt", version = "=0.0.5" }
+hd_host_abi = { path = "crates/hd_host_abi", version = "=0.0.5" }
+hd_layout = { path = "crates/hd_layout", version = "=0.0.5" }
+hd_wasm = { path = "crates/hd_wasm", version = "=0.0.5" }
+hd_run = { path = "crates/hd_run", version = "=0.0.5" }
+hd_run_wasmtime = { path = "crates/hd_run_wasmtime", version = "=0.0.5" }
+hd_sched = { path = "crates/hd_sched", version = "=0.0.5" }
+hd_cache = { path = "crates/hd_cache", version = "=0.0.5" }
+hd_deps = { path = "crates/hd_deps", version = "=0.0.5" }
+hd_driver = { path = "crates/hd_driver", version = "=0.0.5" }
+hd_doc = { path = "crates/hd_doc", version = "=0.0.5" }
+hd_command = { path = "crates/hd_command", version = "=0.0.5" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

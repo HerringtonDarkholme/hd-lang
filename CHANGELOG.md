@@ -1,5 +1,119 @@
 # Changelog
 
+## v0.0.5 — 2026-11-28
+
+Changes since v0.0.4.
+
+### Breaking
+
+- Retired `fn.capture.local-parameter` (lang/07-functions.md).
+- Retired `fn.capture.local-origins` (lang/07-functions.md).
+- Retired `fn.capture.local-uses` (lang/07-functions.md).
+- Retired `fn.capture.local-store` (lang/07-functions.md).
+- Retired `fn.capture.no-local-reference-stored` (lang/07-functions.md).
+- Retired `ref.local.escape.capture-stored` (lang/13-values-and-references.md).
+- Retired `ref.local.capture-parameter` (lang/13-values-and-references.md).
+- Retired `ref.local.capture-origin` (lang/13-values-and-references.md).
+- Retired `ref.dep.capture-position` (lang/13-values-and-references.md).
+- Retired `ref.dep.capture-elide` (lang/13-values-and-references.md).
+- Retired `ref.dep.capture-elide.ambiguous` (lang/13-values-and-references.md).
+- Retired `ref.capture.local-scoped` (lang/13-values-and-references.md).
+- Retired `ref.capture.local-stored` (lang/13-values-and-references.md).
+- Retired `std-fs.write.copy-decl` (std/fs.md).
+- Retired `std-http.form-codec.query-reader` (std/http.md).
+- Retired `std-http.form-codec.query-writer` (std/http.md).
+- Retired `std-http.form-codec.query-write-order` (std/http.md).
+- Retired `std-http.form-codec.query-write-absence` (std/http.md).
+- Retired `std-http.form-codec.query-write-empty` (std/http.md).
+- Retired `std-http.form-codec.query-write-error` (std/http.md).
+- Retired `std-http.form-codec.query-replacement` (std/http.md).
+- Retired `std-http.form-codec.query-append-error` (std/http.md).
+- Retired `std-http.form-codec.query-resolve-inherit` (std/http.md).
+- Retired `std-http.form-codec.query-resolve-replace` (std/http.md).
+- Retired `std-http.url-error.declaration` (std/http.md).
+- Retired `std-http.url-error.display-invalid-text` (std/http.md).
+- Retired `std-http.url-error.display-relative` (std/http.md).
+- Retired `std-http.url-error.traits` (std/http.md).
+- Retired `std-http.url-error.into-http` (std/http.md).
+- Retired `std-http.url-error.display-user-info` (std/http.md).
+- Retired `std-http.parsed-url.declaration` (std/http.md).
+- Retired `std-http.parsed-url.parse` (std/http.md).
+- Retired `std-http.parsed-url.relative` (std/http.md).
+- Retired `std-http.parsed-url.invalid` (std/http.md).
+- Retired `std-http.parsed-url.user-info` (std/http.md).
+- Retired `std-http.parsed-url.controls` (std/http.md).
+- Retired `std-http.parsed-url.scheme-host-case` (std/http.md).
+- Retired `std-http.parsed-url.port` (std/http.md).
+- Retired `std-http.parsed-url.path` (std/http.md).
+- Retired `std-http.parsed-url.query` (std/http.md).
+- Retired `std-http.parsed-url.query-empty-value` (std/http.md).
+- Retired `std-http.parsed-url.query-decode` (std/http.md).
+- Retired `std-http.parsed-url.fragment` (std/http.md).
+- Retired `std-http.parsed-url.invalid-escape` (std/http.md).
+- Retired `std-http.parsed-url.raw-path` (std/http.md).
+- Retired `std-http.parsed-url.changed-path` (std/http.md).
+- Retired `std-http.parsed-url.raw-path-unicode` (std/http.md).
+- Retired `std-http.parsed-url.display-query` (std/http.md).
+- Retired `std-http.parsed-url.display-fragment` (std/http.md).
+- Retired `std-http.parsed-url.empty-query` (std/http.md).
+- Retired `std-http.parsed-url.nonempty-query` (std/http.md).
+- Retired `std-http.parsed-url.param` (std/http.md).
+- Retired `std-http.parsed-url.add-param` (std/http.md).
+- Retired `std-http.parsed-url.add-param-empty-query` (std/http.md).
+- Retired `std-http.parsed-url.resolve` (std/http.md).
+- Retired `std-http.parsed-url.traits` (std/http.md).
+
+### [#2423](https://github.com/HerringtonDarkholme/hd-lang/issues/2423) Warm builds redo the whole back end: cache each instance's emitted unit and make the link a merge
+
+- Hash each distinct type once in the unit declaration graph (`99ed6268f`).
+- Walk drop glue types off an explicit stack (`6e89c61fa`).
+- Run pool tasks on their own threads, never on a waiting task's stack (`dcb3d0a1d`).
+- Write cache-entry types on an explicit stack and keep big values off the checking path (`c6e43c1c2`).
+
+### [#2461](https://github.com/HerringtonDarkholme/hd-lang/issues/2461) std.url: Url parses URI references, with decoded path and raw_path
+
+- Parse relative URI references through std.url (`fd8246d34`).
+
+### [#2462](https://github.com/HerringtonDarkholme/hd-lang/issues/2462) std.fs.temp_dir!: a fresh TempDir, AsyncDisposable, removed on dispose
+
+- Add disposable temporary filesystem directories (`463f83675`).
+
+### Other changes
+
+- Add a native hd random-program differential fuzzer (`1a79c01c1`).
+- Update the hd-lang skill: multiline strings (hd-skill 45e6b62) (`a20098b13`).
+- Design: a capture-free fn, a type per closure, counted closures (Refs #1436 #1449) (`56b6f6a9a`).
+- Design: fn(..) stays, opt-in closure types and FnPtr (Refs #1436 #1449) (`0a1ade8e9`).
+- Design: fn(..) is always static and one pointer, step 1 first (Refs #1436 #2409 #1449) (`b8c20d227`).
+- Remove the unused typed block view (`e968aab85`).
+- Carry C libraries through boundary checking (`ececf6625`).
+- Remove unreachable ownership graph states (`1f74f7a5a`).
+- Make concrete trait-choice invariants explicit (`47bca3778`).
+- Simplify load candidates and collected readiness invariants (`8a024eef6`).
+- Make C wrappers mandatory and remove dead ABI branches (`39227662f`).
+- fn(..) holds no local reference: spec and checker (Refs #1436 #2409) (`d7469337e`).
+- Conformance: a dispatch table stores fn parameters (Fixes #2409) (`9252d5768`).
+- Spec examples follow ref.local.fn-static (Refs #1436) (`252f14e2b`).
+- Format the pointer-loan matrix generator (`6b5c5df1f`).
+- Docs cite step 1's rules, not the retired ones (`c6946bc51`).
+- A fn(..) value is one pointer to a closure object (Refs #1436) (`33b19ffad`).
+- Fold loads of immutable static data (Refs #1436) (`4a87d1bfb`).
+- Update the hd-lang skill: fn(..) values can be kept anywhere (hd-skill) (`d81dbb511`).
+- Use multiline literals for generated hd templates (`3762c9347`).
+- Deepen typed hd fuzzing and preserve subtree failure oracles (`7d1a55469`).
+- Run repository checks as pinned stage0 hd tasks (`95baa8964`).
+- State retained document reader cost (`674ad756e`).
+- Anchor std.regex at byte 0 and narrow capture searches to the DFA span (Refs #2463) (`f2435845c`).
+- Find std.regex groups with a bounded backtracker (Refs #2463) (`35af00fcb`).
+- Read the std.regex prefilter in place, not as a copy (Refs #2463) (`71bcc302c`).
+- Compute a serial unit's body facts once, not once per sub-body (Refs #1436) (`afb87c59a`).
+- Revert the std.regex anchoring, backtracker and prefilter changes (`cbd1658a0`).
+- Number a unit's static closure objects in the unit, not in order (Refs #1436) (`27500bd0d`).
+- Repair URL migration HTTP integration fixtures (`bebe0ae24`).
+- Keep URL WAT snapshots independent of checked-report (`d83c1110b`).
+- Normalize Node temporary-directory ownership keys (`989754dbf`).
+- Keep temporary-directory state off ordinary MemoryFs paths (`106b5c2dd`).
+
 ## v0.0.4 — 2026-11-28
 
 Changes since v0.0.3.
