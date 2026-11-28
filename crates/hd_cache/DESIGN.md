@@ -330,6 +330,7 @@ obj/
       <16 hex>                one bucket: a page of sorted rows stamped with
                               the fold epoch that wrote it, replaced whole
       packs                   the pack table: the packs whose home is this shard
+      <32 hex>.seg            a segment: changes the log spilled, by bucket (#2458)
   clpack/<2 hex>/<32 hex>      private native code, with the existing owner checks
   stats                       legacy/private shard ledger (§5.7)
   gc                          the collection lock and the last collection's time and cap
@@ -374,22 +375,53 @@ obj/
   them unreadable, and `hd clean --cache` removes them.
 - **Logs and folds (#1932).** A batch is framed: its op count and a
   checksum of its 59-byte ops (set a row, remove a row, track or untrack a
-  pack). A torn or failing batch ends the log; readers skip it and the
-  next writer cuts it. Ops are absolute, so replaying ones a fold already
+  pack, name a segment). A torn or failing batch ends the log; readers
+  skip it and the next writer cuts it. Ops are absolute, so replaying ones a fold already
   applied changes nothing. Once a shard's records pass 4,096 bytes (about
-  one page), the writer that crosses it folds them under the lock: it
-  applies them to the pages with the split and merge below, writes the
-  changed pages, table and head stamped with the next epoch, writes a
-  header naming that epoch and head, and then shortens the log, so a log
-  never shows an old epoch without the records its fold applied (#2054).
+  one page), the writer that crosses it spills or folds them under the
+  lock (next item). A fold applies the segments and the records to the
+  pages with the split and merge below, writes the changed pages, table and head
+  stamped with the next epoch, writes a header naming that epoch and head,
+  then shortens the log, so a log never shows an old epoch without the
+  records its fold applied (#2054), and last removes the segments.
   A collection folds every log. A reader reads a shard's log once, header
-  and all, instead of a head; a change in it wins over a page no later
-  fold wrote, and a page a later fold wrote already holds the change. A
-  page newer than the reader's log, or gone, that lacks the key is
-  checked as a seqlock reader checks: the log is read again, and an
+  and all, instead of a head; a change in it or its segments wins over a
+  page no later fold wrote, and a page a later fold wrote already holds the
+  change. A page newer than the reader's log, or gone, that lacks the key
+  is checked as a seqlock reader checks: the log is read again, and an
   unchanged epoch means the fold is still writing, so the log's answer
-  stands; a changed one means a fold committed, and the read starts over. A torn header is rebuilt by
-  the next writer from the head file, with the total unknown.
+  stands; a changed one means a fold committed, and the read starts over.
+  A torn header is rebuilt by the next writer from the head file, with the
+  total unknown.
+- **Segments: a fold waits until it pays (#2458).** A fold rewrites a whole
+  page per bucket a change falls in, and changes are content hashes, so
+  once a shard has more buckets than a log has changes, a fold wrote about
+  one 4 KiB page file per changed row, where a cold publication fills a
+  page per 35 rows. md-reader's warm build after a declaration edit
+  publishes 2,024 new unit keys, and its publish phase grew from 124 to
+  287 ms over 10 builds. So a fold waits until the shard's pending rows
+  reach 35 per bucket, 35 to 70 by shard so shards that grow together fold
+  in different commands. Until then a full log spills: its changes become
+  a segment, an immutable file of ops grouped by `2^l` buckets of their
+  key's low bits, about 35 per bucket, behind a directory of each
+  bucket's first and end op and their checksum. The newest segments up to
+  twice the spill merge into it first, so each segment is over twice the
+  next, at most `log2` of the rows segments, and a row is copied once per
+  size it climbs: the logarithmic method of Bentley and Saxe, LSM tiering.
+  The pack tracking goes to the table, and the log is replaced by one
+  naming the segments, at the same epoch; merged segments go after it. A
+  reader looks a key up in the log's records, then the segments newest
+  first, one directory entry and one bucket each, read once per command,
+  then the page. A segment gone means a spill or fold replaced the log
+  since: the reader reads the log again, as for a vanished pack. A segment
+  that fails its checksum is a miss, never an older location; a fold loses
+  its rows, as a corrupt page's. Segments are written and named under the
+  shard's lock, so a collection removes the segment files its walk found
+  and no log names, a crash's. Cost: a fold writes at most one page per 35
+  changed rows at any index size, the segments add `log2` copies of each
+  59-byte row, and a reader up to `log2` bucket reads per key. An older
+  hd's writer cuts a log at its first segment record, as at any foreign
+  batch, losing those rows; entries are never shared across builds.
 - **The paged index (#1502)** is a linear hash table. Bucket `b` holds the
   rows whose key's low `i` bits are `b`, or low `i + 1` bits once `b` is
   below the split pointer `s`; there are `2^i + s` buckets. A row added
@@ -568,11 +600,13 @@ obj/
   only unfinished claim of its own depth or deeper is a package `graph`; a
   release build lets any other such claim go.
 - **Cost per run.** A run that reads `k` keys reads at most `k` shard
-  logs (a 112-byte header and at most about 4 KiB of records each) and at
-  most `k` pages; one that writes `j` entries or marks `j` hits appends one
-  batch to each shard they fall in, 59 bytes per change, and folds a log
-  that passes 4,096 bytes; a warm run whose hits are all fresh writes
-  nothing. None of it depends on the number of entries.
+  logs (a 112-byte header and at most about 4 KiB of records each), at
+  most `k` pages, and per key one bucket of each segment, `log2` of the
+  shard's rows at most; one that writes `j` entries or marks `j` hits
+  appends one batch to each shard they fall in, 59 bytes per change, and
+  spills or folds a log that passes 4,096 bytes, at most one page per 35
+  changes and `log2` copies of each; a warm run whose hits are all fresh
+  writes nothing. Only the logarithms depend on the number of entries.
 - **Encodings and limits.** Pages and the pack table share a 32-byte
   little-endian header: magic (`HDPAGE02`, `HDPKTB01`), row count (`u32`),
   the page's fold epoch or the table's zero flags (`u32`) and the 128-bit
