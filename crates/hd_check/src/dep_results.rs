@@ -264,7 +264,7 @@ impl DepSig {
     /// through a function value.
     fn of_fn(ls: &Layouts<'_>, t: Ty) -> Option<DepSig> {
         let pool = ls.pool;
-        let TyData::Fn { params, result, .. } = pool.get(t) else {
+        let TyData::Fn { params, result, .. } = pool.get(pool.fn_view(t)) else {
             return None;
         };
         // An open map's inputs mark which write a lifetime, not which
@@ -882,7 +882,10 @@ pub fn line_up_with(
                 true
             }
             // A function value's one capture slot (`ref.generic.outlives.instance`).
-            (TyData::Fn { .. }, TyData::Fn { .. }) => {
+            (
+                TyData::Fn { .. } | TyData::Closure { .. },
+                TyData::Fn { .. } | TyData::Closure { .. },
+            ) => {
                 decl(&mut next, &mut keys, 1);
                 true
             }
@@ -960,7 +963,7 @@ pub fn line_up_with(
 /// one checker-only slot for the origins of local references captured by a
 /// scoped closure parameter.
 fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
-    matches!(pool.get(t), TyData::Fn { .. })
+    matches!(pool.get(t), TyData::Fn { .. } | TyData::Closure { .. })
 }
 
 /// One origin slot of a type ([`Layout`]).
@@ -1049,7 +1052,7 @@ impl Layout {
                 matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == suspend);
             let slot = Slot {
                 ty: t,
-                fun: hold || matches!(pool.get(t), TyData::Fn { .. }),
+                fun: hold || matches!(pool.get(t), TyData::Fn { .. } | TyData::Closure { .. }),
                 hold,
                 top,
                 end: out.len() + 1,
@@ -1103,7 +1106,11 @@ impl Layout {
                     out.push(slot);
                     stack.push((inner, false, d, None));
                 }
-                TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
+                TyData::Opaque { borrows: true, .. }
+                | TyData::Fn { .. }
+                | TyData::Closure { .. } => {
+                    out.push(slot);
+                }
                 // A counted reference holds its referent's slots, as a
                 // generic instance does (`ref.local.holding.counted`).
                 TyData::Ref { inner, .. } => stack.push((inner, top, d, None)),
@@ -1169,7 +1176,7 @@ impl SlotCounts {
                 out.push(inner);
                 u32::from(!counted)
             }
-            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => 1,
+            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } | TyData::Closure { .. } => 1,
 
             TyData::TraitValue { args, .. } => {
                 out.extend(pool.list_items(args));
@@ -3196,7 +3203,7 @@ impl Ck<'_, '_> {
         if let Some(sig) = &sig {
             let n = sig.params.len();
             for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
-                let TyData::Fn { result, .. } = pool.get(sig.params[p].1) else {
+                let TyData::Fn { result, .. } = pool.get(pool.fn_view(sig.params[p].1)) else {
                     continue;
                 };
                 let lts = own_inputs(pool, sig.params[p].1, lts);
@@ -3755,7 +3762,7 @@ impl Ck<'_, '_> {
                 let mut here = path.clone();
                 here.push(Part::Proj(Proj::Field(j)));
                 let written = f.fn_lifetimes.iter().any(|&l| l != 0);
-                if written && matches!(pool.get(f.ty), TyData::Fn { .. }) {
+                if written && matches!(pool.get(f.ty), TyData::Fn { .. } | TyData::Closure { .. }) {
                     out.push(here);
                 } else if matches!(pool.get(f.ty), TyData::Adt(..)) {
                     stack.push((f.ty, here, outer.clone()));
@@ -5934,7 +5941,7 @@ fn bound_inputs<'s>(
 }
 
 fn own_inputs<'r>(pool: Types<'_>, t: Ty, rec: &'r [u16]) -> &'r [u16] {
-    let TyData::Fn { params, result, .. } = pool.get(t) else {
+    let TyData::Fn { params, result, .. } = pool.get(pool.fn_view(t)) else {
         return &[];
     };
     let n: usize = pool
@@ -6012,7 +6019,7 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
             _ => return None,
         }
     }
-    let TyData::Fn { params, result, .. } = pool.get(ty) else {
+    let TyData::Fn { params, result, .. } = pool.get(pool.fn_view(ty)) else {
         return None;
     };
     let n = ref_slots(pool.list_items(params));

@@ -1,0 +1,19 @@
+# test: a value of a closure's own type is called as its signature; one that changes a capture is called through a writable place
+# Spec 07 Closure Types: fn.closure.type.call.
+# expect-stdout: 10 2
+use std.ops.{Fn, FnMut}
+
+fn id[F < Fn(i32) -> i32](f: F) -> F:
+    f
+
+fn keep[F < FnMut() -> void](f: F) -> F:
+    f
+
+pub fn main() -> void $ Console:
+    k := +4
+    add := id(fn(x): x + k)
+    let count = +0
+    let mut bump = keep(fn(): count += 1)
+    bump()
+    bump()
+    println("${add(6)} $count")

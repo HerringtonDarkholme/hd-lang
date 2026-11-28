@@ -1,0 +1,22 @@
+# test: a parameter bounded by Fn or FnMut, an impl one included, has no default Copy bound, so it takes a closure that captures a &mut
+# Spec 13 Copy: ref.copy.generic.fn.
+# expect-stdout: 3
+use std.ops.{Fn, FnMut}
+
+struct Counter:
+    n: i32
+
+fn twice(mut f: impl FnMut() -> void) -> void:
+    f()
+    f()
+
+fn read[F < Fn() -> i32](f: F) -> i32:
+    f()
+
+fn bump(c: &mut Counter) -> i32:
+    twice(fn(): c.n += 1)
+    read(fn() -> i32: c.n)
+
+pub fn main() -> void $ Console:
+    let mut c = Counter { n: 1 }
+    println("${bump(&mut c)}")

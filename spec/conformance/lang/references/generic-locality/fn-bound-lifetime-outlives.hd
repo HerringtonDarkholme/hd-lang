@@ -12,7 +12,7 @@ fn press[F < FnMut() -> void & 'a, 'a](mut b: Button[F, 'a]) -> void:
     (b.on_click)()
 
 fn scan(c: &mut Counter) -> void:
-    let mut b = Button { on_click: fn(): c.n += 1 }
+    let mut b: Button[fn() -> void] = Button { on_click: fn(): c.n += 1 }
     if c.n > 0:
         inner := Counter { n: +2 }
         r := &inner

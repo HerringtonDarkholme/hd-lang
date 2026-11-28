@@ -475,6 +475,9 @@ pub fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) ->
                         answer = Some(Some(Escape::TypeArgument));
                     }
                     TyData::Opaque { args, .. } => list(&mut parts, args, false),
+                    // A closure holds what its captures hold, as a tuple
+                    // of them does.
+                    TyData::Closure { captures, .. } => list(&mut parts, captures, top_ok),
                     TyData::TraitValue { args, bindings, .. } => {
                         parts.extend(bindings.iter().rev().map(|&(_, b)| part(b, false)));
                         parts.extend(pool.list_items(args).iter().rev().map(|&a| {

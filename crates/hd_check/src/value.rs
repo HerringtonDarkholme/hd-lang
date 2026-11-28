@@ -190,6 +190,7 @@ impl<'a> ProjectionCycles<'a> {
                     | TyData::Never
                     | TyData::Poison
                     | TyData::Fn { .. }
+                    | TyData::Closure { .. }
                     | TyData::TraitValue { .. }
                     | TyData::Opaque { .. }
                     | TyData::Param(_)
@@ -339,6 +340,10 @@ impl<'a> ProjectionCycles<'a> {
                 TyData::Opaque { args, bound, .. } => {
                     todo.extend(pool.list_items(args));
                     todo.push(bound);
+                }
+                TyData::Closure { sig, captures, .. } => {
+                    todo.push(sig);
+                    todo.extend(pool.list_items(captures));
                 }
                 TyData::Assoc { self_ty, args, .. } => {
                     todo.push(self_ty);
@@ -739,6 +744,7 @@ pub fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out:
         TyData::Ref { .. }
         | TyData::TraitValue { .. }
         | TyData::Fn { .. }
+        | TyData::Closure { .. }
         | TyData::Param(_)
         | TyData::Prim(_)
         | TyData::Never

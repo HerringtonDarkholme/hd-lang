@@ -54,7 +54,9 @@ impl Shapes {
                             }])
                         }
                         // These values contain no inline reference holder.
-                        TyData::Ref { counted: true, .. } | TyData::Fn { .. } => Some(Vec::new()),
+                        TyData::Ref { counted: true, .. }
+                        | TyData::Fn { .. }
+                        | TyData::Closure { .. } => Some(Vec::new()),
                         _ if !ls.holds(ty) => Some(Vec::new()),
                         _ => None,
                     };

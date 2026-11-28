@@ -16,7 +16,7 @@ fn mixed(xs: List[string]) -> usize:
     let total: usize = 0
     for _ in 0..3:
 > app/main/mixed
->   release fn(string) -> () (last use)
+>   release app.main.mixed#closure1 (last use)
         each(xs, fn(x: string) -> void: total += x.len())
 >   retain counted reference (stored)
     each(xs, fn(x: string) -> void: total += x.len())

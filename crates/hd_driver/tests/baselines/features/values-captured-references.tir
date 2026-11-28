@@ -61,6 +61,6 @@ fn local(xs: &List[string]) -> usize:
 >   %0 = Read [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Block %1 : usize
->   %3 = Closure #1 : fn() -> usize
->   %4 = Call app/main/apply[fn() -> usize] (%3) : usize
+>   %3 = Closure #1 : closure fn() -> usize
+>   %4 = Call app/main/apply[closure fn() -> usize] (%3) : usize
 >   %5 = Block %4 : usize

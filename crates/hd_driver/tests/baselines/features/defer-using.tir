@@ -25,16 +25,16 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
 >   local $1 s: string [param read captured]
->   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned]
+>   local $2 $ref: DeferGuard[closure fn() -> (), $()] [:= read assigned captured captured-assigned]
 >   %0 = Read [*$0] : List[string]
 >   %1 = Read [$1] : string
 >   %2 = Intrinsic ListPush [%0 %1] : ()
 >   %3 = Block - : ()
->   %4 = Closure #1 : fn() -> ()
->   %5 = Call std/ops/defer[fn() -> (), $()] (%4) : DeferGuard[fn() -> (), $()]
+>   %4 = Closure #1 : closure fn() -> ()
+>   %5 = Call std/ops/defer[closure fn() -> (), $()] (%4) : DeferGuard[closure fn() -> (), $()]
 >   %6 = Store [$2] %5 : ()
->   %7 = Ref mut local [$2] : &mut DeferGuard[fn() -> (), $()]
->   %8 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%7) : ()
+>   %7 = Ref mut local [$2] : &mut DeferGuard[closure fn() -> (), $()]
+>   %8 = Call std/ops/Disposable.dispose for DeferGuard[closure fn() -> (), $()] [$()] via Impl (%7) : ()
 >   %9 = Block - : ()
 >   %10 = Defer #9 : ()
 >   %15 = Block %13 : usize

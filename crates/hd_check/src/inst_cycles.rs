@@ -368,6 +368,16 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
                 stack.extend_from_slice(pool.list_items(args));
                 stack.push(bound);
             }
+            TyData::Closure {
+                args,
+                sig,
+                captures,
+                ..
+            } => {
+                stack.extend_from_slice(pool.list_items(args));
+                stack.push(sig);
+                stack.extend_from_slice(pool.list_items(captures));
+            }
 
             TyData::Ref { inner, .. } => stack.push(inner),
             TyData::Fn {

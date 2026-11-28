@@ -2240,12 +2240,13 @@ fn export(photo: Photo) -> Photo:
 4. r[ref.copy.opt-out] `impl !Copy for T` declares that the struct, enum, or newtype `T` is not `Copy`. It has no body and belongs in the module that declares `T`. A type with a `Drop` implementation must not be `Copy` in any instance ([`module.rt.drop.not-copy`](10-modules.md#r-module.rt.drop.not-copy)).
 5. r[ref.copy.opt-out.invalid] A negative implementation of a trait other than `Copy`, of a type that is not a struct, an enum, or a newtype, outside its target's module, or with a body is an error. Error: `invalid-negative-impl`.
 6. r[ref.copy.no-impl] `impl Copy for T` is an error, as for every sealed trait. Error: `sealed-trait-implementation`.
-7. r[ref.copy.generic.default] Every type parameter is `Copy` unless it is declared `?Copy`: a function's, a method's, a struct's, an enum's, an alias's, an implementation's, and a trait's.
+7. r[ref.copy.generic.default] Every type parameter is `Copy` unless it is declared `?Copy` or [`ref.copy.generic.fn`](#r-ref.copy.generic.fn) lifts it: a function's, a method's, a struct's, an enum's, an alias's, an implementation's, and a trait's.
 8. r[ref.copy.generic.argument] A type argument for a `Copy` parameter must be `Copy`. This holds for the inferred arguments of a call, a struct literal, and a variant construction. Error: `unsatisfied-trait-bound`.
 9. r[ref.copy.generic.relaxed] `T < ?Copy` lifts the default bound. `T` then accepts every type, and the body moves a `T` value as one that is not `Copy`.
 10. r[ref.copy.generic.relaxed.only] A `?` before a trait other than `Copy` is an error. Error: `invalid-relaxed-bound`.
-11. r[ref.copy.trait.default] A trait's `Self` is `Copy`, so a bound on the trait implies `Copy`. An implementation for a type that is not `Copy` is an error. Error: `missing-supertrait-implementation`.
-12. r[ref.copy.trait.reference] A `&mut dyn` value meets no bound on a trait whose `Self` is `Copy`. Error: `unsatisfied-trait-bound`.
+11. r[ref.copy.generic.fn] A type parameter bounded by `Fn` or `FnMut` has no default `Copy` bound, as if declared `?Copy`, since a closure's own type is `Copy` only when its captures are ([`fn.closure.copy`](07-functions.md#r-fn.closure.copy)). An `impl Fn(...)` parameter is one.
+12. r[ref.copy.trait.default] A trait's `Self` is `Copy`, so a bound on the trait implies `Copy`. An implementation for a type that is not `Copy` is an error. Error: `missing-supertrait-implementation`.
+13. r[ref.copy.trait.reference] A `&mut dyn` value meets no bound on a trait whose `Self` is `Copy`. Error: `unsatisfied-trait-bound`.
 13. r[ref.copy.trait.relaxed] `trait Name < ?Copy` lifts the `Copy` bound on `Self`. A type that is not `Copy` may implement the trait, and its default bodies move `Self`. `Index`, `IndexSet`, and `Inspectable` are declared so.
 14. r[ref.copy.collections] `List`, `Map`, `Set`, `Deque`, and `Heap` hold `Copy` items. A list or map literal whose items are not `Copy` is an error. Error: `unsatisfied-trait-bound`.
 

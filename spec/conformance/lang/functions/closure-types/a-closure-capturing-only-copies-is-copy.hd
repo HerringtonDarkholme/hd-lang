@@ -1,0 +1,13 @@
+# test: a closure whose captures are all Copy is Copy, so its value is used after a copy
+# Spec 07 Closure Types: fn.closure.copy.
+# expect-stdout: 5 5
+use std.ops.Fn
+
+fn id[F < Fn(i32) -> i32 & Copy](f: F) -> F:
+    f
+
+pub fn main() -> void $ Console:
+    k := +2
+    f := id(fn(x): x + k)
+    g := f
+    println("${f(3)} ${g(3)}")

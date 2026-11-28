@@ -91,6 +91,22 @@ pub fn walk(
                 }
                 go(bound, 0);
             }
+            // A closure's identity is invariant in its owner's arguments.
+            TyData::Closure {
+                args,
+                sig,
+                captures,
+                ..
+            } => {
+                for &a in pool
+                    .list_items(args)
+                    .iter()
+                    .chain(pool.list_items(captures))
+                {
+                    go(a, 0);
+                }
+                go(sig, 0);
+            }
 
             TyData::Fn {
                 params,

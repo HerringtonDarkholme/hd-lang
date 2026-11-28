@@ -935,6 +935,12 @@ fn name_into(
             out.push_str("impl ");
             name_into(pool, env, printed, bound, out, limit);
         }
+        // A closure's type is named by its item and sub-body.
+        TyData::Closure { item, sub, .. } => {
+            out.push_str(&def_name(env, printed, item));
+            out.push_str("#closure");
+            out.push_str(&sub.to_string());
+        }
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
         // `Option[T]` is spelled `T?` (`types.option.sugar`).
@@ -2838,6 +2844,7 @@ impl Cx<'_> {
         }
         match pool.get(t) {
             TyData::TraitValue { def, .. } => self.slot_users.push((id, def)),
+            TyData::Closure { sig, .. } => self.note_slot_user(id, sig),
             TyData::Fn { row, .. } => {
                 for k in pool.row_data(row).keys {
                     if let TyData::TraitValue { def, .. } = pool.get(k) {
@@ -3407,6 +3414,23 @@ impl Cx<'_> {
             let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
+                // `fn.closure.type`: a call of a value of a closure's own
+                // type calls that closure's code, in every build.
+                Tag::CallValue
+                    if let TyData::Closure {
+                        item: owner,
+                        sub: k,
+                        args: at,
+                        ..
+                    } = pool.get(s(value_ty(body, a))) =>
+                {
+                    let Ok(k) = u16::try_from(k) else {
+                        return err("a closure type's sub-body past the sub-body limit");
+                    };
+                    let key = self.push_specialized(owner, Sub::Body(k), at, &[], &[], id)?;
+                    reps.hash(key);
+                    calls.insert(ix, Target::KnownClosure(key));
+                }
                 Tag::Prim => {
                     if let Some(op) = hd_tir::ir::PrimOp::from_u32(a)
                         && let Some(def) = env.float_operator(op, ty)

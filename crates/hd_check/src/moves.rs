@@ -108,7 +108,9 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
             mutable, counted, ..
         } => Ok((mutable && !counted && !reborrow).then_some(t)),
 
-        TyData::Adt(ANON_SUM | AdtId::Product { .. }, args) => Err(pool.list_items(args).to_vec()),
+        // A closure copies when its captures do (`fn.closure.copy`).
+        TyData::Adt(ANON_SUM | AdtId::Product { .. }, args)
+        | TyData::Closure { captures: args, .. } => Err(pool.list_items(args).to_vec()),
         TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
         TyData::Param(p) => Ok((!param_copies((pool, find), p)).then_some(t)),
         TyData::Assoc { assoc, .. } => {

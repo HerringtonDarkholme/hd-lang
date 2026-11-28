@@ -39,6 +39,6 @@ fn run() -> i32:
 >   %12 = Read [$5] : i32
 >   %13 = Prim Add [%12 1:i32] : i32
 >   %14 = Block %13 : i32
->   %15 = Closure #4 : fn(i32) -> i32
->   %16 = Call app/main/top[fn(i32) -> i32] (%15) : i32
+>   %15 = Closure #4 : closure fn(i32) -> i32
+>   %16 = Call app/main/top[closure fn(i32) -> i32] (%15) : i32
 >   %17 = Prim Add [%11 %16] : i32

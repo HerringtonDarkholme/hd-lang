@@ -60,6 +60,16 @@ fn nested_parts(pool: &InternPool, written: &HashMap<u32, u32>, t: Ty, out: &mut
             pool.list_items(args).iter().copied().for_each(&mut push);
             push(bound);
         }
+        TyData::Closure {
+            args,
+            sig,
+            captures,
+            ..
+        } => {
+            pool.list_items(args).iter().copied().for_each(&mut push);
+            push(sig);
+            pool.list_items(captures).iter().copied().for_each(push);
+        }
         TyData::Ref { inner, .. } => push(inner),
         TyData::Fn { params, result, .. } => {
             pool.list_items(params).iter().copied().for_each(&mut push);
@@ -107,6 +117,7 @@ mod tag {
     pub const CREF: u8 = 24;
     pub const CREF_MUT: u8 = 25;
     pub const CONST: u8 = 26;
+    pub const CLOSURE: u8 = 30;
     // 27 was a union; anonymous sums now use ADT with no declaration.
     /// A type by its content hash, in a fingerprint only
     /// ([`super::TableWriter::hashing`]); a cache entry never holds one.
@@ -363,6 +374,24 @@ impl<'a> TableWriter<'a> {
                 ];
                 self.row(tag::OPAQUE, &words)
             }
+            TyData::Closure {
+                item,
+                sub,
+                args,
+                sig,
+                captures,
+                writes,
+            } => {
+                let words = [
+                    self.def(item),
+                    sub,
+                    self.list(args)?,
+                    self.ty(sig)?,
+                    self.list(captures)?,
+                    u32::from(writes),
+                ];
+                self.row(tag::CLOSURE, &words)
+            }
             TyData::Param(p) => {
                 let owner = self.def(p.owner);
                 self.row(tag::PARAM, &[owner, u32::from(p.index)])
@@ -566,6 +595,17 @@ impl Tables {
                         borrows: *words.get(4)? != 0,
                         args: TyList(row(2)?),
                         bound: Ty(row(3)?),
+                    })
+                    .0
+                }
+                tag::CLOSURE => {
+                    pool.intern_ty(&TyData::Closure {
+                        item: def(0)?,
+                        sub: *words.get(1)?,
+                        args: TyList(row(2)?),
+                        sig: Ty(row(3)?),
+                        captures: TyList(row(4)?),
+                        writes: *words.get(5)? != 0,
                     })
                     .0
                 }

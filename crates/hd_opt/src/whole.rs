@@ -145,6 +145,10 @@ impl Scan<'_> {
                 children.extend(self.pool.list_items(params).iter().copied());
                 children.push(result);
             }
+            TyData::Closure { sig, captures, .. } => {
+                children.extend(self.pool.list_items(captures).iter().copied());
+                children.push(sig);
+            }
             TyData::TraitValue { args, bindings, .. } => {
                 children.extend(self.pool.list_items(args).iter().copied());
                 children.extend(bindings.into_iter().map(|(_, ty)| ty));

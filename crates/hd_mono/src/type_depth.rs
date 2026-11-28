@@ -11,6 +11,16 @@ fn parts(pool: &InternPool, t: Ty) -> Vec<Ty> {
             parts.extend(pool.list_items(args));
             parts.push(bound);
         }
+        TyData::Closure {
+            args,
+            sig,
+            captures,
+            ..
+        } => {
+            parts.extend(pool.list_items(args));
+            parts.push(sig);
+            parts.extend(pool.list_items(captures));
+        }
 
         TyData::Ref { inner: i, .. } => parts.push(i),
         TyData::Fn {

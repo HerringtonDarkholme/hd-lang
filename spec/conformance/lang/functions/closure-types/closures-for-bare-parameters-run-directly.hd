@@ -1,0 +1,39 @@
+# test: closures passed for bare Fn and FnMut parameters each take their own type and run: copied and shared captures, a method chain, a nested closure and a struct field
+# Spec 07 Closure Types: fn.closure.type.
+# expect-stdout: 14 3 2 8 7 true false
+use std.ops.{Fn, FnMut}
+
+struct Keep[F < FnMut(i32) -> bool]:
+    test: F
+
+fn apply[F < Fn(i32) -> i32](f: F, x: i32) -> i32:
+    f(x) + f(x + 1)
+
+fn each[F < FnMut(i32) -> void](xs: List[i32], mut f: F) -> void:
+    for x in xs:
+        f(x)
+
+fn nested(k: i32) -> i32:
+    apply(fn(x):
+        apply(fn(y): y * k + x, 1)
+    , 0)
+
+struct Scale:
+    by: i32
+
+impl Scale:
+    fn run[F < Fn(i32) -> i32](&self, f: F) -> i32:
+        f(self.by)
+
+pub fn main() -> void $ Console:
+    k := +2
+    let total = +0
+    each([1, 2], fn(x): total += x)
+    count := [1, 5, 2, 7].iter().filter(fn(x): *x > k).count()
+    let mut keep = Keep { test: fn(x: i32) -> bool: x > 4 }
+    big := (keep.test)(9)
+    small := (keep.test)(1)
+    s := Scale { by: 3 }
+    println(
+        "${apply(fn(x): x * k, 3)} $total $count ${nested(1)} ${s.run(fn(x): x + 4)} $big $small"
+    )

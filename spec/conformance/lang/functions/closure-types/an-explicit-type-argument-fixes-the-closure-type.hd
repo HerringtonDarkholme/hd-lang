@@ -1,0 +1,25 @@
+# test: a type argument, an earlier argument's type or the expected result fixes the parameter, and the closure is checked against it
+# Spec 07 Closure Types: fn.closure.type.fixed.
+# expect-stdout: 4 6 9
+use std.ops.Fn
+use std.iter.{FilterMap, ListIter}
+
+fn pair[F < Fn(i32) -> i32](a: F, b: F) -> i32:
+    a(1) + b(2)
+
+fn id[F < Fn(i32) -> i32](f: F) -> F:
+    f
+
+fn evens(xs: List[i32]) -> FilterMap[ListIter[i32], i32, i32]:
+    xs.iter()
+        .filter_map(fn(x: i32) -> i32?:
+            if x % 2 == 0:
+                return .Some(x)
+            .None
+        )
+
+pub fn main() -> void $ Console:
+    k := +1
+    let named: fn(i32) -> i32 = id(fn(x): x * 3)
+    total := evens([2, 3, 4]).fold(0, fn(acc, x): acc + x)
+    println("${pair::[fn(i32) -> i32](fn(x): x, fn(x): x + k)} $total ${named(3)}")

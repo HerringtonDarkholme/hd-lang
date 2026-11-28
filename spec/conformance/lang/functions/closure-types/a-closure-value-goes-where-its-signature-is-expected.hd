@@ -1,0 +1,15 @@
+# test: a value of a closure's own type is passed where its signature's fn type is expected
+# Spec 07 Closure Types: fn.closure.coerce.
+# expect-stdout: 8
+use std.ops.Fn
+
+fn id[F < Fn(i32) -> i32](f: F) -> F:
+    f
+
+fn call(f: fn(i32) -> i32) -> i32:
+    f(4)
+
+pub fn main() -> void $ Console:
+    k := +2
+    f := id(fn(x): x * k)
+    println("${call(f)}")

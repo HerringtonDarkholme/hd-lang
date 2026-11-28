@@ -289,6 +289,7 @@ impl Ck<'_, '_> {
         let in_rows = self.row_gens.len();
         let in_consts = self.const_gens.len();
         let in_impl = self.impl_params.len();
+        self.generic_local_depth += 1;
         let first = self.next_gen;
         let mut params = Vec::new();
         let mut nodes = Vec::new();
@@ -550,6 +551,7 @@ impl Ck<'_, '_> {
         }
         parts.form = Some(form);
         self.generic_closure(n, &mut parts)?;
+        self.generic_local_depth -= 1;
         self.gens.truncate(in_scope);
         self.row_gens.truncate(in_rows);
         self.const_gens.truncate(in_consts);

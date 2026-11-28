@@ -2549,9 +2549,9 @@ fn fold_slot_paths<V: Clone + Default>(
         match *d {
             TyData::Ref { inner, .. } => vec![inner],
 
-            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
-                pool.list_items(args).to_vec()
-            }
+            TyData::Adt(_, args)
+            | TyData::TraitValue { args, .. }
+            | TyData::Closure { captures: args, .. } => pool.list_items(args).to_vec(),
             // No path to a reference slot goes through these.
             TyData::Prim(_)
             | TyData::Never
@@ -4818,6 +4818,17 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    /// Whether `bounds` name `Fn` or `FnMut`: such a parameter has no
+    /// default `Copy` bound, since a closure's own type copies only when
+    /// its captures do (`ref.copy.generic.fn`).
+    fn fn_bounded(&self, bounds: &[Ty]) -> bool {
+        let known = &self.names.known;
+        bounds.iter().any(|&b| {
+            self.trait_of(b)
+                .is_some_and(|d| d == known.fn_trait || d == known.fn_mut_trait)
+        })
+    }
+
     /// The `Copy` bound a type parameter has by default
     /// (`ref.copy.generic.default`).
     fn copy_bound(&self) -> Ty {
@@ -5068,7 +5079,7 @@ impl Lower<'_, '_, '_> {
                 p.poisoned = bounds.contains(&Ty::POISON);
                 p.pending = false;
             }
-            if !row && !lifted {
+            if !row && !lifted && !self.fn_bounded(&bounds) {
                 bounds.push(self.copy_bound());
             }
             g.bound_lifetimes = self.slot_lists(&bounds, bound_lifetimes);
@@ -5384,7 +5395,9 @@ impl Lower<'_, '_, '_> {
         }
         // A function's parameter, so `Copy` by default
         // (`ref.copy.generic.default`).
-        bounds.push(self.copy_bound());
+        if !self.fn_bounded(&bounds) {
+            bounds.push(self.copy_bound());
+        }
         generic.bound_lifetimes = self.slot_lists(&bounds, written);
         generic.bounds = bounds;
         (ty, generic)

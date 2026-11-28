@@ -67,8 +67,8 @@ fn kept(text: &string) -> &string:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : &string
 >   %1 = Block - : ()
->   %2 = Closure #1 : fn() -> ()
->   %3 = Call app/main/through[fn() -> ()] (%0, %2) : &string
+>   %2 = Closure #1 : closure fn() -> ()
+>   %3 = Call app/main/through[closure fn() -> ()] (%0, %2) : &string
 >   %4 = Retain %3 Operation operand 1 #0 : ()
 >   %5 = Drop [%2] : ()
 >   %6 = Block %3 : &string

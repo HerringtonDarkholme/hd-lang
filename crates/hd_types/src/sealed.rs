@@ -229,9 +229,10 @@ enum Category {
 
 fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
     match pool.get(t) {
-        TyData::Prim(_) | TyData::Fn { .. } | TyData::Adt(ANON_SUM | AdtId::Product { .. }, _) => {
-            Category::Val
-        }
+        TyData::Prim(_)
+        | TyData::Fn { .. }
+        | TyData::Closure { .. }
+        | TyData::Adt(ANON_SUM | AdtId::Product { .. }, _) => Category::Val,
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         // A collection is a value (`types.coll.value`).
@@ -690,7 +691,7 @@ fn copy_parts(
                 take(&mut open, left);
                 continue;
             }
-            TyData::Adt(AdtId::Product { .. }, _) | TyData::Adt(..) => {
+            TyData::Adt(AdtId::Product { .. }, _) | TyData::Adt(..) | TyData::Closure { .. } => {
                 if let Some(&left) = marks.get(&t) {
                     take(&mut open, left);
                     continue;
@@ -737,7 +738,9 @@ fn copy_parts(
         }
         crate::work::type_node();
         match data {
-            TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
+            // A closure is a value of its captures, as a tuple of them.
+            TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args)
+            | TyData::Closure { captures: args, .. } => {
                 stack.extend(pool.list_items(args).iter().rev().map(|&m| Step::Enter(m)));
             }
             TyData::Adt(AdtId::Declared(def), args) => match decls.copy_decl(def) {
@@ -918,7 +921,7 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     match pool.get(self_ty) {
         TyData::Ref { inner, .. } => subs.push(inner),
 
-        TyData::Adt(_, args) => {
+        TyData::Adt(_, args) | TyData::Closure { captures: args, .. } => {
             subs.extend_from_slice(pool.list_items(args));
         }
         // A projection meets it when its parts do, as Rust's projection

@@ -1,0 +1,9 @@
+# test: two closure literals for one type parameter have two types, so the second is a type mismatch
+# Spec 07 Closure Types: fn.closure.type.distinct.
+use std.ops.Fn
+
+fn pair[F < Fn(i32) -> i32](a: F, b: F) -> i32:
+    a(1) + b(2)
+
+fn demo() -> i32:
+    pair(fn(x): x, fn(x): x + 1) # diagnostic: type-mismatch

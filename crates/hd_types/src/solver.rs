@@ -2018,6 +2018,21 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
             args: fold_list(pool, args, leaves)?,
             bound: fold_vars(pool, bound, leaves)?,
         },
+        TyData::Closure {
+            item,
+            sub,
+            args,
+            sig,
+            captures,
+            writes,
+        } => TyData::Closure {
+            item,
+            sub,
+            args: fold_list(pool, args, leaves)?,
+            sig: fold_vars(pool, sig, leaves)?,
+            captures: fold_list(pool, captures, leaves)?,
+            writes,
+        },
 
         TyData::Ref {
             inner,
@@ -3311,6 +3326,23 @@ impl<'s, 'a> Search<'s, 'a> {
         root: bool,
     ) -> (Outcome, u16) {
         let pool = self.cx.pool;
+        // A closure type implements the traits of its signature, and only
+        // `FnMut` when it changes a capture (`fn.trait.read-only`).
+        let self_ty = match pool.get(self_ty) {
+            TyData::Closure { writes, .. }
+                if writes && tref.trait_ == self.cx.decls.sealed().fn_trait =>
+            {
+                let fails = Answer::Fails(Box::new(FailInfo {
+                    leaf: cg,
+                    chain: vec![],
+                    reason: FailReason::NoImpl,
+                    near: vec![],
+                }));
+                return self.leaf(key, root, fails);
+            }
+            TyData::Closure { sig, .. } => sig,
+            _ => self_ty,
+        };
         let answer = match pool.get(self_ty) {
             TyData::Infer(v) => Answer::Stalled { on: vec![v] },
             TyData::Fn {
@@ -3590,6 +3622,10 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>, seen: &mut Hash
                 stack.extend_from_slice(pool.list_items(params));
                 stack.push(result);
             }
+            TyData::Closure { sig, captures, .. } => {
+                stack.push(sig);
+                stack.extend_from_slice(pool.list_items(captures));
+            }
             // A stall names the variables of the goal's own structure; one
             // inside a projection, an opaque type or a row waits with it.
             TyData::Prim(_)
@@ -3768,6 +3804,7 @@ impl Search<'_, '_> {
             | TyData::Never
             | TyData::Adt(..)
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::Const(_)
             | TyData::Assoc { .. }
             | TyData::Ref { .. }

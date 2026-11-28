@@ -180,7 +180,7 @@ impl Counts {
         let c = match pool.get(s) {
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => at(0, false),
             // A function value is its closure object's address.
-            TyData::Fn { .. } => at(0, true),
+            TyData::Fn { .. } | TyData::Closure { .. } => at(0, true),
             TyData::Context(_) => at(0, true),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, s) => at(0, false),
             TyData::Adt(AdtId::Product { .. }, _) => {

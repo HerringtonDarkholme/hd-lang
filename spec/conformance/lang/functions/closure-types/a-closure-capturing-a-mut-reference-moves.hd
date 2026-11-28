@@ -1,0 +1,17 @@
+# test: a closure that captures a &mut is not Copy, so a second use of a moved value is an error
+# Spec 07 Closure Types: fn.closure.copy.
+use std.ops.FnMut
+
+struct Counter:
+    n: i32
+
+fn run[F < FnMut() -> void](mut f: F) -> void:
+    f()
+
+fn bump(c: &mut Counter) -> void:
+    f := run_later(fn(): c.n += 1)
+    run(f)
+    run(f) # diagnostic: use-of-moved-value
+
+fn run_later[F < FnMut() -> void](f: F) -> F:
+    f

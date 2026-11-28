@@ -119,7 +119,7 @@
         call $rt:retain_fields
         local.get $xs
         local.get $x.1
-        call $"each[fn(string) -> ()]"
+        call $"each[mixed#closure1]"
     ;; 13 |     for _ in 0..3:
         local.get $x.1
         if
@@ -193,7 +193,7 @@
     i32.add
     global.set $stack
   )
-  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
+  (func $"each[mixed#closure1]" (param $xs i32) (param $f i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4

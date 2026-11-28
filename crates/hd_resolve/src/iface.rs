@@ -3064,6 +3064,19 @@ pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<T
             tys.extend(pool.list_items(args));
             tys.push(bound);
         }
+        // The closure's item is its owner's, which names it.
+        TyData::Closure {
+            item,
+            args,
+            sig,
+            captures,
+            ..
+        } => {
+            defs.push(item);
+            tys.extend(pool.list_items(args));
+            tys.push(sig);
+            tys.extend(pool.list_items(captures));
+        }
 
         TyData::Ref { inner: i, .. } => tys.push(i),
         TyData::Fn {
@@ -3661,6 +3674,12 @@ impl<'s, 'n> Shower<'s, 'n> {
                     self.put(",");
                 }
                 self.close(")");
+            }
+            // A closure's own type has no spelling: its signature, marked
+            // as a closure's (`fn.closure.type`).
+            TyData::Closure { sig, .. } => {
+                self.put("closure ");
+                self.ty(sig, d, None);
             }
 
             TyData::Ref {

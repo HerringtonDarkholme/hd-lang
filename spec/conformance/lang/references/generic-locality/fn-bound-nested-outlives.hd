@@ -4,9 +4,9 @@ struct Counter:
     n: i32
 
 fn later(xs: List[i32]) -> i32:
-    let mut it = xs.iter().map(fn(x: i32) -> i32: x)
+    let mut it = xs.iter().map::[i32, fn(i32) -> i32](fn(x: i32) -> i32: x)
     if xs.len() > 0:
         inner := Counter { n: +2 }
         p := &inner
-        it = xs.iter().map(fn(x: i32) -> i32: x + p.n)
+        it = xs.iter().map::[i32, fn(i32) -> i32](fn(x: i32) -> i32: x + p.n)
     it.next().unwrap_or(+0) # diagnostic: local-reference-outlives-local

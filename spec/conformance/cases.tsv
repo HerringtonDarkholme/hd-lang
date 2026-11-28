@@ -7501,6 +7501,14 @@ std/url/url-errors/uri-errors.hd	runtime	accept	std/url.md#url-errors
 std/url/typed-queries/uri-query-values.hd	runtime	accept	std/url.md#typed-queries
 std/fs/temporary-directories/temporary-directories.hd	runtime	accept	std/fs.md#temporary-directories
 std/fs/temporary-directories/native-temporary-directories.hd	runtime	accept	std/fs.md#temporary-directories
+lang/functions/closure-types/closures-for-bare-parameters-run-directly.hd	runtime	accept	lang/07-functions.md#r-fn.closure.type
+lang/functions/closure-types/two-closures-for-one-parameter-is-a-type-mismatch.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.closure.type.distinct
+lang/functions/closure-types/an-explicit-type-argument-fixes-the-closure-type.hd	runtime	accept	lang/07-functions.md#r-fn.closure.type.fixed
+lang/functions/closure-types/a-closure-value-calls-as-its-signature.hd	runtime	accept	lang/07-functions.md#r-fn.closure.type.call
+lang/functions/closure-types/a-closure-capturing-only-copies-is-copy.hd	runtime	accept	lang/07-functions.md#r-fn.closure.copy
+lang/functions/closure-types/a-closure-capturing-a-mut-reference-moves.hd	type	reject:use-of-moved-value	lang/07-functions.md#r-fn.closure.copy
+lang/functions/closure-types/a-closure-value-goes-where-its-signature-is-expected.hd	runtime	accept	lang/07-functions.md#r-fn.closure.coerce
+lang/functions/closure-types/an-fn-bounded-parameter-takes-a-closure-that-is-not-copy.hd	runtime	accept	lang/13-values-and-references.md#r-ref.copy.generic.fn
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

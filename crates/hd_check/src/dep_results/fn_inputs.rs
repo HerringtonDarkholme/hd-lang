@@ -101,7 +101,7 @@ impl Ck<'_, '_> {
                     let pts: Vec<Ty> = match source {
                         Source::Item(sig) => sig.params.iter().map(|&(_, t)| t).collect(),
                         Source::Param(ct, _) | Source::Declared(ct, _) => {
-                            let TyData::Fn { params, .. } = pool.get(ct) else {
+                            let TyData::Fn { params, .. } = pool.get(pool.fn_view(ct)) else {
                                 continue;
                             };
                             pool.list_items(params).to_vec()
@@ -192,7 +192,7 @@ impl Ck<'_, '_> {
                     _ => continue,
                 };
                 for (f, &v) in fields.iter().zip(b.record(b.data[i][1])) {
-                    if !matches!(pool.get(f.ty), TyData::Fn { .. }) {
+                    if !matches!(pool.get(f.ty), TyData::Fn { .. } | TyData::Closure { .. }) {
                         continue;
                     }
                     let rec = own_inputs(pool, f.ty, &f.fn_lifetimes);
@@ -230,8 +230,10 @@ impl Ck<'_, '_> {
     /// field [`Ck::fn_field_paths`] finds.
     fn fn_paths(&self, ls: &Layouts<'_>, t: Ty) -> Vec<Vec<Part>> {
         let pool = ls.pool;
-        let takes =
-            |t: Ty| matches!(pool.get(t), TyData::Fn { .. }) && pool.fn_written_slots(t) != 0;
+        let takes = |t: Ty| {
+            matches!(pool.get(t), TyData::Fn { .. } | TyData::Closure { .. })
+                && pool.fn_written_slots(t) != 0
+        };
         let mut out = Vec::new();
         if takes(t) {
             out.push(Vec::new());

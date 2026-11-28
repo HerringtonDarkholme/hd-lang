@@ -878,6 +878,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                     | TyData::Never
                     | TyData::Poison
                     | TyData::Fn { .. }
+                    | TyData::Closure { .. }
                     | TyData::TraitValue { .. }
                     | TyData::Opaque { .. }
                     | TyData::Param(_)

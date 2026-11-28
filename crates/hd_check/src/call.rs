@@ -1827,8 +1827,23 @@ impl Ck<'_, '_> {
     /// `type-mismatch`; the argument then poisons the type parameter, so
     /// the bound and any method chained on the result report nothing more.
     /// A caller's own type parameter is left to the bound check.
-    fn bounded_closure(&mut self, r: Ref, t: Ty, bounded: Option<Ty>, e: NodeRef<'_>) -> (Ref, Ty) {
-        let Some(want) = bounded else {
+    /// `open`: the parameter's type is still unsolved, so the closure
+    /// solves it with its own type (`fn.closure.type`); a type an earlier
+    /// argument or the expected result solved it to is checked as before.
+    fn bounded_closure(
+        &mut self,
+        r: Ref,
+        t: Ty,
+        bounded: Option<FnWant>,
+        e: NodeRef<'_>,
+        open: bool,
+    ) -> (Ref, Ty) {
+        let Some(FnWant {
+            ty: want,
+            read_only,
+            ..
+        }) = bounded
+        else {
             return (r, t);
         };
         let pool = self.pool();
@@ -1843,12 +1858,112 @@ impl Ck<'_, '_> {
         let r = self.coerce(r, t, want, e, "argument", ExpectPosition::General);
         if self.diags.len() > before {
             (r, Ty::POISON)
+        } else if open
+            && e.kind() == SyntaxKind::ClosureExpr
+            && let Some(own) = self.closure_type(r, want, read_only)
+        {
+            (r, own)
         } else {
             // The value takes the bound's signature, its row included: a
             // row the value does not need still fills the bound's
             // (`req.row.subsume`).
             (r, want)
         }
+    }
+
+    /// The own type of closure literal `r`, written for a bare type
+    /// parameter whose bound gives it signature `sig` (`fn.closure.type`):
+    /// the closure of its sub-body at the body's own arguments, with its
+    /// captures' types and whether it changes one (`fn.trait.read-only`).
+    /// `None` keeps `sig` for a closure the bound's signature had to adapt
+    /// (a `Coerce`), one in a generic local function, whose code is the
+    /// lifted function's, one in a body that is not a function's, and one
+    /// that changes a capture where `read_only` asks `Fn`, which
+    /// `not-writable` reports.
+    /// Cost: one pass over its captures and the item's generics.
+    pub(crate) fn closure_type(&mut self, r: Ref, sig: Ty, read_only: bool) -> Option<Ty> {
+        if self.generic_local_depth > 0 {
+            return None;
+        }
+        let i = r.as_inst()?.0 as usize;
+        let body = self.b.body_mut();
+        if !matches!(
+            body.kind,
+            hd_tir::BodyKind::Fn | hd_tir::BodyKind::Init | hd_tir::BodyKind::TestCase
+        ) || body.tags[i] != Tag::Closure
+            || body.is_instantiation(i)
+        {
+            return None;
+        }
+        let (item, sub, syn) = (body.item, body.data[i][0], body.syn[i]);
+        let writes = self.closure_writes.contains_key(&syn);
+        if writes && read_only {
+            return None;
+        }
+        let rec = body.record(body.data[i][1]);
+        let (start, n) = (rec[0] as usize, rec[1] as usize);
+        let captures: Vec<Ty> = body.cap_local[start..start + n]
+            .iter()
+            .map(|l| body.local_ty[l.idx()])
+            .collect();
+        let pool = self.pool();
+        let own = pool.intern_ty(&TyData::Closure {
+            item,
+            sub,
+            args: self.identity_args(item),
+            sig,
+            captures: pool.list(&captures),
+            writes,
+        });
+        self.b.body_mut().ty[i] = own;
+        Some(own)
+    }
+
+    /// `item`'s parameters as the arguments of its own instance: its
+    /// owner's first (a trait's `Self` before its declared ones), then its
+    /// own, as monomorphization substitutes them (`hd_mono::subst`).
+    fn identity_args(&self, item: DefId) -> TyList {
+        let (pool, lookup) = (self.pool(), self.cx.lookup);
+        // A row parameter stands as a plain parameter too: the closure's
+        // identity takes its instance's argument for it, whatever its form.
+        let param = |owner: DefId, index: usize, _row: bool| {
+            let index = u16::try_from(index).unwrap_or(u16::MAX);
+            pool.intern_ty(&TyData::Param(ParamRef { owner, index }))
+        };
+        let mut out = Vec::new();
+        let it = lookup.item(item);
+        if let Some(ItemData::Method { owner, .. }) = it.map(|it| &it.data)
+            && let Some(o) = lookup.item(*owner)
+        {
+            let shift = match &o.data {
+                ItemData::Impl { .. } | ItemData::Struct(..) | ItemData::Enum { .. } => Some(0),
+                ItemData::Trait(_) => {
+                    out.push(param(*owner, 0, false));
+                    Some(1)
+                }
+                _ => None,
+            };
+            if let Some(shift) = shift {
+                for (i, g) in o.generics.iter().enumerate() {
+                    out.push(param(*owner, i + shift, g.row));
+                }
+            }
+        }
+        let own = it.map(|it| match &it.data {
+            ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => &sig.generics,
+            _ => &it.generics,
+        });
+        for (i, g) in own.into_iter().flatten().enumerate() {
+            out.push(param(item, i, g.row));
+        }
+        pool.list(&out)
+    }
+
+    /// Whether parameter type `w` is an inference variable nothing has
+    /// solved yet.
+    pub(crate) fn open_param(&self, w: Ty) -> bool {
+        let pool = self.pool();
+        matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_))
     }
 
     pub(crate) fn fn_bound_read_only(&self, bounds: &[Ty]) -> Option<bool> {
@@ -1875,7 +1990,7 @@ impl Ck<'_, '_> {
     /// implement only `FnMut`.
     pub(crate) fn check_read_only_fn(&mut self, r: Ref, t: Ty, e: NodeRef<'_>) {
         let pool = self.pool();
-        let t = self.resolved(self.infer.resolve(pool, t));
+        let t = self.fn_view(self.resolved(self.infer.resolve(pool, t)));
         if !matches!(
             pool.get(t),
             TyData::Fn {
@@ -2050,6 +2165,14 @@ impl Ck<'_, '_> {
             self.check_bang(true, n);
             let empty = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
             return Ok((self.b.emit(Tag::AwaitValue, f.0, empty, t, n.index()), t));
+        }
+        // A value of a closure's own type is called as its signature
+        // (`fn.closure.type`), through `&mut` when it changes a capture.
+        if let TyData::Closure { sig, writes, .. } = pool.get(ft) {
+            if writes {
+                self.fn_mut_callee(f, n);
+            }
+            ft = sig;
         }
         if !matches!(pool.get(ft), TyData::Fn { .. })
             && let Some((bound, only_mut)) = self.fn_bound_type(ft)?
@@ -2635,7 +2758,8 @@ impl Ck<'_, '_> {
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
             let r = self.crossing_captures(crossing, (r, t), *e);
-            let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
+            let open_w = w.is_some_and(|w| self.open_param(w));
+            let (r, t) = self.bounded_closure(r, t, fn_want, *e, open_w);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
                 && self.infer.resolve(pool, t) == Ty::NEVER
@@ -2767,7 +2891,8 @@ impl Ck<'_, '_> {
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
             let r = self.crossing_captures(crossing, (r, t), *e);
-            let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
+            let open_w = self.open_param(w);
+            let (r, t) = self.bounded_closure(r, t, fn_want, *e, open_w);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
             }
@@ -2836,7 +2961,8 @@ impl Ck<'_, '_> {
                     {
                         self.check_stored_value(r, t, block, place)?;
                     }
-                    let (r, t) = self.bounded_closure(r, t, last_want.map(|f| f.ty), block);
+                    let open_w = self.open_param(w);
+                    let (r, t) = self.bounded_closure(r, t, last_want, block, open_w);
                     let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
                     if last_want.is_some_and(|f| f.read_only) {
                         self.check_read_only_fn(r, t, block);
@@ -6270,6 +6396,21 @@ impl Ck<'_, '_> {
         };
         let inferred = inferred_formals(self, method, &sig, &explicit, &params);
         let closure_wants = fn_bound_formals(self, method, &sig, &params, &inst);
+        // The result first, as for an inherent method: an expected adapter
+        // type fixes a bare `F` before its closure is checked, which then
+        // takes that type, not its own (`fn.closure.type`).
+        if let Some(w) = want
+            && w != Ty::VOID
+            && closure_wants.iter().any(Option::is_some)
+        {
+            let ret = self.normalize_deep(inst(sig.ret))?;
+            if pool.has_infer(ret) {
+                let snap = self.infer.snapshot();
+                if self.infer.unify(pool, ret, w).is_err() {
+                    self.infer.rollback(snap);
+                }
+            }
+        }
         let formals = Formals {
             params: &params,
             defaults: &sig.defaults,

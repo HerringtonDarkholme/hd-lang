@@ -437,6 +437,7 @@ fn type_defs(pool: &InternPool, tys: &[Ty]) -> Vec<DefId> {
             TyData::Adt(..)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::Row(_)
             | TyData::Context(_)
             | TyData::Param(_)

@@ -534,6 +534,45 @@ fn demo(test: fn() -> bool) -> void:
 7. r[fn.trait.read-only.positions] These rules apply to a positional or named call argument for a bare type parameter, and to a struct literal field whose type is a bare type parameter.
 8. r[fn.trait.read-only.concrete] A concrete `fn(...)` parameter takes either kind of value, so a closure passed for one may change its captures.
 
+#### Closure Types
+
+A closure literal written for a bare type parameter has a type of its own,
+as a Rust closure does: the callee is instantiated for that closure and
+calls it directly.
+
+```text
+use std.ops.Fn
+
+fn apply[F < Fn(i32) -> i32](f: F, x: i32) -> i32:
+    f(x) + f(x + 1)
+
+fn pair[F < Fn(i32) -> i32](a: F, b: F) -> i32:
+    a(1) + b(2)
+
+fn id[F < Fn(i32) -> i32](f: F) -> F:
+    f
+
+fn call(f: fn(i32) -> i32) -> i32:
+    f(4)
+
+fn demo(k: i32) -> i32:
+    double := apply(fn(x): x * k, 2)   # `F` is this closure's own type
+    same := pair::[fn(i32) -> i32](fn(x): x, fn(x): x + k)
+    pair(fn(x): x, fn(x): x + k)  # error: type-mismatch
+    double + same + call(id(fn(x): x + 1))
+```
+
+1. r[fn.closure.type] A closure literal written as a call argument for a bare type parameter bounded by `Fn` or `FnMut`, or as a struct literal field whose type is such a parameter, has a type of its own, distinct from every other type, when nothing has fixed that parameter yet. The type parameter takes that type.
+2. r[fn.closure.type.fixed] Where an explicit type argument, an earlier argument or the expected result has fixed the parameter, the closure is checked against that type as any other value is.
+3. r[fn.closure.type.distinct] Two closure literals for one type parameter, or a closure where another closure's type is expected, is an error. Error: `type-mismatch`.
+4. r[fn.closure.type.call] A value of a closure's own type is called as its signature, the bound's, and implements `Fn` or only `FnMut` by [`fn.trait.read-only`](#r-fn.trait.read-only).
+5. r[fn.closure.copy] A closure's own type is `Copy` when the types of its captures are: a captured `&mut T` makes it move.
+6. r[fn.closure.coerce] A value of a closure's own type may be used where its signature's `fn(...)` type is expected.
+
+> **Why.** An instance per closure calls the closure's code directly, as
+> Rust's `F: Fn` does, where a shared instance would call through the
+> function value.
+
 #### Vararg Inputs
 
 A function with a `List[T]` vararg has inputs that end in the

@@ -37,7 +37,7 @@ fn count(xs: List[i32], c: &Counter) -> i32:
     total + it.next().unwrap_or(+0)
 
 fn clicks(a: &mut Counter, d: &mut Counter) -> void:
-    let mut b = Button { on_click: fn(): a.n += 1 }
+    let mut b: Button[fn() -> void] = Button { on_click: fn(): a.n += 1 }
     set(&mut b, fn(): d.n += 1)
     let mut f = b.on_click
     f()

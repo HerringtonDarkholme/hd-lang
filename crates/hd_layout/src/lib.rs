@@ -670,7 +670,7 @@ fn mem_one(
         // A function value is the payload address of a closure object
         // `[count][descriptor][code][captures...]`, never 0: a capture-free
         // one's is a static object's.
-        TyData::Fn { .. } => Mem::nonnull(),
+        TyData::Fn { .. } | TyData::Closure { .. } => Mem::nonnull(),
         TyData::TraitValue { .. } => pair(Mem::address(), Mem::nonnull()),
         // A `$.Context` value is the address of a counted context
         // (`rt::ctx_elem`).
@@ -792,7 +792,7 @@ pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf
         };
         match pool.get(t) {
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => leaf(0, true),
-            TyData::Fn { .. } => leaf(0, true),
+            TyData::Fn { .. } | TyData::Closure { .. } => leaf(0, true),
             TyData::Context(_) => leaf(0, true),
             TyData::Adt(AdtId::Product { .. }, _) => fields(&tuple_members(pool, t), &mut work),
             TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => {
@@ -880,6 +880,7 @@ fn holds_one(
     match pool.get(t) {
         TyData::Prim(Prim::String)
         | TyData::Fn { .. }
+        | TyData::Closure { .. }
         | TyData::TraitValue { .. }
         | TyData::Context(_) => true,
         TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t).into_iter().any(part),

@@ -50,6 +50,11 @@ pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
 /// type's own arguments, and the walk ends: O(the newtypes stripped).
 #[must_use]
 pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
+    // A closure's own type is laid out as its signature's function value
+    // (`fn.closure.type`).
+    if let TyData::Closure { sig, .. } = pool.get(t) {
+        return sig;
+    }
     let Some((mut def, mut args)) = pool.adt(t) else {
         return t;
     };
@@ -237,6 +242,7 @@ pub fn recursive_instance(
             | TyData::Poison
             | TyData::Const(_)
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::TraitValue { .. }
             | TyData::Ref { .. }
             | TyData::Opaque { .. }
@@ -328,6 +334,22 @@ pub fn canon(
             h.hash(canon(pool, path_hash, memo, result));
             canon_row(pool, path_hash, memo, row, &mut h);
             h.u32(inputs.word(suspends));
+        }
+        TyData::Closure {
+            item,
+            sub,
+            args,
+            sig,
+            captures,
+            writes,
+        } => {
+            h.u8(12);
+            h.hash(path_hash(item));
+            h.u32(sub);
+            canon_list(pool, path_hash, memo, args, &mut h);
+            h.hash(canon(pool, path_hash, memo, sig));
+            canon_list(pool, path_hash, memo, captures, &mut h);
+            h.u8(u8::from(writes));
         }
         TyData::TraitValue {
             def,

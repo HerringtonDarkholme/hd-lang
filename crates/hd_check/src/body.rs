@@ -770,6 +770,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The generic local functions declared so far, by their name's local
     /// (`sub_flags::GENERIC`): a read of one instantiates it.
     pub local_generics: HashMap<LocalId, crate::local::LocalGeneric>,
+    /// How many generic local functions enclose the code being checked: a
+    /// closure there has no own type (`Ck::closure_type`).
+    pub generic_local_depth: u32,
     /// The keys of each row the body asks for a key, indexed on its first
     /// question ([`crate::rows::KeyIndex`]); a row's keys never change.
     pub row_keys: std::cell::RefCell<HashMap<RowId, std::rc::Rc<crate::rows::KeyIndex>>>,
@@ -1018,6 +1021,7 @@ pub(crate) fn new_ck<'a, 'c>(
         registering: false,
         row_waits: Vec::new(),
         local_generics: HashMap::default(),
+        generic_local_depth: 0,
         row_keys: std::cell::RefCell::default(),
         gen_owner: env,
         next_gen: 0,
@@ -2457,6 +2461,11 @@ impl Ck<'_, '_> {
         }
         // Equal types once resolved need no coercion: `norm_ty` resolves
         // only the head, and a type known closed is one lookup.
+        // `fn.closure.coerce`: a value of a closure's own type goes where
+        // its signature's function type is expected, as the same value.
+        if let (TyData::Closure { sig, .. }, TyData::Fn { .. }) = (pool.get(g), pool.get(w)) {
+            return self.coerce(r, sig, want, n, what, position);
+        }
         if (pool.has_infer(g) || pool.has_infer(w))
             && self.infer.resolve(pool, g) == self.infer.resolve(pool, w)
         {
@@ -2766,6 +2775,15 @@ impl Ck<'_, '_> {
     /// function value. A suspending function exposes the same lowered
     /// constructor that an expected concrete `fn` type gives it
     /// (`fn.type.suspend.weaken`, `fn.trait.suspend-weaken`).
+    /// `t`, or a closure type's signature (`fn.closure.type`): the
+    /// function type a call of the value checks against.
+    pub(crate) fn fn_view(&self, t: Ty) -> Ty {
+        match self.pool().get(t) {
+            TyData::Closure { sig, .. } => sig,
+            _ => t,
+        }
+    }
+
     pub(crate) fn fn_trait_args_of(&self, t: Ty) -> Option<[Ty; 3]> {
         let pool = self.pool();
         let TyData::Fn {
@@ -2775,7 +2793,7 @@ impl Ck<'_, '_> {
             suspends,
             inputs,
             ..
-        } = pool.get(self.resolved(self.infer.shallow(pool, t)))
+        } = pool.get(self.fn_view(self.resolved(self.infer.shallow(pool, t))))
         else {
             return None;
         };

@@ -32,8 +32,8 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >     uses $0: entry -> %6 lend, %12 consume last
 >   local $1 s: string [param read captured] value
 >     uses $1: entry -> %3 consume, %12 consume, %23 lend last
->   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned] place
->   local $4 action: fn() -> () [read] value
+>   local $2 $ref: DeferGuard[closure fn() -> (), $()] [:= read assigned captured captured-assigned] place
+>   local $4 action: closure fn() -> () [read] value
 >     uses $4: %14 -> %15 consume last
 >   %1 = Retain %40 Entry local $0 #0 : ()
 >   %2 = Retain %40 Entry local $1 #0 : ()
@@ -48,19 +48,19 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %9 = Drop [$0] : ()
 >   %10 = Drop [$1] : ()
 >   %11 = Block - : ()
->   %12 = Closure #1 : fn() -> ()
+>   %12 = Closure #1 : closure fn() -> ()
 >   %13 = Retain %12 Operation captures #0 : ()
 >   %14 = Store [$4] %12 : ()
->   %15 = Read move [$4] : fn() -> ()
+>   %15 = Read move [$4] : closure fn() -> ()
 >   %16 = Intrinsic Empty [] : ()
->   %17 = NewStruct [%15] : DeferGuard[fn() -> (), $()]
+>   %17 = NewStruct [%15] : DeferGuard[closure fn() -> (), $()]
 >   %18 = Break L1 %17 : never
->   %19 = Block - : DeferGuard[fn() -> (), $()]
->   %20 = Scope %19 [] : DeferGuard[fn() -> (), $()]
+>   %19 = Block - : DeferGuard[closure fn() -> (), $()]
+>   %20 = Scope %19 [] : DeferGuard[closure fn() -> (), $()]
 >   %21 = Box #2 #0 : ()
 >   %22 = Store [$2] %20 : ()
->   %28 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
->   %29 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%28) : ()
+>   %28 = Ref mut local frame [$2] : &mut DeferGuard[closure fn() -> (), $()]
+>   %29 = Call std/ops/Disposable.dispose for DeferGuard[closure fn() -> (), $()] [$()] via Impl (%28) : ()
 >   %30 = LoanEnd [%28] : ()
 >   %31 = Block - : ()
 >   %32 = Scope %31 [] : ()

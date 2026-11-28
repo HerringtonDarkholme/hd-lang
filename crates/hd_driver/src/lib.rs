@@ -10566,7 +10566,12 @@ impl Run<'_> {
             hd_tir::own::values::mark_last(body, &topo, &mut uses);
             hd_tir::own::kept_args(body, cx, &mut kept);
         });
-        kept.retain(|&(_, v)| matches!(names.pool.get(body.ty[v as usize]), TyData::Fn { .. }));
+        kept.retain(|&(_, v)| {
+            matches!(
+                names.pool.get(body.ty[v as usize]),
+                TyData::Fn { .. } | TyData::Closure { .. }
+            )
+        });
         let mut out = String::with_capacity(text.len() + 24 * classes.len());
         for line in text.split_inclusive('\n') {
             let call = line
@@ -14416,7 +14421,7 @@ impl Env<'_> {
                 hd_tir::Tag::CallValue => {
                     let callee = hd_tir::ir::Ref(body.data[i][0]);
                     let ty = callee.as_inst().map(|inst| body.ty[inst.0 as usize]);
-                    match ty.map(|ty| pool.get(self.low(ty))) {
+                    match ty.map(|ty| pool.get(pool.fn_view(self.low(ty)))) {
                         Some(TyData::Fn { row, .. }) => pool.row_data(row).keys,
                         _ => Vec::new(),
                     }

@@ -2090,6 +2090,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, slot)));
                 kids.push(Work::Ty(bound, slot));
             }
+            // A closure's type is never written; its signature is checked
+            // where the closure is.
+            TyData::Closure { sig, .. } => kids.push(Work::Ty(sig, slot)),
             TyData::Assoc { self_ty, args, .. } => {
                 kids.push(Work::Ty(self_ty, slot));
                 kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, slot)));

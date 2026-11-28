@@ -594,16 +594,21 @@ impl OwnCx for Env<'_> {
     }
 
     fn function_suspends(&self, ty: Ty) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
+        let pool = &self.run.pool;
+        matches!(
+            pool.get(pool.fn_view(ty)),
+            TyData::Fn { suspends: true, .. }
+        )
     }
 
     fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Fn { params, inputs, .. }
-            if inputs == hd_types::Inputs::Tuple || self.run.pool.list_items(params).len() != args)
+        let pool = &self.run.pool;
+        matches!(pool.get(pool.fn_view(ty)), TyData::Fn { params, inputs, .. }
+            if inputs == hd_types::Inputs::Tuple || pool.list_items(params).len() != args)
     }
 
     fn function_has_requirement_row(&self, ty: Ty) -> bool {
-        let TyData::Fn { row, .. } = self.run.pool.get(ty) else {
+        let TyData::Fn { row, .. } = self.run.pool.get(self.run.pool.fn_view(ty)) else {
             return false;
         };
         let row = self.run.pool.row_data(row);
@@ -1244,7 +1249,10 @@ impl OwnCx for Env<'_> {
     }
 
     fn function_value(&self, ty: Ty) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Fn { .. })
+        matches!(
+            self.run.pool.get(ty),
+            TyData::Fn { .. } | TyData::Closure { .. }
+        )
     }
 
     fn lends(&self, from: Ty, to: Ty) -> bool {
@@ -1515,7 +1523,10 @@ fn ref_facts_of(
             only_counted: true,
             counted: true,
         },
-        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => RefFacts {
+        TyData::Ref { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Fn { .. }
+        | TyData::Closure { .. } => RefFacts {
             holds: true,
             only_counted: false,
             counted: false,

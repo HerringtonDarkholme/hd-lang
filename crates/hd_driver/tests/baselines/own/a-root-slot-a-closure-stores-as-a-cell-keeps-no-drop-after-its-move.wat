@@ -18,7 +18,7 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "impl[T] List[T].map[string, string, fn(&string) -> string]" (func $"impl[T] List[T].map[string, string, fn(&string) -> string]" (param i32 i32) (result i32)))
+  (import "fixture" "impl[T] List[T].map[string, string, rounds#closure1]" (func $"impl[T] List[T].map[string, string, rounds#closure1]" (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
@@ -604,7 +604,7 @@
             local.set $size
             local.get $n
             local.get $offset'1
-            call $"impl[T] List[T].map[string, string, fn(&string) -> string]"
+            call $"impl[T] List[T].map[string, string, rounds#closure1]"
             local.set $offset'1
             i32.const 0
             local.set $n

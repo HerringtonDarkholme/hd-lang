@@ -368,6 +368,20 @@ pub enum TyData {
         args: TyList,
         bound: Ty,
     },
+    /// A closure literal's own type (`fn.closure.type`): the closure of
+    /// sub-body `sub` of item `item`'s body, at `item`'s generic arguments
+    /// `args`. It is called as `sig`, a plain `fn(...)` type; `captures`
+    /// are the types of the locals it captures, in order, and `writes`
+    /// whether it changes one, so implements `FnMut` and not `Fn`
+    /// (`fn.trait.read-only`).
+    Closure {
+        item: DefId,
+        sub: u32,
+        args: TyList,
+        sig: Ty,
+        captures: TyList,
+        writes: bool,
+    },
     /// A type or const parameter (`types.generic.type-parameter.complete`).
     /// A const parameter only occurs alone in a const argument slot
     /// (`types.generic.const.type-position`).
@@ -438,6 +452,7 @@ enum PoolTag {
     Fn,
     TraitValue,
     Opaque,
+    Closure,
     Param,
     Assoc,
     Ref,
@@ -548,6 +563,7 @@ impl PoolTag {
             Self::Context => 20,
             Self::Const => 21,
             Self::Deps => 22,
+            Self::Closure => 23,
             Self::Adt(kind) => 3 | (kind as u32) << 8,
         }
     }
@@ -561,6 +577,7 @@ impl PoolTag {
                 | PoolTag::Fn
                 | PoolTag::TraitValue
                 | PoolTag::Opaque
+                | PoolTag::Closure
                 | PoolTag::Param
                 | PoolTag::Assoc
                 | PoolTag::List
@@ -626,6 +643,7 @@ impl Cols {
             PoolTag::Assoc => 4,
             PoolTag::Const => 3,
             PoolTag::Opaque => 5,
+            PoolTag::Closure => 6,
             PoolTag::Fn => 5,
             PoolTag::Deps => 2 + x(0) + x(1),
             PoolTag::TraitValue => 3 + 2 * x(2),
@@ -1120,6 +1138,12 @@ impl InternPool {
     #[must_use]
     pub fn has_param(&self, t: Ty) -> bool {
         self.types().has_param(t)
+    }
+    /// `t`, or a closure type's signature: the function type a value of
+    /// `t` is called as (`fn.closure.type`).
+    #[must_use]
+    pub fn fn_view(&self, t: Ty) -> Ty {
+        self.types().fn_view(t)
     }
     #[must_use]
     pub fn has_opaque(&self, t: Ty) -> bool {
@@ -1658,6 +1682,20 @@ impl<'a> Types<'a> {
                     | if *borrows { meta::HAS_REF } else { 0 }
                     | meta::level(j(self.list_meta(*args), self.meta_of(*bound))),
             ),
+            TyData::Closure {
+                args,
+                sig,
+                captures,
+                ..
+            } => (
+                T::Closure,
+                0,
+                meta::HAS_FN
+                    | meta::level(j(
+                        j(self.list_meta(*args), self.meta_of(*sig)),
+                        self.list_meta(*captures),
+                    )),
+            ),
             TyData::Param(_) => (T::Param, 0, meta::HAS_PARAM),
             TyData::Const(_) => (T::Const, 0, 0),
             TyData::Assoc { self_ty, args, .. } => (
@@ -1685,7 +1723,7 @@ impl<'a> Types<'a> {
             TyData::Context(r) => (T::Context, r.0, meta::level(self.row_meta(*r))),
         };
         let slots = self.slots_of_data(t);
-        let mut buf = [0u32; 5];
+        let mut buf = [0u32; 6];
         let rec: &[u32] = match t {
             TyData::Adt(AdtId::Declared(def), args) => {
                 buf[..2].copy_from_slice(&[def.raw(), args.0]);
@@ -1700,7 +1738,31 @@ impl<'a> Types<'a> {
                 inputs,
                 deps,
             } => {
-                buf = [params.0, result.0, row.0, inputs.word(*suspends), deps.0];
+                buf[..5].copy_from_slice(&[
+                    params.0,
+                    result.0,
+                    row.0,
+                    inputs.word(*suspends),
+                    deps.0,
+                ]);
+                &buf[..5]
+            }
+            TyData::Closure {
+                item,
+                sub,
+                args,
+                sig,
+                captures,
+                writes,
+            } => {
+                buf = [
+                    item.raw(),
+                    *sub,
+                    args.0,
+                    sig.0,
+                    captures.0,
+                    u32::from(*writes),
+                ];
                 &buf
             }
             TyData::Opaque {
@@ -1710,8 +1772,14 @@ impl<'a> Types<'a> {
                 args,
                 bound,
             } => {
-                buf = [owner.raw(), *site, args.0, bound.0, u32::from(*borrows)];
-                &buf
+                buf[..5].copy_from_slice(&[
+                    owner.raw(),
+                    *site,
+                    args.0,
+                    bound.0,
+                    u32::from(*borrows),
+                ]);
+                &buf[..5]
             }
             TyData::Param(p) => {
                 buf[..2].copy_from_slice(&[p.owner.raw(), u32::from(p.index)]);
@@ -1989,6 +2057,14 @@ impl<'a> Types<'a> {
                 args: TyList(x[2]),
                 bound: Ty(x[3]),
             },
+            PoolTag::Closure => TyData::Closure {
+                item: DefId::from_raw(x[0]),
+                sub: x[1],
+                args: TyList(x[2]),
+                sig: Ty(x[3]),
+                captures: TyList(x[4]),
+                writes: x[5] != 0,
+            },
             PoolTag::Param => TyData::Param(ParamRef {
                 owner: DefId::from_raw(x[0]),
                 index: crate::low16(x[1]),
@@ -2040,6 +2116,14 @@ impl<'a> Types<'a> {
     pub fn has_poison(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_POISON != 0
     }
+    /// [`InternPool::fn_view`].
+    #[must_use]
+    pub fn fn_view(self, t: Ty) -> Ty {
+        match self.get(t) {
+            TyData::Closure { sig, .. } => sig,
+            _ => t,
+        }
+    }
     #[must_use]
     pub fn has_opaque(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_OPAQUE != 0
@@ -2059,6 +2143,16 @@ impl<'a> Types<'a> {
             TyData::Opaque { args, bound, .. } => {
                 out.extend_from_slice(self.list_items(args));
                 out.push(bound);
+            }
+            TyData::Closure {
+                args,
+                sig,
+                captures,
+                ..
+            } => {
+                out.extend_from_slice(self.list_items(args));
+                out.push(sig);
+                out.extend_from_slice(self.list_items(captures));
             }
 
             TyData::Ref { inner, .. } => out.push(inner),
@@ -2119,6 +2213,25 @@ impl<'a> Types<'a> {
                     borrows,
                     args,
                     bound: m.ty(bound),
+                }
+            }
+            TyData::Closure {
+                item,
+                sub,
+                args,
+                sig,
+                captures,
+                writes,
+            } => {
+                let args = list(m, args);
+                let sig = m.ty(sig);
+                TyData::Closure {
+                    item,
+                    sub,
+                    args,
+                    sig,
+                    captures: list(m, captures),
+                    writes,
                 }
             }
 
@@ -2301,6 +2414,8 @@ impl<'a> Types<'a> {
                 )
             }
             TyData::Opaque { borrows, .. } => Slots::new(u32::from(*borrows), 0),
+            // A closure's slots are its signature's, as a function value's.
+            TyData::Closure { sig, .. } => of(*sig),
 
             // Anonymous sums retain their conservative signature maps.
             TyData::Adt(def, args) if *def == ANON_SUM => Slots::new(list(*args).refs(), 0),
@@ -2398,6 +2513,21 @@ impl<'a> Types<'a> {
                 borrows,
                 args: l(args, memo),
                 bound: self.subst_in(bound, f, memo),
+            },
+            TyData::Closure {
+                item,
+                sub,
+                args,
+                sig,
+                captures,
+                writes,
+            } => TyData::Closure {
+                item,
+                sub,
+                args: l(args, memo),
+                sig: self.subst_in(sig, f, memo),
+                captures: l(captures, memo),
+                writes,
             },
             TyData::Adt(def, args) => TyData::Adt(def, l(args, memo)),
 
@@ -2751,6 +2881,21 @@ impl Erase {
                     borrows,
                     args: list(args),
                     bound: mapped(bound),
+                },
+                TyData::Closure {
+                    item,
+                    sub,
+                    args,
+                    sig,
+                    captures,
+                    writes,
+                } => TyData::Closure {
+                    item,
+                    sub,
+                    args: list(args),
+                    sig: mapped(sig),
+                    captures: list(captures),
+                    writes,
                 },
 
                 TyData::Fn {

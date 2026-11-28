@@ -9,7 +9,7 @@ struct Plain[F < FnMut() -> void]:
     on_click: F
 
 fn later(flag: bool) -> void:
-    let mut p = Plain { on_click: fn(): pass }
+    let mut p: Plain[fn() -> void] = Plain { on_click: fn(): pass }
     if flag:
         let mut inner = Counter { n: +2 }
         r := &mut inner

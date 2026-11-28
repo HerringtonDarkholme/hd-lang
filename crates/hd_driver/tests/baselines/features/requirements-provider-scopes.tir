@@ -122,8 +122,8 @@ fn lexical(s: string) -> usize:
 >   %13 = Ref local [$2] : &string
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = Block %14 : usize
->   %16 = Closure #1 : fn() -> usize
->   %17 = Call app/main/apply[fn() -> usize] (%16) : usize
+>   %16 = Closure #1 : closure fn() -> usize
+>   %17 = Call app/main/apply[closure fn() -> usize] (%16) : usize
 
 # An unrelated explicit provider map must not block a known literal call.
 fn unrelated_provider(s: string) -> usize:

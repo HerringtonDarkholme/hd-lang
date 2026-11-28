@@ -530,6 +530,7 @@ fn of_at(
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
+        | TyData::Closure { .. }
         | TyData::TraitValue { .. }
         | TyData::Opaque { .. }
         | TyData::Param(_)
@@ -3113,6 +3114,7 @@ fn package_value(
         TyData::Never
         | TyData::Poison
         | TyData::Fn { .. }
+        | TyData::Closure { .. }
         | TyData::Opaque { .. }
         | TyData::Param(_)
         | TyData::Const(_)

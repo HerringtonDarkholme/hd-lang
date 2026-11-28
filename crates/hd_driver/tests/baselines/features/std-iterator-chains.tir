@@ -16,9 +16,9 @@ fn lens(xs: List[string]) -> List[usize]:
 >   %2 = Ref local [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Block %3 : usize
->   %5 = Closure #1 : fn(string) -> usize
->   %6 = Call std/iter/Iterator.map for ListIter[string] [string, usize, fn(string) -> usize] via Impl (%1, %5) : MapIter[ListIter[string], string, usize, fn(string) -> usize]
->   %7 = Call std/iter/Iterator.collect for MapIter[ListIter[string], string, usize, fn(string) -> usize] [usize, List[usize]] via Impl (%6) : List[usize]
+>   %5 = Closure #1 : closure fn(string) -> usize
+>   %6 = Call std/iter/Iterator.map for ListIter[string] [string, usize, closure fn(string) -> usize] via Impl (%1, %5) : MapIter[ListIter[string], string, usize, closure fn(string) -> usize]
+>   %7 = Call std/iter/Iterator.collect for MapIter[ListIter[string], string, usize, closure fn(string) -> usize] [usize, List[usize]] via Impl (%6) : List[usize]
 >   %8 = Block %7 : List[usize]
 
 fn loud(xs: List[string]) -> List[string]:
@@ -29,19 +29,19 @@ fn loud(xs: List[string]) -> List[string]:
 >   local $2 s: string [param read]
 >   %0 = Read [$0] : List[string]
 >   %1 = Call std/iter/Iterable.iter for List[string] [string] via Impl (%0) : ListIter[string]
->   %7 = Call std/iter/Iterator.filter for ListIter[string] [string, fn(&string) -> bool] via Impl (%1, %6) : Filter[ListIter[string], string, fn(&string) -> bool]
->   %12 = Call std/iter/Iterator.map for Filter[ListIter[string], string, fn(&string) -> bool] [string, string, fn(string) -> string] via Impl (%7, %11) : MapIter[Filter[ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string]
->   %13 = Call std/iter/Iterator.collect for MapIter[Filter[ListIter[string], string, fn(&string) -> bool], string, string, fn(string) -> string] [string, List[string]] via Impl (%12) : List[string]
+>   %7 = Call std/iter/Iterator.filter for ListIter[string] [string, closure fn(&string) -> bool] via Impl (%1, %6) : Filter[ListIter[string], string, closure fn(&string) -> bool]
+>   %12 = Call std/iter/Iterator.map for Filter[ListIter[string], string, closure fn(&string) -> bool] [string, string, closure fn(string) -> string] via Impl (%7, %11) : MapIter[Filter[ListIter[string], string, closure fn(&string) -> bool], string, string, closure fn(string) -> string]
+>   %13 = Call std/iter/Iterator.collect for MapIter[Filter[ListIter[string], string, closure fn(&string) -> bool], string, string, closure fn(string) -> string] [string, List[string]] via Impl (%12) : List[string]
 >   %14 = Block %13 : List[string]
         .filter(fn(s: &string) -> bool: s.len() > 2)
 >   %2 = Read [$1] : &string
 >   %3 = Call std/text/impl string.len[] (%2) : usize
 >   %4 = Prim Gt [%3 2:usize] : bool
 >   %5 = Block %4 : bool
->   %6 = Closure #1 : fn(&string) -> bool
+>   %6 = Closure #1 : closure fn(&string) -> bool
         .map(fn(s: string) -> string: s + "!")
 >   %8 = Read [$2] : string
 >   %9 = Intrinsic StrConcat [%8 "!"] : string
 >   %10 = Block %9 : string
->   %11 = Closure #2 : fn(string) -> string
+>   %11 = Closure #2 : closure fn(string) -> string
         .collect()

@@ -235,6 +235,7 @@ impl Ck<'_, '_> {
             | TyData::Poison
             | TyData::Adt(..)
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }
             | TyData::Param(_)

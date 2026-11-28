@@ -2021,6 +2021,7 @@ impl Ck<'_, '_> {
             | TyData::Poison
             | TyData::Adt(..)
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }
             | TyData::Param(_)
@@ -3800,6 +3801,25 @@ impl Ck<'_, '_> {
                     "an AutoClosing value cannot be stored in this field".to_owned()
                 })?;
             }
+            // `fn.closure.type`: a closure literal for a field whose type
+            // is a bare parameter bounded by `Fn` or `FnMut` has its own type.
+            let bound = match pool.get(fields[i].ty) {
+                TyData::Param(p) if p.owner == def => generics
+                    .get(p.index as usize)
+                    .and_then(|g| self.fn_bound_read_only(&g.bounds)),
+                _ => None,
+            };
+            let t = match bound {
+                Some(read_only)
+                    if self.open_param(ft)
+                        && a.children()
+                            .next()
+                            .is_some_and(|v| v.kind() == SyntaxKind::ClosureExpr) =>
+                {
+                    self.closure_type(r, t, read_only).unwrap_or(t)
+                }
+                _ => t,
+            };
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             // `fn.trait.read-only`: a field of a type parameter bounded by
             // `Fn` holds a value that changes no capture.

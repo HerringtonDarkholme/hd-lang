@@ -542,6 +542,16 @@ impl InferTable {
                     kids.push(bound);
                     kids.extend_from_slice(pool.list_items(args));
                 }
+                TyData::Closure {
+                    args,
+                    sig,
+                    captures,
+                    ..
+                } => {
+                    kids.push(sig);
+                    kids.extend_from_slice(pool.list_items(args));
+                    kids.extend_from_slice(pool.list_items(captures));
+                }
 
                 TyData::Ref { inner: i, .. } => kids.push(i),
                 TyData::Fn { params, result, .. } => {
@@ -873,6 +883,27 @@ impl InferTable {
                 },
             ) if d1 == d2 && s1 == s2 => {
                 stack.push(UnifyWork::Pair(b1, b2, Some((a, b, false))));
+                Self::queue_unify_list(pool, a1, a2, a, b, stack)
+            }
+            // One closure literal's type at two argument lists
+            // (`fn.closure.type`): its signature and captures follow them.
+            (
+                TyData::Closure {
+                    item: i1,
+                    sub: s1,
+                    args: a1,
+                    sig: g1,
+                    ..
+                },
+                TyData::Closure {
+                    item: i2,
+                    sub: s2,
+                    args: a2,
+                    sig: g2,
+                    ..
+                },
+            ) if i1 == i2 && s1 == s2 => {
+                stack.push(UnifyWork::Pair(g1, g2, Some((a, b, false))));
                 Self::queue_unify_list(pool, a1, a2, a, b, stack)
             }
             // `types.tuple.rest.same`: with rest elements, the fixed

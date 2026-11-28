@@ -1200,6 +1200,7 @@ impl Ck<'_, '_> {
             | TyData::Adt(..)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
+            | TyData::Closure { .. }
             | TyData::Assoc { .. }
             | TyData::Const(_)
             | TyData::Infer(_)
