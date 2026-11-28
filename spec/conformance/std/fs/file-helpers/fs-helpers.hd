@@ -3,7 +3,7 @@
 # Also covers std-fs.types.entry-metadata, std-fs.error.one-enum,
 # std-fs.error.other, std-fs.error.traits, std-fs.read.decl,
 # std-fs.read.bytes, std-fs.read.text, std-fs.read.list-dir,
-# std-fs.read.stat, std-fs.write.copy-decl, std-fs.write.replace,
+# std-fs.read.stat, std-fs.write.temporary-decl, std-fs.write.replace,
 # std-fs.write.append, std-fs.write.create-dir-all,
 # std-fs.write.remove, std-fs.write.rename, std-fs.write.mut-ref.reference-values,
 # std-fs.suspends, and std-fs.helper.suspends.
@@ -28,6 +28,13 @@ impl FsRead for MapFs:
         .Ok(.None)
 
 impl FsWrite for MapFs:
+    # This deliberately partial error provider models only text files.
+    fn create_temp_dir!(&mut self, prefix: string) -> Result[Path, FsError]:
+        .Err(.Other("test provider has no directories"))
+
+    fn remove_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
+        .Err(.NotADirectory(path))
+
     fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
         self.write_text!(to, self.read_text!(from)?)
 

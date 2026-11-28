@@ -320,6 +320,18 @@ export const METHODS = {
     },
   },
   "hd:FsWrite": {
+    create_temp_dir: {
+      wait: "may",
+      resource: null,
+      params: [str],
+      result: result(Path, FsError),
+    },
+    remove_dir_all: {
+      wait: "may",
+      resource: "path",
+      params: [Path],
+      result: result(unit, FsError),
+    },
     write_bytes: {
       wait: "may",
       resource: "path",

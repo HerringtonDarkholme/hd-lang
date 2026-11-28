@@ -198,3 +198,7 @@ On Node, `hd run` prints `host drew: hello`.
   one Rust trait per host interface, for the embedding application to
   implement. `hd` itself registers none, so it refuses such a module on
   Wasmtime. Not run here.
+
+The exact `"temp"` entry for `FsRead` or `FsWrite` grants the host OS temporary
+directory, independent of the package or working directory. Use `"./temp"`
+for a relative directory literally named `temp`.

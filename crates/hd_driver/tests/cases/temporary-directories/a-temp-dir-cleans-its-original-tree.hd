@@ -1,0 +1,13 @@
+# @dump: stdout
+# @build: wasmtime dev | wasmtime checked | wasmtime release
+use std.fs.{FsRead, FsWrite, temp_dir, stat, write_text}
+use std.path.Path
+
+fn prepare!() -> Path $ FsWrite:
+    using! dir = temp_dir!("stage-").expect("fresh directory")
+    write_text!(dir.path.join("file"), "data").expect("write")
+    dir.path
+
+pub fn main!() -> void $ FsRead + FsWrite + Console:
+    original := prepare!()
+    println(stat!(original).expect("stat").is_none())

@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: wasmtime release
+use std.fs.{FsError, FsWrite, TempDir, temp_dir}
+
+fn create!(prefix: string) -> Result[TempDir, FsError] $ FsWrite:
+    temp_dir!(prefix)

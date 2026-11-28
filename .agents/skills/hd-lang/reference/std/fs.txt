@@ -8,8 +8,13 @@ std.fs.Entry.path  pub path: Path  -- The entry's path.
 std.fs.Entry.kind  pub kind: EntryKind  -- The entry's kind.
 std.fs.Entry.size  pub size: u64  -- The file's length in bytes.
 std.fs.Entry.modified  pub modified: Timestamp? = .None  -- The modification time, when the provider can report it.
-std.fs.FsRead  pub trait FsRead  -- The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
-std.fs.FsWrite  pub trait FsWrite  -- The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, and `copy!`.
+std.fs.FsRead  pub trait FsRead  -- The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, `stat!`, and `open!`.
+std.fs.File  pub trait File < Read & AsyncDisposable  -- A file opened for reading: a closable handle that a `using!` binding disposes.
+std.fs.open  pub fn open!(path: Path) -> Result[*mut dyn File, FsError] $ FsRead  -- Opens the file at `path` for reading in chunks, through the covering `FsRead` provider.
+std.fs.FsWrite  pub trait FsWrite  -- The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, `copy!`, `create_temp_dir!`, and `remove_dir_all!`.
+std.fs.TempDir  pub struct TempDir  -- A fresh temporary directory whose original tree is removed by `using!`.
+std.fs.TempDir.path  pub path: Path  -- The created directory path; editing it does not change the tree owned by this guard.
+std.fs.temp_dir  pub fn temp_dir!(prefix: string) -> Result[TempDir, FsError] $ FsWrite  -- Atomically creates a fresh directory under the provider's temporary root.
 std.fs.read_text  pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead  -- Returns the whole content of the file at `path` as a string.
 std.fs.write_text  pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite  -- Creates the file at `path`, or replaces its whole content.
 std.fs.copy  pub fn copy!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite  -- Copies a file through the covering provider without reading its bytes into the program.

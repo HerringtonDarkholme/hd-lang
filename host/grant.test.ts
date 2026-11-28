@@ -51,3 +51,23 @@ test("coversPath resolves a path only under a scoped grant, once per call", () =
     }
   }
 });
+
+test("temp path scopes expand at setup and do not affect other resource names", () => {
+  let calls = 0;
+  const grant = createGrant(
+    { FsRead: ["temp"], FsWrite: ["temp"], Process: ["temp"] },
+    (path) => path,
+    "/",
+    () => {
+      calls += 1;
+      return "/os-temporary";
+    },
+  );
+  const initial = calls;
+  assert.equal(grant.coversPath("FsRead", "/os-temporary/file"), true);
+  assert.equal(grant.coversPath("FsWrite", "/os-temporary/file"), true);
+  assert.equal(grant.coversPath("FsWrite", "/package/temp/file"), false);
+  assert.equal(grant.coversName("Process", "temp"), true);
+  assert.equal(calls, initial);
+  assert.ok(initial > 0);
+});

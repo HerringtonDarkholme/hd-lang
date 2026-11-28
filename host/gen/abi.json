@@ -23,6 +23,8 @@
       { "name": "open", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[File, FsError]" }
     ]},
     { "key": "FsWrite", "std": "std.fs.FsWrite", "methods": [
+      { "name": "create_temp_dir", "wait": "may", "resource": null, "params": ["string"], "result": "Result[Path, FsError]" },
+      { "name": "remove_dir_all", "wait": "may", "resource": "path", "params": ["Path"], "result": "Result[void, FsError]" },
       { "name": "write_bytes", "wait": "may", "resource": "path", "params": ["Path", "List[u8]"], "result": "Result[void, FsError]" },
       { "name": "write_text", "wait": "may", "resource": "path", "params": ["Path", "string"], "result": "Result[void, FsError]" },
       { "name": "append_text", "wait": "may", "resource": "path", "params": ["Path", "string"], "result": "Result[void, FsError]" },

@@ -40,9 +40,10 @@ fn call(
         args.bytes(bytes);
     }
     match start(key(method), method, args.done(), grants, sandbox, None, cwd).expect("host call") {
-        Start::Ready(encoded) => encoded,
+        Start::Ready(encoded) | Start::Removed { encoded, .. } => encoded,
         Start::Run(_) => panic!("{method} of {path} was offloaded"),
         Start::Opened(_) => panic!("{method} of {path} opened a file"),
+        Start::Temporary(_) => panic!("{method} of {path} created a temporary directory"),
     }
 }
 

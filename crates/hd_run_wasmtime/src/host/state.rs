@@ -81,6 +81,9 @@ pub struct Host {
     /// The returned native handles this instance issued
     /// (`module.host.package.native-handles`).
     pub(crate) handles: crate::native::Handles,
+    /// Drops after open files and the sandbox's child handles, so Windows can
+    /// remove outstanding temporary trees at the instance boundary.
+    pub(crate) temporary_directories: crate::fs::temp::Directories,
     pub(crate) testing: Option<crate::testing::State>,
     pub(crate) environment: Option<crate::test_engine::TestEnvironment>,
     /// Pairs a test child's command added to the process's environment,
@@ -132,6 +135,7 @@ impl Host {
             program,
             grants,
             sandbox: crate::fs::Sandbox::default(),
+            temporary_directories: crate::fs::temp::Directories::default(),
             noticed: HashSet::default(),
             net: net::Client::default(),
             deadline,

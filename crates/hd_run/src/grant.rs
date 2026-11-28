@@ -309,7 +309,12 @@ impl Grants {
             list.iter()
                 .map(|e| {
                     if PATH_KEYS.contains(&key) {
-                        resolve_path(&base.join(e)).to_string_lossy().into_owned()
+                        let path = if e == "temp" {
+                            std::env::temp_dir()
+                        } else {
+                            base.join(e)
+                        };
+                        resolve_path(&path).to_string_lossy().into_owned()
                     } else {
                         e.clone()
                     }
@@ -510,6 +515,7 @@ mod tests {
     use hd_host_abi::schema::{Identity, Interface};
 
     use super::{Consent, GrantValue, Grants, Limit, PackageRefusal, env_notice};
+    use crate::resolve_path;
 
     fn kv(key: &str, v: GrantValue) -> (String, GrantValue) {
         (key.to_owned(), v)
@@ -517,6 +523,50 @@ mod tests {
 
     fn scopes(list: &[&str]) -> GrantValue {
         GrantValue::Scopes(list.iter().map(|s| (*s).to_owned()).collect())
+    }
+
+    #[test]
+    fn temp_scope_resolves_for_both_filesystem_traits_and_flag_bases() {
+        let base = std::env::current_dir().expect("working directory");
+        let value = GrantValue::Scopes(vec!["temp".into()]);
+        let grants = Grants::resolve(
+            &[("FsRead".into(), value.clone())],
+            &base,
+            &[("FsWrite".into(), value)],
+            &base.join("other"),
+        );
+        let root = resolve_path(&std::env::temp_dir());
+        for key in ["FsRead", "FsWrite"] {
+            assert_eq!(
+                grants.limit(key),
+                Some(&Limit::Entries(vec![root.to_string_lossy().into_owned()]))
+            );
+            assert!(grants.covers_path(key, &root.join("child"), &base));
+        }
+        let literal = Grants::resolve(
+            &[("FsWrite".into(), GrantValue::Scopes(vec!["./temp".into()]))],
+            &base,
+            &[],
+            &base,
+        );
+        assert_eq!(
+            literal.limit("FsWrite"),
+            Some(&Limit::Entries(vec![
+                resolve_path(&base.join("temp"))
+                    .to_string_lossy()
+                    .into_owned()
+            ]))
+        );
+        let program = Grants::resolve(
+            &[("Process".into(), GrantValue::Scopes(vec!["temp".into()]))],
+            &base,
+            &[],
+            &base,
+        );
+        assert_eq!(
+            program.limit("Process"),
+            Some(&Limit::Entries(vec!["temp".into()]))
+        );
     }
 
     #[test]

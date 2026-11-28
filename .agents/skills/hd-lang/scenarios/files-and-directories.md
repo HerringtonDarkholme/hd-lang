@@ -95,3 +95,9 @@ tests:
 - **Testing**: one `MemoryFs::new()` installed for both traits. Nothing
   touches the disk. An integration test gets a real temporary folder from
   `temp_dir()` ([testing](../design/testing.md#integration-tests)).
+
+For a fresh workspace, use `using! dir = fs.temp_dir!("work-")?` under
+`$ FsWrite`; `dir.path` is a `Path`. Import the `std.fs` module, or import
+`temp_dir` and call `temp_dir!` directly. The guard removes the tree on
+normal, error, and cancelled exit, using its creating provider. Scoped grants
+can use `FsWrite = ["temp"]`; reading the workspace also needs `FsRead`.

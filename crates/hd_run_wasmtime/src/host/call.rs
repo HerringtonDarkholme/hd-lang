@@ -71,6 +71,8 @@ fn host(
         | Id::FsWriteCreateDirAll
         | Id::FsWriteRemove
         | Id::FsWriteRename
+        | Id::FsWriteCreateTempDir
+        | Id::FsWriteRemoveDirAll
         | Id::FsWriteCopy => fs::call(method, finish, caller, params),
         Id::ProcessRun | Id::ProcessStatus => process::call(method, finish, caller, params),
         Id::WorkersSend | Id::WorkerPortNext | Id::WorkerPortReply => {
