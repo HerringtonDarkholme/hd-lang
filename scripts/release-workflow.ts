@@ -137,10 +137,17 @@ export async function pack(target: string): Promise<void> {
   }
   const archive = join(work, archiveName(target));
   const options = target.includes("windows") ? ["-a", "-cf"] : ["-czf"];
-  command("tar", [...options, archive, "-C", bundle, binary, ".node-version"]);
+  // On Windows runners PATH's `tar` is Git's GNU tar, which reads `D:\...` as
+  // a remote `host:path`. Windows' own bsdtar takes drive paths and writes a
+  // zip for `-a`.
+  const tar =
+    process.platform === "win32"
+      ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
+      : "tar";
+  command(tar, [...options, archive, "-C", bundle, binary, ".node-version"]);
   const unpacked = join(work, `smoke-${target}`);
   mkdirSync(unpacked, { recursive: true });
-  command("tar", ["-xf", archive, "-C", unpacked]);
+  command(tar, ["-xf", archive, "-C", unpacked]);
   const executable = join(unpacked, binary);
   const shown = command(executable, ["--version"]).trim();
   if (shown !== `hd ${version}`) {
