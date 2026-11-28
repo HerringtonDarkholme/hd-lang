@@ -138,8 +138,7 @@ clear -> 0
 ```
 
 The enum can be compared, printed and serialized with derives; a closure
-cannot. When callers must supply arbitrary code, make the owner generic over
-a function trait, as in
+cannot. When callers must supply arbitrary code, store a `fn(...)` field, as in
 [keeping a closure](../reference/references.md#keeping-a-closure).
 
 ## Features that map to one hd feature

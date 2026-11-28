@@ -120,36 +120,35 @@ Standard builders and fakes return boxes for you: `StringBuilder::new()`,
 
 ## Keeping a closure
 
-A closure passed to a function and called there needs nothing special.
-A closure **kept** in a field or a collection, or returned, must not hold
-local references. Say so with a generic parameter bounded by a function
-trait and `'static`:
+A `fn(...)` value never holds a local reference: it captures values, shared
+variables and counted references (`*T`), never a `&` or `&mut`. So a plain
+`fn(...)` field, list element or map value can keep any function value,
+including one that arrived as a parameter:
 
 ```hd
-use std.ops.FnMut
-
-struct Button[F < FnMut() -> void & 'static]:
+struct Button:
     label: string
-    on_click: F
+    on_click: fn() -> void
 
-fn make_counter() -> Button[fn() -> void]:
-    Button { label: "count", on_click: fn() -> void: pass }
+fn button(label: string, on_click: fn() -> void) -> Button:
+    Button { label, on_click }      # storing a fn parameter is fine
 
 let clicks = 0
-let mut button = Button { label: "ok", on_click: fn() -> void: clicks += 1 }
-(button.on_click)()                 # calling a field needs parentheses
-(button.on_click)()
-println("$clicks ${button.label} ${make_counter().label}")
+buttons := [button("ok", fn() -> void: clicks += 1), button("noop", fn() -> void: pass)]
+for b in &buttons:
+    (b.on_click)()                  # calling a field needs parentheses
+(buttons[0].on_click)()
+println("$clicks ${buttons[0].label}")
 ```
 
 ```output
-2 ok count
+2 ok
 ```
 
-Calling an `FnMut` value needs it in a writable place, here `let mut
-button`. A plain field typed `fn() -> void` cannot be filled from a
-function parameter, because that parameter may hold the caller's local
-references.
+A closure that borrows a local (`&p`, or a `&`/`&mut` parameter) is not a
+`fn(...)` value. It can only be passed straight to a parameter typed
+`impl Fn(...)` (or a generic `F < Fn(...)`), which calls it and does not keep
+it. To keep it instead, capture a copy (`p := *p`) or a counted reference.
 
 ## Changing elements
 

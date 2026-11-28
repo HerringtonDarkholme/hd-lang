@@ -27,7 +27,7 @@ covers many causes, so match on the middle column.
 | `invalid-result-propagation` | `?` inside `main!() -> void` | return `Result[void, E]` and end with `.Ok(())` |
 | `local-reference-escapes` | `$.with(Mailer=&mut fake)` | `fake := box(Fake { ... })`, then `$.with(Mailer=fake)` |
 | `local-reference-escapes` | a `&P` or `&mut P` put in a field or a collection | make the object a box where it is declared, `p := box(P { ... })`, and store the `*P` |
-| `local-reference-escapes` | a function parameter `f: fn() -> void` stored in a field | a generic `F < FnMut() -> void & 'static` field, with `use std.ops.FnMut` |
+| `local-reference-escapes` | a closure that captures a local reference (`&p`, or a `&`/`&mut` parameter) passed where a `fn(...)` is expected | the callee takes `f: impl Fn(...)`, or the caller captures a copy (`p := *p`) first; a `fn(...)` value never holds a local reference, so it can be stored anywhere |
 | `member-not-derivable` | `@derive(Validate)` with a field of your own type | `@derive(Validate)` on that type too |
 | `misplaced-tests-block` | a `tests:` block in `tests/NAME.hd` | top-level `it(...)` cases |
 | `missing-capability` | `main` row names a capability missing from `hd.toml` | add `FsRead = true` under `[capabilities]`, or run `hd check --fix` |
