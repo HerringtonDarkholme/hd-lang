@@ -1,8 +1,9 @@
 # Function Values: A Static `fn(..)` First
 
-Proposal, 2026-11-21, revised 2026-11-27 for the owner's direction
-("address `fn` first"); domain: language (function types, closures),
-backend ABI; not accepted. Issues #1436, #2409, #1449.
+Accepted by the owner and implemented, 2026-11-28: step 1 in
+d7469337e..4a87d1bfb, steps 2 and 3 in 4dc807c89..faf87690e. The
+specification (chapters 07 and 13) is the source of truth; this record
+keeps the design's reasoning. Issues #1436, #2409, #1449 (closed).
 
 ## The proposal
 
