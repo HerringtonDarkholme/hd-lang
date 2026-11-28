@@ -1,0 +1,28 @@
+use pkg.doc_files.{ToolError, repository_root, tracked_files}
+use pkg.source_policy.host_report
+use std.cli.{Args, Cli}
+use std.process.{ExitCode, Process}
+
+@derive(Cli)
+struct Options:
+    pass
+
+fn run!() -> Result[ExitCode, ToolError] $ Console + Process:
+    root := repository_root!()?
+    files := tracked_files!(root, ["host", "scripts"])?
+    message := host_report(files)
+    if message.is_empty():
+        .Ok(ExitCode(0))
+    else:
+        $.use(Console).write_error_sync(message).map_err(fn(error): ToolError.Host("$error"))?
+        .Ok(ExitCode(1))
+
+pub fn main!() -> ExitCode $ Args + Console + Process:
+    match Options::parse_args():
+        .Ok(_) => pass
+        .Err(error) => return error.exit()
+    match run!():
+        .Ok(code) => code
+        .Err(error) =>
+            $.use(Console).write_error_sync("$error\n").expect("standard error")
+            ExitCode(1)

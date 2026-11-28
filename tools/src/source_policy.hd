@@ -1,0 +1,67 @@
+## Source forms rejected under host/ and scripts/, preserving Git order.
+pub fn forbidden_host(files: List[string]) -> List[string]:
+    files.filter(
+        fn(file):
+            (
+                file.ends_with(".js")
+                || file.ends_with(".mjs")
+                || file.ends_with(".mts")
+                || file.ends_with(".cjs")
+                || file.ends_with(".cts")
+                || file.ends_with(".d.ts")
+            )
+    )
+
+## The module-source guard's exact diagnostic, or an empty successful result.
+pub fn module_report(files: List[string]) -> string:
+    if files.is_empty(): "" else: "module sources must be plain .ts:\n${files.join("\n")}\n"
+
+## The host/script guard's exact diagnostic, or an empty successful result.
+pub fn host_report(files: List[string]) -> string:
+    forbidden := forbidden_host(files)
+    if forbidden.is_empty():
+        ""
+    else:
+        "host and script sources must be plain .ts (or non-source assets):\n${forbidden.join("\n")}\n"
+
+tests:
+    it("keeps host guard order and suffix boundaries"):
+        files := [
+            "host/z.js",
+            "scripts/a.d.ts",
+            "host/b.mjs",
+            "host/good.ts",
+            "scripts/asset.json",
+            "host/c.mts",
+            "host/d.cjs",
+            "scripts/e.cts",
+            "host/almost.js.map",
+            "host/UPPER.JS",
+            "host/.js",
+            "scripts/.mjs",
+        ]
+        assert_equal(
+            forbidden_host(files),
+            [
+                "host/z.js",
+                "scripts/a.d.ts",
+                "host/b.mjs",
+                "host/c.mts",
+                "host/d.cjs",
+                "scripts/e.cts",
+                "host/.js",
+                "scripts/.mjs",
+            ],
+        )
+
+    it("prints byte-exact diagnostics and stays silent for successful guards"):
+        assert_equal(module_report([]), "")
+        assert_equal(host_report(["host/good.ts", "scripts/asset.json"]), "")
+        assert_equal(
+            module_report(["a.mjs", "b.cts"]),
+            "module sources must be plain .ts:\na.mjs\nb.cts\n",
+        )
+        assert_equal(
+            host_report(["host/a.js"]),
+            "host and script sources must be plain .ts (or non-source assets):\nhost/a.js\n",
+        )

@@ -7,6 +7,8 @@ The tasks require released hd v0.0.5, which includes the URL and temporary-direc
 From the repository root:
 
 ```sh
+bash scripts/hd-tools.sh check-host-sources
+bash scripts/hd-tools.sh check-typescript-sources
 bash scripts/hd-tools.sh check-sloppy
 bash scripts/hd-tools.sh check-sloppy --update
 bash scripts/hd-tools.sh check-rule-citations
