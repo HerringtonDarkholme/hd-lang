@@ -50,10 +50,10 @@ pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
 /// type's own arguments, and the walk ends: O(the newtypes stripped).
 #[must_use]
 pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
-    // A closure's own type is laid out as its signature's function value
-    // (`fn.closure.type`).
+    // A closure's own type is the tuple of its code and its captures
+    // (`LayoutEnv::closure_repr`), or its signature's function value.
     if let TyData::Closure { sig, .. } = pool.get(t) {
-        return sig;
+        return env.closure_repr(t).unwrap_or(sig);
     }
     let Some((mut def, mut args)) = pool.adt(t) else {
         return t;
@@ -153,6 +153,15 @@ pub trait LayoutEnv {
     fn newtype_base(&self, def: DefId) -> Option<Ty>;
     /// The prelude enum `Option`, which `T?` names (`types.option.sugar`).
     fn option(&self) -> DefId;
+    /// The value a closure's own type `t` (`fn.closure.type`) is at run
+    /// time: the tuple of its code's table slot and its captures, a
+    /// shared one as its cell's `*mut T`, laid out as the closure's code
+    /// reads its environment. `None` keeps the signature's function value,
+    /// for an environment that has no bodies.
+    fn closure_repr(&self, t: Ty) -> Option<Ty> {
+        let _ = t;
+        None
+    }
 }
 
 /// How an enum's declaration lays out its instances.

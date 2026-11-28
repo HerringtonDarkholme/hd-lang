@@ -3,16 +3,26 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
-  (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
+  (func $mixed#2 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
+    ;; 15 |     each(xs, fn(x: string) -> void: total += x.len())
+    local.get $env
+    i32.load $heap
+    local.tee $env
+    i32.load $heap
+    local.set $x.0
+    local.get $env
+    local.get $x.0
+    local.get $x.1
+    i32.add
+    i32.store $heap
+  )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     println(mixed(["a", "bb"])) # prints: 12
     i32.const 2
@@ -44,8 +54,6 @@
       i32.const 8
       i32.sub
       i32.load $heap
-      global.get $tracing
-      i32.or
       if
         local.get $t0
         call $rt:release_ref'1
@@ -58,7 +66,7 @@
   (func $mixed#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap
     local.tee $env
     i32.load $heap
     local.set $x.0
@@ -68,7 +76,7 @@
     i32.add
     i32.store $heap
   )
-  (func $mixed (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $t2 i32)
+  (func $mixed (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32)
     ;; 12 |     let total: usize = 0
     global.get $stack
     global.get $stack_limit
@@ -76,7 +84,7 @@
     i32.const 16
     i32.lt_u
     if
-      call $rt:panic'1
+      call $rt:panic
       unreachable
     end
     global.get $stack
@@ -106,31 +114,30 @@
         i32.add
         local.set $t1
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
-        i32.const 8
-        i32.const -2147483647
-        call $rt:new/class-1
-        local.tee $x.1
-        i32.const 6
-        i32.store $heap
-        local.get $x.1
         local.get $total
-        i32.store $heap offset=4
-        local.get $x.1
-        call $rt:retain_fields
-        local.get $xs
-        local.get $x.1
-        call $"each[mixed#closure1]"
-    ;; 13 |     for _ in 0..3:
-        local.get $x.1
         if
-          local.get $x.1
+          local.get $total
           i32.const 8
           i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
           if
-            local.get $x.1
+            local.get $total
+            call $rt:retain_known
+          end
+        end
+        local.get $xs
+        i32.const 2
+        local.get $total
+        call $"each[mixed#closure1]"
+        local.get $total
+    ;; 13 |     for _ in 0..3:
+        if
+          local.get $total
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $total
             call $rt:release_ref'1
           end
         end
@@ -138,50 +145,30 @@
       end
     end
     ;; 15 |     each(xs, fn(x: string) -> void: total += x.len())
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $total
+        call $rt:retain_known
+      end
+    end
     local.get $xs
-    i32.load $heap offset=4
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $xs
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $xs
-        local.get $t2
-        i32.const 8
-        i32.mul
-        i32.add
-        local.tee $x.1
-        i32.load $heap offset=16
-        local.get $x.1
-        i32.load $heap offset=20
-        local.set $x.1
-        drop
-        local.get $t2
-        i32.const 1
-        i32.add
-        local.set $t2
-        block
-          br 0
-          unreachable
-        end
+    i32.const 3
+    local.get $total
+    call $"each[mixed#closure2]"
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
         local.get $total
-        local.get $total
-        i32.load $heap
-        local.get $x.1
-        i32.add
-        i32.store $heap
-        br 0
+        call $rt:release_ref'1
       end
     end
     ;; 16 |     total
@@ -193,8 +180,22 @@
     i32.add
     global.set $stack
   )
-  (func $"each[mixed#closure1]" (param $xs i32) (param $f i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
+  (func $"each[mixed#closure2]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t2 i32)
     ;; 8 |     for x in xs:
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $f.0
+    global.set $stack
     local.get $xs
     i32.load $heap offset=4
     local.set $t0
@@ -230,7 +231,89 @@
           local.get $x.0
           call $retain
         end
-        local.get $f
+        local.get $f.0
+        i32.const 8
+        i32.add
+        local.tee $t2
+        local.get $f.1
+        i32.store $heap
+        local.get $t2
+        local.get $x.0
+        local.get $x.1
+        i32.const 0
+        call $mixed#2
+    ;; 8 |     for x in xs:
+        local.get $x.0
+        if
+          local.get $x.0
+          call $rt:release_ref'2
+        end
+        br 0
+      end
+    end
+    local.get $f.0
+    i32.const 16
+    i32.add
+    global.set $stack
+  )
+  (func $"each[mixed#closure1]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t2 i32)
+    ;; 8 |     for x in xs:
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $f.0
+    global.set $stack
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $xs
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $x.1
+        i32.load $heap offset=16
+        local.get $x.1
+        i32.load $heap offset=20
+        local.set $x.1
+        local.set $x.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          br 0
+          unreachable
+        end
+    ;; 9 |         f(x)
+        local.get $x.0
+        if
+          local.get $x.0
+          call $retain
+        end
+        local.get $f.0
+        i32.const 8
+        i32.add
+        local.tee $t2
+        local.get $f.1
+        i32.store $heap
+        local.get $t2
         local.get $x.0
         local.get $x.1
         i32.const 0
@@ -244,5 +327,9 @@
         br 0
       end
     end
+    local.get $f.0
+    i32.const 16
+    i32.add
+    global.set $stack
   )
 )

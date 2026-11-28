@@ -418,6 +418,10 @@ pub enum Coercion {
     /// of flat `(required key K, whole supplier H)` pairs, not SSA values.
     /// Unlike `RowSubsume`, this allocates a new callable environment.
     RowAdapt = 13,
+    /// A value of a closure's own type to its signature's function value
+    /// (`fn.closure.coerce`): a new closure object whose payload is the
+    /// value's image, which takes the value's counts.
+    ClosureToFn = 14,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.

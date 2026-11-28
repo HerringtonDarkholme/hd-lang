@@ -21,10 +21,7 @@ use crate::own::splice::permute_columns;
 
 mod closures;
 pub(crate) use closures::extract_subs;
-pub use closures::{
-    called_parameters, function_body, inline_local_closures, literal_arguments,
-    remove_unused_instantiations,
-};
+pub use closures::{function_body, inline_local_closures, remove_unused_instantiations};
 
 /// The statically known callee of call `i` when its requirement context
 /// needs no copying: a `Call` or driven `Await` with no providers. Its

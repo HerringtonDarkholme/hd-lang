@@ -144,9 +144,11 @@ fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
         result: ret,
         suspends,
         ..
-    } = input
-        .pool
-        .get(crate::layout::strip_newtype(input.pool, input.env, ty))
+    } = input.pool.get(crate::layout::strip_newtype(
+        input.pool,
+        input.env,
+        input.pool.fn_view(ty),
+    ))
     else {
         return true;
     };

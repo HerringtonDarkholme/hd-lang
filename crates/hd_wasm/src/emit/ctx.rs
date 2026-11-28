@@ -157,8 +157,11 @@ impl Em<'_, '_, '_> {
     /// row, and whether it lists the open row, whose keys only the
     /// context names.
     pub(super) fn fn_row(&self, t: Ty) -> (Vec<Ty>, bool) {
-        let TyData::Fn { row, .. } = self.pool().get(strip_newtype(self.pool(), self.env(), t))
-        else {
+        let TyData::Fn { row, .. } = self.pool().get(strip_newtype(
+            self.pool(),
+            self.env(),
+            self.pool().fn_view(t),
+        )) else {
             unreachable!("a closure's or a called value's type is a function");
         };
         // ruled out: mono::subst replaces owned row parameters with concrete keys

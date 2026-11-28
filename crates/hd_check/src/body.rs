@@ -2464,6 +2464,9 @@ impl Ck<'_, '_> {
         // `fn.closure.coerce`: a value of a closure's own type goes where
         // its signature's function type is expected, as the same value.
         if let (TyData::Closure { sig, .. }, TyData::Fn { .. }) = (pool.get(g), pool.get(w)) {
+            let r = self
+                .b
+                .coerce(Coercion::ClosureToFn, NONE, r, sig, n.index());
             return self.coerce(r, sig, want, n, what, position);
         }
         if (pool.has_infer(g) || pool.has_infer(w))

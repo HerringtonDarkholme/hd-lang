@@ -1885,6 +1885,16 @@ impl Ck<'_, '_> {
         if self.generic_local_depth > 0 {
             return None;
         }
+        // A suspending closure's frame, and a result that borrows from the
+        // captures, would outlive the value a call passes by its image.
+        let pool = self.pool();
+        if let TyData::Fn {
+            suspends, result, ..
+        } = pool.get(sig)
+            && (suspends || pool.has_ref(result))
+        {
+            return None;
+        }
         let i = r.as_inst()?.0 as usize;
         let body = self.b.body_mut();
         if !matches!(
@@ -1906,7 +1916,6 @@ impl Ck<'_, '_> {
             .iter()
             .map(|l| body.local_ty[l.idx()])
             .collect();
-        let pool = self.pool();
         let own = pool.intern_ty(&TyData::Closure {
             item,
             sub,

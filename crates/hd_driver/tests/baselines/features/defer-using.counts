@@ -22,8 +22,9 @@ impl Disposable for Res:
 fn with_defer(log: *mut List[string], s: string) -> usize:
     defer(fn() -> void: log.push(s))
 > app/main/with_defer
->   retain counted reference (stored)
->   release std.ops.DeferGuard[app.main.with_defer#closure1, $(), &()] (last use)
+>   retain *mut List[string] (stored)
+>   retain string (stored)
+>   release std.ops.DeferGuard[app.main.with_defer#closure1, $(), &()] [action.1, action.2.0] (last use)
 >   release *mut List[string] (last use)
 >   release string (last use)
 > app/main/with_defer

@@ -14,9 +14,9 @@
     i32.const 0
     local.get $t0
     ;; 13 |         .filter(fn(s: &string) -> bool: s.len() > 2)
-    i32.const 356 ;; &vtable[loud#1]
+    i32.const 1
     ;; 14 |         .map(fn(s: string) -> string: s + "!")
-    i32.const 368 ;; &vtable[loud#2]
+    i32.const 2
     ;; 12 |     xs.iter()
     call $"impl[T] FromIterator[T] for List[T].from_iter[string, std.iter.MapIter[std.iter.Filter[std.iter.ListIter[string], string, loud#closure1], string, string, loud#closure2]]"
   )
@@ -28,7 +28,7 @@
     local.get $xs
     i32.const 0
     local.get $t0
-    i32.const 380 ;; &vtable[lens#1]
+    i32.const 5
     call $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, lens#closure1]]"
   )
   (func $loud#2 (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)

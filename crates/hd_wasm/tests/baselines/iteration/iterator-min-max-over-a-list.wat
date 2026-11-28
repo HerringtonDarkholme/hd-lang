@@ -2,9 +2,8 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] Iterator[U] for MapIter[I, T, U, F,].next[std.iter.ListIter[i64], i64, i64, largest_square#closure1]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] Iterator[U] for MapIter[I, T, U, F,].next[std.iter.ListIter[i64], i64, i64, largest_square#closure1]" (param i32) (result i32 i64)))
-  (import "fixture" "release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, largest_square#closure1]]" (func $"release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, largest_square#closure1]]" (param i32 i32 i32 i32)))
-  (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[i64]" (func $"impl[T] Iterator[T] for ListIter[T].next[i64]" (param i32) (result i32 i64)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[i64]" (func $"impl[T] Iterator[T] for ListIter[T].next[i64]" (param i32) (result i32 i64)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -62,13 +61,17 @@
         if
           local.get $t1
           i32.load $heap
-          local.get $t1
-          i32.load $heap offset=4
-          local.get $t1
-          i32.load $heap offset=8
-          local.get $t1
-          i32.load $heap offset=12
-          call $"release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, largest_square#closure1]]"
+          local.tee $t1
+          if
+            local.get $t1
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $t1
+              call $rt:release_ref
+            end
+          end
         end
         br 1
       end
@@ -123,13 +126,17 @@
       if
         local.get $t1
         i32.load $heap
-        local.get $t1
-        i32.load $heap offset=4
-        local.get $t1
-        i32.load $heap offset=8
-        local.get $t1
-        i32.load $heap offset=12
-        call $"release_value[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, largest_square#closure1]]"
+        local.tee $t8
+        if
+          local.get $t8
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t8
+            call $rt:release_ref
+          end
+        end
       end
       i32.const 1
       local.set $t8
@@ -451,7 +458,7 @@
     local.get $xs
     i32.const 0
     local.get $t0
-    i32.const 280 ;; &vtable[largest_square#1]
+    i32.const 0
     call $"Iterator.max[std.iter.MapIter[std.iter.ListIter[i64], i64, i64, largest_square#closure1], i64]"
   )
 )

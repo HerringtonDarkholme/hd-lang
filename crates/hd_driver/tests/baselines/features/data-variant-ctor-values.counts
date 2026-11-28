@@ -22,6 +22,9 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 > app/main/wrap_with
 >   retain app.main.FsError (second owner)
 >   release app.main.FsError (last use)
+> app/main/wrap_with
+>   retain app.main.FsError (second owner)
+>   release app.main.FsError (last use)
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)

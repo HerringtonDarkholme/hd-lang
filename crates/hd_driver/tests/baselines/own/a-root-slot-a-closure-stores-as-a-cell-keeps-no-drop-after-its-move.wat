@@ -17,15 +17,14 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "impl[T] List[T].map[string, string, rounds#closure1]" (func $"impl[T] List[T].map[string, string, rounds#closure1]" (param i32 i32) (result i32)))
+  (import "fixture" "impl[T] List[T].map[string, string, rounds#closure1]" (func $"impl[T] List[T].map[string, string, rounds#closure1]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 16 funcref))
+  (import "fixture" "table0" (table $table0 15 funcref))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 8 |     s.len()
     block
@@ -99,7 +98,7 @@
       i32.eq
       if
         local.get $ctx
-        i32.const 7
+        i32.const 6
         call_indirect $table0 (param i32) (result i32)
         local.set $ctx
         local.get $env
@@ -128,10 +127,10 @@
   (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $value.1 i32) (local $capacity i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32) (local $offset i32) (local $t1 i64) (local $t2 i64)
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap
     local.set $ctx
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=4
     local.set $env
     local.get $ctx
     call $retain
@@ -585,24 +584,19 @@
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
             local.get $xs
             local.set $n
-            i32.const 12
-            i32.const 2
-            call $rt:new/class-2
-            local.set $offset'1
-            local.get $offset'1
-            i32.const 10
-            i32.store $heap
-            local.get $offset'1
+            i32.const 9
             local.get $tag.0
-            i32.store $heap offset=4
-            local.get $offset'1
             local.get $size
-            i32.store $heap offset=8
             i32.const 0
             local.set $tag.0
             i32.const 0
             local.set $size
+            local.set $offset'1
+            local.set $size
+            local.set $result.0
             local.get $n
+            local.get $result.0
+            local.get $size
             local.get $offset'1
             call $"impl[T] List[T].map[string, string, rounds#closure1]"
             local.set $offset'1
@@ -773,11 +767,11 @@
       i32.store $heap
     ;; 22 |     add := fn() -> void: xs.push("b")
       i32.const 8
-      i32.const -2147483645
+      i32.const -2147483646
       call $rt:new/class-1'2
       local.set $add
       local.get $add
-      i32.const 11
+      i32.const 10
       i32.store $heap
       local.get $add
       local.get $xs

@@ -936,6 +936,9 @@ struct ProgramTables {
     /// Whether each instance of an enum that holds a projection is boxed
     /// (`hd_mono::layout::recursive_instance`), found once per instance.
     recursive_instances: Mutex<HashMap<(DefId, TyList), bool>>,
+    /// Each closure type's run-time tuple (`LayoutEnv::closure_repr`),
+    /// made once from its item's decoded body.
+    closure_reprs: Mutex<HashMap<Ty, Option<Ty>>>,
     /// The declarations with a `std.rt.Drop` implementation, found once
     /// on the first layout that asks.
     drop_defs: OnceLock<hd_base::HashSet<DefId>>,
@@ -10365,6 +10368,7 @@ impl Run<'_> {
             test_impls,
             recursive_enums: Mutex::new(hd_mono::layout::EnumBoxingCache::default()),
             recursive_instances: Mutex::new(HashMap::default()),
+            closure_reprs: Mutex::new(HashMap::default()),
             drop_defs: OnceLock::new(),
         });
         self.program.get()
@@ -14261,6 +14265,54 @@ impl LayoutEnv for Env<'_> {
                 boxed
             }
         }
+    }
+    /// The closure's `Closure` instruction in its item's body after the
+    /// ownership passes, which add captures (a pointer's loan counter):
+    /// each capture's type at the closure's arguments, a shared one's cell
+    /// as `*mut T`, after an `i32` for the code's table slot. While that
+    /// body is being owned, its passes see the signature's function value,
+    /// which counts as the tuple does; nothing is kept until it is owned.
+    /// Cost: one pass over the body per closure type, memoized.
+    fn closure_repr(&self, t: Ty) -> Option<Ty> {
+        if let Some(known) = lock(&self.p.closure_reprs).get(&t) {
+            return *known;
+        }
+        let pool = &self.run.pool;
+        let TyData::Closure {
+            item, sub, args, ..
+        } = pool.get(t)
+        else {
+            return None;
+        };
+        let owned = self.run.lazy_body(self.p, item)?.owned.get()?;
+        let repr = (|| {
+            let (b, _) = owned.as_ref()?;
+            let ci = (0..b.len()).find(|&i| {
+                b.tags[i] == hd_tir::Tag::Closure && b.data[i][0] == sub && !b.is_instantiation(i)
+            })?;
+            let rec = b.record(b.data[ci][1]);
+            let (start, n) = (rec[0] as usize, rec[1] as usize);
+            let mut fields = vec![Ty::I32];
+            for c in start..start + n {
+                let ty = hd_mono::subst(pool, self, item, args, b.local_ty[b.cap_local[c].idx()]);
+                let shared = b.cap_mode.get(c).is_some_and(|m| m.shares());
+                fields.push(if shared {
+                    pool.intern_ty(&TyData::Ref {
+                        inner: ty,
+                        mutable: true,
+                        counted: true,
+                    })
+                } else {
+                    ty
+                });
+            }
+            Some(pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Product { rest: false },
+                pool.list(&fields),
+            )))
+        })();
+        lock(&self.p.closure_reprs).insert(t, repr);
+        repr
     }
     fn option(&self) -> DefId {
         self.run.known.option

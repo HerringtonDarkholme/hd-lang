@@ -33,7 +33,7 @@ pub(super) fn closure_of(input: &crate::Input<'_>, b: &Body, ci: usize) -> (usiz
     let t = b.ty[ci];
     let TyData::Fn {
         suspends, result, ..
-    } = pool.get(strip_newtype(pool, env, t))
+    } = pool.get(strip_newtype(pool, env, pool.fn_view(t)))
     else {
         unreachable!("a closure's type is a function")
     };
@@ -103,9 +103,17 @@ impl Em<'_, '_, '_> {
     /// other.
     pub(super) fn env_layout(
         &self,
-        _ci: usize,
+        ci: usize,
         caps: &[(usize, bool)],
     ) -> StageResult<(Mem, Vec<Part>)> {
+        // A closure's own type is its environment by value
+        // (`fn.closure.type`): its code reads the captures where the
+        // tuple holds them, after the code's table slot.
+        if let Some(t) = self.closure_value_type(ci) {
+            let m = mem_of(self.pool(), self.env(), t)?;
+            let parts = crate::layout::members(self.pool(), self.env(), t)?.parts[1..].to_vec();
+            return Ok((m, parts));
+        }
         let fields: Vec<(Ty, bool)> = caps
             .iter()
             .map(|(l, shared)| (self.b.local_ty[*l], *shared))
@@ -461,6 +469,9 @@ impl Em<'_, '_, '_> {
             .zip(&caps)
             .map(|(mv, (l, _))| mv && !self.borrowed.contains(l))
             .collect();
+        if let Some(repr) = self.closure_value_type(i as usize) {
+            return self.closure_value(i, key, repr, &caps, &moved);
+        }
         if caps.is_empty() {
             let k = self.m.fn_object(Sym::Inst(key));
             self.f.push(crate::module::Ins::VTable(k));
@@ -538,6 +549,99 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// `Coerce` of a closure's own value `a` to its signature's function
+    /// value (`fn.closure.coerce`): a closure object whose payload is the
+    /// value's image, as its code reads an environment, taking the value's
+    /// counts. A type the signature lays out is already that value.
+    pub(super) fn closure_to_fn(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let pool = self.pool();
+        let repr = strip_newtype(pool, self.env(), self.ty_of(a));
+        if !matches!(pool.get(repr), TyData::Adt(..)) {
+            return self.same_value(i, a);
+        }
+        let m = mem_of(self.pool(), self.env(), repr)?;
+        let members = crate::layout::members(self.pool(), self.env(), repr)?;
+        let fields: Vec<Option<Ty>> = members.tys.iter().map(|t| Some(*t)).collect();
+        let counted = self.payload_parts(&fields, &members.parts)?;
+        let cyclic = self.cyclic_holding(&members.tys);
+        let at = self.object_parts(&m, counted, cyclic, false);
+        let src = self.consumed(a)?;
+        self.store_src(crate::module::HEAP, at, 0, &m.leaves, &src)?;
+        self.f.get(at);
+        self.store(i)
+    }
+
+    /// The run-time tuple of closure instruction `ci`'s own type
+    /// (`fn.closure.type`), when it has one laid out by value.
+    pub(super) fn closure_value_type(&self, ci: usize) -> Option<Ty> {
+        let t = self.ty(u32::try_from(ci).ok()?);
+        let pool = self.pool();
+        matches!(pool.get(t), TyData::Closure { .. })
+            .then(|| strip_newtype(pool, self.env(), t))
+            .filter(|r| matches!(pool.get(*r), TyData::Adt(..)))
+    }
+
+    /// `Closure` of a closure's own type: no object. The value is the
+    /// code's table slot and the captures, each counted once more as an
+    /// environment's are, a shared one as its cell's address, so a call
+    /// passes its image as the environment ([`Em::call_value`]).
+    fn closure_value(
+        &mut self,
+        i: u32,
+        key: hd_base::Hash128,
+        repr: Ty,
+        caps: &[(usize, bool)],
+        moved: &[bool],
+    ) -> StageResult<()> {
+        let fields = crate::layout::members(self.pool(), self.env(), repr)?.tys[1..].to_vec();
+        if fields.len() != caps.len() {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a closure's value type names other captures than its body",
+            ));
+        }
+        let mut srcs = Vec::with_capacity(caps.len());
+        for (l, shared) in caps {
+            let l32 = hd_tir::ir::u32_of(*l);
+            srcs.push(if *shared {
+                vec![self.cell_of(*l)?]
+            } else if self.is_cell(*l) {
+                self.local_value(l32)?
+            } else {
+                self.local(l32)?
+            });
+        }
+        if let Some(reason) =
+            self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Captures)
+        {
+            let copies: Vec<(Vec<u32>, Ty)> = (srcs.iter().zip(&fields).zip(moved))
+                .filter(|(_, mv)| !**mv)
+                .map(|((ls, t), _)| (ls.clone(), *t))
+                .collect();
+            self.because(reason, |em| {
+                copies
+                    .iter()
+                    .try_for_each(|(ls, t)| em.retain_locals(ls, *t))
+            })?;
+        }
+        self.f.table_slot(Sym::Inst(key));
+        for ls in &srcs {
+            for l in ls {
+                self.f.get(*l);
+            }
+        }
+        // A moved capture leaves its local empty, as a move read does.
+        for ((l, _), _) in caps.iter().zip(moved).filter(|(_, mv)| **mv) {
+            let t = self.b.local_ty[*l];
+            if self.needs_drop(t) {
+                for x in self.local(hd_tir::ir::u32_of(*l))? {
+                    self.f.zero(x);
+                }
+            }
+        }
+        self.store(i)
+    }
+
     /// The prologue of closure `ci`'s code instance: each capture loaded
     /// from the environment, parameter `env`, into its local, as a value or
     /// a cell's address.
@@ -606,9 +710,10 @@ impl Em<'_, '_, '_> {
         let ft = self.ty_of(callee);
         // A suspending value's code is its cold constructor, which
         // returns the frame that the call's `Suspend[T]` holds.
+        let sig = self.pool().fn_view(ft);
         let TyData::Fn {
             params, suspends, ..
-        } = self.pool().get(strip_newtype(self.pool(), self.env(), ft))
+        } = self.pool().get(strip_newtype(self.pool(), self.env(), sig))
         else {
             unreachable!("checking calls only a function value");
         };
@@ -621,7 +726,75 @@ impl Em<'_, '_, '_> {
         }
         // ruled out: check_args/tuple_inputs_args already coerced each TIR
         // argument to its parameter type, so their flattened ABIs agree.
-        self.comp(callee, 0)?;
+        // A closure's own type passes its value's image, in a frame on
+        // the local stack for the call, as the environment.
+        let pool = self.pool();
+        let spilled = match pool.get(ft) {
+            TyData::Closure { .. } => Some(strip_newtype(pool, self.env(), ft))
+                .filter(|r| matches!(pool.get(*r), TyData::Adt(..))),
+            _ => None,
+        };
+        let frame = match spilled {
+            Some(repr) if self.susp.is_none() && self.susp_slots == 0 => {
+                // The body's frame keeps one area for these images, reserved
+                // at entry with its slots: a call only writes it.
+                let m = mem_of(self.pool(), self.env(), repr)?;
+                let (base, size) = self.frame.unwrap_or((NONE, 0));
+                let off = *self.closure_spill.get_or_insert(size.next_multiple_of(8));
+                let need = off + crate::module::HEADER + m.size;
+                self.frame = Some((base, size.max(need.next_multiple_of(8))));
+                let Some(base) = self.frame_base() else {
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a body with a frame area has no frame",
+                    ));
+                };
+                let env = self.f.local(Val::I32);
+                self.f.get(base);
+                self.f.u32(off + crate::module::HEADER);
+                self.f.op(I::I32Add);
+                self.f.set(env);
+                // The code reads the captures alone: its table slot, the
+                // image's first leaf, stays unwritten.
+                for (k, leaf) in m.leaves.iter().enumerate().skip(1) {
+                    self.f.get(env);
+                    self.src(&Src::Ref(callee), k)?;
+                    self.f.op(crate::layout::LeafOps::store_in(
+                        *leaf,
+                        crate::module::HEAP,
+                        0,
+                    ));
+                }
+                self.f.get(env);
+                Some((NONE, 0, env))
+            }
+            Some(repr) => {
+                let m = mem_of(self.pool(), self.env(), repr)?;
+                let size = (crate::module::HEADER + m.size).next_multiple_of(8);
+                let base = self.f.local(Val::I32);
+                let (enter, _) = crate::wide::frame_enter(&mut self.f, base, size);
+                for ins in enter {
+                    self.f.push(ins);
+                }
+                // A zero count and descriptor, as a frame slot's.
+                self.f.get(base);
+                self.f.op(I::I64Const(0));
+                self.f
+                    .op(I::I64Store(crate::module::mem(crate::module::HEAP, 0, 3)));
+                let env = self.f.local(Val::I32);
+                self.f.get(base);
+                self.f.u32(crate::module::HEADER);
+                self.f.op(I::I32Add);
+                self.f.set(env);
+                self.store_src(crate::module::HEAP, env, 0, &m.leaves, &Src::Ref(callee))?;
+                self.f.get(env);
+                Some((base, size, env))
+            }
+            None => {
+                self.comp(callee, 0)?;
+                None
+            }
+        };
         // Copy inputs and references use the common borrowed convention;
         // noncopy values retain their ownership transfer.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
@@ -632,12 +805,22 @@ impl Em<'_, '_, '_> {
         if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
             self.f.call(Sym::Inst(key));
         } else {
-            self.comp(callee, 0)?;
+            match frame {
+                Some((_, _, env)) => self.f.get(env),
+                None => self.comp(callee, 0)?,
+            }
             self.f
                 .op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
             self.f.call_indirect(ps, results);
         }
-        let ty = match self.pool().get(strip_newtype(self.pool(), self.env(), ft)) {
+        if let Some((base, size, _)) = frame.filter(|f| f.0 != NONE) {
+            let top = self.f.intern_global(crate::module::Global::Stack);
+            self.f.get(base);
+            self.f.u32(size);
+            self.f.op(I::I32Add);
+            self.f.push(crate::module::Ins::GlobalSet(top));
+        }
+        let ty = match self.pool().get(strip_newtype(self.pool(), self.env(), sig)) {
             TyData::Fn { result, .. } if !suspends => result,
             _ => self.ty(i),
         };

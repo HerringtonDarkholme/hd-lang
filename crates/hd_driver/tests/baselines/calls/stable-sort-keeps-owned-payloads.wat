@@ -5,7 +5,7 @@
   (func $reorder (param $values i32)
     ;; 13 |     values.sort_by(fn(left: &Entry, right: &Entry) -> Ordering: left.key.cmp(&right.key))
     local.get $values
-    i32.const 392 ;; &vtable[reorder#1]
+    i32.const 1
     call $"impl[T < ?Copy] UniqList[T].sort_by[Entry, reorder#closure1]"
   )
   (func $reorder#1 (param $env i32) (param $left i32) (param $right i32) (param $ctx i32) (result i32)

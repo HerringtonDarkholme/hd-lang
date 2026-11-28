@@ -3,10 +3,10 @@
 (module
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]" (param i32) (result i32 i32)))
-  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]" (param i32 i32 i32 i32)))
-  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
+  (import "fixture" "Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (func $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (param i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -35,19 +35,19 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 40
+    i32.const 16
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 40
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $stack
@@ -63,67 +63,43 @@
     ;; 10 |     values.iter()
     local.get $values
     i32.load $heap offset=4
-    local.set $self.source.end
+    local.set $t1
     local.get $values
     i32.const 0
     local.set $values
-    local.set $self.source.items
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $cursor
-      local.get $self.source.items
-      i32.store $heap
-      local.get $cursor
-      local.get $values
-      i32.store $heap offset=4
-      local.get $cursor
-      local.get $self.source.end
-      i32.store $heap offset=8
-      local.get $cursor
-      i32.const 280 ;; &vtable[sum_positive#1]
-      i32.store $heap offset=12
-      loop
-        local.get $cursor
-        call $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]"
-        local.set $values
-        local.set $self.source.end
-        block
-          block
-            block
-              local.get $self.source.end
-              i32.eqz
-              br_if 1
-              br 0
-              unreachable
-            end
-            local.get $total
-            local.get $total
-            i32.load $heap
-            local.get $values
-            i32.add
-            i32.store $heap
-            br 1
-          end
-          local.get $cursor
-          if
-            local.get $cursor
-            i32.load $heap
-            local.get $cursor
-            i32.load $heap offset=4
-            local.get $cursor
-            i32.load $heap offset=8
-            local.get $cursor
-            i32.load $heap offset=12
-            call $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]"
-          end
-          br 2
-        end
-        br 0
+    local.set $t2
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $total
+        call $rt:retain_known
+      end
+    end
+    i32.const 0
+    local.set $t3
+    ;; 10 |     values.iter()
+    local.get $t2
+    local.get $values
+    local.get $t1
+    i32.const 1
+    local.get $t3
+    local.get $total
+    i32.const 0
+    call $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]"
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $total
+        call $rt:release_ref
       end
     end
     ;; 15 |     total
@@ -131,9 +107,20 @@
     i32.load $heap
     ;; 9 |     let total = +0
     local.get $t0
-    i32.const 40
+    i32.const 16
     i32.add
     global.set $stack
+  )
+  (func $sum_positive#2 (param $env i32) (param $value i32) (param $ctx i32)
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
+    local.get $env
+    i32.load $heap
+    local.tee $env
+    local.get $env
+    i32.load $heap
+    local.get $value
+    i32.add
+    i32.store $heap
   )
   (func $matching (param $values i32) (result i32 i32) (local $t1 i32) (local $cursor i32) (local $t0 i32)
     ;; 5 |     let mut cursor = values.iter()
@@ -171,7 +158,7 @@
     i32.store $heap offset=8
     ;; 6 |     cursor.position(fn(value: i32) -> bool: value > 0)
     local.get $cursor
-    i32.const 292 ;; &vtable[matching#1]
+    i32.const 2
     i32.const 0
     call $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]"
     local.set $values
@@ -211,11 +198,11 @@
 (module
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]" (param i32) (result i32 i32)))
-  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]" (param i32 i32 i32 i32)))
-  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
+  (import "fixture" "Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (func $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (param i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -244,19 +231,19 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 40
+    i32.const 16
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 40
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $stack
@@ -272,77 +259,72 @@
     ;; 10 |     values.iter()
     local.get $values
     i32.load $heap offset=4
-    local.set $self.source.end
+    local.set $t1
     local.get $values
     i32.const 0
     local.set $values
-    local.set $self.source.items
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $cursor
-      local.get $self.source.items
-      i32.store $heap
-      local.get $cursor
-      local.get $values
-      i32.store $heap offset=4
-      local.get $cursor
-      local.get $self.source.end
-      i32.store $heap offset=8
-      local.get $cursor
-      i32.const 620 ;; &vtable[sum_positive#1]
-      i32.store $heap offset=12
-      loop
-        local.get $cursor
-        call $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]"
-        local.set $values
-        local.set $self.source.end
-        block
-          block
-            block
-              local.get $self.source.end
-              i32.eqz
-              br_if 1
-              br 0
-              unreachable
-            end
-            local.get $total
-            local.get $total
-            i32.load $heap
-            local.get $values
-            i32.add
-            i32.store $heap
-            br 1
-          end
-          local.get $cursor
-          if
-            local.get $cursor
-            i32.load $heap
-            local.get $cursor
-            i32.load $heap offset=4
-            local.get $cursor
-            i32.load $heap offset=8
-            local.get $cursor
-            i32.load $heap offset=12
-            call $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1]]"
-          end
-          br 2
-        end
-        br 0
+    local.set $t2
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $total
+        call $rt:retain_known
+      else
+        call $skipped_test
       end
+    else
+      call $skipped_test
+    end
+    i32.const 1
+    local.set $t3
+    ;; 10 |     values.iter()
+    local.get $t2
+    local.get $values
+    local.get $t1
+    i32.const 2
+    local.get $t3
+    local.get $total
+    i32.const 0
+    call $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]"
+    local.get $total
+    if
+      local.get $total
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $total
+        call $rt:release_ref
+      else
+        call $skipped_test
+      end
+    else
+      call $skipped_test
     end
     ;; 15 |     total
     local.get $total
     i32.load $heap
     ;; 9 |     let total = +0
     local.get $t0
-    i32.const 40
+    i32.const 16
     i32.add
     global.set $stack
+  )
+  (func $sum_positive#2 (param $env i32) (param $value i32) (param $ctx i32)
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
+    local.get $env
+    i32.load $heap
+    local.tee $env
+    local.get $env
+    i32.load $heap
+    local.get $value
+    i32.add
+    i32.store $heap
   )
   (func $matching (param $values i32) (result i32 i32) (local $t1 i32) (local $cursor i32) (local $t0 i32)
     ;; 5 |     let mut cursor = values.iter()
@@ -380,7 +362,7 @@
     i32.store $heap offset=8
     ;; 6 |     cursor.position(fn(value: i32) -> bool: value > 0)
     local.get $cursor
-    i32.const 632 ;; &vtable[matching#1]
+    i32.const 3
     i32.const 0
     call $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]"
     local.set $values

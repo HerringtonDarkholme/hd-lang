@@ -3,9 +3,7 @@
   (import "fixture" "work[bool]" (func $"work[bool]" (param i32)))
   (import "fixture" "end" (func $end (param i32)))
   (import "fixture" "retire" (func $retire))
-  (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "free_block" (func $free_block (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "scope[bool, std.rt_tests.stage_case.run#closure1]" (func $"scope[bool, std.rt_tests.stage_case.run#closure1]" (param i32) (result i32)))
   (import "fixture" "impl['s] Scope['s].spawn[bool]" (func $"impl['s] Scope['s].spawn[bool]" (param i32 i32) (result i32)))
   (import "fixture" "take[bool]" (func $"take[bool]" (param i32) (result i32)))
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32)))
@@ -24,162 +22,10 @@
     call $end
     call $retire
   )
-  (func $run (result i32) (local $threads i32) (local $t0 i32) (local $value i32) (local $stopped i32) (local $t1 i32) (local $t2 i32) (local $thread i32) (local $state i32)
+  (func $run (result i32)
     ;; 19 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: true).join())
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $threads
-      i32.const 88 ;; &empty-buffer
-      i32.store $heap
-      i32.const 448 ;; &vtable[run#1]
-      local.get $threads
-      i32.const 0
-      call $run#1
-      local.set $value
-      local.get $threads
-      i32.load $heap
-      local.get $threads
-      i32.const 0
-      i32.store $heap
-      local.tee $threads
-      i32.load $heap offset=4
-      local.set $t1
-      block
-        loop
-          local.get $t2
-          local.get $t1
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $threads
-          local.get $t2
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap offset=16
-          local.set $thread
-          local.get $t2
-          i32.const 1
-          i32.add
-          local.set $t2
-          block
-            block
-              br 0
-              unreachable
-            end
-            block
-              local.get $thread
-              i32.const 16
-              i32.add
-              i32.atomic.load $heap
-              local.set $state
-              block
-                loop
-                  local.get $state
-                  i32.const 1
-                  i32.and
-                  br_if 1
-                  local.get $thread
-                  i32.const 16
-                  i32.add
-                  local.get $state
-                  i64.const -1
-                  memory.atomic.wait32 $heap
-                  drop
-                  local.get $thread
-                  i32.const 16
-                  i32.add
-                  i32.atomic.load $heap
-                  local.set $state
-                  br 0
-                end
-              end
-              local.get $state
-              i32.const 2
-              i32.and
-              i32.eqz
-              local.set $state
-              br 0
-            end
-            local.get $state
-            if (result i32)
-              local.get $stopped
-            else
-              i32.const 1
-            end
-            local.set $stopped
-            block
-              local.get $thread
-              i32.const 16
-              i32.add
-              i32.const 4
-              i32.atomic.rmw.sub
-              i32.const 5
-              i32.eq
-              if
-                block
-                  local.get $thread
-                  i32.load $heap offset=4
-                  call $free_block
-                  local.get $thread
-                  call $free_block
-                  br 0
-                end
-              end
-              br 0
-            end
-            br 0
-          end
-          br 0
-        end
-      end
-      local.get $threads
-      if
-        local.get $threads
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $threads
-          call $rt:release_ref
-        end
-      end
-      local.get $stopped
-      if
-        i32.const 112 ;; &"thread-stopped"
-        i32.const 14
-        i32.const 126 ;; &"a scope's thread stopped before its closure returned"
-        i32.const 52
-        i32.const 3
-        call_indirect $table0 (param i32 i32 i32 i32)
-        unreachable
-      end
-      br 0
-    end
-    local.get $value
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $stack
+    i32.const 4
+    call $"scope[bool, std.rt_tests.stage_case.run#closure1]"
   )
   (func $wait (param $t0 i32) (result i32) (local $t1 i32)
     ;; (no span)
@@ -221,7 +67,7 @@
   (func $run#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
     ;; 19 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: true).join())
     local.get $s
-    i32.const 460 ;; &vtable[run#2]
+    i32.const 448 ;; &vtable[run#2]
     call $"impl['s] Scope['s].spawn[bool]"
     local.tee $env
     call $wait
@@ -231,7 +77,7 @@
       i32.const 14
       i32.const 178 ;; &"a thread stopped before its closure returned"
       i32.const 44
-      i32.const 3
+      i32.const 2
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
     end

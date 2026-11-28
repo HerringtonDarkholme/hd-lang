@@ -255,7 +255,7 @@ impl Em<'_, '_, '_> {
         let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip_newtype(
             self.pool(),
             self.env(),
-            self.ty_of(callee),
+            self.pool().fn_view(self.ty_of(callee)),
         )) else {
             return Err(hd_base::NotImplemented::bug(
                 hd_base::Stage::Emit,

@@ -43,9 +43,11 @@ impl Em<'_, '_, '_> {
             result,
             suspends,
             ..
-        } = self
-            .pool()
-            .get(strip_newtype(self.pool(), self.env(), source_ty))
+        } = self.pool().get(strip_newtype(
+            self.pool(),
+            self.env(),
+            self.pool().fn_view(source_ty),
+        ))
         else {
             return Err(hd_base::NotImplemented::bug(
                 hd_base::Stage::Emit,

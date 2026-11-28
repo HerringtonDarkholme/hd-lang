@@ -1416,6 +1416,10 @@ struct Em<'i, 'a, 'm> {
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
+    /// The offset in `frame` of the one area a call of a closure's own
+    /// type writes its value's image to (`Em::call_value`), sized for the
+    /// largest: calls in one body never overlap.
+    closure_spill: Option<u32>,
     /// In a suspending body with slots, which live in its frame object:
     /// the end of their area, where the save area starts; else 0.
     susp_slots: u32,
@@ -1607,6 +1611,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             slots: HashMap::default(),
             static_cells: hd_base::HashSet::default(),
             frame: None,
+            closure_spill: None,
             susp_slots: 0,
             drive_buffer: None,
             sub_id: sub,
@@ -2584,6 +2589,7 @@ impl Em<'_, '_, '_> {
                         self.same_value(i, a)?;
                     }
                     k if k == Coercion::RowAdapt as u32 => self.row_adapt(i, a)?,
+                    k if k == Coercion::ClosureToFn as u32 => self.closure_to_fn(i, a)?,
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
                     }

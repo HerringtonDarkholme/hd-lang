@@ -988,7 +988,7 @@ impl OwnCx for Env<'_> {
         let pool = &self.run.pool;
         let TyData::Fn {
             params, suspends, ..
-        } = pool.get(hd_layout::strip_newtype(pool, self, fn_ty))
+        } = pool.get(hd_layout::strip_newtype(pool, self, pool.fn_view(fn_ty)))
         else {
             return Pass::Lent;
         };
@@ -1013,7 +1013,8 @@ impl OwnCx for Env<'_> {
 
     fn function_lends_counts(&self, fn_ty: Ty, k: usize, n: usize) -> bool {
         let pool = &self.run.pool;
-        let TyData::Fn { params, .. } = pool.get(hd_layout::strip_newtype(pool, self, fn_ty))
+        let TyData::Fn { params, .. } =
+            pool.get(hd_layout::strip_newtype(pool, self, pool.fn_view(fn_ty)))
         else {
             return false;
         };
