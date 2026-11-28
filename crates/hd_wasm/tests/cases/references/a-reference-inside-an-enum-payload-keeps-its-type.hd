@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: dev | checked | release
+# Hand-built enum reference place fixture (#2441).
+# The equivalent lowered place projects the sole variant's reference and
+# dereferences it in one path. It reads the same field as the source match.
+struct Point:
+    x: i32
+
+enum Wrapped:
+    Ref(value: *mut Point)
+
+fn read_wrapped(wrapped: &Wrapped) -> i32:
+    match wrapped:
+        .Ref(value) => value.x

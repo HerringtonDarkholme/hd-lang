@@ -2389,14 +2389,11 @@ fn ready_poll(
         em.f.get(FRAME);
         em.f.op(load_op(value, offset));
         em.f.set(cell);
-        let values = if arrival.len() == 1
-            && crate::layout::by_address(em.pool(), em.env(), em.b.local_ty[l])?
-        {
-            vec![cell]
-        } else {
-            let mem = em.cell_mem(l)?;
-            em.f.load_locals(cell, &mem.leaves)
-        };
+        // ruled out: an indirect arrival. indirect::compute excludes
+        // bang functions and non-root sub-bodies, so every cold parameter
+        // arrives as all its scalar leaves, even for a wide memory layout.
+        let mem = em.cell_mem(l)?;
+        let values = em.f.load_locals(cell, &mem.leaves);
         for (param, value) in arrival.into_iter().zip(values) {
             args[param as usize] = Some(value);
         }

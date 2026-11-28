@@ -77,7 +77,7 @@ pub fn define_runtime(module: &mut Module) {
 
 pub mod boundary {
     pub use crate::boundary::{
-        CallRes, LCodec, LEnum, LList, LNamed, LTy, discard_strings, dynamic_method,
+        CallRes, LCodec, LEnum, LHandle, LList, LNamed, LTy, discard_strings, dynamic_method,
         package_module, record_package_interface, tags_only,
     };
 }

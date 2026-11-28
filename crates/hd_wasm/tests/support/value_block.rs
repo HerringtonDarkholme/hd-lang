@@ -99,6 +99,13 @@ pub fn view(
     p: &hd_testkit::stages::Program,
 ) -> Option<String> {
     if p.text
+        .contains("# Hand-built enum reference place fixture (#2441).")
+    {
+        hd_wasm::testing::emit::with_body_transform(enum_reference_place, || {
+            hd_testkit::stages::view(name, build, p)
+        })
+    } else if p
+        .text
         .contains("# Hand-built borrowed value-place fixture (#2441).")
     {
         hd_wasm::testing::emit::with_body_transform(borrowed_place, || {
@@ -114,6 +121,38 @@ pub fn view(
     } else {
         hd_testkit::stages::view(name, build, p)
     }
+}
+
+/// The sole variant's pointer field followed by its referent's field.
+/// This is the source match with its intermediate payload binding folded.
+fn enum_reference_place(path: &str, original: &Body) -> Option<Body> {
+    if !path.ends_with("/read_wrapped") {
+        return None;
+    }
+    let mut b = Body::new(original.item, original.kind);
+    b.phase = Phase::Lowered;
+    b.local_ty.clone_from(&original.local_ty);
+    b.local_name.clone_from(&original.local_name);
+    b.local_syn.clone_from(&original.local_syn);
+    b.local_flags.clone_from(&original.local_flags);
+    b.sub_params.clone_from(&original.sub_params);
+    b.sub_parent.clone_from(&original.sub_parent);
+    b.sub_flags.clone_from(&original.sub_flags);
+    let place = b.push_record(&[
+        place::ROOT_LOCAL,
+        0,
+        place::PROJ_DEREF,
+        place::PROJ_VARIANT,
+        place::PROJ_FIELD,
+        place::PROJ_DEREF,
+        place::PROJ_FIELD,
+    ]);
+    let read = inst(&mut b, Tag::Read, place, ReadMode::Copy as u32, Ty::I32);
+    let root = block(&mut b, &[read], read, Ty::I32);
+    b.sub_root.push(root);
+    let errors = hd_tir::ir::verify(&b);
+    assert!(errors.is_empty(), "{errors:?}");
+    Some(b)
 }
 
 /// Equivalent lowered Read/Field forms: the borrowed field aliases the

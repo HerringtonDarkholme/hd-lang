@@ -1,0 +1,18 @@
+# @dump: wat
+# @repl: 2
+# @c-host: provider.Disk
+# An open session keeps the slot of a C method that a later input may call.
+use pkg.provider.Disk
+fn read(disk: *dyn Disk) -> i32:
+    disk.used()
+println(read($.use(Disk)))
+# @input: 1
+use pkg.provider.Disk
+fn first(disk: *dyn Disk) -> i32:
+    disk.used()
+println(first($.use(Disk)))
+# @file: provider.hd
+@host
+pub trait Disk:
+    fn used(&self) -> i32
+    fn future(&self) -> i32

@@ -1023,27 +1023,32 @@ pub(crate) fn counted_of_portion(
 /// asking [`counted_of_portion`] there would queue the part type's other
 /// forms too, each O(its values) for a nest of by-address tuples (#2402),
 /// as rustc's `drop_in_place::<(String, (String, ..))>` glue calls the
-/// inner type's glue and nothing else. `None` when the count is not in
-/// place.
+/// inner type's glue and nothing else.
 pub(crate) fn in_place_shim(
     input: &Input<'_>,
     m: &mut Module,
     t: Ty,
     portion: hd_layout::shims::Portion,
     retain: bool,
-) -> StageResult<Option<Sym>> {
+) -> StageResult<Sym> {
     use hd_layout::shims::{Count, Shim, hooked, in_place};
     let kind = if retain { Shim::Retain } else { Shim::Release };
-    if !in_place(input.pool, input.env, t, kind, portion) {
-        return Ok(None);
-    }
     let (count, shape, _) = (input.shim)(t, Shim::Release, portion, false)?;
-    if !matches!(count, Count::Parts | Count::Call) {
-        return Ok(None);
+    // ruled out: a shim states an in-place count only of a part whose
+    // count is `Parts` or `Call` and that `in_place` holds of, for the
+    // same kind and portion (`hd_layout::shims`, `IN_PLACE`); a cell
+    // drop's release asks `Release`, which holds of more.
+    if !in_place(input.pool, input.env, t, kind, portion)
+        || !matches!(count, Count::Parts | Count::Call)
+    {
+        return Err(hd_base::NotImplemented::bug(
+            hd_base::Stage::Emit,
+            "an in-place count of a part with no in-place shim",
+        ));
     }
     let hooked = !retain && hooked(input.pool, input.env, t, Shim::Release, portion);
     let key = m.shim_key(t, shape, kind, portion, false);
-    Ok(Some(Sym::Shim(key, retain, 1, hooked)))
+    Ok(Sym::Shim(key, retain, 1, hooked))
 }
 
 /// The most counted addresses of a struct or tuple whose counts runtime
@@ -2137,9 +2142,8 @@ fn c_vtable(
             slots.push(crate::boundary::uncalled_slot(input, method)?);
             continue;
         };
-        slots.push(crate::boundary::c_slot(
-            input, m, key, row, method, at, false,
-        )?);
+        let slot = crate::boundary::c_slot(input, m, key, row, method, at, false)?;
+        slots.push(slot);
         crate::boundary::add_package_method(
             methods,
             crate::boundary::package_method(input, method, def, def, None)?,
