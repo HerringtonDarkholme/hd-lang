@@ -3,9 +3,13 @@
 //! item's stable path and a TIR instruction index in that item's body. The
 //! anchor is resolved against the current sources only when a panic's
 //! frames are printed (`cli.test.report.frame`): the module's `check`
-//! entry gives the instruction's syntax node, and a parse of the file the
-//! run read gives the node's line. So a comment edit above a panic moves
-//! the line it reports, and nothing compiled or cached.
+//! entry gives the instruction's syntax node and the node's frame site,
+//! its code line and the newlines past that line's start
+//! ([`code_line_of`]), and the file's skim gives the code line's line. So
+//! a comment edit above a panic moves the line it reports, and nothing
+//! compiled or cached; and a warm run's positions decode no body's
+//! tables and parse no file (#2423). An entry without sites falls back to
+//! a parse of the file the run read.
 //!
 //! A frame names its function as hd names it, not by its stable path: a
 //! module's path as its declarations print (trait.typeid.name.*), then the
@@ -18,19 +22,19 @@ use hd_base::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId};
+use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId, SliceSort as _};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_resolve::{Generic, Names, Src, show_ty_full};
 use hd_syntax::{Parse, parse};
 use hd_types::AdtId;
-use hd_types::{InternPool, Ty, TyData};
+use hd_types::{Ty, TyData};
 
 /// What resolves anchors for one built program: each of its modules, by
 /// module path, with the path its frames print; and its test cases'
 /// registered names, by their bodies' stable paths.
 pub struct Positions {
-    modules: Vec<(String, String, Arc<ModuleSource>)>,
-    tests: HashMap<String, String>,
+    pub(crate) modules: Vec<(String, String, Arc<ModuleSource>)>,
+    pub(crate) tests: HashMap<String, String>,
 }
 
 /// The modules of the programs one command builds, each kept once: the
@@ -45,24 +49,27 @@ pub struct PositionPool {
 /// is read, decoded or parsed until an anchor of the module is asked for,
 /// and then once: a warm run reads no text for its positions
 /// (`crates/hd_cache/DESIGN.md` §5.5).
-struct ModuleSource {
-    file: String,
+pub struct ModuleSource {
+    pub file: String,
     /// The hash of its text, which tells two runs' versions apart.
-    hash: Hash128,
+    pub hash: Hash128,
     /// Its text: module `index` of `texts`.
-    texts: crate::Texts<'static>,
-    index: usize,
-    check: Option<Arc<[u8]>>,
-    input: Arc<ModuleInput>,
-    read: OnceLock<Option<Module>>,
+    pub texts: crate::Texts<'static>,
+    pub index: usize,
+    pub check: Option<Arc<[u8]>>,
+    pub input: Arc<ModuleInput>,
+    pub read: OnceLock<Option<Module>>,
 }
 
 /// Source data the build already read. Missing parses and bodies remain lazy:
 /// a warm link need not decode TIR or parse modules solely to retain them.
 #[derive(Default)]
-pub(super) struct ModuleInput {
-    pub(super) parse: Option<Arc<Parse>>,
-    bodies: HashMap<Hash128, (String, Body)>,
+pub struct ModuleInput {
+    pub parse: Option<Arc<Parse>>,
+    pub bodies: HashMap<Hash128, (String, Body)>,
+    /// The LF line each of the file's code lines starts (its skim's),
+    /// which the frame sites a `check` entry stores are relative to.
+    pub code_lines: Option<Arc<[u32]>>,
 }
 
 impl ModuleInput {
@@ -77,27 +84,34 @@ impl ModuleInput {
     }
 }
 
-/// One module, read: its bodies, by item path, and the parse of its text.
-struct Module {
-    bodies: HashMap<String, Body>,
-    parse: Arc<Parse>,
-    /// LF line starts, shared by every anchor lookup in this module.
-    /// The lexer also records bare CR lines; positions have always counted LF.
-    line_starts: Vec<u32>,
+/// One module, read: its bodies, by item path, and the parse of its text,
+/// made only when a body without stored sites or a span asks for it.
+pub struct Module {
+    pub bodies: HashMap<String, Body>,
+    pub parse: OnceLock<Arc<Parse>>,
+    /// LF line starts, shared by every anchor lookup in this module that
+    /// reads the parse. The lexer also records bare CR lines; positions
+    /// have always counted LF.
+    pub line_starts: OnceLock<Vec<u32>>,
 }
 
 /// A body of a module: its syntax node per instruction, and its name in
 /// the module (`List.remove`), from the module's frame-name record.
 #[derive(Clone)]
-struct Body {
-    syn: Arc<[NodeIdx]>,
-    name: String,
+pub struct Body {
+    pub syn: Arc<[NodeIdx]>,
+    pub name: String,
     /// The body of a `@track_caller` function, whose frames a panic's
     /// frame list leaves out (`fn.caller.frames`).
-    hidden: bool,
+    pub hidden: bool,
     /// Its operations whose `usize` type is a literal's default, by
     /// instruction, each with the name of the local it reads.
-    fallback: Arc<[(u32, Option<String>)]>,
+    pub fallback: Arc<[(u32, Option<String>)]>,
+    /// Each syntax node its instructions name, sorted, with the 1-based
+    /// LF line where its frame stands ([`site`]) in the current text,
+    /// from the module's `check` entry and the skim's code lines; `None`
+    /// when either is missing, and then the module's parse answers.
+    pub sites: Option<Arc<[(u32, u32)]>>,
 }
 
 impl Body {
@@ -111,6 +125,7 @@ impl Body {
             },
             name: String::new(),
             hidden: false,
+            sites: None,
             fallback: body
                 .fallback
                 .iter()
@@ -122,6 +137,25 @@ impl Body {
                     (*inst, name)
                 })
                 .collect(),
+        }
+    }
+}
+
+impl Body {
+    /// A body from its wire form's locations alone
+    /// ([`hd_tir::wire::read_locations`]), as [`Body::from_tir`] reads
+    /// a decoded one.
+    fn from_locations(at: hd_tir::wire::Locations, derived: bool) -> Self {
+        Self {
+            syn: if derived {
+                Arc::from([])
+            } else {
+                Arc::from(at.syn)
+            },
+            name: String::new(),
+            hidden: false,
+            fallback: Arc::from(at.fallback),
+            sites: None,
         }
     }
 }
@@ -206,38 +240,18 @@ impl Positions {
     pub fn line(&self, item: &str, inst: u32) -> Option<(&str, u32)> {
         let (_, source) = self.module_of(item)?;
         let module = source.module()?;
-        let node = *module.bodies.get(item)?.syn.get(inst as usize)?;
-        if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
-            return None;
+        let body = module.bodies.get(item)?;
+        let node = *body.syn.get(inst as usize)?;
+        if let Some(sites) = &body.sites {
+            let i = sites.binary_search_by_key(&node.raw(), |s| s.0).ok()?;
+            return Some((source.file.as_str(), sites[i].1));
         }
         let text = source.text();
-        let src = Src {
-            parse: &module.parse,
-            text,
-            file: FileId::from_raw(0),
-        };
-        let node = module.parse.tree.node(node);
-        // A trailing callback has its own body positions; the invocation
-        // is located at the end of its header, before that callback.
-        let site = if node.kind() == hd_syntax::SyntaxKind::TrailingCallExpr {
-            node.children().next().unwrap_or(node)
-        } else {
-            node
-        };
-        let span = src.span(site);
-        // A call raises its panic after evaluating its arguments: on the
-        // call's closing line, where a conformance panic marker belongs.
-        let at = if matches!(
-            node.kind(),
-            hd_syntax::SyntaxKind::CallExpr | hd_syntax::SyntaxKind::TrailingCallExpr
-        ) {
-            span.hi.saturating_sub(1).max(span.lo)
-        } else {
-            span.lo
-        } as usize;
+        let at = site(source.parse(module), text, node)? as usize;
         let line = u32::try_from(
             module
                 .line_starts
+                .get_or_init(|| text_line_starts(text))
                 .partition_point(|&start| start as usize <= at.min(text.len())),
         )
         .ok()?;
@@ -273,16 +287,16 @@ impl Positions {
     #[must_use]
     pub fn node_span(&self, item: &str, node: NodeIdx) -> Option<(&str, u32, u32)> {
         let (_, source) = self.module_of(item)?;
-        let module = source.module()?;
-        if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
+        let parse = source.parse(source.module()?);
+        if node == NodeIdx::NONE || node.idx() >= parse.tree.len() {
             return None;
         }
         let src = Src {
-            parse: &module.parse,
+            parse,
             text: source.text(),
             file: FileId::from_raw(0),
         };
-        let s = src.span(module.parse.tree.node(node));
+        let s = src.span(parse.tree.node(node));
         Some((source.file.as_str(), s.lo, s.hi))
     }
 
@@ -354,54 +368,148 @@ impl ModuleSource {
         self.read.get_or_init(|| self.read()).as_ref()
     }
 
+    /// The parse of the module's text: the build's, else parsed on first
+    /// use.
+    fn parse<'m>(&self, module: &'m Module) -> &'m Arc<Parse> {
+        module.parse.get_or_init(|| {
+            self.input
+                .parse
+                .clone()
+                .unwrap_or_else(|| Arc::new(parse(self.text().as_bytes())))
+        })
+    }
+
+    /// Reads the module's bodies' locations from its `check` entry: a
+    /// body the build decoded already from it, any other from its wire
+    /// form's locations alone, never decoding its tables or columns
+    /// ([`hd_tir::wire::read_locations`]), so a warm run's positions cost
+    /// what a cold run's do. The entry's frame names (section 7) list the
+    /// bodies' paths in its bodies' order (section 3).
     fn read(&self) -> Option<Module> {
         let sections = crate::split_sections(self.check.as_ref()?)?;
-        let (pool, paths, syms) = (
-            InternPool::new(),
-            PathTable::new(),
-            ShardedInterner::default(),
-        );
-        let mut names = read_frame_names(sections.get(7)?)?;
+        let (rows, sites) = read_frames(sections.get(7)?)?;
+        let order: Vec<&str> = rows.iter().map(|(path, ..)| path.as_str()).collect();
+        let mut names: HashMap<String, (String, bool)> = HashMap::default();
+        for (path, name, hidden) in &rows {
+            names.insert(path.clone(), (name.clone(), *hidden));
+        }
         let mut bodies = HashMap::default();
         let mut r = Reader::new(sections.get(3)?);
-        for _ in 0..r.count() {
+        for i in 0..r.count() {
             // The item's path hash, then the body.
             let hash = r.hash();
             let bytes = r.blob();
             let (path, mut body) = if let Some((path, body)) = self.input.bodies.get(&hash) {
                 (path.clone(), body.clone())
             } else {
-                let b = hd_tir::wire::read_body(bytes, &pool, &paths, &syms)?;
-                (path_of(&paths, b.item), Body::from_tir(&b, &syms))
+                // An entry with frame sites marks a derived instance, so the
+                // tables are read only for fallback rows' local names.
+                let marked = sites.as_ref().and_then(|s| s.get(i)).map(|s| s.0);
+                let at = hd_tir::wire::read_locations(bytes, marked.is_none())?;
+                let derived =
+                    marked.unwrap_or(at.kind == Some(hd_tir::ir::BodyKind::DeriveInstance));
+                (
+                    (*order.get(i)?).to_owned(),
+                    Body::from_locations(at, derived),
+                )
             };
+            if let (Some(lines), Some(sites)) = (
+                &self.input.code_lines,
+                sites.as_ref().and_then(|s| s.get(i)),
+            ) {
+                body.sites = sites
+                    .1
+                    .iter()
+                    .map(|&(node, k, newlines)| {
+                        let start = if k == RAW { 0 } else { *lines.get(k as usize)? };
+                        Some((node, start.checked_add(newlines)?.checked_add(1)?))
+                    })
+                    .collect();
+            }
             (body.name, body.hidden) = names.remove(&path)?;
             bodies.insert(path, body);
         }
-        let parse = self
-            .input
-            .parse
-            .clone()
-            .unwrap_or_else(|| Arc::new(parse(self.text().as_bytes())));
-        let line_starts = lf_line_starts(&parse, self.text());
         Some(Module {
             bodies,
-            parse,
-            line_starts,
+            parse: OnceLock::new(),
+            line_starts: OnceLock::new(),
         })
     }
 }
 
-fn lf_line_starts(parse: &Parse, text: &str) -> Vec<u32> {
-    parse
-        .tokens
-        .line_start
-        .iter()
-        .copied()
-        .filter(|&start| start == 0 || text.as_bytes().get(start as usize - 1) == Some(&b'\n'))
+/// Where a frame in syntax node `node` of a module stands, as a byte
+/// offset in its text: a call at the end of its argument list, where it
+/// panics after evaluating them, a trailing callback's call at the end of
+/// its header, any other node at its start. `None` for no node.
+pub fn site(parse: &Parse, text: &str, node: NodeIdx) -> Option<u32> {
+    if node == NodeIdx::NONE || node.idx() >= parse.tree.len() {
+        return None;
+    }
+    let src = Src {
+        parse,
+        text,
+        file: FileId::from_raw(0),
+    };
+    let node = parse.tree.node(node);
+    // A trailing callback has its own body positions; the invocation
+    // is located at the end of its header, before that callback.
+    let at = if node.kind() == hd_syntax::SyntaxKind::TrailingCallExpr {
+        node.children().next().unwrap_or(node)
+    } else {
+        node
+    };
+    let span = src.span(at);
+    Some(
+        if matches!(
+            node.kind(),
+            hd_syntax::SyntaxKind::CallExpr | hd_syntax::SyntaxKind::TrailingCallExpr
+        ) {
+            span.hi.saturating_sub(1).max(span.lo)
+        } else {
+            span.lo
+        },
+    )
+}
+
+/// In a code line's stored frame site: the site lies before the first
+/// code line, and its newlines count from the text's start.
+const RAW: u32 = u32::MAX;
+
+/// Where offset `at` of `text` stands as a `check` entry's frame site
+/// keeps it: the code line it is on (by its index in `code_lines`, or
+/// [`RAW`] before the first) and the newlines from that line's start to
+/// `at`, none unless a multi-line string runs between. An edit of
+/// comments and blank lines keeps the entry, whose key holds the code
+/// lines' contents, and the skim's code line numbers place the site.
+#[must_use]
+pub fn code_line_of(code_lines: &[u32], text: &str, at: u32) -> (u32, u32) {
+    let k = code_lines.partition_point(|&s| s <= at);
+    let (line, from) = match k.checked_sub(1) {
+        Some(k) => (u32::try_from(k).unwrap_or(RAW), code_lines[k]),
+        None => (RAW, 0),
+    };
+    let between = text
+        .get(from as usize..(at as usize).min(text.len()))
+        .unwrap_or_default();
+    let newlines = between.matches('\n').count();
+    (line, u32::try_from(newlines).unwrap_or(u32::MAX))
+}
+
+/// The LF line starts of `text`: its start, and each byte after a `\n`,
+/// as the lexer's line starts give them, without a parse.
+#[must_use]
+pub fn text_line_starts(text: &str) -> Vec<u32> {
+    std::iter::once(0)
+        .chain(
+            text.bytes()
+                .enumerate()
+                .filter(|&(_, b)| b == b'\n')
+                .filter_map(|(i, _)| u32::try_from(i + 1).ok()),
+        )
         .collect()
 }
 
-fn path_of(paths: &PathTable, d: DefId) -> String {
+pub fn path_of(paths: &PathTable, d: DefId) -> String {
     paths.display(PathId::from_raw(d.raw())).to_string()
 }
 
@@ -415,7 +523,7 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
 /// checker built, so no spelling of a path segment decides them. A body
 /// of a `@track_caller` function (`hidden`) is marked: its frames are left
 /// out of a panic's frame list (`fn.caller.frames`).
-pub(crate) fn write_frame_names(
+pub fn write_frame_names(
     w: &mut Writer,
     paths: &PathTable,
     items: &[DefId],
@@ -449,18 +557,71 @@ pub(crate) fn write_frame_names(
     }
 }
 
-/// The frame names [`write_frame_names`] wrote, by body path, each with
-/// whether its frames are left out.
-fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
+/// Each body's frame name row: its path, its name, and whether its frames
+/// are left out.
+pub type FrameRows = Vec<(String, String, bool)>;
+
+/// Each body's frame sites, in the bodies' order: whether it is a derived
+/// instance, whose nodes belong to its template's source and name no
+/// site, and its syntax nodes, sorted, each with where its frame stands
+/// ([`site`]) as [`code_line_of`] keeps it.
+pub type FrameSites = Vec<(bool, Vec<(u32, u32, u32)>)>;
+
+/// The rows [`write_frame_names`] wrote, in its order (the bodies' order
+/// in the entry): each body's path, its name, and whether its frames are
+/// left out; and the frame sites that follow them when the entry has them.
+pub(crate) fn read_frames(bytes: &[u8]) -> Option<(FrameRows, Option<FrameSites>)> {
     let mut r = Reader::new(bytes);
-    let mut names = HashMap::default();
+    let mut rows = Vec::new();
     for _ in 0..r.count() {
         let path = r.str().to_owned();
         let segs: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();
         let hidden = r.u8() != 0;
-        names.insert(path, (segs.join("."), hidden));
+        rows.push((path, segs.join("."), hidden));
     }
-    r.ok().then_some(names)
+    let sites = (!r.at_end()).then(|| {
+        (0..r.count())
+            .map(|_| {
+                let derived = r.u8() != 0;
+                let at = (0..r.count())
+                    .map(|_| (r.u32(), r.u32(), r.u32()))
+                    .collect();
+                (derived, at)
+            })
+            .collect()
+    });
+    r.ok().then_some((rows, sites))
+}
+
+/// Writes each body's frame sites ([`FrameSites`]) after its frame names:
+/// `site(node)` is where node `node`'s frame stands ([`code_line_of`]).
+pub fn write_frame_sites(
+    w: &mut Writer,
+    bodies: &[hd_tir::Body],
+    site: &dyn Fn(NodeIdx) -> Option<(u32, u32)>,
+) {
+    w.len_of(bodies);
+    for b in bodies {
+        let derived = b.kind == hd_tir::ir::BodyKind::DeriveInstance;
+        w.u8(u8::from(derived));
+        let mut nodes: Vec<u32> = if derived {
+            Vec::new()
+        } else {
+            b.syn.iter().map(|n| n.raw()).collect()
+        };
+        nodes.sort_stable();
+        nodes.dedup();
+        let at: Vec<(u32, (u32, u32))> = nodes
+            .into_iter()
+            .filter_map(|n| Some((n, site(NodeIdx::from_raw(n))?)))
+            .collect();
+        w.len_of(&at);
+        for (n, (line, newlines)) in at {
+            w.u32(n);
+            w.u32(line);
+            w.u32(newlines);
+        }
+    }
 }
 
 /// The name an impl's type goes by in a frame, without generic arguments:
@@ -491,7 +652,8 @@ pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) ->
 }
 
 /// A test case's name as an hd string literal writes it.
-fn quoted(name: &str) -> String {
+#[must_use]
+pub fn quoted(name: &str) -> String {
     let mut out = String::with_capacity(name.len() + 2);
     out.push('"');
     for c in name.chars() {
@@ -502,214 +664,4 @@ fn quoted(name: &str) -> String {
     }
     out.push('"');
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::{Arc, OnceLock};
-
-    use hd_base::wire::Writer;
-    use hd_base::{DefId, FileId, HashMap, NodeIdx, PathId};
-    use hd_intern::{PathKind, PathTable};
-    use hd_resolve::Src;
-    use hd_syntax::parse;
-
-    use super::{
-        Body, Module, ModuleInput, ModuleSource, Positions, lf_line_starts, quoted,
-        read_frame_names, write_frame_names,
-    };
-
-    #[test]
-    fn anchor_lines_preserve_lf_positions_for_all_syntax_nodes() {
-        for text in [
-            "",
-            "\n\n",
-            "fn f() -> i32:\n    +1",
-            "# λ\r\n\r\nfn f() -> string:\r\n    \"é\"\r\n",
-            "# first\r# second\r\nfn f() -> i32:\r    +1\n",
-            "# before\n\nfn f() -> string:\n    \"first\\nsecond\"\n",
-        ] {
-            let parse = parse(text.as_bytes());
-            let syn: Vec<_> = (0..parse.tree.len())
-                .map(|n| NodeIdx::from_raw(u32::try_from(n).unwrap()))
-                .chain([NodeIdx::NONE, NodeIdx::from_raw(u32::MAX - 1)])
-                .collect();
-            let src = Src {
-                parse: &parse,
-                text,
-                file: FileId::from_raw(0),
-            };
-            let expected: Vec<_> = syn
-                .iter()
-                .map(|&node| {
-                    if node == NodeIdx::NONE || node.idx() >= parse.tree.len() {
-                        return None;
-                    }
-                    let lo = src.span(parse.tree.node(node)).lo as usize;
-                    Some((
-                        "source.hd",
-                        u32::try_from(text[..lo].matches('\n').count()).unwrap() + 1,
-                    ))
-                })
-                .collect();
-            let line_starts = lf_line_starts(&parse, text);
-            let positions = Positions {
-                modules: vec![(
-                    "pkg".into(),
-                    "pkg".into(),
-                    Arc::new(ModuleSource {
-                        file: "source.hd".into(),
-                        hash: hd_base::hash128(text.as_bytes()),
-                        texts: crate::Texts::ready(vec![text.into()]),
-                        index: 0,
-                        check: None,
-                        input: Arc::new(ModuleInput::default()),
-                        read: OnceLock::from(Some(Module {
-                            bodies: [(
-                                "pkg/f".into(),
-                                Body {
-                                    syn: syn.into(),
-                                    name: "f".into(),
-                                    hidden: false,
-                                    fallback: Arc::from([]),
-                                },
-                            )]
-                            .into_iter()
-                            .collect(),
-                            parse: Arc::new(parse),
-                            line_starts,
-                        })),
-                    }),
-                )],
-                tests: HashMap::default(),
-            };
-            for (inst, expected) in expected.into_iter().enumerate() {
-                assert_eq!(
-                    positions.line("pkg/f", u32::try_from(inst).unwrap()),
-                    expected,
-                    "{text:?}"
-                );
-            }
-            assert_eq!(positions.line("pkg/f", u32::MAX), None);
-            assert_eq!(positions.line("pkg/missing", 0), None);
-        }
-    }
-
-    #[test]
-    fn retained_sources_match_wire_positions_on_cold_warm_and_comment_edits() {
-        use crate::{Executor, Goal, Host, NoClock, PositionPool, build};
-        use hd_cache::MemoryStore;
-        use hd_project::MemorySources;
-        use hd_sched::SerialOrder;
-
-        let original = "fn f() -> usize:\n    let size = 0\n    size - 1\n\npub fn main() -> void $ Console:\n    println(f())\n";
-        let edited = format!("# λ: current source lines\n\n{original}");
-        let store = MemoryStore::default();
-        let mut pool = PositionPool::default();
-        for (round, text) in [original, original, edited.as_str()]
-            .into_iter()
-            .enumerate()
-        {
-            let mut sources = MemorySources::default();
-            sources.insert("main.hd", text);
-            let host = Host {
-                render_tir: &[],
-                sources: &sources,
-                store: &store,
-                clock: &NoClock,
-                executor: Executor::Serial(SerialOrder::Priority),
-            };
-            let mut output = build(
-                &host,
-                "app",
-                &Goal::Program {
-                    entry: "main".into(),
-                },
-            );
-            assert!(!output.diags.has_errors(), "{}", output.render());
-            let reused = output.positions(&mut pool);
-            let missing: Vec<_> = (0..output.modules.len())
-                .map(|_| Arc::new(ModuleInput::default()))
-                .collect();
-            let retained = std::mem::replace(&mut output.position_inputs, missing);
-            let wire = output.positions(&mut PositionPool::default());
-            output.position_inputs = retained;
-            let table = hd_run::frames::LineTable::parse(output.wasm.as_ref().expect("Wasm"))
-                .expect("line table");
-            let mut anchors = 0;
-            for (_, _, rows) in table.functions() {
-                for hd_run::frames::Anchored { item, inst } in rows.into_iter().flatten() {
-                    assert_eq!(reused.name(&item), wire.name(&item));
-                    assert_eq!(reused.line(&item, inst), wire.line(&item, inst));
-                    assert_eq!(reused.span(&item, inst), wire.span(&item, inst));
-                    assert_eq!(reused.fallback(&item, inst), wire.fallback(&item, inst));
-                    anchors += 1;
-                }
-            }
-            assert!(anchors > 10);
-            if round == 0 {
-                assert!(output.position_inputs.iter().any(|i| !i.bodies.is_empty()));
-            }
-            for (m, input) in output.position_inputs.iter().enumerate() {
-                if let Some(parse) = &input.parse
-                    && let Some((_, _, source)) = reused
-                        .modules
-                        .iter()
-                        .find(|(p, _, _)| p == &output.modules[m])
-                    && let Some(Some(read)) = source.read.get()
-                {
-                    assert!(Arc::ptr_eq(parse, &read.parse));
-                }
-            }
-        }
-    }
-
-    /// A body's frame name comes from the item the impl segment names, not
-    /// from how the segment spells its head: these segments are not impl
-    /// heads at all, and the names still follow the recorded types.
-    #[test]
-    fn a_frame_name_comes_from_the_record_not_the_segment_spelling() {
-        let paths = PathTable::new();
-        let module = paths.item("pkg", "m", "x");
-        let m = PathId::from_raw(module.raw())
-            .get()
-            .map(|p| paths.parent(p));
-        let m = m.expect("module");
-        let def = |parent: PathId, kind: PathKind, seg: &str| {
-            let id = paths.intern(parent, kind, seg);
-            (id, DefId::from_raw(id.raw()))
-        };
-        let (generic, generic_impl) = def(m, PathKind::Impl, "??? generic spelling ???");
-        let (_, generic_method) = def(generic, PathKind::Member, "remove");
-        let (derived, derived_impl) = def(m, PathKind::Impl, "something else #2");
-        let (_, derived_method) = def(derived, PathKind::Member, "eq");
-        let (inherent, inherent_impl) = def(m, PathKind::Impl, "impl Cart");
-        let (_, inherent_method) = def(inherent, PathKind::Member, "total");
-        let (_, free) = def(m, PathKind::Item, "run");
-        let record = |d: DefId| -> Option<String> {
-            [
-                (generic_impl, "List"),
-                (derived_impl, "Cart"),
-                (inherent_impl, "Cart"),
-            ]
-            .iter()
-            .find(|(i, _)| *i == d)
-            .map(|(_, t)| (*t).to_owned())
-        };
-        let items = [generic_method, derived_method, inherent_method, free];
-        let mut w = Writer::default();
-        write_frame_names(&mut w, &paths, &items, &record, &|d| d == free);
-        let names = read_frame_names(&w.bytes).expect("record");
-        let of = |d: DefId| names[&super::path_of(&paths, d)].clone();
-        assert_eq!(of(generic_method), ("List.remove".to_owned(), false));
-        assert_eq!(of(derived_method), ("Cart.eq".to_owned(), false));
-        assert_eq!(of(inherent_method), ("Cart.total".to_owned(), false));
-        assert_eq!(of(free), ("run".to_owned(), true));
-    }
-
-    #[test]
-    fn a_test_name_is_quoted_as_a_literal() {
-        assert_eq!(quoted("sums prices"), "\"sums prices\"");
-        assert_eq!(quoted("a \"b\" \\"), "\"a \\\"b\\\" \\\\\"");
-    }
 }

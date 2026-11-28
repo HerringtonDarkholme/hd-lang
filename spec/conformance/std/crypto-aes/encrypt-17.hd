@@ -1,0 +1,11 @@
+# test: AES encrypt rejects a 17-byte block with explicit-panic
+use std.crypto.aes.Aes
+
+fn cipher() -> Aes:
+    match Aes::new([for _ in 0..16 => u8(0)]):
+        .Ok(value) => value
+        .Err(error) => panic("valid key rejected: $error")
+
+tests:
+    it("requires exactly sixteen bytes"):
+        _ := cipher().encrypt_block([for _ in 0..17 => u8(0)]) # panic: explicit-panic

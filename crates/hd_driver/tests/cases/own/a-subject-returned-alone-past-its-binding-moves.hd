@@ -1,0 +1,18 @@
+# @dump: own
+# A #2432 control: no read through `pa` follows the early return, so `p`
+# moves there (`Read move [$0]`).
+enum Value:
+    Null
+    Arr(a: *mut List[Value])
+
+fn update(path: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> Value?:
+    let .Arr(pa) = p else:
+        return .None
+    for q in *pa:
+        let .Arr(_) = q else:
+            return .Some(p)
+        update(*pa)
+    .None

@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# expected: each nested write offers mut on its owning parameter, and both repairs check.
+struct Lists:
+    items: List[i32]
+
+fn change_field(lists: Lists) -> void:
+    lists.items.push(+1)
+
+fn change_map_value(lists: Map[string, List[i32]]) -> void:
+    lists["key"].push(+2)

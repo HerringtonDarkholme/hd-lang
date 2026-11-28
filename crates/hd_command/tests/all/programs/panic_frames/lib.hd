@@ -1,0 +1,28 @@
+use std.testing.assert
+
+fn total(prices: List[i32]) -> i32:
+    let sum = +0
+    for p in prices:
+        sum += p
+    assert(sum == 10, "total is 10")
+    sum
+
+fn boom() -> void:
+    panic("out of stock")
+
+fn drop_far(xs: &mut List[i32]) -> i32:
+    xs.remove(5)
+
+tests:
+    it("passes"):
+        assert(total([4, 6]) == 10, "ten")
+
+    it("sums prices"):
+        total([1, 2, 3])
+
+    it("runs out"):
+        boom()
+
+    it("drops past the end"):
+        let mut xs: List[i32] = [1, 2]
+        drop_far(&mut xs)

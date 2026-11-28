@@ -2,12 +2,12 @@
 (module
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
-  (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]" (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[string]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[string]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]" (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[string]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[string]" (param i32 i32)))
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $put (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32)
     ;; 11 |     _ := m.insert(k, v)
     local.get $m
@@ -23,19 +23,20 @@
       call $rt:release_ref
     end
   )
-  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32)
+  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 19 |     m.get_or_insert(k, UniqList::new()).push(v)
     i32.const 0
-    i32.const 8
-    call $room
+    call $"impl[T < ?Copy] UniqList[T].with_capacity[string]"
     local.set $t0
+    local.set $t1
+    local.set $t2
     local.get $m
     local.get $k.0
     local.get $k.1
+    local.get $t2
+    local.get $t1
     local.get $t0
-    i32.const 0
-    i32.const 0
-    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]"
+    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]"
     local.tee $m
     i32.load $heap offset=8
     local.set $k.0

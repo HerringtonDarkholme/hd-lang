@@ -1,6 +1,6 @@
 # test: a crossing closure copies a captured let variable, and shares no cell with its scope
 # Spec 07 Crossing Closures: fn.crossing.mode, fn.crossing.mode.copy, fn.crossing.mode.apart.
-use std.marker.Wire
+use std.meta.Wire
 
 fn later[T < ?Copy & Wire](before: fn() -> void, code: fn() -> T + Wire) -> T:
     before()

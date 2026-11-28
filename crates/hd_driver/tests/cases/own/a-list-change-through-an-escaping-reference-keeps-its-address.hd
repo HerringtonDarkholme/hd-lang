@@ -5,7 +5,7 @@
 # after the reserve, so its list keeps a 16-byte frame slot, and both
 # `List.reserve` and `fill` take that address.
 
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn fill(items: &mut List[usize], count: usize) -> void:

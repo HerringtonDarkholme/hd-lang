@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# expected: the missing closing parenthesis does not offer a comma insertion.
+fn sample() -> void:
+    let (value = +1)

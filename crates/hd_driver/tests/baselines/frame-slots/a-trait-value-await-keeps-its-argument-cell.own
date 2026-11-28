@@ -290,7 +290,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %70 = Call std/rt.memory/string_bytes[] (%69) : Ptr[u8]
 >   %71 = Read copy [%70 .address] : usize
 >   %72 = Read borrow [$8] : string
->   %73 = Call std/rt.bytes/bytes_len[] (%72) : usize
+>   %73 = Call std/core/bytes_len[] (%72) : usize
 >   %74 = Call std/rt.memory/copy[] (%68, %71, %73) : ()
 >   %75 = Break L1 - : never
 >   %76 = Block - : ()

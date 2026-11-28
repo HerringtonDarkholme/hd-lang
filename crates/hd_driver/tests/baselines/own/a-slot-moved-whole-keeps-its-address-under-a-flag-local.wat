@@ -10,54 +10,62 @@
   (import "fixture" "std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (func $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $consume (param $held i32) (result i32)
     ;; 32 |     held.id
-    local.get $held
-    call $rt:release_spilled
+    block
+      local.get $held
+      call $rt:release_spilled
+    end
     local.get $held
   )
   (func $grow (param $xs i32) (local $t0 i32) (local $t1 i32)
     ;; 28 |     xs.push("g")
-    local.get $xs
-    i32.load $heap
-    call $rt:list_unique
-    local.set $t0
-    local.get $xs
-    local.get $t0
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=4
-    local.tee $t1
-    local.get $t0
-    i32.load $heap
-    i32.eq
-    if
+    block
+      local.get $xs
+      i32.load $heap
+      local.set $t0
       local.get $t0
-      i32.const 2
-      call_indirect $table0 (param i32) (result i32)
+      call $rt:list_unique
       local.set $t0
       local.get $xs
       local.get $t0
       i32.store $heap
+      local.get $t0
+      i32.load $heap offset=4
+      local.set $t1
+      local.get $t1
+      local.get $t0
+      i32.load $heap
+      i32.eq
+      if
+        local.get $t0
+        i32.const 2
+        call_indirect $table0 (param i32) (result i32)
+        local.set $t0
+        local.get $xs
+        local.get $t0
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t1
+      i32.const 8
+      i32.mul
+      i32.add
+      local.set $xs
+      local.get $xs
+      i32.const 65 ;; &"g"
+      i32.store $heap offset=16
+      local.get $xs
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $t1
+      i32.const 1
+      i32.add
+      i32.store $heap offset=4
     end
-    local.get $t0
-    local.get $t1
-    i32.const 8
-    i32.mul
-    i32.add
-    local.tee $xs
-    i32.const 65 ;; &"g"
-    i32.store $heap offset=16
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $t0
-    local.get $t1
-    i32.const 1
-    i32.add
-    i32.store $heap offset=4
   )
   (func $kept (param $n i32) (result i32) (local $held i32) (local $t0 i32)
     ;; 73 |     let mut held = Held { id: n }
@@ -75,460 +83,598 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $held
-    local.get $n
-    i32.store $heap
-    local.get $held
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $held
-    i32.const 1
-    i32.store $heap offset=8
-    ;; 74 |     bump(&mut held)
-    local.get $held
-    call $bump
-    ;; 75 |     held.id
-    local.get $held
-    i32.load $heap
-    local.set $n
-    ;; 73 |     let mut held = Held { id: n }
-    local.get $held
-    if
+    block
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $held
       local.get $held
-      call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
-    end
-    local.get $n
-    local.get $t0
-    i32.const 24
-    i32.add
-    global.set $stack
-  )
-  (func $counted (param $n i32) (result i32) (local $total i32) (local $t1 i32) (local $t2 i32) (local $xs i32) (local $t0 i32) (local $t3 i64)
-    ;; 58 |     let mut total = 0
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    ;; 59 |     for i in 0..n:
-    block
-      loop
-        local.get $t1
-        local.get $n
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t1
-        local.get $t1
-        i32.const -2
-        i32.gt_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $t1
-        i32.const 1
-        i32.add
-        local.set $t1
-    ;; 60 |         let mut xs: List[string] = ["a"]
-        i32.const 1
-        call $rt:list_buf
-        local.tee $t2
-        i32.const 1
-        i32.store $heap offset=4
-        local.get $t2
-        i32.const 66 ;; &"a"
-        i32.store $heap offset=16
-        local.get $t2
-        i32.const 1
-        i32.store $heap offset=20
-    ;; 59 |     for i in 0..n:
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $xs
-    ;; 60 |         let mut xs: List[string] = ["a"]
-        local.get $t2
-        i32.store $heap
-    ;; 61 |         grow(&mut xs)
-        local.get $xs
-        call $grow
-    ;; 62 |         if i % 2 == 0:
-        i32.const 1
-        i32.and
-        i32.eqz
-        if
-    ;; 63 |             total = total + eat(xs)
-          local.get $xs
-          i32.load $heap
-          local.get $xs
-          i32.const 0
-          i32.store $heap
-          call $eat
-          local.set $t2
-          local.get $total
-          i64.extend_i32_u
-          local.get $t2
-          i64.extend_i32_u
-          i64.add
-          local.tee $t3
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $t3
-          i32.wrap_i64
-          local.set $total
-    ;; 62 |         if i % 2 == 0:
-        end
-    ;; 59 |     for i in 0..n:
-        local.get $xs
-        if
-          local.get $xs
-          i32.load $heap
-          local.tee $t2
-          if
-            local.get $t2
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $t2
-              call $rt:release_ref
-            end
-          end
-        end
-        br 0
-      end
-    end
-    ;; 64 |     total
-    local.get $total
-    ;; 58 |     let mut total = 0
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $stack
-  )
-  (func $moved_each_round (param $n i32) (result i32) (local $total i32) (local $t1 i32) (local $i i32) (local $held i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
-    ;; 39 |     let mut total = 0
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 24
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 24
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    ;; 40 |     for i in 0..n:
-    block
-      loop
-        local.get $t1
-        local.get $n
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t1
-        local.set $i
-        local.get $t1
-        i32.const -2
-        i32.gt_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $t1
-        i32.const 1
-        i32.add
-        local.set $t1
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.tee $held
-    ;; 41 |         let mut held = Held { id: i }
-        local.get $i
-        i32.store $heap
-        local.get $held
-        i32.const 1
-        i32.store $heap offset=4
-        local.get $held
-        i32.const 1
-        i32.store $heap offset=8
-        i32.const 1
-        local.set $t2
-    ;; 42 |         bump(&mut held)
-        local.get $held
-        call $bump
-    ;; 43 |         if i % 2 == 0:
-        local.get $i
-        i32.const 1
-        i32.and
-        i32.eqz
-        if
-    ;; 44 |             total = total + consume(held)
-          i32.const 0
-          local.set $t2
-          local.get $held
-          i32.load $heap
-          local.get $held
-          i32.const 0
-          i32.store $heap
-          call $consume
-          local.set $i
-          local.get $total
-          i64.extend_i32_u
-          local.get $i
-          i64.extend_i32_u
-          i64.add
-          local.tee $t3
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $t3
-          i32.wrap_i64
-          local.set $total
-    ;; 43 |         if i % 2 == 0:
-        end
-    ;; 40 |     for i in 0..n:
-        local.get $t2
-        if
-          local.get $held
-          if
-            local.get $held
-            call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
-          end
-        end
-        br 0
-      end
-    end
-    ;; 45 |     total
-    local.get $total
-    ;; 39 |     let mut total = 0
-    local.get $t0
-    i32.const 24
-    i32.add
-    global.set $stack
-  )
-  (func $"impl Drop for Held.drop" (param $self i32)
-    ;; 22 |         self.id = 0
-    local.get $self
-    i32.const 0
-    i32.store $heap
-  )
-  (func $bump (param $held i32) (local $t0 i32)
-    ;; 25 |     held.id = held.id + 1
-    local.get $held
-    i32.load $heap
-    local.tee $t0
-    i32.const -2
-    i32.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $held
-    local.get $t0
-    i32.const 1
-    i32.add
-    i32.store $heap
-  )
-  (func $moved_then_stored (param $n i32) (result i32) (local $held i32) (local $t0 i32) (local $t1 i32) (local $total i32) (local $t2 i32) (local $i i32) (local $t3 i32) (local $t4 i64)
-    ;; 48 |     let mut held = Held { id: 0 }
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 24
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 24
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $held
-    i32.const 0
-    i32.store $heap
-    local.get $held
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $held
-    i32.const 1
-    i32.store $heap offset=8
-    i32.const 1
-    local.set $t1
-    ;; 50 |     for i in 0..n:
-    block
-      loop
-        local.get $t2
-        local.get $n
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.tee $i
-        local.get $t2
-        i32.const -2
-        i32.gt_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $t2
-        i32.const 1
-        i32.add
-        local.set $t2
-    ;; 51 |         bump(&mut held)
-        local.get $held
-        call $bump
-    ;; 52 |         if i % 2 == 0:
-        i32.const 1
-        i32.and
-        i32.eqz
-        if
-    ;; 53 |             total = total + consume(held)
-          i32.const 0
-          local.set $t1
-          local.get $held
-          i32.load $heap
-          local.get $held
-          i32.const 0
-          i32.store $heap
-          call $consume
-          local.set $t3
-          local.get $total
-          i64.extend_i32_u
-          local.get $t3
-          i64.extend_i32_u
-          i64.add
-          local.tee $t4
-          i64.const 4294967295
-          i64.gt_u
-          if
-            call $rt:panic'2
-            unreachable
-          end
-          local.get $t4
-          i32.wrap_i64
-          local.set $total
-    ;; 52 |         if i % 2 == 0:
-        end
-    ;; 50 |     for i in 0..n:
-        local.get $t1
-        if
-          local.get $held
-          i32.load $heap offset=4
-          if
-            local.get $held
-            call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2"
-          end
-        end
-    ;; 54 |         held = Held { id: i }
-        local.get $held
-        local.get $i
-        i32.store $heap
-    ;; 50 |     for i in 0..n:
-        local.get $held
-        i32.const 1
-        i32.store $heap offset=4
-        local.get $held
-        i32.const 1
-        i32.store $heap offset=8
-        i32.const 1
-        local.set $t1
-        br 0
-      end
-    end
-    ;; 55 |     total + held.id
-    local.get $held
-    i32.load $heap
-    local.set $n
-    ;; 48 |     let mut held = Held { id: 0 }
-    local.get $t1
-    if
+      local.get $n
+      i32.store $heap
+      local.get $held
+      i32.const 1
+      i32.store $heap offset=4
+      local.get $held
+      i32.const 1
+      i32.store $heap offset=8
+    ;; 74 |     bump(&mut held)
+      local.get $held
+      local.set $n
+      local.get $n
+      call $bump
+      i32.const 0
+      local.set $n
+    ;; 75 |     held.id
+      local.get $held
+      i32.load $heap
+      local.set $n
+    ;; 73 |     let mut held = Held { id: n }
       local.get $held
       if
         local.get $held
         call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
       end
+      i32.const 0
+      local.set $held
     end
-    ;; 55 |     total + held.id
-    local.get $total
-    i64.extend_i32_u
     local.get $n
-    i64.extend_i32_u
-    i64.add
-    local.tee $t4
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t4
-    i32.wrap_i64
-    ;; 48 |     let mut held = Held { id: 0 }
     local.get $t0
     i32.const 24
     i32.add
     global.set $stack
   )
-  (func $eat (param $xs i32) (result i32)
-    ;; 36 |     xs.len()
-    local.get $xs
-    i32.load $heap offset=4
-    local.get $xs
+  (func $counted (param $n i32) (result i32) (local $total i32) (local $t2 i32) (local $t1 i32) (local $xs i32) (local $t3 i32) (local $t0 i32) (local $t4 i32) (local $t5 i64) (local $t6 i64)
+    ;; 58 |     let mut total = 0
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
     if
-      local.get $xs
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $xs
-        call $rt:release_ref
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      i32.const 0
+      local.set $total
+    ;; 59 |     for i in 0..n:
+      i32.const 0
+      local.get $n
+      i32.const 0
+      local.set $n
+      local.set $t1
+      local.set $t2
+      block
+        loop
+          local.get $t2
+          local.get $t1
+          i32.lt_u
+          local.set $n
+          local.get $n
+          if
+            local.get $t2
+            local.set $n
+            local.get $t2
+            i32.const -2
+            i32.gt_u
+            if
+              call $rt:panic'2
+              unreachable
+            end
+            local.get $t2
+            i32.const 1
+            i32.add
+            local.set $t2
+    ;; 60 |         let mut xs: List[string] = ["a"]
+            i32.const 1
+            local.set $xs
+            local.get $xs
+            call $rt:list_buf
+            local.set $t3
+            local.get $t3
+            local.get $xs
+            i32.store $heap offset=4
+            local.get $t3
+            local.set $xs
+            local.get $xs
+            i32.const 66 ;; &"a"
+            i32.store $heap offset=16
+            local.get $xs
+            i32.const 1
+            i32.store $heap offset=20
+            local.get $xs
+            i32.const 8
+            i32.add
+            local.set $xs
+    ;; 59 |     for i in 0..n:
+            local.get $t0
+            i64.const 0
+            i64.store $heap
+            local.get $t0
+            i32.const 8
+            i32.add
+            local.set $xs
+    ;; 60 |         let mut xs: List[string] = ["a"]
+            local.get $xs
+            local.get $t3
+            i32.store $heap
+    ;; 61 |         grow(&mut xs)
+            local.get $xs
+            local.set $t3
+            local.get $t3
+            call $grow
+            i32.const 0
+            local.set $t3
+    ;; 62 |         if i % 2 == 0:
+            local.get $n
+            i32.const 1
+            i32.and
+            local.set $n
+            local.get $n
+            i32.const 0
+            i32.eq
+            local.set $n
+            local.get $n
+            if
+    ;; 63 |             total = total + eat(xs)
+              local.get $xs
+              i32.load $heap
+              local.set $n
+              local.get $xs
+              local.get $t4
+              i32.store $heap
+              local.get $n
+              call $eat
+              local.set $n
+              local.get $total
+              i64.extend_i32_u
+              local.set $t5
+              local.get $n
+              i64.extend_i32_u
+              local.set $t6
+              local.get $t5
+              local.get $t6
+              i64.add
+              local.set $t5
+              local.get $t5
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t5
+              i32.wrap_i64
+              local.set $total
+    ;; 62 |         if i % 2 == 0:
+            end
+    ;; 59 |     for i in 0..n:
+            local.get $xs
+            if
+              local.get $xs
+              i32.load $heap
+              local.set $xs
+              local.get $xs
+              call $rt:release_ref
+            end
+            i32.const 0
+            local.set $xs
+          else
+            br 2
+          end
+          br 0
+        end
       end
+    ;; 58 |     let mut total = 0
+    end
+    local.get $total
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
+  )
+  (func $moved_each_round (param $n i32) (result i32) (local $total i32) (local $t2 i32) (local $t1 i32) (local $held i32) (local $t0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64)
+    ;; 39 |     let mut total = 0
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      i32.const 0
+      local.set $total
+    ;; 40 |     for i in 0..n:
+      i32.const 0
+      local.get $n
+      i32.const 0
+      local.set $n
+      local.set $t1
+      local.set $t2
+      block
+        loop
+          local.get $t2
+          local.get $t1
+          i32.lt_u
+          local.set $n
+          local.get $n
+          if
+            local.get $t2
+            local.set $n
+            local.get $t2
+            i32.const -2
+            i32.gt_u
+            if
+              call $rt:panic'2
+              unreachable
+            end
+            local.get $t2
+            i32.const 1
+            i32.add
+            local.set $t2
+            local.get $t0
+            i64.const 0
+            i64.store $heap
+            local.get $t0
+            i32.const 8
+            i32.add
+            local.set $held
+    ;; 41 |         let mut held = Held { id: i }
+            local.get $held
+            local.get $n
+            i32.store $heap
+            local.get $held
+            i32.const 1
+            i32.store $heap offset=4
+            local.get $held
+            i32.const 1
+            i32.store $heap offset=8
+            i32.const 1
+            local.set $t3
+    ;; 42 |         bump(&mut held)
+            local.get $held
+            local.set $t4
+            local.get $t4
+            call $bump
+            i32.const 0
+            local.set $t4
+    ;; 43 |         if i % 2 == 0:
+            local.get $n
+            i32.const 1
+            i32.and
+            local.set $n
+            local.get $n
+            i32.const 0
+            i32.eq
+            local.set $n
+            local.get $n
+            if
+    ;; 44 |             total = total + consume(held)
+              i32.const 0
+              local.set $t3
+              local.get $held
+              i32.load $heap
+              local.set $n
+              local.get $held
+              local.get $t5
+              i32.store $heap
+              local.get $n
+              call $consume
+              local.set $n
+              local.get $total
+              i64.extend_i32_u
+              local.set $t6
+              local.get $n
+              i64.extend_i32_u
+              local.set $t7
+              local.get $t6
+              local.get $t7
+              i64.add
+              local.set $t6
+              local.get $t6
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t6
+              i32.wrap_i64
+              local.set $total
+    ;; 43 |         if i % 2 == 0:
+            end
+    ;; 40 |     for i in 0..n:
+            local.get $t3
+            if
+              local.get $held
+              if
+                local.get $held
+                call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+              end
+              i32.const 0
+              local.set $held
+            end
+          else
+            br 2
+          end
+          br 0
+        end
+      end
+    ;; 39 |     let mut total = 0
+    end
+    local.get $total
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $stack
+  )
+  (func $"impl Drop for Held.drop" (param $self i32) (local $t0 i32) (local $t1 i32)
+    ;; 22 |         self.id = 0
+    block
+      i32.const 0
+      local.set $t0
+      local.get $self
+      i32.load $heap
+      local.set $t1
+      local.get $self
+      local.get $t0
+      i32.store $heap
     end
   )
-  (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $held i32) (local $t0 i32)
+  (func $bump (param $held i32) (local $t0 i32) (local $t1 i32)
+    ;; 25 |     held.id = held.id + 1
+    block
+      local.get $held
+      i32.load $heap
+      local.set $t0
+      local.get $t0
+      i32.const -2
+      i32.gt_u
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t0
+      i32.const 1
+      i32.add
+      local.set $t0
+      local.get $held
+      i32.load $heap
+      local.set $t1
+      local.get $held
+      local.get $t0
+      i32.store $heap
+    end
+  )
+  (func $moved_then_stored (param $n i32) (result i32) (local $t1 i32) (local $held i32) (local $t0 i32) (local $total i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i64) (local $t7 i64)
+    ;; 48 |     let mut held = Held { id: 0 }
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $held
+      local.get $held
+      local.get $t1
+      i32.store $heap
+      local.get $held
+      i32.const 1
+      i32.store $heap offset=4
+      local.get $held
+      i32.const 1
+      i32.store $heap offset=8
+      i32.const 1
+      local.set $t1
+    ;; 49 |     let mut total = 0
+      i32.const 0
+      local.set $total
+    ;; 50 |     for i in 0..n:
+      i32.const 0
+      local.get $n
+      i32.const 0
+      local.set $n
+      local.set $t2
+      local.set $t3
+      block
+        loop
+          local.get $t3
+          local.get $t2
+          i32.lt_u
+          local.set $n
+          local.get $n
+          if
+            local.get $t3
+            local.set $n
+            local.get $t3
+            i32.const -2
+            i32.gt_u
+            if
+              call $rt:panic'2
+              unreachable
+            end
+            local.get $t3
+            i32.const 1
+            i32.add
+            local.set $t3
+    ;; 51 |         bump(&mut held)
+            local.get $held
+            local.set $t4
+            local.get $t4
+            call $bump
+            i32.const 0
+            local.set $t4
+    ;; 52 |         if i % 2 == 0:
+            local.get $n
+            i32.const 1
+            i32.and
+            local.set $t4
+            local.get $t4
+            i32.const 0
+            i32.eq
+            local.set $t4
+            local.get $t4
+            if
+    ;; 53 |             total = total + consume(held)
+              i32.const 0
+              local.set $t1
+              local.get $held
+              i32.load $heap
+              local.set $t4
+              local.get $held
+              local.get $t5
+              i32.store $heap
+              local.get $t4
+              call $consume
+              local.set $t4
+              local.get $total
+              i64.extend_i32_u
+              local.set $t6
+              local.get $t4
+              i64.extend_i32_u
+              local.set $t7
+              local.get $t6
+              local.get $t7
+              i64.add
+              local.set $t6
+              local.get $t6
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t6
+              i32.wrap_i64
+              local.set $total
+    ;; 52 |         if i % 2 == 0:
+            end
+    ;; 50 |     for i in 0..n:
+            local.get $t1
+            if
+              local.get $held
+              i32.load $heap offset=4
+              if
+                local.get $held
+                call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2"
+              else
+                local.get $held
+                i32.load $heap offset=8
+                if
+                  local.get $held
+                  i32.load $heap
+                  local.set $t1
+                end
+              end
+            end
+    ;; 54 |         held = Held { id: i }
+            local.get $held
+            local.get $n
+            i32.store $heap
+    ;; 50 |     for i in 0..n:
+            local.get $held
+            i32.const 1
+            i32.store $heap offset=4
+            local.get $held
+            i32.const 1
+            i32.store $heap offset=8
+            i32.const 1
+            local.set $t1
+          else
+            br 2
+          end
+          br 0
+        end
+      end
+    ;; 55 |     total + held.id
+      local.get $held
+      i32.load $heap
+      local.set $n
+    ;; 48 |     let mut held = Held { id: 0 }
+      local.get $t1
+      if
+        local.get $held
+        if
+          local.get $held
+          call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+        end
+        i32.const 0
+        local.set $held
+      end
+    ;; 55 |     total + held.id
+      local.get $total
+      i64.extend_i32_u
+      local.set $t6
+      local.get $n
+      i64.extend_i32_u
+      local.set $t7
+      local.get $t6
+      local.get $t7
+      i64.add
+      local.set $t6
+      local.get $t6
+      i64.const 4294967295
+      i64.gt_u
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t6
+      i32.wrap_i64
+      local.set $n
+    ;; 48 |     let mut held = Held { id: 0 }
+    end
+    local.get $n
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $stack
+  )
+  (func $eat (param $xs i32) (result i32) (local $t0 i32)
+    ;; 36 |     xs.len()
+    block
+      local.get $xs
+      i32.load $heap offset=4
+      local.set $t0
+      local.get $xs
+      call $rt:release_ref
+    end
+    local.get $t0
+  )
+  (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $held i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 67 |     bump(&mut held)
     global.get $stack
     global.get $stack_limit
@@ -550,7 +696,8 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $held
+    local.set $held
+    local.get $held
     local.get $t1
     i32.store $heap
     local.get $held
@@ -569,18 +716,36 @@
       i32.const 1
       local.set $t1
       local.get $held
+      local.set $t2
+      local.get $t2
       call $bump
+      i32.const 0
+      local.set $t2
     ;; 68 |     if early:
       local.get $early
       if
     ;; 69 |         return consume(held)
+        i32.const 0
+        local.set $t1
         local.get $held
         i32.load $heap
+        local.set $early
         local.get $held
-        i32.const 0
+        local.get $t3
         i32.store $heap
+        local.get $early
         call $consume
         local.set $early
+    ;; 68 |     if early:
+        local.get $t1
+        if
+          local.get $held
+          if
+            local.get $held
+            call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+          end
+        end
+    ;; 69 |         return consume(held)
         br 1
     ;; 68 |     if early:
       end

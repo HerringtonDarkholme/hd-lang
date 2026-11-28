@@ -8,6 +8,7 @@
 use std.task.join
 
 fn fetch!(key: string) -> string:
+    pause!()
     key + "?"
 
 fn all!(keys: List[string]) -> usize:
@@ -17,3 +18,8 @@ fn all!(keys: List[string]) -> usize:
     for r in &results:
         n += r.len()
     n
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

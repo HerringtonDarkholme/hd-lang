@@ -9,22 +9,29 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $outer (param $t0 i32) (result i32) (local $t1 i64)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $outer (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 32 | fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
     local.get $t0
     call $inner_sum
+    local.set $t1
     local.get $t0
     i32.load $heap offset=68
     local.set $t0
+    local.get $t1
     i64.extend_i32_s
+    local.set $t2
     local.get $t0
     i64.extend_i32_s
+    local.set $t3
+    local.get $t2
+    local.get $t3
     i64.add
-    local.tee $t1
+    local.set $t2
+    local.get $t2
     i64.const 2147483647
     i64.gt_s
-    local.get $t1
+    local.get $t2
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -32,180 +39,275 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t2
     i32.wrap_i64
-  )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $t3 i32)
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 72
-    i32.lt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    global.get $stack
-    i32.const 72
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 1
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 2
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=4
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 3
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=8
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 4
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=12
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 5
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=16
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 6
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=20
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 7
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=24
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 8
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=28
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 9
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=32
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 10
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=36
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 11
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=40
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 12
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=44
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 13
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=48
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 14
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=52
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 15
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=56
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 16
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=60
-    local.get $t0
-    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
-    i32.const 17
-    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
-    i32.store $heap offset=64
-    local.get $t0
-    i32.const 100
-    i32.store $heap offset=68
-    local.get $t0
-    call $outer
-    local.get $t0
-    i32.const 72
-    i32.add
-    global.set $stack
-    i64.extend_i32_s
-    local.tee $t1
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
     local.set $t0
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t2
-    end
     local.get $t0
-    i64.extend_i32_u
-    local.get $t2
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t2
-    local.tee $t0
-    i32.const 16
-    local.set $t3
-    if
-      local.get $t0
-      call $rt:str
-      local.set $t3
-    end
-    local.get $t1
-    local.get $t3
-    local.get $t2
-    call $write_signed_sized
-    local.get $t3
-    local.get $t0
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
   )
-  (func $inner_sum (param $t0 i32) (result i32) (local $t1 i64)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $offset i32) (local $result.0 i32) (local $size i32) (local $width i32) (local $t13 i32) (local $t14 i32) (local $value i64) (local $t15 i64) (local $t16 i64)
+    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
+    block
+      i32.const 1
+      i32.const 2
+      i32.const 3
+      i32.const 4
+      i32.const 5
+      i32.const 6
+      i32.const 7
+      i32.const 8
+      i32.const 9
+      i32.const 10
+      i32.const 11
+      i32.const 12
+      i32.const 13
+      i32.const 14
+      i32.const 15
+      i32.const 16
+      i32.const 17
+      local.set $width
+      local.set $size
+      local.set $result.0
+      local.set $offset
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+    ;; 36 |     println("${outer(Outer { inner: i, v: +100 })}")
+      local.get $t12
+      local.get $t11
+      local.get $t10
+      local.get $t9
+      local.get $t8
+      local.get $t7
+      local.get $t6
+      local.get $t5
+      local.get $t4
+      local.get $t3
+      local.get $t2
+      local.get $t1
+      local.get $t0
+      local.get $offset
+      local.get $result.0
+      local.get $size
+      local.get $width
+      i32.const 100
+      local.set $width
+      local.set $size
+      local.set $result.0
+      local.set $offset
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+      local.set $t13
+      global.get $stack
+      global.get $stack_limit
+      i32.sub
+      i32.const 72
+      i32.lt_u
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      global.get $stack
+      i32.const 72
+      i32.sub
+      local.tee $t14
+      global.set $stack
+      local.get $t14
+      local.get $t13
+      i32.store $heap
+      local.get $t14
+      local.get $t12
+      i32.store $heap offset=4
+      local.get $t14
+      local.get $t11
+      i32.store $heap offset=8
+      local.get $t14
+      local.get $t10
+      i32.store $heap offset=12
+      local.get $t14
+      local.get $t9
+      i32.store $heap offset=16
+      local.get $t14
+      local.get $t8
+      i32.store $heap offset=20
+      local.get $t14
+      local.get $t7
+      i32.store $heap offset=24
+      local.get $t14
+      local.get $t6
+      i32.store $heap offset=28
+      local.get $t14
+      local.get $t5
+      i32.store $heap offset=32
+      local.get $t14
+      local.get $t4
+      i32.store $heap offset=36
+      local.get $t14
+      local.get $t3
+      i32.store $heap offset=40
+      local.get $t14
+      local.get $t2
+      i32.store $heap offset=44
+      local.get $t14
+      local.get $t1
+      i32.store $heap offset=48
+      local.get $t14
+      local.get $t0
+      i32.store $heap offset=52
+      local.get $t14
+      local.get $offset
+      i32.store $heap offset=56
+      local.get $t14
+      local.get $result.0
+      i32.store $heap offset=60
+      local.get $t14
+      local.get $size
+      i32.store $heap offset=64
+      local.get $t14
+      local.get $width
+      i32.store $heap offset=68
+      local.get $t14
+      call $outer
+      local.get $t14
+      i32.const 72
+      i32.add
+      global.set $stack
+      local.set $width
+      local.get $width
+      i64.extend_i32_s
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t15
+              local.get $t15
+              call $unsigned_width
+              local.set $width
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $width
+              i64.extend_i32_u
+              local.set $t15
+              local.get $size
+              i64.extend_i32_u
+              local.set $t16
+              local.get $t15
+              local.get $t16
+              i64.add
+              local.set $t15
+              local.get $t15
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'1
+                unreachable
+              end
+              local.get $t15
+              i32.wrap_i64
+              local.set $width
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $width
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $width
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
+    ;; 35 |     let i = Inner { a: +1, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
+    end
+  )
+  (func $inner_sum (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 30 | fn inner_sum(t: Inner) -> i32: t.a + t.q
     local.get $t0
     i32.load $heap
+    local.set $t1
     local.get $t0
     i32.load $heap offset=64
     local.set $t0
+    local.get $t1
     i64.extend_i32_s
+    local.set $t2
     local.get $t0
     i64.extend_i32_s
+    local.set $t3
+    local.get $t2
+    local.get $t3
     i64.add
-    local.tee $t1
+    local.set $t2
+    local.get $t2
     i64.const 2147483647
     i64.gt_s
-    local.get $t1
+    local.get $t2
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -213,7 +315,9 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t1
+    local.get $t2
     i32.wrap_i64
+    local.set $t0
+    local.get $t0
   )
 )

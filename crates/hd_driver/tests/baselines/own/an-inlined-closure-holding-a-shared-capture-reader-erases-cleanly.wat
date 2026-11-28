@@ -6,7 +6,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value i32) (local $t0 i32)
     ;; 9 |     change := fn(mut value: usize) -> usize:
     global.get $stack
@@ -97,33 +97,31 @@
     i32.add
     global.set $stack
   )
-  (func $main#8 (param $env i32) (param $t0 i32) (param $ctx i32) (result i32) (local $total i32) (local $t1 i32)
+  (func $main#8 (param $env i32) (param $i i32) (param $ctx i32) (result i32) (local $total i32) (local $t0 i32)
     ;; 26 |     looped := fn(mut value: usize) -> usize:
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $env
-    local.get $t0
+    local.get $i
     i32.store $heap
     ;; 29 |         for i in 0..3:
-    i32.const 3
-    local.set $t0
     block
       loop
-        local.get $t1
         local.get $t0
+        i32.const 3
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.set $ctx
-        local.get $t1
+        local.get $t0
+        local.set $i
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t0
     ;; 30 |             value = i
         local.get $env
-        local.get $ctx
+        local.get $i
         i32.store $heap
     ;; 31 |             total += read()
         local.get $total

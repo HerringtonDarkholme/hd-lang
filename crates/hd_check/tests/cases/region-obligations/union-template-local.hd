@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # @build: dev | checked | release
-use std.structure.{Structure, Field, Variant, Walker, UnionType}
+use std.meta.{Structure, Field, Variant, Walker, UnionType}
 
 trait Encode:
     fn encode(self) -> string

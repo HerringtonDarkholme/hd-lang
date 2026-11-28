@@ -51,52 +51,50 @@
     local.get $t0
     i32.store $heap
   )
-  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $group (param $m i32) (param $k.0 i32) (param $k.1 i32) (param $v.0 i32) (param $v.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     m.get_or_insert(k, []).push(v)
-    i32.const 80 ;; &empty-buffer
-    local.set $t0
     local.get $m
     i32.load $heap
-    local.set $t1
+    local.set $t0
     local.get $k.0
     local.get $k.1
-    local.get $t1
+    local.get $t0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t2
+    local.set $t1
+    local.get $t0
     local.get $t1
-    local.get $t2
     local.get $k.0
     local.get $k.1
     call $rt:map_find'2
-    local.set $t3
-    local.get $t1
+    local.set $t2
+    local.get $t0
     i32.const 8
     i32.sub
     i32.load $heap
     i32.const 1
     i32.ne
     if
-      local.get $t1
+      local.get $t0
       call $rt:map_unique'2
-      local.set $t1
+      local.set $t0
     end
-    local.get $t3
+    local.get $t2
     i32.const 0
     i32.ge_s
     if
       local.get $m
-      local.get $t1
+      local.get $t0
       i32.store $heap
-      local.get $t1
-      local.get $t1
+      local.get $t0
+      local.get $t0
       i32.load $heap offset=12
       i32.const 14
       i32.mul
       i32.add
       i32.const 32
       i32.add
-      local.get $t3
+      local.get $t2
       i32.const 12
       i32.mul
       i32.add
@@ -109,23 +107,23 @@
         local.get $k.0
         call $retain
       end
+      local.get $t0
       local.get $t1
       local.get $t2
-      local.get $t3
       local.get $k.0
       local.get $k.1
-      local.get $t0
+      i32.const 80 ;; &empty-buffer
       call $rt:map_put'2
-      local.tee $t1
+      local.tee $t0
       i32.load $heap offset=4
       i32.const 1
       i32.sub
       local.set $t2
       local.get $m
-      local.get $t1
+      local.get $t0
       i32.store $heap
-      local.get $t1
-      local.get $t1
+      local.get $t0
+      local.get $t0
       i32.load $heap offset=12
       i32.const 14
       i32.mul
@@ -247,13 +245,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $k.0
       i32.const 16
       i32.mul
       i32.add
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.set $t0
     end
     block

@@ -7,7 +7,7 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages}
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const MAIN: &str = "pub fn main() -> void:\n    pass\n";
+const MAIN: &str = include_str!("programs/session_store/main.hd");
 
 fn build(store: &dyn CacheStore) -> Output {
     let mut src = MemorySources::default();

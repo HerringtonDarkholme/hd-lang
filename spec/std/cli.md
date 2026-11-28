@@ -10,8 +10,11 @@ over the language tier:
 - `CliError`, the parse errors, and the exit status they give;
 - `usage`, the generated help text.
 
+- `Args`, the host capability that holds the program's arguments, with
+  the helper `args` and the deterministic provider `ScriptedArgs`.
+
 The arguments themselves come from `Args`
-([Program Arguments](host.md#program-arguments)). What `hd` passes as a
+([Program Arguments](#program-arguments)). What `hd` passes as a
 program's arguments is CLI tier
 ([Program Arguments](../cli/command-line.md#program-arguments)).
 
@@ -81,7 +84,7 @@ own:
 
 ```text
 use std.cli.{Arg, ArgParser, CliError}
-use std.host.Args
+use std.cli.Args
 
 fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
@@ -110,18 +113,23 @@ Each argument is read by its form:
 | r[std-cli.form.long-option] Long option | `--name VALUE` | the next argument is the value of the option `name` |
 | r[std-cli.form.attached] Attached value | `--name=VALUE` | the text after the first `=` is the value of the option `name` |
 | r[std-cli.form.short-option] Short option | `-c VALUE` | the next argument is the value of the option whose short name is `c` |
+| r[std-cli.form.short-group] Grouped short flags | `-nr` | short flags `n` and `r` are read in order |
+| r[std-cli.form.short-attached] Attached short value | `-Ldir` or `-L=dir` | `dir` is the value of short option `L` |
 | r[std-cli.form.end-scope] End of options | `--` | dropped; later arguments in this parser are plain arguments |
 | r[std-cli.form.dash-scope] Lone dash | `-` | a plain argument |
 | r[std-cli.form.plain-argument] Positional | an argument that does not start with `-` | a plain argument |
 
 1. r[std-cli.form.interleaved] Flags, options, and positionals may come in any order before `--`.
-2. r[std-cli.form.no-clusters] Only the forms in the table name a flag or an option. So `-vq`, `-ofile`, and `-o=file` are each one unknown option.
-3. r[std-cli.form.value-dash] An option's value is the next argument even when that argument starts with `-` or is `--`.
-4. r[std-cli.form.attached.text] An attached value may be empty, and may hold `=`: `--out=a=b` gives `a=b`.
-5. r[std-cli.form.repeat-user-flag] A non-help flag given more than once is set once.
-6. r[std-cli.form.repeat-declared] An option with `repeated: true` retains every supplied value in argument order, and `value` returns the last.
-7. r[std-cli.form.repeat-refused] A second occurrence of a value-taking option with `repeated: false` returns `InvalidValue`.
-8. r[std-cli.form.plain-command] In a parser with commands, the first plain argument selects a command; otherwise, plain arguments are positionals.
+2. r[std-cli.form.short-group-value] The first value-taking short option ends its group and takes the remaining text, removing one leading `=`, or the next argument when no text remains.
+3. r[std-cli.form.short-group-help] A short help flag `h` in a group returns `Help` immediately, without reading the remaining characters.
+4. r[std-cli.form.short-group-unknown] An undeclared short name returns `UnknownOption` containing that character preceded by `-`.
+5. r[std-cli.form.short-attached-empty] An attached short value may be empty after `=`, and any further `=` belongs to the value.
+6. r[std-cli.form.value-dash] An option's value is the next argument even when that argument starts with `-` or is `--`.
+7. r[std-cli.form.attached.text] An attached value may be empty, and may hold `=`: `--out=a=b` gives `a=b`.
+8. r[std-cli.form.repeat-user-flag] A non-help flag given more than once is set once.
+9. r[std-cli.form.repeat-declared] An option with `repeated: true` retains every supplied value in argument order, and `value` returns the last.
+10. r[std-cli.form.repeat-refused] A second occurrence of a value-taking option with `repeated: false` returns `InvalidValue`.
+11. r[std-cli.form.plain-command] In a parser with commands, the first plain argument selects a command; otherwise, plain arguments are positionals.
 
 ```text
 use std.cli.{Arg, ArgParser}
@@ -140,9 +148,9 @@ fn demo() -> List[string]:
      out_of(["--", "--out"])]            # after --, a positional: "stdout"
 ```
 
-> **Why.** Clusters and attached short values make `-ofile` ambiguous
-> beside a flag `-f`. Go's `flag` package leaves them out too, and a script
-> rarely misses them.
+> **Why.** POSIX short groups and clap-style attached values let existing
+> Unix command lines keep their spelling. The first value-taking short
+> owns the remainder, so `-ofile` means option `o` with value `file`.
 
 ### Parse Errors
 
@@ -195,7 +203,7 @@ through `Error`. `main` reports a parse error and exits with its code:
 
 ```text
 use std.cli.{Arg, ArgParser}
-use std.host.Args
+use std.cli.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
@@ -463,7 +471,7 @@ fn notes() -> Notes:
 
 ### Documentation In Typed Help
 
-Typed CLI help uses the declaration documentation carried by `std.structure`.
+Typed CLI help uses the declaration documentation carried by `std.meta`.
 
 ```text
 use std.cli.Cli
@@ -532,6 +540,27 @@ options:
 > **Why.** One column of help text is the layout of Go's `flag` output and
 > of `hd help`. The four spaces keep the long names of every term aligned.
 
-See also: [Program Arguments](host.md#program-arguments),
-[Map Providers](host.md#map-providers),
+## Program Arguments
+
+`Args` reads the arguments the program was started with:
+
+```text
+pub trait Args:
+    fn program(self) -> string
+    fn list(self) -> List[string]
+```
+
+1. r[std-cli.args.decl] `std.cli` declares the host capability trait `Args` with the methods above. Code imports it, as in `use std.cli.Args`.
+2. r[std-cli.args.program] `program` returns the name the program was started with.
+3. r[std-cli.args.list] `list` returns the program's arguments, in order, without the program name.
+4. r[std-cli.args.helper] `std.cli` declares `pub fn args() -> List[string] $ Args`, which returns `list()` of the `Args` provider that covers the call.
+5. r[std-cli.args.plain] Every method of `Args`, and `args`, are plain calls, not bang calls.
+6. r[std-cli.scripted-args.decl] `std.cli` declares `ScriptedArgs`, the deterministic provider of `Args`, with private fields. Code imports it, as in `use std.cli.ScriptedArgs`.
+7. r[std-cli.scripted-args.new] `ScriptedArgs::new(program: string, values: List[string]) -> ScriptedArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
+8. r[std-cli.scripted-args.no-host] `ScriptedArgs` never reads the host's arguments.
+
+> **Why.** The command line is one module: the raw arguments and the
+> parser that reads them. The host's other facts stay in `std.host`.
+
+See also: [Map Providers](host.md#map-providers),
 [Splitting And Padding](text.md#splitting-and-padding).

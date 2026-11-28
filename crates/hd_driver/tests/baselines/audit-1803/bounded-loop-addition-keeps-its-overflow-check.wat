@@ -11,8 +11,8 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i64) (local $value i64) (local $t4 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $size i32) (local $t0 i32) (local $result.0 i32) (local $value i64) (local $t2 i64) (local $t3 i64) (local $offset i32)
     ;; 17 |     println("${count(&[1, 2])}")
     global.get $stack
     global.get $stack_limit
@@ -28,154 +28,235 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    i32.const 2
-    call $rt:list_buf
-    local.tee $t1
-    i32.const 2
-    i32.store $heap offset=4
-    local.get $t1
-    i32.const 1
-    i32.store $heap offset=16
-    local.get $t1
-    i32.const 2
-    i32.store $heap offset=20
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $t2
-    local.get $t1
-    i32.store $heap
-    local.get $t2
-    call $count
-    local.set $t1
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $t2
+    block
+      i32.const 2
+      local.set $t1
+      local.get $t1
+      call $rt:list_buf
+      local.set $size
+      local.get $size
+      local.get $t1
+      i32.store $heap offset=4
+      local.get $size
+      local.set $t1
+      local.get $t1
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t1
+      i32.const 4
+      i32.add
+      local.set $t1
+      local.get $t1
+      i32.const 2
+      i32.store $heap offset=16
+      local.get $t1
+      i32.const 4
+      i32.add
+      local.set $t1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t1
+      local.get $t1
+      local.get $size
+      i32.store $heap
+      local.get $t1
+      local.set $size
+      local.get $size
+      call $count
+      local.set $result.0
+      i32.const 0
+      local.set $size
+      local.get $t1
       if
-        local.get $t2
-        i32.const 8
-        i32.sub
+        local.get $t1
         i32.load $heap
-        if
-          local.get $t2
-          call $rt:release_ref
+        local.set $t1
+        local.get $t1
+        call $rt:release_ref
+      end
+      i32.const 0
+      local.set $t1
+      local.get $result.0
+      i64.extend_i32_s
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t2
+              local.get $t2
+              call $unsigned_width
+              local.set $t1
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $t1
+              i64.extend_i32_u
+              local.set $t2
+              local.get $size
+              i64.extend_i32_u
+              local.set $t3
+              local.get $t2
+              local.get $t3
+              i64.add
+              local.set $t2
+              local.get $t2
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t2
+              i32.wrap_i64
+              local.set $t1
+              br 0
+            end
+          end
+          br 0
         end
       end
-    end
-    local.get $t1
-    i64.extend_i32_s
-    local.tee $t3
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t1
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t4
-    end
-    local.get $t1
-    i64.extend_i32_u
-    local.get $t4
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t4
-    local.tee $t1
-    i32.const 16
-    local.set $t2
-    if
+      i32.const 0
       local.get $t1
-      call $rt:str
-      local.set $t2
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $t1
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider0
+      local.get $provider0.vtable
+      call $"println[string]"
     end
-    local.get $t3
-    local.get $t2
-    local.get $t4
-    call $write_signed_sized
-    local.get $t2
-    local.get $t1
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
-  (func $count (param $xs i32) (result i32) (local $total i32) (local $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
-    ;; 11 |     while i < xs.len():
-    local.get $xs
-    i32.load $heap
-    local.tee $xs
-    i32.load $heap offset=4
-    local.set $t0
+  (func $count (param $xs i32) (result i32) (local $total i32) (local $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
+    ;; 9 |     let mut total = 0
     block
-      loop
-        local.get $i
-        local.get $t0
-        i32.lt_u
-        i32.eqz
-        br_if 1
-    ;; 12 |         total = total + xs[i]
-        local.get $xs
-        local.get $i
-        i32.const 4
-        i32.mul
-        i32.add
-        i32.load $heap offset=16
-        local.set $t1
-        local.get $total
-        i64.extend_i32_s
-        local.get $t1
-        i64.extend_i32_s
-        i64.add
-        local.tee $t2
-        i64.const 2147483647
-        i64.gt_s
-        local.get $t2
-        i64.const -2147483648
-        i64.lt_s
-        i32.or
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $t2
-        i32.wrap_i64
-        local.set $total
-    ;; 13 |         i = i + 1
-        local.get $i
-        i32.const -2
-        i32.gt_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $i
-        i32.const 1
-        i32.add
-        local.set $i
+      i32.const 0
+      local.set $total
+    ;; 10 |     let mut i: usize = 0
+      i32.const 0
+      local.set $i
     ;; 11 |     while i < xs.len():
-        br 0
+      local.get $xs
+      i32.load $heap
+      local.set $t0
+      local.get $t0
+      i32.load $heap offset=4
+      local.set $t1
+      block
+        loop
+          local.get $xs
+          i32.load $heap
+          local.set $t2
+          local.get $i
+          local.get $t1
+          i32.lt_u
+          local.set $t2
+          local.get $t2
+          if
+    ;; 12 |         total = total + xs[i]
+            local.get $t0
+            local.get $i
+            i32.const 4
+            i32.mul
+            i32.add
+            local.set $t2
+            local.get $t2
+            i32.load $heap offset=16
+            local.set $t2
+            local.get $total
+            i64.extend_i32_s
+            local.set $t3
+            local.get $t2
+            i64.extend_i32_s
+            local.set $t4
+            local.get $t3
+            local.get $t4
+            i64.add
+            local.set $t3
+            local.get $t3
+            i64.const 2147483647
+            i64.gt_s
+            local.get $t3
+            i64.const -2147483648
+            i64.lt_s
+            i32.or
+            if
+              call $rt:panic'2
+              unreachable
+            end
+            local.get $t3
+            i32.wrap_i64
+            local.set $total
+    ;; 13 |         i = i + 1
+            local.get $i
+            i32.const -2
+            i32.gt_u
+            if
+              call $rt:panic'2
+              unreachable
+            end
+            local.get $i
+            i32.const 1
+            i32.add
+            local.set $i
+    ;; 11 |     while i < xs.len():
+          else
+            br 2
+          end
+          br 0
+        end
       end
+    ;; 9 |     let mut total = 0
     end
-    ;; 14 |     total
     local.get $total
   )
 )

@@ -21,7 +21,7 @@ impl Stamp:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$1] %0 : ()
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -70,7 +70,7 @@ fn promoted(p: Post) -> usize:
 >   %0 = Read borrow [$0 .Stamp .by] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L3 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
@@ -80,7 +80,7 @@ fn promoted(p: Post) -> usize:
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Store [$4] %9 : ()
 >   %12 = Read borrow [$4] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %13 = Call std/core/bytes_len[] (%12) : usize
 >   %14 = Break L1 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
@@ -92,7 +92,7 @@ fn promoted(p: Post) -> usize:
 >   %22 = Read borrow [$0 .title] : string
 >   %23 = Store [$2] %22 : ()
 >   %24 = Read borrow [$2] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %25 = Call std/core/bytes_len[] (%24) : usize
 >   %26 = Break L0 %25 : never
 >   %27 = Block - : usize
 >   %28 = Scope %27 [] : usize

@@ -1,0 +1,9 @@
+# test: local omitted result through global callback
+# Rule: fn.decl.omitted-cycle.
+fn bridge(callback: fn() -> i32):
+    callback()
+
+fn outer() -> void:
+    fn local(): # diagnostic: recursive-function-needs-result-type
+        bridge(local)
+    let _ = local

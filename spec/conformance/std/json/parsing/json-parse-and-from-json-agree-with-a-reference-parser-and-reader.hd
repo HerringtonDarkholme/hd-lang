@@ -1,8 +1,8 @@
 # test: parse on the input's bytes and from_json with lazy paths give the same values and the same errors as the parser and reader they replaced
 # Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.nonfinite-parse-result, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set-ref, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
-use std.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
-use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Member, VariantInfo, Facts, SelfRef}
+use std.encoding.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
+use std.encoding.{Deserialize, Deserializer, ValueKind}
+use std.meta.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
 
 # The old parser and the old reader stay here as the reference: the parser
@@ -289,7 +289,7 @@ fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[*Parsed, Js
         index = index + 1
     value := match string::parse::[f64](old_bytes_text(digits)):
         .Ok(found) => found
-        .Err(_) => panic("std.json: a JSON number is valid f64 text")
+        .Err(_) => panic("std.encoding.json: a JSON number is valid f64 text")
     match Number::from_f64(value):
         .Some(number) => .Ok(box(Parsed { value: Json.Number(number), end: end }))
         .None => .Err(JsonError.NumberOutOfRange(start))
@@ -338,7 +338,7 @@ impl OldReader:
     fn top(self) -> *mut OldFrame:
         match self.frames.last():
             .Some(frame) => frame
-            .None => panic("std.json: no open container")
+            .None => panic("std.encoding.json: no open container")
 
     fn pop(&mut self) -> void:
         frame := self.top()

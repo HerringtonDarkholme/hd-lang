@@ -1,0 +1,8 @@
+use pkg.lib.defs.{Pick, Receiver, Tagged}
+use pkg.prod.defs.{Product}
+
+pub struct Picks[T < Pick[Product]]:
+    pub v: T
+
+pub fn first(p: Picks[Receiver], t: Tagged[Product]) -> i32:
+    1

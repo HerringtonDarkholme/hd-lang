@@ -1,6 +1,8 @@
 # Raw input data stays deliberately unformatted when repo .hd sources are formatted.
+# `--check` lists the file that would change.
 run: hd fmt --check inputs/binary.input
 exit: 1
+stdout: inputs/binary.input
 run: hd fmt inputs/binary.input
 same-text: inputs/binary.input want/binary.hd
 run: hd fmt --check inputs/binary.input
@@ -127,3 +129,13 @@ run: hd fmt inputs/named-patterns.input
 same-text: inputs/named-patterns.input want/named-patterns.hd
 run: hd fmt --check inputs/named-patterns.input
 stdout-json: []
+# The call's delimiters allow positional, named and nested binary chains.
+run: hd fmt --check inputs/call-binary-chains.input
+exit: 1
+run: hd fmt inputs/call-binary-chains.input
+same-text: inputs/call-binary-chains.input want/call-binary-chains.hd
+run: hd fmt --check inputs/call-binary-chains.input
+stdout-json: []
+run: hd fmt inputs/call-binary-chains.input
+same-text: inputs/call-binary-chains.input want/call-binary-chains.hd
+run: hd check want/call-binary-chains.hd

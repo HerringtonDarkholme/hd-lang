@@ -1,0 +1,7 @@
+# test: local omitted result self recursion
+# Rule: fn.decl.omitted-recursion.
+fn outer() -> i32:
+    fn count(n: i32): # diagnostic: recursive-function-needs-result-type
+        if n == +0: +0 else: count(n - 1)
+
+    count(+1)

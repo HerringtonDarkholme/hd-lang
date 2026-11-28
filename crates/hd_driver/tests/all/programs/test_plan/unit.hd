@@ -1,0 +1,11 @@
+# One unit of `a_test_program_splits_its_unit_init_dispatch`, which
+# writes its number for UNIT. `V` is made by a call: an init the unit runs.
+use std.testing.assert_equal
+
+fn make() -> List[i32]: [UNIT]
+
+let V = make()
+
+tests:
+    it("unit UNIT"):
+        assert_equal(V[0], UNIT)

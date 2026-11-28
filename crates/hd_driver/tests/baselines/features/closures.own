@@ -18,7 +18,7 @@ fn capture_call(s: string) -> usize:
 >   %28 = Block %22 : usize
     f() + f()
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L3 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -29,7 +29,7 @@ fn capture_call(s: string) -> usize:
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
 >   %11 = Read borrow [$0] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L2 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
@@ -50,7 +50,7 @@ fn escape(s: string) -> fn() -> usize:
     fn() -> usize: s.len()
 >   %0 = Retain %9 Entry captures #0 : ()
 >   %2 = Read borrow [$0] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize

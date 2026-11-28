@@ -1,6 +1,6 @@
 # test: when f solves Args, the collected arguments are checked against it, so call(g, 1, 2, 3, 4) gives Args = (usize, usize, List[i32]...)
 # expect: test
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 fn add2(a: i32, b: i32) -> i32:
     a + b
 fn g(a: usize, b: usize, xs...: List[i32]) -> usize:

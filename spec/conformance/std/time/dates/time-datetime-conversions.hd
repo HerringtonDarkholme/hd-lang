@@ -1,0 +1,121 @@
+# test: fixed-offset conversions cover millisecond endpoints, Gregorian years and flooring on both sides of the epoch
+# Spec std/time Broken-down Time: std-time.offset.utc, std-time.offset.from-seconds, std-time.datetime.to-datetime, std-time.datetime.to-timestamp, std-time.datetime.conversion-range, std-time.datetime.invalid-field, std-time.datetime.fraction-retained, std-time.datetime.floor-milliseconds, std-time.datetime.microsecond-format.
+use std.time.{DateTime, Timestamp, UtcOffset, TimeError}
+
+fn valid() -> DateTime:
+    DateTime::parse("2000-02-29 12:34:56.123456", "%F %T.%f").expect("valid calendar time")
+
+tests:
+    it("round-trips the millisecond range at offsets in both directions"):
+        for millis in [
+            -9223372036854775807i64 - 1,
+            -9223372036854775807,
+            -62198755200000,
+            -86400001,
+            -86400000,
+            -1,
+            0,
+            1,
+            951782400000,
+            9223372036854775806,
+            9223372036854775807,
+        ]:
+            for seconds in [-86399i32, -19815, -1, 0, 1, 19815, 86399]:
+                stamp := Timestamp::from_unix_milliseconds(millis)
+                offset := UtcOffset::from_seconds(seconds).expect("offset")
+                parts := stamp.to_datetime(offset)
+                assert_equal(
+                    parts.to_timestamp(),
+                    .Ok(stamp),
+                    reason="all fields preserve the instant",
+                )
+                assert(parts.nanosecond % 1000000 == 0, reason="timestamps stay milliseconds")
+        assert_equal(UtcOffset::utc().seconds, +0)
+
+    it("retains parsed microseconds and floors toward negative infinity"):
+        for (text, expected) in [
+            ("1970-01-01 00:00:00.123456", 123i64),
+            ("1969-12-31 23:59:59.999999", -1i64),
+            ("1969-12-31 23:59:59.000001", -1000i64),
+            ("1970-01-01 00:00:00.000001", 0i64),
+        ]:
+            value := DateTime::parse(text, "%F %T.%f").expect("fraction")
+            assert_equal(value.format("%F %T.%f"), text, reason="DateTime keeps the full fraction")
+            assert_equal(
+                value.to_timestamp().expect("in range").unix_milliseconds(),
+                expected,
+                reason="floor, not truncation",
+            )
+        assert_equal(valid().nanosecond, 123456000u32)
+
+    it("checks every component instead of normalizing it"):
+        let mut value = valid()
+        value.month = 0
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("month")))
+        value = valid()
+        value.day = 30
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("day")))
+        value = valid()
+        value.year = 1900
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("day")))
+        value = valid()
+        value.hour = 24
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("hour")))
+        value = valid()
+        value.minute = 60
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("minute")))
+        value = valid()
+        value.second = 60
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("second")))
+        value = valid()
+        value.nanosecond = 1000000000
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("nanosecond")))
+        value = valid()
+        value.offset = UtcOffset { seconds: 86400 }
+        assert_equal(value.to_timestamp(), .Err(TimeError.InvalidField("offset")))
+        assert_equal(UtcOffset::from_seconds(-86400), .Err(TimeError.InvalidField("offset")))
+        assert_equal(UtcOffset::from_seconds(86400), .Err(TimeError.InvalidField("offset")))
+
+    it("distinguishes range failures from invalid calendar fields"):
+        let mut value = Timestamp::from_unix_milliseconds(-9223372036854775807 - 1)
+            .to_datetime(UtcOffset::utc())
+        value.nanosecond -= 1000000
+        assert_equal(
+            value.to_timestamp(),
+            .Err(TimeError.OutOfRange),
+            reason="one millisecond before MIN",
+        )
+        value = Timestamp::from_unix_milliseconds(9223372036854775807).to_datetime(UtcOffset::utc())
+        value.nanosecond += 1000000
+        assert_equal(
+            value.to_timestamp(),
+            .Err(TimeError.OutOfRange),
+            reason="one millisecond after MAX",
+        )
+        value = valid()
+        value.year = -2147483648
+        value.day = 28
+        assert_equal(
+            value.to_timestamp(),
+            .Err(TimeError.OutOfRange),
+            reason="valid date outside timestamp range",
+        )
+        value.year = 2147483647
+        assert_equal(
+            value.to_timestamp(),
+            .Err(TimeError.OutOfRange),
+            reason="valid positive year outside range",
+        )
+
+    it("ISO week years may border the i32 calendar year range"):
+        for year in [-2147483647i32 - 1, 2147483647]:
+            for (month, day) in [(1u8, 1u8), (12u8, 31u8)]:
+                let mut value = valid()
+                value.year = year
+                value.month = month
+                value.day = day
+                iso := value.format("%G %V %u")
+                parsed := DateTime::parse(iso, "%G %V %u").expect("ISO edge year")
+                assert_equal(parsed.year, year)
+                assert_equal(parsed.month, month)
+                assert_equal(parsed.day, day)

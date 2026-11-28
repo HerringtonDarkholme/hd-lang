@@ -9,7 +9,7 @@
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $before (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 18 |     a < b
     global.get $stack
@@ -201,13 +201,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $s.0
       i32.const 16
       i32.mul
       i32.add
-      i32.load $heap offset=12
+      i32.load $heap offset=44
       local.set $value
       local.set $t0
     end

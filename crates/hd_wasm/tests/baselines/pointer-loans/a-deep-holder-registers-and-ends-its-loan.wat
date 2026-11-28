@@ -28,7 +28,7 @@
       i32.add
       i32.store $heap
     end
-    ;; 172 |                                                                                                                                                                     inner: View0 {
+    ;; 132 |     view := View40 {
     local.get $p
     ;; 215 |     alias.value = "changed"
     local.get $alias
@@ -56,7 +56,7 @@
     end
     ;; 216 |     *view.inner
     i32.load $heap
-    ;; 172 |                                                                                                                                                                     inner: View0 {
+    ;; 132 |     view := View40 {
     local.get $p
     ;; 216 |     *view.inner
     i32.load $heap offset=4

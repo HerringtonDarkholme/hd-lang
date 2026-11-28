@@ -6,53 +6,62 @@
   (import "fixture" "heap" (memory $heap 1))
   (func $rename (param $p i32)
     ;; 17 |     p.set("b")
-    local.get $p
-    i32.const 65 ;; &"b"
-    i32.const 1
-    call $"impl Named.set"
-    local.get $p
-    if
+    block
       local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref'1
-      end
+      i32.const 65 ;; &"b"
+      i32.const 1
+      call $"impl Named.set"
+      local.get $p
+      call $rt:release_ref'1
     end
   )
-  (func $greet (param $p i32) (result i32)
+  (func $greet (param $p i32) (result i32) (local $n i32) (local $t0 i32)
     ;; 13 |     n := &p.name
-    local.get $p
+    block
+      local.get $p
+      local.set $n
     ;; 14 |     n.len()
-    call $"impl string.len"
+      local.get $n
+      local.set $t0
+      i32.const 0
+      local.set $n
+      local.get $t0
+      call $"impl string.len"
+      local.set $n
     ;; 13 |     n := &p.name
-    local.get $p
-    if
+      i32.const 0
+      local.set $t0
       local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref'1
-      end
+      call $rt:release_ref'1
     end
+    local.get $n
   )
-  (func $"impl Named.set" (param $self i32) (param $name.0 i32) (param $name.1 i32)
+  (func $"impl Named.set" (param $self i32) (param $name.0 i32) (param $name.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 10 |         self.name = name
-    local.get $self
-    i32.load $heap
-    local.get $self
-    local.get $name.0
-    i32.store $heap
-    local.get $self
-    local.get $name.1
-    i32.store $heap offset=4
-    local.tee $self
-    if
+    block
+      local.get $name.0
+      local.get $name.1
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $name.0
+      i32.const 0
+      local.set $name.1
       local.get $self
+      i32.load $heap
+      local.set $name.1
+      local.get $self
+      i32.load $heap offset=4
+      local.set $t2
+      local.get $self
+      local.get $t1
+      i32.store $heap
+      local.get $self
+      local.get $t0
+      i32.store $heap offset=4
+      local.get $name.1
+      call $rt:release_ref'2
+      local.get $name.0
       call $rt:release_ref'2
     end
   )

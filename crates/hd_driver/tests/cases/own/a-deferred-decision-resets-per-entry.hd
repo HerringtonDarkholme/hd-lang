@@ -1,6 +1,6 @@
 # @dump: own wat
 # @build: v8 release
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn repeat_after_callback(xs: &mut List[i32], rounds: usize, tick: fn() -> i32) -> i32:

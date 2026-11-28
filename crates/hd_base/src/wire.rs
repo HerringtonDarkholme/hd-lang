@@ -67,6 +67,10 @@ impl<'a> Reader<'a> {
     fn arr<const N: usize>(&mut self) -> [u8; N] {
         self.take(N).try_into().unwrap_or([0; N])
     }
+    /// Moves past `n` bytes unread.
+    pub fn skip(&mut self, n: usize) {
+        self.take(n);
+    }
     pub fn u8(&mut self) -> u8 {
         self.arr::<1>()[0]
     }

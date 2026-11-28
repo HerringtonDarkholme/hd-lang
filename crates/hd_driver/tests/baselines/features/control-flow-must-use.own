@@ -14,7 +14,7 @@ fn save(s: string) -> Result[string, SaveError]:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %6 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -92,7 +92,7 @@ fn discard(s: string) -> usize:
 >   %41 = Scope %38 [] : ()
     s.len()
 >   %42 = Read borrow [$0] : string
->   %43 = Call std/rt.bytes/bytes_len[] (%42) : usize
+>   %43 = Call std/core/bytes_len[] (%42) : usize
 >   %44 = Break L0 %43 : never
 >   %45 = Block - : usize
 >   %46 = Scope %45 [] : usize
@@ -111,7 +111,7 @@ fn unused(s: string) -> usize:
 >   %10 = Block %4 : usize
     s.len()
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize

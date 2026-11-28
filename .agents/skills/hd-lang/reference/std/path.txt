@@ -1,0 +1,10 @@
+# std.path: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.path` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.path.NAME` inside any package.
+std.path.Path  pub type Path(string)  -- A file system path: text the path operations read by `/` components.
+std.path.Path.join  pub fn join(&self, part: string) -> Path  -- The path with `part` joined on by `/`; an absolute `part` replaces the whole path.
+std.path.Path.parent  pub fn parent(&self) -> Path?  -- The path without its last component, in `.Some`, or `.None` when it has none.
+std.path.Path.file_name  pub fn file_name(&self) -> string?  -- The path's last component, in `.Some`, or `.None` when it has none.
+std.path.Path.extension  pub fn extension(&self) -> string?  -- The text after the last dot of the file name, in `.Some`, or `.None`.
+std.path.Path.file_stem  pub fn file_stem(&self) -> string?  -- The file name without its extension, in `.Some`, or `.None` when there is no file name.
+std.path.Path.with_extension  pub fn with_extension(&self, extension: string) -> Path  -- The path with the extension of its file name replaced by `extension`, or removed when it is empty.

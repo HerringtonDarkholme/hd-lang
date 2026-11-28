@@ -1,0 +1,24 @@
+# @dump: wat
+# @build: dev | checked | checked release
+# expected: release specializes shape guards to at most two bound checks and a cast; every profile allocates nothing.
+# @helper: std/convert/impl[S < Integer, T < Integer] TryFrom[S] for T.try_from
+use std.convert.TryFrom
+use std.num.TryFromIntError
+
+fn narrow(value: i64) -> Result[i8, TryFromIntError]:
+    i8::try_from(value)
+
+fn unsigned_to_signed(value: u64) -> Result[i64, TryFromIntError]:
+    i64::try_from(value)
+
+fn signed_to_unsigned(value: i64) -> Result[u64, TryFromIntError]:
+    u64::try_from(value)
+
+fn target_width(value: u64) -> Result[usize, TryFromIntError]:
+    usize::try_from(value)
+
+fn generic[T, U < TryFrom[T]](value: T) -> Result[U, U::Error]:
+    U::try_from(value)
+
+fn through_bound(value: i64) -> Result[i32, TryFromIntError]:
+    generic::[i64, i32](value)

@@ -5,33 +5,52 @@
 # collected instance of its own: the emitter's fallback boundary. That
 # boundary runs the same short-loan marking as `settled`
 # (`promote::short_loans`), so both show the same counts.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn lookup_direct!(values: *Map[string, string], key: string) -> usize:
-    match values.get(key):
+    pause!()
 > app/main/lookup_direct
->   retain string (stored)
->   release string (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release *Map[string, string] (last use)
->   release string? (last use)
+>   release string (last use)
+>   release counted reference (last use)
+>   release *Map[string, string] (last use)
+>   release string (last use)
 > app/main/lookup_direct
 >   release *Map[string, string] (cancelled)
 >   release string (cancelled)
+>   release counted reference (last use)
+    match values.get(key):
+>   retain string (stored)
+>   release string (last use)
+>   release *Map[string, string] (last use)
         .Some(value) => value.len()
         .None => 0
 
 @cold
 fn lookup_viewed!(values: *Map[string, string], key: string) -> usize:
-    match values.get(key):
+    pause!()
 > app/main/lookup_viewed
->   retain string (stored)
->   release string (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release *Map[string, string] (last use)
->   release string? (last use)
+>   release string (last use)
+>   release counted reference (last use)
+>   release *Map[string, string] (last use)
+>   release string (last use)
 > app/main/lookup_viewed
 >   release *Map[string, string] (cancelled)
 >   release string (cancelled)
+>   release counted reference (last use)
+    match values.get(key):
+> app/main/lookup_viewed
+>   release *Map[string, string] (last use)
+>   release string (last use)
+>   retain string (stored)
+>   release string (last use)
+>   release *Map[string, string] (last use)
         .Some(value) => value.len()
         .None => 0
 
@@ -43,6 +62,8 @@ fn viewed() -> fn!(*Map[string, string], string) -> usize:
 pub fn main!() -> void:
     values := box({ "key": "payload" })
 > app/main/main
+>   retain string (stored)
+>   retain string (stored)
 >   retain *mut Map[string, string] (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (last use)
@@ -68,3 +89,22 @@ pub fn main!() -> void:
 >   release *Map[string, string] (cancelled)
 >   release Suspend[usize] (cancelled)
 >   release *mut Map[string, string] (last use)
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

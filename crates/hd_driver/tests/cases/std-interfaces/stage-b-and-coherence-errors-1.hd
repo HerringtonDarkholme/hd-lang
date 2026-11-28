@@ -8,3 +8,5 @@ pub struct Set[K < Hash]:
 
 pub fn first[T](s: Set[T]) -> i32:
     1
+# @file: a/mod.hd
+pub use pkg.a.{x}

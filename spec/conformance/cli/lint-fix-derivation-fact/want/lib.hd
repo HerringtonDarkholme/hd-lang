@@ -1,4 +1,4 @@
-use std.structure.Structure
+use std.meta.Structure
 
 struct Style:
     prefix: string = ""

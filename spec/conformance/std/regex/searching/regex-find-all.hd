@@ -1,5 +1,5 @@
 # test: find_all returns non-overlapping leftmost-first matches and steps one character past an empty match
-# Spec std/regex All Matches: std-regex.find-all, std-regex.find-all.next, std-regex.find-all.empty, std-regex.find-all.drop, std-regex.find-all.anchors (task #244).
+# Spec std/regex All Matches: std-regex.find-all, std-regex.find-all.next, std-regex.find-all.empty, std-regex.find-all.drop, std-regex.find-all.anchor-context (task #244).
 use std.regex.Regex
 use std.text.r
 

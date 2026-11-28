@@ -60,7 +60,7 @@ fn first_len(c: Constant) -> usize:
 >   %6 = Scope %5 [] : string
 >   %7 = Store [$1] %6 : ()
 >   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -85,7 +85,7 @@ fn read(source: &dyn Supplier[Item = string]) -> usize:
 >   %3 = LoanClose %1 : ()
 >   %4 = Store [$1] %2 : ()
 >   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

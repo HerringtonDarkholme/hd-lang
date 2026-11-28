@@ -22,6 +22,7 @@ fn build_by(
     for (name, text) in files {
         src.insert(name, text);
     }
+    crate::add_facades(&mut src);
     let host = Host {
         render_tir: &[],
         sources: &src,
@@ -74,13 +75,7 @@ fn run(out: &Output, name: &str) -> String {
 #[test]
 fn a_field_edit_rebuilds_the_generated_bodies() {
     let store = MemoryStore::default();
-    let main = "\
-use pkg.shapes.Point
-use std.ops.Default
-
-pub fn main() -> void $ Console:
-    println(debug(Point::default()))
-";
+    let main = include_str!("programs/structure_run/field_edit_main.hd");
     let shapes = |fields: &str| {
         format!("use std.ops.Default\n\n@derive(Debug, Default)\npub struct Point:\n{fields}")
     };
@@ -118,15 +113,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_doc_edit_updates_metadata_without_rechecking_a_dependent() {
     let store = MemoryStore::default();
-    let main = "\
-use pkg.shapes.options.Pack
-use std.cli.Cli
-
-pub fn main() -> void $ Console:
-    match Pack::parse([\"--help\"]):
-        .Err(.Help(text)) => println(text)
-        _ => panic(\"expected help\")
-";
+    let main = include_str!("programs/structure_run/doc_edit_main.hd");
     let options = |about: &str, field: &str| {
         format!(
             "\

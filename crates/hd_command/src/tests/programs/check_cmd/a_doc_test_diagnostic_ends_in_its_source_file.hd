@@ -1,0 +1,7 @@
+pub fn one() -> i32: 1
+
+## ```hd
+## use pkg.m.{nothing}
+## pass
+## ```
+pub fn zero() -> i32: 0

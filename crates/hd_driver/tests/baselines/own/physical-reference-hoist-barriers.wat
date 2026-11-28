@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl Probes.writing_call" (param $items i32) (param $alias i32) (param $source i32) (local $i i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |         while i < 2:
     block

@@ -1,0 +1,2 @@
+pub struct Coin:
+    pub cents: i32

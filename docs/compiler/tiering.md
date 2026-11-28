@@ -91,13 +91,16 @@ kept ([`types.arith.checked`](../../spec/lang/04-type-system.md#r-types.arith.ch
   passes. The dev inliner considers std functions and user functions
   marked `@inline`; release considers every user function
   (`hd_opt::inline`).
-- The link-time Wasm cleanup, for every function of the program, on one
-  thread (`Module::finish_link`, `hd_wasm/src/module.rs`): `constants`,
-  `fold_constant_branches`, `static_values` with `static_counts`,
-  `effect_free_calls`, and the `locals` rule fixpoint after each; on
-  wasmtime also `inline_counts` (`DEV_WASMTIME`), except in a checked
-  build. The daily `dev-speed` metric was 1.22x against an allowed 4x on
-  2026-11-12, so dev spends compile time it is allowed to save.
+- Only the link passes valid code needs (`Module::finish_link`,
+  `hd_wasm/src/module.rs`; #2392). The fold of `std.rt` init constants
+  (`fold_init_constants`) runs in every link, because the checked
+  report's count audit reads them before the allocator's init runs. So
+  does `coalesce`, because frame size bounds stack depth. The rest of the
+  module-level cleanup (`Module::optimize`: `constants`, branch folds,
+  `static_values`, `effect_free_calls`, `count_tests::lower`, the
+  `locals` fixpoints, `tables::lower`) runs only in optimized builds.
+  On md-reader this took a cold dev build from about 1.78 to 1.36 s of
+  CPU at one job, for a dev `.wasm` about 40% larger and slower.
 - Cranelift `OptLevel::None` with the backtracking register allocator
   (`hd_run_wasmtime::EngineConfig::pipeline`). On V8, Liftoff and tier-up
   already give a fast first tier.

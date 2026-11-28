@@ -28,8 +28,8 @@ WORK := 20
 HANDOFF := 28
 RESULT := 48
 
-# Each thread's frame region: 1 MiB, as the first thread's.
-FRAMES := 1048576
+# Each thread's frame region: 8 MiB, as the first thread's (#2396).
+FRAMES := 8388608
 
 # The state word: OWNER for each of the block's owners, the thread one of
 # them until it ends; ENDED once it ended, and STOPPED too when it stopped

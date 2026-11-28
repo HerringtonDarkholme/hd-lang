@@ -418,6 +418,9 @@ the variant index and the path.
   stop for real
   ([`req.cancel.external-abort`](../../spec/lang/11-requirements-and-suspension.md#r-req.cancel.external-abort)).
   A blocking special-file operation (a FIFO) only has its result dropped.
+  Disposing a `File` completes the reads pending on it with `Closed` the
+  same way (`std-io.read.pending-closed`), and its descriptor closes when
+  the abandoned OS read returns.
 - **Path sandbox.** Granted directories are opened once as `cap-std`
   directory handles, and every file operation resolves relative to them,
   which removes a check-then-use race on symbolic links, as the host
@@ -508,7 +511,7 @@ cancelled and holds the worker until it ends.
 | cleanup (`--cleanup-limit`, a Ctrl-C) | `HostInterrupt` (`cancel.rs`): the Ctrl-C handler sets a flag and wakes the reactor. A request found in a host wait becomes a repoll that calls `hd.cancel`, then `hd.abandon` at the next request or at the cleanup deadline, which the wait honors as a timer; a request found in Wasm stops it through the epoch callback | the run ends cancelled or stopped, status 130 |
 | initial GC heap size | 64 MiB for `hd run`; 0 for `hd test`'s heaps, which start empty and grow on demand, so a pooled store reserves nothing before its case allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
 | GC heap and the exchange buffer | no limit of the host's own: the engine's memory reservations and the machine. A failed linear-memory growth makes `memory.grow` return `-1`, which the writer turns into `heap-exhausted` (§17.3); a GC allocation that fails after a collection traps | `heap-exhausted` |
-| stack | `Config::max_wasm_stack`, 4 MiB by default | `stack-exhausted` |
+| stack | `Config::max_wasm_stack`, 16 MiB by default | `stack-exhausted` |
 | instances, tables, memories, GC heaps in `hd test` | the pooling allocator's totals, one slot per worker plus shrink spares. The runner never runs more stores at once than the pool has slots, so exhaustion means a bug | an internal error naming the limit |
 
 **Test timeouts on Node.** A test case's `timeout` is evaluated first in
@@ -549,11 +552,13 @@ pub enum Outcome { Exit(u8), Panic(PanicReport), Internal(String) }
   (`hd_run_wasmtime/src/host/`). Planned, not built: an embedder supplying
   its own providers for its own capability traits, with their ABI
   descriptions at run time instead of from the static table (#51).
-- wasmtime compiled modules are cached in process only, keyed by their
-  bytes; wasmtime's serialized modules are `unsafe` to deserialize, so
-  there is no cross-run module cache (`cache.rs`). Their machine code is
-  kept across runs function by function, in `clpack` entries
-  (`code_cache.rs`, docs/compiler/engines-and-test-runner.md §18.2).
+- Portable-Wasm compiled modules are cached in process, keyed by their
+  bytes (`cache.rs`); their machine code persists function by function in
+  `clpack` entries (`code_cache.rs`). Wasmtime release builds separately
+  publish reusable `.cwasm` native artifacts. Their loader maps the open
+  image through `Module::deserialize_open_file`, confining the unsafe
+  contract to that artifact boundary. See
+  [compile caches](../../docs/compiler/engines-and-test-runner.md#182-compile-caches).
 
 ### 17.10 The Generated JS Glue
 

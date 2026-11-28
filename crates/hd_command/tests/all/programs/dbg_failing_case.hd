@@ -1,0 +1,12 @@
+pub fn double(x: i32) -> i32:
+    dbg(x)
+    x * 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("passes quietly"):
+        assert_equal(double(2), 4, reason="double")
+
+    it("fails loudly"):
+        assert_equal(double(3), 7, reason="double")

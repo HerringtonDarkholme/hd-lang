@@ -4,7 +4,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $token (param $other i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $text i32) (local $t0 i32)
     ;; 28 |     word(Token.Word(&text), &other).len()
     global.get $stack

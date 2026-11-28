@@ -1,0 +1,9 @@
+# @dump: stdout
+# @build: dev | checked
+fn outer() -> i32:
+    fn `step`(n: i32):
+        n + 1
+    step(+3) + `step`(+4)
+
+pub fn main() -> void $ Console:
+    println(outer())

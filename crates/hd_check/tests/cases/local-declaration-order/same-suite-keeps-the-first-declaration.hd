@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# names.local-type.duplicate: every later type or trait conflicts with the first.
+fn duplicate() -> i32:
+    struct Item: pass
+    trait Item
+    type Item = i32
+    enum Item:
+        Value
+    +1

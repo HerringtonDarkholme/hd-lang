@@ -1,0 +1,44 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Worker lengths 4 and 13 previously indexed past their final provider leaf.
+struct Wide:
+    maybe: i64? = .None
+    words: (i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) = (
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+    )
+
+fn four(value: Wide, n: i64) -> i64 $ Console:
+    value.words._0 + n
+
+fn thirteen(
+    value: Wide,
+    a: i64,
+    b: i64,
+    c: i64,
+    d: i64,
+    e: i64,
+    f: i64,
+    g: i64,
+    h: i64,
+    i: i64,
+    j: i64,
+) -> i64 $ Console:
+    value.words._0 + a + b + c + d + e + f + g + h + i + j
+
+pub fn main() -> void $ Console:
+    println("${four(Wide {}, 2)} ${thirteen(Wide {}, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)}")

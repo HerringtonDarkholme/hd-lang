@@ -8,13 +8,14 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl[T] DoubleEndedIterator[T] for ListIter[T].next_back[i32]" (param $t0 i32) (result i32 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     i32.load $heap offset=4
     local.get $t0
     i32.load $heap offset=8
+    local.tee $t1
     i32.ge_u
     if
       i32.const 0
@@ -22,8 +23,7 @@
       return
     end
     local.get $t0
-    local.get $t0
-    i32.load $heap offset=8
+    local.get $t1
     i32.const 1
     i32.sub
     i32.store $heap offset=8

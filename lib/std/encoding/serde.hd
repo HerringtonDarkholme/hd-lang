@@ -1,0 +1,1660 @@
+# std.encoding: the format-neutral opt-in to serialization
+# (spec/lang/14-annotations.md#serialization). A type opts in once with
+# `Serialize` and `Deserialize`, derived or written by hand, and every
+# format reads the implementation through `Serializer` and `Deserializer`: JSON
+# (spec/std/json.md#typed-json) and the host boundary
+# (spec/lang/10-modules.md#r-module.boundary.out). The standard
+# implementations and the templates are spec/std/serde.md.
+use std.meta.{annotate, cold, inline}
+use std.collections.Set
+use std.ops.Tuple
+use std.hash.Hash
+use std.text.Parse
+use std.meta.{
+    Structure,
+    UnionType,
+    Walker,
+    Describer,
+    Source,
+    Variant,
+    VariantInfo,
+    Field,
+    Member,
+    Members,
+    Key,
+    Facts,
+    skips,
+}
+use std.rt.{string_from_bytes}
+
+## A member's or variant's document name, independent of its hd source name.
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+@annotate(.Field, .Variant)
+pub struct Rename:
+    pub name: string
+
+## Names a member or variant on the document wire.
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+pub fn rename(name: string) -> Rename:
+    Rename { name: name }
+
+## Omits an optional member when it is None.
+## See [std-serde.skip-none.fact.phantom](../../../spec/std/serde.md#r-std-serde.skip-none.fact.phantom).
+@annotate::[F](.Field)
+pub struct SkipNone[F < ?Copy]: pass
+
+## Marks an optional member for omission when absent.
+## See [std-serde.skip-none.constructor](../../../spec/std/serde.md#r-std-serde.skip-none.constructor).
+pub fn skip_none[T < ?Copy]() -> SkipNone[T?]:
+    SkipNone::[T?] {}
+
+## Omits a member from serialization and restores its declared default.
+## See [std-serde.skip.fact](../../../spec/std/serde.md#r-std-serde.skip.fact).
+@annotate(.Field)
+pub struct Skip: pass
+
+## Marks a member as skipped in this serde derivation.
+## See [std-serde.skip.constructor](../../../spec/std/serde.md#r-std-serde.skip.constructor).
+pub fn skip() -> Skip:
+    Skip {}
+
+## The eight document member-name styles.
+## See [std-serde.rename-all.styles](../../../spec/std/serde.md#r-std-serde.rename-all.styles).
+@derive(Debug, Eq)
+pub enum RenameCase:
+    Lowercase
+    Uppercase
+    PascalCase
+    CamelCase
+    SnakeCase
+    ScreamingSnakeCase
+    KebabCase
+    ScreamingKebabCase
+
+## The default naming style for a record's members or an enum's variants and members.
+## See [std-serde.rename-all.fact](../../../spec/std/serde.md#r-std-serde.rename-all.fact).
+@annotate(.Data, .Enum)
+pub struct RenameAll:
+    pub style: RenameCase
+
+## Configures the default document member-name style.
+## See [std-serde.rename-all.constructor](../../../spec/std/serde.md#r-std-serde.rename-all.constructor).
+pub fn rename_all(style: RenameCase) -> RenameAll:
+    RenameAll { style: style }
+
+## How an enum is represented on a document wire.
+## See [std-serde.enum-tagging.fact](../../../spec/std/serde.md#r-std-serde.enum-tagging.fact).
+@derive(Debug, Eq)
+@annotate(.Enum)
+pub enum EnumTagging:
+    Internal(tag: string)
+    Adjacent(tag: string, content: string)
+    Untagged
+
+## Places the variant name under `tag`; `content` selects adjacent form when present.
+## See [std-serde.enum-tagging.constructors](../../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+pub fn tag(tag: string, content: string? = .None) -> EnumTagging:
+    match content:
+        .Some(name) => EnumTagging.Adjacent(tag, name)
+        .None => EnumTagging.Internal(tag)
+
+## Writes only the variant payload and tries variants in declaration order when reading.
+## See [std-serde.enum-tagging.constructors](../../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+pub fn untagged() -> EnumTagging:
+    EnumTagging.Untagged
+
+## Resolves a wire name: member rename, then container rename_all, then source name.
+## See [std-serde.member-name.precedence](../../../spec/std/serde.md#r-std-serde.member-name.precedence).
+pub fn member_name(member: &Member, container: Facts) -> string:
+    # Most members and containers have no facts, so the searches are skipped.
+    if !member.facts.items.is_empty():
+        match member.facts.find::[Rename]():
+            .Some(fact) => return fact.name
+            .None => pass
+    if container.items.is_empty():
+        return member.name
+    match container.find::[RenameAll]():
+        .Some(fact) => case_name(member.name, fact.style)
+        .None => member.name
+
+## Resolves a variant wire name: variant rename, then enum rename_all, then source name.
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+fn variant_name(variant: &VariantInfo, container: Facts) -> string:
+    if !variant.facts.items.is_empty():
+        match variant.facts.find::[Rename]():
+            .Some(fact) => return fact.name
+            .None => pass
+    if container.items.is_empty():
+        return variant.name
+    match container.find::[RenameAll]():
+        .Some(fact) => variant_case_name(variant.name, fact.style)
+        .None => variant.name
+
+fn wire_variant(variant: &VariantInfo, container: Facts) -> VariantInfo:
+    VariantInfo {
+        name: variant_name(variant, container),
+        index: variant.index,
+        facts: variant.facts,
+        doc: variant.doc,
+        type_doc: variant.type_doc,
+        of_data: variant.of_data,
+        positional: variant.positional,
+        named: variant.named,
+        included_positional: variant.included_positional,
+        shared: variant.shared,
+        self_ref: variant.self_ref,
+    }
+
+fn variant_has_rename(variant: &VariantInfo) -> bool:
+    if variant.facts.items.is_empty():
+        return false
+    variant.facts.find::[Rename]().is_some()
+
+fn case_name(name: string, style: RenameCase) -> string:
+    match style:
+        .Lowercase => name
+        .SnakeCase => name
+        .Uppercase => uppercase_name(name)
+        .ScreamingSnakeCase => uppercase_name(name)
+        .KebabCase => name.replace("_", "-")
+        .ScreamingKebabCase => uppercase_name(name).replace("_", "-")
+        .PascalCase => joined_name(name, false)
+        .CamelCase => joined_name(name, true)
+
+fn variant_case_name(name: string, style: RenameCase) -> string:
+    match style:
+        .Lowercase => lowercase_name(name)
+        .Uppercase => uppercase_name(name)
+        .PascalCase => name
+        .CamelCase => lowercase_first(name)
+        .SnakeCase => separated_variant_name(name, 95, false)
+        .ScreamingSnakeCase => separated_variant_name(name, 95, true)
+        .KebabCase => separated_variant_name(name, 45, false)
+        .ScreamingKebabCase => separated_variant_name(name, 45, true)
+
+# The case changes are ASCII byte changes (r-std-serde.rename-all.conversion):
+# they keep the bytes valid UTF-8, and they call no Display or builder, so a
+# call of `member_name` writes nothing its caller reaches and borrows its
+# arguments.
+fn uppercase_name(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    let changed = false
+    for at in 0..bytes.len():
+        byte := bytes[at]
+        if byte >= 97 && byte <= 122:
+            bytes[at] = byte - 32
+            changed = true
+    if !changed:
+        return name
+    string_from_bytes(bytes)
+
+fn lowercase_name(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    let changed = false
+    for at in 0..bytes.len():
+        byte := bytes[at]
+        if byte >= 65 && byte <= 90:
+            bytes[at] = byte + 32
+            changed = true
+    if !changed:
+        return name
+    string_from_bytes(bytes)
+
+fn lowercase_first(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    if bytes.is_empty() || bytes[0] < 65 || bytes[0] > 90:
+        return name
+    bytes[0] = bytes[0] + 32
+    string_from_bytes(bytes)
+
+fn separated_variant_name(name: string, separator: u8, screaming: bool) -> string:
+    bytes := name.to_utf8()
+    let mut out: List[u8] = []
+    for at in 0..bytes.len():
+        let byte = bytes[at]
+        upper := byte >= 65 && byte <= 90
+        if upper && at > 0:
+            before := bytes[at - 1]
+            before_lower := before >= 97 && before <= 122
+            before_digit := before >= 48 && before <= 57
+            after_lower := at + 1 < bytes.len() && bytes[at + 1] >= 97 && bytes[at + 1] <= 122
+            if before_lower || before_digit || after_lower:
+                out.push(separator)
+        if screaming && byte >= 97 && byte <= 122:
+            byte = byte - 32
+        else if !screaming && upper:
+            byte = byte + 32
+        out.push(byte)
+    string_from_bytes(out)
+
+fn joined_name(name: string, camel: bool) -> string:
+    let mut out: List[u8] = []
+    let word_start = true
+    let first = true
+    for byte in name.to_utf8():
+        if byte == 95:
+            word_start = true
+            continue
+        let next = byte
+        if word_start && camel && first:
+            if byte >= 65 && byte <= 90:
+                next = byte + 32
+        else if word_start && byte >= 97 && byte <= 122:
+            next = byte - 32
+        out.push(next)
+        word_start = false
+        first = false
+    string_from_bytes(out)
+
+# A value that opts in to be written by every format
+# (r-annot.serde.definition).
+## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+pub trait Serialize < ?Copy:
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]
+
+    fn is_absent(&self) -> bool:
+        false
+
+    ## Whether every value's `serialize` makes a regular walk, so a format may write it directly: one value, a key before each map or member value, every key new in its object, and each end matching its begin.
+    ## See [std-serde.regular](../../../spec/std/serde.md#r-std-serde.regular).
+    fn regular() -> bool:
+        false
+
+# A value that opts in to be built by every format
+# (r-annot.serde.definition).
+## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+pub trait Deserialize:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
+
+## The scalar kinds a serialization format may preserve for a map key.
+## See [std-serde.map-key.value](../../../spec/std/serde.md#r-std-serde.map-key.value).
+pub enum MapKeyValue:
+    Bool(value: bool)
+    Int(value: i64)
+    Uint(value: u64)
+    Text(value: string)
+
+impl MapKeyValue:
+    fn as_text(self) -> string:
+        match self:
+            .Bool(value) => "$value"
+            .Int(value) => "$value"
+            .Uint(value) => "$value"
+            .Text(value) => value
+
+## A value that a serialization format may use as a map key.
+## See [std-serde.map-key.trait](../../../spec/std/serde.md#r-std-serde.map-key.trait).
+pub trait MapKey:
+    fn to_key(&self) -> MapKeyValue
+    fn from_key(value: MapKeyValue) -> Self?
+
+    ## Whether two different keys always write different `to_key` values, so a map's keys stay new in its object.
+    ## See [std-serde.regular](../../../spec/std/serde.md#r-std-serde.regular).
+    fn distinct() -> bool:
+        false
+
+# A format's writer: one call per value of the data model
+# (r-std-serde.model.one-value).
+## The format side of writing: it receives a value's parts, or fails with an error of its own type.
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+pub trait Serializer:
+    type Error
+    fn null(&mut self) -> Result[void, Self::Error]
+    fn bool(&mut self, value: bool) -> Result[void, Self::Error]
+    fn int(&mut self, value: i64) -> Result[void, Self::Error]
+    fn uint(&mut self, value: u64) -> Result[void, Self::Error]
+    fn float(&mut self, value: f64) -> Result[void, Self::Error]
+    fn text(&mut self, value: string) -> Result[void, Self::Error]
+    fn begin_list(&mut self, len: usize) -> Result[void, Self::Error]
+    fn end_list(&mut self) -> Result[void, Self::Error]
+    fn begin_map(&mut self, len: usize) -> Result[void, Self::Error]
+    fn key(&mut self, key: string) -> Result[void, Self::Error]
+    fn map_key(&mut self, key: MapKeyValue) -> Result[void, Self::Error]:
+        self.key(key.as_text())
+    fn end_map(&mut self) -> Result[void, Self::Error]
+    @inline(.Always)
+    fn begin_data(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]:
+        self.begin_variant(facts, v)
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn begin_newtype_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn begin_tuple_variant(
+        &mut self,
+        facts: Facts,
+        v: &VariantInfo,
+        len: usize,
+    ) -> Result[void, Self::Error]
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
+    @inline(.Always)
+    fn end_data(&mut self) -> Result[void, Self::Error]:
+        self.end_variant()
+    fn end_variant(&mut self) -> Result[void, Self::Error]
+
+# What a self-describing format holds next (r-std-serde.read.peek).
+## The kind of a single value a `Deserializer` offers.
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+pub enum ValueKind:
+    Null
+    Bool
+    Int
+    Uint
+    Float
+    Text
+    List
+    Map
+
+# A format's reader: it pulls one value of the data model at a time
+# (r-std-serde.read.one-value).
+## The format side of reading: it offers a value's parts, or fails with an error of its own type.
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+pub trait Deserializer:
+    type Error
+    fn peek(&mut self) -> Result[ValueKind, Self::Error]
+    fn is_null(&mut self) -> Result[bool, Self::Error]
+    fn bool(&mut self, expected: string) -> Result[bool, Self::Error]
+    fn int(&mut self, expected: string) -> Result[i64, Self::Error]
+    fn uint(&mut self, expected: string) -> Result[u64, Self::Error]
+    fn float(&mut self, expected: string) -> Result[f64, Self::Error]
+    fn text(&mut self, expected: string) -> Result[string, Self::Error]
+    fn begin_list(&mut self) -> Result[void, Self::Error]
+    fn next_item(&mut self) -> Result[bool, Self::Error]
+    fn begin_map(&mut self) -> Result[void, Self::Error]
+    fn next_key(&mut self) -> Result[string?, Self::Error]
+    fn next_map_key(&mut self) -> Result[MapKeyValue?, Self::Error]:
+        match self.next_key()?:
+            .Some(key) => .Ok(.Some(MapKeyValue.Text(key)))
+            .None => .Ok(.None)
+    fn begin_data(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, Self::Error]:
+        self.begin_variant(facts, choices)
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, Self::Error]
+    fn begin_newtype_variant(&mut self) -> Result[void, Self::Error]
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, Self::Error]:
+        .Err(self.invalid("tuple variant"))
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
+    fn end_data(&mut self) -> Result[void, Self::Error]:
+        self.end_variant()
+    fn end_variant(&mut self) -> Result[void, Self::Error]
+    fn invalid(&mut self, expected: string) -> Self::Error
+    # Whether the member that `member(m)` just positioned has no value at
+    # all, as a missing key (r-std-serde.read.absent). It reads nothing.
+    fn is_absent(&mut self) -> bool:
+        false
+    # Whether this reader names a record's members itself, in text order,
+    # through `next_field` (serde's `MapAccess`), instead of being asked for
+    # each member through `member` (r-std-serde.read.keyed).
+    fn keyed(&self) -> bool:
+        false
+    # A keyed reader's next member of the open record: its index in
+    # `members`, or `.None` after the last key. A key that names no
+    # unskipped member is skipped with its value. `id` is the record's
+    # member directory id (`MembersRecord.id`), the same for every record
+    # of one type, so a reader can keep one name table per type; `guess` is
+    # the index the walk expects next (r-std-serde.read.next-field).
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, Self::Error]:
+        .Err(self.invalid("keyed record"))
+    # A keyed reader's next value is the absent value of member `m`, whose
+    # key the record never had: `is_absent` and `is_null` are true, and any
+    # other read is the format's missing-member error
+    # (r-std-serde.read.absent-field).
+    fn absent_field(&mut self, m: &Member, facts: Facts) -> void:
+        pass
+    # The format's error for a record key that names a member an earlier key
+    # of the record named (r-std-serde.read.duplicate-field).
+    fn duplicate_field(&mut self) -> Self::Error:
+        self.invalid("unique key")
+    # Reads the next value, of any kind, and drops it (r-std-serde.read.skip):
+    # serde's `IgnoredAny`, so a hand-written key loop can pass a key it does
+    # not know. The default reads the value through `peek` and the calls of
+    # its kind. A list of the open containers stands in for recursion, so
+    # each level of nesting costs one entry, not a native frame.
+    fn skip(&mut self) -> Result[void, Self::Error]:
+        # `maps[d]` is whether open container `d` is a map.
+        let mut maps: List[bool] = []
+        while true:
+            match self.peek()?:
+                .Null => _ := self.is_null()?
+                .Bool => _ := self.bool("value")?
+                .Int => _ := self.int("value")?
+                .Uint => _ := self.uint("value")?
+                .Float => _ := self.float("value")?
+                .Text => _ := self.text("value")?
+                .List =>
+                    self.begin_list()?
+                    maps.push(false)
+                .Map =>
+                    self.begin_map()?
+                    maps.push(true)
+            # Close each container after its last item, up to the first
+            # that has another, whose item the next round reads.
+            let more = false
+            while !more:
+                if maps.is_empty():
+                    return .Ok(())
+                more = if maps[maps.len() - 1]:
+                    self.next_map_key()?.is_some()
+                else:
+                    self.next_item()?
+                if !more:
+                    _ := maps.pop()
+        .Ok(())
+
+# ---------------------------------------------------------------------------
+# The templates (spec/std/serde.md#derived-implementations).
+
+# Derived `Serialize`: `begin_variant`, then `member` and the member's own
+# `serialize` for each included walked member, then `end_variant`
+# (r-std-serde.derive.serialize.data-and-enum-forms).
+impl[T < ?Copy] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::facts().items.is_empty() && T::describe(&mut RegularProbe {}).is_ok()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        let mut walker = SerializeWalker::[T, W] {
+            out: out,
+            facts: T::facts(),
+            form: VariantForm.Record,
+        }
+        Structure::walk(self, &mut walker)?
+        match walker.form:
+            .Data => walker.out.end_data()
+            _ => walker.out.end_variant()
+
+# Union `Serialize`: the ordinary enum derivation over positional cases.
+impl[T < ?Copy & UnionType] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::facts().items.is_empty() && T::describe(&mut RegularProbe {}).is_ok()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        let mut walker = SerializeWalker::[T, W] {
+            out: out,
+            facts: T::facts(),
+            form: VariantForm.Record,
+        }
+        Structure::walk(self, &mut walker)?
+        match walker.form:
+            .Data => walker.out.end_data()
+            _ => walker.out.end_variant()
+
+# The describer of a derived `regular` (r-std-serde.regular): a variant
+# or member with facts, which may rename or skip it, or a member whose
+# type is not regular, stops the description. Each hook only answers, so
+# a release build folds the whole description to its one result.
+struct RegularProbe: pass
+
+@skips::[Skip]()
+impl[S < ?Copy] Describer[S] for RegularProbe:
+    type Error = void
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, void]:
+        if v.info.facts.items.is_empty(): .Ok(()) else: .Err(())
+
+    fn member[F < ?Copy & Serialize](&mut self, h: Field[S, F]) -> Result[void, void]:
+        if h.info.facts.items.is_empty() && F::regular(): .Ok(()) else: .Err(())
+
+enum VariantForm:
+    Data
+    Record
+    Newtype
+    Tuple
+    Raw
+    List
+    Exhausted
+
+fn variant_form(v: &VariantInfo) -> VariantForm:
+    if v.of_data || v.named > 0 || v.positional == 0:
+        return VariantForm.Record
+    if v.included_positional == 0:
+        return VariantForm.Record
+    if v.included_positional == 1:
+        return VariantForm.Newtype
+    VariantForm.Tuple
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module.
+struct SerializeWalker[S < ?Copy, W < Serializer, 'a]:
+    pub out: &'a mut W
+    pub facts: Facts
+    pub form: VariantForm
+
+# `skips::[Skip]()` omits a member whose known facts hold `Skip`, so its
+# type needs no `Serialize` (r-std-serde.skip.no-bound). The `Skip` test
+# in `member` covers a `Skip` that only an opaque list or a spread attaches
+# to a named member (r-std-serde.skip.named-unknown-fact).
+@skips::[Skip]()
+impl['a, S < ?Copy, W < Serializer] Walker[S] for SerializeWalker[S, W, 'a]:
+    type Error = W::Error
+
+    fn data_variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
+        self.form = VariantForm.Data
+        self.out.begin_data(self.facts, &v.info)
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
+        self.form = variant_form(&v.info)
+        if self.facts.items.is_empty() && !variant_has_rename(&v.info):
+            return match self.form:
+                .Data => self.out.begin_data(self.facts, &v.info)
+                .Record => self.out.begin_variant(self.facts, &v.info)
+                .Newtype => self.out.begin_newtype_variant(self.facts, &v.info)
+                .Tuple =>
+                    self.out.begin_tuple_variant(self.facts, &v.info, v.info.included_positional)
+                .Raw => .Ok(())
+                .List => .Ok(())
+                .Exhausted => .Ok(())
+        wire := wire_variant(&v.info, self.facts)
+        match self.form:
+            .Data => self.out.begin_data(self.facts, &v.info)
+            .Record => self.out.begin_variant(self.facts, &wire)
+            .Newtype => self.out.begin_newtype_variant(self.facts, &wire)
+            .Tuple => self.out.begin_tuple_variant(self.facts, &wire, v.info.included_positional)
+            .Raw => .Ok(())
+            .List => .Ok(())
+            .Exhausted => .Ok(())
+
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Serialize` here, as `member` needs `F < Serialize`.
+    fn rest[T < Serialize](
+        &mut self,
+        h: Field[S, List[T]],
+        items: &List[T],
+    ) -> Result[void, W::Error]:
+        self.member(h, items)
+
+    fn data_member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
+        # A member with no facts has neither `Skip` nor `SkipNone`.
+        if !h.info.facts.items.is_empty() && skipped(h, value):
+            return .Ok(())
+        self.out.member(&h.info)?
+        value.serialize(&mut *self.out)
+
+    fn member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
+        # A member with no facts has neither `Skip` nor `SkipNone`.
+        if !h.info.facts.items.is_empty() && skipped(h, value):
+            return .Ok(())
+        match self.form:
+            .Record => self.out.member(&h.info)?
+            _ => pass
+        value.serialize(&mut *self.out)
+
+# Whether a member's facts omit it with `value`: a `Skip`, or a `SkipNone`
+# whose test holds. Out of line, since most members have no facts: each
+# `member` instance then keeps only the test for an empty list.
+@cold
+fn skipped[S < ?Copy, F < ?Copy & Serialize](h: Field[S, F], value: &F) -> bool:
+    if h.fact::[Skip]().is_some():
+        return true
+    match h.fact::[SkipNone[F]]():
+        .Some(_) => value.is_absent()
+        .None => false
+
+# Derived `Deserialize`: `begin_variant` picks the variant, then each member
+# in declaration order is positioned with `member` and read with its own
+# `deserialize`, or given its declared default when absent, then
+# its matching end hook (r-std-serde.derive.deserialize.data-and-enum-forms).
+impl[T] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
+        facts := T::facts()
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(.Untagged) =>
+                    let attempt: usize = 0
+                    while true:
+                        saved := *input
+                        let mut source = DeserializeSource::[T, R] {
+                            input: input,
+                            facts: facts,
+                            form: VariantForm.Raw,
+                            keyed: input.keyed(),
+                            walk: KeyWalk {
+                                at: attempt + 1,
+                                seen: 0,
+                                seen_more: [],
+                                ended: false,
+                                absent: false,
+                            },
+                        }
+                        # The source holds `input` while the built value
+                        # lives, so the end hooks go through it.
+                        match T::build(&mut source):
+                            .Ok(built) =>
+                                let finished = match source.form:
+                                    .Data => source.input.end_data()
+                                    .List =>
+                                        if source.input.next_item()?:
+                                            .Err(source.input.invalid("tuple variant end"))
+                                        else:
+                                            .Ok(())
+                                    .Raw => .Ok(())
+                                    _ => source.input.end_variant()
+                                match finished:
+                                    .Ok(_) => return .Ok(built)
+                                    .Err(_) => pass
+                            .Err(_) => pass
+                        *source.input = saved
+                        match source.form:
+                            .Exhausted => return .Err(source.input.invalid("variant"))
+                            _ => pass
+                        attempt += 1
+                _ => pass
+        let mut source = DeserializeSource::[T, R] {
+            input: input,
+            facts: facts,
+            form: VariantForm.Record,
+            keyed: input.keyed(),
+            walk: KeyWalk { at: 0, seen: 0, seen_more: [], ended: false, absent: false },
+        }
+        built := T::build(&mut source)?
+        match source.form:
+            .Data => source.input.end_data()?
+            _ => source.input.end_variant()?
+        .Ok(built)
+
+# Union `Deserialize`: the ordinary enum derivation over positional cases.
+impl[T < UnionType] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
+        facts := T::facts()
+        let mut source = DeserializeSource::[T, R] {
+            input: input,
+            facts: facts,
+            form: VariantForm.Record,
+            keyed: input.keyed(),
+            walk: KeyWalk { at: 0, seen: 0, seen_more: [], ended: false, absent: false },
+        }
+        built := T::build(&mut source)?
+        match source.form:
+            .Data => source.input.end_data()?
+            _ => source.input.end_variant()?
+        .Ok(built)
+
+# The walk over a record's members that does not depend on the record's
+# type, out of line so that one copy serves every type a reader reads.
+# Keyed: `at` is the guess, `seen` marks the members named so far (bit k
+# for member k < 64, `seen_more` past that), and after the record's last
+# key `ended` walks the unseen members once, each read as absent (`absent`).
+struct KeyWalk:
+    pub at: usize
+    pub seen: u64
+    pub seen_more: List[bool]
+    pub ended: bool
+    pub absent: bool
+
+impl KeyWalk:
+    # Marks member `k` named, or reports whether it already was.
+    fn mark(&mut self, k: usize) -> bool:
+        if k < 64:
+            bit := u64(1) << u64(k)
+            was := self.seen & bit != 0
+            self.seen = self.seen | bit
+            return was
+        while self.seen_more.len() <= k - 64:
+            self.seen_more.push(false)
+        was := self.seen_more[k - 64]
+        self.seen_more[k - 64] = true
+        was
+
+    fn was_seen(&self, k: usize) -> bool:
+        if k < 64:
+            return self.seen & (u64(1) << u64(k)) != 0
+        k - 64 < self.seen_more.len() && self.seen_more[k - 64]
+
+# The index in `members.infos` of the next member to read, or `.None`.
+# Keyed: each member the reader names, in text order, then each unseen
+# unskipped member as absent; a member named twice is the reader's
+# duplicate error. Otherwise every unskipped member, in declaration order.
+fn next_index[R < Deserializer](
+    input: &mut R,
+    infos: &List[Member],
+    id: usize,
+    facts: Facts,
+    keyed: bool,
+    walk: &mut KeyWalk,
+) -> Result[usize?, R::Error]:
+    if keyed:
+        if !walk.ended:
+            match input.next_field(infos, id, facts, walk.at)?:
+                .Some(k) =>
+                    if walk.mark(k):
+                        return .Err(input.duplicate_field())
+                    walk.at = k + 1
+                    return .Ok(.Some(k))
+                .None =>
+                    walk.ended = true
+                    walk.at = 0
+        while walk.at < infos.len():
+            k := walk.at
+            walk.at += 1
+            if !walk.was_seen(k) && read_member(&infos[k]):
+                walk.absent = true
+                return .Ok(.Some(k))
+        return .Ok(.None)
+    while walk.at < infos.len():
+        k := walk.at
+        walk.at += 1
+        if read_member(&infos[k]):
+            return .Ok(.Some(k))
+    .Ok(.None)
+
+# A member without `Skip`, which a reader reads.
+fn read_member(m: &Member) -> bool:
+    m.facts.items.is_empty() || m.facts.find::[Skip]().is_none()
+
+@cold
+fn enum_tagging(facts: Facts) -> EnumTagging?:
+    facts.find::[EnumTagging]()
+
+# The fields are public because the prototype checks the instantiated
+# source in the deriving module.
+struct DeserializeSource[S < ?Copy, R < Deserializer, 'a]:
+    pub input: &'a mut R
+    pub facts: Facts
+    pub form: VariantForm
+    # Keyed reading: the reader names the members in text order.
+    pub keyed: bool
+    pub walk: KeyWalk
+
+impl['a, S < ?Copy, R < Deserializer] DeserializeSource[S, R, 'a]:
+    fn record_form(&self) -> bool:
+        match self.form:
+            .Data => true
+            .Record => true
+            _ => false
+
+    # Positions the reader at member `m`'s value: a keyed reader already
+    # sits there, or reads it as absent; any other reader is asked.
+    fn position(&mut self, m: &Member) -> Result[void, R::Error]:
+        if self.keyed:
+            if self.walk.absent:
+                self.walk.absent = false
+                self.input.absent_field(m, self.facts)
+            return .Ok(())
+        self.input.member(m)
+
+# `skips::[Skip]()` omits a member whose known facts hold `Skip`: `build`
+# fills a named member from its declared default and a positional member
+# from its type's `Default`; its type needs no `Deserialize`
+# (r-std-serde.skip.no-bound, r-std-serde.skip.named-no-default,
+# r-std-serde.skip.positional-no-default). The `Skip` tests in `next` and
+# `missing` cover a `Skip` that only an opaque list or a spread attaches to
+# a named member (r-std-serde.skip.named-unknown-fact).
+@skips::[Skip]()
+impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
+    type Error = R::Error
+
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], R::Error]:
+        self.form = VariantForm.Data
+        _ := self.input.begin_data(self.facts, [choice.info])?
+        .Ok(choice)
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+        if !self.facts.items.is_empty():
+            match enum_tagging(self.facts):
+                .Some(.Untagged) =>
+                    attempt := self.walk.at - 1
+                    self.walk.at = 0
+                    if attempt >= choices.len():
+                        self.form = VariantForm.Exhausted
+                        return .Err(self.input.invalid("variant"))
+                    choice := choices[attempt]
+                    match variant_form(&choice.info):
+                        .Record =>
+                            if choice.info.named == 0 && choice.info.included_positional == 0:
+                                if !self.input.is_null()?:
+                                    return .Err(self.input.invalid("null"))
+                                self.form = VariantForm.Raw
+                            else:
+                                _ := self.input.begin_data(self.facts, [choice.info])?
+                                self.form = VariantForm.Data
+                        .Newtype => self.form = VariantForm.Raw
+                        .Tuple =>
+                            self.input.begin_list()?
+                            self.form = VariantForm.List
+                        _ => return .Err(self.input.invalid("variant"))
+                    return .Ok(choice)
+                _ => pass
+        let mut infos: List[VariantInfo] = []
+        let any_variant_rename = false
+        if self.facts.items.is_empty():
+            for choice in choices:
+                if variant_has_rename(&choice.info):
+                    any_variant_rename = true
+                    break
+        if self.facts.items.is_empty() && !any_variant_rename:
+            for choice in choices:
+                infos.push(choice.info)
+        else:
+            for choice in choices:
+                infos.push(wire_variant(&choice.info, self.facts))
+        index := self.input.begin_variant(self.facts, infos)?
+        self.form = variant_form(&choices[index].info)
+        match self.form:
+            .Data => pass
+            .Record => pass
+            .Newtype => self.input.begin_newtype_variant()?
+            .Tuple => self.input.begin_tuple_variant(choices[index].info.included_positional)?
+            .Raw => pass
+            .List => pass
+            .Exhausted => pass
+        .Ok(choices[index])
+
+    # The member `next_index` picks, read in place, not copied out of the
+    # list.
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
+        keyed := self.keyed && self.record_form()
+        match next_index(
+            &mut *self.input,
+            &members.infos,
+            members.id(),
+            self.facts,
+            keyed,
+            &mut self.walk,
+        )?:
+            .Some(k) => .Ok(members.at(members.infos[k].position))
+            .None => .Ok(.None)
+
+    # An absent member that declares a default takes it, and is not read
+    # (r-std-serde.derive.deserialize.unskipped-default).
+    fn data_member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+        self.position(&h.info)?
+        if h.has_default() && self.input.is_absent():
+            match h.default():
+                .Some(value) => return .Ok(value)
+                .None => pass
+        F::deserialize(&mut *self.input)
+
+    fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+        match self.form:
+            .Data => self.position(&h.info)?
+            .Record => self.position(&h.info)?
+            .Newtype => pass
+            .Tuple =>
+                if !self.input.next_item()?:
+                    return .Err(self.input.invalid("tuple variant item"))
+            .Raw => pass
+            .List =>
+                if !self.input.next_item()?:
+                    return .Err(self.input.invalid("tuple variant item"))
+            .Exhausted => pass
+        if h.has_default() && self.input.is_absent():
+            match h.default():
+                .Some(value) => return .Ok(value)
+                .None => pass
+        F::deserialize(&mut *self.input)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
+        if h.fact::[Skip]().is_none():
+            panic("std.encoding: the source names every unskipped member")
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None =>
+                .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
+
+# ---------------------------------------------------------------------------
+# The standard implementations (spec/std/serde.md#standard-implementations).
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for bool:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.bool(*self)
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for bool:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[bool, R::Error]:
+        input.bool("bool")
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for string:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.text(*self)
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for string:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[string, R::Error]:
+        input.text("string")
+
+# A `char` is a text of one character (r-std-serde.std.char).
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for char:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.text("${*self}")
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for char:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[char, R::Error]:
+        text := input.text("char")?
+        let mut found: List[char] = []
+        for item in text.chars():
+            found.push(item)
+        if found.len() == 1:
+            return .Ok(found[0])
+        .Err(input.invalid("char"))
+
+# A signed integer in `low` to `high`, or the reader's error for `expected`
+# (r-std-serde.std.range).
+fn signed_in[R < Deserializer](
+    input: &mut R,
+    low: i64,
+    high: i64,
+    expected: string,
+) -> Result[i64, R::Error]:
+    found := input.int(expected)?
+    if found >= low && found <= high:
+        return .Ok(found)
+    .Err(input.invalid(expected))
+
+fn unsigned_in[R < Deserializer](
+    input: &mut R,
+    high: u64,
+    expected: string,
+) -> Result[u64, R::Error]:
+    found := input.uint(expected)?
+    if found <= high:
+        return .Ok(found)
+    .Err(input.invalid(expected))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for i8:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(i64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for i8:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[i8, R::Error]:
+        .Ok(i8(signed_in(input, -128, 127, "i8")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for i16:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(i64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for i16:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[i16, R::Error]:
+        .Ok(i16(signed_in(input, -32768, 32767, "i16")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for i32:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(i64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for i32:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[i32, R::Error]:
+        .Ok(i32(signed_in(input, -2147483648, 2147483647, "i32")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for i64:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.int(*self)
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for i64:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[i64, R::Error]:
+        input.int("i64")
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for u8:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.uint(u64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for u8:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[u8, R::Error]:
+        .Ok(u8(unsigned_in(input, 255, "u8")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for u16:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.uint(u64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for u16:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[u16, R::Error]:
+        .Ok(u16(unsigned_in(input, 65535, "u16")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for u32:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.uint(u64(*self))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for usize:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.uint(u64(*self))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for u32:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[u32, R::Error]:
+        .Ok(u32(unsigned_in(input, 4294967295, "u32")?))
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for usize:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[usize, R::Error]:
+        .Ok(usize(unsigned_in(input, 4294967295, "usize")?))
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for u64:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.uint(*self)
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for u64:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[u64, R::Error]:
+        input.uint("u64")
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for f64:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.float(*self)
+
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for f64:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[f64, R::Error]:
+        input.float("f64")
+
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Serialize for f32:
+    fn regular() -> bool:
+        true
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.float(f64(*self))
+
+# A number past the finite `f32` range does not fit (r-std-serde.std.float-read).
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
+impl Deserialize for f32:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[f32, R::Error]:
+        limit := 340282346638528859811704183484516925440.0
+        found := input.float("f32")?
+        if found >= -limit && found <= limit:
+            return .Ok(f32(found))
+        .Err(input.invalid("f32"))
+
+# `.None` is `null` (r-std-serde.std.optional).
+# Keep handwritten Serialize: keep the builtin optional wire form instead of a tagged object.
+impl[T < ?Copy & Serialize] Serialize for T?:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        match self:
+            .Some(found) => found.serialize(out)
+            .None => out.null()
+
+    fn is_absent(&self) -> bool:
+        self.is_none()
+
+# Keep handwritten Deserialize: read the builtin optional wire form instead of a tagged object.
+impl[T < Deserialize] Deserialize for T?:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T?, R::Error]:
+        if input.is_null()?:
+            return .Ok(.None)
+        .Ok(.Some(T::deserialize(input)?))
+
+# `Result` uses the format-neutral newtype-variant protocol
+# (r-std-serde.std.result).
+fn result_variant(name: string, index: usize) -> VariantInfo:
+    VariantInfo {
+        name: name,
+        index: index,
+        facts: Facts { items: [] },
+        doc: .None,
+        of_data: false,
+        positional: 1,
+        named: 0,
+        shared: [],
+        self_ref: .Absent,
+    }
+
+impl[T < ?Copy & Serialize, E < ?Copy & Serialize] Serialize for Result[T, E]:
+    fn regular() -> bool:
+        T::regular() && E::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        match self:
+            .Ok(value) =>
+                variant := result_variant("Ok", 0)
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
+                value.serialize(out)?
+            .Err(error) =>
+                variant := result_variant("Err", 1)
+                out.begin_newtype_variant(Facts { items: [] }, &variant)?
+                error.serialize(out)?
+        out.end_variant()
+
+impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Result[T, E], R::Error]:
+        variants := [result_variant("Ok", 0), result_variant("Err", 1)]
+        index := input.begin_variant(Facts { items: [] }, variants)?
+        input.begin_newtype_variant()?
+        let found: Result[T, E] = match index:
+            0 => Result.Ok(T::deserialize(input)?)
+            1 => Result.Err(E::deserialize(input)?)
+            _ => panic("std.encoding: invalid Result variant index")
+        input.end_variant()?
+        .Ok(found)
+
+# A reference writes the value it refers to, and reads into a new object
+# (r-std-serde.std.counted-reference).
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for *T:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for *mut T:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for &T:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Serialize] Serialize for &mut T:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        (*(*self)).serialize(out)
+
+# Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
+impl[T < Deserialize & 'static] Deserialize for *T:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[*T, R::Error]:
+        # Boxed because the deserialized reference escapes in the returned value.
+        .Ok(box(T::deserialize(input)?))
+
+# Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
+impl[T < Deserialize & 'static] Deserialize for *mut T:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[*mut T, R::Error]:
+        # Boxed because the deserialized mutable reference escapes in the returned value.
+        .Ok(box(T::deserialize(input)?))
+
+# Derived `MapKey`: a payload-free enum writes its selected variant name,
+# and an empty struct writes its data name. The private bound has no
+# implementations, so any payload member rejects the derivation.
+impl[T] MapKey for T by Structure:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        let mut walker = MapKeyWalker::[T] { name: "" }
+        _ := Structure::walk(self, &mut walker)
+        MapKeyValue.Text(walker.name)
+
+    fn from_key(value: MapKeyValue) -> T?:
+        name := match value:
+            .Text(found) => found
+            _ => return .None
+        let mut source = MapKeySource::[T] { name: name, at: 0 }
+        match T::build(&mut source):
+            .Ok(found) => .Some(found)
+            .Err(_) => .None
+
+trait MapKeyPayload
+
+struct MapKeyWalker[S < ?Copy]:
+    pub name: string
+
+impl[S < ?Copy] Walker[S] for MapKeyWalker[S]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.name = v.info.name
+        .Ok(())
+
+    fn rest[T < MapKeyPayload](
+        &mut self,
+        h: Field[S, List[T]],
+        items: &List[T],
+    ) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < ?Copy & MapKeyPayload](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, never]:
+        .Ok(())
+
+struct MapKeySource[S < ?Copy]:
+    pub name: string
+    pub at: usize
+
+impl[S < ?Copy] Source[S] for MapKeySource[S]:
+    type Error = bool
+
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], bool]:
+        if choice.info.name == self.name:
+            return .Ok(choice)
+        .Err(false)
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], bool]:
+        for choice in choices:
+            if choice.info.name == self.name:
+                return .Ok(choice)
+        .Err(false)
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, bool]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        position := members.infos[self.at].position
+        self.at += 1
+        .Ok(members.at(position))
+
+    fn data_member[F < MapKeyPayload](&mut self, h: Field[S, F], previous: F?) -> Result[F, bool]:
+        .Err(false)
+
+    fn member[F < MapKeyPayload](&mut self, h: Field[S, F], previous: F?) -> Result[F, bool]:
+        .Err(false)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, bool]:
+        .Err(false)
+
+fn canonical_integer_key(text: string, signed: bool) -> bool:
+    if text.is_empty():
+        return false
+    let start: usize = 0
+    if text[0] == 45:
+        if !signed:
+            return false
+        start = 1
+    else if text[0] < 48 || text[0] > 57:
+        return false
+    if start >= text.len():
+        return false
+    if text[start] == 48 && start + 1 < text.len():
+        return false
+    let at = start
+    while at < text.len():
+        if text[at] < 48 || text[at] > 57:
+            return false
+        at += 1
+    true
+
+fn signed_key(value: MapKeyValue, low: i64, high: i64) -> i64?:
+    match value:
+        .Int(found) =>
+            if found >= low && found <= high: .Some(found) else: .None
+        .Uint(found) =>
+            if found <= u64(high): .Some(i64(found)) else: .None
+        .Text(text) =>
+            if !canonical_integer_key(text, true):
+                return .None
+            match text.parse::[i64]():
+                .Ok(found) =>
+                    if found >= low && found <= high: .Some(found) else: .None
+                .Err(_) => .None
+        .Bool(_) => .None
+
+fn unsigned_key(value: MapKeyValue, high: u64) -> u64?:
+    match value:
+        .Uint(found) =>
+            if found <= high: .Some(found) else: .None
+        .Int(found) =>
+            if found >= 0 && u64(found) <= high: .Some(u64(found)) else: .None
+        .Text(text) =>
+            if !canonical_integer_key(text, false):
+                return .None
+            match text.parse::[u64]():
+                .Ok(found) =>
+                    if found <= high: .Some(found) else: .None
+                .Err(_) => .None
+        .Bool(_) => .None
+
+impl MapKey for string:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Text(*self)
+
+    fn from_key(value: MapKeyValue) -> string?:
+        match value:
+            .Text(found) => .Some(found)
+            _ => .None
+
+impl MapKey for bool:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Bool(*self)
+
+    fn from_key(value: MapKeyValue) -> bool?:
+        match value:
+            .Bool(found) => .Some(found)
+            .Text("true") => .Some(true)
+            .Text("false") => .Some(false)
+            _ => .None
+
+impl MapKey for char:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Text("${*self}")
+
+    fn from_key(value: MapKeyValue) -> char?:
+        match value:
+            .Text(text) =>
+                match text.parse::[char]():
+                    .Ok(found) => .Some(found)
+                    .Err(_) => .None
+            _ => .None
+
+impl MapKey for i8:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Int(i64(*self))
+
+    fn from_key(value: MapKeyValue) -> i8?:
+        signed_key(value, -128, 127).map(fn(found): i8(found))
+
+impl MapKey for i16:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Int(i64(*self))
+
+    fn from_key(value: MapKeyValue) -> i16?:
+        signed_key(value, -32768, 32767).map(fn(found): i16(found))
+
+impl MapKey for i32:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Int(i64(*self))
+
+    fn from_key(value: MapKeyValue) -> i32?:
+        signed_key(value, -2147483648, 2147483647).map(fn(found): i32(found))
+
+impl MapKey for i64:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Int(*self)
+
+    fn from_key(value: MapKeyValue) -> i64?:
+        signed_key(value, -9223372036854775807 - 1, 9223372036854775807)
+
+impl MapKey for u8:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(*self))
+
+    fn from_key(value: MapKeyValue) -> u8?:
+        unsigned_key(value, 255u64).map(fn(found): u8(found))
+
+impl MapKey for u16:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(*self))
+
+    fn from_key(value: MapKeyValue) -> u16?:
+        unsigned_key(value, 65535u64).map(fn(found): u16(found))
+
+impl MapKey for u32:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(*self))
+
+    fn from_key(value: MapKeyValue) -> u32?:
+        unsigned_key(value, 4294967295u64).map(fn(found): u32(found))
+
+impl MapKey for u64:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Uint(*self)
+
+    fn from_key(value: MapKeyValue) -> u64?:
+        unsigned_key(value, 18446744073709551615u64)
+
+impl MapKey for usize:
+    fn distinct() -> bool:
+        true
+
+    fn to_key(&self) -> MapKeyValue:
+        MapKeyValue.Uint(u64(*self))
+
+    fn from_key(value: MapKeyValue) -> usize?:
+        unsigned_key(value, 4294967295u64).map(fn(found): usize(found))
+
+# A MapKey's format-neutral scalar selects the wire key
+# (r-std-serde.std.map-key-bound).
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
+impl[T < Serialize] Serialize for List[T]:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_list(self.len())?
+        for item in self:
+            item.serialize(out)?
+        out.end_list()
+
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
+impl[T < Deserialize] Deserialize for List[T]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[List[T], R::Error]:
+        input.begin_list()?
+        let mut found: List[T] = []
+        while input.next_item()?:
+            found.push(T::deserialize(input)?)
+        .Ok(found)
+
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
+impl[K < Eq & Hash & MapKey, V < Serialize] Serialize for Map[K, V]:
+    fn regular() -> bool:
+        K::distinct() && V::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_map(self.len())?
+        for entry in self:
+            out.map_key(entry._0.to_key())?
+            entry._1.serialize(out)?
+        out.end_map()
+
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
+impl[K < Eq & Hash & MapKey, V < Deserialize] Deserialize for Map[K, V]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Map[K, V], R::Error]:
+        input.begin_map()?
+        let mut found: Map[K, V] = {}
+        while true:
+            match input.next_map_key()?:
+                .Some(raw) =>
+                    key := match K::from_key(raw):
+                        .Some(key) => key
+                        .None => return .Err(input.invalid("map key"))
+                    found[key] = V::deserialize(input)?
+                .None => break
+        .Ok(found)
+
+# A set is a list of its elements in its iteration order
+# (r-std-serde.std.set-elements).
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
+impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
+    fn regular() -> bool:
+        T::regular()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        out.begin_list(self.len())?
+        for item in *self:
+            item.serialize(out)?
+        out.end_list()
+
+# A repeated element keeps one entry (r-std-serde.std.set-elements).
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
+impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Set[T], R::Error]:
+        input.begin_list()?
+        let mut found: Set[T] = Set::new()
+        while input.next_item()?:
+            _ := found.insert(T::deserialize(input)?)
+        .Ok(found)
+
+# Tuple `Serialize` (r-std-serde.std.tuple): a list of the members, in
+# order. A counting pass over the members' types gives `begin_list` its
+# length before the one walk over the values.
+impl[T < ?Copy & Tuple] Serialize for T by Structure:
+    fn regular() -> bool:
+        T::describe(&mut RegularProbe {}).is_ok()
+
+    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
+        let mut count = MemberCount { total: 0 }
+        _ := T::describe(&mut count)
+        out.begin_list(count.total)?
+        let mut walker = TupleWriter::[T, W] { out: out }
+        Structure::walk(self, &mut walker)?
+        out.end_list()
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module.
+struct MemberCount:
+    pub total: usize
+
+impl[S < ?Copy] Describer[S] for MemberCount:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < ?Copy](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.total = self.total + 1
+        .Ok(())
+
+struct TupleWriter[S < ?Copy, W < Serializer, 'a]:
+    pub out: &'a mut W
+
+impl['a, S < ?Copy, W < Serializer] Walker[S] for TupleWriter[S, W, 'a]:
+    type Error = W::Error
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, W::Error]:
+        .Ok(())
+
+    # A rest element is one `List[T]` member (annot.walk.rest.default).
+    fn member[F < ?Copy & Serialize](
+        &mut self,
+        h: Field[S, F],
+        value: &F,
+    ) -> Result[void, W::Error]:
+        value.serialize(&mut *self.out)
+
+# Tuple `Deserialize` (r-std-serde.std.tuple): a list with one item per
+# member, in order. A short or a long list is the reader's `invalid`
+# error.
+impl[T < Tuple] Deserialize for T by Structure:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
+        input.begin_list()?
+        let mut source = TupleReader::[T, R] { input: input, at: 0 }
+        built := T::build(&mut source)?
+        if source.input.next_item()?:
+            return .Err(source.input.invalid("end of the tuple"))
+        .Ok(built)
+
+struct TupleReader[S < ?Copy, R < Deserializer, 'a]:
+    pub input: &'a mut R
+    pub at: usize
+
+impl['a, S < ?Copy, R < Deserializer] Source[S] for TupleReader[S, R, 'a]:
+    type Error = R::Error
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
+        if !self.input.next_item()?:
+            return .Err(self.input.invalid("tuple element"))
+        F::deserialize(&mut *self.input)
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
+        panic("std.encoding: the source names every member")

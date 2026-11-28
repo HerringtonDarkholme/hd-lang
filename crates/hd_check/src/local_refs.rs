@@ -31,7 +31,7 @@ use crate::body::{Ck, ExpectPosition};
 
 /// Where a local reference escapes to (`ref.local.escape.*`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Escape {
+pub enum Escape {
     Field,
     Element,
     TopLevel,
@@ -426,7 +426,7 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 ///
 /// A part's answer is its parts' first, kept in `memo`; the walk keeps
 /// its own frames, so the native stack is constant in the depth.
-fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Option<Escape> {
+pub fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Option<Escape> {
     // A part to enter: its type, whether its top may hold a reference, its
     // depth, and whether it is the result of a function type with no
     // source, whose own local reference escapes as the result. A frame is
@@ -558,11 +558,12 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Opt
 /// reference: the pool shares a part between its uses, so each distinct
 /// part is walked once, and a tuple doubled n times costs n steps, not
 /// 2^n (#1887).
-pub(crate) type EscapeMemo = HashMap<(Ty, bool), Option<Escape>>;
+pub type EscapeMemo = HashMap<(Ty, bool), Option<Escape>>;
 
 /// Whether a value of type `t` holds a local reference anywhere, its top
 /// included (`ref.local.holding`).
-pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
+#[must_use]
+pub fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
     escape_in(pool, t, false, &mut EscapeMemo::default()).is_some()
 }
 
@@ -634,7 +635,8 @@ pub(crate) fn static_bounded(
 }
 
 /// Whether `t` names `p` under a position ([`scoped_param`]).
-fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef) -> bool {
+#[must_use]
+pub fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef) -> bool {
     !hd_base::stack::all((t, false, 0), |(t, under, depth), stack| {
         if depth > hd_base::limits::TYPE_DEPTH || !pool.has_param(t) {
             return true;
@@ -688,7 +690,8 @@ fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
 /// differ lends a counted reference as a local one, or in a function
 /// type's parameter takes the local one where a counted one is passed.
 /// Other positions keep their kind (`ref.type.kind-distinct`).
-pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8) -> bool {
+#[must_use]
+pub fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8) -> bool {
     hd_base::stack::all(
         (from, to, polarity, 0),
         |(from, to, polarity, depth), stack| {
@@ -1068,75 +1071,5 @@ impl Ck<'_, '_> {
             }
             self.err(Code::LocalReferenceEscapes, node, &message(e));
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use hd_types::{InternPool, Ty, TyData};
-
-    /// [`super::lends`] compares two types on its own stack: a pair of
-    /// types 1,000 levels deep, counted references against local ones at
-    /// each level, converts on a 96 KiB thread, and a pair that differs
-    /// only at the bottom does not. [`super::hidden`] finds a type
-    /// parameter, and [`super::escape_in`] a local reference, at the same
-    /// depth.
-    #[test]
-    fn walks_at_the_type_depth_fit_a_small_stack() {
-        std::thread::Builder::new()
-            // cost: one 96 KiB thread for this test.
-            .stack_size(96 << 10)
-            .spawn(|| {
-                let pool = InternPool::new();
-                let types = pool.types();
-                let rf = |inner, counted| {
-                    pool.intern_ty(&TyData::Ref {
-                        inner,
-                        mutable: false,
-                        counted,
-                    })
-                };
-                let pair = |a, b| pool.product(pool.list(&[a, b]), None);
-                let (mut counted, mut local, mut wrong) = (Ty::I32, Ty::I32, rf(Ty::I32, false));
-                for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    counted = pair(rf(Ty::I32, true), counted);
-                    local = pair(rf(Ty::I32, false), local);
-                    wrong = pair(rf(Ty::I32, false), wrong);
-                }
-                assert!(super::lends(types, counted, local, 1));
-                assert!(!super::lends(types, wrong, local, 1));
-                // The same depth under a function type's parameter names
-                // the type parameter in a position; beside it, it does not.
-                let p = hd_types::ParamRef {
-                    owner: hd_base::DefId::from_raw(1),
-                    index: 0,
-                };
-                let mut deep = pool.intern_ty(&TyData::Param(p));
-                for _ in 2..hd_base::limits::TYPE_DEPTH {
-                    deep = pair(rf(Ty::I32, false), deep);
-                }
-                let f = pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&[deep]),
-                    result: Ty::I32,
-                    row: hd_types::RowId::EMPTY,
-                    suspends: false,
-                    inputs: hd_types::Inputs::Fixed,
-                    deps: hd_types::FnDeps::NONE,
-                });
-                assert!(super::hidden(types, f, p));
-                assert!(!super::hidden(types, deep, p));
-                // A local reference at the bottom of 1,000 levels of
-                // tuples is held, and at the top it is no escape.
-                let mut bottom = rf(Ty::I32, false);
-                for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    bottom = pair(Ty::I32, bottom);
-                }
-                assert!(super::holds_local_ref(types, bottom));
-                let mut memo = super::EscapeMemo::default();
-                assert!(super::escape_in(types, bottom, true, &mut memo).is_none());
-            })
-            .expect("thread")
-            .join()
-            .expect("no stack overflow");
     }
 }

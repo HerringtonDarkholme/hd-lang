@@ -3,7 +3,7 @@
 //! the header checks that need goals. Written header types against their
 //! declared bounds, each impl's supertraits, and delegation targets are
 //! `Implements` goals asked through the solver, under the item's
-//! environment (built as a body builds its own), with the folder's view
+//! environment (built as a body builds its own), with the unit's view
 //! of the impls: its closure's tables and impl universe (§3.2). Each
 //! item's goals share one fuel budget and one item memo.
 //!
@@ -31,7 +31,7 @@ use crate::dep_results::{Written, goal_tuple, written_escapes};
 const TYPE_TOO_LARGE: &str =
     "this type nests deeper than the compiler allows; name a struct to wrap part of it";
 
-/// What a folder's header check sees: the items of its closure, its view
+/// What a unit's header check sees: the items of its closure, its view
 /// of the impls, the run memo and the solver.
 pub struct HeaderCx<'a> {
     pub names: Names<'a>,
@@ -75,17 +75,30 @@ pub struct Finding {
     /// Empty for every other finding.
     pub ref_fix: Vec<u32>,
     /// Visibility choices, ranked: declaration and whether to expose it.
-    /// `DefId`s are remapped through the folder's existing own-item index.
+    /// `DefId`s are remapped through the unit's existing own-item index.
     pub visibility_fix: Vec<(DefId, bool)>,
 }
 
-/// Stage B over a folder's interface items that `HeaderCheck(F)` covers
+/// Stage B over a unit's interface items that `HeaderCheck(F)` covers
 /// ([`InterfaceCheck::checks`]), in item order: bounds of written header types
 /// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
 pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<Finding>> {
     let mut held = InterfaceCheck::new(&cx.names, cx.lookup);
     stage_b_over(cx, items.iter().filter(|it| held.checks(it)))
+}
+
+/// Whether an interface item is part of its unit's API, not a private
+/// type declaration carried for the solver's walks.
+fn api_item(it: &Item) -> bool {
+    it.public
+        || !matches!(
+            it.data,
+            ItemData::Struct(..)
+                | ItemData::Enum { .. }
+                | ItemData::Newtype(..)
+                | ItemData::Alias { .. }
+        )
 }
 
 /// Stage B over the items of one module that `HeaderCheck` leaves out
@@ -122,13 +135,16 @@ impl<'n, 'a> InterfaceCheck<'n, 'a> {
         }
     }
 
+    /// Whether an interface holds `d` as part of the API: a private type
+    /// declaration it carries only for a dependent's `Copy` and marker
+    /// walks (`hd_resolve::interface_items`) is checked with its module.
     fn holds(&self, d: DefId) -> bool {
-        d == DefId::NONE || self.lookup.ifaces.iter().any(|f| f.item(d).is_some())
+        d == DefId::NONE || self.lookup.interface_satisfies(d, api_item)
     }
 
     /// Whether `HeaderCheck(F)` checks `it`.
     pub fn checks(&mut self, it: &Item) -> bool {
-        if !self.lookup.ifaces.iter().any(|f| f.item(it.def).is_some()) {
+        if !api_item(it) || !self.holds(it.def) {
             return false;
         }
         let (mut defs, mut tys) = (Vec::new(), Vec::new());
@@ -381,6 +397,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         | ItemData::Enum { .. }
         | ItemData::Impl { .. }
         | ItemData::Newtype(..)
+        | ItemData::Binding(_)
         | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
     env
@@ -562,7 +579,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 .map(|f| f.ty)
                 .collect(),
             ItemData::Impl { self_ty, .. } => vec![*self_ty],
-            ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => vec![*body],
+            ItemData::Alias { body, .. } | ItemData::Newtype(body, _) | ItemData::Binding(body) => {
+                vec![*body]
+            }
             ItemData::Trait(_) | ItemData::AssocType { .. } | ItemData::Builtin => vec![],
         };
         // The positions that other modules can see: every position of a
@@ -774,6 +793,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Enum { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         let ItemData::Impl {
@@ -1050,6 +1070,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         match &it.data {
@@ -1064,6 +1085,7 @@ impl<'a> ItemCheck<'_, 'a> {
             | ItemData::Impl { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
         for t in tys {
@@ -2367,12 +2389,22 @@ enum Fault {
 ///
 /// Cost: each trait the walk reaches once, and each signature's distinct
 /// types once per signature.
+///
+/// A package host trait whose library `c.library` names has a C
+/// provider: its methods are held to the C value table instead
+/// ([`c_fault`], `module.host.package.c-types`), and so are the handle
+/// traits it returns, which share its library ([`CLibraries`]).
 pub fn boundary(
     cx: &HeaderCx<'_>,
     roots: &[(DefId, bool)],
     returned: &dyn Fn(DefId, bool) -> Returned,
+    c: &CLibraries<'_>,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
+    let (c_roots, roots): (Vec<_>, Vec<_>) = roots
+        .iter()
+        .partition(|&&(def, _)| (c.library)(def).is_some());
+    let roots: &[(DefId, bool)] = &roots;
     let serialize = cx.names.known.serialize;
     let deserialize = cx.names.known.deserialize;
     let mut traits = roots.to_vec();
@@ -2482,6 +2514,91 @@ pub fn boundary(
         }
         shape(def, "host capability", &mut out);
     }
+    // A C-bound root, then each handle trait a checked method returns
+    // (`module.host.package.c-handles`), each checked once, with the
+    // library it shares with the trait that returns it.
+    let mut c_library: hd_base::HashMap<DefId, String> = c_roots
+        .iter()
+        .filter_map(|r| Some((r.0, (c.library)(r.0)?)))
+        .collect();
+    // The trait each library's entry name is taken by in this walk.
+    let short = |def: DefId| {
+        let path = cx.names.path(def);
+        path.rsplit(['.', '/']).next().unwrap_or("").to_owned()
+    };
+    // A trait's package-relative path, as its `[host]` entry writes it.
+    let relative = |def: DefId| {
+        let path = cx.names.path(def);
+        path.split_once('/')
+            .map_or(path.as_str(), |(_, rest)| rest)
+            .replace('/', ".")
+    };
+    let mut c_entries: hd_base::HashMap<(String, String), DefId> = c_library
+        .iter()
+        .map(|(&d, library)| ((library.clone(), short(d)), d))
+        .collect();
+    // Each entry: a trait, and for a root whether its package's marker
+    // check, not this one, reports a type parameter list.
+    let mut c_todo: Vec<(DefId, Option<bool>)> =
+        c_roots.iter().map(|&(d, p)| (d, Some(p))).collect();
+    while let Some((def, root)) = c_todo.pop() {
+        let what = if root.is_some() {
+            "host capability"
+        } else {
+            "host handle"
+        };
+        if root != Some(true) {
+            generic(def, what, &mut out);
+        }
+        shape(def, what, &mut out);
+        let Some(library) = c_library.get(&def).cloned() else {
+            continue;
+        };
+        for (handle, method) in c_trait(cx, def, &mut out) {
+            let report = |out: &mut Vec<Finding>, message: String| {
+                out.push(Finding {
+                    item: method,
+                    slot: 0,
+                    code: Code::BoundaryNotSafe,
+                    message,
+                    ref_fix: Vec::new(),
+                    visibility_fix: Vec::new(),
+                });
+            };
+            // `cli.host.c.handle-library`: one library serves a handle trait.
+            if let Some(other) = c_library.get(&handle) {
+                if *other != library {
+                    report(
+                        &mut out,
+                        format!(
+                            "the handle trait `{}` is returned by C providers of two libraries, `{other}` and `{library}`; a returned handle's table comes from the one library of the traits that return it",
+                            relative(handle)
+                        ),
+                    );
+                }
+                continue;
+            }
+            // `cli.host.c.handle-entry`: one entry symbol names one trait.
+            let name = short(handle);
+            let entry = format!("{library}_{name}");
+            let taken = c_entries
+                .get(&(library.clone(), name.clone()))
+                .map(|&d| relative(d))
+                .or_else(|| (c.root_named)(method, &library, &name));
+            if let Some(taken) = taken {
+                report(
+                    &mut out,
+                    format!(
+                        "the handle trait `{}` would export the entry symbol `{entry}`, which `{taken}` exports from library `{library}`; rename one of the traits",
+                        relative(handle)
+                    ),
+                );
+            }
+            c_entries.insert((library.clone(), name), handle);
+            c_library.insert(handle, library.clone());
+            c_todo.push((handle, None));
+        }
+    }
     let mut bound = queued.clone();
     let mut next = 0;
     while let Some(&(def, package)) = traits.get(next) {
@@ -2552,6 +2669,272 @@ pub fn boundary(
         }
     }
     Ok(out)
+}
+
+/// What the boundary check knows of a package's C providers from its
+/// manifest (`cli.host.c.file`): the library of a C-bound root trait, and
+/// which root trait of the package of a definition takes an entry name in
+/// a library.
+pub struct CLibraries<'a> {
+    /// The `c` library of a root trait's `[host]` entry, when it has one.
+    pub library: &'a dyn Fn(DefId) -> Option<String>,
+    /// The path of a C-bound root trait of `near`'s package whose entry
+    /// symbol in `library` is `library_NAME`, when there is one.
+    pub root_named: &'a dyn Fn(DefId, &str, &str) -> Option<String>,
+}
+
+/// Where a type stands in a C-bound method's signature.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CPlace {
+    /// A parameter of a method that returns at once.
+    Param,
+    /// A parameter of a suspending method (`module.host.package.c-suspend`).
+    SuspendParam,
+    /// The result of a method that returns at once.
+    Result,
+    /// The result of a suspending method, completed through its token.
+    SuspendResult,
+}
+
+/// The C value table check of the package host trait `def`, which its
+/// package's `[host]` table binds to a C provider
+/// (`module.host.package.c-types`, `c-references`, `c-suspend`): the
+/// first type of each method's signature outside the table is an error
+/// there, once per signature. Its table holds its own methods in source
+/// order, so a supertrait, whose methods have no place in it, is an error
+/// at the trait.
+///
+/// Cost: each method once, and each signature type once; no type is
+/// walked deeper than a reference to a list of numbers.
+fn c_trait(cx: &HeaderCx<'_>, def: DefId, out: &mut Vec<Finding>) -> Vec<(DefId, DefId)> {
+    let mut handles = Vec::new();
+    let Some(ItemData::Trait(t)) = cx.lookup.item(def).map(|i| &i.data) else {
+        return handles;
+    };
+    if !t.supers.is_empty() {
+        out.push(Finding {
+            item: def,
+            slot: 0,
+            code: Code::BoundaryNotSafe,
+            message: "a trait bound to a C provider has no supertraits: its function table holds its own methods, in source order".to_owned(),
+            ref_fix: Vec::new(),
+            visibility_fix: Vec::new(),
+        });
+    }
+    for &(_, m) in &t.methods {
+        let Some(mi) = cx.lookup.item(m) else {
+            continue;
+        };
+        let Some(sig) = mi.sig() else {
+            continue;
+        };
+        if !sig.suspends
+            && let Some(handle) = c_handle(&cx.names, sig.ret)
+        {
+            handles.push((handle, m));
+        }
+        let (param, result) = if sig.suspends {
+            (CPlace::SuspendParam, CPlace::SuspendResult)
+        } else {
+            (CPlace::Param, CPlace::Result)
+        };
+        let fault = sig
+            .params
+            .iter()
+            .filter(|p| cx.names.text(p.0) != "self")
+            .map(|p| (p.1, param))
+            .chain([(sig.ret, result)])
+            .find_map(|(t, place)| c_fault(cx, t, place).map(|why| (t, place, why)));
+        if let Some((t, place, why)) = fault {
+            let way = if matches!(place, CPlace::Result | CPlace::SuspendResult) {
+                "from"
+            } else {
+                "to"
+            };
+            out.push(Finding {
+                item: m,
+                slot: 0,
+                code: Code::BoundaryNotSafe,
+                message: format!(
+                    "{} cannot cross {way} a C provider here: {why}",
+                    hd_resolve::show_ty(&cx.names, t)
+                ),
+                ref_fix: Vec::new(),
+                visibility_fix: Vec::new(),
+            });
+        }
+    }
+    handles
+}
+
+/// The trait of `t` when it is a returned host handle a C provider may
+/// return (`module.host.package.c-handles`): a reference to a trait value
+/// of a program trait, not std's.
+#[must_use]
+pub fn c_handle(names: &Names<'_>, t: Ty) -> Option<DefId> {
+    let pool = names.pool.types();
+    let TyData::Ref { inner, .. } = pool.get(t) else {
+        return None;
+    };
+    let TyData::TraitValue { def, .. } = pool.get(inner) else {
+        return None;
+    };
+    (!names.path(def).starts_with("std/")).then_some(def)
+}
+
+/// Why `t` at `place` is no row of the C value table, or `None` when it
+/// is one.
+fn c_fault(cx: &HeaderCx<'_>, t: Ty, place: CPlace) -> Option<&'static str> {
+    let suspends = matches!(place, CPlace::SuspendParam | CPlace::SuspendResult);
+    match place {
+        CPlace::Param | CPlace::SuspendParam => c_param(&cx.names, t, suspends).err(),
+        CPlace::Result | CPlace::SuspendResult => c_result(&cx.names, t, suspends).err(),
+    }
+}
+
+/// The number row of `t`, when it is a number type.
+fn c_num(pool: Types<'_>, t: Ty) -> Option<hd_host_abi::c::Num> {
+    use hd_host_abi::c::Num;
+    use hd_types::Prim;
+    let TyData::Prim(p) = pool.get(t) else {
+        return None;
+    };
+    Some(match p {
+        Prim::I8 => Num::I8,
+        Prim::I16 => Num::I16,
+        Prim::I32 => Num::I32,
+        Prim::I64 => Num::I64,
+        Prim::U8 => Num::U8,
+        Prim::U16 => Num::U16,
+        Prim::U32 => Num::U32,
+        Prim::U64 => Num::U64,
+        Prim::Usize => Num::Usize,
+        Prim::F32 => Num::F32,
+        Prim::F64 => Num::F64,
+        Prim::Bool | Prim::Char | Prim::String => return None,
+    })
+}
+
+/// The element of `t` when it is a `List`.
+fn c_list_of(names: &Names<'_>, t: Ty) -> Option<Ty> {
+    let pool = names.pool.types();
+    match pool.get(t) {
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
+            pool.list_items(args).first().copied()
+        }
+        _ => None,
+    }
+}
+
+/// The C value table row of parameter type `t` of a method that
+/// suspends when `suspends` (`module.host.package.c-types`,
+/// `c-references`, `c-suspend`), or why it has none: `bool` and the
+/// numbers; for a method that returns at once, also `string` and a local
+/// reference to a number or to a list of numbers.
+///
+/// Cost: a constant number of pool reads.
+pub fn c_param(
+    names: &Names<'_>,
+    t: Ty,
+    suspends: bool,
+) -> Result<hd_host_abi::c::Param, &'static str> {
+    use hd_host_abi::c::Param;
+    let pool = names.pool.types();
+    if t == Ty::BOOL {
+        return Ok(Param::Bool);
+    }
+    if let Some(num) = c_num(pool, t) {
+        return Ok(Param::Num(num));
+    }
+    if suspends {
+        return Err(
+            "a suspending method of a C-bound trait takes only numbers and `bool`, since the instance runs on while C works",
+        );
+    }
+    if t == Ty::STRING {
+        return Ok(Param::Str);
+    }
+    match pool.get(t) {
+        TyData::Ref {
+            inner,
+            counted: false,
+            mutable,
+        } => {
+            if let Some(num) = c_num(pool, inner) {
+                Ok(Param::Ref { num, mutable })
+            } else if let Some(num) = c_list_of(names, inner).and_then(|e| c_num(pool, e)) {
+                Ok(Param::List { num, mutable })
+            } else {
+                Err("a local reference crosses to C only to a number or to a list of numbers")
+            }
+        }
+        _ => Err(
+            "a C function takes `bool`, numbers, `string`, and local references to numbers and to lists of numbers",
+        ),
+    }
+}
+
+/// The C value table row of result type `t` of a method that suspends
+/// when `suspends`, or why it has none: `void`, `bool` or a number; a
+/// suspending method's completion is a number, `List[u8]`, or a `Result`
+/// of one of them with an `i32` error.
+///
+/// Cost: a constant number of pool reads.
+pub fn c_result(
+    names: &Names<'_>,
+    t: Ty,
+    suspends: bool,
+) -> Result<hd_host_abi::c::Ret, &'static str> {
+    use hd_host_abi::c::{Num, Ret};
+    let pool = names.pool.types();
+    if suspends {
+        let completed = |t: Ty| {
+            if let Some(num) = c_num(pool, t) {
+                Some(Ret::Num(num))
+            } else {
+                (c_list_of(names, t).and_then(|e| c_num(pool, e)) == Some(Num::U8))
+                    .then_some(Ret::Bytes)
+            }
+        };
+        return completed(t)
+            .or_else(|| match pool.get(t) {
+                TyData::Adt(AdtId::Declared(def), args) if def == names.known.result => {
+                    match pool.list_items(args) {
+                        [value, error] if *error == Ty::I32 => {
+                            completed(*value).map(|r| Ret::Result(Box::new(r)))
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            })
+            .ok_or(
+                "a C completion is a number, `List[u8]`, or a `Result` of one of them with an `i32` error",
+            );
+    }
+    if t == Ty::VOID {
+        return Ok(Ret::Void);
+    }
+    if t == Ty::BOOL {
+        return Ok(Ret::Bool);
+    }
+    if let Some(num) = c_num(pool, t) {
+        return Ok(Ret::Num(num));
+    }
+    if let Some(handle) = c_handle(names, t) {
+        let path = names.path(handle);
+        return Ok(Ret::Handle(
+            path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
+        ));
+    }
+    if matches!(pool.get(t), TyData::Ref { inner, .. }
+        if matches!(pool.get(inner), TyData::TraitValue { .. }))
+    {
+        return Err("a C provider returns a handle of a program's own trait, not of std's");
+    }
+    Err(
+        "a C function returns `void`, `bool` or a number; a string or a list comes back from a suspending method's completion",
+    )
 }
 
 impl ItemCheck<'_, '_> {

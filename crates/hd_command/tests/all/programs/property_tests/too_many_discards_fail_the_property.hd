@@ -1,0 +1,12 @@
+use std.testing.Choices
+
+fn rejects(c: &mut Choices) -> i64:
+    c.assume(false)
+    0
+
+tests:
+    use std.testing.it_prop_with
+
+    it_prop_with("never runs its body", gen=rejects, cases=3, prop=fn!(n: i64):
+        pass
+    )

@@ -8,6 +8,9 @@ repository.workspace = true
 include.workspace = true
 description = "Name resolution, folder interfaces, hashes, ownership and visibility (hd compiler internals, no stable API; install `hd-lang`)"
 
+[features]
+testing = []
+
 [dependencies]
 hd_base = { workspace = true }
 hd_diag = { workspace = true }
@@ -20,6 +23,7 @@ hd_types = { workspace = true }
 workspace = true
 
 [dev-dependencies]
+hd_resolve = { path = ".", features = ["testing"] }
 hd_cache = { path = "../hd_cache" }
 hd_driver = { path = "../hd_driver" }
 hd_sched = { path = "../hd_sched" }

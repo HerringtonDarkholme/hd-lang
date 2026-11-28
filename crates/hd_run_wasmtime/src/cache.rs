@@ -19,10 +19,10 @@
 //! merge independent capacity contracts. (The suite runs one process-wide
 //! `TestEngine`, so its repeats still compile once.)
 //!
-//! The caches hold modules in process only: wasmtime's serialized modules
-//! are `unsafe` to deserialize, so no module outlives its process. Their
-//! machine code does, function by function, when the code cache
-//! (`code_cache.rs`) was installed as the engine was made.
+//! These dev/test caches hold modules in process only. Their machine code
+//! persists function by function when `code_cache.rs` is installed. Native
+//! release artifacts use the separate `precompiled.rs` boundary and bypass
+//! both caches.
 
 use hd_base::HashMap;
 use std::collections::VecDeque;
@@ -36,6 +36,7 @@ use crate::{EngineConfig, OptLevel};
 struct OnDemandKey {
     opt: OptLevel,
     max_stack: usize,
+    compilation_jobs: usize,
 }
 
 /// Compiled modules for one engine, bound to a small LRU so a process
@@ -57,12 +58,13 @@ pub(crate) struct ModuleCache {
     modules: Mutex<CacheState>,
     /// The engine's salt when the code cache is on for it.
     code: Option<hd_base::Hash128>,
+    compilation_jobs: usize,
 }
 
 /// Fits in the suite's noise: the suite compiles about a thousand
 /// distinct modules, so almost every load is a miss either way; the bound
 /// pays off wherever bytes repeat.
-const CAPACITY: usize = 128;
+pub const CAPACITY: usize = 128;
 
 #[derive(Default)]
 struct CacheState {
@@ -74,10 +76,11 @@ struct CacheState {
 impl ModuleCache {
     /// The cache of `engine`, which `code` says was made with the code
     /// cache on (`code_cache::configure`).
-    pub(crate) fn new(engine: &wasmtime::Engine, code: bool) -> Self {
+    pub(crate) fn new(engine: &wasmtime::Engine, code: bool, compilation_jobs: usize) -> Self {
         Self {
             modules: Mutex::new(CacheState::default()),
             code: code.then(|| crate::code_cache::salt(engine)),
+            compilation_jobs,
         }
     }
 
@@ -94,8 +97,8 @@ impl ModuleCache {
             }
         }
         let compiled = match self.code {
-            Some(salt) => crate::code_cache::compile(engine, salt, wasm)?,
-            None => wasmtime::Module::new(engine, wasm)?,
+            Some(salt) => crate::code_cache::compile(engine, salt, wasm, self.compilation_jobs)?,
+            None => crate::code_cache::compile_module(engine, wasm, self.compilation_jobs)?,
         };
         let compiled = Arc::new(compiled);
         let mut state = self.modules.lock().unwrap_or_else(PoisonError::into_inner);
@@ -141,6 +144,7 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
     let key = OnDemandKey {
         opt: config.cranelift_opt,
         max_stack: config.max_wasm_stack,
+        compilation_jobs: config.compilation_jobs.max(1),
     };
     if let Some(shared) = on_demand_engines()
         .lock()
@@ -159,94 +163,9 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
         return Ok(Arc::clone(shared));
     }
     let shared = Arc::new(Shared {
-        cache: ModuleCache::new(&engine, code),
+        cache: ModuleCache::new(&engine, code, config.compilation_jobs),
         engine,
     });
     engines.insert(key, Arc::clone(&shared));
     Ok(shared)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use crate::{EngineConfig, WasmtimeEngine};
-    use hd_cache::MemoryStore;
-    use hd_run::Engine as _;
-
-    fn empty_module() -> Vec<u8> {
-        wasm_encoder::Module::new().finish()
-    }
-
-    fn other_module() -> Vec<u8> {
-        // Same shape, different bytes: import-free, so `load` accepts it.
-        let mut module = wasm_encoder::Module::new();
-        module.section(&wasm_encoder::CustomSection {
-            name: std::borrow::Cow::Borrowed("m29-probe"),
-            data: std::borrow::Cow::Borrowed(b"different".as_slice()),
-        });
-        module.finish()
-    }
-
-    #[test]
-    fn identical_bytes_compile_once_across_wrappers() {
-        let bytes = empty_module();
-        let store = MemoryStore::default();
-        // Two separate wrappers, one shared engine: one compilation.
-        let first = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let second = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let a = first.load(&bytes, &store).unwrap();
-        let b = second.load(&bytes, &store).unwrap();
-        assert!(Arc::ptr_eq(&a.0, &b.0));
-        // Different bytes still compile separately.
-        let other = first.load(&other_module(), &store).unwrap();
-        assert!(!Arc::ptr_eq(&a.0, &other.0));
-    }
-
-    #[test]
-    fn distinct_configs_compile_separately() {
-        // A different engine config must not alias the default's artifact.
-        let bytes = empty_module();
-        let store = MemoryStore::default();
-        let default_engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let release_engine =
-            WasmtimeEngine::new(EngineConfig::pipeline(hd_base::OptLevel::Optimized)).unwrap();
-        let a = default_engine.load(&bytes, &store).unwrap();
-        let b = release_engine.load(&bytes, &store).unwrap();
-        assert!(!Arc::ptr_eq(&a.0, &b.0));
-    }
-
-    fn numbered_module(n: u32) -> Vec<u8> {
-        // Distinct import-free bytes per number.
-        let data = n.to_le_bytes();
-        let mut module = wasm_encoder::Module::new();
-        module.section(&wasm_encoder::CustomSection {
-            name: std::borrow::Cow::Borrowed("m31-probe"),
-            data: data.as_slice().into(),
-        });
-        module.finish()
-    }
-
-    #[test]
-    fn entries_past_the_bound_evict_oldest_first() {
-        const EXTRA: u32 = 8;
-        let total = u32::try_from(super::CAPACITY).unwrap() + EXTRA;
-        let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let store = MemoryStore::default();
-        // Fill past the bound with distinct modules, hitting each once.
-        let first = engine.load(&numbered_module(0), &store).unwrap();
-        for n in 1..total {
-            engine.load(&numbered_module(n), &store).unwrap();
-        }
-        // The oldest entry evicted: reloading recompiles.
-        let recompiled = engine.load(&numbered_module(0), &store).unwrap();
-        assert!(!Arc::ptr_eq(&first.0, &recompiled.0));
-        // A recent entry still hits the shared compilation, twice in a row.
-        let last = total - 1;
-        let kept = engine.load(&numbered_module(last), &store).unwrap();
-        assert!(Arc::ptr_eq(
-            &kept.0,
-            &engine.load(&numbered_module(last), &store).unwrap().0
-        ));
-    }
 }

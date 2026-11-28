@@ -14,9 +14,10 @@
 //! callees first. A body never checks another inside its own check: one
 //! that reads a pending callable waits for it, and an explicit stack
 //! checks the callable and then the body again ([`drive`]), so no chain
-//! or cycle of them nests body checks. A callee whose omitted result is
-//! being checked, or waits, closes a cycle (`fn.decl.omitted-cycle`),
-//! reported once at the cycle's member that comes first in source order
+//! or cycle of them nests body checks. Signature reads and local result
+//! inference record one shared dependency graph. Written results break
+//! its edges. Each completed inference group's cyclic components are
+//! reported once at the member first in source order
 //! (`fn.decl.omitted-cycle.report`). A callee
 //! whose omitted row is still open is no error: the call records an edge,
 //! and the rows of the recursive group are the least solution of its edges
@@ -46,7 +47,7 @@ enum State {
     /// Not checked yet: its declaration.
     Pending(NodeIdx),
     /// Its body is being checked.
-    Active(NodeIdx),
+    Active,
     /// Its check read a pending callable, so the check was dropped; it
     /// runs again once [`drive`] has checked what it read.
     Waiting(NodeIdx),
@@ -137,7 +138,8 @@ pub struct Results {
     /// The `recursive-function-needs-result-type` reports, and those of
     /// the module's top-level statements' calls of open rows.
     module_diags: DiagBuf,
-    reported: hd_base::HashSet<DefId>,
+    reported: hd_base::HashSet<NodeIdx>,
+    cycles: crate::result_cycles::Cycles,
     /// The callables a template named without a declared result type,
     /// each reported once (`module.package.template-private.result`).
     template_named: Vec<DefId>,
@@ -187,7 +189,7 @@ enum RowSeen {
 
 /// An unfinished row's approximation is empty. Solving it to empty adds
 /// no signature information and must not make its readers start over.
-fn row_changed(before: Option<RowId>, after: Option<RowId>) -> bool {
+pub(crate) fn row_changed(before: Option<RowId>, after: Option<RowId>) -> bool {
     before.unwrap_or(RowId::EMPTY) != after.unwrap_or(RowId::EMPTY)
 }
 
@@ -230,7 +232,8 @@ impl Results {
             blocked: Vec::new(),
             chain: Vec::new(),
             module_diags: DiagBuf::default(),
-            reported: hd_base::HashSet::default(),
+            reported: self.reported.clone(),
+            cycles: crate::result_cycles::Cycles::default(),
             template_named: self.template_named.clone(),
             structure_reads: hd_base::HashSet::default(),
             errors: self.has_errors(),
@@ -272,7 +275,7 @@ impl Results {
             .active
             .last()
             .is_some_and(|def| self.body_errors.contains(def));
-        self.errors || self.body_errors.len() > usize::from(own)
+        self.errors || self.cycles.poisoned || self.body_errors.len() > usize::from(own)
     }
 
     /// A body read a binding no statement had declared yet. The
@@ -307,40 +310,27 @@ impl Results {
         self.module_diags.error(Code::MissingResultType, span, &msg);
     }
 
-    /// One report per cycle, at its member first in source order. The
-    /// cycle runs from `def` along the waiting chain to the active body.
-    fn cycle(&mut self, cx: &BodyCx<'_>, def: DefId) {
-        let path = || self.chain.iter().chain(&self.active);
-        let Some(at) = path().position(|d| *d == def) else {
-            return;
-        };
-        let Some(first) = path()
-            .skip(at)
-            .copied()
-            .min_by_key(|d| self.omits[d].position)
-        else {
-            return;
-        };
-        self.errors = true;
-        if !self.reported.insert(first) {
-            return;
+    /// One report per cyclic component, at its earliest source member.
+    fn report_cycles(&mut self, cx: &BodyCx<'_>, diags: &mut DiagBuf) -> bool {
+        let (cycles, _) = self.cycles.finish();
+        let errors = !cycles.is_empty();
+        for at in cycles {
+            if !self.reported.insert(at) {
+                continue;
+            }
+            let node = cx.src.parse.tree.node(at);
+            // Only named declarations have omitted-result vertices:
+            // omitted_results registers item/method declarations, and
+            // closure_with enters an omitted local scope only for FnDecl.
+            // ruled out: a nameless vertex; parsing requires its name.
+            let token = node.name_part(&cx.src.parse.tokens);
+            let (span, name) = (cx.src.token_span(token), cx.src.text(token));
+            let msg = format!(
+                "`{name}` calls itself through functions without a result type; write its result type"
+            );
+            diags.error(Code::RecursiveFunctionNeedsResultType, span, &msg);
         }
-        let Some(State::Active(n) | State::Waiting(n)) = self.state.get(&first) else {
-            return;
-        };
-        let node = cx.src.parse.tree.node(*n);
-        let (span, name) = match node
-            .name(&cx.src.parse.tokens)
-            .or_else(|| cx.src.name_after(node, TokenKind::KwFn))
-        {
-            Some(t) => (cx.src.token_span(t), cx.src.text(t)),
-            None => (cx.src.span(node), "this function"),
-        };
-        let msg = format!(
-            "`{name}` calls itself through functions without a result type; write its result type"
-        );
-        self.module_diags
-            .error(Code::RecursiveFunctionNeedsResultType, span, &msg);
+        errors
     }
 
     /// Whether `def`'s row is omitted and not solved yet: its body is not
@@ -1114,8 +1104,9 @@ fn callees_first(cx: &BodyCx<'_>, root: usize) -> bool {
 /// is checked first when it is not done and the caller needs it: for an
 /// omitted result, or with `force`. Rows alone never order checking: a
 /// call of an open row records an edge. A callee whose omitted result is
-/// being checked, or waits, closes a cycle: the error is reported and the
-/// call is poison. A body being checked never checks a pending callee: it
+/// being checked, or waits, records a result dependency and supplies
+/// poison until inferred. Across a written local result, the same body's
+/// live inference variable remains usable. A body being checked never checks a pending callee: it
 /// waits for it ([`drive`]), and the call is poison until then.
 fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
     let mut prepared = false;
@@ -1135,10 +1126,12 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 let ret = omits.ret.then_some(*ret);
                 return Some(Seen { ret, row });
             }
-            State::Active(_) | State::Waiting(_) => {
+            State::Active | State::Waiting(_) => {
                 let ret = if omits.ret {
-                    r.cycle(cx, def);
-                    Some(Ty::POISON)
+                    Some(match r.cycles.read(omits.at, omits.position) {
+                        crate::result_cycles::Read::Live(ret) => ret,
+                        _ => Ty::POISON,
+                    })
                 } else {
                     None
                 };
@@ -1148,6 +1141,9 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 return Some(Seen { ret: None, row });
             }
             State::Pending(_) if !r.active.is_empty() => {
+                if omits.ret {
+                    r.cycles.read(omits.at, omits.position);
+                }
                 r.blocked.push(def);
                 return Some(Seen {
                     ret: omits.ret.then_some(Ty::POISON),
@@ -1155,6 +1151,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
                 });
             }
             State::Pending(_) if omits.ret && !prepared => {
+                r.cycles.read(omits.at, omits.position);
                 drop(r);
                 prepared = true;
                 callees_first(cx, omits.position);
@@ -1172,7 +1169,8 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
 /// waits, they are checked above it, callees first in the order it read
 /// them, and then it is checked again. Each callable above a waiting one
 /// is one it read, directly or through those between, so the waiting
-/// ones form the chain from `root` to the active body ([`Results::cycle`]).
+/// ones form the chain from `root` to the active body. The shared result
+/// graph retains their signature dependencies while they wait.
 /// Cost: a body is checked once, plus once per check that read a
 /// callable not checked yet; each such read leaves that callable done
 /// before the body runs again, so a body runs at most once more than the
@@ -1180,6 +1178,7 @@ fn seen(cx: &BodyCx<'_>, def: DefId, force: bool) -> Option<Seen> {
 fn drive(cx: &BodyCx<'_>, root: DefId) {
     debug_assert!(cx.results.borrow().chain.is_empty(), "one drive at a time");
     let mut stack = vec![root];
+    let mut marks = HashMap::default();
     while let Some(&def) = stack.last() {
         let (n, omits) = {
             let mut r = cx.results.borrow_mut();
@@ -1197,7 +1196,11 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
                     continue;
                 }
             };
-            r.state.insert(def, State::Active(n));
+            marks.entry(def).or_insert_with(|| {
+                let o = r.omits[&def];
+                r.cycles.enter(n, o.position, o.ret, false, None)
+            });
+            r.state.insert(def, State::Active);
             r.active.push(def);
             // `omitted_results` registers a callable's state together
             // with its omits, and only a registered callable has a state;
@@ -1206,6 +1209,9 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
         };
         let blocked = check(cx, def, n, omits);
         if blocked.is_empty() {
+            if let Some(mark) = marks.remove(&def) {
+                cx.results.borrow_mut().cycles.leave(mark);
+            }
             stack.pop();
             continue;
         }
@@ -1213,6 +1219,12 @@ fn drive(cx: &BodyCx<'_>, root: DefId) {
         let fresh: Vec<DefId> = blocked.into_iter().filter(|d| first.insert(*d)).collect();
         stack.extend(fresh.into_iter().rev());
     }
+    let mut r = cx.results.borrow_mut();
+    let mut diags = std::mem::take(&mut r.module_diags);
+    if !r.cycles.open() && r.report_cycles(cx, &mut diags) {
+        r.errors = true;
+    }
+    r.module_diags = diags;
 }
 
 /// Checks the body of `def`, which the caller made active, with what its
@@ -1237,6 +1249,7 @@ fn check(cx: &BodyCx<'_>, def: DefId, node: NodeIdx, omits: Omits) -> Vec<DefId>
         Err(e) => (Err(e), Ty::POISON, RowFacts::default()),
     };
     let mut r = cx.results.borrow_mut();
+    r.cycles.live(at, None);
     r.active.pop();
     let blocked = std::mem::take(&mut r.blocked);
     if !blocked.is_empty() {
@@ -1525,162 +1538,114 @@ pub fn reads_structure(cx: &BodyCx<'_>, imp: DefId) -> bool {
     cx.results.borrow().structure_reads.contains(&imp)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn row_key_depth_at_1000_fits_a_small_stack() {
-        std::thread::Builder::new()
-            // cost: one 96 KiB thread for this test.
-            .stack_size(96 << 10)
-            .spawn(|| {
-                let pool = hd_types::InternPool::new();
-                let types = pool.types();
-                for nesting in [10, 20, 100, 1_000] {
-                    let mut t = Ty::I32;
-                    for _ in 0..nesting {
-                        t = pool.product(pool.list(&[t, t]), None);
-                    }
-                    let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, t, 0));
-                    let expected = (nesting + 1).min(MAX_KEY_DEPTH + 1);
-                    assert_eq!(answer, expected);
-                    assert_eq!(work, u64::from(expected));
-                }
-                let mut shared = Ty::I32;
-                for _ in 1..20 {
-                    shared = pool.product(pool.list(&[shared, shared]), None);
-                }
-                for width in [100, 1_000] {
-                    let branches: Vec<_> = (0..width)
-                        .map(|i| {
-                            pool.intern_ty(&TyData::Adt(
-                                AdtId::Declared(DefId::from_raw(i)),
-                                pool.list(&[shared]),
-                            ))
-                        })
-                        .collect();
-                    let root = pool.product(pool.list(&branches), None);
-                    let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, root, 0));
-                    assert_eq!(answer, 22);
-                    assert_eq!(
-                        work,
-                        u64::from(width) + 21,
-                        "shared depth-20 parts are walked once"
-                    );
-                }
-                let tuple = |ts: &[Ty]| pool.product(pool.list(ts), None);
-                let reference = |inner| {
-                    pool.intern_ty(&TyData::Ref {
-                        inner,
-                        mutable: false,
-                        counted: false,
-                    })
-                };
-                let shared = tuple(&[Ty::I32]);
-                assert_eq!(
-                    depth(types, tuple(&[shared, reference(shared)]), 0),
-                    4,
-                    "a later deeper visit must extend the answer"
-                );
-                for at in [
-                    0,
-                    MAX_KEY_DEPTH - 1,
-                    MAX_KEY_DEPTH,
-                    MAX_KEY_DEPTH + 1,
-                    1_000,
-                ] {
-                    assert_eq!(
-                        depth(types, Ty::I32, at),
-                        if at > MAX_KEY_DEPTH { at } else { at + 1 }
-                    );
-                }
-                let owner = DefId::from_raw(1);
-                let adt =
-                    pool.intern_ty(&TyData::Adt(AdtId::Declared(owner), pool.list(&[shared])));
-                let value = pool.intern_ty(&TyData::TraitValue {
-                    def: owner,
-                    args: pool.list(&[Ty::I32]),
-                    bindings: vec![(owner, shared)],
-                });
-                let function = pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&[shared]),
-                    result: Ty::I32,
-                    row: pool.row(&RowData {
-                        keys: vec![adt],
-                        params: vec![],
-                    }),
-                    suspends: false,
-                    inputs: hd_types::Inputs::Fixed,
-                    deps: hd_types::FnDeps::NONE,
-                });
-                for t in [adt, value, function] {
-                    assert_eq!(depth(types, t, 0), 3);
-                }
-                let opaque = pool.intern_ty(&TyData::Opaque {
-                    owner,
-                    site: 0,
-                    borrows: false,
-                    args: pool.list(&[shared]),
-                    bound: shared,
-                });
-                let projection = pool.intern_ty(&TyData::Assoc {
-                    trait_: owner,
-                    assoc: owner,
-                    self_ty: shared,
-                    args: pool.list(&[shared]),
-                });
-                let union = pool.intern_ty(&TyData::sum(pool.list(&[shared, Ty::BOOL])));
-                for t in [opaque, projection, union] {
-                    assert_eq!(
-                        depth(types, t, 0),
-                        1,
-                        "the existing row-key boundary stays a leaf"
-                    );
-                }
-            })
-            .expect("thread")
-            .join()
-            .expect("no stack overflow");
+/// Signature-change bookkeeping for `tests/unit` (feature `testing`).
+#[cfg(feature = "testing")]
+impl Results {
+    /// Registers `def`, whose row is omitted and solved empty, declared at
+    /// `at` in source position `position`.
+    pub fn solved_row(&mut self, def: DefId, at: NodeIdx, position: usize) {
+        let omits = Omits {
+            ret: false,
+            row: true,
+            at,
+            position,
+        };
+        self.omits.insert(def, omits);
+        self.rows.insert(def, RowState::Solved(RowId::EMPTY));
     }
 
-    #[test]
-    fn an_empty_row_solution_keeps_the_initial_approximation() {
-        assert!(!row_changed(None, Some(RowId::EMPTY)));
-        assert!(!row_changed(Some(RowId::EMPTY), None));
-        assert!(row_changed(None, Some(RowId(1))));
-        assert!(row_changed(Some(RowId(1)), Some(RowId::EMPTY)));
+    /// Records that `reader`'s body read `def`'s signature.
+    pub fn read_signature(&mut self, def: DefId, reader: DefId) {
+        self.readers.entry(def).or_default().insert(reader);
     }
 
-    #[test]
-    fn a_signature_change_visits_only_its_readers() {
-        for unrelated in [100, 1000] {
-            let mut r = Results::default();
-            for i in 0..unrelated {
-                let def = DefId::from_raw(i);
-                r.omits.insert(
-                    def,
-                    Omits {
-                        ret: false,
-                        row: true,
-                        at: NodeIdx::from_raw(i),
-                        position: usize::try_from(i).expect("position"),
-                    },
-                );
-                r.rows.insert(def, RowState::Solved(RowId::EMPTY));
-                r.readers.entry(def).or_default().insert(def);
-            }
-            let def = DefId::from_raw(2);
-            r.readers
-                .get_mut(&def)
-                .expect("readers")
-                .insert(DefId::from_raw(3));
-            assert_eq!(r.changed(def), 2, "unrelated state: {unrelated}");
-            assert_eq!(r.dirty.iter().map(|d| d.raw()).collect::<Vec<_>>(), [2, 3]);
-            // Several signature updates before checking still schedule
-            // each affected body once.
-            assert_eq!(r.changed(def), 2);
-            assert_eq!(r.dirty.len(), 2);
+    /// [`Results::changed`]: the readers visited.
+    pub fn signature_changed(&mut self, def: DefId) -> usize {
+        self.changed(def)
+    }
+
+    /// The bodies queued to check again, in order.
+    #[must_use]
+    pub fn dirty(&self) -> Vec<DefId> {
+        self.dirty.iter().copied().collect()
+    }
+}
+
+/// A lexical result scope unwinds even when checking stops early or retries
+/// the existing local-row discovery traversal.
+pub(crate) struct ResultScope<'a, 'cx> {
+    cx: &'a BodyCx<'cx>,
+    mark: usize,
+}
+
+impl Drop for ResultScope<'_, '_> {
+    fn drop(&mut self) {
+        self.cx.results.borrow_mut().cycles.leave(self.mark);
+    }
+}
+
+pub(crate) fn local_scope<'a, 'cx>(
+    cx: &'a BodyCx<'cx>,
+    node: NodeRef<'_>,
+    omitted: bool,
+    ret: Ty,
+) -> ResultScope<'a, 'cx> {
+    let mark = cx.results.borrow_mut().cycles.enter(
+        node.index(),
+        cx.src.span(node).lo as usize,
+        omitted,
+        true,
+        Some(ret),
+    );
+    ResultScope { cx, mark }
+}
+
+pub(crate) fn live_result(cx: &BodyCx<'_>, node: NodeIdx, ret: Ty) {
+    cx.results.borrow_mut().cycles.live(node, Some(ret));
+}
+
+pub(crate) fn finish_local_results(cx: &BodyCx<'_>, diags: &mut DiagBuf) {
+    let mut r = cx.results.borrow_mut();
+    if !r.inferring() && !r.cycles.open() {
+        r.report_cycles(cx, diags);
+    }
+}
+
+impl Ck<'_, '_> {
+    pub(crate) fn read_local_result(&mut self, l: hd_base::LocalId) -> bool {
+        // Registered declaration locals own result dependencies. Parameters
+        // and generated temporaries can share the same declaration's span.
+        let at = self.b.body().local_syn[l.idx()];
+        let node = self.cx.src.parse.tree.node(at);
+        if self.b.body().local_flags[l.idx()] & hd_tir::ir::local_flags::PARAM != 0
+            || node.kind() != SyntaxKind::FnDecl
+            || Src::type_child(node).is_some()
+            || !self.local_forms.contains_key(&l)
+        {
+            return false;
+        }
+        let unfinished = self
+            .cx
+            .results
+            .borrow_mut()
+            .cycles
+            .read(at, self.cx.src.span(node).lo as usize);
+        if matches!(unfinished, crate::result_cycles::Read::Poison) {
+            self.read_poison_name = true;
+            true
+        } else {
+            false
         }
     }
+}
+
+/// Metadata queries over completed TIR retain live types without adding
+/// edges from the enclosing function for instructions in nested functions.
+pub(crate) fn finish_scope<'a, 'cx>(cx: &'a BodyCx<'cx>) -> ResultScope<'a, 'cx> {
+    let mark = cx
+        .results
+        .borrow_mut()
+        .cycles
+        .enter(NodeIdx::NONE, 0, false, false, None);
+    ResultScope { cx, mark }
 }

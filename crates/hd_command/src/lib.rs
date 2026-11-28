@@ -45,7 +45,7 @@ mod jobs_tests {
         }
     }
 }
-#[cfg(windows)]
+#[cfg(any(unix, windows))]
 mod process_job;
 mod repl;
 mod report;
@@ -67,11 +67,13 @@ use hd_run::{HostSetup, Outcome};
 use crate::report::Reporter;
 
 const USAGE: &str = "usage:
+  hd --version
   hd [--release] [--format json] [--cap NAME=VALUE]... FILE.hd [-- ARGS]
   hd [--cap NAME=VALUE]... FILE.wasm [-- ARGS]
+  hd [--cap NAME=VALUE]... FILE.cwasm [-- ARGS]
   hd run [--release] [--format json] [--cap NAME=VALUE]... [NAME]
   hd --repl [--engine NAME] FILE
-  hd build [--release] [--format json] [FILE.hd]
+  hd build [--release] [--format json|wasm] [FILE.hd]
   hd check [FILE.hd] [--tests | --all] [--fix] [--format json]
   hd lint [FILE.hd] [--allow CODE | --warn CODE | --deny CODE] [--fix] [--format json]
   hd doc [--private] [--out DIR] [--open] [--format json]
@@ -82,7 +84,7 @@ const USAGE: &str = "usage:
   hd update [NAME[@QUERY]]
   hd remove NAME
   hd fetch
-  hd install [--root DIR] [--deny CAP]... SOURCE
+  hd install [--root DIR] [--engine NAME] [--format wasm] [--deny CAP]... SOURCE
   hd install [--root DIR] --list
   hd uninstall [--root DIR] NAME
   hd fmt [--check] [FILE.hd]
@@ -131,7 +133,7 @@ pub fn main() -> ExitCode {
 }
 
 fn command_main() -> ExitCode {
-    #[cfg(windows)]
+    #[cfg(any(unix, windows))]
     if std::env::args_os()
         .nth(1)
         .is_some_and(|arg| arg == "--process-job")
@@ -162,6 +164,10 @@ fn command_main() -> ExitCode {
         return fail(&error);
     }
     match (command, &arguments[1..]) {
+        ("--version", []) => {
+            println!("hd {}", disk::TOOLCHAIN);
+            ExitCode::SUCCESS
+        }
         ("help" | "--help", []) => {
             print!("{}", help::list());
             ExitCode::SUCCESS
@@ -198,7 +204,7 @@ fn command_main() -> ExitCode {
         _ if arguments
             .iter()
             .take_while(|a| *a != "--")
-            .any(|a| has_extension(a, "wasm")) =>
+            .any(|a| has_extension(a, "wasm") || has_extension(a, "cwasm")) =>
         {
             run_wasm_command(&arguments)
         }
@@ -274,8 +280,8 @@ fn compiles(command: &str, arguments: &[OsString]) -> bool {
         "run" | "build" | "check" | "lint" | "test" | "doc" => true,
         "install" => !arguments.iter().any(|a| a == "--list"),
         "uninstall" | "--installed" => false,
-        "help" | "--help" | "new" | "clean" | "add" | "update" | "remove" | "fetch" | "fmt"
-        | "cache" | "--repl" => false,
+        "help" | "--help" | "--version" | "new" | "clean" | "add" | "update" | "remove"
+        | "fetch" | "fmt" | "cache" | "--repl" => false,
         _ => arguments
             .iter()
             .take_while(|a| *a != "--")
@@ -317,7 +323,7 @@ fn format_after_command(mut args: Vec<OsString>) -> Vec<OsString> {
     args
 }
 
-fn has_extension(word: &OsString, ext: &str) -> bool {
+fn has_extension(word: &std::ffi::OsStr, ext: &str) -> bool {
     Path::new(word)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case(ext))
@@ -390,7 +396,7 @@ pub(crate) fn open_disk_store() -> DiskStore {
 /// collects only when no other process is collecting and the last
 /// collection is an interval old. The command does not wait for it, and
 /// a failed start leaves the collection to a later command. It writes
-/// no work report: `HD_WORK` names the command's own (#1969).
+/// no work report or trace: their paths belong to the command (#1969).
 fn spawn_collection(_root: &std::path::Path) {
     if let Ok(exe) = std::env::current_exe() {
         // cost: one process per collection interval, not waited for.
@@ -399,6 +405,7 @@ fn spawn_collection(_root: &std::path::Path) {
             .args(["cache", "gc"])
             .env("HD_CACHE_GC", "auto")
             .env_remove("HD_WORK")
+            .env_remove("HD_TRACE")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
@@ -508,7 +515,7 @@ pub(crate) fn executor_of(threads: usize) -> Executor {
 }
 
 /// The build profile `--release` selects (`cli.profile.default`,
-/// `cli.profile.release`, `cli.profile.release.file`).
+/// `cli.profile.release`, `cli.profile.release.hd-file`).
 fn profile_of(release: bool) -> BuildProfile {
     if release {
         BuildProfile::Release
@@ -707,7 +714,9 @@ fn compile_standalone_in(
     let (built, text) = build_traced(program, (profile, pipeline), rep, store)?;
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
+        let span = hd_base::trace::span("phase", || "positions section".to_owned());
         let section = frames.positions_section(&wasm, sources);
+        drop(span);
         hd_run::frames::cut_inlined(&mut wasm);
         hd_run::frames::cut_names(&mut wasm);
         wasm.extend(section);
@@ -785,6 +794,7 @@ fn compile(
 /// (`flow.panic.report`): none for a module that was built earlier.
 struct Compiled<'a> {
     wasm: Vec<u8>,
+    native: Option<hd_run::artifact::Native>,
     frames: Option<(test_cmd::Frames, &'a disk::DiskSources)>,
     /// A stored artifact's program and settings: its frames' positions
     /// come from building it again, only when a panic asks for them.
@@ -792,6 +802,22 @@ struct Compiled<'a> {
 }
 
 impl Compiled<'_> {
+    fn from_native(native: hd_run::artifact::Native) -> Self {
+        Self {
+            wasm: native.metadata.clone(),
+            native: Some(native),
+            frames: None,
+            stored: None,
+        }
+    }
+
+    fn image(&self) -> hd_run::artifact::Image<'_> {
+        match &self.native {
+            Some(native) => hd_run::artifact::Image::Native(native),
+            None => hd_run::artifact::Image::Wasm(&self.wasm),
+        }
+    }
+
     /// The lines of a trap's frames ([`test_cmd::Frames::lines`]). A stored
     /// artifact's program is built again through `store` for its positions
     /// (a warm build, each module's entries looked up), and only a build
@@ -847,6 +873,7 @@ fn compile_traced_in<'a>(
         }
         return Ok(Compiled {
             wasm,
+            native: None,
             frames: None,
             stored: Some((program, settings)),
         });
@@ -874,6 +901,12 @@ fn build_traced<'a>(
         entry: program.entry.clone(),
     };
     let out = build_goal_through(program, &goal, settings, false, rep, store)?;
+    if program.c_tables
+        && let Some(root) = &program.package_dir
+    {
+        let package = disk::package_name(root).map_err(|e| rep.fail(&e))?;
+        write_header(root, &package, &out.c_tables).map_err(|e| rep.fail(&e))?;
+    }
     let positions = out.positions(&mut hd_driver::PositionPool::default());
     let Some(wasm) = out.wasm else {
         return Err(rep.fail("no Wasm produced"));
@@ -892,6 +925,7 @@ fn build_traced<'a>(
     };
     let compiled = Compiled {
         wasm,
+        native: None,
         frames: Some((test_cmd::Frames::new(positions), &program.sources)),
         stored: None,
     };
@@ -906,6 +940,25 @@ pub(crate) fn host_contract(wasm: &[u8]) -> Result<Option<hd_host_abi::schema::C
         .map_err(|e| format!("the built host contract: {e}"))
 }
 
+/// The C tables of a built module's C-bound root interfaces
+/// (`hd_host_abi::c`), and their import modules: one more walk over its
+/// section headers.
+pub(crate) fn host_c_tables(
+    wasm: &[u8],
+) -> Result<
+    (
+        Vec<hd_host_abi::c::Table>,
+        std::collections::BTreeSet<String>,
+    ),
+    String,
+> {
+    let tables = hd_host_abi::schema::module_metadata(wasm)
+        .map(|m| m.c_tables)
+        .map_err(|e| format!("the built host contract: {e}"))?;
+    let modules = tables.iter().map(|t| t.module.clone()).collect();
+    Ok((tables, modules))
+}
+
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
 /// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
@@ -918,7 +971,12 @@ fn execute(
     flags: &[caps::CapFlag],
     provider_program: Option<&disk::Program>,
     args: &[OsString],
-    run: (engine::Choice, OptLevel, engine::ProgramLimits),
+    run: (
+        engine::Choice,
+        OptLevel,
+        engine::ProgramLimits,
+        Option<&Path>,
+    ),
     rep: &mut Reporter,
 ) -> ExitCode {
     match host_contract(&built.wasm) {
@@ -951,7 +1009,12 @@ fn execute_with(
     ),
     provider_program: Option<&disk::Program>,
     args: &[OsString],
-    (choice, level, limits): (engine::Choice, OptLevel, engine::ProgramLimits),
+    (choice, level, limits, sampling): (
+        engine::Choice,
+        OptLevel,
+        engine::ProgramLimits,
+        Option<&Path>,
+    ),
     rep: &mut Reporter,
 ) -> ExitCode {
     let wasm = &built.wasm;
@@ -961,7 +1024,21 @@ fn execute_with(
     }
     // After the capability refusal (`cli.cap.order.deny`), before the
     // module loads: the run never changes engine afterwards.
-    let engine = match choice.for_module(contract) {
+    let choice = if built.native.is_some() {
+        if choice.kind != engine::EngineKind::Wasmtime {
+            return rep.fail(
+                "a .cwasm module requires wasmtime; build `--format wasm` for a portable module",
+            );
+        }
+        engine::Choice::named(engine::EngineKind::Wasmtime)
+    } else {
+        choice
+    };
+    let (c_tables, c) = match host_c_tables(wasm) {
+        Ok(tables) => tables,
+        Err(e) => return rep.fail(&e),
+    };
+    let engine = match choice.for_module(contract, &c) {
         Ok(engine) => engine,
         Err(e) => {
             rep.diag(&report::Diag::error(
@@ -987,15 +1064,29 @@ fn execute_with(
             .collect(),
         program: program.to_owned(),
     };
-    let providers = if engine == engine::EngineKind::Node {
-        match node::manifest_providers(contract, provider_program, &host.grants) {
-            Ok(providers) => providers,
-            Err(error) => return rep.fail(&error),
-        }
+    let selected = if engine == engine::EngineKind::Node {
+        node::manifest_providers(contract, provider_program, &host.grants)
+            .map(|providers| (providers, Vec::new()))
     } else {
-        Vec::new()
+        // The libraries of the C-bound root traits (`cli.host.c.file`).
+        node::manifest_c_libraries(contract, &c_tables, provider_program, &host.grants)
+            .map(|c| (Vec::new(), c))
     };
-    match engine::run(engine, level, wasm, &host, &providers) {
+    let (providers, c_libraries) = match selected {
+        Ok(selected) => selected,
+        Err(refusal) => {
+            rep.diag(&refusal.diag());
+            return rep.finish(HD_FAILURE);
+        }
+    };
+    match engine::run(
+        engine,
+        level,
+        built.image(),
+        &host,
+        (&providers, &c_libraries),
+        sampling,
+    ) {
         Ok((Outcome::Exit(code), trap)) => {
             // A panic's location follows the host's `panic:` line, as a
             // test's report does (`flow.panic.report`).
@@ -1035,6 +1126,7 @@ struct FileWords {
     engine: engine::Choice,
     release: bool,
     limits: engine::ProgramLimits,
+    sampling: Option<PathBuf>,
 }
 
 fn file_words(args: &[OsString]) -> Result<FileWords, String> {
@@ -1046,6 +1138,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         engine: engine::Choice::default(),
         release: false,
         limits: engine::ProgramLimits::default(),
+        sampling: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -1085,6 +1178,11 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             i += used;
             continue;
         }
+        if let Some(path) = engine::sampling_flag(&args[i]) {
+            w.sampling = Some(path?);
+            i += 1;
+            continue;
+        }
         if let Some(jobs) = jobs_flag(args, i) {
             let (n, used) = jobs?;
             set_jobs(n);
@@ -1092,7 +1190,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
             continue;
         }
 
-        // `cli.profile.release.file`: the release profile, and wasmtime's
+        // `cli.profile.release.hd-file`: the release profile, and wasmtime's
         // optimized pipeline (`cli.profile.pipeline.release`).
         if args[i] == "--release" {
             w.release = true;
@@ -1139,7 +1237,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
             &w.caps,
             Some(&program),
             &w.program_args,
-            (w.engine, pipeline.level, w.limits),
+            (w.engine, pipeline.level, w.limits, w.sampling.as_deref()),
             &mut rep,
         ),
         Err(code) => code,
@@ -1174,7 +1272,12 @@ fn run_stdin_command() -> ExitCode {
             &[],
             Some(&program),
             &[],
-            (engine, pipeline.level, engine::ProgramLimits::default()),
+            (
+                engine,
+                pipeline.level,
+                engine::ProgramLimits::default(),
+                None,
+            ),
             &mut rep,
         ),
         Err(code) => code,
@@ -1192,14 +1295,37 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stderr(w.json);
+    if w.release {
+        let extension = if w
+            .file
+            .as_ref()
+            .is_some_and(|file| has_extension(file.as_os_str(), "cwasm"))
+        {
+            "cwasm"
+        } else {
+            "wasm"
+        };
+        return rep.fail(&format!("--release does not apply to FILE.{extension}; its optimization level is recorded in the module"));
+    }
     let Some(file) = &w.file else {
         return usage();
     };
 
     let shown = file.display();
-    let wasm = match std::fs::read(file) {
-        Ok(b) => b,
-        Err(e) => return rep.fail(&format!("{shown}: {e}")),
+    let native = if has_extension(file.as_os_str(), "cwasm") {
+        match hd_run::artifact::Native::open(file) {
+            Ok(native) => Some(native),
+            Err(error) => return rep.fail(&format!("{shown}: {error}; rebuild with `hd build --release`, or build `--format wasm` for a portable module")),
+        }
+    } else {
+        None
+    };
+    let wasm = match &native {
+        Some(native) => native.metadata.clone(),
+        None => match std::fs::read(file) {
+            Ok(b) => b,
+            Err(e) => return rep.fail(&format!("{shown}: {e}")),
+        },
     };
     let checked = hd_run::module_imports(&wasm).and_then(|imports| {
         let exports = hd_run::module_exports(&wasm)?;
@@ -1218,10 +1344,16 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` has no entry export `{missing}`: {rebuild}"
         ));
     }
-    let contract = match hd_host_abi::schema::from_wasm(&wasm) {
-        Ok(c) => c.filter(|c| !c.interfaces.is_empty()),
-        Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
+    let metadata = match hd_host_abi::schema::module_metadata(&wasm) {
+        Ok(metadata) => metadata,
+        Err(e) => return rep.fail(&format!("`{shown}` has invalid module metadata: {e}")),
     };
+    let level = if native.is_some() {
+        OptLevel::Optimized
+    } else {
+        metadata.opt_level
+    };
+    let contract = metadata.contract.filter(|c| !c.interfaces.is_empty());
     // One index of the contract's imports, probed once per import.
     let described = contract.as_ref().map(hd_host_abi::schema::Imports::new);
     let ordinary: Vec<_> = imports
@@ -1259,6 +1391,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         .map_or(&[][..], |p| p.capabilities.as_slice());
     let built = Compiled {
         wasm,
+        native,
         frames: None,
         stored: None,
     };
@@ -1275,14 +1408,23 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         ),
         provider_program.as_ref(),
         &w.program_args,
-        (w.engine, level_of(w.release), w.limits),
+        (w.engine, level, w.limits, w.sampling.as_deref()),
         &mut rep,
     )
+}
+
+fn portable_flag(args: &[OsString], i: usize) -> Option<usize> {
+    match args.get(i)?.to_str()? {
+        "--format=wasm" => Some(1),
+        "--format" if args.get(i + 1).is_some_and(|value| value == "wasm") => Some(2),
+        _ => None,
+    }
 }
 
 /// The words and flags of `hd run` and `hd build`.
 struct Words {
     release: bool,
+    portable: bool,
     json: bool,
     /// `--cap` flags; only `hd run` takes them (`cli.cap.flag.commands`).
     caps: Vec<caps::CapFlag>,
@@ -1295,11 +1437,13 @@ struct Words {
     /// runs on, and the one whose target `hd run` and `hd build` tune for.
     engine: engine::Choice,
     limits: engine::ProgramLimits,
+    sampling: Option<PathBuf>,
 }
 
 fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
     let mut w = Words {
         release: false,
+        portable: false,
         json: false,
         caps: Vec::new(),
         positional: Vec::new(),
@@ -1307,6 +1451,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         packages: Vec::new(),
         engine: engine::Choice::default(),
         limits: engine::ProgramLimits::default(),
+        sampling: None,
     };
     let mut engine_flag = false;
     let mut i = 0;
@@ -1314,6 +1459,13 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         if command == "run" && args[i] == "--" {
             w.program_args = args[i + 1..].to_vec();
             break;
+        }
+        if command == "build"
+            && let Some(used) = portable_flag(args, i)
+        {
+            w.portable = true;
+            i += used;
+            continue;
         }
         if let Some(format) = report::format_flag(args, i) {
             let (json, used) = format?;
@@ -1332,6 +1484,13 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
             w.engine = engine::Choice::named(kind);
             engine_flag = true;
             i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(path) = engine::sampling_flag(&args[i])
+        {
+            w.sampling = Some(path?);
+            i += 1;
             continue;
         }
         if let Some(jobs) = jobs_flag(args, i) {
@@ -1495,7 +1654,20 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
     };
     program.only_program(&chosen.file);
     let pipeline = Pipeline::of(w.engine.kind, w.release);
-    let built = match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
+    let built = if w.release && w.engine.kind == engine::EngineKind::Wasmtime {
+        build_artifact(
+            &program,
+            &root,
+            (true, pipeline, false),
+            false,
+            &chosen.name,
+            Some(w.engine),
+            &mut rep,
+        )
+    } else {
+        compile_traced(&program, (profile_of(w.release), pipeline), &mut rep)
+    };
+    let built = match built {
         Ok(built) => built,
         Err(code) => return code,
     };
@@ -1512,7 +1684,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         &w.caps,
         Some(&program),
         &w.program_args,
-        (w.engine, pipeline.level, w.limits),
+        (w.engine, pipeline.level, w.limits, w.sampling.as_deref()),
         &mut rep,
     )
 }
@@ -1597,33 +1769,143 @@ fn workspace_member(
     })
 }
 
-/// Writes a built module to `build/PROFILE/[files/]NAME.wasm`
-/// (`cli.build.output`, `cli.build.output.file`).
-fn write_module(
+fn build_artifact(
+    program: &disk::Program,
     root: &Path,
-    (release, target): (bool, hd_base::EngineTarget),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     files: bool,
     stem: &str,
-    (wasm, text): (&[u8], Option<&str>),
-) -> Result<(), String> {
-    let mut dir = root
-        .join("build")
-        .join(if release { "release" } else { "debug" });
-    if files {
-        dir.push("files");
+    run_choice: Option<engine::Choice>,
+    rep: &mut Reporter,
+) -> Result<Compiled<'static>, ExitCode> {
+    let native = release && !portable && pipeline.target == hd_base::EngineTarget::Wasmtime;
+    let settings = (profile_of(release), pipeline);
+    let dir = root
+        .join(if release {
+            "build/release"
+        } else {
+            "build/debug"
+        })
+        .join(if files { "files" } else { "" });
+    let out = dir.join(format!("{stem}.{}", if native { "cwasm" } else { "wasm" }));
+    let store = hd_cache::DeferredStore::new(disk_store());
+    let tag = if native {
+        Some(format!(
+            "cli-native-output-v1:{:032x}",
+            engine::native_key().map_err(|e| rep.fail(&e))?.0
+        ))
+    } else {
+        None
+    };
+    let input_key = || {
+        tag.as_ref()
+            .and_then(|tag| stored_artifact(program, settings, &store, tag))
+            .map(|(key, client)| key.entry(client))
+            .filter(|key| key.0 != 0)
+    };
+    let key = input_key();
+    if !wat::requested()
+        && let Some(key) = key
+        && let Ok(image) = hd_run::artifact::Native::open(&out)
+        && image.key == key
+        && let Ok(contract) = host_contract(&image.metadata)
+        && let Ok((_, c)) = host_c_tables(&image.metadata)
+        && (contract.is_none()
+            || (dir.join(format!("{stem}.host.mjs")).is_file()
+                && dir.join(format!("{stem}.host.rs")).is_file()))
+        && run_choice.is_none_or(|choice| {
+            matches!(
+                choice.for_module(contract.as_ref(), &c),
+                Ok(engine::EngineKind::Wasmtime)
+            )
+        })
+    {
+        if rep.diags(&program.problems) {
+            return Err(rep.finish(HD_FAILURE));
+        }
+        return Ok(Compiled::from_native(image));
     }
-    let out = dir.join(format!("{stem}.wasm"));
+    let reported = (rep.errors, rep.warnings);
+    let (wasm, text) = compile_standalone_in(program, settings, rep, &store)?;
+    let built = Compiled {
+        wasm,
+        native: None,
+        frames: None,
+        stored: None,
+    };
+    if native {
+        let contract = host_contract(&built.wasm).map_err(|e| rep.fail(&e))?;
+        let (_, c) = host_c_tables(&built.wasm).map_err(|e| rep.fail(&e))?;
+        if run_choice.is_some_and(|choice| {
+            !matches!(
+                choice.for_module(contract.as_ref(), &c),
+                Ok(engine::EngineKind::Wasmtime)
+            )
+        }) {
+            // execute retains the existing provider fallback and capability-refusal order.
+            return Ok(built);
+        }
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| rep.fail(&e.to_string()))?;
+    write_companions(&dir, stem, pipeline.target, &built.wasm, text.as_deref())
+        .map_err(|e| rep.fail(&e))?;
+    if native {
+        let key = key
+            .or_else(input_key)
+            .filter(|_| (rep.errors, rep.warnings) == reported)
+            .unwrap_or(hd_base::Hash128(0));
+        let bytes = engine::precompile(&built.wasm)
+            .and_then(|bytes| hd_run::artifact::encode(bytes, &built.wasm, key))
+            .map_err(|e| rep.fail(&e))?;
+        publish(&out, &bytes).map_err(|e| rep.fail(&e))?;
+        return hd_run::artifact::Native::open(&out)
+            .map(Compiled::from_native)
+            .map_err(|e| rep.fail(&e));
+    }
+    std::fs::write(&out, &built.wasm).map_err(|e| rep.fail(&format!("{}: {e}", out.display())))?;
+    Ok(built)
+}
+
+/// Publish a new file: running native images keep their existing mapping.
+fn publish(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write as _;
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let temp = path.with_extension(format!("pending-{}-{nanos}-{serial}", std::process::id()));
+    let result = (|| {
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        file.write_all(bytes)?;
+        drop(file);
+        std::fs::rename(&temp, path)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result.map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn write_companions(
+    dir: &Path,
+    stem: &str,
+    target: hd_base::EngineTarget,
+    wasm: &[u8],
+    text: Option<&str>,
+) -> Result<(), String> {
     let artifacts = hd_driver::host_artifacts(wasm).map_err(str::to_owned)?;
-    std::fs::create_dir_all(&dir)
-        .and_then(|()| std::fs::write(&out, wasm))
-        .map_err(|e| format!("{}: {e}", out.display()))?;
     if let Some(text) = text {
         let wat = dir.join(format!("{stem}.wat"));
         std::fs::write(&wat, text).map_err(|e| format!("{}: {e}", wat.display()))?;
     }
     // The JavaScript glue always, and for a Wasmtime build the Rust
-    // companion too (`cli.host.package.native-companion`); the `.wasm` is
-    // the same either way (`native-wasm-identity`). A build that needs
+    // companion too (`cli.host.package.native-artifact-companion`), without
+    // changing portable Wasm (`native-portable-identity`). A build that needs
     // neither removes a stale one.
     let native = match &artifacts {
         Some(a) if target == hd_base::EngineTarget::Wasmtime => {
@@ -1666,9 +1948,9 @@ fn build_command(args: &[OsString]) -> ExitCode {
                 .map_err(|e| e.to_string())
                 .and_then(|cwd| disk::select_members(&cwd, &w.packages))
             {
-                Ok(members) => members
-                    .iter()
-                    .try_for_each(|(root, _)| build_package(root, (w.release, pipeline), &mut rep)),
+                Ok(members) => members.iter().try_for_each(|(root, _)| {
+                    build_package(root, (w.release, pipeline, w.portable), &mut rep)
+                }),
                 Err(e) => Err(rep.fail(&e)),
             }
         }
@@ -1677,15 +1959,15 @@ fn build_command(args: &[OsString]) -> ExitCode {
             .and_then(|cwd| disk::workspace_root(&cwd))
         {
             // `cli.workspace.members`: each member in turn.
-            Some((_, members)) => members
-                .iter()
-                .try_for_each(|root| build_package(root, (w.release, pipeline), &mut rep)),
+            Some((_, members)) => members.iter().try_for_each(|root| {
+                build_package(root, (w.release, pipeline, w.portable), &mut rep)
+            }),
             None => match package_of_cwd("build") {
-                Ok(root) => build_package(&root, (w.release, pipeline), &mut rep),
+                Ok(root) => build_package(&root, (w.release, pipeline, w.portable), &mut rep),
                 Err(e) => Err(rep.fail(&e)),
             },
         },
-        [file] => build_file(Path::new(file), (w.release, pipeline), &mut rep),
+        [file] => build_file(Path::new(file), (w.release, pipeline, w.portable), &mut rep),
         _ => Err(rep.fail("`hd build` takes at most one FILE")),
     };
     match built {
@@ -1698,7 +1980,7 @@ fn build_command(args: &[OsString]) -> ExitCode {
 /// no executable is checked and writes no `.wasm` file.
 fn build_package(
     root: &Path,
-    (release, pipeline): (bool, Pipeline),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     rep: &mut Reporter,
 ) -> Result<(), ExitCode> {
     if let Some(d) = disk::manifest_syntax_problem(root) {
@@ -1710,22 +1992,163 @@ fn build_package(
     if executables.is_empty() {
         let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
         program.only_program("");
-        return build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ());
+        return if binds_c(&program) {
+            c_header(&program, root, &package, true, rep)
+        } else {
+            build_goal(&program, &Goal::Analyze, BuildProfile::Checked, rep).map(|_| ())
+        };
     }
+    let mut header = None;
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
-        write_module(
+        // The artifact's own check gives the C tables, and its build writes
+        // the header (`cli.host.c.header`): one pass over the package.
+        program.c_tables = binds_c(&program);
+        build_artifact(
+            &program,
             root,
-            (release, pipeline.target),
+            (release, pipeline, portable),
             false,
             &exe.name,
-            (&wasm, text.as_deref()),
-        )
-        .map_err(|e| rep.fail(&e))?;
+            None,
+            rep,
+        )?;
+        if program.c_tables && header.is_none() {
+            header = Some(program);
+        }
+    }
+    // A build that took a stored artifact ran no check, and the header the
+    // build of the same inputs wrote stands. Only a removed header needs
+    // the package checked again for its tables.
+    if let Some(mut program) = header
+        && !header_path(root, &package).is_file()
+    {
+        program.only_program("");
+        c_header(&program, root, &package, false, rep)?;
     }
     Ok(())
+}
+
+/// Where `hd build` writes `package`'s C header (`cli.host.c.header`).
+fn header_path(root: &Path, package: &str) -> PathBuf {
+    root.join("native/include").join(format!("{package}.h"))
+}
+
+/// Writes the C header of `package`, at `root`, from its C tables
+/// (`cli.host.c.header`), only when its bytes change. Each table comes
+/// with its library: a root's `[host]` entry's `c`, which a handle trait
+/// it returns shares.
+fn write_header(
+    root: &Path,
+    package: &str,
+    c_tables: &[(String, String, hd_host_abi::c::Table)],
+) -> Result<(), String> {
+    let tables: Vec<(&str, &str, &hd_host_abi::c::Table)> = c_tables
+        .iter()
+        .map(|(path, library, table)| (path.as_str(), library.as_str(), table))
+        .collect();
+    let text = hd_host_abi::c::header(package, &tables);
+    let path = header_path(root, package);
+    if std::fs::read(&path).is_ok_and(|old| old == text.as_bytes()) {
+        return Ok(());
+    }
+    std::fs::create_dir_all(root.join("native/include"))
+        .and_then(|()| std::fs::write(&path, text))
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Whether `program`'s root manifest binds a host trait to a C provider.
+fn binds_c(program: &disk::Program) -> bool {
+    program
+        .host_packages
+        .iter()
+        .find(|p| p.package == 0)
+        .and_then(|p| p.declarations.as_ref())
+        .and_then(|d| d.providers.as_deref())
+        .is_some_and(|entries| entries.iter().any(hd_project::HostProvider::binds_c))
+}
+
+/// Writes `native/include/<package>.h` for the root package's C-bound
+/// host traits (`cli.host.c.header`) from a check of the package, when it
+/// checks without an error: a library's build, whose check this is, and
+/// with `report` its diagnostics are this command's; or a package with
+/// executables whose builds all took stored artifacts and whose header is
+/// gone, the one case where no run of this command checked the package.
+///
+/// Cost: one check of the package, whose modules' entries the cache
+/// holds on a warm run, and one header the size of the C tables.
+fn c_header(
+    program: &disk::Program,
+    root: &Path,
+    package: &str,
+    report: bool,
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
+    let store = hd_cache::DeferredStore::new(disk_store());
+    let pipeline = Pipeline {
+        target: program.packages().target,
+        level: program.packages().level,
+    };
+    let out = if report {
+        build_goal_c(program, pipeline, rep, &store)?
+    } else {
+        if !program.problems.is_empty() {
+            return Ok(());
+        }
+        let out = c_tables_output(program, pipeline, &store);
+        if out.diags.has_errors() {
+            return Ok(());
+        }
+        out
+    };
+    write_header(root, package, &out.c_tables).map_err(|e| rep.fail(&e))
+}
+
+/// The package check that gives the C tables, reporting nothing.
+fn c_tables_output(
+    program: &disk::Program,
+    pipeline: Pipeline,
+    store: &dyn hd_cache::CacheStore,
+) -> Output {
+    let clock = Wall(Instant::now());
+    let host = Host {
+        render_tir: &[],
+        sources: &program.sources,
+        store,
+        clock: &clock,
+        executor: executor(),
+    };
+    let packages = hd_driver::Packages {
+        build_profile: BuildProfile::Checked,
+        target: pipeline.target,
+        level: pipeline.level,
+        c_tables: true,
+        ..program.packages()
+    };
+    hd_driver::build_packages(&host, &program.package, &packages, &Goal::Analyze)
+}
+
+/// [`c_tables_output`], reporting the manifest's and the check's
+/// diagnostics as `hd build` of a library does.
+fn build_goal_c(
+    program: &disk::Program,
+    pipeline: Pipeline,
+    rep: &mut Reporter,
+    store: &dyn hd_cache::CacheStore,
+) -> Result<Output, ExitCode> {
+    if rep.diags(&program.problems) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    let out = c_tables_output(program, pipeline, store);
+    note_built(&out);
+    let mut diags = report::from_output(&out, program.as_written.as_deref());
+    diags.extend(caps::required(program, &out));
+    report::relocate(&mut diags, |f| program.sources.display(f));
+    if rep.diags(&diags) {
+        return Err(rep.finish(HD_FAILURE));
+    }
+    Ok(out)
 }
 
 /// `hd build FILE`: the module of a file of the package, linked with the
@@ -1733,7 +2156,7 @@ fn build_package(
 /// (`cli.mode.start`).
 fn build_file(
     file: &Path,
-    (release, pipeline): (bool, Pipeline),
+    (release, pipeline, portable): (bool, Pipeline, bool),
     rep: &mut Reporter,
 ) -> Result<(), ExitCode> {
     if file.extension().is_none_or(|x| x != "hd") {
@@ -1754,64 +2177,40 @@ fn build_file(
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    write_module(
+    build_artifact(
+        &program,
         &root,
-        (release, pipeline.target),
+        (release, pipeline, portable),
         true,
         &stem,
-        (&wasm, text.as_deref()),
+        None,
+        rep,
     )
-    .map_err(|e| rep.fail(&e))
+    .map(|_| ())
 }
 
 #[cfg(all(test, unix))]
 mod stored_artifact_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// `hd build`'s artifact of the package at `root`, listed now, and
     /// whether it was the stored one.
-    fn build(root: &Path, store: &Counted) -> (Vec<u8>, bool) {
+    fn build(root: &Path, store: &CountingStore) -> (Vec<u8>, bool) {
         let mut program = disk::load_package(root, "main").expect("package");
         program.only_program("main");
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let mut rep = Reporter::stdout(false);
         let (wasm, _) =
             compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
                 .expect("built");
         // A hit: the set's stamp table and the stored artifact.
-        (wasm, store.gets.load(Ordering::Relaxed) == 2)
+        (wasm, store.gets() == 2)
     }
 
     /// Waits until every file written so far has a stamp.
@@ -1820,7 +2219,7 @@ mod stored_artifact_tests {
     }
 
     /// A package `shop` of `n` modules besides `src/main.hd`, whose `main`
-    /// panics in `pick`, which `src/f0/m.hd` declares.
+    /// panics in `pick`, which `src/f0/mod.hd` declares.
     fn panicking(name: &str, n: usize) -> Scratch {
         let dir = Scratch::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
@@ -1830,14 +2229,14 @@ mod stored_artifact_tests {
         std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("toml");
         std::fs::write(
             dir.join("src/main.hd"),
-            "use pkg.f0.m.{pick}\n\npub fn main() -> void:\n    let _ = pick([1, 2], 5)\n",
+            include_str!("tests/programs/lib/panicking.hd"),
         )
         .expect("main");
         for i in 0..n {
-            let path = dir.join(format!("src/f{i}/m.hd"));
+            let path = dir.join(format!("src/f{i}/mod.hd"));
             std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
             let text = if i == 0 {
-                "pub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n".to_owned()
+                include_str!("tests/programs/lib/panicking_2.hd").to_owned()
             } else {
                 format!("pub fn v() -> i32: {i}\n")
             };
@@ -1848,15 +2247,15 @@ mod stored_artifact_tests {
 
     /// `hd run`'s module of the package at `root`, listed now, and the
     /// lookups that took it.
-    fn compiled<'a>(program: &'a disk::Program, store: &Counted) -> (Compiled<'a>, usize) {
+    fn compiled<'a>(program: &'a disk::Program, store: &CountingStore) -> (Compiled<'a>, usize) {
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let mut rep = Reporter::stderr(false);
         let Ok(built) = compile_traced_in(program, (profile_of(false), pipeline), &mut rep, store)
         else {
             panic!("built");
         };
-        (built, store.gets.load(Ordering::Relaxed))
+        (built, store.gets())
     }
 
     fn load(root: &Path) -> disk::Program {
@@ -1874,8 +2273,15 @@ mod stored_artifact_tests {
             program: "main".to_owned(),
         };
         let kind = engine::EngineKind::default();
-        let (outcome, trap) =
-            engine::run(kind, OptLevel::Dev, wasm, &host, &[]).expect("the engine runs");
+        let (outcome, trap) = engine::run(
+            kind,
+            OptLevel::Dev,
+            hd_run::artifact::Image::Wasm(wasm),
+            &host,
+            (&[], &[]),
+            None,
+        )
+        .expect("the engine runs");
         assert!(matches!(outcome, Outcome::Exit(3)), "{outcome:?}");
         trap
     }
@@ -1890,7 +2296,7 @@ mod stored_artifact_tests {
         for n in [1, 40] {
             let dir = panicking(&format!("run-stored-module-{n}"), n);
             settle();
-            let store = Counted::default();
+            let store = CountingStore::default();
             let program = load(&dir);
             let (cold, gets) = compiled(&program, &store);
             assert!(
@@ -1907,7 +2313,7 @@ mod stored_artifact_tests {
             assert_eq!(
                 lines,
                 [
-                    "src/f0/m.hd:2 shop.f0.m.pick",
+                    "src/f0/mod.hd:2 shop.f0.pick",
                     "src/main.hd:4 shop.main.main"
                 ],
                 "{n}"
@@ -1915,8 +2321,8 @@ mod stored_artifact_tests {
             // A comment moves `pick` down a line; the stored module is the
             // same, its frames are the edited file's.
             std::fs::write(
-                dir.join("src/f0/m.hd"),
-                "# Picks.\npub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n",
+                dir.join("src/f0/mod.hd"),
+                include_str!("tests/programs/lib/a_warm_run_takes_the_stored_module_and_its_panic_names_its_lines.hd"),
             )
             .expect("edit");
             settle();
@@ -1931,7 +2337,7 @@ mod stored_artifact_tests {
             assert_eq!(
                 warm.frame_lines(&trap_of(&warm.wasm), &store),
                 [
-                    "src/f0/m.hd:3 shop.f0.m.pick",
+                    "src/f0/mod.hd:3 shop.f0.pick",
                     "src/main.hd:4 shop.main.main"
                 ],
                 "{n}"
@@ -1959,7 +2365,7 @@ mod stored_artifact_tests {
         };
         std::fs::write(&file, text("")).expect("file");
         settle();
-        let store = Counted::default();
+        let store = CountingStore::default();
         let program = disk::load_file(&file).expect("file");
         let (cold, gets) = compiled(&program, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
@@ -1990,7 +2396,7 @@ mod stored_artifact_tests {
     #[test]
     fn a_warm_stdin_run_is_keyed_by_its_text() {
         let main = |n: i32| format!("pub fn main() -> void:\n    let _ = [{n}]\n");
-        let store = Counted::default();
+        let store = CountingStore::default();
         let one = disk::load_stdin(&main(1)).expect("stdin");
         let (cold, gets) = compiled(&one, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
@@ -2023,7 +2429,7 @@ mod stored_artifact_tests {
             |n: i32| format!("pub fn main() -> void $ Console:\n    println(\"{{{n} + 1}}\")\n");
         std::fs::write(root.join("src/main.hd"), main(1)).expect("main");
         std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
-        let store = Counted::default();
+        let store = CountingStore::default();
         let (cold, hit) = build(&root, &store);
         assert!(!hit, "cold");
         let (warm, hit) = build(&root, &store);
@@ -2053,7 +2459,16 @@ mod limit_tests {
             assert!(compiles(command, &args(&[command])));
         }
         for command in [
-            "help", "--help", "new", "clean", "add", "update", "remove", "fetch", "fmt",
+            "help",
+            "--help",
+            "--version",
+            "new",
+            "clean",
+            "add",
+            "update",
+            "remove",
+            "fetch",
+            "fmt",
         ] {
             assert!(!compiles(command, &args(&[command, "main.hd"])));
         }

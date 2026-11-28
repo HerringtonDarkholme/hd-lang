@@ -1,0 +1,23 @@
+## `use_a` calls `a` and `use_b` calls `b` through `&dyn Shape`.
+trait Shape:
+    fn a(&self) -> i64
+    fn b(&self) -> i64
+
+struct Sq:
+    k: i64
+
+impl Shape for Sq:
+    fn a(&self) -> i64:
+        self.k
+    fn b(&self) -> i64:
+        self.k + 1
+
+fn use_a(s: &dyn Shape) -> i64:
+    s.a()
+
+fn use_b(s: &dyn Shape) -> i64:
+    s.b()
+
+pub fn main() -> void $ Console:
+    s := Sq { k: 2 }
+    println("${use_a(&s)} ${use_b(&s)}")

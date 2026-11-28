@@ -1,0 +1,22 @@
+# test: a method that hands out the object returns its `*mut`, and the caller's own reference through it holds the loan, so writes through it and reads after it run
+# Spec 13 Local References: ref.local.pointer; Spec 13 Conflicts Through Aliases: ref.excl.alias.loan.
+# expect-stdout: 3 3
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn get(&self) -> *mut Node:
+        self.item
+
+pub fn main() -> void $ Console:
+    p := box(Node { v: 1 })
+    h1 := Holder { item: p }
+    h2 := Holder { item: p }
+    a := h1.get()
+    a.v = 2
+    c := h2.get()
+    c.v += 1
+    println("${a.v} ${c.v}")

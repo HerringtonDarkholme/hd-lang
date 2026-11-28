@@ -1,7 +1,7 @@
 # test: a `&Counter` never converts to `&mut dyn Inspectable`
 # Spec 09 Trait Value References: a shared reference never becomes a mutable trait value reference.
 # Spec 09 Traits: trait.dyn.ref.no-upgrade.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct Counter:
     count: i32

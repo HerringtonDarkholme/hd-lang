@@ -21,7 +21,7 @@ enum Message {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum OutputError {
+pub enum OutputError {
     Closed,
     Other(i32),
 }
@@ -38,7 +38,7 @@ impl OutputError {
 /// The largest slice passed to one stream write.
 const CHUNK: usize = 65536;
 
-pub(super) struct Output {
+pub struct Output {
     streams: Arc<Mutex<Streams>>,
     /// Chunks sent to the writer thread that it has not finished.
     queued: Arc<AtomicUsize>,
@@ -47,7 +47,8 @@ pub(super) struct Output {
 }
 
 impl Output {
-    pub(super) fn new(out: Box<dyn Write + Send>, err: Box<dyn Write + Send>) -> Self {
+    #[must_use]
+    pub fn new(out: Box<dyn Write + Send>, err: Box<dyn Write + Send>) -> Self {
         Self {
             streams: Arc::new(Mutex::new((out, err))),
             queued: Arc::new(AtomicUsize::new(0)),
@@ -171,7 +172,7 @@ impl Output {
 
     /// Writes `bytes` to `to` after everything already accepted, and returns
     /// once the stream has taken every byte: the caller's thread may block.
-    pub(super) fn write_blocking(&mut self, to: Stream, bytes: Vec<u8>) -> Result<(), OutputError> {
+    pub fn write_blocking(&mut self, to: Stream, bytes: Vec<u8>) -> Result<(), OutputError> {
         let Some(bytes) = self.write_now(to, bytes)? else {
             return Ok(());
         };
@@ -244,78 +245,4 @@ pub(super) fn process_stderr() -> Box<dyn Write + Send> {
     return Box::new(ProcessStream(std::io::stderr()));
     #[cfg(not(unix))]
     Box::new(std::io::stderr())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::{Arc, Mutex};
-
-    /// A stream that is full for its first `full` writes.
-    struct Writer {
-        bytes: Arc<Mutex<Vec<u8>>>,
-        full: usize,
-    }
-
-    struct Failing(std::io::ErrorKind, i32);
-    impl Write for Failing {
-        fn write(&mut self, _bytes: &[u8]) -> std::io::Result<usize> {
-            if self.1 == 0 {
-                Err(self.0.into())
-            } else {
-                Err(std::io::Error::from_raw_os_error(self.1))
-            }
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    impl Write for Writer {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            if self.full > 0 {
-                self.full -= 1;
-                return Err(std::io::ErrorKind::WouldBlock.into());
-            }
-            self.bytes.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn a_blocking_write_to_a_full_stream_returns_once_every_byte_is_written() {
-        let bytes = Arc::new(Mutex::new(Vec::new()));
-        let writer = |full| {
-            Box::new(Writer {
-                bytes: bytes.clone(),
-                full,
-            })
-        };
-        let mut output = Output::new(writer(3), writer(0));
-        output
-            .write_blocking(Stream::Out, b"first ".to_vec())
-            .expect("writes");
-        assert_eq!(*bytes.lock().unwrap(), b"first ");
-        output
-            .write_blocking(Stream::Err, b"second".to_vec())
-            .expect("writes");
-        assert_eq!(*bytes.lock().unwrap(), b"first second");
-    }
-
-    #[test]
-    fn a_blocking_write_returns_heap_free_stream_errors() {
-        let good = || Box::new(std::io::sink()) as Box<dyn Write + Send>;
-        let mut closed = Output::new(Box::new(Failing(std::io::ErrorKind::BrokenPipe, 0)), good());
-        assert_eq!(
-            closed.write_blocking(Stream::Out, b"x".to_vec()),
-            Err(OutputError::Closed)
-        );
-        let mut other = Output::new(Box::new(Failing(std::io::ErrorKind::Other, 5)), good());
-        assert_eq!(
-            other.write_blocking(Stream::Out, b"x".to_vec()),
-            Err(OutputError::Other(5))
-        );
-    }
 }

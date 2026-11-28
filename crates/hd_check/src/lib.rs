@@ -58,10 +58,13 @@ mod regions;
 pub mod remote;
 mod render;
 mod repair;
+mod result_cycles;
 pub mod results;
 mod rows;
 pub mod stages;
 pub mod structure;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod tests;
 mod traits_in_scope;
 mod trial;

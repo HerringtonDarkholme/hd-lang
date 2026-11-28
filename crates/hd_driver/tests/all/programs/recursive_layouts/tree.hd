@@ -1,0 +1,39 @@
+@derive(Eq, Debug)
+enum Tree[T]:
+    Leaf
+    Node(left: *Tree[T], value: T, right: *Tree[T])
+
+fn insert[T < Ord & 'static](tree: Tree[T], x: T) -> Tree[T]:
+    match tree:
+        .Leaf => Tree.Node(left=box(Tree.Leaf), value=x, right=box(Tree.Leaf))
+        .Node(left, value, right) =>
+            if x < value:
+                Tree.Node(left=box(insert(*left, x)), value=value, right=right)
+            else:
+                Tree.Node(left=left, value=value, right=box(insert(*right, x)))
+
+fn walk[T](tree: Tree[T], out: &mut List[T]) -> void:
+    match tree:
+        .Leaf => pass
+        .Node(left, value, right) =>
+            walk(*left, out)
+            out.push(value)
+            walk(*right, out)
+
+fn build(xs: List[i32]) -> Tree[i32]:
+    let t: Tree[i32] = Tree.Leaf
+    for x in xs:
+        t = insert(t, x)
+    t
+
+pub fn main() -> void $ Console:
+    t := build([5, 2, 8, 1, 9, 3])
+    let mut out: List[i32] = []
+    walk(t, &mut out)
+    println(debug(out))
+    println(t == build([5, 2, 8, 1, 9, 3]))
+    println(t == build([5, 2, 8, 1, 9]))
+    println(debug(build([2, 1])))
+    let mut names: List[string] = []
+    walk(insert(insert(insert(Tree.Leaf, "m"), "a"), "z"), &mut names)
+    println(debug(names))

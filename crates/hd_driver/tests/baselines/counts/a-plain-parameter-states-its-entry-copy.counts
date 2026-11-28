@@ -6,7 +6,7 @@
 # Function-value Copy inputs borrow and an owning closure copies at entry.
 # An owning call copies a live input; a returned-argument field read borrows its source.
 # Capture loading is separate from the creator's argument transfer.
-use std.annotation.cold
+use std.meta.cold
 use std.collections.UniqList
 
 struct Named:
@@ -79,4 +79,5 @@ pub fn main() -> void $ Console:
 >   release *mut app.main.Named (last use)
     items.push(7)
     println(unique(items).len())
+>   release std.collections.uniq_list.UniqList[i32] (last use)
     println(original)

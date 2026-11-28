@@ -64,7 +64,7 @@ the per-target walk, a compile-time saving.
 **Built** in 424dcdfb7, net +327: the markers only. The codec moved to
 stage 3 (section 5).
 
-**What.** `std.marker` declares `Marker`, `Send` and `Wire`. The solver
+**What.** `std.meta` declares `Marker`, `Send` and `Wire`. The solver
 answers them from the type's form, as it answers `Copy`
 (`module.marker.structural`). A library marker answers through explicit
 impls and the same structural walk. B5's codecs become TIR functions.
@@ -75,7 +75,7 @@ impls and the same structural walk. B5's codecs become TIR functions.
 | --- | --- | --- | --- |
 | `hd_types` | `src/sealed.rs` | `SealedTraits`, `row`, `copy_parts` | add `send` and `wire`; turn `copy_parts` into one memoized parts walk parameterized by the marker, so `Copy`, `Send` and `Wire` share it |
 | `hd_types` | `src/solver.rs` | `Reads::candidates` and the goal search | a library marker with no matching explicit impl falls back to the structural walk, whose parts become subgoals, as rustc's auto-trait candidates do |
-| `hd_resolve` | `src/known.rs` | `sealed`, the known-item table | the `std.marker` items and `std.remote.Remote` |
+| `hd_resolve` | `src/known.rs` | `sealed`, the known-item table | the `std.meta` items and `std.remote.Remote` |
 | `hd_resolve` | `src/lower/decls.rs`, `src/lower.rs` | `sealed_impl_rejected` | reuse for `Send` and `Wire`; reject a member of a marker trait (`invalid-marker-trait`) |
 | `lib/std` | `marker.hd` (new) | | the three declarations |
 | `hd_tir` | `src/codec.rs` (new) | | one encoder and one decoder body per `Wire` type reached, over TIR byte-buffer statements; decoders return a `Result`, never trap |
@@ -504,13 +504,24 @@ changed, the walk is cached by the file hashes it read.
 
 ## 8. Stage 6: Runtime
 
-Part built (2026-11-23):
+Part built (2026-11-24):
 - Built:
-  - `std.sync` `Arc`/`Weak` over `std.rt` atomics;
-  - shared memory with `std.rt.thread` spawn and join on Node and Wasmtime;
-  - the per-thread allocator.
-- In progress: the unique-buffer crossing.
-- Then: `Scope`/`Background`.
+  - workers: lifted crossing literals, `std.remote.Workers`, and the
+    worker instance on Node and Wasmtime;
+  - `std.sync` `Arc`/`Weak` over `std.rt` atomics (+315);
+  - shared memory with `std.rt.thread` spawn and join on Node and
+    Wasmtime (+518);
+  - the per-thread allocator (+231);
+  - the unique-buffer crossing, option A (4be8f5589);
+  - `std.thread` `scope`, `Scope.spawn` and `Handle.join` (cb1e38da9)
+    and `background!` (ff04ebec0): +424 against +350;
+  - workers follow-ups: overlapping sends on Node (a pending
+    operation) and abort on cancel on both engines (4b1f29a42), and the
+    browser's `Worker` host (lane 259).
+- Left:
+  - `Mutex[T]`, the std part of S1 (below), about +120 of S1's +150:
+    waits on an owner question, how a copy out of a guard stays unique;
+  - the jobs store: unpriced; needs the owner's API and store backend.
 
 Re-priced on 2026-11-22 after the owner's decision on counts,
 which this section follows: "ARC should be something a stdlib to ship,
@@ -601,21 +612,57 @@ second form always, with sharing left to `Arc`.)
   sends carries no worker code. `WorkerPort` (`next`, `reply`) is a
   runner trait: no grant names it, and in an instance that is no worker
   `next` is `.None`.
+- The parent's sends in flight and a worker's frames not yet taken are
+  shared by Node and the browser (`host/worker-link.ts`).
 - Node (`host/workers.ts`): the first send starts one `worker_threads`
   thread with the module; it runs `hd.init`, then `hd.worker`, and
-  `next` blocks on its port. Reading: a send waits for its reply on the
-  calling thread, so two sends do not overlap yet; a pending operation
-  (as `Http.send` uses) is the follow-up when overlap is needed.
+  `next` blocks on its port. A send is a pending operation, as
+  `Http.send` is (`std-host.op.wait`), so sends from several tasks are in
+  flight together. Each frame carries its send's number; the worker posts
+  the reply with it and wakes the instance's reactor, and the host's
+  `drainReady` (or the port's listener, while the instance awaits a
+  Promise) completes that send alone. No polling: the wait is the
+  reactor's `Atomics.wait`.
 - Wasmtime (`hd_run_wasmtime` `workers.rs`): the first send starts an OS
   thread with a second instance on the parent's engine and module; a
   send is a pending operation on the `hd-io` runtime, so the program's
   other operations go on meanwhile.
+- Cancel (`std-host.op.cancel`): a cancelled send stops waiting, and the
+  worker drops its frame if it has not taken it yet, as tokio's
+  `spawn_blocking` abort drops a task that has not started. A frame
+  already running runs to its end, and its reply finds no send. Node
+  posts a cancel with the send's number, which the worker applies when
+  it next takes a frame; Wasmtime's abort drops the reply's receiver
+  (the reactor's existing task abort), and the worker skips a frame whose
+  receiver is gone. The thread watch's abort (`workers::watch`) is a
+  wait on a heap word, so it is not reused here.
+- Per send: the host's own copies of the frame out of the instance and
+  of the reply into it, as for any host call; on Node one map entry and
+  one message each way, its buffer moved, not copied; one wake of the
+  worker and one of the parent. Nothing scales with the sends in flight, except a crash,
+  which settles each of them once.
+- Browser (`host/web.ts`): the first send starts a dedicated `Worker`
+  from the playground's run worker script, which runs a second instance
+  and sends its output to the parent. The playground has no
+  `SharedArrayBuffer` (GitHub Pages sends no cross-origin isolation
+  headers), so nothing blocks. The parent needs no JSPI: a send is a
+  pending operation, and the run's driver awaits the event loop, which
+  the reply's message wakes. Reading: a worker cannot block in `next`,
+  so `next` is `.None` once no frame is waiting, `worker_serve` returns,
+  and the next message runs `hd.worker` again, once per batch of frames.
+  Only `worker_serve` calls `next`, so programs see no difference.
 - A worker whose instance ended, a panic included, makes its sends
-  `Unreachable`, and the next send starts another. A host without
-  workers (the browser today) answers `Unreachable`. A browser `Worker`
-  follows the Node design and is deferred.
-- One runtime case runs on both engines:
-  `spec/conformance/std/remote/workers/a-crossing-runs-in-the-hosts-worker-instance.hd`.
+  still in flight `Unreachable`, and the next send starts another. A
+  host without a worker script (the REPL) answers `Unreachable`.
+- Runtime cases, each on both engines, in
+  `spec/conformance/std/remote/workers/`: the host's worker instance
+  (`a-crossing-runs-in-the-hosts-worker-instance.hd`), two sends from
+  two tasks in flight together, a cancelled send, a crash while an
+  earlier send is in flight, a large reply, and a send waiting beside a
+  `background!` thread. The playground's end-to-end check
+  (`website/playground/e2e.ts`) runs every runtime case of that
+  directory in a headless Chromium; it is a local check, which CI does
+  not run.
 
 **Workers first, then threads.**
 
@@ -744,7 +791,7 @@ or overturn; overturning one changes its rule and its cases.
 | Q2 | a trait's `Self` is `Copy` (`ref.copy.trait.default`), which would bar the `impl !Copy` image of program 1 | a marker does not bound `Self` by `Copy` | `module.marker.not-copy` |
 | Q3 | may user code implement `Send` or `Wire`? | no: both are sealed | `module.marker.sealed` |
 | Q4 | may an explicit impl give a struct a library marker, as `GpuData` for `Texture`? | yes; that is what keeps a texture `GpuData` but neither `Wire` nor `Send` | `module.marker.explicit` |
-| Q5 | which module declares the markers | `std.marker`, outside the prelude | `module.marker.std` |
+| Q5 | which module declares the markers | `std.meta`, outside the prelude | `module.marker.std` |
 | Q6 | `Remote` is called a marker, but its traits have methods | `Remote` is sealed and supplied for every type, so no `impl Remote` is written | `module.remote.std` |
 | Q7 | section 6 puts `CrossError`, `Transport` and `Home` in the stdlib tier, but generated code names them | language tier; `per_request`, `home` and the HTTP parts stay stdlib | `module.remote.items` |
 | Q8 | `E \| CrossError` when `E` is itself a union | exactly two members; a union `E` is grouped | `module.remote.r2.result` |

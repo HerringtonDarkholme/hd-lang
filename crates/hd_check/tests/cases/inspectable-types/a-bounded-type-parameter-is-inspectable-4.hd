@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # trait.inspectable.parameter: a parameter bounded by `Inspectable` or a
 # trait that has it as a supertrait.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

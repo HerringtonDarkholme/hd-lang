@@ -28,59 +28,172 @@ pub(crate) struct EntryFacts {
     pub(crate) init: Option<(u32, u32)>,
 }
 
+/// A library `use` line past its path: whether it is `pub`, whether it is
+/// grouped, and each grouped name with the local name it binds
+/// (`use M.{a, b as c}` gives `(a, a)` and `(b, c)`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UseShape {
+    pub public: bool,
+    pub grouped: bool,
+    pub names: Vec<(String, String)>,
+}
+
+impl UseShape {
+    /// The shape of the `use` line at `lo..hi` of `text` (its range starts
+    /// at `use`, after any `pub`). Cost: one lex of the line.
+    fn of(text: &str, (lo, hi): Range) -> UseShape {
+        let (lo, hi) = (lo as usize, (hi as usize).min(text.len()));
+        let line_start = text[..lo].rfind('\n').map_or(0, |i| i + 1);
+        let public = text[line_start..lo].trim() == "pub";
+        let line = &text[lo..hi];
+        let Some(open) = line.find('{') else {
+            return UseShape {
+                public,
+                ..UseShape::default()
+            };
+        };
+        let group = &line[open + 1..];
+        let lexed = hd_syntax::lex(group.as_bytes());
+        let toks = &lexed.tokens;
+        let mut names = Vec::new();
+        // Each item is `name` or `name as local`, items split by commas.
+        let mut item: Vec<&str> = Vec::new();
+        // Whether the item holds a token no well-formed item has.
+        let mut malformed = false;
+        let mut flush = |item: &mut Vec<&str>, malformed: &mut bool| {
+            if !*malformed && let Some(&name) = item.first() {
+                let local = if item.len() >= 3 && item[1] == "as" {
+                    item[2]
+                } else {
+                    name
+                };
+                names.push((name.to_owned(), local.to_owned()));
+            }
+            item.clear();
+            *malformed = false;
+        };
+        for i in 0..toks.kind.len() {
+            let t = &group[toks.start[i] as usize..toks.end[i] as usize];
+            match toks.kind[i] {
+                hd_syntax::TokenKind::Ident => item.push(t),
+                hd_syntax::TokenKind::RawIdent => item.push(t.trim_matches('`')),
+                hd_syntax::TokenKind::Comma => flush(&mut item, &mut malformed),
+                hd_syntax::TokenKind::RBrace => break,
+                // Any other token makes the item malformed, which the
+                // parser reports; it names nothing the module graph may
+                // follow. The lexer keeps comments and line breaks apart,
+                // so they are no tokens here.
+                _ => malformed = true,
+            }
+        }
+        flush(&mut item, &mut malformed);
+        UseShape {
+            public,
+            grouped: true,
+            names,
+        }
+    }
+
+    fn write(&self, w: &mut Writer) {
+        w.u8(u8::from(self.public) | (u8::from(self.grouped) << 1));
+        w.len_of(&self.names);
+        for (name, local) in &self.names {
+            w.str(name);
+            w.str(local);
+        }
+    }
+
+    fn read(r: &mut Reader<'_>) -> UseShape {
+        let flags = r.u8();
+        UseShape {
+            public: flags & 1 != 0,
+            grouped: flags & 2 != 0,
+            names: (0..r.count())
+                .map(|_| (r.str().to_owned(), r.str().to_owned()))
+                .collect(),
+        }
+    }
+}
+
 /// What `hd_syntax::skim` gives a file's text, before its module's uses
 /// are resolved against the module table: a function of the text alone.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FileSkim {
-    pub(crate) source_hash: Hash128,
-    pub(crate) api_text_hash: Hash128,
+pub struct FileSkim {
+    pub source_hash: Hash128,
+    pub api_text_hash: Hash128,
     /// What checking one of the file's templates reads of it
     /// (`HeaderSkeleton::template_text_hash`).
-    pub(crate) template_text_hash: Hash128,
-    pub(crate) token_hash: Hash128,
+    pub template_text_hash: Hash128,
+    pub token_hash: Hash128,
     /// The hash of the attached documentation, the only comments that
     /// affect generated metadata; plain comments keep cache reuse.
-    pub(crate) doc_hash: Hash128,
+    pub doc_hash: Hash128,
     /// The text's length in bytes, which ends its last code line.
-    pub(crate) len: u32,
+    pub len: u32,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
-    pub(crate) code_lines: Vec<u32>,
+    pub code_lines: Vec<u32>,
+    /// The LF line, from 0, each code line starts: what a frame's line in
+    /// a `check` entry is relative to, so positions read no text.
+    pub code_line_numbers: Vec<u32>,
     /// The byte range of each `use` line outside a `tests:` block
-    /// (`HeaderSkeleton::uses`): the uses that make folder edges.
-    pub(crate) use_lines: Vec<(u32, u32)>,
+    /// (`HeaderSkeleton::uses`): the uses that make unit edges.
+    pub use_lines: Vec<(u32, u32)>,
     /// The module path each of `use_lines` names as written, its root not
     /// yet resolved. Kept so a module's uses resolve without its text.
-    pub(crate) use_paths: Vec<String>,
+    pub use_paths: Vec<String>,
+    /// What each of `use_lines` names past its path ([`UseShape`]): the
+    /// module graph follows `pub use` chains through it without the text.
+    pub use_shapes: Vec<UseShape>,
     /// The path of each `use` line of a `tests:` block, as written. Test
-    /// code makes no folder edge (`module.cycle.test-code`); these widen
+    /// code makes no unit edge (`module.cycle.test-code`); these widen
     /// only the test role's closure.
-    pub(crate) test_uses: Vec<String>,
-    pub(crate) has_tests_block: bool,
+    pub test_uses: Vec<String>,
+    pub has_tests_block: bool,
     /// Whether the text holds both `@` and `host`, so it may declare a
     /// host trait, which `check_host_declarations` then parses it for.
-    pub(crate) host_marker: bool,
+    pub host_marker: bool,
     /// Whether the text names `derive` or `Structure`, so it may opt in to
     /// a derivation template (`Run::template_sources`).
-    pub(crate) derives: bool,
+    pub derives: bool,
     /// Whether the text holds a fence (`` ``` ``), so it may hold a doc
     /// test.
-    pub(crate) fences: bool,
+    pub fences: bool,
     /// The header span of a top-level `pub fn main` or `main!`, which
     /// `cli.exe.unselected-main` is about.
-    pub(crate) public_main: Option<(u32, u32)>,
+    pub public_main: Option<(u32, u32)>,
     /// The header span of a top-level `main` or `main!` that is not
     /// `pub` (`module.entry.private-main.lint`).
-    pub(crate) private_main: Option<(u32, u32)>,
+    pub private_main: Option<(u32, u32)>,
     /// The offset of each newline, in a text that may register a test case
     /// (it holds `it(` or `it_`): what places a case on its line without
     /// the text (`Run::test_cases`). `None` in any other text.
-    pub(crate) newlines: Option<Vec<u32>>,
+    pub newlines: Option<Vec<u32>>,
     /// An entry module's [`EntryFacts`], set once a run parses it.
     pub(crate) entry: OnceLock<EntryFacts>,
 }
 
 impl FileSkim {
-    pub(crate) fn of(text: &str) -> FileSkim {
+    /// Whether every code line is part of a `use` line, so the file
+    /// declares nothing: the line holding each use's start through its
+    /// end, a group continued on later lines included. Comment lines are
+    /// no code lines; a documentation comment is one, so it counts as a
+    /// declaration. Cost: two binary searches per `use` line.
+    #[must_use]
+    pub fn only_uses(&self) -> bool {
+        let lines = &self.code_lines;
+        let covered: usize = self
+            .use_lines
+            .iter()
+            .map(|&(lo, hi)| {
+                let first = lines.partition_point(|&c| c <= lo).saturating_sub(1);
+                lines.partition_point(|&c| c < hi).saturating_sub(first)
+            })
+            .sum();
+        covered >= lines.len()
+    }
+
+    #[must_use]
+    pub fn of(text: &str) -> FileSkim {
         let sk = skim(text.as_bytes());
         let path_of = |&(lo, hi): &(u32, u32)| {
             written_path(text.get(lo as usize..hi as usize).unwrap_or("")).to_owned()
@@ -99,6 +212,7 @@ impl FileSkim {
                 .map(|b| (b.header_start, b.body_start))
         };
         let use_paths = sk.uses.iter().map(path_of).collect();
+        let use_shapes = sk.uses.iter().map(|&r| UseShape::of(text, r)).collect();
         FileSkim {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
@@ -120,14 +234,16 @@ impl FileSkim {
                     .collect()
             }),
             entry: OnceLock::new(),
+            code_line_numbers: lf_lines_of(text, &sk.code_lines),
             code_lines: sk.code_lines,
             use_lines: sk.uses,
             use_paths,
+            use_shapes,
             test_uses,
         }
     }
 
-    fn write(&self, w: &mut Writer) {
+    pub fn write(&self, w: &mut Writer) {
         w.hash(self.source_hash);
         w.hash(self.api_text_hash);
         w.hash(self.template_text_hash);
@@ -135,8 +251,9 @@ impl FileSkim {
         w.hash(self.doc_hash);
         w.u32(self.len);
         w.len_of(&self.code_lines);
-        for &l in &self.code_lines {
+        for (&l, &n) in self.code_lines.iter().zip(&self.code_line_numbers) {
             w.u32(l);
+            w.u32(n);
         }
         w.len_of(&self.use_lines);
         for &(lo, hi) in &self.use_lines {
@@ -145,6 +262,9 @@ impl FileSkim {
         }
         for p in &self.use_paths {
             w.str(p);
+        }
+        for shape in &self.use_shapes {
+            shape.write(w);
         }
         w.len_of(&self.test_uses);
         for u in &self.test_uses {
@@ -185,16 +305,17 @@ impl FileSkim {
         }
     }
 
-    fn read(r: &mut Reader<'_>) -> FileSkim {
+    pub fn read(r: &mut Reader<'_>) -> FileSkim {
         let source_hash = r.hash();
         let api_text_hash = r.hash();
         let template_text_hash = r.hash();
         let token_hash = r.hash();
         let doc_hash = r.hash();
         let len = r.u32();
-        let code_lines = (0..r.count()).map(|_| r.u32()).collect();
+        let (code_lines, code_line_numbers) = (0..r.count()).map(|_| (r.u32(), r.u32())).unzip();
         let use_lines: Vec<(u32, u32)> = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
         let use_paths = use_lines.iter().map(|_| r.str().to_owned()).collect();
+        let use_shapes = use_lines.iter().map(|_| UseShape::read(r)).collect();
         let test_uses = (0..r.count()).map(|_| r.str().to_owned()).collect();
         let has_tests_block = r.u8() != 0;
         let host_marker = r.u8() != 0;
@@ -222,8 +343,10 @@ impl FileSkim {
             doc_hash,
             len,
             code_lines,
+            code_line_numbers,
             use_lines,
             use_paths,
+            use_shapes,
             test_uses,
             has_tests_block,
             host_marker,
@@ -235,6 +358,22 @@ impl FileSkim {
             entry,
         }
     }
+}
+
+/// The LF line, from 0, of each of `starts` (sorted offsets) in `text`:
+/// one pass over the text up to the last.
+fn lf_lines_of(text: &str, starts: &[u32]) -> Vec<u32> {
+    let (mut at, mut line) = (0usize, 0u32);
+    starts
+        .iter()
+        .map(|&s| {
+            let s = (s as usize).min(text.len()).max(at);
+            let newlines = text.get(at..s).unwrap_or_default().matches('\n').count();
+            line = line.saturating_add(u32::try_from(newlines).unwrap_or(u32::MAX));
+            at = s;
+            line
+        })
+        .collect()
 }
 
 /// The module path a `use` line (`HeaderSkeleton::uses`, from its `use`)
@@ -593,44 +732,30 @@ fn is_std(table: &ModuleTable, m: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::FileSkim;
-    use hd_base::wire::{Reader, Writer};
+    use super::UseShape;
 
-    #[test]
-    fn a_file_skim_round_trips() {
-        let text = "use std.text\n\npub fn main() -> void:\n    # note\n    println(\"hi\")\n\ntests:\n    use pkg.other as o\n    test \"a\":\n        assert(true)\n";
-        let s = FileSkim::of(text);
-        assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
-        assert_eq!(s.test_uses, ["pkg.other"]);
-        // The block's `use` line is no folder-edge line, and a line led by
-        // another name is no use line.
-        let lines: Vec<&str> = s
-            .use_lines
-            .iter()
-            .map(|&(lo, hi)| &text[lo as usize..hi as usize])
-            .collect();
-        assert_eq!(lines, ["use std.text"]);
-        assert_eq!(s.use_paths, ["std.text"]);
-        let mut w = Writer::default();
-        s.write(&mut w);
-        let mut r = Reader::new(&w.bytes);
-        assert_eq!(FileSkim::read(&mut r), s);
-        assert!(r.ok() && r.at_end());
-        let mut short = Reader::new(&w.bytes[..w.bytes.len() - 3]);
-        let _ = FileSkim::read(&mut short);
-        assert!(!short.ok());
+    fn names(line: &str) -> Vec<(String, String)> {
+        let at = u32::try_from(line.find("use").expect("a use line")).expect("short");
+        let end = u32::try_from(line.len()).expect("short");
+        UseShape::of(line, (at, end)).names
     }
 
-    /// Each written form of a `use` line gives its path, in a `tests:`
-    /// block and out of it, with LF and CRLF endings: `pub`, a group, a
-    /// rename, a trailing comment.
+    /// A grouped use's names with the local names they bind; an item
+    /// holding a token no well-formed item has names nothing.
     #[test]
-    fn use_paths_are_the_written_paths() {
-        let lf = "pub use std.a.{b} # c\nuse self.d as e\n\ntests:\n    use pkg.f # g\n    use std.h.{i, j}\n";
-        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
-            let s = FileSkim::of(&text);
-            assert_eq!(s.use_paths, ["std.a", "self.d"]);
-            assert_eq!(s.test_uses, ["pkg.f", "std.h"]);
-        }
+    fn grouped_names_and_malformed_items() {
+        let pair = |n: &str, l: &str| (n.to_owned(), l.to_owned());
+        assert_eq!(
+            names("use pkg.shop.{a, b as c, `d`,}"),
+            [pair("a", "a"), pair("b", "c"), pair("d", "d")]
+        );
+        assert_eq!(
+            names("use pkg.shop.{a, b.c, d}"),
+            [pair("a", "a"), pair("d", "d")]
+        );
+        assert_eq!(
+            names("use pkg.shop.{a, b"),
+            [pair("a", "a"), pair("b", "b")]
+        );
     }
 }

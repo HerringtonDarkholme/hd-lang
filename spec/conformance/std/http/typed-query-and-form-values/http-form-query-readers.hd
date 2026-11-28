@@ -1,7 +1,7 @@
 # test: Body and query readers share typed scalar, repeated-list and one-level deepObject decoding.
 # Spec: std-http.form-codec.deep-object, std-http.form-codec.repeated-scalars.
 use std.http.{Body, BodyError, Url, FormError}
-use std.serde.{Serialize, Deserialize, rename}
+use std.encoding.{Serialize, Deserialize, rename}
 
 fn parsed(text: string) -> Url:
     match Url::parse(text):

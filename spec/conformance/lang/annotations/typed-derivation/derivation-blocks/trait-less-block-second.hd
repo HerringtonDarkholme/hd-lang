@@ -1,6 +1,6 @@
 # test: a type has at most one block with no trait, so a second one overlaps the first
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.unique (M28).
-use std.structure.Structure
+use std.meta.Structure
 
 struct Tag:
     text: string

@@ -1,2 +1,7 @@
 run: hd check src/util.hd
 run: hd test tests/passing.hd
+# `hd test` takes `--cap`, and rejects a flag that names no host trait.
+run: hd test --cap Http=localhost tests/passing.hd
+run: hd test --cap Time=true
+exit: 101
+stderr: error: `--cap Time=true`: `Time` is no host capability trait; a grant names one of Console, ConsoleInput, Args, Env, Clock, Random, FsRead, FsWrite, Process, Http, Net, Sys, Signals, Workers

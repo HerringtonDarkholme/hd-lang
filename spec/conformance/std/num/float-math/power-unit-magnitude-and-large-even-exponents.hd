@@ -1,0 +1,82 @@
+# test: unit magnitude is resolved before large-exponent overflow on both float widths
+# Spec std/num.md: std-num.float-math.powf-even-unit and std-num.float-math.powf-musl.
+# expect-stdout: ok
+use std.testing.{assert, assert_equal}
+
+pub fn main() -> void $ Console:
+    let unit64: List[(f64, f64)] = [
+        (0.0, 1.0),
+        (-0.0, 1.0),
+        (1.0, -1.0),
+        (-1.0, -1.0),
+        (3.0, -1.0),
+        (-3.0, -1.0),
+        (9007199254740990.0, 1.0),
+        (9007199254740991.0, -1.0),
+        (-9007199254740991.0, -1.0),
+        (9007199254740992.0, 1.0),
+        (-9007199254740992.0, 1.0),
+        (9007199254740994.0, 1.0),
+        (18446744073709551616.0, 1.0),
+        (1e20, 1.0),
+        (-1e20, 1.0),
+        (1.7976931348623157e308, 1.0),
+        (-1.7976931348623157e308, 1.0),
+        (1.0 / 0.0, 1.0),
+        (-1.0 / 0.0, 1.0),
+    ]
+    for (exponent, expected) in unit64:
+        assert_equal((-1.0).powf(exponent), expected, reason="binary64 unit power")
+        assert_equal(
+            (-1.0) ** exponent,
+            expected,
+            reason="operator shares the power implementation",
+        )
+    let unit32: List[(f32, f32)] = [
+        (0.0, 1.0),
+        (1.0, -1.0),
+        (-3.0, -1.0),
+        (16777214.0, 1.0),
+        (16777215.0, -1.0),
+        (-16777215.0, -1.0),
+        (16777216.0, 1.0),
+        (-16777216.0, 1.0),
+        (16777218.0, 1.0),
+        (1e20, 1.0),
+        (-1e20, 1.0),
+        (f32::from_bits(0x7f7fffff), 1.0),
+        (-f32::from_bits(0x7f7fffff), 1.0),
+    ]
+    for (exponent, expected) in unit32:
+        let base: f32 = -1.0
+        assert_equal(base.powf(exponent), expected, reason="binary32 unit power")
+        assert_equal(
+            base ** exponent,
+            expected,
+            reason="binary32 operator shares the implementation",
+        )
+    infinity := 1.0 / 0.0
+    let magnitudes: List[(f64, f64, f64)] = [
+        (-0.0, 1e20, 0.0),
+        (-0.0, -1e20, infinity),
+        (-0.5, 1e20, 0.0),
+        (-0.5, -1e20, infinity),
+        (-2.0, 1e20, infinity),
+        (-2.0, -1e20, 0.0),
+        (-infinity, 1e20, infinity),
+        (-infinity, -1e20, 0.0),
+        (f64::from_bits(0xbfefffffffffffff), 1e20, 0.0),
+        (f64::from_bits(0xbfefffffffffffff), -1e20, infinity),
+        (f64::from_bits(0xbff0000000000001), 1e20, infinity),
+        (f64::from_bits(0xbff0000000000001), -1e20, 0.0),
+    ]
+    for (base, exponent, expected) in magnitudes:
+        assert_equal(
+            base.powf(exponent).to_bits(),
+            expected.to_bits(),
+            reason="even powers keep positive zero or infinity",
+        )
+    nan := 0.0 / 0.0
+    assert((-1.0).powf(nan).is_nan(), reason="NaN exponent is checked before unit magnitude")
+    assert((-1.0).powf(0.5).is_nan(), reason="noninteger negative-base powers remain NaN")
+    println("ok")

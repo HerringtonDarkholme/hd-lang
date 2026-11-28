@@ -2,7 +2,7 @@
 == @build: dev
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -28,8 +28,10 @@ fn read(p: *mut Slots, alias: *mut Slots, early: bool) -> string:
     value := p.first()
 > app/main/read
 >   release *mut app.main.Slots (last use)
+>   release *mut app.main.Slots (last use)
     maybe_change(alias, false)
     if early:
+>   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
         return *value
 >   retain string (stored)
@@ -54,7 +56,7 @@ pub fn main() -> void $ Console:
 == @build: release
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]

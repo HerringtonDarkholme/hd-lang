@@ -63,7 +63,7 @@ fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 > kinds writes both implementations.
 
 ```text
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 trait Named:
     fn name(&self) -> string
@@ -360,6 +360,27 @@ fn demo(h: Holder) -> i32:
 4. r[ref.local.holding.counted] A counted reference type, `*T` or `*mut T`, holds a local reference when `T` holds one.
 5. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
 6. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
+7. r[ref.local.pointer] A reference made through a counted reference is local to the function that makes it, as a temporary is. That is a `&p` or `&mut p` whose place's path dereferences a `*T` or `*mut T`, and a `*T` or `*mut T` lent as a `&T` or `&mut T`. It is never the function's result, never stored into a place the caller reaches, and never captured by a closure that outlives the call. A function that hands out the object returns the counted reference instead. Error: `local-reference-escapes`, with a fix-it that returns the counted reference where the result is `&*p` or `&mut *p`.
+
+```text
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn get(&self) -> &mut Node:
+        &mut *self.item    # error: local-reference-escapes
+    fn get_ptr(&self) -> *mut Node:
+        self.item          # valid: the caller takes its own loan
+```
+
+> **Why.** A reference through a `*mut` holds a run-time loan on the
+> object, as Rust's `RefCell::borrow_mut()` guard does. Rust's guard is a
+> temporary, so returning a reference into it is E0515. Here too the loan
+> ends in the function that took it, so a reference past it would alias
+> another holder's `&mut` with no loan to catch it.
 
 A local reference escapes when it reaches one of these positions, and each is an error:
 
@@ -372,9 +393,9 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a [type parameter field](#r-ref.generic.outlives.field), and a [type parameter argument](#r-ref.generic.outlives.argument), a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.trait-argument] Trait argument | is a type argument of a trait or a trait value, written or inferred | `dyn Store[&Point]` | `local-reference-escapes` |
 
-7. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
-8. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
-9. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
+8. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
+9. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
+10. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
 
 ```text
 struct Point:
@@ -533,8 +554,8 @@ An **origin** is a storage root that a local reference may point into. It is wha
 | r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, or the automatic address a method call takes of such a place, for a local or a parameter `x` | `x`'s own storage |
 | r[ref.dep.origin.element] Element place | `&xs[i]`, `&m[k]`, or an element reference loop binding | the origin of the collection's root place |
 | r[ref.dep.origin.reborrow] Reborrow | `&r.f`, `&*r`, or an automatic address through a reference value `r` | the origins of `r` |
-| r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | the origins of the place the counted reference was read from |
-| r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | that place's origins |
+| r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | a local of the function ([`ref.local.pointer`](#r-ref.local.pointer)), and the origins of the place the counted reference was read from |
+| r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | a local of the function ([`ref.local.pointer`](#r-ref.local.pointer)), and that place's origins |
 | r[ref.dep.origin.temporary] Temporary | `&e` on a value, and a `&self` call on a temporary | a hidden local |
 | r[ref.dep.origin.binding] Binding | a read of a binding `b` | the union of every value stored into `b` anywhere in the function |
 | r[ref.dep.origin.parts] Construction | a tuple, `.Some(a)`, or a struct or enum literal | the union of its parts, each in its positions |
@@ -659,7 +680,7 @@ fn copy_name(u: &mut User, v: &User) -> void:
 6. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write or move cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
 7. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
 8. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
-9. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). A result of type `&mut T` holds that reference as a `&mut` one after the call, whatever the receiver or parameter kind, as when a `&self` method returns a `&mut` through a `*mut` field.
+9. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). The result holds the reference with the kind the call took it: shared for a `&self` receiver or a `&` parameter, exclusive for a `&mut` one. A result type `&mut T` says only how long the result may live and that it is never copied.
 10. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
 11. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
 12. r[ref.excl.args.shared] An argument after a `&` of `p` that the call takes, written or for a `&self` receiver, may not write or move `p` or an overlapping place: `referred(&ys, ys.pop())` is an error, and `referred(&ys, ys.len())` is valid. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
@@ -698,6 +719,14 @@ fn early(bag: Bag) -> usize:
 > signature names the field the result points into ([Result Paths](#result-paths)). The fixes are
 > Rust's: make the change after the last use, copy the value out first
 > (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).
+>
+> A `&mut T` result of a `&self` call keeps its source shared, as in Rust,
+> since safe code cannot make one that aliases: a reference made through a
+> `*mut` is local to the function that makes it
+> ([`ref.local.pointer`](#r-ref.local.pointer)). Only the standard
+> library makes one from a shared receiver, through `Ptr.as_mut`
+> ([`module.rt.ptr.as-ref`](10-modules.md#r-module.rt.ptr.as-ref)), whose
+> caller keeps the value unshared.
 
 ### Conflicts Through Aliases
 
@@ -717,7 +746,7 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
     println(*m)
 ```
 
-1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The loan holds each object that a dereference of a `*mut` or a `*T` in `p`'s path reaches. A `&mut p` holds the last such object exclusively; every other object, and every object of a `&p`, is held shared. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)).
+1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The loan holds each object that a dereference of a `*mut` or a `*T` in `p`'s path reaches. A `&mut p` holds the last such object exclusively; every other object, and every object of a `&p`, is held shared. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)). It never outlives the function that takes it, since a reference made through a counted reference is local to it ([`ref.local.pointer`](#r-ref.local.pointer)).
 2. r[ref.excl.alias.counted-access] An **access through a counted reference** is a use of a place whose path dereferences a `*mut` or a `*T`. An assignment, a `&mut` and a built-in change of the place write the object its last dereference reaches; a read and a `&` read it. Every earlier object on the path is read. Passing a `*mut` or a `*T` to a call is no access at run time; the callee's uses of it are.
 3. r[ref.excl.alias.conflict] An access through a counted reference panics when it writes an object a live run-time loan holds, or reads an object a live loan holds exclusively. A loan that the accessing function took through the same pointer, with the same root and path, does not conflict with it. [`ref.excl.place`](#r-ref.excl.place) already checks that pair. Panic: `borrow-conflict`.
 
@@ -762,7 +791,7 @@ until its crossing's lifetime ends, nothing writes the place it refers
 to, not even an element store:
 
 ```text
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32
@@ -783,7 +812,7 @@ fn demo(players: List[Player]) -> i32:
 6. r[ref.frozen.alias.lender] That run-time loan stays with the thread that lent the reference: it begins and ends there, never on the thread that runs the closure.
 
 ```text
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32
@@ -929,8 +958,8 @@ struct Crew:
     lead: *mut User
     size: i32
 
-fn lead_name(c: &Crew) -> &'c.lead.name Name:
-    &c.lead.name                   # valid: the path crosses the `*mut`
+fn lead_name(c: &Crew) -> &'c.lead.name Name:  # error: local-reference-escapes
+    &c.lead.name                   # through the `*mut`: local to `lead_name`
 
 fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
     n := u.first()     # n borrows only u.name
@@ -951,7 +980,7 @@ fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
 2. r[ref.result.path.position] A result path is written only in a function's result type. Anywhere else it is an error. Error: `unknown-lifetime`.
 3. r[ref.result.path.param] The name is a `&` or `&mut` parameter's, `self` included. Any other name is an error. Error: `unknown-lifetime`.
 4. r[ref.result.path.fields] Each step names a field of the struct the previous step reaches, starting from the parameter's referent. Any other step is an error. Error: `unknown-field`.
-5. r[ref.result.path.counted] A step may cross a `*T` or `*mut T` field: the next step names a field of its referent, as `'c.lead.name` with `lead: *mut User`. The path's place goes through the counted reference, as a written `&c.lead.name` does. The callee and caller rules treat the crossing as one more step of that place.
+5. r[ref.result.path.counted] A step never crosses a `*T` or `*mut T` field, as `'c.lead.name` with `lead: *mut User` would, since a reference made through it is local to the function ([`ref.local.pointer`](#r-ref.local.pointer)). Error: `local-reference-escapes`.
 6. r[ref.result.path.not-yet] A step through a local reference (`&T` or `&mut T`), and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
 7. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
 8. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.
@@ -1421,7 +1450,7 @@ fn writable(p: &'static mut Point) -> void:  # error: static-reference-mut
 A type parameter bounded by a declared lifetime stands for a type whose values may hold local references of that lifetime, so a struct may store a closure that captures one:
 
 ```hd
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

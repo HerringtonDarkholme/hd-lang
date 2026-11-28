@@ -25,22 +25,28 @@ impl Update[string] for Sink:
 >   exit sub 0 drops [$1]
 
 fn helper!() -> string:
-    let mut sink = Sink { text: "" }
+    pause!()
 > app/main/helper
 >   local $0 sink: Sink [read assigned captured captured-assigned] place
->   %0 = NewStruct [""] : Sink
->   %1 = Box #0 #1 : ()
->   %2 = Store [$0] %0 : ()
->   %9 = Block %6 : string
+>   %0 = Release %12 FrameDrop child #2 : ()
+>   %1 = Await app/main/pause[] () : ()
+>   %2 = Release %1 Operation child #2 : ()
+>   %4 = Box #0 #1 : ()
+>   %12 = Block %9 : string
+>   %13 = Return - #2 : never
+    let mut sink = Sink { text: "" }
+>   %3 = NewStruct [""] : Sink
+>   %5 = Store [$0] %3 : ()
     sink() = "helper"
->   %3 = Ref mut local [$0] : &mut Sink
->   %4 = Call std/ops/Update.update for Sink [string] via Impl (%3, "helper") : ()
->   %5 = LoanEnd [%3] : ()
+>   %6 = Ref mut local [$0] : &mut Sink
+>   %7 = Call std/ops/Update.update for Sink [string] via Impl (%6, "helper") : ()
+>   %8 = LoanEnd [%6] : ()
     sink.text
->   %6 = Read copy [$0 .text] : string
->   %7 = Retain %6 Value #0 : ()
->   %8 = Drop [$0] : ()
+>   %9 = Read copy [$0 .text] : string
+>   %10 = Retain %9 Value #0 : ()
+>   %11 = Drop [$0] : ()
 >   storage sub 0: $0 cell
+>   cancel %1 releases [%4294967295]
 
 pub fn main!() -> void $ Console:
     let mut sink = Sink { text: "" }
@@ -66,3 +72,29 @@ pub fn main!() -> void $ Console:
 >   %13 = Call app/main/helper[] () : Suspend[string]
 >   %14 = Drop [%13] : ()
 >   storage sub 0: $0 cell
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   cancel %10 releases [%7 %9 %4294967295]

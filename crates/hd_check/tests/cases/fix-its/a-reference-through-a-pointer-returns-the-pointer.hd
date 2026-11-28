@@ -1,0 +1,20 @@
+# @dump: diagnostics fixed
+# A method that returns a reference made through a `*mut` field is
+# rejected (`ref.local.pointer`); where the value is `&mut *p` or `&*p`, the
+# fix-it returns the pointer itself and changes the result type to match.
+# A value that only goes through the pointer gets no edit.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn get(&self) -> &mut Node:
+        &mut *self.item
+
+    fn peek['a](&'a self) -> &'a Node:
+        &*self.item
+
+    fn value(&self) -> &mut i32:
+        &mut self.item.v

@@ -1,2 +1,0 @@
-pub fn extra() -> i32:
-    1

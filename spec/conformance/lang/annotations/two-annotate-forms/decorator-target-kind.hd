@@ -1,6 +1,6 @@
 # test: a fact type marked @annotate(.Field) placed before a function
 # Spec 14 Target Kinds: annot.target.limit.kind-error is reported on the decorator.
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Field)
 struct MaxLen:

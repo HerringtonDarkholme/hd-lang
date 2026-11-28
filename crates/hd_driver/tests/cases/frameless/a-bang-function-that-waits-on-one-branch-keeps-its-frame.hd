@@ -1,0 +1,13 @@
+# @dump: functions
+# @build: dev | release
+# `maybe!` sleeps on one branch only: it may wait, so it keeps its
+# frame, `.poll`, `.cancel` and `.drop`, and so does `main!` (#2419).
+use std.time.{Clock, ms, sleep}
+
+fn maybe!(wait: bool) -> i32 $ Clock:
+    if wait:
+        sleep!(ms(1))
+    1
+
+pub fn main!() -> void $ Clock + Console:
+    println("${maybe!(false)}")

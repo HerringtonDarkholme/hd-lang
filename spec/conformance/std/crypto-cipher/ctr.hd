@@ -1,0 +1,37 @@
+# test: CTR preserves chunk boundaries and caller IV, over a non-Copy block
+use std.crypto.cipher.{Block, Ctr}
+use std.collections.UniqList
+
+struct Toy:
+    key: UniqList[u8]
+
+impl Block for Toy:
+    fn block_size(&self) -> usize:
+        8
+
+    fn encrypt_block(&self, bytes: &mut List[u8], offset: usize) -> void:
+        for index in 0..8:
+            bytes[offset + index] = bytes[offset + index] ^ self.key[index]
+
+fn cipher() -> Toy:
+    let mut key: UniqList[u8] = UniqList::[u8].new()
+    for index in 0..8:
+        key.push(u8(index))
+    Toy { key: key }
+
+tests:
+    it("non-Copy block, counter wrap, chunks and IV independence"):
+        iv := [for _ in 0..8 => u8(255)]
+        stream := Ctr::[Toy].new(cipher(), iv)
+        plain := [for _ in 0..24 => u8(0)]
+        whole := stream.xor_key_stream(plain)
+        assert_equal(iv, [for _ in 0..8 => u8(255)], reason="IV preserved")
+        split := Ctr::[Toy].new(cipher(), iv)
+        let mut chunks = split.xor_key_stream([u8(0)])
+        assert_equal(split.xor_key_stream([]), [], reason="empty chunk")
+        for byte in split.xor_key_stream([for _ in 0..23 => u8(0)]):
+            chunks.push(byte)
+        assert_equal(chunks, whole, reason="chunk boundary")
+        for index in 0..8:
+            assert_equal(whole[index], u8(255) ^ u8(index), reason="initial counter")
+            assert_equal(whole[8 + index], u8(index), reason="wrapped counter")

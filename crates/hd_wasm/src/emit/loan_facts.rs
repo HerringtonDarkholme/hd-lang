@@ -118,9 +118,10 @@ impl Context for Facts<'_, '_> {
             TargetKind::Intrinsic(_) | TargetKind::Builtin { .. } => Vec::new(),
         };
         let keys = match target {
-            Target::Call(c) | Target::Default { call: c, .. } | Target::MapInline(c) => {
-                Some(direct(c))
-            }
+            Target::Call(c)
+            | Target::CrossingNumber { call: c, .. }
+            | Target::Default { call: c, .. }
+            | Target::MapInline(c) => Some(direct(c)),
             Target::MapKey { hash, eq } => {
                 let mut keys = direct(hash);
                 keys.extend(direct(eq));
@@ -135,7 +136,7 @@ impl Context for Facts<'_, '_> {
             callees: keys.map(|keys| {
                 keys.into_iter()
                     .map(|k| {
-                        self.module.inst_of.get(&k).copied().filter(|id| {
+                        self.module.inst(k).filter(|id| {
                             matches!(self.input.collected.table.sub[id.idx()], Sub::Body(_))
                         })
                     })

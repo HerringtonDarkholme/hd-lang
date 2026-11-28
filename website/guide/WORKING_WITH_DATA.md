@@ -112,8 +112,8 @@ is needed. The exact rules are in
 [Serde](../../spec/std/serde.md):
 
 ```hd
-use std.json.{decode, JsonError}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, JsonError}
+use std.encoding.{Deserialize, Serialize}
 @derive(Serialize, Deserialize)
 struct Limits:
     retries: i32
@@ -152,8 +152,8 @@ When the caller itself returns a `Result` of the same error, `?` passes
 the error up, so no `match` is needed:
 
 ```hd
-use std.json.{decode, JsonError}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, JsonError}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize)
 struct Limits:

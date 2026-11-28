@@ -1,0 +1,25 @@
+# @dump: functions
+# A trait method that no call through a trait value names keeps no slot in
+# the trait's tables, so no implementation of it is linked for one
+# (`crates/hd_mono/DESIGN.md` §13.5). `area` is called through `dyn Shape`;
+# `Square`'s `perimeter` and the default `name` are linked nowhere.
+trait Shape:
+    fn area(&self) -> i32
+    fn perimeter(&self) -> i32
+    fn name(&self) -> string:
+        "shape"
+
+struct Square:
+    side: i32
+
+impl Shape for Square:
+    fn area(&self) -> i32:
+        self.side * self.side
+    fn perimeter(&self) -> i32:
+        4 * self.side
+
+fn area_of(shape: &dyn Shape) -> i32:
+    shape.area()
+
+pub fn main() -> void $ Console:
+    println(area_of(&Square { side: 3 }))

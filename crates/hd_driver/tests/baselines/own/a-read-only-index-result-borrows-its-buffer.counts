@@ -5,7 +5,7 @@
 # expected: first_len and wide_len borrow the indexed value in release.
 # A dependent result keeps the constructor's snapshot through later writes.
 use std.ops.Index
-use std.annotation.cold
+use std.meta.cold
 
 struct Names:
     first: string
@@ -35,16 +35,20 @@ fn first_len(items: List[string]) -> usize:
     first(items).len()
 > app/main/first_len
 >   release string (last use)
+>   release List[string] (last use)
 
 type Wide = (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)
 
 fn make_wide(text: string) -> Wide:
     (text, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+> app/main/make_wide
+>   release string (last use)
 
 fn wide_len(items: List[Wide]) -> usize:
     first(items)._0.len()
 > app/main/wide_len
 >   release string (last use)
+>   release List[(string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)] (last use)
 
 @cold
 fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
@@ -53,7 +57,9 @@ fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
     alias.second = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     churn := alias.first + "!"
     println(churn)
@@ -73,7 +79,7 @@ pub fn main() -> void $ Console:
 # expected: first_len and wide_len borrow the indexed value in release.
 # A dependent result keeps the constructor's snapshot through later writes.
 use std.ops.Index
-use std.annotation.cold
+use std.meta.cold
 
 struct Names:
     first: string
@@ -103,16 +109,20 @@ fn first_len(items: List[string]) -> usize:
     first(items).len()
 > app/main/first_len
 >   release string (last use)
+>   release List[string] (last use)
 
 type Wide = (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)
 
 fn make_wide(text: string) -> Wide:
     (text, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+> app/main/make_wide
+>   release string (last use)
 
 fn wide_len(items: List[Wide]) -> usize:
     first(items)._0.len()
 > app/main/wide_len
 >   release string (last use)
+>   release List[(string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)] (last use)
 
 @cold
 fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
@@ -121,7 +131,9 @@ fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
 >   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release *mut app.main.Names (last use)
+>   release *mut app.main.Names (last use)
     alias.second = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     churn := alias.first + "!"
     println(churn)
@@ -141,7 +153,7 @@ pub fn main() -> void $ Console:
 # expected: first_len and wide_len borrow the indexed value in release.
 # A dependent result keeps the constructor's snapshot through later writes.
 use std.ops.Index
-use std.annotation.cold
+use std.meta.cold
 
 struct Names:
     first: string

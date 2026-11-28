@@ -28,18 +28,78 @@ use wasmtime::Linker;
 
 use super::reply::{bytes, handle, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
+use crate::native::c::{CTable, Library, Provider};
+use crate::native::c_trampoline::{CType, Sig, Trampoline};
 use crate::native::{Answer, Bindings, Dispatch, HostError, Unregistered};
+use hd_host_abi::c::{Num, Param, Ret, Table};
+use std::sync::Arc;
 
-/// A module's package host contract and the imports it describes.
+/// A module's package host contract and the imports it describes, with
+/// the C table of each C-bound root interface (`hd_host_abi::c`).
 pub(crate) struct Package {
     contract: Contract,
     imports: Imports,
+    /// Per contract interface, its C table and each method's slot by name,
+    /// or `None` for an interface that no C provider serves.
+    c: Vec<Option<CInterface>>,
+    /// Each C-bound handle trait's interface, by trait name, which a C
+    /// method's handle result names (`Ret::Handle`).
+    c_handles: HashMap<String, usize>,
+}
+
+/// A C-bound root interface's table, and each method's slot index and row
+/// by method name, indexed once.
+pub(crate) struct CInterface {
+    table: Table,
+    slots: HashMap<String, (usize, usize)>,
 }
 
 impl Package {
-    pub(crate) fn new(contract: Contract) -> Self {
+    /// Cost: one pass over the contract's methods and the tables' methods.
+    pub(crate) fn new(contract: Contract, c_tables: Vec<Table>) -> Self {
         let imports = Imports::new(&contract);
-        Self { contract, imports }
+        let mut by_module: HashMap<String, Table> = c_tables
+            .into_iter()
+            .map(|t| (t.module.clone(), t))
+            .collect();
+        let c = contract
+            .interfaces
+            .iter()
+            .map(|i| {
+                let table = by_module.remove(&i.module)?;
+                let mut slots = HashMap::default();
+                let mut at = 0;
+                for (row, m) in table.methods.iter().enumerate() {
+                    slots.insert(m.name.clone(), (at, row));
+                    at += 1 + usize::from(m.suspends);
+                }
+                Some(CInterface { table, slots })
+            })
+            .collect::<Vec<_>>();
+        let c_handles = c
+            .iter()
+            .enumerate()
+            .filter_map(|(n, i)| {
+                let i = i.as_ref().filter(|i| i.table.handle)?;
+                Some((i.table.trait_name.clone(), n))
+            })
+            .collect();
+        Self {
+            contract,
+            imports,
+            c,
+            c_handles,
+        }
+    }
+
+    /// Interface `index`'s C table, when a C provider serves it.
+    fn c_interface(&self, index: usize) -> Option<&CInterface> {
+        self.c.get(index).and_then(Option::as_ref)
+    }
+
+    /// Whether any root interface is served by a C provider.
+    pub(crate) fn has_c(&self) -> bool {
+        self.c.iter().any(Option::is_some)
     }
 
     /// Whether the contract describes the import `module` `name`.
@@ -47,9 +107,15 @@ impl Package {
         self.imports.describes(module, name)
     }
 
-    /// The first root interface, the one a refusal names.
+    /// The first root interface no C provider serves, the one a refusal
+    /// names when no embedder registered a provider.
     fn first_root(&self) -> Option<&Interface> {
-        self.contract.interfaces.iter().find(|i| !i.handle)
+        self.contract
+            .interfaces
+            .iter()
+            .enumerate()
+            .find(|(n, i)| !i.handle && self.c_interface(*n).is_none())
+            .map(|(_, i)| i)
     }
 }
 
@@ -68,7 +134,7 @@ fn refused(message: String) -> StartError {
 /// Resolves `bindings` against the module's contract before anything is
 /// linked or the guest starts, and returns the providers in contract
 /// interface order. With no registry, a module requiring a root trait is
-/// refused (`cli.host.package.native-cli`). A registered provider runs
+/// refused (`cli.host.package.native-cli-binds-c`). A registered provider runs
 /// only when `consent`, the root manifest's, grants its trait
 /// (`native-two-keys`): registration grants the guest nothing.
 pub(crate) fn preflight(
@@ -81,7 +147,9 @@ pub(crate) fn preflight(
             Some(root) => Err(refused(
                 Unregistered::new(&root.identity.to_string()).to_string(),
             )),
-            None => Ok(Vec::new()),
+            None => Ok(package.map_or_else(Vec::new, |p| {
+                p.contract.interfaces.iter().map(|_| None).collect()
+            })),
         };
     };
     let companion = bindings.contract();
@@ -127,6 +195,11 @@ pub(crate) fn preflight(
     };
     for (index, interface) in interfaces.iter().enumerate() {
         let name = interface.identity.to_string();
+        // A C provider serves it (`c_preflight`); no registration does.
+        if package.is_some_and(|p| p.c_interface(index).is_some()) {
+            natives.push(None);
+            continue;
+        }
         if interface.handle {
             // A handle trait has no registration: a result's handle brings
             // its trait object and the companion's dispatch, which names
@@ -178,6 +251,541 @@ pub(crate) fn preflight(
     Ok(natives)
 }
 
+/// Opens and creates the C provider of each C-bound root interface from
+/// `libraries` before anything is linked or the guest starts, in contract
+/// interface order (`cli.host.c.entry`, `cli.host.c.check`,
+/// `cli.host.c.create`). A provider runs only with the app manifest's
+/// consent to its trait (`native-two-keys`). Each method must have a slot
+/// the library filled, and a suspending one its abort slot too, and each
+/// slot's C signature gets its trampoline. Every check comes before any
+/// `create` runs.
+///
+/// Cost: one library open, one symbol probe and one `create` per C-bound
+/// root, and one slot probe per called method.
+pub(crate) fn c_preflight(
+    package: Option<&Package>,
+    libraries: &[Library],
+    consent: &Consent,
+) -> Result<CBound, StartError> {
+    let Some(package) = package.filter(|p| p.has_c()) else {
+        return Ok(CBound::default());
+    };
+    let by_module: HashMap<&str, &Library> =
+        libraries.iter().map(|l| (l.module.as_str(), l)).collect();
+    let interfaces = &package.contract.interfaces;
+    let mut bound = CBound {
+        providers: (0..interfaces.len()).map(|_| None).collect(),
+        handles: (0..interfaces.len()).map(|_| None).collect(),
+    };
+    // Each opened library, and the handle traits to check, each with the
+    // library of the trait that returns it, which it shares (decision 1).
+    let mut opened: HashMap<&std::path::Path, Arc<libloading::Library>> = HashMap::default();
+    let mut todo: Vec<(usize, &Library)> = Vec::new();
+    // Each queued handle trait's library, and each library's entry names
+    // taken so far: a conflict the check could not see, as between two
+    // modules, refuses the run (`cli.host.c.handle-library`,
+    // `cli.host.c.handle-entry`).
+    let mut queued: HashMap<usize, &Library> = HashMap::default();
+    let mut entries: HashMap<(&std::path::Path, &str), String> = HashMap::default();
+    let check_slots = |index: usize, table: &CTable, library: &Library, name: &str| {
+        let interface = &interfaces[index];
+        let Some(c) = package.c_interface(index) else {
+            return Ok(());
+        };
+        // Each called method's slot, and a suspending one's abort slot
+        // after it (`cli.host.c.slot`, `cli.host.c.abort-slot`): the
+        // contract lists only the methods the module calls.
+        for m in &interface.methods {
+            let slot = c.slots.get(&m.name).map(|&(slot, _)| slot);
+            let empty = |at: Option<usize>| at.and_then(|at| table.slot(at)).is_none();
+            let what = if empty(slot) {
+                "slot"
+            } else if m.suspends && empty(slot.map(|slot| slot + 1)) {
+                "abort slot"
+            } else {
+                continue;
+            };
+            return Err(refused(format!(
+                "the C provider `{}` of package `{}` leaves the {what} of {name:?}'s method `{}` empty",
+                library.name, library.package, m.member
+            )));
+        }
+        // Each called slot's trampoline, and the abort slots' one, now: a
+        // host Cranelift cannot target, or a failed compile, refuses the
+        // run before any `create`. Linking finds them in the cache.
+        let mut suspends = false;
+        for m in &interface.methods {
+            let Some(&(_, row)) = c.slots.get(&m.name) else {
+                continue;
+            };
+            let row = &c.table.methods[row];
+            suspends |= row.suspends;
+            Trampoline::of(&c_sig(row)).map_err(|why| refused(format!("{name:?}: {why}")))?;
+        }
+        if suspends {
+            Trampoline::of(&abort_sig()).map_err(|why| refused(format!("{name:?}: {why}")))?;
+        }
+        Ok(())
+    };
+    // Roots first, in contract order, then their handle traits; every
+    // check and refusal comes before any `create` runs.
+    let mut checked = Vec::new();
+    for (index, interface) in interfaces.iter().enumerate() {
+        let Some(c) = package.c_interface(index).filter(|_| !interface.handle) else {
+            continue;
+        };
+        let name = interface.identity.to_string();
+        consent
+            .package(interface)
+            .map_err(|why| refused(why.message(interface)))?;
+        let library = *by_module.get(interface.module.as_str()).ok_or_else(|| {
+            refused(format!(
+                "no C provider library was selected for package host trait {name:?}"
+            ))
+        })?;
+        let lib = if let Some(lib) = opened.get(library.path.as_path()) {
+            Arc::clone(lib)
+        } else {
+            let lib = crate::native::c::load(library, &name).map_err(refused)?;
+            opened.insert(library.path.as_path(), Arc::clone(&lib));
+            lib
+        };
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
+        let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
+        check_slots(index, &table, library, &name)?;
+        for m in &c.table.methods {
+            if let Ret::Handle(handle) = &m.result
+                && let Some(&h) = package.c_handles.get(handle)
+            {
+                queue(&mut queued, &mut todo, h, library, &interfaces[h])?;
+            }
+        }
+        checked.push((index, table, library, name));
+    }
+    // Then each handle trait a checked trait returns, once, over a
+    // worklist: one visit per handle trait and per method that returns one.
+    // A handle trait no C-bound trait returns gets no table.
+    while let Some((index, library)) = todo.pop() {
+        let Some(c) = package.c_interface(index) else {
+            continue;
+        };
+        let name = interfaces[index].identity.to_string();
+        let Some(lib) = opened.get(library.path.as_path()).cloned() else {
+            unreachable!("ruled out: a handle trait's library opened with its root")
+        };
+        claim(&mut entries, library, &c.table.trait_name, &name)?;
+        let table = crate::native::c::table(&lib, library, &name, &c.table).map_err(refused)?;
+        check_slots(index, &table, library, &name)?;
+        for m in &c.table.methods {
+            if let Ret::Handle(handle) = &m.result
+                && let Some(&h) = package.c_handles.get(handle)
+            {
+                queue(&mut queued, &mut todo, h, library, &interfaces[h])?;
+            }
+        }
+        bound.handles[index] = Some(table);
+    }
+    // Every table checked: each root's provider is created
+    // (`cli.host.c.create`).
+    for (index, table, library, name) in checked {
+        bound.providers[index] =
+            Some(crate::native::c::create(table, library, &name).map_err(refused)?);
+    }
+    Ok(bound)
+}
+
+/// Takes `library`'s entry name `trait_name` for the trait `label`, or
+/// refuses the run when another C-bound trait took it
+/// (`cli.host.c.handle-entry`).
+fn claim<'a>(
+    entries: &mut HashMap<(&'a std::path::Path, &'a str), String>,
+    library: &'a Library,
+    trait_name: &'a str,
+    label: &str,
+) -> Result<(), StartError> {
+    if let Some(other) = entries.insert((library.path.as_path(), trait_name), label.to_owned()) {
+        return Err(refused(format!(
+            "{label:?} and {other:?} would both take the entry symbol `{}_{trait_name}` of the C provider `{}` of package `{}`",
+            library.name, library.name, library.package
+        )));
+    }
+    Ok(())
+}
+
+/// Queues the handle interface `h` with the library of the trait that
+/// returns it, once, or refuses the run when traits of two libraries
+/// return it (`cli.host.c.handle-library`).
+fn queue<'a>(
+    queued: &mut HashMap<usize, &'a Library>,
+    todo: &mut Vec<(usize, &'a Library)>,
+    h: usize,
+    library: &'a Library,
+    handle: &Interface,
+) -> Result<(), StartError> {
+    match queued.get(&h) {
+        Some(other) if other.path != library.path => Err(refused(format!(
+            "the handle trait {:?} is returned by C providers of two libraries, `{}` and `{}`",
+            handle.identity.to_string(),
+            other.name,
+            library.name
+        ))),
+        Some(_) => Ok(()),
+        None => {
+            queued.insert(h, library);
+            todo.push((h, library));
+            Ok(())
+        }
+    }
+}
+
+/// The C providers of an instance's C-bound root interfaces and the checked
+/// tables of its C-bound handle interfaces, by contract interface.
+#[derive(Default)]
+pub(crate) struct CBound {
+    pub(crate) providers: Vec<Option<Provider>>,
+    pub(crate) handles: Vec<Option<Arc<CTable>>>,
+}
+
+/// The C type of the number `n`.
+fn c_num(n: Num) -> CType {
+    match n {
+        Num::I8 => CType::I8,
+        Num::I16 => CType::I16,
+        Num::I32 => CType::I32,
+        Num::I64 => CType::I64,
+        Num::U8 => CType::U8,
+        Num::U16 => CType::U16,
+        Num::U32 => CType::U32,
+        Num::U64 => CType::U64,
+        Num::Usize => CType::Ptr,
+        Num::F32 => CType::F32,
+        Num::F64 => CType::F64,
+    }
+}
+
+/// A slot's C signature, `self` first, then a suspending slot's token, as
+/// its row of the C value table passes them
+/// (`module.host.package.c-references`). A suspending slot returns nothing.
+fn c_sig(row: &hd_host_abi::c::Method) -> Sig {
+    let mut params = vec![CType::Ptr];
+    if row.suspends {
+        params.push(CType::Ptr);
+    }
+    for (_, p) in &row.params {
+        match *p {
+            Param::Bool => params.push(CType::Bool),
+            Param::Num(n) => params.push(c_num(n)),
+            Param::Ref { .. } => params.push(CType::Ptr),
+            Param::List { .. } | Param::Str => params.extend([CType::Ptr, CType::Ptr]),
+        }
+    }
+    let result = match &row.result {
+        _ if row.suspends => None,
+        Ret::Void => None,
+        Ret::Bool => Some(CType::Bool),
+        Ret::Num(n) => Some(c_num(*n)),
+        Ret::Handle(_) => Some(CType::Ptr),
+        // ruled out: module.host.package.c-types gives a method that
+        // returns at once no bytes or `Result` row.
+        Ret::Bytes | Ret::Result(_) => None,
+    };
+    Sig { params, result }
+}
+
+/// The signature of every abort slot, `(self, token, completed)`.
+fn abort_sig() -> Sig {
+    Sig {
+        params: vec![CType::Ptr, CType::Ptr, CType::Bool],
+        result: None,
+    }
+}
+
+/// The guest heap's base address and size, which a C call's pointer
+/// arguments are offsets into.
+fn heap(caller: &mut wasmtime::Caller<'_, Host>) -> Result<(usize, usize), Stop> {
+    match caller.data().c_heap.clone() {
+        Some(wasmtime::Extern::Memory(memory)) => Ok((
+            memory.data_ptr(&*caller) as usize,
+            memory.data_size(&*caller),
+        )),
+        Some(wasmtime::Extern::SharedMemory(memory)) => {
+            let data = memory.data();
+            Ok((data.as_ptr() as usize, data.len()))
+        }
+        _ => Err(Stop::Contract(
+            "a C provider's call needs the guest heap, which the module does not export".into(),
+        )),
+    }
+}
+
+/// Defines the import of the C-bound method `row`, method `index` and
+/// slot `slot` of interface `interface`: each Wasm parameter becomes its C
+/// argument, a pointer offset by the guest heap's base after a bounds
+/// check, and the slot's result becomes the import's
+/// (`module.host.package.c-types`). A suspending method's import is its
+/// `.start`: the slot takes a new token second and returns at once, and
+/// the call waits in the instance's reactor for the token's completion
+/// (`native::c_token`).
+#[allow(unsafe_code)]
+fn define_c(
+    linker: &mut Linker<Host>,
+    (m, n): (&str, &str),
+    ty: wasmtime::FuncType,
+    (interface, index, on_handle, slot, label): (usize, usize, bool, usize, String),
+    (row, returned): (&hd_host_abi::c::Method, Option<usize>),
+) -> Result<(), StartError> {
+    let sig = c_sig(row);
+    // A suspending slot's completion, and its abort slot's trampoline.
+    let suspends = if row.suspends {
+        let Some(expect) = crate::native::c_token::Expect::of(&row.result) else {
+            unreachable!("ruled out: module.host.package.c-suspend (hd_check header::c_result)")
+        };
+        Some((expect, Trampoline::of(&abort_sig()).map_err(refused)?))
+    } else {
+        None
+    };
+    // One trampoline per distinct signature, compiled at most once per
+    // process (`native::c_trampoline`).
+    let trampoline = Trampoline::of(&sig).map_err(refused)?;
+    // A handle method's import takes the handle's number first; a
+    // `.start` gives its status and the pending call's number.
+    let wasm_params = sig.params.len() - 1 - usize::from(row.suspends) + usize::from(on_handle);
+    let gives = if row.suspends {
+        2
+    } else {
+        usize::from(!matches!(row.result, Ret::Void))
+    };
+    if matches!(row.result, Ret::Handle(_)) && returned.is_none() {
+        return Err(refused(format!(
+            "{label} returns a handle whose trait has no C table in this module"
+        )));
+    }
+    if ty.params().len() != wasm_params || ty.results().len() != gives {
+        return Err(refused(format!(
+            "the import `{m}` `{n}` of C provider method {label} has an unexpected signature"
+        )));
+    }
+    let params_of = row.params.iter().map(|(_, p)| *p).collect::<Vec<_>>();
+    let result = row.result.clone();
+    // The registry's interface number of this handle trait.
+    let interface_index = u32::try_from(interface).unwrap_or(u32::MAX);
+    linker
+        .func_new(m, n, ty, move |mut caller, params, out| {
+            let fail = |why: &str| Stop::Contract(format!("{label}: {why}"));
+            let (base, size) = heap(&mut caller)?;
+            let int = |k: usize| params.get(k).and_then(wasmtime::Val::i32).unwrap_or(0);
+            let host = caller.data_mut();
+            // The slot and its `self`: the root's provider, or the handle
+            // object of a live number this instance issued for this trait
+            // (`native-handle-check`).
+            let (table, this) = if on_handle {
+                let number = u32::try_from(int(0)).unwrap_or(0);
+                let handle = host
+                    .handles
+                    .host::<crate::native::c::Handle>(number, interface_index)
+                    .ok_or_else(|| {
+                        Stop::Contract(crate::native::handles::fail("call of an invalid handle").0)
+                    })?;
+                (&handle.table, handle.this)
+            } else {
+                let Some(provider) = host.c_providers.get(interface).and_then(Option::as_ref)
+                else {
+                    unreachable!("ruled out: c_preflight created every C-bound root's provider")
+                };
+                (provider.table(), provider.this())
+            };
+            // A suspending method's abort slot follows its own.
+            let (f, keep) = (
+                table.slot(slot),
+                suspends.as_ref().map(|_| Arc::clone(table)),
+            );
+            let Some(f) = f else {
+                unreachable!("ruled out: c_preflight refused an empty slot of a called method")
+            };
+            let mut args = Vec::with_capacity(plan_len(&params_of) + 2);
+            args.push(this as u64);
+            let int = |k: usize| int(k + usize::from(on_handle));
+            // An offset `at` of `bytes` bytes of a number `align` bytes wide,
+            // aligned for it and inside the heap, as an address: C may not
+            // read a misaligned number (`module.host.package.c-aligned`).
+            // The message is the JavaScript glue's.
+            let place = |at: i32, bytes: u64, align: u8| -> Result<u64, Stop> {
+                let at = u64::from(at.cast_unsigned());
+                if !at.is_multiple_of(u64::from(align)) {
+                    return Err(Stop::Contract(
+                        crate::native::wire::fail("misaligned C pointer argument").0,
+                    ));
+                }
+                at.checked_add(bytes)
+                    .filter(|end| *end <= size as u64)
+                    .map(|_| base as u64 + at)
+                    .ok_or_else(|| fail("a pointer argument leaves the guest heap"))
+            };
+            let mut k = 0;
+            for p in &params_of {
+                match *p {
+                    Param::Bool => args.push(u64::from(int(k) != 0)),
+                    Param::Num(Num::F32) => {
+                        // `Val::f32` gives the value; the trampoline reads
+                        // its bits from the low half of the word.
+                        let x = params.get(k).and_then(wasmtime::Val::f32).unwrap_or(0.0);
+                        args.push(u64::from(x.to_bits()));
+                    }
+                    Param::Num(Num::F64) => {
+                        let x = params.get(k).and_then(wasmtime::Val::f64).unwrap_or(0.0);
+                        args.push(x.to_bits());
+                    }
+                    Param::Num(Num::I64 | Num::U64) => args.push(
+                        params
+                            .get(k)
+                            .and_then(wasmtime::Val::i64)
+                            .unwrap_or(0)
+                            .cast_unsigned(),
+                    ),
+                    Param::Num(num) => args.push(extend(num, int(k))),
+                    Param::Ref { num, .. } => {
+                        args.push(place(int(k), u64::from(num.bytes()), num.bytes())?);
+                    }
+                    Param::List { num, .. } => {
+                        let len = u64::from(int(k + 1).cast_unsigned());
+                        let bytes = len
+                            .checked_mul(u64::from(num.bytes()))
+                            .ok_or_else(|| fail("a list argument leaves the guest heap"))?;
+                        args.push(place(int(k), bytes, num.bytes())?);
+                        args.push(len);
+                        k += 1;
+                    }
+                    Param::Str => {
+                        let len = u64::from(int(k + 1).cast_unsigned());
+                        args.push(place(int(k), len, 1)?);
+                        args.push(len);
+                        k += 1;
+                    }
+                }
+                k += 1;
+            }
+            if let (Some((expect, abort_trampoline)), Some(keep)) = (&suspends, keep) {
+                let Some(abort) = keep.slot(slot + 1) else {
+                    unreachable!("ruled out: c_preflight refused an empty abort slot")
+                };
+                let slots = crate::native::c_token::Slots {
+                    this,
+                    call: f,
+                    abort,
+                    abort_trampoline: Arc::clone(abort_trampoline),
+                    keep: Some(keep),
+                };
+                // SAFETY: as the call below; a suspending slot takes only
+                // numbers (`module.host.package.c-suspend`), and its `self`
+                // lives until the call ends, since the reactor that holds
+                // the call drops before the providers and handles.
+                let call =
+                    unsafe { crate::native::c_token::start(slots, &trampoline, args, *expect) };
+                let h = caller
+                    .data_mut()
+                    .reactor
+                    .native(call, (interface, index))
+                    .ok_or_else(|| fail("the call ended before it was registered"))?;
+                if let [status, handle] = out {
+                    *status = wasmtime::Val::I32(1);
+                    *handle = wasmtime::Val::I32(h);
+                }
+                return Ok(());
+            }
+            // SAFETY: the table's contract hash matched the module's C
+            // table (`c_preflight`), so the slot takes these parameters and
+            // returns this result; each pointer lies inside the guest heap,
+            // which only this instance's thread grows (`cli.host.c.thread`).
+            let raw = unsafe { trampoline.call(f, &args) };
+            if let Some(handle) = returned {
+                // A returned handle object joins the registry under its
+                // trait; its last release runs its table's `destroy`.
+                // The result register holds a pointer of this target's width.
+                let this = usize::try_from(raw).unwrap_or(0) as *mut std::ffi::c_void;
+                if this.is_null() {
+                    return Err(fail("the C provider returned no handle").into());
+                }
+                let host = caller.data_mut();
+                let Some(table) = host.c_handles.get(handle).and_then(Option::as_ref) else {
+                    unreachable!("ruled out: c_preflight checked every reachable handle table")
+                };
+                let value = crate::native::c::Handle {
+                    table: Arc::clone(table),
+                    this,
+                };
+                let index = u32::try_from(handle).unwrap_or(u32::MAX);
+                let number = host
+                    .handles
+                    .insert_host(index, Box::new(value))
+                    .map_err(|e| Stop::Contract(e.0))?;
+                if let Some(slot) = out.first_mut() {
+                    *slot = wasmtime::Val::I32(number.cast_signed());
+                }
+                return Ok(());
+            }
+            if let Some(slot) = out.first_mut() {
+                *slot = c_result(&result, raw);
+            }
+            Ok(())
+        })
+        .map_err(|error| StartError::Engine(error.to_string()))?;
+    Ok(())
+}
+
+/// How many C arguments `params` take after `self`.
+fn plan_len(params: &[Param]) -> usize {
+    params
+        .iter()
+        .map(|p| match p {
+            Param::List { .. } | Param::Str => 2,
+            _ => 1,
+        })
+        .sum()
+}
+
+/// A narrow integer argument, from its Wasm `i32`, extended to 64 bits by
+/// its type's signedness. Each cast keeps the bits of the narrow type, as
+/// meant.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn extend(num: Num, value: i32) -> u64 {
+    match num {
+        Num::I8 => i64::from(value as i8).cast_unsigned(),
+        Num::I16 => i64::from(value as i16).cast_unsigned(),
+        Num::I32 => i64::from(value).cast_unsigned(),
+        Num::U8 => u64::from(value as u8),
+        Num::U16 => u64::from(value as u16),
+        _ => u64::from(value.cast_unsigned()),
+    }
+}
+
+/// A C slot's result register `raw` as its Wasm value: `bool` from its low
+/// byte, a narrow integer truncated and extended by its signedness, a
+/// 64-bit one whole, a float from its register's bits. Each cast keeps the
+/// bits of the result's type, as meant.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_wrap
+)]
+fn c_result(result: &Ret, raw: u64) -> wasmtime::Val {
+    let low = raw as u32;
+    match result {
+        Ret::Bool => wasmtime::Val::I32(i32::from(raw as u8 != 0)),
+        Ret::Num(Num::F32) => wasmtime::Val::F32(low),
+        Ret::Num(Num::F64) => wasmtime::Val::F64(raw),
+        Ret::Num(Num::I64 | Num::U64) => wasmtime::Val::I64(raw.cast_signed()),
+        Ret::Num(Num::I8) => wasmtime::Val::I32(i32::from(raw as i8)),
+        Ret::Num(Num::I16) => wasmtime::Val::I32(i32::from(raw as i16)),
+        Ret::Num(Num::U8) => wasmtime::Val::I32(i32::from(raw as u8)),
+        Ret::Num(Num::U16) => wasmtime::Val::I32(i32::from(raw as u16)),
+        Ret::Num(_) => wasmtime::Val::I32(low.cast_signed()),
+        // ruled out: module.host.package.c-types gives a method that
+        // returns at once no bytes or `Result`, and `define_c` gives a
+        // `void` method no result.
+        Ret::Void | Ret::Bytes | Ret::Result(_) | Ret::Handle(_) => wasmtime::Val::I32(0),
+    }
+}
+
 /// The handle number a handle method or `$release` gets first. The
 /// registry issues positive numbers only, so a negative one reads as 0,
 /// which names no handle.
@@ -210,6 +818,31 @@ pub(crate) fn define(
         let declared = &package.contract.interfaces[interface];
         let method = &declared.methods[index];
         let label = format!("{}.{}", declared.identity, method.member);
+        // A C-bound method's call or `.start` takes C arguments
+        // (`define_c`); its `.finish` and a handle's `$release` are any
+        // package method's, below.
+        if let Some(c) = package
+            .c_interface(interface)
+            .filter(|_| matches!(part, Part::Call | Part::Start))
+        {
+            let Some(&(slot, row)) = c.slots.get(&method.name) else {
+                unreachable!("ruled out: a C table lists every method of its trait")
+            };
+            let row = &c.table.methods[row];
+            let returned = match &row.result {
+                Ret::Handle(name) => package.c_handles.get(name).copied(),
+                _ => None,
+            };
+            define_c(
+                &mut *linker,
+                (m, n),
+                ty,
+                (interface, index, declared.handle, slot, label),
+                (row, returned),
+            )?;
+            defined.insert((m.to_owned(), n.to_owned()));
+            continue;
+        }
         // `.start` and a plain call take one argument length when the
         // method takes any argument, after the handle a handle method is
         // called on; `.finish` and `$release` take a handle. A plain call

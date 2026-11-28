@@ -1,0 +1,29 @@
+# test: a call assignment through a user Update stores its value into the callee, so a local reference cannot escape through it
+# Spec 13 Generic Locality: ref.generic.store; Spec 5: expr.call.apply.write-ref.
+use std.ops.Apply
+use std.ops.Update
+
+struct P:
+    name: string
+
+struct Cell[T]:
+    v: T
+
+impl[T] Apply for Cell[T]:
+    type Out = T
+    fn apply(self) -> T:
+        self.v
+
+impl[T] Update[T] for Cell[T]:
+    fn update(&mut self, value: T) -> void:
+        self.v = value
+
+fn keep(c: &mut Cell[&P]) -> void:
+    p := P { name: "x${1}" }
+    c() = &p # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    let mut c = Cell { v: &q }
+    keep(&mut c)
+    println(c.v.name)

@@ -1,0 +1,15 @@
+# test: a top-level arena in a program that starts a thread keeps its value and drops cleanly at the program's end
+# Spec std Arena: std-arena.alloc, std-arena.drop.
+# expect-stdout: 42
+use std.arena.Arena
+use std.thread.{Scope, scope}
+
+let shared = Arena::new()
+
+pub fn main() -> void $ Console:
+    n := shared.alloc(i64(40))
+    total := scope(fn(s: &mut Scope) -> i64:
+        h := s.spawn(fn() -> i64: 2)
+        h.join()
+    )
+    println("${*n + total}")

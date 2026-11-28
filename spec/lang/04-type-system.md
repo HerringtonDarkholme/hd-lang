@@ -893,11 +893,12 @@ narrow := i16(wide)
 ```
 
 1. r[types.cast.syntax] Explicit numeric conversion uses constructor-style casts.
-2. r[types.cast.argument] A cast requires exactly one positional argument, without a spread. Error: `argument-count`.
-3. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do. The result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
-4. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
-5. r[types.cast.literal-range] A cast's argument may be an integer literal, alone or under unary `-` or `+`. Then the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. Error: `integer-literal-range`.
-6. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
+2. r[types.cast.family] A parameter bounded by `Integer`, `Float`, or `Num` may name either cast type, applying concrete rules. An unsuffixed integer literal, alone or under unary `-` or `+`, must fit every type admitted by the target's bound. This is checked locally at the cast, and requires exact representation in `f32` when the bound admits floating-point types. An `Integer` bound admits unsigned types, so a negative integer literal is rejected. Floating-point and primitively suffixed literals follow the ordinary concrete cast rules. Error: `integer-literal-range`.
+3. r[types.cast.argument] A cast requires exactly one positional argument, without a spread. Error: `argument-count`.
+4. r[types.cast.wrap] An integer-to-integer cast wraps at run time, as Go conversions and Rust `as` do. The result keeps the low bits of the source value's two's-complement form, read in the target type. It never panics.
+5. r[types.cast.wrap.example] So `u8(x)` with `x = 300` gives 44, and `i8(x)` with `x = 200` gives -56.
+6. r[types.cast.literal-range] A cast's argument may be an unsuffixed integer literal, alone or under unary `-` or `+`. Then the literal is checked with the target type as its expected type, by [Integer Literals](#integer-literals). An out-of-range literal is an error, as Go reports a constant overflow. A primitively suffixed literal is already typed and follows the ordinary value cast rules. Error: `integer-literal-range`.
+7. r[types.cast.fallible] Libraries may provide separate fallible conversion functions returning `Result`.
 
 ```text
 fn narrow(wide: i64) -> u8:
@@ -907,6 +908,26 @@ fn fixed() -> u8:
 fn spread() -> i64:
     values := (+1,)
     i64(values...)   # error: argument-count
+```
+
+```text
+use std.num.Integer
+
+fn cast[S < Integer, T < Integer](value: S) -> T:
+    T(value)
+
+fn one[T < Integer]() -> T:
+    T(1)
+```
+
+```text
+use std.num.Integer
+
+fn too_large[T < Integer]() -> T:
+    T(300)          # error: integer-literal-range
+
+fn negative[T < Integer]() -> T:
+    T(-1)           # error: integer-literal-range
 ```
 
 The core numeric cast rules are:
@@ -2192,7 +2213,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
 4. r[types.any.erase.reference-values] The reference type `&dyn Any` hides the concrete type of its referent.
 5. r[types.any.one-way] `Any` erasure is one-way.
-6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+6. r[types.any.inspectable] A value erased to the sealed trait `std.meta.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 ```hd
 fn demo(value: &dyn Any) -> string:

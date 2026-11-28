@@ -97,21 +97,19 @@ impl Ck<'_, '_> {
             let mut fresh = false;
             let place = match op {
                 Operand::Place(p) => p,
-                Operand::Value(mut r, mut t) => {
-                    let mut found = None;
-                    while let Some((inner, _)) = self.ref_of(t) {
-                        if matches!(self.index_kind(inner), Some((Indexed::Map, ..))) {
-                            found = Some(Place {
-                                root: Root::Deref(r, t),
-                                path: vec![],
-                                ty: self.deref_ty(inner),
-                            });
-                            break;
+                Operand::Value(r, t) => {
+                    // ruled out: a deeper reference. ref_loop selects Map after
+                    // deref_index_base, which strips a reference only when its
+                    // immediate inner type is directly indexed. The selected
+                    // operand is therefore Map or Ref(Map).
+                    if let Some((inner, _)) = self.ref_of(t)
+                        && matches!(self.index_kind(inner), Some((Indexed::Map, ..)))
+                    {
+                        Place {
+                            root: Root::Deref(r, t),
+                            path: vec![],
+                            ty: self.deref_ty(inner),
                         }
-                        (r, t) = self.emit_deref(r, t, src.index());
-                    }
-                    if let Some(found) = found {
-                        found
                     } else {
                         fresh = true;
                         let (l, depth) = self.hold(r, t, operand);

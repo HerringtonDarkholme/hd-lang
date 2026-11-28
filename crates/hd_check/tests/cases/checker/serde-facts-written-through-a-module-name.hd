@@ -1,26 +1,26 @@
 # @dump: tir
 # std-serde.enum-tagging.static-names: a tagging or rename fact written
-# through a module name, `serde.tag(...)` or
-# `serde.EnumTagging.Internal(...)`, names the std item as a bare name
+# through a module name, `encoding.tag(...)` or
+# `encoding.EnumTagging.Internal(...)`, names the std item as a bare name
 # does, so its shape checks apply.
-use std.serde
-use std.serde.Serialize
+use std.encoding
+use std.encoding.Serialize
 
 @derive(Serialize)
-@serde.EnumTagging.Internal("kind")
+@encoding.EnumTagging.Internal("kind")
 enum Point:
     Pair(x: i32, y: i32)
 
 @derive(Serialize)
-@serde.tag("kind")
-@serde.rename_all(serde.RenameCase.SnakeCase)
+@encoding.tag("kind")
+@encoding.rename_all(encoding.RenameCase.SnakeCase)
 enum Shape:
-    @serde.rename("round")
+    @encoding.rename("round")
     Circle(radius: i32)
     BigSquare(side: i32)
 
 @derive(Serialize)
-@serde.untagged()
+@encoding.untagged()
 enum Loose:
     One(a: i32)
     Two(b: string)

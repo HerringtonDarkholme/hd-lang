@@ -1,5 +1,5 @@
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Walker}
 
 pub trait Show:
     fn show(self) -> string

@@ -22,253 +22,310 @@ use hd_types::{Inputs, ParamRef, Prim, Ty, TyData, TyList, VarKind, holds, with_
 use crate::body::{Ck, ExpectPosition, ProjectSite};
 use crate::ty::Named;
 
-/// Own methods followed by the shared methods of the ordered visible interfaces.
-#[derive(Default)]
+/// Own methods followed by shared immutable interface indexes. Every map
+/// is a persistent integer trie: extending a dependency copies key paths,
+/// never its method lists. Candidates retain (unit, local-order) positions.
+#[derive(Clone, Default)]
 pub struct MethodIndex {
-    /// Inherent methods: (impl, method).
-    pub inherent: HashMap<Symbol, Vec<(DefId, DefId)>>,
-    /// Where each inherent method of a name sits in `inherent`, by the
-    /// struct, enum or newtype its impl's target names, so a receiver of
-    /// that type is tried against those impls alone, as rustc's
-    /// `inherent_impls` keys them by the self type's ADT.
-    inherent_by_def: HashMap<(Symbol, DefId), Vec<u32>>,
-    /// Where the inherent methods of a name whose impl's target names no
-    /// struct, enum or newtype sit in `inherent`: a parameter, a tuple, a
-    /// reference or a primitive, each tried against every receiver.
-    inherent_open: HashMap<Symbol, Vec<u32>>,
-    /// The inherent method names of the impls whose target names each
-    /// struct, enum or newtype, and of those whose target names none, for
-    /// the "did you mean" hint ([`Self::inherent_names_for`]).
-    inherent_names: HashMap<DefId, Vec<Symbol>>,
-    open_names: Vec<Symbol>,
-    /// Trait methods: (trait, method).
-    pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
-    /// Each trait's method by name, for the traits of `traits`.
-    of_trait: HashMap<(DefId, Symbol), DefId>,
-    /// Each trait's method names, for the traits of `traits`.
-    names: HashMap<DefId, Vec<Symbol>>,
-    /// Each item indexed, by the order it was indexed in.
-    seen: HashMap<DefId, u32>,
-    shared: Option<std::sync::Arc<Self>>,
+    inherent: MethodMap,
+    inherent_by_def: MethodMap,
+    inherent_open: MethodMap,
+    inherent_names: NameMap,
+    open_names: Names,
+    traits: MethodMap,
+    of_trait: Map<(u128, DefId)>,
+    names: Map<(u128, std::sync::Arc<[Symbol]>)>,
+    seen: Map<u128>,
+    shared: Vec<std::sync::Arc<Self>>,
 }
 
-fn name_distance(left: &str, right: &str) -> usize {
-    let right: Vec<_> = right.chars().collect();
-    let mut row: Vec<_> = (0..=right.len()).collect();
-    for (i, left) in left.chars().enumerate() {
-        let mut diagonal = row[0];
-        row[0] = i + 1;
-        for (j, right) in right.iter().enumerate() {
-            let above = row[j + 1];
-            row[j + 1] = (row[j] + 1)
-                .min(above + 1)
-                .min(diagonal + usize::from(left != *right));
-            diagonal = above;
-        }
-    }
-    row[right.len()]
+type Map<V> = hd_types::context_map::Map<V>;
+type Candidates = Map<(DefId, DefId)>;
+type MethodMap = Map<Candidates>;
+type Names = Map<(DefId, Symbol)>;
+type NameMap = Map<Names>;
+
+fn pair_key(a: Symbol, b: DefId) -> u128 {
+    (u128::from(a.raw()) << 32) | u128::from(b.raw())
+}
+fn method_key(a: DefId, b: Symbol) -> u128 {
+    (u128::from(a.raw()) << 32) | u128::from(b.raw())
+}
+fn add_candidate(map: &mut MethodMap, key: u128, order: u128, value: (DefId, DefId)) {
+    let mut entries = map.get(key).cloned().unwrap_or_default();
+    entries.insert(order, value);
+    map.insert(key, entries);
 }
 
 impl MethodIndex {
-    /// An interface closure has one index, independent of each module's private items.
+    /// One interface's declarations, registered once in dependency order.
     #[must_use]
-    pub fn interfaces(lookup: &hd_resolve::Lookup<'_>, pool: hd_types::Types<'_>) -> Self {
+    pub fn unit(
+        unit: hd_base::UnitId,
+        iface: &hd_resolve::UnitIface,
+        pool: hd_types::Types<'_>,
+    ) -> Self {
         let mut ix = Self::default();
         ix.extend(
+            u128::from(unit.raw()),
             pool,
-            lookup
-                .ifaces
-                .iter()
-                .flat_map(|f| f.items.impls().chain(f.items.traits())),
+            iface.items.impls().chain(iface.items.traits()),
         );
         ix
     }
 
-    /// Own declarations win, including declarations also held by an interface (#346).
+    /// Union two interface contexts, sharing pointer-equal subtrees.
+    /// Both inputs are interface indexes (unit/union), whose
+    /// own overlay is absent; `with_contexts` is applied once at the body reader.
     #[must_use]
-    pub fn with_own(
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            inherent: self.inherent.nested_union(&other.inherent),
+            inherent_by_def: self.inherent_by_def.nested_union(&other.inherent_by_def),
+            inherent_open: self.inherent_open.nested_union(&other.inherent_open),
+            inherent_names: self.inherent_names.nested_union(&other.inherent_names),
+            open_names: self.open_names.left_union(&other.open_names),
+            traits: self.traits.nested_union(&other.traits),
+            of_trait: self.of_trait.min_union(&other.of_trait, |v| v.0),
+            names: self.names.min_union(&other.names, |v| v.0),
+            seen: self.seen.min_union(&other.seen, |v| *v),
+            shared: Vec::new(),
+        }
+    }
+
+    /// A template body keeps the caller's context ahead of newly reached
+    /// template interfaces. Layers are explicit scopes, never a chain of
+    /// dependency parents; inherited maps within each scope remain flat.
+    #[must_use]
+    pub fn with_contexts(
         lookup: &hd_resolve::Lookup<'_>,
         pool: hd_types::Types<'_>,
-        shared: std::sync::Arc<Self>,
+        shared: &[std::sync::Arc<Self>],
     ) -> Self {
         let mut ix = Self::default();
-        ix.extend(pool, lookup.own.iter());
-        ix.shared = Some(shared);
+        ix.extend(0, pool, lookup.own.iter());
+        ix.shared = shared.to_vec();
         ix
+    }
+
+    fn layers(&self) -> impl Iterator<Item = &Self> {
+        std::iter::once(self).chain(self.shared.iter().map(AsRef::as_ref))
+    }
+    fn shadowed(&self, layer: usize, def: DefId) -> bool {
+        self.layers()
+            .take(layer)
+            .any(|ix| ix.seen.get(u128::from(def.raw())).is_some())
     }
 
     fn extend<'a>(
         &mut self,
+        unit: u128,
         pool: hd_types::Types<'_>,
         items: impl Iterator<Item = &'a hd_resolve::Item>,
     ) {
-        for it in items {
-            let next = u32::try_from(self.seen.len()).unwrap_or(u32::MAX);
-            match self.seen.entry(it.def) {
-                hd_base::hash::hash_map::Entry::Occupied(_) => continue,
-                hd_base::hash::hash_map::Entry::Vacant(v) => {
-                    v.insert(next);
-                }
+        let mut serial = 0usize;
+        for (slot, it) in items.enumerate() {
+            crate::work::method_context_step();
+            let def = u128::from(it.def.raw());
+            if self.seen.get(def).is_some() {
+                continue;
             }
+            let rank = (unit << 64) | slot as u128;
+            self.seen.insert(def, rank);
             match &it.data {
-                // A trait impl's methods are found through its trait.
                 ItemData::Impl {
                     trait_,
                     methods,
                     self_ty,
                     ..
-                } => {
-                    if *trait_ == DefId::NONE {
-                        let head = match pool.get(*self_ty) {
-                            TyData::Adt(AdtId::Declared(def), _) => Some(def),
-                            _ => None,
-                        };
-                        for (n, m) in methods {
-                            let all = self.inherent.entry(*n).or_default();
-                            let at = u32::try_from(all.len()).unwrap_or(u32::MAX);
-                            all.push((it.def, *m));
-                            match head {
-                                Some(d) => self.inherent_by_def.entry((*n, d)).or_default(),
-                                None => self.inherent_open.entry(*n).or_default(),
-                            }
-                            .push(at);
-                            match head {
-                                Some(d) => self.inherent_names.entry(d).or_default(),
-                                None => &mut self.open_names,
-                            }
-                            .push(*n);
+                } if *trait_ == DefId::NONE => {
+                    let head = match pool.get(*self_ty) {
+                        TyData::Adt(AdtId::Declared(def), _) => Some(def),
+                        _ => None,
+                    };
+                    for (name, method) in methods {
+                        let order = (unit << 64) | serial as u128;
+                        serial += 1;
+                        add_candidate(
+                            &mut self.inherent,
+                            u128::from(name.raw()),
+                            order,
+                            (it.def, *method),
+                        );
+                        match head {
+                            Some(d) => add_candidate(
+                                &mut self.inherent_by_def,
+                                pair_key(*name, d),
+                                order,
+                                (it.def, *method),
+                            ),
+                            None => add_candidate(
+                                &mut self.inherent_open,
+                                u128::from(name.raw()),
+                                order,
+                                (it.def, *method),
+                            ),
+                        }
+                        if let Some(d) = head {
+                            let mut names = self
+                                .inherent_names
+                                .get(u128::from(d.raw()))
+                                .cloned()
+                                .unwrap_or_default();
+                            names.insert(order, (it.def, *name));
+                            self.inherent_names.insert(u128::from(d.raw()), names);
+                        } else {
+                            self.open_names.insert(order, (it.def, *name));
                         }
                     }
                 }
                 ItemData::Trait(t) => {
-                    for (n, m) in &t.methods {
-                        self.traits.entry(*n).or_default().push((it.def, *m));
-                        self.of_trait.entry((it.def, *n)).or_insert(*m);
-                        self.names.entry(it.def).or_default().push(*n);
+                    for (name, method) in &t.methods {
+                        let order = (unit << 64) | serial as u128;
+                        serial += 1;
+                        add_candidate(
+                            &mut self.traits,
+                            u128::from(name.raw()),
+                            order,
+                            (it.def, *method),
+                        );
+                        let key = method_key(it.def, *name);
+                        if self.of_trait.get(key).is_none() {
+                            self.of_trait.insert(key, (rank, *method));
+                        }
                     }
+                    self.names
+                        .insert(def, (rank, t.methods.iter().map(|m| m.0).collect()));
                 }
-                // No methods of their own: a method item is its owner's.
-                ItemData::Fn(..)
+                ItemData::Impl { .. }
+                | ItemData::Fn(..)
                 | ItemData::Struct(..)
                 | ItemData::Enum { .. }
                 | ItemData::Method { .. }
                 | ItemData::AssocType { .. }
                 | ItemData::Alias { .. }
                 | ItemData::Newtype(..)
+                | ItemData::Binding(_)
                 | ItemData::Builtin => {}
             }
         }
     }
 
-    fn map(&self, inherent: bool) -> &HashMap<Symbol, Vec<(DefId, DefId)>> {
+    fn map(&self, inherent: bool) -> &MethodMap {
         if inherent {
             &self.inherent
         } else {
             &self.traits
         }
     }
-
+    fn first_unit(&self, order: u128, def: DefId) -> bool {
+        self.seen
+            .get(u128::from(def.raw()))
+            .is_some_and(|rank| rank >> 64 == order >> 64)
+    }
     fn candidates(&self, sym: Symbol, inherent: bool) -> Option<Vec<(DefId, DefId)>> {
-        let mut out = self.map(inherent).get(&sym).cloned().unwrap_or_default();
-        if let Some(shared) = &self.shared {
-            out.extend(
-                shared
-                    .map(inherent)
-                    .get(&sym)
-                    .into_iter()
-                    .flatten()
-                    .filter(|(def, _)| !self.seen.contains_key(def))
-                    .copied(),
-            );
+        let mut out = Vec::new();
+        for (layer, ix) in self.layers().enumerate() {
+            if let Some(entries) = ix.map(inherent).get(u128::from(sym.raw())) {
+                out.extend(
+                    entries
+                        .iter()
+                        .filter(|(order, (d, _))| {
+                            ix.first_unit(*order, *d) && !self.shadowed(layer, *d)
+                        })
+                        .map(|(_, &v)| v),
+                );
+            }
         }
         (!out.is_empty()).then_some(out)
     }
 
-    /// The inherent methods `sym` whose impls may take a receiver of type
-    /// `t`, in [`Self::candidates`] order: for a struct, enum or newtype,
-    /// the impls whose target names it and those whose target names none,
-    /// merged by position; otherwise every one. Cost: the impls of that
-    /// name and head, not every impl of the name.
     fn inherent_for(&self, sym: Symbol, t: &TyData) -> Option<Vec<(DefId, DefId)>> {
         let TyData::Adt(AdtId::Declared(def), _) = *t else {
             let all = self.candidates(sym, true);
             crate::work::trait_lookup(all.as_ref().map_or(0, Vec::len) as u64);
             return all;
         };
-        let pick = |ix: &Self, out: &mut Vec<(DefId, DefId)>, keep: &dyn Fn(DefId) -> bool| {
-            let Some(all) = ix.inherent.get(&sym) else {
-                return;
-            };
-            let none: &[u32] = &[];
-            let keyed = ix
-                .inherent_by_def
-                .get(&(sym, def))
-                .map_or(none, Vec::as_slice);
-            let open = ix.inherent_open.get(&sym).map_or(none, Vec::as_slice);
-            crate::work::trait_lookup((keyed.len() + open.len()) as u64);
-            let (mut i, mut j) = (0, 0);
-            while i < keyed.len() || j < open.len() {
-                let at = if j == open.len() || (i < keyed.len() && keyed[i] < open[j]) {
-                    i += 1;
-                    keyed[i - 1]
+        let mut out = Vec::new();
+        for (layer, ix) in self.layers().enumerate() {
+            let empty = Candidates::default();
+            let keyed = ix.inherent_by_def.get(pair_key(sym, def)).unwrap_or(&empty);
+            let open = ix
+                .inherent_open
+                .get(u128::from(sym.raw()))
+                .unwrap_or(&empty);
+            let (mut a, mut b) = (keyed.iter().peekable(), open.iter().peekable());
+            while a.peek().is_some() || b.peek().is_some() {
+                crate::work::trait_lookup(1);
+                let found = if b.peek().is_none()
+                    || a.peek()
+                        .is_some_and(|x| b.peek().is_some_and(|y| x.0 < y.0))
+                {
+                    a.next()
                 } else {
-                    j += 1;
-                    open[j - 1]
+                    b.next()
                 };
-                let found = all[at as usize];
-                if keep(found.0) {
-                    out.push(found);
+                if let Some((order, &(d, method))) = found
+                    && ix.first_unit(order, d)
+                    && !self.shadowed(layer, d)
+                {
+                    out.push((d, method));
                 }
             }
-        };
-        let mut out = Vec::new();
-        pick(self, &mut out, &|_| true);
-        if let Some(shared) = &self.shared {
-            pick(shared, &mut out, &|def| !self.seen.contains_key(&def));
         }
         (!out.is_empty()).then_some(out)
     }
 
-    /// Where trait `tr` stands among the traits of a name: an own item
-    /// first, in the order indexed, then the shared ones; `None` for an
-    /// item the index does not hold.
-    pub(crate) fn rank(&self, tr: DefId) -> Option<(bool, u32)> {
-        if let Some(&i) = self.seen.get(&tr) {
-            return Some((false, i));
-        }
-        let shared = self.shared.as_ref()?;
-        shared.seen.get(&tr).map(|&i| (true, i))
+    pub(crate) fn rank(&self, tr: DefId) -> Option<(usize, u128)> {
+        self.layers()
+            .enumerate()
+            .find_map(|(layer, ix)| ix.seen.get(u128::from(tr.raw())).map(|&rank| (layer, rank)))
     }
-
-    /// Trait `tr`'s method `sym`, when the index holds the trait and it
-    /// declares one: one probe.
     pub(crate) fn method_of(&self, tr: DefId, sym: Symbol) -> Option<DefId> {
-        if self.seen.contains_key(&tr) {
-            return self.of_trait.get(&(tr, sym)).copied();
-        }
-        self.shared.as_ref()?.of_trait.get(&(tr, sym)).copied()
+        let ix = self
+            .layers()
+            .find(|ix| ix.seen.get(u128::from(tr.raw())).is_some())?;
+        let &(rank, method) = ix.of_trait.get(method_key(tr, sym))?;
+        (ix.seen.get(u128::from(tr.raw())) == Some(&rank)).then_some(method)
     }
-
-    /// The method names trait `tr` declares, as [`Self::method_of`] finds
-    /// them: one probe.
     pub(crate) fn names_of(&self, tr: DefId) -> &[Symbol] {
-        let own = self.seen.contains_key(&tr).then_some(self);
-        let ix = own.or(self.shared.as_deref());
-        ix.and_then(|ix| ix.names.get(&tr))
-            .map_or(&[], Vec::as_slice)
+        self.layers()
+            .find(|ix| ix.seen.get(u128::from(tr.raw())).is_some())
+            .and_then(|ix| ix.names.get(u128::from(tr.raw())))
+            .map_or(&[], |(_, names)| names)
     }
-
-    /// Appends the inherent method names whose impls may take a receiver
-    /// of type `t`, as [`Self::inherent_for`] picks impls: for a struct,
-    /// enum or newtype, those of the impls naming it and of those naming
-    /// none; otherwise those naming none, since an impl naming a struct
-    /// takes no other receiver. Cost: those names.
     fn inherent_names_for(&self, t: &TyData, out: &mut Vec<Symbol>) {
-        for ix in std::iter::once(self).chain(self.shared.as_deref()) {
-            if let TyData::Adt(AdtId::Declared(def), _) = *t {
-                out.extend(ix.inherent_names.get(&def).into_iter().flatten());
+        for (layer, ix) in self.layers().enumerate() {
+            if let TyData::Adt(AdtId::Declared(def), _) = *t
+                && let Some(names) = ix.inherent_names.get(u128::from(def.raw()))
+            {
+                out.extend(
+                    names
+                        .iter()
+                        .filter(|(order, (d, _))| {
+                            ix.first_unit(*order, *d)
+                                && !self
+                                    .shared
+                                    .iter()
+                                    .take(layer.saturating_sub(1))
+                                    .any(|prior| prior.seen.get(u128::from(d.raw())).is_some())
+                        })
+                        .map(|(_, &(_, name))| name),
+                );
             }
-            out.extend(&ix.open_names);
+            out.extend(
+                ix.open_names
+                    .iter()
+                    .filter(|(order, (d, _))| {
+                        ix.first_unit(*order, *d)
+                            && !self
+                                .shared
+                                .iter()
+                                .take(layer.saturating_sub(1))
+                                .any(|prior| prior.seen.get(u128::from(d.raw())).is_some())
+                    })
+                    .map(|(_, &(_, name))| name),
+            );
         }
     }
 }
@@ -600,6 +657,18 @@ impl Args<'_> {
     }
 }
 
+/// What an unknown name is used as, which decides what it may misspell
+/// ([`Ck::value_typo`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameUse {
+    /// A value: a local, a top-level binding, a function, a fieldless struct.
+    Value,
+    /// A callee: a value or any constructor or conversion.
+    Call,
+    /// A local or top-level binding only: an assignment's target, `$name`.
+    Binding,
+}
+
 impl Ck<'_, '_> {
     pub(crate) fn args_of<'t>(&mut self, al: Option<NodeRef<'t>>) -> Args<'t> {
         let mut a = Args::empty();
@@ -665,7 +734,7 @@ impl Ck<'_, '_> {
     ) -> Vec<(DefId, DefId)> {
         let index = self.method_index();
         let mut seen = HashSet::default();
-        let mut found: Vec<((bool, u32), DefId, DefId)> = of
+        let mut found: Vec<((usize, u128), DefId, DefId)> = of
             .into_iter()
             .filter(|&tr| seen.insert(tr))
             .filter_map(|tr| {
@@ -680,31 +749,79 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ names
 
     pub(crate) fn import_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
-        hd_resolve::iface::std_import_hint(
-            &self.cx.names,
-            self.cx.lookup.ifaces.iter().copied(),
-            name,
-        )
-    }
-
-    fn name_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
-        if name == "print" {
-            hd_resolve::iface::ImportHint {
-                text: "; did you mean `println`?".to_owned(),
-                path: None,
-            }
-        } else {
-            self.import_hint(name)
-        }
+        self.cx.lookup.import_hint(name)
     }
 
     /// `unknown-name` at `n` for `text`, with its import hint and the
-    /// fix-it that adds the `use` it names.
-    fn unknown_name(&mut self, text: &str, n: NodeRef<'_>) {
-        let hint = self.name_hint(text);
-        let msg = format!("`{text}` is not defined{}", hint.text);
-        self.err(Code::UnknownName, n, &msg);
+    /// fix-it that adds the `use` it names, else the value in scope it
+    /// misspells for `role`.
+    pub(crate) fn unknown_name(&mut self, text: &str, n: NodeRef<'_>, role: NameUse) {
+        let hint = self.import_hint(text);
+        let best = if hint.text.is_empty() {
+            self.value_typo(text, role)
+        } else {
+            None
+        };
+        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+        self.err(
+            Code::UnknownName,
+            n,
+            &format!("`{text}` is not defined{}{did}", hint.text),
+        );
         hint.add_fix(&self.cx.src, self.diags);
+        let first = self.cx.src.first(n);
+        if self.cx.src.text(first) == text {
+            let span = self.cx.src.token_span(first);
+            self.diags.add_typo_fix(span, best.as_deref());
+        }
+    }
+
+    /// The value a misspelt `name` most likely meant for `role`: a local, a
+    /// top-level binding, or an item of the module's scope that
+    /// [`Self::name_expr`] reads as a value, or a call calls. Cost: one pass
+    /// over the names in scope, on an error only.
+    pub(crate) fn value_typo(&mut self, name: &str, role: NameUse) -> Option<String> {
+        let call = role == NameUse::Call;
+        let cx = self.cx;
+        let at = self.at;
+        let names: Vec<&str> = self
+            .scopes
+            .iter_rev()
+            .flat_map(|(_, frame)| frame.keys())
+            .chain(&cx.scope_at(at).name)
+            .chain(cx.init.borrow().globals.keys())
+            .copied()
+            .chain(
+                cx.locals
+                    .items()
+                    .iter()
+                    .filter(|l| l.covers(at))
+                    .map(|l| l.name),
+            )
+            .map(|s| cx.names.text(s))
+            .chain(Prim::ALL.iter().filter(|_| call).map(|p| p.name()))
+            .collect();
+        crate::work::scan_work(names.len());
+        let best = hd_diag::suggest::best_match(name, names, |c| {
+            let s = cx.names.syms.intern(c);
+            if self.find_local(s).is_some() || cx.init.borrow().globals.contains_key(&s) {
+                return true;
+            }
+            if role == NameUse::Binding {
+                return false;
+            }
+            let item = match self.scope_name(c) {
+                Some(Named::Item(d)) => cx.lookup.item(d).map(|i| &i.data),
+                _ => None,
+            };
+            match item {
+                Some(ItemData::Fn(..)) => true,
+                Some(ItemData::Struct(fields, _)) => call || fields.is_empty(),
+                Some(ItemData::Newtype(..)) => call,
+                _ => call && Prim::ALL.iter().any(|p| p.name() == c),
+            }
+        });
+        best.map(str::to_owned)
     }
 
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
@@ -722,7 +839,7 @@ impl Ck<'_, '_> {
         if let Some(Named::Item(def)) = self.scope_name(&text) {
             return self.declaration_value(def, &text, want, n);
         }
-        self.unknown_name(&text, n);
+        self.unknown_name(&text, n, NameUse::Value);
         Ok((Ref(NONE), Ty::POISON))
     }
 
@@ -740,6 +857,9 @@ impl Ck<'_, '_> {
             if let ItemData::Fn(sig, _) = &item.data {
                 let sig = sig.clone();
                 return self.item_value(def, &sig, &[], want, n);
+            }
+            if let ItemData::Binding(ty) = item.data {
+                return Ok(self.binding_by_path(def, ty, name, n));
             }
             if let ItemData::Struct(fields, _) = &item.data
                 && fields.is_empty()
@@ -814,7 +934,7 @@ impl Ck<'_, '_> {
     /// `names.module.other-module.value`: a path that names nothing.
     fn undefined_path(&mut self, segs: &[String], n: NodeRef<'_>) -> (Ref, Ty) {
         if let [name] = segs {
-            self.unknown_name(name, n);
+            self.unknown_name(name, n, NameUse::Value);
         } else {
             let msg = format!("`{}` is not defined", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
@@ -1132,9 +1252,7 @@ impl Ck<'_, '_> {
         for (i, g) in generics.iter().enumerate().skip(explicit) {
             if g.const_type.is_some() && !named[i] {
                 let name = self.cx.names.text(g.name);
-                let msg = format!(
-                    "no argument's type names const parameter `{name}`, so it cannot be inferred: write it in the call, as in `f::[4](...)`"
-                );
+                let msg = format!("write const argument `{name}` explicitly, as in `f::[4](...)`");
                 self.err(Code::CannotInferType, n, &msg);
                 if let Some(v) = vars.get_mut(i) {
                     *v = Ty::POISON;
@@ -1267,8 +1385,18 @@ impl Ck<'_, '_> {
                 if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
                     return self.conversion(Ty::prim(*p), args, n);
                 }
-                if let Some(Named::Item(def)) = self.scope_name(&text) {
-                    return self.call_item(def, &[], args, n, bang, want);
+                // `types.cast.family`: the numeric bound establishes a cast
+                // target; monomorphization supplies its concrete primitive.
+                if let Some(to) = self.type_param(&text)
+                    && matches!(self.pool().get(to), TyData::Param(_))
+                    && self.cast_numeric(to)
+                {
+                    return self.conversion(to, args, n);
+                }
+                if let Some(Named::Item(def)) = self.scope_name(&text)
+                    && let Some(item) = self.cx.lookup.item(def)
+                {
+                    return self.call_item(item, &[], args, n, bang, want);
                 }
                 if self.is_poison_name(&text) {
                     return Ok(self.poison_value(n));
@@ -1277,7 +1405,7 @@ impl Ck<'_, '_> {
                     let msg = "`loop` is not defined; write 'while true:' for an endless loop";
                     self.err(Code::UnknownName, callee, msg);
                 } else {
-                    self.unknown_name(&text, callee);
+                    self.unknown_name(&text, callee, NameUse::Call);
                 }
                 if text == "loop"
                     && !bang
@@ -1332,21 +1460,22 @@ impl Ck<'_, '_> {
                 if segs.first().is_some_and(|s| self.is_poison_name(s)) {
                     return Ok(self.poison_value(n));
                 }
-                match self.resolve_path(&segs) {
-                    Some(def)
+                match self
+                    .resolve_path(&segs)
+                    .and_then(|def| self.cx.lookup.item(def))
+                {
+                    Some(item)
                         if matches!(
-                            self.cx.lookup.item(def).map(|i| &i.data),
-                            Some(
-                                ItemData::Fn(_, _)
-                                    | ItemData::Struct(_, _)
-                                    | ItemData::Builtin
-                                    | ItemData::Enum { .. }
-                                    | ItemData::Newtype(..)
-                                    | ItemData::Alias { .. }
-                            )
+                            &item.data,
+                            ItemData::Fn(_, _)
+                                | ItemData::Struct(_, _)
+                                | ItemData::Builtin
+                                | ItemData::Enum { .. }
+                                | ItemData::Newtype(..)
+                                | ItemData::Alias { .. }
                         ) =>
                     {
-                        self.call_item(def, &explicit, args, n, bang, want)
+                        self.call_item(item, &explicit, args, n, bang, want)
                     }
                     _ if matches!(inner.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr) => {
                         self.member_call(n, inner, args, bang, want, explicit)
@@ -1510,6 +1639,104 @@ impl Ck<'_, '_> {
             .add_fix(&title, hd_diag::FixSafety::Suggestion, &[(at, "*")]);
     }
 
+    /// Check an unsuffixed integer literal against every primitive admitted
+    /// by a numeric parameter. Inspect only its unary/parenthesis spine and
+    /// digits: O(spine + literal bytes), without instance obligations.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    fn family_integer_literal(
+        &mut self,
+        to: Ty,
+        e: NodeRef<'_>,
+        n: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        let to = self.resolved(to);
+        if !matches!(self.pool().get(to), TyData::Param(_)) || !self.cast_numeric(to) {
+            return None;
+        }
+        let mut core = e;
+        let mut negative = false;
+        loop {
+            match core.kind() {
+                SyntaxKind::ParenExpr => core = core.children().next()?,
+                SyntaxKind::UnaryExpr => {
+                    match self.cx.src.tkind(self.cx.src.first(core))? {
+                        TokenKind::Plus => {}
+                        TokenKind::Minus => negative = !negative,
+                        _ => return None,
+                    }
+                    core = core.children().next()?;
+                }
+                _ => break,
+            }
+        }
+        if core.kind() != SyntaxKind::LiteralExpr
+            || self.cx.src.tkind(self.cx.src.first(core)) != Some(TokenKind::Number)
+        {
+            return None;
+        }
+        let text = self.cx.src.text(self.cx.src.first(core));
+        let (digits, suffix) = crate::literals::split_suffix(text);
+        if !suffix.is_empty() {
+            return None;
+        }
+        let digits = digits.replace('_', "");
+        let radix = crate::literals::radix_digits(&digits);
+        if radix.is_none() && !crate::literals::decimal_digits(&digits) {
+            return None;
+        }
+        let known = self.cx.names.known;
+        let integer = self.env.first_clause(to, known.integer).is_some();
+        let float = self.env.first_clause(to, known.float).is_some();
+        let magnitude = match radix {
+            Some((radix, digits)) => u128::from_str_radix(digits, radix).ok(),
+            None => digits.parse::<u128>().ok(),
+        };
+        // Integer is the common interval of signed i8 and unsigned types.
+        // Num admits those integers as well as both float widths.
+        let fits = magnitude.is_some_and(|m| {
+            if integer || !float {
+                !negative && m <= i8::MAX as u128
+            } else {
+                // Every finite f32 integer fits u128 (f32::MAX < 2^128).
+                // The finite guard excludes saturating-cast false positives.
+                let value = m as f32;
+                value.is_finite() && value as u128 == m
+            }
+        });
+        if !fits {
+            let reason = if integer || !float {
+                "the signed i8 and unsigned integer types"
+            } else {
+                "f32 exactly and finitely"
+            };
+            let msg = format!(
+                "integer literal must fit every type admitted by `{}`: it must fit {reason}",
+                self.show(to)
+            );
+            self.err(Code::IntegerLiteralRange, e, &msg);
+            return Some(self.poison(e));
+        }
+        let magnitude = magnitude?;
+        let (source, bits) = if integer || !float {
+            (Ty::prim(Prim::U64), u64::try_from(magnitude).ok()?)
+        } else {
+            let value = f64::from(magnitude as f32);
+            (
+                Ty::prim(Prim::F64),
+                if negative { -value } else { value }.to_bits(),
+            )
+        };
+        let value = self.b.const_value(source, bits);
+        Some((
+            self.b.prim(PrimOp::Conv as u32, &[value], to, n.index()),
+            to,
+        ))
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         if let Some(spread) = args.spread {
@@ -1536,6 +1763,9 @@ impl Ck<'_, '_> {
         let Some(e) = self.one_argument(args, &self.show(to), n)? else {
             return Ok((Ref(NONE), Ty::POISON));
         };
+        if let Some(value) = self.family_integer_literal(to, e, n) {
+            return Ok(value);
+        }
         let (r, t) = self.expr(e, None)?;
         // A newtype converts to the type it wraps (`string(path)`), and
         // to no other: `f64(m)` of a newtype over `i32` is no cast
@@ -2942,7 +3172,7 @@ impl Ck<'_, '_> {
     /// A call of a function item, generic or not.
     pub(crate) fn call_item(
         &mut self,
-        def: DefId,
+        item: &Item,
         explicit: &[Ty],
         args: &Args<'_>,
         n: NodeRef<'_>,
@@ -2950,11 +3180,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        // ruled out: driver::body builds Lookup from the module's prepared
-        // items and closure interfaces; name/export lookup selects those items.
-        let Some(item) = self.cx.lookup.item(def) else {
-            return Ok(self.poison_value(n));
-        };
+        let def = item.def;
         if item.fn_attrs().is_some_and(|a| a.auto_closing)
             && self.auto_closing_statement != Some(n.index())
         {
@@ -3233,12 +3459,16 @@ impl Ck<'_, '_> {
             | ItemData::Enum { .. }
             | ItemData::Alias { .. } => {
                 let to = self.ctor(def, explicit, n);
+                // An alias calls the resolved item of the type it expands to.
+                if let TyData::Adt(AdtId::Declared(base), a) = pool.get(to)
+                    && base != def
+                    && let Some(item) = self.cx.lookup.item(base)
+                {
+                    return self.call_item(item, pool.list_items(a), args, n, bang, want);
+                }
                 match pool.get(to) {
-                    // An alias calls the type it expands to.
-                    TyData::Adt(AdtId::Declared(base), a) if base != def => {
-                        self.call_item(base, pool.list_items(a), args, n, bang, want)
-                    }
                     TyData::Prim(_) => self.conversion(to, args, n),
+                    TyData::Param(_) if self.cast_numeric(to) => self.conversion(to, args, n),
                     _ => self.type_name_call(&name, to, args, n),
                 }
             }
@@ -3551,6 +3781,11 @@ impl Ck<'_, '_> {
             n,
             "a bare pipe step cannot suspend; write `_` and `!`",
         );
+        // A named step `f` becomes the call `f!(_)`.
+        if matches!(n.kind(), SyntaxKind::NameExpr | SyntaxKind::PathExpr) {
+            let hi = self.cx.src.span(n).hi;
+            self.insert_fix("call the step with `!(_)`", hi, "!(_)");
+        }
         (Ref(NONE), Ty::POISON)
     }
 
@@ -3721,7 +3956,7 @@ impl Ck<'_, '_> {
     /// replaced by a fresh variable: a pending goal fixes it once that
     /// type is known, so the rest of the statement can use the result,
     /// and an argument can fix the self type and the projection together.
-    fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
+    pub(crate) fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
         enum Build {
             Adt(AdtId, Option<Ty>),
             Ref(bool, bool),
@@ -3890,7 +4125,12 @@ impl Ck<'_, '_> {
                 }
             }
             _ => {
-                let msg = format!("`.{name}` needs an expected enum type");
+                let mut msg = format!("`.{name}` needs an expected enum type");
+                if matches!(name.as_str(), "Some" | "None")
+                    && want.is_some_and(|t| matches!(pool.get(t), TyData::Fn { .. }))
+                {
+                    msg.push_str("; an optional function is `(fn(...) -> T)?`, while `fn(...) -> T?` returns an optional value");
+                }
                 self.err(Code::MissingContextualEnumType, v, &msg);
                 return Ok((Ref(NONE), Ty::POISON));
             }
@@ -4124,8 +4364,14 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let Some((index, fields)) = self.variant_fields(t, name) else {
-            let msg = format!("no variant `{name}` of {}", self.show(t));
+            let best = hd_diag::suggest::best_match(name, self.variant_names(t), |_| true)
+                .map(str::to_owned);
+            let did = hd_diag::suggest::did_you_mean(best.as_deref());
+            let msg = format!("no variant `{name}` of {}{did}", self.show(t));
             self.err(Code::UnknownVariant, n, &msg);
+            if let Some(span) = self.member_span(n, name) {
+                self.diags.add_typo_fix(span, best.as_deref());
+            }
             return Ok((Ref(NONE), Ty::POISON));
         };
         let names = self.variant_field_names(t, name);
@@ -4233,11 +4479,14 @@ impl Ck<'_, '_> {
                 Some(Named::Poison) => return Ok(self.poison_value(n)),
                 Some(Named::Missing) => return Ok((Ref(NONE), Ty::POISON)),
                 Some(Named::Module(m)) => {
-                    let Some(def) = self.export(m, &name) else {
+                    let Some(item) = self
+                        .export(m, &name)
+                        .and_then(|def| self.cx.lookup.item(def))
+                    else {
                         self.missing_export(m, &name, callee);
                         return Ok((Ref(NONE), Ty::POISON));
                     };
-                    return self.call_item(def, &explicit, args, n, bang, want);
+                    return self.call_item(item, &explicit, args, n, bang, want);
                 }
                 Some(Named::Item(def)) => match self.kind_of_item(def) {
                     Some(HeadKind::Enum | HeadKind::Alias)
@@ -4280,7 +4529,7 @@ impl Ck<'_, '_> {
                     }
                     // A function's, and a name with no item kind, is a
                     // value: its method call is checked below.
-                    Some(HeadKind::Fn | HeadKind::Impl) | None => {}
+                    Some(HeadKind::Fn | HeadKind::Impl | HeadKind::Binding) | None => {}
                 },
                 None => {}
             }
@@ -4726,8 +4975,11 @@ impl Ck<'_, '_> {
                 self.err(Code::UnsatisfiedTraitBound, n, &unmet);
                 false
             } else if hidden.is_empty() {
-                let hint = self.method_hint(t, name);
+                let (hint, best) = self.method_hint(t, name);
                 self.err(Code::UnknownMethod, n, &format!("{msg}{hint}"));
+                if let Some(span) = self.member_span(n, name) {
+                    self.diags.add_typo_fix(span, best.as_deref());
+                }
                 true
             } else {
                 let names = self.cx.names.display_names(&hidden).join("`, `");
@@ -4782,70 +5034,130 @@ impl Ck<'_, '_> {
         );
     }
 
-    fn method_hint(&mut self, t: Ty, name: &str) -> String {
+    /// The end of an `unknown-method` message and, for a misspelt name,
+    /// the method it meant ([`hd_diag::suggest::best_match`]): one the
+    /// receiver has and that applies to it.
+    fn method_hint(&mut self, t: Ty, name: &str) -> (String, Option<String>) {
         let bare = self.resolved(self.infer.resolve(self.pool(), t));
         let data = self.pool().get(bare);
         if name == "new"
             && matches!(data, TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
         {
-            return "; write `{}` for an empty map".to_owned();
+            return ("; write `{}` for an empty map".to_owned(), None);
         }
         if name == "unwrap" && self.option_arg(bare).is_some() {
-            return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
+            return (
+                "; use `expect(message)` or `unwrap_or(fallback)`".to_owned(),
+                None,
+            );
         }
-        let mut names: Vec<String> = self
+        let names: Vec<String> = self
             .receiver_method_names(bare)
             .into_iter()
             .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
         crate::work::scan_work(names.len());
-        names.sort_stable();
-        names.dedup();
-        let mut ranked: Vec<_> = names
+        let best = hd_diag::suggest::best_match(name, names.iter().map(String::as_str), |c| {
+            self.method_applies(bare, c)
+        })
+        .map(str::to_owned);
+        (hd_diag::suggest::did_you_mean(best.as_deref()), best)
+    }
+
+    /// Whether `bare` has a method `candidate` here, tried and rolled back.
+    fn method_applies(&mut self, bare: Ty, candidate: &str) -> bool {
+        let checkpoint = self.checkpoint();
+        let memo = std::mem::take(&mut self.memo);
+        let fuel = std::mem::replace(&mut self.fuel, hd_base::Fuel::new(4096));
+        let inherent = self.find_inherent(bare, candidate).is_some()
+            || self.builtin_method(bare, candidate).is_some();
+        let sym = self.cx.names.syms.intern(candidate);
+        let traits = self
+            .available_traits(sym)
             .into_iter()
-            .map(|candidate| (name_distance(name, &candidate), candidate))
-            .filter(|(distance, candidate)| {
-                candidate != name && *distance <= name.chars().count().div_ceil(2).max(3)
-            })
+            .map(|(tr, _)| tr)
             .collect();
-        ranked.sort_stable();
-        for (_, candidate) in ranked {
-            let checkpoint = self.checkpoint();
-            let memo = std::mem::take(&mut self.memo);
-            let fuel = std::mem::replace(&mut self.fuel, hd_base::Fuel::new(4096));
-            let inherent = self.find_inherent(bare, &candidate).is_some()
-                || self.builtin_method(bare, &candidate).is_some();
-            let sym = self.cx.names.syms.intern(&candidate);
-            let traits = self
-                .available_traits(sym)
-                .into_iter()
-                .map(|(tr, _)| tr)
-                .collect();
-            // A parameter, an opaque type, a projection or a trait value
-            // takes its methods from its bounds or its traits, not from
-            // impl rows: the lookup itself answers it.
-            let own_traits = matches!(
-                self.pool().get(bare),
-                TyData::Param(_)
-                    | TyData::Opaque { .. }
-                    | TyData::Assoc { .. }
-                    | TyData::TraitValue { .. }
-            );
-            let applicable = inherent
-                || if own_traits {
-                    matches!(self.resolve_method(bare, &candidate), Ok(Some(_)))
-                } else {
-                    matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty())
-                };
-            self.rollback(checkpoint);
-            self.memo = memo;
-            self.fuel = fuel;
-            if applicable {
-                return format!("; did you mean `{candidate}`?");
-            }
+        // A parameter, an opaque type, a projection or a trait value
+        // takes its methods from its bounds or its traits, not from
+        // impl rows: the lookup itself answers it.
+        let own_traits = matches!(
+            self.pool().get(bare),
+            TyData::Param(_)
+                | TyData::Opaque { .. }
+                | TyData::Assoc { .. }
+                | TyData::TraitValue { .. }
+        );
+        let applicable = inherent
+            || if own_traits {
+                matches!(self.resolve_method(bare, candidate), Ok(Some(_)))
+            } else {
+                matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty())
+            };
+        self.rollback(checkpoint);
+        self.memo = memo;
+        self.fuel = fuel;
+        applicable
+    }
+
+    /// The span of the member name `name` that the access, call or path
+    /// `n` writes: its callee's last token of that text.
+    pub(crate) fn member_span(&self, n: NodeRef<'_>, name: &str) -> Option<hd_base::Span> {
+        let callee = match n.kind() {
+            SyntaxKind::CallExpr => n.children().next()?,
+            _ => n,
+        };
+        let src = &self.cx.src;
+        let t = src.tokens(callee).filter(|&t| src.text(t) == name).last()?;
+        Some(src.token_span(t))
+    }
+
+    /// The field of `t` visible here that a misspelt `name` most likely
+    /// meant: a struct's own field or an enum's shared one.
+    pub(crate) fn field_typo(&self, t: Ty, name: &str) -> Option<String> {
+        let (def, _) = self.pool().adt(self.resolved(t))?;
+        let fields = match &self.cx.lookup.item(def)?.data {
+            ItemData::Struct(fields, _) => fields,
+            ItemData::Enum { shared, .. } => shared,
+            _ => return None,
+        };
+        let visible = fields
+            .iter()
+            .filter(|f| self.member_visible(def, f.public || f.embedded))
+            .map(|f| self.cx.names.text(f.name));
+        hd_diag::suggest::best_match(name, visible, |_| true).map(str::to_owned)
+    }
+
+    /// `unknown-field` at `n`, which writes the member `name` of `t`, with
+    /// the field it misspells and the fix-it that writes it.
+    pub(crate) fn unknown_field(&mut self, t: Ty, name: &str, n: NodeRef<'_>) {
+        let best = self.field_typo(t, name);
+        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+        self.err(
+            Code::UnknownField,
+            n,
+            &format!("no field `{name}` on {}{did}", self.show(t)),
+        );
+        if let Some(span) = self.member_span(n, name) {
+            self.diags.add_typo_fix(span, best.as_deref());
         }
-        String::new()
+    }
+
+    /// The variant names of `t`, when it is an enum.
+    pub(crate) fn variant_names(&self, t: Ty) -> Vec<&str> {
+        let pool = self.pool();
+        match pool.get(self.strip(t)) {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
+                match self.cx.lookup.item(def).map(|i| &i.data) {
+                    Some(ItemData::Enum { variants, .. }) => variants
+                        .iter()
+                        .map(|v| self.cx.names.text(v.name))
+                        .collect(),
+                    _ => Vec::new(),
+                }
+            }
+            _ => Vec::new(),
+        }
     }
 
     /// The method names a receiver of type `t` may have, for the "did you
@@ -5161,7 +5473,7 @@ impl Ck<'_, '_> {
         // `sym`; the first in the method index's order wins.
         if let TyData::TraitValue { def, args, .. } = pool.get(t) {
             let index = self.method_index();
-            let mut best: Option<((bool, u32), DefId, DefId, TyList)> = None;
+            let mut best: Option<((usize, u128), DefId, DefId, TyList)> = None;
             crate::body::walk_supertraits(
                 self.cx.lookup,
                 pool,
@@ -5203,7 +5515,7 @@ impl Ck<'_, '_> {
     ///
     /// Cost: one probe of the module's tables with rows for the head
     /// ([`crate::body::BodyCx::head_tables`]), then one probe of each one's name index
-    /// per key code, made once per table (a folder's once per run), then
+    /// per key code, made once per table (a unit's once per run), then
     /// one probe of the method index and the scope per trait found. Asking
     /// every available trait declaring `sym` solved a goal per trait
     /// (#1925), and probing each trait of the head for `sym` cost every
@@ -5883,127 +6195,9 @@ impl Ck<'_, '_> {
                     String::new()
                 };
                 let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
-                if self.no_method(rt, name, n, &msg) && name == "unwrap" {
-                    self.unwrap_suggestions(rt, args, n, want);
-                }
+                self.no_method(rt, name, n, &msg);
                 Ok((Ref(NONE), Ty::POISON))
             }
-        }
-    }
-
-    /// The no-argument spelling has two policies: expect success, or use
-    /// a default value. Error formatting is offered only with Display.
-    fn unwrap_suggestions(&mut self, rt: Ty, args: &Args<'_>, n: NodeRef<'_>, want: Option<Ty>) {
-        if !args.positional.is_empty()
-            || args.spread.is_some()
-            || !args.after_spread.is_empty()
-            || !args.named.is_empty()
-            || args.trailing.is_some()
-            || !self.method_targs.is_empty()
-        {
-            return;
-        }
-        let pool = self.pool();
-        let rt = self
-            .ref_of(self.resolved(rt))
-            .map_or(self.resolved(rt), |(inner, _)| inner);
-        let TyData::Adt(AdtId::Declared(def), types) = pool.get(rt) else {
-            return;
-        };
-        let types = pool.list_items(types);
-        let (value, error) = match types {
-            [value, error] if def == self.cx.names.known.result => (*value, Some(*error)),
-            [value] if def == self.cx.names.known.option => (*value, None),
-            _ => return,
-        };
-        let Some(callee) = n.children().next() else {
-            return;
-        };
-        let Some(name) = callee.name(&self.cx.src.parse.tokens) else {
-            return;
-        };
-        let Some(arguments) = Src::child(n, SyntaxKind::ArgumentList) else {
-            return;
-        };
-        let Some(open) = arguments.direct_token(&self.cx.src.parse.tokens, TokenKind::LParen)
-        else {
-            return;
-        };
-        let method = self.cx.src.token_span(name);
-        let argument = self.cx.src.token_span(open);
-        let argument = hd_base::Span {
-            lo: argument.hi,
-            hi: argument.hi,
-            ..argument
-        };
-        let discard =
-            if want.is_some_and(|ty| self.resolved(self.infer.resolve(pool, ty)) == Ty::VOID) {
-                let tree = &self.cx.src.parse.tree;
-                let mut parent = tree.parent(n.index());
-                while let Some(index) = parent {
-                    if tree.node(index).kind() != SyntaxKind::ParenExpr {
-                        break;
-                    }
-                    parent = tree.parent(index);
-                }
-                parent
-                    .map(|index| tree.node(index))
-                    .filter(|node| node.kind() == SyntaxKind::ExprStmt)
-                    .map(|node| {
-                        let span = self.cx.src.span(node);
-                        hd_base::Span {
-                            hi: span.lo,
-                            ..span
-                        }
-                    })
-            } else {
-                None
-            };
-        let statement = |mut edits: Vec<(hd_base::Span, String)>| {
-            if let Some(at) = discard {
-                // An import and a script's discard can start at the same
-                // byte. Keep them one insertion in source order.
-                if let Some((_, text)) = edits.iter_mut().find(|(span, _)| *span == at) {
-                    text.push_str("_ := ");
-                } else {
-                    edits.push((at, "_ := ".into()));
-                }
-            }
-            edits
-        };
-        if error.is_none_or(|ty| self.suggestion_trait(ty, self.cx.names.known.display)) {
-            self.guess_fix(
-                "expect a successful value",
-                &statement(vec![
-                    (method, "expect".to_owned()),
-                    (argument, "\"missing value\"".to_owned()),
-                ]),
-            );
-        }
-        if let Some(mut edits) = self.default_suggestion(value, method) {
-            edits.extend([
-                (method, "unwrap_or".to_owned()),
-                (argument, "Default::default()".to_owned()),
-            ]);
-            self.guess_fix("use the value type's default on failure", &statement(edits));
-        }
-        if error.is_some() {
-            let end = self.cx.src.span(n);
-            self.guess_fix(
-                "discard the error text and expect a value",
-                &statement(vec![
-                    (method, "map_err".to_owned()),
-                    (argument, "fn(_error): \"\"".to_owned()),
-                    (
-                        hd_base::Span {
-                            lo: end.hi,
-                            hi: end.hi,
-                            ..end
-                        },
-                        ".expect(\"missing value\")".to_owned(),
-                    ),
-                ]),
-            );
         }
     }
 
@@ -7086,248 +7280,4 @@ pub(crate) fn dyn_type_param_message(name: &str, sig: &FnSig) -> String {
     format!(
         "`{name}` has a type or row parameter of its own, which is unavailable on a trait value; use a generic bound on the caller, or give the method a parameter typed `&dyn Trait` or `*dyn Trait`"
     )
-}
-
-#[cfg(test)]
-mod projection_walk_tests {
-    use super::*;
-    use crate::body::{add_projection_bounds, with_checker};
-
-    fn projection(ck: &Ck<'_, '_>, base: Ty, binding: Option<Ty>) -> (Ty, DefId, Ty) {
-        let pool = ck.pool();
-        let owner = ck.cx.names.item("app.main", "Shelf");
-        let assoc = ck.cx.names.member(owner, PathKind::Member, "Out");
-        let self_ty = binding.map_or(base, |value| {
-            pool.intern_ty(&TyData::TraitValue {
-                def: owner,
-                args: TyList::EMPTY,
-                bindings: vec![(assoc, value)],
-            })
-        });
-        (
-            pool.intern_ty(&TyData::Assoc {
-                assoc,
-                trait_: owner,
-                self_ty,
-                args: TyList::EMPTY,
-            }),
-            owner,
-            self_ty,
-        )
-    }
-
-    #[test]
-    fn normalization_at_depth_1000_fits_a_small_stack_and_shares_answers() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated depth test.
-            .spawn(|| {
-                with_checker(|ck| {
-                    let p = ck.pool();
-                    let leaf = projection(ck, Ty::I32, Some(Ty::I32)).0;
-                    for depth in [100, 1000] {
-                        let (mut root, mut wanted) = (leaf, Ty::I32);
-                        for _ in 0..depth {
-                            let tuple = |t| p.product(p.list(&[t, t]), None);
-                            root = tuple(root);
-                            wanted = tuple(wanted);
-                        }
-                        let mut memo = HashMap::default();
-                        let (found, work) = hd_types::work::count_type_nodes(|| {
-                            ck.normalize_deep_in(root, &mut memo)
-                        });
-                        assert_eq!(found.unwrap(), wanted);
-                        assert_eq!(work, depth + 1);
-                        assert_eq!(
-                            hd_types::work::count_type_nodes(|| ck
-                                .normalize_deep_in(root, &mut memo)
-                                .unwrap()),
-                            (wanted, 0)
-                        );
-                    }
-                    let owner = ck.cx.names.item("app.main", "Holder");
-                    let row = p.row(&hd_types::RowData {
-                        keys: vec![p.intern_ty(&TyData::TraitValue {
-                            def: owner,
-                            args: p.list(&[leaf]),
-                            bindings: Vec::new(),
-                        })],
-                        params: Vec::new(),
-                    });
-                    let wrap = |t, i| {
-                        p.intern_ty(&match i % 4 {
-                            0 => TyData::Adt(AdtId::Declared(owner), p.list(&[t, t])),
-                            1 => TyData::Ref {
-                                inner: t,
-                                mutable: true,
-                                counted: true,
-                            },
-                            2 => TyData::Adt(AdtId::Product { rest: true }, p.list(&[t, t, leaf])),
-                            _ => TyData::Fn {
-                                params: p.list(&[t, t]),
-                                result: t,
-                                row,
-                                suspends: true,
-                                inputs: Inputs::Fixed,
-                                deps: hd_types::FnDeps::NONE,
-                            },
-                        })
-                    };
-                    let (mut root, mut wanted) = (leaf, Ty::I32);
-                    for i in 0..1000 {
-                        root = wrap(root, i);
-                        wanted = wrap(wanted, i);
-                    }
-                    assert_eq!(ck.normalize_deep(root).unwrap(), wanted);
-                    for data in [
-                        TyData::sum(p.list(&[leaf])),
-                        TyData::Opaque {
-                            owner,
-                            site: 0,
-                            borrows: true,
-                            args: p.list(&[leaf]),
-                            bound: leaf,
-                        },
-                        TyData::TraitValue {
-                            def: owner,
-                            args: p.list(&[leaf]),
-                            bindings: vec![(owner, leaf)],
-                        },
-                        TyData::Row(row),
-                        TyData::Context(row),
-                    ] {
-                        let ty = p.intern_ty(&data);
-                        assert_eq!(ck.normalize_deep(ty).unwrap(), ty);
-                    }
-                    let base = ck.infer.fresh(p, VarKind::General);
-                    let projected = projection(ck, base, None).0;
-                    let mut deep = projected;
-                    for _ in 0..1_000 {
-                        deep = p.intern_ty(&TyData::Ref {
-                            inner: deep,
-                            mutable: false,
-                            counted: true,
-                        });
-                    }
-                    let node = ck.cx.src.parse.tree.root();
-                    let opened = ck.open_projections(deep, ProjectSite::Result, node);
-                    assert!(!p.has_assoc(opened));
-                    assert_eq!(ck.pending.len(), 1);
-                    let pair = p.product(p.list(&[projected, projected]), Some(projected));
-                    let opened = ck.open_projections(pair, ProjectSite::Result, node);
-                    let (elems, rest) = p.product_parts(opened).expect("product");
-                    assert_ne!(elems[0], elems[1]);
-                    assert_eq!(rest, Some(projected));
-                    assert_eq!(ck.pending.len(), 3);
-                });
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn a_thousand_rigid_projection_bases_normalize_on_a_small_stack() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated projection-chain test.
-            .spawn(|| {
-                for depth in [100, 1000] {
-                    with_checker(|ck| {
-                        let p = ck.pool();
-                        let mut root = p.intern_ty(&TyData::Param(ParamRef {
-                            owner: ck.cx.names.item("app.main", "f"),
-                            index: 0,
-                        }));
-                        for _ in 0..depth {
-                            let (next, trait_, _) = projection(ck, root, None);
-                            ck.env.push(root, trait_, TyList::EMPTY, Vec::new(), false);
-                            root = next;
-                        }
-                        let (found, work) =
-                            hd_types::work::count_type_nodes(|| ck.normalize_deep(root));
-                        assert_eq!(found.unwrap(), root);
-                        assert!(
-                            work < 10 * depth + 100,
-                            "projection-chain work stays linear: {work}"
-                        );
-                    });
-                }
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn bounds_scans_wake_only_for_the_missing_clause_and_survive_rollback() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated depth test.
-            .spawn(|| {
-                for depth in [100, 1000] {
-                    with_checker(|ck| {
-                        let p = ck.pool();
-                        let base = p.intern_ty(&TyData::Param(ParamRef {
-                            owner: ck.cx.names.item("app.main", "f"),
-                            index: 0,
-                        }));
-                        let (proj, trait_, _) = projection(ck, base, None);
-                        let mut root = proj;
-                        for _ in 0..depth {
-                            root = p.product(p.list(&[root, root]), None);
-                        }
-                        let query = |env: &mut hd_types::solver::ParamEnv| {
-                            hd_types::work::count_type_nodes(|| {
-                                add_projection_bounds(
-                                    ck.cx.lookup,
-                                    p,
-                                    env,
-                                    root,
-                                    ck.cx.names.known.copy,
-                                )
-                            })
-                        };
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                        assert_eq!(query(&mut ck.env), (false, 0));
-                        // Even clauses on the same self type cannot wake an
-                        // unrelated trait/argument dependency.
-                        for i in 0..1000 {
-                            let unrelated = ck.cx.names.item("app.main", &format!("Other{i}"));
-                            ck.env
-                                .push(base, unrelated, TyList::EMPTY, Vec::new(), false);
-                            assert_eq!(query(&mut ck.env), (false, 0));
-                        }
-                        let wrong = ck.env.len();
-                        let wrong_index = u32::try_from(wrong).unwrap();
-                        ck.env
-                            .push(base, trait_, p.list(&[Ty::I32]), Vec::new(), false);
-                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
-                        assert_eq!(query(&mut ck.env), (false, 0));
-                        let before = ck.env.len();
-                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
-                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                        assert!(ck.env.elaborated(proj));
-                        assert_eq!(query(&mut ck.env), (false, 0));
-                        ck.env.truncate(before);
-                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
-                        assert!(!ck.env.elaborated(proj));
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                        assert!(ck.env.elaborated(proj));
-                        ck.env.truncate(wrong);
-                        assert_eq!(ck.env.first_clause(base, trait_), None);
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
-                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
-                        assert_eq!(query(&mut ck.env), (false, depth + 1));
-                    });
-                }
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
 }

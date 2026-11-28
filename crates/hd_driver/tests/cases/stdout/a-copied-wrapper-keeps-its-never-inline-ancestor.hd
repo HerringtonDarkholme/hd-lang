@@ -1,0 +1,16 @@
+# @dump: stdout
+# @build: release
+# An `@inline(.Always)` wrapper copied into a `@inline(.Never)` function that
+# calls it back stays a call: the build ends instead of inlining forever.
+use std.meta.inline
+
+@inline(.Never)
+fn root(x: i32) -> i32:
+    if x == 0: +7 else: bridge(x - 1) + bridge(x - 1)
+
+@inline(.Always)
+fn bridge(x: i32) -> i32:
+    root(x)
+
+pub fn main() -> void $ Console:
+    println(root(4))

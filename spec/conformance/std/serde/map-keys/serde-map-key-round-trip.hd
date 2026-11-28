@@ -2,8 +2,8 @@
 # Spec std/serde Map Keys: std-serde.map-key.builtins, std-serde.map-key.user-text, std-serde.map-key.derive-shapes, std-serde.std.map-key-bound.
 # Spec std/json Standard Implementations: std-json.std.map-scalar-keys, std-json.std.map-key-write, std-json.std.map-key-read.
 use std.hash.Hash
-use std.json.{decode, encode, from_json, to_json}
-use std.serde.{MapKey, MapKeyValue}
+use std.encoding.json.{decode, encode, from_json, to_json}
+use std.encoding.{MapKey, MapKeyValue}
 use std.testing.assert_equal
 
 @derive(Debug, Eq, Hash, MapKey)

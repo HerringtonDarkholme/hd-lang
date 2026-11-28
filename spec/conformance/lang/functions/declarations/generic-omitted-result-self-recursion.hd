@@ -1,0 +1,4 @@
+# test: generic omitted result self recursion
+# Rule: fn.decl.omitted-recursion.
+fn repeat[T](value: T): # diagnostic: recursive-function-needs-result-type
+    repeat(value)

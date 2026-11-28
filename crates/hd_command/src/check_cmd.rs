@@ -683,7 +683,7 @@ fn reached_files(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Opt
 }
 
 /// The text report of `cli.check.*`: each diagnostic, or with `--summary` one
-/// line per severity, file, and code, then the `check result` line.
+/// line per severity, file, and code. Explicit output limits retain totals.
 fn text_report(diags: &[Diag], o: &Options) -> String {
     let mut text = String::new();
     let (mut errors, mut warnings) = (0, 0);
@@ -711,55 +711,39 @@ fn text_report(diags: &[Diag], o: &Options) -> String {
     for ((file, code, severity), n) in &counts {
         let _ = writeln!(text, "{severity}: {file}: {code}: {n}");
     }
-    let result = if errors > 0 { "FAILED" } else { "ok" };
-    let _ = writeln!(
-        text,
-        "check result: {result}. errors: {errors}; warnings: {warnings}"
-    );
+    if diags.is_empty() {
+        text.push_str("check result: ok.\n");
+    } else if o.summary || o.max_errors.is_some() {
+        let result = if errors > 0 { "FAILED" } else { "ok" };
+        let _ = writeln!(
+            text,
+            "check result: {result}. errors: {errors}; warnings: {warnings}"
+        );
+    }
     text
 }
 
 #[cfg(all(test, unix))]
 mod stored_report_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// `check_one` of the package at `root`, listed now: its report and
     /// the cache lookups it made.
-    fn run(root: &Path, store: &Counted, o: &Options, only: Option<&str>) -> (Vec<Diag>, usize) {
+    fn run(
+        root: &Path,
+        store: &CountingStore,
+        o: &Options,
+        only: Option<&str>,
+    ) -> (Vec<Diag>, usize) {
         let t = Target {
             program: disk::load_package(root, "main").expect("package"),
             only: only.map(str::to_owned),
             member: None,
         };
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let (diags, _) = check_one(t, o, store);
-        (diags, store.gets.load(Ordering::Relaxed))
+        (diags, store.gets())
     }
 
     /// Waits until every file written so far has a stamp.
@@ -788,14 +772,16 @@ mod stored_report_tests {
         write(
             &root,
             "src/m.hd",
-            "pub fn one() -> i32: 1\n\n## ```hd\n## use pkg.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+            include_str!(
+                "tests/programs/check_cmd/a_doc_test_diagnostic_ends_in_its_source_file.hd"
+            ),
         );
         settle();
         let o = Options {
             tests: true,
             ..Options::default()
         };
-        let store = Counted::default();
+        let store = CountingStore::default();
         for run_name in ["cold", "warm"] {
             let (diags, _) = run(&root, &store, &o, None);
             let found: Vec<_> = diags
@@ -840,23 +826,29 @@ mod stored_report_tests {
         write(
             &root,
             "src/main.hd",
-            "use pkg.f1.m.{value}\n\npub fn main() -> void $ Console:\n    println(\"{value()}\")\n",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses.hd"
+            ),
         );
         // f0's doc test fails to check; f1 holds a lint finding.
         write(
             &root,
-            "src/f0/m.hd",
-            "## ```hd\n## use pkg.f0.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+            "src/f0/mod.hd",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_2.hd"
+            ),
         );
         write(
             &root,
-            "src/f1/m.hd",
-            "pub fn value() -> i32:\n    unread := +1\n    1\n",
+            "src/f1/mod.hd",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_3.hd"
+            ),
         );
         for i in 2..12 {
             write(
                 &root,
-                &format!("src/f{i}/m.hd"),
+                &format!("src/f{i}/mod.hd"),
                 &format!("pub fn v() -> i32: {i}\n"),
             );
         }
@@ -878,10 +870,10 @@ mod stored_report_tests {
                 ..Options::default()
             },
         ];
-        let store = Counted::default();
+        let store = CountingStore::default();
         let mut reports = Vec::new();
         for o in &runs {
-            for only in [None, Some("src/f1/m.hd")] {
+            for only in [None, Some("src/f1/mod.hd")] {
                 let (cold, _) = run(&root, &store, o, only);
                 let (warm, gets) = run(&root, &store, o, only);
                 assert_eq!(
@@ -921,14 +913,20 @@ mod stored_report_tests {
         let lint = &runs[2];
         let changes: [(&str, &dyn Fn()); 4] = [
             ("an edit", &|| {
-                write(&root, "src/f1/m.hd", "pub fn value() -> i32:\n    1\n");
+                write(
+                    &root,
+                    "src/f1/mod.hd",
+                    include_str!(
+                        "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_4.hd"
+                    ),
+                );
             }),
             ("an added file", &|| {
                 write(&root, "src/g/x.hd", "pub fn x() -> i32: y\n");
             }),
             // `main` uses the removed module.
             ("a removed file", &|| {
-                std::fs::remove_file(root.join("src/f1/m.hd")).expect("remove");
+                std::fs::remove_file(root.join("src/f1/mod.hd")).expect("remove");
             }),
             ("a manifest edit", &|| {
                 write(&root, "hd.toml", "[package]\nname = \"shop\"\n");
@@ -967,16 +965,16 @@ mod stored_report_tests {
         let text = |n: i32| format!("pub fn main() -> void:\n    unread := +{n}\n");
         std::fs::write(&file, text(1)).expect("file");
         settle();
-        let store = Counted::default();
+        let store = CountingStore::default();
         let run = |path: &Path, o: &Options| {
             let t = Target {
                 program: disk::load_file(path).expect("file"),
                 only: None,
                 member: None,
             };
-            store.gets.store(0, Ordering::Relaxed);
+            store.reset();
             let (diags, _) = check_one(t, o, &store);
-            (diags, store.gets.load(Ordering::Relaxed))
+            (diags, store.gets())
         };
         let lint = Options {
             lint: Some(hd_lint::Policy::default()),

@@ -52,7 +52,9 @@ pub(super) fn call_info(
     }
     let env = input.env;
     match target? {
-        Target::Call(call) => Some(env.local_ref_receiver(call.item)),
+        Target::Call(call) | Target::CrossingNumber { call, .. } => {
+            Some(env.local_ref_receiver(call.item))
+        }
         // A trait method on a trait value: its declaration says how it
         // takes `self`.
         Target::Dyn => {
@@ -73,13 +75,14 @@ pub(super) fn call_info(
 /// Install the TIR link pass's pointer-loan tables for emission.
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
     let decisions = super::loan_facts::decide(input, m);
-    m.kept_sites = decisions
+    let facts = m.facts_mut();
+    facts.kept_sites = decisions
         .kept
         .iter()
         .map(|&(id, site, _)| (id, site))
         .collect();
-    m.kept = decisions.kept;
-    m.crossed = decisions.crossed;
-    m.lent = decisions.lent;
-    m.dyn_types = decisions.dyn_types;
+    facts.kept = decisions.kept;
+    facts.crossed = decisions.crossed;
+    facts.lent = decisions.lent;
+    facts.dyn_types = decisions.dyn_types;
 }

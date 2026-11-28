@@ -1,11 +1,11 @@
 # test: annotate patterns see non-Copy parameters without instantiating the runtime function at the pattern
-use std.annotation
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate as targets
 
 @targets::[T](.Field)
 struct StructFact[T < ?Copy]: pass
 
-@annotation.annotate::[T](.Field)
+@meta.annotate::[T](.Field)
 enum EnumFact[T < ?Copy]:
     Value
 

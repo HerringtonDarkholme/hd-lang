@@ -1,7 +1,7 @@
 # test: @inline, @inline(.Never) and @cold before functions
 # Spec 14 Inline And Cold: annot.inline.declared.v2, annot.inline.targets,
 # annot.inline.argument and annot.inline.bare.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 # Runs only on bad input: never copy it, and keep the engine from copying it.
 @cold

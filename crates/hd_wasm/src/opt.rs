@@ -29,7 +29,8 @@
 //!    address is its offset (a store's is rule 8's);
 //! 8. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
 //!    that pushes one value over what it found, is `R` and the store at
-//!    `c` more offset;
+//!    `c` more offset; through a later `R; i32.add` (`x + c + y` is
+//!    `x + y + c`) the constant reaches a store or a load of the sum;
 //! 9. `X; local.set a; P; local.get a`, where those are `a`'s only write
 //!    and read, `X` is a straight-line run that pushes one value and `P`
 //!    pushes a local, a global or a constant that `X` cannot change, is
@@ -82,17 +83,17 @@
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
 
-mod bounds;
-mod branch_shapes;
+pub(crate) mod bounds;
+pub mod branch_shapes;
 mod chains;
 
 /// Select a checked or range-proven copy of an innermost counted loop.
 pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
     bounds::run(f)
 }
-mod constant;
-mod empty_loops;
-mod live_set;
+pub(crate) mod constant;
+pub(crate) mod empty_loops;
+pub(crate) mod live_set;
 
 /// Delete finite induction loops whose counters are unobserved.
 pub fn delete_empty_loops(f: &mut Func) -> bool {
@@ -119,8 +120,13 @@ use crate::rt::Helper;
 /// Reads each top-level binding that one instruction writes, a constant
 /// stored by an init, as that constant, and drops the store. An init runs
 /// before any code that reads its bindings (`module.init.binding`), so every
-/// read sees the constant.
-pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128], arity: &Arity) {
+/// read sees the constant. Whether it folded any binding.
+pub fn constants(
+    funcs: &mut [Option<Func>],
+    symbols: &Symbols,
+    inits: &[Hash128],
+    arity: &Arity,
+) -> bool {
     // The init keys, indexed once: every key the caller and the entry
     // helpers name goes in one set, and each function asks it once, so
     // the pass costs the keys named plus the functions, not their product.
@@ -203,7 +209,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
             .filter_map(|(g, (n, at))| (n == 1).then_some(at).flatten().map(|at| (g, at))),
     );
     if known.is_empty() {
-        return;
+        return false;
     }
     for f in funcs.iter_mut().flatten() {
         for i in &mut f.body {
@@ -226,6 +232,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
             }
         }
     }
+    true
 }
 
 /// Whether `ins` only reads and writes locals, tests an `i32` or
@@ -319,21 +326,13 @@ pub fn static_values(
                 .map_or_else(Vec::new, |f| vec![false; f.results.len()])
         })
         .collect();
-    let joins: Vec<_> = funcs
-        .iter()
-        .map(|f| {
-            f.as_ref()
-                .map_or_else(Vec::new, |f| constant_joins(&f.body))
+    // A function's facts read only its body and the arities, so they are
+    // built on the task's threads (#2392).
+    let mut facts: Vec<Facts> = hd_sched::par_map(funcs, |f| {
+        f.as_ref().map_or_else(Facts::default, |f| {
+            Facts::new(f, arity, &constant_joins(&f.body))
         })
-        .collect();
-    let mut facts: Vec<Facts> = funcs
-        .iter()
-        .zip(&joins)
-        .map(|(f, joins)| {
-            f.as_ref()
-                .map_or_else(Facts::default, |f| Facts::new(f, arity, joins))
-        })
-        .collect();
+    });
     let mut waiting: Vec<Vec<usize>> = params.iter().map(|p| vec![0; p.len()]).collect();
     let mut callers: Vec<Vec<usize>> = vec![Vec::new(); funcs.len()];
     let mut called = vec![false; funcs.len()];
@@ -375,7 +374,7 @@ pub fn static_values(
             let Some(f) = &funcs[c] else { continue };
             crate::work::static_looks(f.body.len());
             let cf = &mut facts[c];
-            cf.fixed = fixed_locals(f, &params[c], &results, arity, &joins[c]);
+            cf.fixed = fixed_locals(f, &params[c], &results, &cf.writes);
             for site in &mut cf.sites {
                 for (k, arg) in site.args.iter_mut().enumerate() {
                     if !arg.proved && arg.holds(f, &cf.fixed, &results) {
@@ -466,6 +465,8 @@ struct Facts {
     writes_read: hd_base::HashSet<usize>,
     /// Each argument a callee's result produces, as (site, argument).
     produced_by: hd_base::HashMap<usize, Vec<(usize, usize)>>,
+    /// The local writes' producers, which every look reads.
+    writes: Writes,
     fixed: Vec<bool>,
 }
 
@@ -483,7 +484,10 @@ impl Facts {
                 proved: false,
             }
         };
-        let mut facts = Facts::default();
+        let mut facts = Facts {
+            writes: Writes::new(f, arity, joins),
+            ..Facts::default()
+        };
         for (at, ins) in f.body.iter().enumerate() {
             if let Ins::Op(I::LocalSet(_) | I::LocalTee(_)) = ins {
                 facts.writes_read.extend(produced(at, 0).from);
@@ -587,7 +591,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
     locals_with_work(f, arity, &mut |_| {});
 }
 
-fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMut(usize)) {
+pub fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMut(usize)) {
     let np = u32::try_from(f.params.len()).expect("params");
     let mut settled = Settled::new();
     for _ in 0..2 {
@@ -599,8 +603,10 @@ fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMut(us
         changed |= settled.run(f, Rule::Fold, fold);
         changed |= settled.run(f, Rule::Drops, drops);
         changed |= settled.run(f, Rule::Schedule, |f| schedule(f, np, arity));
-        changed |= settled.run(f, Rule::Zero, zero_releases);
-        changed |= settled.run(f, Rule::Live, |f| live_rules(f, arity));
+        // Zero's blocks serve Live when Zero leaves the body as it is.
+        let mut cfg = None;
+        changed |= settled.run(f, Rule::Zero, |f| zero_releases(f, &mut cfg, &mut || {}));
+        changed |= settled.run(f, Rule::Live, |f| live_rules(f, arity, cfg.take()));
         if !changed {
             break;
         }
@@ -610,7 +616,7 @@ fn locals_with_work(f: &mut Func, arity: &Arity, visit_round: &mut impl FnMut(us
 
 /// The rule groups of [`locals`], each one call of its pass.
 #[derive(Clone, Copy)]
-enum Rule {
+pub enum Rule {
     Pairs,
     Forward,
     Shapes,
@@ -623,7 +629,7 @@ enum Rule {
 }
 
 /// Which of [`locals`]' rules have seen the function as it is now.
-struct Settled {
+pub struct Settled {
     /// How many times a rule has edited the function.
     edits: usize,
     /// `clean[rule]`: the edit count at which that rule last found
@@ -632,7 +638,15 @@ struct Settled {
 }
 
 impl Settled {
-    fn new() -> Self {
+    #[must_use]
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::new_without_default,
+            reason = "a fresh record is always built with `new`"
+        )
+    )]
+    pub fn new() -> Self {
         Self {
             edits: 0,
             clean: [usize::MAX; 9],
@@ -644,7 +658,7 @@ impl Settled {
     /// that repeats itself until it finds nothing ([`shapes`],
     /// [`live_rules`]) has seen its own result, so it is settled after an
     /// edit too.
-    fn run(&mut self, f: &mut Func, rule: Rule, pass: impl FnOnce(&mut Func) -> bool) -> bool {
+    pub fn run(&mut self, f: &mut Func, rule: Rule, pass: impl FnOnce(&mut Func) -> bool) -> bool {
         let k = rule as usize;
         if self.clean[k] == self.edits {
             return false;
@@ -731,7 +745,7 @@ fn pairs(f: &mut Func, np: u32) -> bool {
 
 /// Local zero facts at structured control-flow edges. Branches meet by
 /// intersection; loop backedges participate in the same fixed point.
-enum ZeroEdges {
+pub enum ZeroEdges {
     Next,
     Exit,
     Jump(usize),
@@ -756,7 +770,8 @@ impl ZeroEdges {
 
 /// The CFG of the closed set of control instructions the backend emits.
 /// Its compact IR has no exception, reference-branch or tail-call opcodes.
-fn zero_edges(body: &[Ins], label_lists: &[Vec<u32>]) -> Option<Vec<ZeroEdges>> {
+#[must_use]
+pub fn zero_edges(body: &[Ins], label_lists: &[Vec<u32>]) -> Option<Vec<ZeroEdges>> {
     let mut ends = vec![body.len(); body.len()];
     let mut other = vec![None; body.len()];
     let mut labels = Vec::new();
@@ -872,14 +887,15 @@ impl Zeros {
         }
         known
     }
+}
 
-    fn has(&self, local: u32) -> bool {
-        match self.wrote.get(local as usize) {
-            Some(1) => true,
-            Some(2) => false,
-            _ => self.sets.contains(self.base, local),
-        }
-    }
+/// What [`decide_block`] reads and writes of rule 11's facts as it walks
+/// a block: [`Zeros`]' persistent sets, or a [`ZeroRow`].
+trait ZeroFacts {
+    fn has(&self, local: u32) -> bool;
+
+    /// Records a write of `local`, of zero bits when `zero`.
+    fn write(&mut self, local: u32, zero: bool);
 
     /// A pure push of zero bits; every other expression remains unknown.
     fn pushes(&self, ins: &Ins) -> bool {
@@ -898,13 +914,46 @@ impl Zeros {
         let zero = at.checked_sub(1).is_some_and(|p| {
             self.pushes(&body[p]) || matches!(body[p], Ins::Op(I::LocalTee(t)) if self.has(t))
         });
-        let Some(slot) = self.wrote.get_mut(*l as usize) else {
+        self.write(*l, zero);
+    }
+}
+
+impl ZeroFacts for Zeros {
+    fn has(&self, local: u32) -> bool {
+        match self.wrote.get(local as usize) {
+            Some(1) => true,
+            Some(2) => false,
+            _ => self.sets.contains(self.base, local),
+        }
+    }
+
+    fn write(&mut self, local: u32, zero: bool) {
+        let Some(slot) = self.wrote.get_mut(local as usize) else {
             return;
         };
         if *slot == 0 {
-            self.touched.push(*l);
+            self.touched.push(local);
         }
         *slot = if zero { 1 } else { 2 };
+    }
+}
+
+/// The locals known zero at one point, a bit each ([`zero_rows`]).
+struct ZeroRow(Vec<u64>);
+
+impl ZeroFacts for ZeroRow {
+    fn has(&self, local: u32) -> bool {
+        let l = local as usize;
+        self.0.get(l / 64).is_some_and(|w| w >> (l % 64) & 1 != 0)
+    }
+
+    fn write(&mut self, local: u32, zero: bool) {
+        let l = local as usize;
+        let Some(w) = self.0.get_mut(l / 64) else {
+            return;
+        };
+        let bit = 1u64 << (l % 64);
+        *w = if zero { *w | bit } else { *w & !bit };
     }
 }
 
@@ -925,15 +974,13 @@ fn pushes_zero_constant(ins: &Ins) -> bool {
 }
 
 /// Deletes only release arguments/calls and stores proved redundant on
-/// every incoming path. Facts are persistent sets ([`Zeros`]) kept only at
-/// basic-block entries; one working set carries facts through each block.
-fn zero_releases(f: &mut Func) -> bool {
-    zero_releases_with(f, &mut || {})
-}
-
-/// [`zero_releases`], calling `visit` at each block its fixed point
-/// visits.
-fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
+/// every incoming path. Facts are dense rows ([`zero_rows`]) or, above
+/// [`row_words`], persistent sets ([`Zeros`]) kept only at basic-block
+/// entries; one working set carries facts through each block.
+/// It calls `visit` at each block its fixed point visits, reads the body's
+/// blocks from `cfg`, or makes them there, and empties `cfg` when it edits
+/// the body.
+pub fn zero_releases(f: &mut Func, cfg: &mut Option<Cfg>, visit: &mut dyn FnMut()) -> bool {
     let symbols = f.symbols.clone();
     let release_width = |ins: &Ins| {
         let Ins::Call(id, _) = ins else {
@@ -953,44 +1000,22 @@ fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
     if !f.body.iter().any(|i| release_width(i).is_some()) && !f.body.windows(2).any(stores_zero) {
         return false;
     }
-    let Some(edges) = zero_edges(&f.body, &f.labels) else {
-        return false;
-    };
     if f.body.is_empty() {
         return false;
     }
-    let (point_at, starts) = basic_blocks(&edges, f.body.len());
+    let Some(g) = Cfg::of(f, cfg) else {
+        return false;
+    };
     let n = f.params.len() + f.locals.len();
-    let mut zeros = Zeros::new(n);
-    // Every local but a parameter starts zero: one set made in one pass.
-    // ruled out: a local index past u32; Wasm counts locals in u32.
-    let all: Vec<u32> = (f.params.len()..n)
-        .map(|l| u32::try_from(l).expect("locals"))
-        .collect();
-    let known = zeros.sets.of_sorted(&all);
-    let gone = if forward_only(&edges, &point_at, &starts, f.body.len()) {
-        zero_sweep(
-            f,
-            &edges,
-            &point_at,
-            &starts,
-            (&mut zeros, known),
-            &release_width,
-        )
+    let gone = if let Some(words) = row_words(g.starts.len(), n, f.body.len()) {
+        zero_rows(f, g, words, &release_width, visit)
     } else {
-        zero_fixpoint(
-            f,
-            &edges,
-            &point_at,
-            &starts,
-            (&mut zeros, known),
-            &release_width,
-            visit,
-        )
+        zero_fixpoint(f, g, &release_width, visit)
     };
     if !gone.iter().any(|g| *g) {
         return false;
     }
+    *cfg = None;
     let mut origins = Remap::new(f.origins.as_deref());
     f.body = std::mem::take(&mut f.body)
         .into_iter()
@@ -1008,6 +1033,117 @@ fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
     true
 }
 
+/// [`zero_releases`]' decisions on dense rows of known-zero locals,
+/// `words` u64 per block ([`row_words`]): [`zero_fixpoint`]'s worklist,
+/// lowest block first, where a write sets or clears one bit and a meet
+/// is `words` of `and` that changed the facts when it cleared a bit, not
+/// a path of `log2 n` nodes. A body that only branches forward visits
+/// each block once.
+fn zero_rows(
+    f: &Func,
+    Cfg {
+        edges,
+        point_at,
+        starts,
+        ..
+    }: &Cfg,
+    words: usize,
+    release_width: &dyn Fn(&Ins) -> Option<usize>,
+    visit: &mut dyn FnMut(),
+) -> Vec<bool> {
+    let (len, blocks) = (f.body.len(), starts.len());
+    let mut facts = vec![0u64; blocks * words];
+    // Every local but a parameter starts zero.
+    for l in f.params.len()..f.params.len() + f.locals.len() {
+        facts[l / 64] |= 1 << (l % 64);
+    }
+    let mut reached = vec![false; blocks];
+    reached[0] = true;
+    let mut queued = reached.clone();
+    let mut pending = BinaryHeap::from([Reverse(0)]);
+    let mut row = ZeroRow(vec![0; words]);
+    let mut work = 0;
+    while let Some(Reverse(p)) = pending.pop() {
+        visit();
+        queued[p] = false;
+        let end = starts.get(p + 1).copied().unwrap_or(len);
+        row.0.copy_from_slice(&facts[p * words..][..words]);
+        for at in starts[p]..end {
+            row.after(&f.body, at);
+        }
+        edges[end - 1].each(end, |to| {
+            let Some(&q) = point_at.get(to) else {
+                return;
+            };
+            work += words;
+            let into = &mut facts[q * words..][..words];
+            let changed = if std::mem::replace(&mut reached[q], true) {
+                let mut cut = false;
+                for (x, &y) in into.iter_mut().zip(&row.0) {
+                    cut |= *x & !y != 0;
+                    *x &= y;
+                }
+                cut
+            } else {
+                into.copy_from_slice(&row.0);
+                true
+            };
+            if changed && !queued[q] {
+                queued[q] = true;
+                pending.push(Reverse(q));
+            }
+        });
+    }
+    crate::work::zero_facts(work);
+    let mut gone = vec![false; len];
+    for p in (0..blocks).filter(|&p| reached[p]) {
+        row.0.copy_from_slice(&facts[p * words..][..words]);
+        let end = starts.get(p + 1).copied().unwrap_or(len);
+        decide_block(f, starts[p]..end, &mut row, &mut gone, release_width);
+    }
+    gone
+}
+
+/// The words of a dense row of `locals` bits, when `rows` of them (a
+/// pass's rows per block and per loop) take at most four words per
+/// instruction of a body of `len`: storage and a pass's work linear in
+/// the body, where persistent sets pay `log2 n` nodes per access. Above
+/// it the persistent sets keep a huge body from holding `n²` facts.
+fn row_words(rows: usize, locals: usize, len: usize) -> Option<usize> {
+    let words = locals.div_ceil(64);
+    (rows.checked_mul(words)? <= 4 * len).then_some(words)
+}
+
+/// A body's basic blocks and their edges ([`zero_edges`],
+/// [`basic_blocks`]), made once per sweep of [`locals`] for Zero and
+/// Live while neither rule has edited the body.
+pub struct Cfg {
+    edges: Vec<ZeroEdges>,
+    point_at: Vec<usize>,
+    starts: Vec<usize>,
+    /// Every edge leads to a later block ([`forward_only`]).
+    forward: bool,
+}
+
+impl Cfg {
+    /// `f`'s blocks, from `cfg` or made there; `None` when its labels
+    /// do not nest.
+    fn of<'a>(f: &Func, cfg: &'a mut Option<Self>) -> Option<&'a Self> {
+        if cfg.is_none() {
+            let edges = zero_edges(&f.body, &f.labels)?;
+            let (point_at, starts) = basic_blocks(&edges, f.body.len());
+            let forward = forward_only(&edges, &point_at, &starts, f.body.len());
+            *cfg = Some(Self {
+                edges,
+                point_at,
+                starts,
+                forward,
+            });
+        }
+        cfg.as_ref()
+    }
+}
+
 /// Whether every edge of a body's basic blocks leads to a later block, so
 /// that blocks in order see each predecessor first.
 fn forward_only(edges: &[ZeroEdges], point_at: &[usize], starts: &[usize], len: usize) -> bool {
@@ -1023,50 +1159,9 @@ fn forward_only(edges: &[ZeroEdges], point_at: &[usize], starts: &[usize], len: 
     forward
 }
 
-/// [`zero_releases`]' decisions for a body whose blocks only branch
-/// forward: one pass in block order meets each block's facts from its
-/// predecessors, decides, and drops them. A block's facts are a
-/// persistent set, so handing them to a successor copies nothing, and a
-/// meet costs where the two differ. It decides as [`zero_fixpoint`] does.
-fn zero_sweep(
-    f: &Func,
-    edges: &[ZeroEdges],
-    point_at: &[usize],
-    starts: &[usize],
-    (zeros, entry): (&mut Zeros, Set),
-    release_width: &dyn Fn(&Ins) -> Option<usize>,
-) -> Vec<bool> {
-    let mut waiting: Vec<Option<Set>> = vec![None; starts.len()];
-    waiting[0] = Some(entry);
-    let mut gone = vec![false; f.body.len()];
-    for point in 0..starts.len() {
-        let Some(known) = waiting[point].take() else {
-            continue;
-        };
-        let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        decide_block(
-            f,
-            starts[point]..end,
-            (zeros, known),
-            &mut gone,
-            release_width,
-        );
-        // The exit set is made on the first successor, if there is one.
-        let mut out = None;
-        edges[end - 1].each(end, |to| {
-            let Some(&next) = point_at.get(to) else {
-                return;
-            };
-            let known = *out.get_or_insert_with(|| zeros.leave());
-            let slot = &mut waiting[next];
-            *slot = Some(slot.map_or(known, |before| zeros.sets.intersection(before, known)));
-        });
-    }
-    gone
-}
-
-/// [`zero_releases`]' decisions for any body: the facts at each block's
-/// entry to a fixed point, then the decisions.
+/// [`zero_releases`]' decisions on persistent sets ([`Zeros`]), for a
+/// body whose dense rows would not fit: the facts at each block's entry
+/// to a fixed point, then the decisions.
 ///
 /// The worklist hands out the lowest queued block first, as clang's
 /// `ForwardDataflowWorklist` hands out blocks in reverse post-order.
@@ -1076,17 +1171,26 @@ fn zero_sweep(
 /// round of the loops before it: `O(V log B)` heap steps for `V` visits.
 fn zero_fixpoint(
     f: &Func,
-    edges: &[ZeroEdges],
-    point_at: &[usize],
-    starts: &[usize],
-    (zeros, entry): (&mut Zeros, Set),
+    Cfg {
+        edges,
+        point_at,
+        starts,
+        ..
+    }: &Cfg,
     release_width: &dyn Fn(&Ins) -> Option<usize>,
     visit: &mut dyn FnMut(),
 ) -> Vec<bool> {
+    let n = f.params.len() + f.locals.len();
+    let zeros = &mut Zeros::new(n);
+    // Every local but a parameter starts zero: one set made in one pass.
+    // ruled out: a local index past u32; Wasm counts locals in u32.
+    let all: Vec<u32> = (f.params.len()..n)
+        .map(|l| u32::try_from(l).expect("locals"))
+        .collect();
     // `None`: not reached yet. A function without locals has only empty
     // sets but can still have removable releases.
     let mut facts: Vec<Option<Set>> = vec![None; starts.len()];
-    facts[0] = Some(entry);
+    facts[0] = Some(zeros.sets.of_sorted(&all));
     let mut pending = std::collections::BinaryHeap::from([std::cmp::Reverse(0)]);
     let mut queued = vec![false; starts.len()];
     queued[0] = true;
@@ -1133,22 +1237,22 @@ fn zero_fixpoint(
             continue;
         };
         let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
-        decide_block(f, start..end, (zeros, known), &mut gone, release_width);
+        zeros.enter(known);
+        decide_block(f, start..end, zeros, &mut gone, release_width);
     }
     gone
 }
 
 /// Marks in `gone` the releases and stores of `block` that its entry
-/// facts `known` prove redundant, carrying the facts through it
-/// ([`Zeros::leave`] makes its exit set).
+/// facts, entered in `zeros`, prove redundant, carrying the facts
+/// through it ([`Zeros::leave`] makes its exit set).
 fn decide_block(
     f: &Func,
     block: std::ops::Range<usize>,
-    (zeros, known): (&mut Zeros, Set),
+    zeros: &mut impl ZeroFacts,
     gone: &mut [bool],
     release_width: &dyn Fn(&Ins) -> Option<usize>,
 ) {
-    zeros.enter(known);
     for at in block {
         let ins = &f.body[at];
         if let Some(n) = release_width(ins) {
@@ -1193,7 +1297,8 @@ fn decide_block(
 /// The basic blocks of a body whose control edges are `edges`: each
 /// instruction's block, and each block's first instruction. A
 /// terminator ends its block and every branch target starts one.
-fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
+#[must_use]
+pub fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     let mut point_at = vec![usize::MAX; len];
     if let Some(first) = point_at.first_mut() {
         *first = 0;
@@ -1222,31 +1327,33 @@ fn basic_blocks(edges: &[ZeroEdges], len: usize) -> (Vec<usize>, Vec<usize>) {
     (point_at, starts)
 }
 
-/// The locals live into each basic block of a body, by a backward pass
-/// to a fixed point (loop backedges included). Each block's set is a
-/// persistent set ([`live_set`]) that shares every subtree its block
-/// leaves alone with the sets it was built from: `n` locals live across
-/// `n` blocks take about `n log n` nodes, not `n²` entries.
+/// The locals live into and out of each basic block of a body, exactly,
+/// in one pass with no round per level of loops ([`Live::solve`]). Each
+/// block's set is a persistent set ([`live_set`]) that shares every
+/// subtree its block leaves alone with the sets it was built from: `n`
+/// locals live across `n` blocks take about `n log n` nodes, not `n²`
+/// entries.
 ///
 /// A block is summarised once, as the textbook `UEVar` and `VarKill` sets
 /// are (Cooper and Torczon, "Engineering a Compiler", 8.6.1): the
 /// first access of each local it touches, a read putting the local in
 /// and a write taking it out. A visit then costs one path per local the
-/// block touches, not one per access, and the fixed point never walks
-/// the instructions again. Dead accesses come from each block's live-out
+/// block touches, not one per access, and the pass never walks the
+/// instructions again. Dead accesses come from each block's live-out
 /// set and the next access in the block, as LLVM's `LiveVariables`
-/// marks kills within a block.
-struct Live {
+/// marks kills within a block. [`Live::dead_accesses`] runs the same
+/// pass on dense bit rows ([`Rows`]) when they fit.
+pub struct Live {
     edges: Vec<ZeroEdges>,
     point_at: Vec<usize>,
-    starts: Vec<usize>,
-    /// Every edge leads to a later block, so one backward pass settles.
-    forward: bool,
-    sets: Sets,
-    into: Vec<Set>,
-    /// What is live out of each block, as its last visit found it: at the
-    /// fixed point, the union of its successors' `into`.
-    outs: Vec<Set>,
+    pub starts: Vec<usize>,
+    /// Every edge leads to a later block: the body has no loop.
+    pub forward: bool,
+    pub sets: Sets,
+    pub into: Vec<Set>,
+    /// What is live out of each block: the union of its successors'
+    /// `into`.
+    pub outs: Vec<Set>,
     /// The first access of each local block `p` touches, in
     /// `firsts[first[p]..first[p + 1]]`: the local, and whether it reads.
     first: Vec<usize>,
@@ -1259,58 +1366,534 @@ impl Drop for Live {
     }
 }
 
+/// Where [`Live::solve`] keeps its sets, by slot: block `p`'s live-in
+/// set in slot `p` and its live-out set in slot `B + p`, for `B` blocks,
+/// then one per loop and one per loop exit ([`Forest::slots`]).
+/// Persistent sets ([`Persistent`]) and dense bit rows ([`Rows`]) both
+/// keep them, so one pass serves both.
+trait Slots {
+    /// Adds slot `from`'s locals to slot `to`'s.
+    fn union(&mut self, to: usize, from: usize);
+    fn insert(&mut self, slot: usize, l: u32);
+    fn remove(&mut self, slot: usize, l: u32);
+    fn clear(&mut self, slot: usize);
+    fn has(&self, slot: usize, l: u32) -> bool;
+    /// Keeps in slot `to` only the locals slot `from` holds too.
+    fn intersect(&mut self, to: usize, from: usize);
+    /// Keeps in slot `to` only the locals slot `a` or slot `b` holds.
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize);
+    /// Adds to slot `to` the locals of slot `a` that slot `b` lacks.
+    fn union_minus(&mut self, to: usize, a: usize, b: usize);
+}
+
+/// Persistent sets in slots: their arena, and each slot's set.
+struct Persistent {
+    sets: Sets,
+    slots: Vec<Set>,
+}
+
+impl Slots for Persistent {
+    fn union(&mut self, to: usize, from: usize) {
+        self.slots[to] = self.sets.union(self.slots[to], self.slots[from]);
+    }
+
+    fn insert(&mut self, slot: usize, l: u32) {
+        self.slots[slot] = self.sets.insert(self.slots[slot], l);
+    }
+
+    fn remove(&mut self, slot: usize, l: u32) {
+        self.slots[slot] = self.sets.remove(self.slots[slot], l);
+    }
+
+    fn clear(&mut self, slot: usize) {
+        self.slots[slot] = Set::EMPTY;
+    }
+
+    fn has(&self, slot: usize, l: u32) -> bool {
+        self.sets.contains(self.slots[slot], l)
+    }
+
+    fn intersect(&mut self, to: usize, from: usize) {
+        self.slots[to] = self.sets.intersection(self.slots[to], self.slots[from]);
+    }
+
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize) {
+        let either = self.sets.union(self.slots[a], self.slots[b]);
+        self.slots[to] = self.sets.intersection(self.slots[to], either);
+    }
+
+    fn union_minus(&mut self, to: usize, a: usize, b: usize) {
+        let rest = self.sets.subtract(self.slots[a], self.slots[b]);
+        self.slots[to] = self.sets.union(self.slots[to], rest);
+    }
+}
+
+/// Dense bit rows in slots, `words` u64 each, as the live sets of
+/// production allocators are bit rows: an operation costs `words` or one
+/// word, with no allocation, where a persistent set pays a path of
+/// `log2 n` nodes per access. [`row_words`] admits them when they take at
+/// most four words per instruction of the body.
+struct Rows {
+    words: usize,
+    bits: Vec<u64>,
+    /// The words the operations touched.
+    work: usize,
+}
+
+impl Rows {
+    fn row(&mut self, slot: usize) -> &mut [u64] {
+        self.work += self.words;
+        &mut self.bits[slot * self.words..][..self.words]
+    }
+
+    fn word(&mut self, slot: usize, l: u32) -> (&mut u64, u64) {
+        self.work += 1;
+        (
+            &mut self.bits[slot * self.words + l as usize / 64],
+            1 << (l % 64),
+        )
+    }
+}
+
+impl Slots for Rows {
+    fn union(&mut self, to: usize, from: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] |= self.bits[from * words + i];
+        }
+    }
+
+    fn insert(&mut self, slot: usize, l: u32) {
+        let (word, bit) = self.word(slot, l);
+        *word |= bit;
+    }
+
+    fn remove(&mut self, slot: usize, l: u32) {
+        let (word, bit) = self.word(slot, l);
+        *word &= !bit;
+    }
+
+    fn clear(&mut self, slot: usize) {
+        self.row(slot).fill(0);
+    }
+
+    fn has(&self, slot: usize, l: u32) -> bool {
+        let l = l as usize;
+        self.bits[slot * self.words + l / 64] >> (l % 64) & 1 != 0
+    }
+
+    fn intersect(&mut self, to: usize, from: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] &= self.bits[from * words + i];
+        }
+    }
+
+    fn intersect_union(&mut self, to: usize, a: usize, b: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] &= self.bits[a * words + i] | self.bits[b * words + i];
+        }
+    }
+
+    fn union_minus(&mut self, to: usize, a: usize, b: usize) {
+        let words = self.words;
+        self.work += words;
+        for i in 0..words {
+            self.bits[to * words + i] |= self.bits[a * words + i] & !self.bits[b * words + i];
+        }
+    }
+}
+
+/// No loop, in [`Forest`]'s tables.
+const NO_LOOP: usize = usize::MAX;
+
+/// The loops of a body's blocks ([`Live::forest`]): each a header and
+/// its natural loop, the blocks that reach one of its backedges without
+/// passing the header, nested as a forest; and their exits.
+struct Forest {
+    /// Each loop's header block, ascending. A loop's header comes after
+    /// the headers of the loops around it, so a loop comes after them.
+    headers: Vec<usize>,
+    /// The innermost loop holding each block, or [`NO_LOOP`].
+    loop_of: Vec<usize>,
+    /// The loop around each loop, or [`NO_LOOP`].
+    parent: Vec<usize>,
+    /// The target block of each exit, an edge and a loop it leaves: by
+    /// source block, then edge, then loop, innermost first
+    /// ([`Forest::left`]).
+    exits: Vec<usize>,
+    /// Each loop's exits.
+    of_loop: Vec<Vec<usize>>,
+}
+
+impl Forest {
+    /// The slots [`Live::solve`] uses for a body of `blocks` blocks: a
+    /// live-in and a live-out set per block, one set per loop and per
+    /// exit, and what any header holds.
+    fn slots(&self, blocks: usize) -> usize {
+        2 * blocks + self.headers.len() + self.exits.len() + 1
+    }
+
+    /// The loop whose header step 2 measures block `b`'s paths from: its
+    /// innermost loop, or for a header, the loop around the loop it heads.
+    fn frame(&self, b: usize) -> usize {
+        match self.loop_of[b] {
+            k if k != NO_LOOP && self.headers[k] == b => self.parent[k],
+            k => k,
+        }
+    }
+
+    /// Calls `each` with each loop that holds block `q` and not block
+    /// `b`, innermost first: the loops an edge from `q` to `b` leaves.
+    /// A forward edge to a block measured from no loop, such as a
+    /// suspension's `return` inside many loops, leaves none that matter:
+    /// step 1 settled that block along forward edges, and so found what
+    /// it holds at every header with a forward path to it. The walk climbs
+    /// from both blocks' innermost loops to the loop holding both, the
+    /// later loop first, as Cooper, Harvey and Kennedy's dominator
+    /// `intersect` climbs: a loop comes after the loops around it, so the
+    /// later of two is not around the other. The target's side climbs at
+    /// most once, out of the loop it heads.
+    fn left(&self, q: usize, b: usize, mut each: impl FnMut(usize)) {
+        if b > q && self.frame(b) == NO_LOOP {
+            return;
+        }
+        // [`NO_LOOP`] holds every loop, so it comes first.
+        let (mut x, mut y) = (self.loop_of[q], self.loop_of[b]);
+        while x != y {
+            if x.wrapping_add(1) > y.wrapping_add(1) {
+                each(x);
+                x = self.parent[x];
+            } else {
+                y = self.parent[y];
+            }
+        }
+    }
+}
+
+/// The root of `x`'s tree in a union-find of loops: the outermost loop
+/// found so far that holds `x`, halving the path on the way.
+fn loop_root(rep: &mut [usize], mut x: usize) -> usize {
+    while rep[x] != x {
+        rep[x] = rep[rep[x]];
+        x = rep[x];
+    }
+    x
+}
+
 impl Live {
-    fn new(f: &Func, sets: Sets) -> Option<Self> {
-        let mut me = Self::blocks(f, sets)?;
+    pub fn new(f: &Func, sets: Sets) -> Option<Self> {
+        let mut me = Self::blocks(f, None, sets)?;
         me.settle(f);
         Some(me)
     }
 
-    /// Runs the backward pass to its fixed point. Blocks go last to
-    /// first, so in a body that only branches forward each block's
-    /// successors are final when it is visited, and one pass settles. A
-    /// backedge can grow its target's set after the target's
-    /// predecessors were visited; then only those predecessors go again,
-    /// from a worklist, not every block of the body once more.
     fn settle(&mut self, f: &Func) {
         self.settle_with(f, || {});
     }
 
-    /// [`Self::settle`], calling `visit` at each block it visits.
-    fn settle_with(&mut self, f: &Func, mut visit: impl FnMut()) {
-        let len = f.body.len();
+    /// Settles every block's sets ([`Self::solve`]) on persistent sets,
+    /// calling `visit` at each block a pass visits.
+    pub fn settle_with(&mut self, f: &Func, mut visit: impl FnMut()) {
+        let forest = self.forest(f.body.len());
+        self.settle_in(f.body.len(), &forest, &mut visit);
+    }
+
+    fn settle_in(&mut self, len: usize, forest: &Forest, visit: &mut impl FnMut()) {
         let blocks = self.starts.len();
-        let preds = (!self.forward).then(|| self.predecessors(len));
-        // Popped last first; `queued[p]`: `p` is in `pending`.
-        let mut pending: Vec<usize> = (0..blocks).collect();
-        let mut queued = vec![true; blocks];
-        while let Some(p) = pending.pop() {
-            visit();
-            queued[p] = false;
-            let out = self.out(p, len);
-            self.outs[p] = out;
-            let mut live = out;
-            for &(l, reads) in &self.firsts[self.first[p]..self.first[p + 1]] {
-                live = if reads {
-                    self.sets.insert(live, l)
+        let mut slots = Persistent {
+            sets: std::mem::take(&mut self.sets),
+            slots: vec![Set::EMPTY; forest.slots(blocks)],
+        };
+        self.solve(len, forest, &mut slots, visit);
+        let Persistent { sets, mut slots } = slots;
+        self.sets = sets;
+        self.outs = slots.split_off(blocks);
+        self.outs.truncate(blocks);
+        self.into = slots;
+    }
+
+    /// The body's loops, found as Tarjan's reducibility test finds them
+    /// ("Testing Flow Graph Reducibility", 1974; Havlak, "Nesting of
+    /// Reducible and Irreducible Loops", 1997): headers innermost first,
+    /// a backward search from each one's backedges that stops at its
+    /// header and steps over each loop found already through a union-find
+    /// of loops. Each block joins its innermost loop once, and each loop
+    /// its parent once: `O(E α(B))` for `E` edges and `B` blocks.
+    ///
+    /// A backedge leads to a block no later than its source. Structured
+    /// Wasm is reducible, and its only backedges are branches to a
+    /// `loop`'s label, whose header holds the loop's first instruction.
+    fn forest(&self, len: usize) -> Forest {
+        let blocks = self.starts.len();
+        if self.forward {
+            return Forest {
+                headers: Vec::new(),
+                loop_of: vec![NO_LOOP; blocks],
+                parent: Vec::new(),
+                exits: Vec::new(),
+                of_loop: Vec::new(),
+            };
+        }
+        let (first, list) = self.predecessors(len);
+        crate::work::liveness(list.len());
+        let preds = |p: usize| &list[first[p]..first[p + 1]];
+        let headers: Vec<usize> = (0..blocks)
+            .filter(|&p| preds(p).iter().any(|&q| q >= p))
+            .collect();
+        let mut loop_of = vec![NO_LOOP; blocks];
+        let mut parent = vec![NO_LOOP; headers.len()];
+        let mut rep: Vec<usize> = (0..blocks).collect();
+        let mut stack = Vec::new();
+        for (k, &h) in headers.iter().enumerate().rev() {
+            loop_of[h] = k;
+            stack.extend(preds(h).iter().copied().filter(|&q| q >= h));
+            while let Some(x) = stack.pop() {
+                let x = loop_root(&mut rep, x);
+                if x == h {
+                    continue;
+                }
+                rep[x] = h;
+                match loop_of[x] {
+                    NO_LOOP => loop_of[x] = k,
+                    inner => parent[inner] = k,
+                }
+                // A block's predecessors, or a loop's entries: its
+                // header's predecessors but its backedges.
+                stack.extend(preds(x).iter().copied().filter(|&q| q < x));
+            }
+        }
+        let mut forest = Forest {
+            of_loop: vec![Vec::new(); headers.len()],
+            headers,
+            loop_of,
+            parent,
+            exits: Vec::new(),
+        };
+        let (mut exits, mut of_loop) = (Vec::new(), std::mem::take(&mut forest.of_loop));
+        for q in (0..blocks).filter(|&q| forest.loop_of[q] != NO_LOOP) {
+            self.succs(q, len, |b| {
+                forest.left(q, b, |k| {
+                    of_loop[k].push(exits.len());
+                    exits.push(b);
+                });
+            });
+        }
+        forest.exits = exits;
+        forest.of_loop = of_loop;
+        forest
+    }
+
+    /// The locals live into and out of each block, exactly, into
+    /// `slots`, with each block visited at most three times, not once
+    /// more per loop around it.
+    ///
+    /// A worklist fixed point (regalloc2's `compute_liveness`, a FIFO
+    /// seeded in postorder) finds a local read at an outer loop's header
+    /// live in an inner loop's blocks one level per round, so each level
+    /// walks the inner body again (#2453). The pass here settles the
+    /// headers first, outer loops first, as the loop-forest liveness of
+    /// Brandner et al. does ("Computing Liveness Sets for SSA-Form
+    /// Programs", INRIA RR-7503, 2011), and takes each header from its
+    /// loop's exits, as elimination methods summarise a loop by its exits
+    /// (Sharir, "Structural Analysis", 1980), so no walk of a loop's body
+    /// repeats per loop around it (#2454):
+    ///
+    /// 1. One backward pass over the forward edges, blocks last to first,
+    ///    so each block's successors are final when it is visited: what
+    ///    is live along paths that take no backedge.
+    /// 2. One forward pass over the blocks inside loops, first to last:
+    ///    what every forward path from the header of a block's loop to the
+    ///    block's end writes first, a must-write set met by intersection
+    ///    as [`live_after`] carries it, of the locals step 1 found live
+    ///    into some header, the only ones live into any. An edge out of
+    ///    loops keeps that set for each loop it leaves, an outer loop's
+    ///    being the inner one's and what every path from the outer header
+    ///    to the inner header writes.
+    /// 3. Each loop, outer first, visits its own blocks last to first,
+    ///    every edge, and takes each inner loop's header as it passes it:
+    ///    its step 1 set and, for each exit of the inner loop, what the
+    ///    exit's target holds less the exit's must-write set. Each
+    ///    block's successors are then final when it is visited.
+    ///
+    /// Exact: take a shortest path from the header `h` of a loop `L` to a
+    /// read of a local that writes it nowhere first. Inside `L` it takes
+    /// no backedge: one of `L` or of a loop inside `L` returns to a header
+    /// the path passed. So either it stays inside `L`, and step 1 finds
+    /// it, or it leaves `L` along an exit whose target holds the local,
+    /// after a forward path that writes it nowhere, so the exit's set
+    /// lacks it. Conversely an exit's set lacks only locals that some
+    /// forward path from `h` leaves unwritten. An exit's target is
+    /// settled before `h` is: it lies in a loop around `L`, whose visit
+    /// took its blocks after `h` first and whose own header came earlier,
+    /// or it is the header of a loop beside `L`, taken there too, or it
+    /// lies outside every loop, which step 1 settled.
+    ///
+    /// Cost: three visits per block in a loop and one per other block, a
+    /// step per edge, and a set per loop an edge leaves toward a block
+    /// some loop's paths reach first ([`Forest::left`]): a branch out of
+    /// `k` loops keeps `k` sets, and no block is visited once per loop
+    /// around it.
+    fn solve(&self, len: usize, forest: &Forest, slots: &mut impl Slots, visit: &mut impl FnMut()) {
+        let blocks = self.starts.len();
+        let firsts = |p: usize| &self.firsts[self.first[p]..self.first[p + 1]];
+        // Block `p`'s live-out set, from its successors' live-in sets
+        // (`back`: and its backedges'), and its live-in set from that.
+        let settle = |slots: &mut _, p: usize, back: bool| {
+            let slots: &mut _ = slots;
+            Slots::clear(slots, blocks + p);
+            self.succs(p, len, |q| {
+                if back || q > p {
+                    Slots::union(slots, blocks + p, q);
+                }
+            });
+            Slots::clear(slots, p);
+            Slots::union(slots, p, blocks + p);
+            for &(l, reads) in firsts(p) {
+                if reads {
+                    Slots::insert(slots, p, l);
                 } else {
-                    self.sets.remove(live, l)
-                };
+                    Slots::remove(slots, p, l);
+                }
             }
-            // Sets only grow from empty here, so a new size is a change.
-            if self.sets.len(self.into[p]) == self.sets.len(live) {
-                continue;
+        };
+        for p in (0..blocks).rev() {
+            visit();
+            settle(&mut *slots, p, false);
+        }
+        let Forest {
+            headers,
+            loop_of,
+            parent,
+            exits,
+            of_loop,
+            ..
+        } = forest;
+        if headers.is_empty() {
+            return;
+        }
+        // Step 2's sets: a block's in its live-out slot, until step 3
+        // settles it; what every path from the loop around a header to the
+        // header writes, in the header's loop slot; and each exit's, in its
+        // slot. They keep only the locals step 1 found live into some
+        // header (`headed`), as only those are live into any header: a
+        // shortest path from one to a read either takes no backedge or
+        // first takes one to an outer header that holds the local.
+        let entry = |k: usize| 2 * blocks + k;
+        let exit = |e: usize| 2 * blocks + headers.len() + e;
+        let headed = exit(exits.len());
+        for &h in headers {
+            slots.union(headed, h);
+        }
+        // Whether some forward path reaches a block from the header of its
+        // loop, or a header from the header of the loop around it; and
+        // whether one reaches each exit from its loop's header.
+        let mut reached = vec![false; blocks];
+        let mut open = vec![false; exits.len()];
+        let mut e = 0;
+        for q in (0..blocks).filter(|&q| loop_of[q] != NO_LOOP) {
+            visit();
+            let out = blocks + q;
+            let from = headers[loop_of[q]] == q || reached[q];
+            if headers[loop_of[q]] == q {
+                slots.clear(out);
             }
-            self.into[p] = live;
-            if let Some((first, list)) = &preds {
-                for &q in &list[first[p]..first[p + 1]] {
-                    if !queued[q] {
-                        queued[q] = true;
-                        pending.push(q);
+            if from {
+                for &(l, reads) in firsts(q) {
+                    if !reads && slots.has(headed, l) {
+                        slots.insert(out, l);
                     }
                 }
             }
+            self.succs(q, len, |b| {
+                let (mut held, mut outer) = (from, NO_LOOP);
+                forest.left(q, b, |k| {
+                    if outer != NO_LOOP {
+                        held &= reached[headers[outer]];
+                    }
+                    if held {
+                        slots.clear(exit(e));
+                        if outer == NO_LOOP {
+                            slots.union(exit(e), out);
+                        } else {
+                            slots.union(exit(e), exit(e - 1));
+                            slots.union(exit(e), entry(outer));
+                        }
+                    }
+                    open[e] = held;
+                    e += 1;
+                    outer = k;
+                });
+                if b <= q || forest.frame(b) == NO_LOOP || !held {
+                    return;
+                }
+                let to = match loop_of[b] {
+                    k if headers[k] == b => entry(k),
+                    _ => blocks + b,
+                };
+                // What every path from the frame's header writes: the last
+                // exit's set and what reaching the loop it leaves writes.
+                let (last, reach) = match outer {
+                    NO_LOOP => (out, out),
+                    k if reached[headers[k]] => (exit(e - 1), entry(k)),
+                    _ => return,
+                };
+                if std::mem::replace(&mut reached[b], true) {
+                    slots.intersect_union(to, last, reach);
+                } else {
+                    slots.clear(to);
+                    slots.union(to, last);
+                    slots.union(to, reach);
+                }
+            });
         }
+        // Step 3's visits: each loop's own blocks and its inner loops'
+        // headers, last to first.
+        let mut visits = vec![Vec::new(); headers.len()];
+        for p in (0..blocks).rev().filter(|&p| loop_of[p] != NO_LOOP) {
+            let k = loop_of[p];
+            visits[k].push(p);
+            if headers[k] == p && parent[k] != NO_LOOP {
+                visits[parent[k]].push(p);
+            }
+        }
+        for (k, own) in visits.iter().enumerate() {
+            for &p in own {
+                let inner = loop_of[p];
+                if inner == k {
+                    visit();
+                    settle(&mut *slots, p, true);
+                    continue;
+                }
+                let mut grew = false;
+                for &x in &of_loop[inner] {
+                    if open[x] {
+                        slots.union_minus(p, exits[x], exit(x));
+                        grew = true;
+                    }
+                }
+                // An exit's set lacks the locals no header holds, which
+                // its target may hold.
+                if grew {
+                    slots.intersect(p, headed);
+                }
+            }
+        }
+        crate::work::liveness(exits.len() + blocks);
+    }
+
+    /// Calls `to` with each successor block of block `p`.
+    fn succs(&self, p: usize, len: usize, mut to: impl FnMut(usize)) {
+        let end = self.end(p, len);
+        self.edges[end - 1].each(end, |at| {
+            if let Some(&q) = self.point_at.get(at) {
+                to(q);
+            }
+        });
     }
 
     /// Each block's predecessors: those of block `p` are
@@ -1318,26 +1901,20 @@ impl Live {
     fn predecessors(&self, len: usize) -> (Vec<usize>, Vec<usize>) {
         let blocks = self.starts.len();
         let mut first = vec![0usize; blocks + 1];
-        let each = |visit: &mut dyn FnMut(usize, usize)| {
-            for p in 0..blocks {
-                let end = self.end(p, len);
-                self.edges[end - 1].each(end, |to| {
-                    if let Some(&q) = self.point_at.get(to) {
-                        visit(p, q);
-                    }
-                });
-            }
-        };
-        each(&mut |_, q| first[q + 1] += 1);
+        for p in 0..blocks {
+            self.succs(p, len, |q| first[q + 1] += 1);
+        }
         for p in 0..blocks {
             first[p + 1] += first[p];
         }
         let mut list = vec![0usize; first[blocks]];
         let mut next = first.clone();
-        each(&mut |p, q| {
-            list[next[q]] = p;
-            next[q] += 1;
-        });
+        for p in 0..blocks {
+            self.succs(p, len, |q| {
+                list[next[q]] = p;
+                next[q] += 1;
+            });
+        }
         (first, list)
     }
 
@@ -1347,13 +1924,18 @@ impl Live {
     /// arena for passes that only ask membership and union. Each block's
     /// first accesses are found in one forward pass, a local's stamp
     /// telling whether this block met it already: `O(B + n)`.
-    fn blocks(f: &Func, sets: Sets) -> Option<Self> {
+    pub fn blocks(f: &Func, mut cfg: Option<Cfg>, sets: Sets) -> Option<Self> {
         let n = f.params.len() + f.locals.len();
         if n == 0 || f.body.is_empty() {
             return None;
         }
-        let edges = zero_edges(&f.body, &f.labels)?;
-        let (point_at, starts) = basic_blocks(&edges, f.body.len());
+        Cfg::of(f, &mut cfg)?;
+        let Cfg {
+            edges,
+            point_at,
+            starts,
+            forward,
+        } = cfg?;
         let blocks = starts.len();
         let mut first = Vec::with_capacity(blocks + 1);
         let mut firsts = Vec::new();
@@ -1374,7 +1956,7 @@ impl Live {
         Some(Self {
             into: vec![Set::EMPTY; blocks],
             outs: vec![Set::EMPTY; blocks],
-            forward: forward_only(&edges, &point_at, &starts, f.body.len()),
+            forward,
             edges,
             point_at,
             starts,
@@ -1388,11 +1970,35 @@ impl Live {
     /// read after which its local is dead. Walking each block back, a
     /// local's next access in the block answers, a stamp per local saying
     /// whether there is one; the block's live-out set answers only for
-    /// its last access of each local: `O(B + a log n)` after the fixed
-    /// point, for `a` first accesses, with no set made.
-    fn dead_accesses(f: &Func) -> Option<Vec<bool>> {
+    /// its last access of each local: `O(B + a log n)` after the pass,
+    /// for `a` first accesses, with no set made.
+    ///
+    /// The pass keeps dense rows ([`Rows`]) when they fit, and
+    /// persistent sets above that.
+    #[must_use]
+    pub fn dead_accesses(f: &Func, cfg: Option<Cfg>) -> Option<Vec<bool>> {
         let body = &f.body;
-        let me = Self::new(f, Sets::unconsed())?;
+        let mut me = Self::blocks(f, cfg, Sets::unconsed())?;
+        let blocks = me.starts.len();
+        let forest = me.forest(body.len());
+        let slots = forest.slots(blocks);
+        let rows = row_words(slots, f.params.len() + f.locals.len(), body.len()).map(|words| {
+            let mut rows = Rows {
+                words,
+                bits: vec![0; slots * words],
+                work: 0,
+            };
+            me.solve(body.len(), &forest, &mut rows, &mut || {});
+            crate::work::liveness(rows.work);
+            rows
+        });
+        if rows.is_none() {
+            me.settle_in(body.len(), &forest, &mut || {});
+        }
+        let live_out = |p: usize, l: u32| match &rows {
+            Some(rows) => rows.has(blocks + p, l),
+            None => me.sets.contains(me.outs[p], l),
+        };
         let mut dead = vec![false; body.len()];
         let n = f.params.len() + f.locals.len();
         // `later[l]`: the block whose walk met `l` already;
@@ -1410,7 +2016,7 @@ impl Live {
                 dead[at] = if later[i] == p {
                     next_writes[i]
                 } else {
-                    !me.sets.contains(me.outs[p], l)
+                    !live_out(p, l)
                 };
                 later[i] = p;
                 next_writes[i] = write;
@@ -1421,20 +2027,6 @@ impl Live {
 
     fn end(&self, p: usize, len: usize) -> usize {
         self.starts.get(p + 1).copied().unwrap_or(len)
-    }
-
-    /// The locals live after block `p`: the union of those live into its
-    /// successors, which costs where they differ, not their size.
-    fn out(&mut self, p: usize, len: usize) -> Set {
-        let end = self.end(p, len);
-        let (point_at, into, sets) = (&self.point_at, &self.into, &mut self.sets);
-        let mut live = Set::EMPTY;
-        self.edges[end - 1].each(end, |to| {
-            if let Some(&q) = point_at.get(to) {
-                live = sets.union(live, into[q]);
-            }
-        });
-        live
     }
 
     fn step(sets: &mut Sets, ins: &Ins, live: Set) -> Set {
@@ -1449,18 +2041,95 @@ impl Live {
 /// The locals of suspending body `f` live just after its instruction at
 /// `at`, ascending, where a `Save`, which returns at once, reads none:
 /// what a run from there may read before it writes. `None` when the
-/// body's branches are not analysed. Only `at`'s block is walked, back
-/// from its live-out set.
-pub(crate) fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
-    let mut me = Live::new(f, Sets::unconsed())?;
-    let p = me.point_at[at];
-    let mut live = me.outs[p];
-    for ins in f.body[at + 1..me.end(p, f.body.len())].iter().rev() {
-        live = Live::step(&mut me.sets, ins, live);
+/// body's branches are not analysed.
+///
+/// One query needs no live set per block. A local is live after `at`
+/// exactly when some block reachable from there reads it first while
+/// some path to that block leaves it unwritten. So one forward pass from
+/// `at`, blocks in body order, carries what every path to a block wrote
+/// (a must-write set, met by intersection), and a block's first reads
+/// outside that set are live. Structured Wasm is reducible and every
+/// edge but a loop's backedge leads forward, so a block's forward
+/// predecessors are final when it is visited. A backedge to a loop
+/// entered at its header after `at` brings nothing: the run through the
+/// loop wrote at least what the header's entry facts hold, and a meet
+/// with a superset changes nothing (a "fast" framework, Graham and
+/// Wegman 1976: a loop's closure of a write-only transfer is the
+/// identity). Only a loop holding `at` re-enters at its header with new
+/// facts, what every path to its backedges wrote; it is walked once
+/// more from its header, innermost first, each header once.
+///
+/// So the query costs one pass over the blocks after `at` and one per
+/// loop holding `at`, with no depth factor for the loops after it, and
+/// no set per block, which every block's sets ([`Live`]) build.
+#[must_use]
+pub fn live_after(f: &Func, at: usize) -> Option<Vec<u32>> {
+    let edges = zero_edges(&f.body, &f.labels)?;
+    let len = f.body.len();
+    let (point_at, starts) = basic_blocks(&edges, len);
+    let blocks = starts.len();
+    let end = |p: usize| starts.get(p + 1).copied().unwrap_or(len);
+    let mut sets = Sets::unconsed();
+    let meet = |sets: &mut Sets, slot: &mut Option<Set>, w: Set| {
+        *slot = Some(slot.map_or(w, |known| sets.intersection(known, w)));
+    };
+    let mut live = vec![false; f.params.len() + f.locals.len()];
+    // What every path from the source to a block's entry wrote; `None`:
+    // not reached from the source.
+    let mut written: Vec<Option<Set>> = vec![None; blocks];
+    // A loop holding the source: what every path to its backedges
+    // wrote, by header block, and the headers still to walk from.
+    let mut seeds: Vec<Option<Set>> = vec![None; blocks];
+    let mut headers = std::collections::BinaryHeap::new();
+    let mut work = 0;
+    let mut source = Some((*point_at.get(at)?, at + 1, Set::EMPTY));
+    while let Some((first, from, entry)) = source {
+        written[first..].fill(None);
+        written[first] = Some(entry);
+        for p in first..blocks {
+            let Some(mut w) = written[p] else {
+                continue;
+            };
+            let start = if p == first { from } else { starts[p] };
+            work += 1 + end(p) - start;
+            for ins in &f.body[start..end(p)] {
+                if let Ins::Op(I::LocalGet(l)) = *ins
+                    && !live[l as usize]
+                {
+                    live[l as usize] = !sets.contains(w, l);
+                } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = *ins {
+                    w = sets.insert(w, l);
+                }
+            }
+            edges[end(p) - 1].each(end(p), |to| {
+                let Some(&t) = point_at.get(to) else {
+                    return; // The function's exit.
+                };
+                if t > p {
+                    meet(&mut sets, &mut written[t], w);
+                } else if t < first || (t == first && from != starts[first]) {
+                    // A backedge of a loop holding the source.
+                    if seeds[t].is_none() {
+                        headers.push(t);
+                    }
+                    meet(&mut sets, &mut seeds[t], w);
+                }
+            });
+        }
+        // A pass from header `t` seeds only the loops around it, whose
+        // headers come before it: the latest header first sees each of
+        // its seeds final.
+        source = headers
+            .pop()
+            .and_then(|t| seeds[t].map(|seed| (t, starts[t], seed)));
     }
-    let mut members = Vec::new();
-    me.sets.members(live, &mut members);
-    Some(members)
+    crate::work::liveness(work + sets.work());
+    Some(
+        (0u32..)
+            .zip(live)
+            .filter_map(|(l, x)| x.then_some(l))
+            .collect(),
+    )
 }
 
 /// How a local is defined at a position, for [`coalesce`]'s bundles: a
@@ -1583,7 +2252,8 @@ impl Scan {
 /// each into a class of its type whose pieces leave a hole holding all of
 /// it, the one whose next piece starts soonest after it, else a class of
 /// its own. A copy between two locals of one class then goes, a pair of a
-/// multi-value copy too ([`same_local_copies`]).
+/// multi-value copy too ([`same_local_copies`]). Existing self-copies go
+/// even when every local keeps its original index.
 ///
 /// The one probe is a priced limit (#2025): a bundle that fits only a
 /// free class other than the one it probes opens a class, so 13 stage
@@ -1878,7 +2548,12 @@ pub fn coalesce(f: &mut Func) {
         }
     }
     crate::work::liveness(scan.steps);
-    if to.iter().enumerate().all(|(x, t)| *t as usize == x) {
+    let renamed_any = to.iter().enumerate().any(|(x, t)| *t as usize != x);
+    let self_copy = sources.iter().enumerate().any(|(at, source)| {
+        matches!(body[at], Ins::Op(I::LocalSet(x) | I::LocalTee(x))
+            if source.is_some_and(|(y, _)| x == y))
+    });
+    if !renamed_any && !self_copy {
         return;
     }
     let renamed: Vec<Ins> = body
@@ -1890,16 +2565,26 @@ pub fn coalesce(f: &mut Func) {
             other => other,
         })
         .collect();
-    let gone = same_local_copies(&renamed);
+    let gone = if renamed_any {
+        drop(sources);
+        same_local_copies(&renamed, &copy_sources(&renamed, n))
+    } else {
+        same_local_copies(&renamed, &sources)
+    };
     let mut origins = Remap::new(f.origins.as_deref());
     let mut out: Vec<Ins> = Vec::with_capacity(body.len());
     for (at, ins) in renamed.into_iter().enumerate() {
         if gone[at] {
             continue;
         }
-        if let (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalTee(b))) = (out.last(), ins)
+        if let (Some(Ins::Op(I::LocalGet(a))), Ins::Op(I::LocalSet(b) | I::LocalTee(b))) =
+            (out.last(), ins)
             && *a == b
         {
+            if matches!(ins, Ins::Op(I::LocalSet(_))) {
+                out.pop();
+                origins.pop();
+            }
             continue;
         }
         out.push(ins);
@@ -1924,7 +2609,8 @@ pub fn coalesce(f: &mut Func) {
 /// long as no set of the run before it writes that local. One pass: each
 /// run's sets stamp the locals they write with the run's start, so the
 /// check is one probe, not a rescan of the run per set.
-fn copy_sources(body: &[Ins], locals: usize) -> Vec<Option<(u32, usize)>> {
+#[must_use]
+pub fn copy_sources(body: &[Ins], locals: usize) -> Vec<Option<(u32, usize)>> {
     let mut out = vec![None; body.len()];
     // Where the run of gets, and of sets, ending at each index began.
     let mut gets_from = 0;
@@ -1964,35 +2650,19 @@ fn copy_sources(body: &[Ins], locals: usize) -> Vec<Option<(u32, usize)>> {
 /// The pairs of multi-value copies `local.get a ...; ... local.set a`
 /// whose two ends name one local and that no set of the run before writes
 /// over: each such pair is a no-op, and taking both ends out leaves every
-/// other pair matched.
-fn same_local_copies(body: &[Ins]) -> Vec<bool> {
+/// other pair matched. A self-copying tee loses only its write, keeping
+/// the pushed value. One scan of [`copy_sources`]'s stamped metadata.
+fn same_local_copies(body: &[Ins], sources: &[Option<(u32, usize)>]) -> Vec<bool> {
     let mut gone = vec![false; body.len()];
-    let mut at = 0;
-    while at < body.len() {
-        if !matches!(body[at], Ins::Op(I::LocalSet(_))) {
-            at += 1;
-            continue;
-        }
-        let start = at;
-        while at < body.len() && matches!(body[at], Ins::Op(I::LocalSet(_))) {
-            at += 1;
-        }
-        let mut gets = start;
-        while gets > 0 && matches!(body[gets - 1], Ins::Op(I::LocalGet(_))) {
-            gets -= 1;
-        }
-        for j in 0..(at - start).min(start - gets) {
-            let (Ins::Op(I::LocalSet(x)), Ins::Op(I::LocalGet(y))) =
-                (body[start + j], body[start - 1 - j])
-            else {
-                continue;
-            };
-            let overwritten = body[start..start + j]
-                .iter()
-                .any(|i| matches!(i, Ins::Op(I::LocalSet(z)) if *z == x));
-            if x == y && !overwritten {
-                gone[start + j] = true;
-                gone[start - 1 - j] = true;
+    // Reuse the linear stamped-copy walk, including its clobber check.
+    // A tee loses only its write: the source value stays on the stack.
+    for (at, source) in sources.iter().copied().enumerate() {
+        if let Some((y, get)) = source
+            && matches!(body[at], Ins::Op(I::LocalSet(x) | I::LocalTee(x)) if x == y)
+        {
+            gone[at] = true;
+            if matches!(body[at], Ins::Op(I::LocalSet(_))) {
+                gone[get] = true;
             }
         }
     }
@@ -2000,7 +2670,7 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 }
 
 /// Rules 12 and 13, from one backward liveness pass over the basic blocks
-/// (loop backedges to a fixed point).
+/// ([`Live::dead_accesses`], loop backedges included).
 ///
 /// Rule 12 deletes a `local.set` or `local.tee` of a local that no path
 /// reads before its next write, dropping a set's value, or the pure push
@@ -2035,17 +2705,42 @@ fn same_local_copies(body: &[Ins]) -> Vec<bool> {
 /// body, as LLVM's `LiveIntervals::handleMove` and `LiveVariables`'
 /// kill updates keep liveness across a local rewrite instead of solving
 /// the function again.
-fn live_rules(f: &mut Func, arity: &Arity) -> bool {
-    let Some(mut dead) = Live::dead_accesses(f) else {
+pub fn live_rules(f: &mut Func, arity: &Arity, cfg: Option<Cfg>) -> bool {
+    let Some(mut dead) = Live::dead_accesses(f, cfg) else {
         return false;
     };
     let mut any = false;
-    while let Some(next) = live_once(f, arity, &dead) {
+    let mut changed: Option<Vec<usize>> = None;
+    loop {
+        // A whole round, uncounted, to check the round over changed spans.
+        #[cfg(debug_assertions)]
+        let whole = changed.as_ref().map(|_| {
+            crate::work::count_liveness(|| {
+                let mut g = f.clone();
+                let d = live_once(&mut g, arity, &dead, None).map(|r| r.0);
+                (d, format!("{:?}", g.body))
+            })
+            .0
+        });
+        let Some((next, edits)) = live_once(f, arity, &dead, changed.as_deref()) else {
+            #[cfg(debug_assertions)]
+            debug_assert!(
+                whole.is_none_or(|(d, _)| d.is_none()),
+                "rule 13's round over the changed spans missed a rewrite"
+            );
+            break;
+        };
+        #[cfg(debug_assertions)]
         debug_assert!(
-            Live::dead_accesses(f).is_none_or(|solved| solved == next),
+            whole.is_none_or(|(d, b)| d.as_ref() == Some(&next) && b == format!("{:?}", f.body)),
+            "rule 13's round over the changed spans differs from a whole round"
+        );
+        debug_assert!(
+            Live::dead_accesses(f, None).is_none_or(|solved| solved == next),
             "rule 13's carried dead accesses differ from a new liveness pass"
         );
         dead = next;
+        changed = Some(edits);
         any = true;
     }
     any
@@ -2067,7 +2762,26 @@ const NONE: u32 = u32::MAX;
 /// exactly when `m`'s last old access in the union was: what follows the
 /// union is unchanged. Each access is walked in at most one union, and
 /// the moves are sorted once: `O(B + M log M)` for `M` moves, no set.
-fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
+///
+/// `changed`, from the round before, lists in order the positions that
+/// round touched: a new or rewritten instruction, the first one after a
+/// removed run (the body's length for its end), and one whose dead flag
+/// moved. A candidate reads only its window, from its push or the start
+/// of its row of sets to one past its get, and the round's state changes
+/// only where it accepts. So a candidate whose window holds no touched
+/// position reads what it read last round, where it was refused, and a
+/// refusal that came from the state names an accepted position in the
+/// window: it is refused again without its walks. A dead write sits at a
+/// touched position too, and the new body is copied in runs between the
+/// edits. A nest of `N` pairs, peeled one per round, then costs `N`
+/// rounds of a few array passes, not `N` rounds of every candidate's
+/// walks and a per-instruction rebuild.
+pub fn live_once(
+    f: &mut Func,
+    arity: &Arity,
+    dead: &[bool],
+    changed: Option<&[usize]>,
+) -> Option<(Vec<bool>, Vec<usize>)> {
     crate::work::liveness(f.body.len());
     let body = &f.body;
     let mut origins = Remap::new(f.origins.as_deref());
@@ -2089,6 +2803,9 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
     let mut next = vec![NONE; body.len()];
     // `(m, p, j)`: the read of local `m` at `p` moves to `j`.
     let mut reads_moved: Vec<(u32, u32, usize)> = Vec::new();
+    // The positions the rewrite edits, and the gets that take a push.
+    let mut edits: Vec<usize> = Vec::new();
+    let mut takers: Vec<usize> = Vec::new();
     let mut seen = vec![NONE; f.params.len() + f.locals.len()];
     for (at, ins) in body.iter().enumerate().rev() {
         if let Ins::Op(I::LocalSet(l) | I::LocalTee(l) | I::LocalGet(l)) = ins {
@@ -2096,12 +2813,18 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
             seen[*l as usize] = u32::try_from(at).expect("body");
         }
     }
+    // The start of the row of sets that ends at `k`, as `matching_push`
+    // walks it.
+    let mut row = 0;
     for k in 0..body.len() {
         let tee = match body[k] {
             Ins::Op(I::LocalSet(_)) => false,
             Ins::Op(I::LocalTee(_)) => true,
             _ => continue,
         };
+        if tee || k == 0 || !matches!(body[k - 1], Ins::Op(I::LocalSet(_))) {
+            row = k;
+        }
         if dead[k] {
             continue;
         }
@@ -2115,6 +2838,20 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
         let j = j as usize;
         if !matches!(body[j], Ins::Op(I::LocalGet(_))) {
             continue;
+        }
+        if let Some(changed) = changed {
+            // The window's first position: the push a tee keeps, or the
+            // first instruction `matching_push` reads.
+            let lo = if tee {
+                k.saturating_sub(1)
+            } else {
+                row.checked_sub(1 + (k - row))
+                    .unwrap_or_else(|| row.saturating_sub(1))
+            };
+            let t = changed.partition_point(|&x| x < lo);
+            if changed.get(t).is_none_or(|&x| x > j + 1) {
+                continue;
+            }
         }
         let last = dead[j];
         let Some(level) = single_use(body, k, j, arity, &f.symbols) else {
@@ -2133,7 +2870,12 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
         {
             // A tee's push stays where it is, and the get reads it again.
             gone[p] = !tee;
+            if !tee {
+                edits.push(p);
+            }
             moved[j] = u32::try_from(p).expect("body");
+            edits.push(j);
+            takers.push(j);
             if let Ins::Op(I::LocalGet(m)) = body[p] {
                 reads_moved.push((m, moved[j], j));
             }
@@ -2146,29 +2888,49 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
                 continue;
             }
             gone[j] = true;
+            edits.push(j);
             open.push((k, j));
             if !last {
                 teed[k] = true;
+                edits.push(k);
                 continue;
             }
         } else {
             continue;
         }
         gone[k] = true;
+        edits.push(k);
     }
-    if !gone.iter().any(|g| *g) && !(0..body.len()).any(dead_write) {
+    // A dead write of the round before's body sits where it touched, as
+    // the doc comment says; a whole round looks at every position.
+    match changed {
+        Some(changed) => edits.extend(
+            changed
+                .iter()
+                .copied()
+                .filter(|&at| at < body.len() && dead_write(at)),
+        ),
+        None => edits.extend((0..body.len()).filter(|&at| dead_write(at))),
+    }
+    if edits.is_empty() {
         return None;
     }
+    edits.sort_stable();
+    edits.dedup();
     // The dead accesses after the rewrites, by old position: a moved get
     // that reads no local is no access, and each union of one local's
     // move spans is settled as the doc comment says.
     let mut after = dead.to_vec();
+    // The positions `after` may differ from `dead` at.
+    let mut flipped: Vec<usize> = Vec::new();
     for &(_, _, j) in &reads_moved {
         after[j] = false;
+        flipped.push(j);
     }
-    for (at, &p) in moved.iter().enumerate() {
-        if p != NONE && !matches!(body[p as usize], Ins::Op(I::LocalGet(_))) {
+    for &at in &takers {
+        if !matches!(body[moved[at] as usize], Ins::Op(I::LocalGet(_))) {
             after[at] = false;
+            flipped.push(at);
         }
     }
     reads_moved.sort_stable();
@@ -2190,13 +2952,44 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
         while r != NONE && (r as usize) < hi {
             last = dead[r as usize];
             after[r as usize] = false;
+            flipped.push(r as usize);
             r = next[r as usize];
         }
         after[hi] = last;
+        flipped.push(hi);
     }
+    flipped.sort_stable();
+    flipped.dedup();
+    flipped.retain(|&at| after[at] != dead[at]);
     let mut dead_after = Vec::with_capacity(body.len());
-    for (at, ins) in body.iter().enumerate() {
+    // The new positions the next round reads again, as the doc comment
+    // says: `out.len()` stands for the body's end.
+    let mut touched: Vec<usize> = Vec::new();
+    let mut flips = flipped.iter().copied().peekable();
+    let mut gap = false;
+    let mut start = 0;
+    for at in edits.iter().copied().chain(std::iter::once(body.len())) {
+        // A run the round left alone is copied whole: its dead accesses
+        // are `after`'s, as none of it is a dead write.
+        let base = out.len();
+        out.extend_from_slice(&body[start..at]);
+        origins.copy(start..at);
+        dead_after.extend_from_slice(&after[start..at]);
+        if gap && at > start {
+            touched.push(base);
+            gap = false;
+        }
+        while let Some(x) = flips.next_if(|&x| x < at) {
+            if x >= start {
+                touched.push(base + x - start);
+            }
+        }
+        start = at + 1;
+        let Some(ins) = body.get(at) else {
+            break;
+        };
         if gone[at] {
+            gap = true;
             continue;
         }
         dead_after.push(after[at] && !dead_write(at));
@@ -2210,23 +3003,26 @@ fn live_once(f: &mut Func, arity: &Arity, dead: &[bool]) -> Option<Vec<bool>> {
                 .first(p..p + 1)
                 .or_else(|| origins.first(at..at + 1));
             origins.repeat(origin, 1);
-        } else if dead_write(at) {
-            // A dead set drops its value; rule 15 takes back a pure push
-            // just before it.
-            if matches!(ins, Ins::Op(I::LocalTee(_))) {
-                dead_after.pop();
-                continue;
-            }
+        } else if matches!(ins, Ins::Op(I::LocalTee(_))) {
+            // A dead tee leaves its value; a dead set drops it, and rule
+            // 15 takes back a pure push just before it.
+            dead_after.pop();
+            gap = true;
+            continue;
+        } else {
             out.push(Ins::Op(I::Drop));
             origins.copy(at..at + 1);
-        } else {
-            out.push(*ins);
-            origins.copy(at..at + 1);
         }
+        touched.push(out.len() - 1);
+        gap = false;
     }
+    if gap {
+        touched.push(out.len());
+    }
+    touched.dedup();
     f.body = out;
     origins.finish(f);
-    Some(dead_after)
+    Some((dead_after, touched))
 }
 
 /// The pure push that the `local.set` at `k` takes its value from, when
@@ -2294,13 +3090,13 @@ fn pure_push(i: &Ins) -> bool {
 }
 
 /// Rule 4: moves each copy into a local read once to its read.
-fn forward(f: &mut Func, np: u32) -> bool {
+pub fn forward(f: &mut Func, np: u32) -> bool {
     forward_with(f, np, || {})
 }
 
 /// O(instructions + locals + globals): index uses once, carry the next
 /// clobber/control edge while walking backwards, then compact once.
-fn forward_with(f: &mut Func, np: u32, mut visit: impl FnMut()) -> bool {
+pub fn forward_with(f: &mut Func, np: u32, mut visit: impl FnMut()) -> bool {
     let end = f.body.len();
     if end < 2 {
         return false;
@@ -2432,7 +3228,7 @@ fn forward_with(f: &mut Func, np: u32, mut visit: impl FnMut()) -> bool {
 }
 
 /// Rule 7: folds the constants of each window of instructions.
-fn fold(f: &mut Func) -> bool {
+pub fn fold(f: &mut Func) -> bool {
     use wasm_encoder::BlockType;
 
     let mut origins = Remap::new(f.origins.as_deref());
@@ -2610,7 +3406,7 @@ fn fold(f: &mut Func) -> bool {
 
 /// Rule 15: each `drop` takes back what pushed its value while that has
 /// no other effect, so a discarded read leaves no code.
-pub(crate) fn drops(f: &mut Func) -> bool {
+pub fn drops(f: &mut Func) -> bool {
     let mut origins = Remap::new(f.origins.as_deref());
     let b = std::mem::take(&mut f.body);
     let mut out: Vec<Ins> = Vec::with_capacity(b.len());
@@ -2677,135 +3473,32 @@ pub(crate) fn drops(f: &mut Func) -> bool {
 /// else (it cannot trap, a load aside, which rule 15 covers); `None` for
 /// any other instruction.
 fn pure_operands(i: &I) -> Option<usize> {
-    Some(match i {
-        I::LocalGet(_)
-        | I::I32Const(_)
-        | I::I64Const(_)
-        | I::F32Const(_)
-        | I::F64Const(_)
-        | I::MemorySize(_) => 0,
-        _ if is_load(i) => 1,
-        I::I32Eqz
-        | I::I64Eqz
-        | I::I32Clz
-        | I::I32Ctz
-        | I::I32Popcnt
-        | I::I64Clz
-        | I::I64Ctz
-        | I::I64Popcnt
-        | I::I32Extend8S
-        | I::I32Extend16S
-        | I::I32WrapI64
-        | I::I64ExtendI32S
-        | I::I64ExtendI32U
-        | I::I32ReinterpretF32
-        | I::I64ReinterpretF64
-        | I::F32ReinterpretI32
-        | I::F64ReinterpretI64
-        | I::I32TruncSatF32S
-        | I::I32TruncSatF32U
-        | I::I32TruncSatF64S
-        | I::I32TruncSatF64U
-        | I::I64TruncSatF32S
-        | I::I64TruncSatF32U
-        | I::I64TruncSatF64S
-        | I::I64TruncSatF64U
-        | I::F32ConvertI32S
-        | I::F32ConvertI32U
-        | I::F32ConvertI64S
-        | I::F32ConvertI64U
-        | I::F64ConvertI32S
-        | I::F64ConvertI32U
-        | I::F64ConvertI64S
-        | I::F64ConvertI64U
-        | I::F32DemoteF64
-        | I::F64PromoteF32
-        | I::F32Neg
-        | I::F64Neg
-        | I::F32Abs
-        | I::F64Abs
-        | I::F32Trunc
-        | I::F64Trunc
-        | I::F32Floor
-        | I::F64Floor
-        | I::F32Ceil
-        | I::F64Ceil
-        | I::F32Nearest
-        | I::F64Nearest
-        | I::F32Sqrt
-        | I::F64Sqrt => 1,
-        I::I32Add
-        | I::I32Sub
-        | I::I32Mul
-        | I::I32And
-        | I::I32Or
-        | I::I32Xor
-        | I::I32Shl
-        | I::I32ShrS
-        | I::I32ShrU
-        | I::I32Eq
-        | I::I32Ne
-        | I::I32LtS
-        | I::I32LtU
-        | I::I32GtS
-        | I::I32GtU
-        | I::I32LeS
-        | I::I32LeU
-        | I::I32GeS
-        | I::I32GeU
-        | I::I64Add
-        | I::I64Sub
-        | I::I64Mul
-        | I::I64And
-        | I::I64Or
-        | I::I64Xor
-        | I::I64Shl
-        | I::I64ShrS
-        | I::I64ShrU
-        | I::I64Eq
-        | I::I64Ne
-        | I::I64LtS
-        | I::I64LtU
-        | I::I64GtS
-        | I::I64GtU
-        | I::I64LeS
-        | I::I64LeU
-        | I::I64GeS
-        | I::I64GeU
-        | I::F32Add
-        | I::F32Sub
-        | I::F32Mul
-        | I::F32Div
-        | I::F32Copysign
-        | I::F32Eq
-        | I::F32Ne
-        | I::F32Lt
-        | I::F32Gt
-        | I::F32Le
-        | I::F32Ge
-        | I::F64Add
-        | I::F64Sub
-        | I::F64Mul
-        | I::F64Div
-        | I::F64Copysign
-        | I::F64Eq
-        | I::F64Ne
-        | I::F64Lt
-        | I::F64Gt
-        | I::F64Le
-        | I::F64Ge => 2,
-        I::Select => 3,
-        _ => return None,
-    })
+    let traps_or_writes = matches!(
+        i,
+        I::I32DivS
+            | I::I32DivU
+            | I::I32RemS
+            | I::I32RemU
+            | I::I64DivS
+            | I::I64DivU
+            | I::I64RemS
+            | I::I64RemU
+            | I::LocalTee(_)
+            | I::MemoryGrow(_)
+    );
+    match op_effect(i)? {
+        (pops, 1) if !traps_or_writes => Some(pops),
+        _ => None,
+    }
 }
 
 /// Rules 8 and 9 operate on straight-line stack effects. Schedule the
 /// single-use locals first so the store walk sees the resulting stack order.
-fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
+pub fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
     schedule_with(f, np, arity, || {})
 }
 
-fn schedule_with(f: &mut Func, np: u32, arity: &Arity, mut visit: impl FnMut()) -> bool {
+pub fn schedule_with(f: &mut Func, np: u32, arity: &Arity, mut visit: impl FnMut()) -> bool {
     let locals = schedule_locals(f, np, arity, &mut visit);
     let stores = schedule_stores(f, arity, &mut visit);
     locals || stores
@@ -3010,6 +3703,16 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
         } else {
             None
         };
+        // The top value's candidate: a load's address, or an addition's
+        // right operand.
+        let top = (pops > 0)
+            .then(|| {
+                active
+                    .last()
+                    .filter(|&&(d, _)| d == depth)
+                    .map(|&(_, id)| id)
+            })
+            .flatten();
         let below = depth.saturating_sub(pops);
         while active.last().is_some_and(|&(d, _)| d > below) {
             visit();
@@ -3027,10 +3730,9 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
                 parent: address,
             });
         } else if let Ins::Op(mut op) = f.body[i]
-            && !is_load(&op)
             && with_offset(&op, 0).is_some()
         {
-            let mut address = address;
+            let mut address = if is_load(&op) { top } else { address };
             while let Some(id) = address {
                 visit();
                 let StoreOffset { at, addend, parent } = offsets[id];
@@ -3047,6 +3749,12 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
                 address = parent;
             }
             f.body[i] = Ins::Op(op);
+        } else if matches!(f.body[i], Ins::Op(I::I32Add))
+            && let Some(id) = address.or(top)
+        {
+            // `x + c + y` is `x + y + c`: the constant goes on to the load
+            // or store of the sum.
+            active.push((depth, id));
         }
     }
     let Some(order) = order else {
@@ -3071,137 +3779,143 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
             let signature = symbols.signature(*id);
             (signature.0.len() + 1, signature.1.len())
         }
-        Ins::Op(op) => match op {
-            I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_) => {
-                (0, 1)
-            }
-            I::LocalTee(_) => (1, 1),
-            I::LocalSet(_) | I::Drop => (1, 0),
-            I::Select => (3, 1),
-            I::I32Eqz
-            | I::I64Eqz
-            | I::I32WrapI64
-            | I::I64ExtendI32S
-            | I::I64ExtendI32U
-            | I::I32Clz
-            | I::I64Clz
-            | I::I32Ctz
-            | I::I64Ctz
-            | I::I32Popcnt
-            | I::I64Popcnt
-            | I::I32Extend8S
-            | I::I32Extend16S
-            | I::I32ReinterpretF32
-            | I::I64ReinterpretF64
-            | I::F32ReinterpretI32
-            | I::F64ReinterpretI64
-            | I::I32TruncSatF32S
-            | I::I32TruncSatF32U
-            | I::I32TruncSatF64S
-            | I::I32TruncSatF64U
-            | I::I64TruncSatF32S
-            | I::I64TruncSatF32U
-            | I::I64TruncSatF64S
-            | I::I64TruncSatF64U
-            | I::F32ConvertI32S
-            | I::F32ConvertI32U
-            | I::F32ConvertI64S
-            | I::F32ConvertI64U
-            | I::F64ConvertI32S
-            | I::F64ConvertI32U
-            | I::F64ConvertI64S
-            | I::F64ConvertI64U
-            | I::F32DemoteF64
-            | I::F64PromoteF32
-            | I::F32Neg
-            | I::F64Neg
-            | I::F32Abs
-            | I::F64Abs
-            | I::F32Trunc
-            | I::F64Trunc
-            | I::F32Floor
-            | I::F64Floor
-            | I::F32Ceil
-            | I::F64Ceil
-            | I::F32Nearest
-            | I::F64Nearest
-            | I::F32Sqrt
-            | I::F64Sqrt
-            | I::MemoryGrow(_) => (1, 1),
-            I::MemorySize(_) => (0, 1),
-            I::MemoryCopy { .. } | I::MemoryFill(_) => (3, 0),
-            I::I32Add
-            | I::I32Sub
-            | I::I32Mul
-            | I::I32And
-            | I::I32Or
-            | I::I32Xor
-            | I::I32Shl
-            | I::I32ShrU
-            | I::I32ShrS
-            | I::I32Eq
-            | I::I32Ne
-            | I::I32LtU
-            | I::I32LtS
-            | I::I32GtU
-            | I::I32GtS
-            | I::I32LeU
-            | I::I32LeS
-            | I::I32GeU
-            | I::I32GeS
-            | I::I64Add
-            | I::I64Sub
-            | I::I64Mul
-            | I::I64And
-            | I::I64Or
-            | I::I64Xor
-            | I::I64Shl
-            | I::I64ShrU
-            | I::I64ShrS
-            | I::I64Eq
-            | I::I64Ne
-            | I::I64LtU
-            | I::I64LtS
-            | I::I64GtU
-            | I::I64GtS
-            | I::I64LeU
-            | I::I64LeS
-            | I::I64GeU
-            | I::I64GeS
-            | I::I32DivS
-            | I::I32DivU
-            | I::I32RemS
-            | I::I32RemU
-            | I::I64DivS
-            | I::I64DivU
-            | I::I64RemS
-            | I::I64RemU
-            | I::F32Add
-            | I::F32Sub
-            | I::F32Mul
-            | I::F32Div
-            | I::F32Copysign
-            | I::F32Eq
-            | I::F32Ne
-            | I::F32Lt
-            | I::F32Gt
-            | I::F32Le
-            | I::F32Ge
-            | I::F64Add
-            | I::F64Sub
-            | I::F64Mul
-            | I::F64Div
-            | I::F64Copysign
-            | I::F64Eq
-            | I::F64Ne
-            | I::F64Lt
-            | I::F64Gt
-            | I::F64Le
-            | I::F64Ge => (2, 1),
-            other if is_load(other) => (1, 1),
-            other if with_offset(other, 0).is_some() => (2, 0),
-            _ => return None,
-        },
+        Ins::Op(op) => op_effect(op)?,
+        _ => return None,
+    })
+}
+
+/// What plain instruction `op` pops and pushes; `None` for control and
+/// for anything this table does not know.
+fn op_effect(op: &I) -> Option<(usize, usize)> {
+    Some(match op {
+        I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_) => {
+            (0, 1)
+        }
+        I::LocalTee(_) => (1, 1),
+        I::LocalSet(_) | I::Drop => (1, 0),
+        I::Select => (3, 1),
+        I::I32Eqz
+        | I::I64Eqz
+        | I::I32WrapI64
+        | I::I64ExtendI32S
+        | I::I64ExtendI32U
+        | I::I32Clz
+        | I::I64Clz
+        | I::I32Ctz
+        | I::I64Ctz
+        | I::I32Popcnt
+        | I::I64Popcnt
+        | I::I32Extend8S
+        | I::I32Extend16S
+        | I::I32ReinterpretF32
+        | I::I64ReinterpretF64
+        | I::F32ReinterpretI32
+        | I::F64ReinterpretI64
+        | I::I32TruncSatF32S
+        | I::I32TruncSatF32U
+        | I::I32TruncSatF64S
+        | I::I32TruncSatF64U
+        | I::I64TruncSatF32S
+        | I::I64TruncSatF32U
+        | I::I64TruncSatF64S
+        | I::I64TruncSatF64U
+        | I::F32ConvertI32S
+        | I::F32ConvertI32U
+        | I::F32ConvertI64S
+        | I::F32ConvertI64U
+        | I::F64ConvertI32S
+        | I::F64ConvertI32U
+        | I::F64ConvertI64S
+        | I::F64ConvertI64U
+        | I::F32DemoteF64
+        | I::F64PromoteF32
+        | I::F32Neg
+        | I::F64Neg
+        | I::F32Abs
+        | I::F64Abs
+        | I::F32Trunc
+        | I::F64Trunc
+        | I::F32Floor
+        | I::F64Floor
+        | I::F32Ceil
+        | I::F64Ceil
+        | I::F32Nearest
+        | I::F64Nearest
+        | I::F32Sqrt
+        | I::F64Sqrt
+        | I::MemoryGrow(_) => (1, 1),
+        I::MemorySize(_) => (0, 1),
+        I::MemoryCopy { .. } | I::MemoryFill(_) => (3, 0),
+        I::I32Add
+        | I::I32Sub
+        | I::I32Mul
+        | I::I32And
+        | I::I32Or
+        | I::I32Xor
+        | I::I32Shl
+        | I::I32ShrU
+        | I::I32ShrS
+        | I::I32Eq
+        | I::I32Ne
+        | I::I32LtU
+        | I::I32LtS
+        | I::I32GtU
+        | I::I32GtS
+        | I::I32LeU
+        | I::I32LeS
+        | I::I32GeU
+        | I::I32GeS
+        | I::I64Add
+        | I::I64Sub
+        | I::I64Mul
+        | I::I64And
+        | I::I64Or
+        | I::I64Xor
+        | I::I64Shl
+        | I::I64ShrU
+        | I::I64ShrS
+        | I::I64Eq
+        | I::I64Ne
+        | I::I64LtU
+        | I::I64LtS
+        | I::I64GtU
+        | I::I64GtS
+        | I::I64LeU
+        | I::I64LeS
+        | I::I64GeU
+        | I::I64GeS
+        | I::I32DivS
+        | I::I32DivU
+        | I::I32RemS
+        | I::I32RemU
+        | I::I64DivS
+        | I::I64DivU
+        | I::I64RemS
+        | I::I64RemU
+        | I::F32Add
+        | I::F32Sub
+        | I::F32Mul
+        | I::F32Div
+        | I::F32Copysign
+        | I::F32Eq
+        | I::F32Ne
+        | I::F32Lt
+        | I::F32Gt
+        | I::F32Le
+        | I::F32Ge
+        | I::F64Add
+        | I::F64Sub
+        | I::F64Mul
+        | I::F64Div
+        | I::F64Copysign
+        | I::F64Eq
+        | I::F64Ne
+        | I::F64Lt
+        | I::F64Gt
+        | I::F64Le
+        | I::F64Ge => (2, 1),
+        other if is_load(other) => (1, 1),
+        other if with_offset(other, 0).is_some() => (2, 0),
         _ => return None,
     })
 }
@@ -3228,7 +3942,7 @@ fn block_end(b: &[Ins], at: usize) -> Option<usize> {
 
 /// Rule 17: each `br` to the function's exit block, after the sets of the
 /// locals the exit pushes, returns those values from the stack.
-fn exits(f: &mut Func) -> bool {
+pub fn exits(f: &mut Func) -> bool {
     let b = &f.body;
     let Some(end) = b
         .iter()
@@ -3547,7 +4261,7 @@ fn block_frames(f: &Func, visit: &mut impl FnMut()) -> Option<(Vec<BlockFrame>, 
     (stack.len() == 1).then_some((frames, ids))
 }
 
-fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
+pub fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
     let falls = no_op_controls(f, arity, &mut visit);
     if !falls.is_empty() {
         let mut origins = Remap::new(f.origins.as_deref());
@@ -3632,7 +4346,7 @@ fn blocks_with(f: &mut Func, arity: &Arity, mut visit: impl FnMut()) -> bool {
 /// branch targets, and in one that a branch targets, the branch is in the
 /// kept arm (the other is a lone `br` out of the `if`), which no rewrite
 /// that drops the `if` keeps.
-fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
+pub fn shapes(f: &mut Func, np: u32, arity: &Arity) -> bool {
     let mut changed = false;
     loop {
         let sites = ifs(&f.body);
@@ -3657,7 +4371,7 @@ fn short_circuit(arm: &[Ins]) -> Option<u32> {
 }
 
 /// How far [`operand_start`] walks back.
-const OPERAND_REACH: usize = 128;
+pub const OPERAND_REACH: usize = 128;
 
 /// The start of the run of instructions before `at`, in `at`'s block,
 /// that pushes the one operand `at` pops and reaches no stack value
@@ -3712,7 +4426,8 @@ fn operand_start(b: &[Ins], at: usize, arity: &Arity, symbols: &Symbols) -> Opti
 }
 
 /// Each `if` of `b`: its own index, its `else`'s and its `end`'s.
-fn ifs(b: &[Ins]) -> Vec<(usize, Option<usize>, usize)> {
+#[must_use]
+pub fn ifs(b: &[Ins]) -> Vec<(usize, Option<usize>, usize)> {
     let mut open: Vec<(usize, bool, Option<usize>)> = Vec::new();
     let mut out = Vec::new();
     for (k, i) in b.iter().enumerate() {
@@ -3906,7 +4621,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         return false;
     }
     let joins = constant_joins(&f.body);
-    let fixed = fixed_locals(f, static_params, &[], arity, &joins);
+    let fixed = fixed_locals(f, static_params, &[], &Writes::new(f, arity, &joins));
+    let mut found = Vec::new();
     let gone: Vec<(usize, usize)> = f
         .body
         .iter()
@@ -3914,7 +4630,11 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         .filter_map(|(k, ins)| {
             let (operands, drops) = rewrite(ins)?;
             (0..operands)
-                .all(|d| constant_before(f, k, d, &fixed, &[], arity, &joins))
+                .all(|d| {
+                    found.clear();
+                    sources(f, (k, d), arity, &joins, &mut found)
+                        && all_constant(f, &found, &fixed, &[])
+                })
                 .then_some((k, drops))
         })
         .collect();
@@ -3951,15 +4671,30 @@ fn producer(
     arity: &Arity,
     symbols: &Symbols,
 ) -> Option<(usize, usize)> {
+    producer_with(body, at, depth, arity, symbols, |_, _| false)
+}
+
+/// One backward walk shared by straight-line queries and scalar joins.
+/// A join callback stops the walk after recording the arms to visit.
+fn producer_with(
+    body: &[Ins],
+    at: usize,
+    depth: usize,
+    arity: &Arity,
+    symbols: &Symbols,
+    mut join: impl FnMut(usize, usize) -> bool,
+) -> Option<(usize, usize)> {
     let mut above = depth;
     for j in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
+        if join(j, above) {
+            return None;
+        }
         let (pops, pushes) = effect(&body[j], arity, symbols)?;
         if above >= pushes {
             above = above - pushes + pops;
         } else if matches!(body[j], Ins::Op(I::LocalTee(_))) {
-            if above != 0 {
-                return None;
-            }
+            // ruled out: a nonzero depth here; LocalTee pushes one and
+            // this branch requires above < pushes.
             above = 0;
         } else {
             return Some((j, pushes - 1 - above));
@@ -4024,85 +4759,88 @@ fn constant_joins(body: &[Ins]) -> Vec<Option<usize>> {
     joins
 }
 
-fn constant_before(
+/// Appends to `out` the producers the value `depth` places below the
+/// stack top before `at` comes from: its one producer, or every arm's of
+/// the scalar `if`s it joins (`constant_joins`). False, with `out` as it
+/// was, where the walk cannot tell. It reads no fact, so a fixed point
+/// over the facts walks each value once, as SCCP builds its def-use
+/// graph once and iterates only the lattice.
+fn sources(
     f: &Func,
-    at: usize,
-    depth: usize,
-    fixed: &[bool],
-    results: &[Vec<bool>],
+    (at, depth): (usize, usize),
     arity: &Arity,
     joins: &[Option<usize>],
+    out: &mut Vec<(usize, usize)>,
 ) -> bool {
-    if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
-        return constant_at(&f.body[p], result, fixed, results);
-    }
-    if joins.is_empty() {
-        return false;
-    }
+    let start = out.len();
     let mut work = vec![(at, depth)];
     while let Some((at, depth)) = work.pop() {
-        if let Some((p, result)) = producer(&f.body, at, depth, arity, &f.symbols) {
-            if !constant_at(&f.body[p], result, fixed, results) {
-                return false;
-            }
-            continue;
-        }
-        let mut above = depth;
         let mut joined = false;
-        for p in (at.saturating_sub(PRODUCER_REACH)..at).rev() {
+        let found = producer_with(&f.body, at, depth, arity, &f.symbols, |p, above| {
             if above == 0
                 && let Some(Some(otherwise)) = joins.get(p)
             {
                 work.extend([(*otherwise, 0), (p, 0)]);
                 joined = true;
-                break;
             }
-            let Some((pops, pushes)) = effect(&f.body[p], arity, &f.symbols) else {
-                return false;
-            };
-            if above >= pushes {
-                above = above - pushes + pops;
-            } else if matches!(f.body[p], Ins::Op(I::LocalTee(_))) {
-                above = 0;
-            } else {
-                return false;
-            }
-        }
-        if !joined {
+            joined
+        });
+        if let Some(found) = found {
+            out.push(found);
+        } else if !joined {
+            out.truncate(start);
             return false;
         }
     }
     true
 }
 
-type LocalWrite = (usize, usize, Option<(usize, usize)>);
-
-fn fixed_locals(
+/// Whether every producer in `sources` gives a constant.
+fn all_constant(
     f: &Func,
-    params: &[bool],
+    sources: &[(usize, usize)],
+    fixed: &[bool],
     results: &[Vec<bool>],
-    arity: &Arity,
-    joins: &[Option<usize>],
-) -> Vec<bool> {
+) -> bool {
+    (sources.iter()).all(|&(p, result)| constant_at(&f.body[p], result, fixed, results))
+}
+
+/// Each local write's local and the range of [`Writes::sources`] its
+/// value comes from, `None` where unknown ([`sources`]).
+#[derive(Default)]
+struct Writes {
+    writes: Vec<(usize, Option<std::ops::Range<usize>>)>,
+    sources: Vec<(usize, usize)>,
+}
+
+impl Writes {
+    fn new(f: &Func, arity: &Arity, joins: &[Option<usize>]) -> Self {
+        let mut me = Self::default();
+        for (k, ins) in f.body.iter().enumerate() {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins {
+                let start = me.sources.len();
+                let known = sources(f, (k, 0), arity, joins, &mut me.sources);
+                me.writes
+                    .push((*l as usize, known.then_some(start..me.sources.len())));
+            }
+        }
+        me
+    }
+}
+
+fn fixed_locals(f: &Func, params: &[bool], results: &[Vec<bool>], writes: &Writes) -> Vec<bool> {
     let np = f.params.len();
     let mut fixed = vec![false; np + f.locals.len()];
     fixed[..np].copy_from_slice(&params[..np]);
-    let mut writes: Vec<LocalWrite> = Vec::new();
-    for (k, ins) in f.body.iter().enumerate() {
-        if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins {
-            writes.push((*l as usize, k, producer(&f.body, k, 0, arity, &f.symbols)));
-        }
-    }
     let mut grew = true;
     while grew {
         let mut open = vec![true; fixed.len()];
-        for &(l, at, from) in &writes {
-            let constant = from.map_or_else(
-                || constant_before(f, at, 0, &fixed, results, arity, joins),
-                |(p, result)| constant_at(&f.body[p], result, &fixed, results),
-            );
+        for (l, from) in &writes.writes {
+            let constant = from
+                .clone()
+                .is_some_and(|r| all_constant(f, &writes.sources[r], &fixed, results));
             if !constant {
-                open[l] = false;
+                open[*l] = false;
             }
         }
         for l in 0..np {
@@ -4409,2825 +5147,4 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     f.origin_at = outer;
     f.at = outer_anchor;
     true
-}
-
-#[cfg(test)]
-mod origin_tests {
-    use super::*;
-    use crate::module::{HEAP, Val, mem};
-    use wasm_encoder::BlockType;
-
-    fn batch_branch_shapes(f: &mut Func) -> bool {
-        let sites = ifs(&f.body);
-        branch_shapes::run(f, &sites)
-    }
-
-    #[test]
-    fn an_ungenerated_helper_has_enough_shape_to_remove_fallthrough_controls() {
-        let symbols = Symbols::default();
-        let target = symbols.intern(Sym::Helper(Helper::NewFixed { size: 4 }));
-        let descriptor = symbols.intern(Sym::Helper(Helper::FreeFrame));
-        let mut function = Func::default();
-        function.symbols = symbols.clone();
-        function.body = vec![
-            Ins::Op(I::Block(BlockType::Empty)),
-            Ins::Op(I::I32Const(4)),
-            Ins::Descriptor(descriptor, crate::module::DescriptorKey::default()),
-            Ins::Call(target, None),
-            Ins::Op(I::Drop),
-            Ins::Op(I::Br(0)),
-            Ins::Op(I::End),
-        ];
-        let mut unknown = function.clone();
-        blocks(&mut unknown, &vec![]);
-        assert!(
-            unknown
-                .body
-                .iter()
-                .any(|instruction| matches!(instruction, Ins::Op(I::Br(0))))
-        );
-        let arities = symbols.call_arities(&[]);
-        assert_eq!(arities[target.idx()], Some((2, 1)));
-        assert!(blocks(&mut function, &arities));
-        assert!(
-            function
-                .body
-                .iter()
-                .any(|instruction| matches!(instruction, Ins::Call(id, _) if *id == target))
-        );
-        assert!(
-            !function
-                .body
-                .iter()
-                .any(|instruction| matches!(instruction, Ins::Op(I::Br(_) | I::Block(_) | I::End)))
-        );
-    }
-
-    fn call(symbols: &Symbols, symbol: Sym) -> Ins {
-        Ins::Call(symbols.intern(symbol), None)
-    }
-
-    fn tracked(symbols: &Symbols, params: usize, locals: usize, body: Vec<Ins>) -> Func {
-        let mut f =
-            crate::module::Module::default().func("origins", vec![Val::I32; params], vec![]);
-        f.symbols = symbols.clone();
-        f.locals = vec![Val::I32; locals];
-        f.origins = Some(
-            (0..body.len())
-                .map(|i| Some(10 + u32::try_from(i).unwrap()))
-                .collect(),
-        );
-        f.body = body;
-        f
-    }
-
-    fn run(mut f: Func, pass: impl Fn(&mut Func)) -> Func {
-        let mut plain = f.clone();
-        plain.origins = None;
-        pass(&mut plain);
-        pass(&mut f);
-        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
-        assert_eq!(f.origins.as_ref().unwrap().len(), f.body.len());
-        f
-    }
-
-    fn spans(f: &Func) -> Vec<u32> {
-        f.origins
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|s| s.expect("retained source"))
-            .collect()
-    }
-
-    #[test]
-    fn call_anchors_do_not_block_local_rules_and_follow_surviving_calls() {
-        let module = crate::module::Module::default();
-        let mut f = module.func("anchored", vec![Val::I32], vec![]);
-        let temporary = f.local(Val::I32);
-        f.get(0);
-        f.set(temporary);
-        f.get(temporary);
-        f.at = Some(99);
-        f.helper(Helper::ReleaseRef);
-        let mut plain = f.clone();
-        for ins in &mut plain.body {
-            if let Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) = ins {
-                *anchor = None;
-            }
-        }
-        let arity = f.symbols.call_arities(&[]);
-        for body in [&mut f, &mut plain] {
-            locals(body, &arity);
-            coalesce(body);
-        }
-        assert!(
-            !f.body
-                .iter()
-                .any(|ins| matches!(ins, Ins::Op(I::LocalTee(_))))
-        );
-        assert_eq!(f.body.len(), 2);
-        assert!(f.body.iter().any(|ins| ins.call_anchor() == Some(99)));
-        for ins in &mut f.body {
-            if let Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) = ins {
-                *anchor = None;
-            }
-        }
-        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
-    }
-
-    #[test]
-    fn count_expansion_preserves_the_call_anchor_and_restores_the_emitter() {
-        let module = crate::module::Module::default();
-        let mut f = module.func("count", vec![Val::I32], vec![]);
-        f.get(0);
-        f.at = Some(37);
-        f.helper(Helper::ReleaseKnown);
-        f.at = Some(85);
-        assert!(inline_counts(&mut f, false));
-        assert_eq!(f.at, Some(85));
-        let calls: Vec<_> = f
-            .body
-            .iter()
-            .filter_map(|ins| match ins {
-                Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) => Some(*anchor),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(calls, [Some(37)]);
-    }
-
-    #[test]
-    fn count_guards_copy_the_call_anchor_to_skipped_paths() {
-        let module = crate::module::Module::default();
-        let mut f = module.func("guard", vec![Val::I32], vec![]);
-        f.get(0);
-        f.at = Some(37);
-        f.helper(Helper::RetainKnown);
-        f.at = Some(85);
-        assert!(crate::count_tests::lower(
-            &mut f,
-            crate::count_tests::Counts {
-                retain: Hash128(1),
-                acyclic: false,
-                known_inlined: false,
-                skipped: Some(Hash128(2)),
-            }
-        ));
-        assert_eq!(f.at, Some(85));
-        let calls: Vec<_> = f
-            .body
-            .iter()
-            .filter_map(|ins| match ins {
-                Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) => Some(*anchor),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(calls, [Some(37), Some(37), Some(37)]);
-    }
-
-    #[test]
-    fn anchors_add_no_instruction_nodes_at_width_1000() {
-        for width in [100, 1000] {
-            let module = crate::module::Module::default();
-            let mut f = module.func("width", vec![], vec![]);
-            for at in 0..width {
-                f.at = Some(at);
-                f.helper(Helper::ReleaseKnown);
-            }
-            assert_eq!(f.body.len(), width as usize);
-            assert!(f.body.iter().enumerate().all(|(at, ins)| {
-                ins.call_anchor().and_then(|a| usize::try_from(a).ok()) == Some(at)
-            }));
-        }
-    }
-
-    #[test]
-    fn a_constant_bulk_width_survives_empty_inlining_blocks() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for bulk in [
-            I::MemoryCopy {
-                src_mem: 0,
-                dst_mem: 0,
-            },
-            I::MemoryFill(0),
-        ] {
-            let f = run(
-                tracked(
-                    &symbols,
-                    2,
-                    1,
-                    vec![
-                        op(I::I32Const(1)),
-                        op(I::LocalSet(2)),
-                        op(I::Block(wasm_encoder::BlockType::Empty)),
-                        op(I::Block(wasm_encoder::BlockType::Empty)),
-                        op(I::LocalGet(0)),
-                        op(I::LocalGet(1)),
-                        op(I::LocalGet(2)),
-                        op(bulk),
-                        op(I::End),
-                        op(I::End),
-                    ],
-                ),
-                |f| {
-                    assert!(forward(f, 2));
-                    assert!(crate::bulk::lower(f, |_, _| None));
-                },
-            );
-            assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::I32Store8(_)))));
-            assert!(!f.body.iter().any(|i| matches!(
-                i,
-                Ins::Call(_, _) | Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
-            )));
-        }
-    }
-
-    #[test]
-    fn forwarding_work_is_linear_at_width_1000_depth_20() -> Result<(), String> {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for width in [1usize, 1000] {
-            for depth in [1usize, 20] {
-                let local = |lane: usize, level: usize| {
-                    u32::try_from(1 + lane * (depth + 1) + level).map_err(|e| e.to_string())
-                };
-                let mut body = Vec::new();
-                for lane in 0..width {
-                    for level in 0..=depth {
-                        let source = if level == 0 {
-                            0
-                        } else {
-                            local(lane, level - 1)?
-                        };
-                        body.push(op(I::LocalGet(source)));
-                        body.push(op(I::LocalSet(local(lane, level)?)));
-                    }
-                }
-                for lane in 0..width {
-                    body.push(op(I::LocalGet(local(lane, depth)?)));
-                    body.push(op(I::Drop));
-                }
-                let n = body.len();
-                let mut f = tracked(&symbols, 1, width * (depth + 1), body);
-                let mut work = 0;
-                assert!(forward_with(&mut f, 1, || work += 1));
-                // Four instruction walks and at most one query per position.
-                // Long-distance uses and copy-chain depth add no rescans.
-                assert!(
-                    work <= 5 * n,
-                    "{width} x {depth}: {work} visits / {n} instructions"
-                );
-                assert_eq!(f.body.len(), 2 * width);
-                for chunk in f.body.chunks_exact(2) {
-                    assert!(matches!(chunk, [Ins::Op(I::LocalGet(0)), Ins::Op(I::Drop)]));
-                }
-                let origins = spans(&f);
-                for lane in 0..width {
-                    assert_eq!(
-                        origins[2 * lane],
-                        10 + u32::try_from(2 * lane * (depth + 1)).map_err(|e| e.to_string())?
-                    );
-                }
-            }
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn forwarding_relinks_newly_adjacent_copies() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                3,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(3)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(1)),
-                    op(I::LocalSet(2)),
-                    op(I::LocalSet(3)),
-                    op(I::LocalGet(2)),
-                    op(I::Drop),
-                    op(I::LocalGet(3)),
-                    op(I::Drop),
-                ],
-            ),
-            |f| {
-                assert!(forward(f, 1));
-            },
-        );
-        assert!(matches!(
-            f.body.as_slice(),
-            [
-                Ins::Op(I::I32Const(3)),
-                Ins::Op(I::Drop),
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::Drop)
-            ]
-        ));
-        assert_eq!(spans(&f), [11, 17, 10, 19]);
-    }
-
-    #[test]
-    fn forwarding_preserves_local_and_global_clobbers() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let global = symbols.intern_global(Global::HashSeed);
-        let other = symbols.intern_global(Global::Forbid);
-        let effect = call(
-            &symbols,
-            Sym::Import(crate::module::Import::new("test", "change", &[], &[])),
-        );
-        for (source, between, allowed) in [
-            (
-                op(I::LocalGet(0)),
-                vec![op(I::I32Const(9)), op(I::LocalSet(0))],
-                false,
-            ),
-            (
-                op(I::LocalGet(0)),
-                vec![op(I::I32Const(9)), op(I::LocalSet(2))],
-                true,
-            ),
-            (
-                Ins::GlobalGet(global),
-                vec![op(I::I32Const(9)), Ins::GlobalSet(global)],
-                false,
-            ),
-            (
-                Ins::GlobalGet(global),
-                vec![op(I::I32Const(9)), Ins::GlobalSet(other)],
-                true,
-            ),
-            (Ins::GlobalGet(global), vec![effect], false),
-        ] {
-            let mut body = vec![source, op(I::LocalSet(1))];
-            body.extend(between);
-            body.extend([op(I::LocalGet(1)), op(I::Drop)]);
-            let original = format!("{body:?}");
-            let mut f = tracked(&symbols, 1, 2, body);
-            assert_eq!(forward(&mut f, 1), allowed);
-            if allowed {
-                assert!(matches!(f.body.last(), Some(Ins::Op(I::Drop))));
-                assert_eq!(
-                    format!("{:?}", f.body[f.body.len() - 2]),
-                    format!("{source:?}")
-                );
-            } else {
-                assert_eq!(format!("{:?}", f.body), original);
-            }
-        }
-    }
-
-    #[test]
-    fn an_ordinary_store_keeps_its_constant_outside_the_block() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::I32Const(1 << 30)),
-                    op(I::LocalSet(1)),
-                    op(I::Block(wasm_encoder::BlockType::Empty)),
-                    op(I::Block(wasm_encoder::BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::LocalGet(1)),
-                    op(I::I32Store(wasm_encoder::MemArg {
-                        offset: 0,
-                        align: 2,
-                        memory_index: 0,
-                    })),
-                    op(I::End),
-                    op(I::End),
-                ],
-            ),
-            |f| {
-                assert!(!forward(f, 1));
-            },
-        );
-        assert_eq!(spans(&f), (10..19).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn constant_forwarding_still_stops_at_conditional_and_loop_edges() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for (edge, conditional, produces) in [
-            (I::If(wasm_encoder::BlockType::Empty), true, false),
-            (I::Loop(wasm_encoder::BlockType::Empty), false, false),
-            (
-                I::Block(wasm_encoder::BlockType::Result(wasm_encoder::ValType::I32)),
-                false,
-                true,
-            ),
-        ] {
-            let mut body = vec![op(I::I32Const(1)), op(I::LocalSet(1))];
-            if conditional {
-                body.push(op(I::LocalGet(0)));
-            }
-            body.extend([op(edge), op(I::LocalGet(1))]);
-            if !produces {
-                body.push(op(I::Drop));
-            }
-            body.push(op(I::End));
-            if produces {
-                body.push(op(I::Drop));
-            }
-            let mut f = tracked(&symbols, 1, 1, body);
-            assert!(!forward(&mut f, 1));
-        }
-        // A read after the end of a conditional store may still see zero.
-        let mut f = tracked(
-            &symbols,
-            1,
-            1,
-            vec![
-                op(I::LocalGet(0)),
-                op(I::If(wasm_encoder::BlockType::Empty)),
-                op(I::I32Const(1)),
-                op(I::LocalSet(1)),
-                op(I::End),
-                op(I::LocalGet(1)),
-                op(I::Drop),
-            ],
-        );
-        assert!(!forward(&mut f, 1));
-    }
-
-    #[test]
-    fn origins_follow_local_cleanup_forwarding_and_scheduling() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![op(I::LocalGet(0)), op(I::LocalSet(1)), op(I::LocalGet(1))],
-            ),
-            |f| locals(f, &Arity::new()),
-        );
-        assert_eq!(spans(&f), [10]);
-        let f = run(
-            tracked(&symbols, 0, 1, vec![op(I::I32Const(7)), op(I::LocalSet(0))]),
-            |f| locals(f, &Arity::new()),
-        );
-        assert!(spans(&f).is_empty());
-        let f = run(
-            tracked(&symbols, 0, 1, vec![op(I::I32Const(7)), op(I::LocalTee(0))]),
-            |f| locals(f, &Arity::new()),
-        );
-        assert_eq!(spans(&f), [10]);
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::I32Const(1)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(0)),
-                    op(I::I32Eqz),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(1)),
-                    op(I::LocalGet(1)),
-                    op(I::I32Add),
-                ],
-            ),
-            |f| locals(f, &Arity::new()),
-        );
-        assert!(
-            f.body
-                .iter()
-                .zip(f.origins.as_ref().unwrap())
-                .any(|(i, s)| matches!(i, Ins::Op(I::LocalTee(_))) && *s == Some(14))
-        );
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::LocalSet(1)),
-                    op(I::I32Const(2)),
-                    op(I::Drop),
-                    op(I::LocalGet(1)),
-                ],
-            ),
-            |f| {
-                assert!(forward(f, 1));
-            },
-        );
-        assert_eq!(spans(&f), [12, 13, 10]);
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                0,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(4)),
-                    op(I::I32Add),
-                    op(I::I32Const(9)),
-                    op(I::I32Store(mem(HEAP, 0, 2))),
-                ],
-            ),
-            |f| {
-                assert!(schedule(f, 1, &Arity::new()));
-            },
-        );
-        assert_eq!(spans(&f), [10, 13, 11]);
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                2,
-                vec![
-                    op(I::I32Const(1)),
-                    op(I::LocalSet(0)),
-                    op(I::I32Const(2)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(0)),
-                    op(I::LocalGet(1)),
-                    op(I::I32Add),
-                ],
-            ),
-            |f| {
-                assert!(schedule(f, 0, &Arity::new()));
-            },
-        );
-        // Rule 9 takes precedence here, moving the second value before its producer.
-        assert_eq!(spans(&f), [10, 11, 14, 12, 16]);
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                1,
-                vec![
-                    op(I::I32Const(3)),
-                    op(I::LocalSet(0)),
-                    op(I::I32Const(5)),
-                    op(I::LocalGet(0)),
-                    op(I::I32Sub),
-                ],
-            ),
-            |f| {
-                assert!(schedule(f, 0, &Arity::new()));
-            },
-        );
-        assert_eq!(spans(&f), [12, 10, 14]);
-    }
-
-    fn validate_void_block_fixture(f: &Func) {
-        use wasm_encoder::{CodeSection, Function, FunctionSection, Module, TypeSection, ValType};
-        let mut types = TypeSection::new();
-        types.ty().function(vec![ValType::I32; f.params.len()], []);
-        types.ty().function([ValType::I32], [ValType::I32]);
-        let mut functions = FunctionSection::new();
-        functions.function(0);
-        let mut code =
-            Function::new_with_locals_types(std::iter::repeat_n(ValType::I32, f.locals.len()));
-        for ins in &f.body {
-            if let Ins::Op(op) = ins {
-                code.instruction(&op.to_wasm(&f.labels));
-            }
-        }
-        code.instruction(&wasm_encoder::Instruction::End);
-        let mut codes = CodeSection::new();
-        codes.function(&code);
-        let mut module = Module::new();
-        module.section(&types).section(&functions).section(&codes);
-        let validation = wasmparser::Validator::new().validate_all(&module.finish());
-        assert!(validation.is_ok(), "{:?}", validation.err());
-    }
-
-    #[test]
-    fn void_blocks_rewrite_nested_branches_and_shared_tables() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let mut f = tracked(
-            &symbols,
-            1,
-            0,
-            vec![
-                op(I::Block(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(1)),
-                op(I::Block(BlockType::Empty)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(2)),
-                op(I::End),
-                op(I::End),
-                op(I::End),
-            ],
-        );
-        validate_void_block_fixture(&f);
-        assert!(blocks(&mut f, &vec![]));
-        validate_void_block_fixture(&f);
-        assert_eq!(spans(&f), [10, 12, 13, 15, 16, 19]);
-        assert!(matches!(f.body[2], Ins::Op(I::BrIf(0))));
-        assert!(matches!(f.body[4], Ins::Op(I::BrIf(0))));
-
-        let mut f = tracked(
-            &symbols,
-            1,
-            0,
-            vec![
-                op(I::Block(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(2)),
-                op(I::End),
-                op(I::End),
-            ],
-        );
-        validate_void_block_fixture(&f);
-        assert!(blocks(&mut f, &vec![]));
-        validate_void_block_fixture(&f);
-        assert!(matches!(
-            f.body.as_slice(),
-            [Ins::Op(I::LocalGet(0)), Ins::Op(I::BrIf(0))]
-        ));
-
-        let mut f = tracked(
-            &symbols,
-            0,
-            0,
-            vec![
-                op(I::Block(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-                op(I::Br(2)),
-                op(I::End),
-                op(I::End),
-                op(I::End),
-            ],
-        );
-        validate_void_block_fixture(&f);
-        assert!(blocks(&mut f, &vec![]));
-        validate_void_block_fixture(&f);
-        assert!(matches!(f.body[2], Ins::Op(I::Br(1))));
-
-        let mut body = Vec::new();
-        for keep_middle in [false, true] {
-            body.extend([
-                op(I::Block(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-            ]);
-            if keep_middle {
-                body.extend([op(I::LocalGet(0)), op(I::BrIf(0))]);
-            }
-            body.extend([
-                op(I::Loop(BlockType::Empty)),
-                op(I::Block(BlockType::Empty)),
-                op(I::LocalGet(0)),
-                op(I::BrTable(LabelListId(0), 3)),
-                op(I::End),
-                op(I::End),
-                op(I::End),
-                op(I::End),
-            ]);
-        }
-        let mut f = tracked(&symbols, 1, 0, body);
-        f.labels.push(vec![1, 3]);
-        validate_void_block_fixture(&f);
-        assert!(blocks(&mut f, &vec![]));
-        validate_void_block_fixture(&f);
-        assert_eq!(f.label_list(LabelListId(0)), [1, 3]);
-        let tables: Vec<_> = f
-            .body
-            .iter()
-            .filter_map(|ins| match ins {
-                Ins::Op(I::BrTable(table, default)) => Some((f.label_list(*table), *default)),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            tables,
-            [(vec![1, 2].as_slice(), 2), (vec![1, 3].as_slice(), 3)]
-        );
-    }
-
-    #[test]
-    fn void_blocks_keep_typed_parameters_and_polymorphic_boundaries() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let f = tracked(
-            &symbols,
-            0,
-            0,
-            vec![
-                op(I::Block(BlockType::Result(wasm_encoder::ValType::I32))),
-                op(I::I32Const(1)),
-                op(I::End),
-                op(I::Drop),
-                op(I::I32Const(1)),
-                op(I::Block(BlockType::FunctionType(1))),
-                op(I::I32Const(2)),
-                op(I::I32Add),
-                op(I::End),
-                op(I::Drop),
-                op(I::Block(BlockType::Empty)),
-                op(I::Unreachable),
-                op(I::End),
-                op(I::Block(BlockType::Empty)),
-                op(I::I32Const(3)),
-                op(I::Drop),
-                op(I::End),
-            ],
-        );
-        validate_void_block_fixture(&f);
-        let f = run(f, |f| {
-            assert!(blocks(f, &vec![]));
-        });
-        validate_void_block_fixture(&f);
-        assert_eq!(
-            f.body
-                .iter()
-                .filter(|ins| matches!(ins, Ins::Op(I::Block(_))))
-                .count(),
-            3
-        );
-        assert_eq!(spans(&f), (10..23).chain(24..26).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn void_blocks_have_linear_work_at_width_and_depth() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for (width, depth) in [(1000, 1), (1000, 20), (1, 10_000)] {
-            let mut body = Vec::new();
-            for _ in 0..width {
-                body.extend(std::iter::repeat_n(op(I::Block(BlockType::Empty)), depth));
-                body.extend([op(I::LocalGet(0)), op(I::Drop)]);
-                body.extend(std::iter::repeat_n(op(I::End), depth));
-            }
-            let n = body.len();
-            let mut f = tracked(&symbols, 1, 0, body);
-            validate_void_block_fixture(&f);
-            let mut visits = 0;
-            assert!(blocks_with(&mut f, &vec![], || visits += 1));
-            assert_eq!(f.body.len(), 2 * width);
-            assert_eq!(visits, 3 * n);
-            assert_eq!(f.origins.as_ref().map(Vec::len), Some(2 * width));
-            validate_void_block_fixture(&f);
-            eprintln!(
-                "void blocks width {width}, depth {depth}: {visits} visits for {n} instructions"
-            );
-        }
-    }
-
-    /// Rule 18: a `br 0` that only falls through goes, and a void block it
-    /// alone targeted goes with it, as does a void `if`'s empty `else`; a
-    /// loop's back edge, a branch that leaves values under its label's,
-    /// and a typed block stay.
-    #[test]
-    fn a_branch_to_the_next_end_goes_when_falling_through_matches_it() {
-        use wasm_encoder::ValType;
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let cases = [
-            (
-                // A void block's only branch, then the block.
-                vec![
-                    op(I::Block(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::Drop),
-                    op(I::Br(0)),
-                    op(I::End),
-                ],
-                vec![op(I::LocalGet(0)), op(I::Drop)],
-            ),
-            (
-                // A typed block keeps its label; its value is the stack's.
-                vec![
-                    op(I::Block(BlockType::Result(ValType::I32))),
-                    op(I::I32Const(1)),
-                    op(I::Br(0)),
-                    op(I::End),
-                    op(I::Drop),
-                ],
-                vec![
-                    op(I::Block(BlockType::Result(ValType::I32))),
-                    op(I::I32Const(1)),
-                    op(I::End),
-                    op(I::Drop),
-                ],
-            ),
-            (
-                // The branch discards the 1 under its value; falling through cannot.
-                vec![
-                    op(I::Block(BlockType::Result(ValType::I32))),
-                    op(I::I32Const(1)),
-                    op(I::I32Const(2)),
-                    op(I::Br(0)),
-                    op(I::End),
-                    op(I::Drop),
-                ],
-                vec![],
-            ),
-            (
-                // A loop's `br 0` is its back edge.
-                vec![
-                    op(I::Block(BlockType::Empty)),
-                    op(I::Loop(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::BrIf(1)),
-                    op(I::Br(0)),
-                    op(I::End),
-                    op(I::End),
-                ],
-                vec![],
-            ),
-            (
-                // A then arm's branch to its `if` before the `else`.
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::Br(0)),
-                    op(I::Else),
-                    op(I::LocalGet(0)),
-                    op(I::Drop),
-                    op(I::End),
-                ],
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::Else),
-                    op(I::LocalGet(0)),
-                    op(I::Drop),
-                    op(I::End),
-                ],
-            ),
-            (
-                // After `unreachable` the stack is polymorphic: the branch
-                // goes, and the block stays around the polymorphic boundary.
-                vec![
-                    op(I::Block(BlockType::Result(ValType::I32))),
-                    op(I::Unreachable),
-                    op(I::Br(0)),
-                    op(I::End),
-                    op(I::Drop),
-                ],
-                vec![
-                    op(I::Block(BlockType::Result(ValType::I32))),
-                    op(I::Unreachable),
-                    op(I::End),
-                    op(I::Drop),
-                ],
-            ),
-            (
-                // A void `if`'s empty `else`, after its then arm's branch.
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::Drop),
-                    op(I::Br(0)),
-                    op(I::Else),
-                    op(I::End),
-                ],
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::Drop),
-                    op(I::End),
-                ],
-            ),
-            (
-                // A value pushed after `unreachable` is still one too many
-                // for a void label to fall through with.
-                vec![
-                    op(I::Block(BlockType::Empty)),
-                    op(I::Unreachable),
-                    op(I::I32Const(1)),
-                    op(I::Br(0)),
-                    op(I::End),
-                ],
-                vec![],
-            ),
-        ];
-        for (body, want) in cases {
-            let f = tracked(&symbols, 1, 0, body.clone());
-            validate_void_block_fixture(&f);
-            let f = run(f, |f| {
-                blocks(f, &vec![]);
-            });
-            validate_void_block_fixture(&f);
-            let want = if want.is_empty() { body } else { want };
-            assert_eq!(format!("{:?}", f.body), format!("{want:?}"));
-        }
-    }
-
-    /// A body whose labels do not balance, or that branches past its
-    /// outermost label, keeps its blocks: Wasm validation reports it as
-    /// written.
-    #[test]
-    fn void_blocks_leave_an_invalid_body_as_written() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for body in [
-            vec![
-                op(I::Block(BlockType::Empty)),
-                op(I::I32Const(1)),
-                op(I::Drop),
-            ],
-            vec![op(I::Block(BlockType::Empty)), op(I::Br(2)), op(I::End)],
-        ] {
-            let mut f = tracked(&symbols, 0, 0, body.clone());
-            assert!(!blocks(&mut f, &vec![]));
-            assert_eq!(format!("{:?}", f.body), format!("{body:?}"));
-            assert_eq!(spans(&f), (10..13).collect::<Vec<_>>());
-        }
-    }
-
-    /// A constant address addend folds into a store's offset only while
-    /// the offset fits 32 bits; past that the store keeps its `i32.add`.
-    #[test]
-    fn a_store_offset_folds_only_while_it_fits_32_bits() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                0,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(32)),
-                    op(I::I32Add),
-                    op(I::I32Const(9)),
-                    op(I::I32Store(mem(HEAP, 0xFFFF_FFF0, 2))),
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(4)),
-                    op(I::I32Add),
-                    op(I::I32Const(9)),
-                    op(I::I32Store(mem(HEAP, 0, 2))),
-                ],
-            ),
-            |f| {
-                assert!(schedule(f, 1, &Arity::new()));
-            },
-        );
-        assert!(matches!(f.body[2], Ins::Op(I::I32Add)));
-        assert!(matches!(f.body[4], Ins::Op(I::I32Store(m)) if m.offset == 0xFFFF_FFF0));
-        assert!(matches!(f.body[7], Ins::Op(I::I32Store(m)) if m.offset == 4));
-        assert_eq!(f.body.len(), 8);
-        assert_eq!(spans(&f), [10, 11, 12, 13, 14, 15, 18, 16]);
-    }
-
-    #[test]
-    fn scheduling_visits_are_linear_at_width_and_depth() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for (width, depth) in [(256u32, 1u32), (1024, 1), (1, 1024)] {
-            let mut body = Vec::new();
-            for w in 0..width {
-                body.extend([
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(4)),
-                    op(I::I32Add),
-                    op(I::I32Const(9)),
-                    op(I::I32Store(mem(HEAP, 0, 2))),
-                    op(I::LocalGet(0)),
-                ]);
-                for d in 0..depth {
-                    let local = 1 + w * depth + d;
-                    body.extend([
-                        op(I::LocalSet(local)),
-                        op(I::I32Const(5)),
-                        op(I::LocalGet(local)),
-                        op(I::I32Sub),
-                    ]);
-                }
-                body.push(op(I::Drop));
-            }
-            let before = body.len();
-            let mut f = tracked(&symbols, 1, (width * depth) as usize, body);
-            let mut visits = 0;
-            assert!(schedule_with(&mut f, 1, &Arity::new(), || visits += 1));
-            assert_eq!(f.body.len(), (width * (5 + 2 * depth)) as usize);
-            assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
-            assert!(
-                visits <= 9 * before,
-                "{visits} scheduling visits for {before} instructions"
-            );
-            eprintln!(
-                "scheduling width {width}, depth {depth}: {visits} visits for {before} instructions"
-            );
-            let mut settled = 0;
-            assert!(!schedule_with(&mut f, 1, &Arity::new(), || settled += 1));
-            assert!(settled <= 5 * f.body.len());
-            for chunk in f.body.chunks_exact((5 + 2 * depth) as usize) {
-                assert!(matches!(chunk[2], Ins::Op(I::I32Store(m)) if m.offset == 4));
-                assert!(
-                    chunk[3..3 + depth as usize]
-                        .iter()
-                        .all(|i| matches!(i, Ins::Op(I::I32Const(5))))
-                );
-                assert!(matches!(chunk[3 + depth as usize], Ins::Op(I::LocalGet(0))));
-            }
-        }
-    }
-
-    #[test]
-    fn scheduling_indexes_nested_store_regions_once() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for depth in [1000, 4000] {
-            let mut body = Vec::new();
-            for _ in 0..depth {
-                body.extend([op(I::LocalGet(0)), op(I::I32Const(4)), op(I::I32Add)]);
-            }
-            for _ in 0..depth {
-                body.extend([op(I::I32Const(9)), op(I::I32Store(mem(HEAP, 0, 2)))]);
-            }
-            let n = body.len();
-            let mut f = tracked(&symbols, 1, 0, body);
-            let mut visits = 0;
-            assert!(schedule_with(&mut f, 1, &Arity::new(), || visits += 1));
-            assert_eq!(f.body.len(), 3 * depth);
-            assert!(visits <= 9 * n, "{visits} visits for {n} instructions");
-            assert!(
-                f.body[..depth]
-                    .iter()
-                    .all(|i| matches!(i, Ins::Op(I::LocalGet(0))))
-            );
-            assert!(f.body[depth..].chunks_exact(2).all(|pair| matches!(pair, [Ins::Op(I::I32Const(9)), Ins::Op(I::I32Store(m))] if m.offset == 4)));
-            eprintln!("scheduling nested stores {depth}: {visits} visits for {n} instructions");
-        }
-    }
-
-    #[test]
-    fn scheduling_keeps_global_reads_after_calls_and_writes() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let global = symbols.intern_global(Global::HeapTop);
-        let call = call(
-            &symbols,
-            Sym::Import(crate::module::Import::new("fixture", "effect", &[], &[])),
-        );
-        for effect in [vec![call], vec![op(I::I32Const(2)), Ins::GlobalSet(global)]] {
-            let mut body = vec![op(I::I32Const(1))];
-            body.extend(effect);
-            body.extend([
-                op(I::LocalSet(0)),
-                Ins::GlobalGet(global),
-                op(I::LocalGet(0)),
-                op(I::I32Sub),
-                op(I::Drop),
-            ]);
-            let mut f = tracked(&symbols, 0, 1, body);
-            let before = spans(&f);
-            assert!(!schedule(&mut f, 0, &Arity::new()));
-            assert_eq!(spans(&f), before);
-        }
-    }
-
-    #[test]
-    fn scheduling_respects_clobbers_and_multi_result_boundaries() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let multi = call(
-            &symbols,
-            Sym::Import(crate::module::Import {
-                module: "fixture".to_owned(),
-                name: "multi".to_owned(),
-                params: vec![],
-                results: vec![Val::I32; 2],
-            }),
-        );
-        let mut f = tracked(
-            &symbols,
-            1,
-            2,
-            vec![
-                op(I::I32Const(1)),
-                op(I::LocalTee(0)),
-                op(I::LocalSet(1)),
-                op(I::LocalGet(0)),
-                op(I::LocalGet(1)),
-                op(I::I32Sub),
-                op(I::Drop),
-                multi,
-                op(I::LocalSet(2)),
-                op(I::I32Const(2)),
-                op(I::LocalGet(2)),
-                op(I::I32Sub),
-                op(I::Drop),
-                op(I::Drop),
-            ],
-        );
-        assert!(!schedule(&mut f, 1, &Arity::new()));
-        assert_eq!(spans(&f), (10..24).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn fold_clears_nested_empty_blocks_in_one_walk() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let depth = 4096;
-        let mut body = vec![op(I::LocalGet(0)), op(I::I32Const(1)), op(I::I32Mul)];
-        body.extend(std::iter::repeat_n(op(I::Block(BlockType::Empty)), depth));
-        body.push(op(I::Br(0)));
-        body.extend(std::iter::repeat_n(op(I::End), depth));
-        // Keep a real branch to the enclosing block, and keep a loop's
-        // self-branch: it repeats instead of exiting.
-        body.extend([
-            op(I::Block(BlockType::Empty)),
-            op(I::Block(BlockType::Empty)),
-            op(I::Br(1)),
-            op(I::End),
-            op(I::End),
-            op(I::Loop(BlockType::Empty)),
-            op(I::Br(0)),
-            op(I::End),
-        ]);
-        let mut f = tracked(&symbols, 1, 0, body);
-        assert!(fold(&mut f));
-        assert_eq!(f.body.len(), 9);
-        assert!(matches!(f.body[0], Ins::Op(I::LocalGet(0))));
-        assert!(matches!(f.body[3], Ins::Op(I::Br(1))));
-        assert!(matches!(f.body[6], Ins::Op(I::Loop(BlockType::Empty))));
-        assert!(matches!(f.body[7], Ins::Op(I::Br(0))));
-        assert_eq!(spans(&f)[0], 10);
-        assert!(!fold(&mut f));
-    }
-
-    #[test]
-    fn origins_follow_folds_and_both_control_shapes() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let mut f = tracked(
-            &symbols,
-            1,
-            0,
-            vec![op(I::LocalGet(0)), op(I::I32Const(0)), op(I::I32Eq)],
-        );
-        f.origins.as_mut().unwrap()[1] = None;
-        let f = run(f, |f| {
-            assert!(fold(f));
-        });
-        assert_eq!(spans(&f), [10, 12]);
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                0,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::I32Const(7)),
-                    op(I::Drop),
-                    op(I::Else),
-                    op(I::Br(1)),
-                    op(I::End),
-                ],
-            ),
-            |f| {
-                assert!(shapes(f, 1, &Vec::new()));
-            },
-        );
-        assert_eq!(spans(&f), [10, 11, 11, 12, 13]);
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::I32Const(7)),
-                    op(I::LocalSet(1)),
-                    op(I::Else),
-                    op(I::I32Const(8)),
-                    op(I::LocalSet(1)),
-                    op(I::End),
-                    op(I::LocalGet(1)),
-                ],
-            ),
-            |f| {
-                assert!(shapes(f, 1, &Vec::new()));
-            },
-        );
-        assert_eq!(spans(&f), [10, 11, 12, 14, 15, 17]);
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                0,
-                vec![
-                    op(I::I32Const(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::I32Const(10)),
-                    op(I::Drop),
-                    op(I::Else),
-                    op(I::I32Const(20)),
-                    op(I::Drop),
-                    op(I::End),
-                ],
-            ),
-            |f| {
-                assert!(fold_constant_branches(f));
-            },
-        );
-        assert_eq!(spans(&f), [15, 16]);
-        // An arm takes its `if`'s place, one label fewer past it, unless
-        // it branches to the `if` itself.
-        for (target, kept) in [(1, false), (0, true)] {
-            let mut f = tracked(
-                &symbols,
-                0,
-                0,
-                vec![
-                    op(I::Block(BlockType::Empty)),
-                    op(I::I32Const(1)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::Br(target)),
-                    op(I::End),
-                    op(I::End),
-                ],
-            );
-            assert!(fold_constant_branches(&mut f));
-            let body: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
-            let want = if kept {
-                ["Block", "Block", "Br(0)", "End", "End"].as_slice()
-            } else {
-                ["Block", "Br(0)", "End"].as_slice()
-            };
-            assert_eq!(body.len(), want.len(), "{body:?}");
-            assert!(
-                body.iter().zip(want).all(|(b, w)| b.contains(w)),
-                "{body:?}"
-            );
-        }
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                1,
-                vec![op(I::I32Const(0)), op(I::LocalSet(0)), op(I::LocalGet(0))],
-            ),
-            |f| {
-                assert!(fold_constant_branches(f));
-            },
-        );
-        assert_eq!(spans(&f), [12]);
-    }
-
-    #[test]
-    fn static_counts_meet_scalar_if_values_and_reject_unknown_arms_or_exits() {
-        for (dynamic, exit) in [(false, false), (true, false), (false, true)] {
-            let symbols = Symbols::default();
-            let retain = Hash128(7);
-            let count = call(&symbols, Sym::Inst(retain));
-            let arity = vec![Some((1, 0)); symbols.len()];
-            let mut body = vec![
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::If(BlockType::Result(wasm_encoder::ValType::I32))),
-                Ins::Op(I::I32Const(56)),
-            ];
-            if exit {
-                body.extend([Ins::Op(I::I32Const(1)), Ins::Op(I::BrIf(0))]);
-            }
-            body.extend([
-                Ins::Op(I::Else),
-                Ins::Op(if dynamic {
-                    I::LocalGet(1)
-                } else {
-                    I::I32Const(72)
-                }),
-                Ins::Op(I::End),
-                Ins::Op(I::LocalSet(2)),
-                Ins::Op(I::LocalGet(2)),
-                count,
-            ]);
-            let f = run(tracked(&symbols, 2, 1, body), |f| {
-                assert_eq!(
-                    static_counts(f, retain, &arity, &[false, false]),
-                    !dynamic && !exit
-                );
-            });
-            assert_eq!(
-                f.body
-                    .iter()
-                    .filter(|i| matches!(i, Ins::Call(_, _)))
-                    .count(),
-                usize::from(dynamic || exit)
-            );
-        }
-    }
-
-    #[test]
-    fn static_counts_go_only_on_constant_operands() {
-        let symbols = Symbols::default();
-        let retain = Hash128(7);
-        let counts = [
-            call(&symbols, Sym::Inst(retain)),
-            call(&symbols, Sym::Helper(Helper::RetainKnown)),
-            call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-        ];
-        let mut arity = vec![None; symbols.len()];
-        for c in &counts {
-            let Ins::Call(id, _) = c else { unreachable!() };
-            arity[id.idx()] = Some((1, 0));
-        }
-        let op = Ins::Op;
-        // Local 1 holds only constants, through a tee and a copy; local 2
-        // only ever adds to itself; local 0 is a parameter.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                2,
-                vec![
-                    op(I::I32Const(56)),
-                    op(I::LocalTee(1)),
-                    counts[0],
-                    op(I::I32Const(72)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(1)),
-                    counts[1],
-                    op(I::LocalGet(2)),
-                    op(I::I32Const(8)),
-                    op(I::I32Add),
-                    op(I::LocalTee(2)),
-                    counts[2],
-                    op(I::LocalGet(0)),
-                    counts[0],
-                ],
-            ),
-            |f| {
-                assert!(static_counts(f, retain, &arity, &[false]));
-            },
-        );
-        let left: Vec<String> = f
-            .body
-            .iter()
-            .filter(|i| matches!(i, Ins::Call(_, _)))
-            .map(|i| format!("{i:?}"))
-            .collect();
-        assert_eq!(
-            left,
-            [format!("{:?}", counts[2]), format!("{:?}", counts[0])]
-        );
-        assert!(matches!(f.body[2], Ins::Op(I::Drop)));
-        assert_eq!(spans(&f)[2], 12);
-    }
-
-    #[test]
-    fn static_values_require_every_closed_world_call_to_be_constant() {
-        let symbols = Symbols::default();
-        let callee = symbols.intern(Sym::Inst(Hash128(7)));
-        let source = symbols.intern(Sym::Inst(Hash128(8)));
-        let branched = symbols.intern(Sym::Inst(Hash128(9)));
-        let arity = vec![Some((1, 0)), Some((0, 1)), Some((0, 1))];
-        let target = tracked(&symbols, 1, 0, vec![]);
-        let constant_caller = tracked(
-            &symbols,
-            0,
-            0,
-            vec![Ins::Op(I::I32Const(1)), Ins::Call(callee, None)],
-        );
-        let facts = static_values(
-            &[Some(target.clone()), Some(constant_caller.clone())],
-            [],
-            &arity,
-        );
-        assert_eq!(facts[0], [true]);
-
-        let mut constant_source =
-            crate::module::Module::default().func("constant source", vec![], vec![Val::I32]);
-        constant_source.symbols = symbols.clone();
-        constant_source.body = vec![Ins::Op(I::I32Const(2))];
-        let result_caller = tracked(
-            &symbols,
-            0,
-            0,
-            vec![Ins::Call(source, None), Ins::Call(callee, None)],
-        );
-        let facts = static_values(
-            &[
-                Some(target.clone()),
-                Some(constant_source),
-                Some(result_caller),
-            ],
-            [],
-            &arity,
-        );
-        assert_eq!(facts[0], [true]);
-
-        let mut branched_source =
-            crate::module::Module::default().func("branched source", vec![], vec![Val::I32]);
-        branched_source.symbols = symbols.clone();
-        branched_source.body = vec![
-            Ins::Op(I::I32Const(0)),
-            Ins::Op(I::If(BlockType::Empty)),
-            Ins::Op(I::I32Const(2)),
-            Ins::Op(I::Return),
-            Ins::Op(I::End),
-            Ins::Op(I::I32Const(1)),
-        ];
-        let branched_caller = tracked(
-            &symbols,
-            0,
-            0,
-            vec![Ins::Call(branched, None), Ins::Call(callee, None)],
-        );
-        let facts = static_values(
-            &[
-                Some(target.clone()),
-                None,
-                Some(branched_source),
-                Some(branched_caller),
-            ],
-            [],
-            &arity,
-        );
-        assert_eq!(facts[0], [false]);
-
-        let unknown_caller = tracked(
-            &symbols,
-            1,
-            0,
-            vec![Ins::Op(I::LocalGet(0)), Ins::Call(callee, None)],
-        );
-        let facts = static_values(
-            &[
-                Some(target.clone()),
-                Some(constant_caller),
-                Some(unknown_caller),
-            ],
-            [],
-            &arity,
-        );
-        assert_eq!(facts[0], [false]);
-
-        let facts = static_values(&[Some(target)], [callee], &arity);
-        assert_eq!(facts[0], [false]);
-    }
-
-    // #1912: the proof went in rounds over every function, and a chain of
-    // calls that pass a constant on proved one level per round: O(n^2)
-    // instructions read for a chain of n functions. Now a function is
-    // looked at again only when a fact it reads was proved.
-    #[test]
-    fn static_values_read_a_call_chain_a_constant_number_of_times() {
-        let chain = |n: usize| {
-            let symbols = Symbols::default();
-            let ids: Vec<SymId> = (0..=n)
-                .map(|k| symbols.intern(Sym::Inst(Hash128(100 + k as u128))))
-                .collect();
-            let mut arity = vec![Some((0, 0))];
-            arity.extend((1..=n).map(|_| Some((1, 0))));
-            // `f0` passes a constant to `f1`; each `f_i` passes its own
-            // parameter on to `f_(i+1)`.
-            let mut funcs = vec![Some(tracked(
-                &symbols,
-                0,
-                0,
-                vec![Ins::Op(I::I32Const(1)), Ins::Call(ids[1], None)],
-            ))];
-            for k in 1..=n {
-                let body = if k < n {
-                    vec![Ins::Op(I::LocalGet(0)), Ins::Call(ids[k + 1], None)]
-                } else {
-                    vec![]
-                };
-                funcs.push(Some(tracked(&symbols, 1, 0, body)));
-            }
-            let (facts, work) =
-                crate::work::count_static_looks(|| static_values(&funcs, [ids[0]], &arity));
-            assert!(facts[1..].iter().all(|p| p == &[true]), "{n}: {facts:?}");
-            work
-        };
-        let (small, large) = (chain(20), chain(200));
-        assert!(
-            small > 0 && large <= 11 * small,
-            "instructions read for chains of 20 and 200 calls: {small} and {large}"
-        );
-    }
-
-    fn releases(f: &Func) -> usize {
-        f.body
-            .iter()
-            .filter(|i| {
-                matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id),
-            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)))
-            })
-            .count()
-    }
-
-    #[test]
-    fn zero_facts_remove_initial_and_moved_slots_but_keep_live_values() {
-        let symbols = Symbols::default();
-        let f = tracked(
-            &symbols,
-            1,
-            2,
-            vec![
-                Ins::Op(I::LocalGet(1)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::I32Const(0)),
-                call(&symbols, Sym::Helper(Helper::ReleaseKnown)),
-                Ins::Op(I::LocalGet(0)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::I32Const(7)),
-                Ins::Op(I::LocalSet(2)),
-                Ins::Op(I::LocalGet(2)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::I32Const(0)),
-                Ins::Op(I::LocalSet(2)),
-                Ins::Op(I::LocalGet(2)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::I32Const(0)),
-                Ins::Op(I::LocalSet(2)),
-            ],
-        );
-        let f = run(f, |f| {
-            zero_releases(f);
-        });
-        assert_eq!(releases(&f), 2);
-        assert_eq!(
-            f.body
-                .iter()
-                .filter(|i| matches!(i, Ins::Op(I::LocalSet(2))))
-                .count(),
-            2
-        );
-    }
-
-    #[test]
-    fn zero_facts_meet_both_if_arms_and_exclude_returned_paths() {
-        let symbols = Symbols::default();
-        let branch = |live: bool| {
-            tracked(
-                &symbols,
-                2,
-                1,
-                vec![
-                    Ins::Op(I::LocalGet(0)),
-                    Ins::Op(I::If(BlockType::Empty)),
-                    Ins::Op(if live { I::LocalGet(1) } else { I::I32Const(0) }),
-                    Ins::Op(I::LocalSet(2)),
-                    Ins::Op(I::Else),
-                    Ins::Op(I::I32Const(0)),
-                    Ins::Op(I::LocalSet(2)),
-                    Ins::Op(I::End),
-                    Ins::Op(I::LocalGet(2)),
-                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                ],
-            )
-        };
-        assert_eq!(
-            releases(&run(branch(false), |f| {
-                zero_releases(f);
-            })),
-            0
-        );
-        assert_eq!(
-            releases(&run(branch(true), |f| {
-                zero_releases(f);
-            })),
-            1
-        );
-        let mut exits = branch(true);
-        exits.body.insert(4, Ins::Op(I::Return));
-        exits.origins = Some(vec![Some(17); exits.body.len()]);
-        assert_eq!(
-            releases(&run(exits, |f| {
-                zero_releases(f);
-            })),
-            0
-        );
-    }
-
-    #[test]
-    fn zero_facts_include_loop_backedges_and_branch_table_exits() {
-        let symbols = Symbols::default();
-        let loop_body = |reset: bool| {
-            let mut body = vec![
-                Ins::Op(I::Loop(BlockType::Empty)),
-                Ins::Op(I::LocalGet(1)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::LocalSet(1)),
-            ];
-            if reset {
-                body.extend([Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))]);
-            }
-            body.extend([
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::BrIf(0)),
-                Ins::Op(I::End),
-            ]);
-            tracked(&symbols, 1, 1, body)
-        };
-        assert_eq!(
-            releases(&run(loop_body(false), |f| {
-                zero_releases(f);
-            })),
-            1
-        );
-        assert_eq!(
-            releases(&run(loop_body(true), |f| {
-                zero_releases(f);
-            })),
-            0
-        );
-        let mut table = tracked(
-            &symbols,
-            1,
-            1,
-            vec![
-                Ins::Op(I::Block(BlockType::Empty)),
-                Ins::Op(I::Block(BlockType::Empty)),
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::BrTable(LabelListId(0), 1)),
-                Ins::Op(I::End),
-                Ins::Op(I::I32Const(7)),
-                Ins::Op(I::LocalSet(1)),
-                Ins::Op(I::End),
-                Ins::Op(I::LocalGet(1)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-            ],
-        );
-        table.labels.push(vec![0]);
-        assert_eq!(
-            releases(&run(table, |f| {
-                zero_releases(f);
-            })),
-            1
-        );
-    }
-
-    #[test]
-    fn dead_stores_go_unless_a_release_reads_them_on_some_path() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
-        let zeros = |f: &Func| {
-            f.body
-                .windows(2)
-                .filter(|w| matches!(w, [Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))]))
-                .count()
-        };
-        // A loop that moves local 1 out and zeroes it: the zero stays when
-        // the release after the loop, or the release at the loop head on
-        // the backedge, reads it, and goes when the next iteration
-        // overwrites it first.
-        let body = |head_release: bool, exit_release: bool| {
-            let mut b = vec![op(I::Loop(BlockType::Empty))];
-            if head_release {
-                b.extend([op(I::LocalGet(1)), release]);
-            }
-            b.extend([
-                op(I::LocalGet(0)),
-                op(I::LocalSet(1)),
-                op(I::LocalGet(1)),
-                op(I::Drop),
-                op(I::I32Const(0)),
-                op(I::LocalSet(1)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(0)),
-                op(I::End),
-            ]);
-            if exit_release {
-                b.extend([op(I::LocalGet(1)), release]);
-            }
-            tracked(&symbols, 1, 1, b)
-        };
-        for (head, exit, kept) in [(false, false, 0), (true, false, 1), (false, true, 1)] {
-            let f = run(body(head, exit), |f| {
-                live_rules(f, &Arity::new());
-            });
-            assert_eq!(zeros(&f), kept, "{:?}", f.body);
-        }
-        // A dead set of a constant drops it, and rule 15 takes the push back.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    release,
-                    op(I::I32Const(5)),
-                    op(I::LocalSet(1)),
-                ],
-            ),
-            |f| {
-                assert!(live_rules(f, &Arity::new()));
-                assert!(drops(f));
-            },
-        );
-        assert_eq!(f.body.len(), 2);
-        assert_eq!(spans(&f), [10, 11]);
-    }
-
-    #[test]
-    fn single_uses_stay_on_the_stack_by_liveness() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let guard = [
-            op(I::If(BlockType::Empty)),
-            call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-            op(I::Unreachable),
-            op(I::End),
-        ];
-        // Local 2 is written twice, so the count rules leave it; each
-        // write has one reader, and the loop head writes it again.
-        let mut body = vec![op(I::Loop(BlockType::Empty))];
-        body.extend([op(I::LocalGet(0)), op(I::LocalSet(2))]);
-        body.extend([op(I::LocalGet(1)), op(I::I32Eqz)]);
-        body.extend(guard);
-        body.extend([op(I::LocalGet(2)), op(I::Drop)]);
-        body.extend([op(I::LocalGet(1)), op(I::I32Const(1)), op(I::I32Add)]);
-        body.extend([op(I::LocalSet(2)), op(I::LocalGet(1)), op(I::LocalSet(3))]);
-        body.extend([
-            op(I::LocalGet(2)),
-            op(I::LocalGet(3)),
-            op(I::BrIf(0)),
-            op(I::Drop),
-        ]);
-        body.push(op(I::End));
-        let f = run(tracked(&symbols, 2, 2, body), |f| {
-            while live_rules(f, &Arity::new()) {}
-        });
-        let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
-        // The copy of 0 moves past the guard to its read, the copy of 1
-        // moves to its read, and the sum stays on the stack under it.
-        assert!(
-            !shown
-                .iter()
-                .any(|i| i.contains("Local") && i.contains("(2)")),
-            "{shown:?}"
-        );
-        assert!(!shown.iter().any(|i| i.contains("(3)")), "{shown:?}");
-        // A loop test evaluated before the loop and again at its head:
-        // each value stays on the stack, written by a tee for the head.
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                2,
-                vec![
-                    op(I::I32Const(0)),
-                    op(I::LocalSet(0)),
-                    op(I::I32Const(3)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(0)),
-                    op(I::LocalGet(1)),
-                    op(I::I32LtU),
-                    op(I::Drop),
-                    op(I::Loop(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::LocalGet(1)),
-                    op(I::I32LtU),
-                    op(I::BrIf(0)),
-                    op(I::End),
-                ],
-            ),
-            |f| {
-                while live_rules(f, &Arity::new()) {}
-            },
-        );
-        let shown: Vec<String> = f.body.iter().map(|i| format!("{i:?}")).collect();
-        assert_eq!(
-            shown.iter().filter(|i| i.contains("LocalTee")).count(),
-            2,
-            "{shown:?}"
-        );
-        assert!(!shown.iter().any(|i| i.contains("LocalSet")), "{shown:?}");
-        // A run that consumes the value keeps its local.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Eqz),
-                    op(I::LocalSet(1)),
-                    op(I::Drop),
-                    op(I::LocalGet(1)),
-                ],
-            ),
-            |f| {
-                assert!(!live_rules(f, &Arity::new()));
-            },
-        );
-        assert_eq!(f.body.len(), 5);
-    }
-
-    #[test]
-    fn a_branch_to_the_exit_after_its_values_returns_them() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        // The first branch sets both exit values and returns; the second
-        // sets one only and keeps its branch.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                2,
-                vec![
-                    op(I::Block(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::If(BlockType::Empty)),
-                    op(I::I32Const(1)),
-                    op(I::I32Const(2)),
-                    op(I::LocalSet(2)),
-                    op(I::LocalSet(1)),
-                    op(I::Br(1)),
-                    op(I::End),
-                    op(I::I32Const(3)),
-                    op(I::LocalSet(2)),
-                    op(I::Br(0)),
-                    op(I::End),
-                    op(I::LocalGet(1)),
-                    op(I::LocalGet(2)),
-                ],
-            ),
-            |f| {
-                assert!(exits(f));
-            },
-        );
-        assert!(matches!(f.body[5], Ins::Op(I::Return)), "{:?}", f.body);
-        assert!(matches!(f.body[9], Ins::Op(I::Br(0))), "{:?}", f.body);
-        assert_eq!(spans(&f)[5], 17);
-    }
-
-    #[test]
-    fn local_cleanup_rounds_are_bounded_at_width_1000_and_depth_20() {
-        let symbols = Symbols::default();
-        let opaque = call(&symbols, Sym::Inst(Hash128(1882)));
-        let arity = vec![Some((1, 0)); symbols.len()];
-        let op = Ins::Op;
-        for width in [1, 1000, 10000] {
-            for depth in [1, 20] {
-                let mut body = vec![op(I::Block(BlockType::Empty)); depth];
-                for _ in 0..width {
-                    // The first write becomes dead when pairs forwards the
-                    // second one. Early liveness exposes that fact within
-                    // this sweep rather than waiting for another fixpoint.
-                    body.extend([
-                        op(I::I32Const(1)),
-                        op(I::LocalSet(0)),
-                        op(I::I32Const(42)),
-                        op(I::LocalSet(0)),
-                        op(I::LocalGet(0)),
-                        opaque,
-                    ]);
-                }
-                body.extend(vec![op(I::End); depth]);
-                let input = body.len();
-                let mut f = tracked(&symbols, 0, 1, body);
-                let expected_origins: Vec<_> = f
-                    .body
-                    .iter()
-                    .zip(spans(&f))
-                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_, _)).then_some(origin))
-                    .collect();
-                let mut plain = f.clone();
-                plain.origins = None;
-                locals(&mut plain, &arity);
-                let mut rounds = Vec::new();
-                locals_with_work(&mut f, &arity, &mut |n| rounds.push(n));
-                assert_eq!(rounds.len(), 2, "{width} x {depth}: {rounds:?}");
-                assert!(rounds.iter().sum::<usize>() <= 2 * input);
-                assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
-                assert!(f.locals.is_empty());
-                let retained: Vec<_> = f
-                    .body
-                    .iter()
-                    .filter(|ins| !matches!(ins, Ins::Op(I::Block(_) | I::End)))
-                    .copied()
-                    .collect();
-                assert_eq!(retained.len(), 2 * width);
-                for pair in retained.chunks_exact(2) {
-                    assert!(matches!(pair, [Ins::Op(I::I32Const(42)), Ins::Call(_, _)]));
-                }
-                let actual_origins: Vec<_> = f
-                    .body
-                    .iter()
-                    .zip(spans(&f))
-                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_, _)).then_some(origin))
-                    .collect();
-                assert_eq!(actual_origins, expected_origins);
-            }
-        }
-    }
-
-    #[test]
-    fn a_rule_that_found_nothing_runs_again_only_after_an_edit() {
-        let mut f = Func::default();
-        let mut settled = Settled::new();
-        let runs = std::cell::Cell::new([0; 3]);
-        let pass = |k: usize, edits: bool| {
-            let mut now = runs.get();
-            now[k] += 1;
-            runs.set(now);
-            edits
-        };
-        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
-        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
-        assert_eq!(runs.get()[0], 1, "nothing changed since it found nothing");
-        assert!(settled.run(&mut f, Rule::Forward, |_| pass(1, true)));
-        assert!(!settled.run(&mut f, Rule::Pairs, |_| pass(0, false)));
-        assert_eq!(runs.get()[0], 2, "another rule edited the function");
-        // A rule that repeats itself to its own fixed point has seen its
-        // result; a single sweep has not.
-        assert!(settled.run(&mut f, Rule::Live, |_| pass(2, true)));
-        assert!(!settled.run(&mut f, Rule::Live, |_| pass(2, false)));
-        assert_eq!(runs.get()[2], 1);
-        assert!(settled.run(&mut f, Rule::Forward, |_| pass(1, true)));
-        assert!(!settled.run(&mut f, Rule::Forward, |_| pass(1, false)));
-        assert_eq!(runs.get()[1], 3);
-    }
-
-    #[test]
-    fn liveness_hashes_no_set_node_per_access() -> Result<(), &'static str> {
-        let symbols = Symbols::default();
-        for width in [100u32, 1000] {
-            for depth in [2, 20] {
-                for repeats in [1, 10] {
-                    let mut body = vec![Ins::Op(I::Block(BlockType::Empty)); depth];
-                    for local in 0..width {
-                        for _ in 0..repeats {
-                            body.extend([
-                                Ins::Op(I::LocalGet(local)),
-                                Ins::Op(I::Drop),
-                                Ins::Op(I::I32Const(1)),
-                                Ins::Op(I::LocalTee(local)),
-                                Ins::Op(I::Drop),
-                                Ins::Op(I::LocalGet(local)),
-                                Ins::Op(I::Drop),
-                            ]);
-                        }
-                    }
-                    body.extend(vec![Ins::Op(I::End); depth]);
-                    let f = tracked(&symbols, 0, width as usize, body);
-                    let before = live_set::hash_probes();
-                    let dead = Live::dead_accesses(&f).ok_or("structured body has liveness")?;
-                    let hashes = live_set::hash_probes() - before;
-                    assert_eq!(
-                        hashes, 0,
-                        "{width} locals, depth {depth}, {repeats} repeats"
-                    );
-                    assert_eq!(dead.len(), f.body.len());
-                    // Each tee is read by its following get. Only the last
-                    // repeat's trailing get has no later read of that local.
-                    for (repeat, accesses) in
-                        dead[depth..dead.len() - depth].chunks_exact(7).enumerate()
-                    {
-                        assert!(!accesses[3]);
-                        assert_eq!(accesses[5], repeat % repeats == repeats - 1);
-                    }
-                    // A positive control proves these bodies exercise the
-                    // counter when their arena does hash-cons its nodes.
-                    let before = live_set::hash_probes();
-                    let live = Live::new(&f, Sets::default()).ok_or("control has liveness")?;
-                    assert!(live_set::hash_probes() > before);
-                    assert!(live.sets.contains(live.into[0], width - 1));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn liveness_revisits_only_the_blocks_a_backedge_reaches() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        // A long run of forward blocks, then a loop that reads local 1
-        // before it writes it, so the read reaches the loop's head again
-        // over the backedge.
-        for prefix in [16usize, 256, 1024] {
-            let mut body = Vec::new();
-            for _ in 0..prefix {
-                body.extend([
-                    op(I::Block(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::BrIf(0)),
-                    op(I::End),
-                ]);
-            }
-            body.extend([
-                op(I::Loop(BlockType::Empty)),
-                op(I::LocalGet(1)),
-                op(I::Drop),
-                op(I::LocalGet(0)),
-                op(I::LocalSet(1)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(0)),
-                op(I::End),
-            ]);
-            let f = tracked(&symbols, 1, 1, body);
-            let mut live = Live::blocks(&f, Sets::default()).expect("blocks");
-            assert!(!live.forward);
-            let blocks = live.starts.len();
-            let mut visits = 0;
-            live.settle_with(&f, || visits += 1);
-            // The backedge sends only the loop's blocks and the one
-            // before it round again, not every block once more.
-            assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
-            // Local 1 is live into every block before the loop: its
-            // first read is of the zero it starts with.
-            assert!(
-                live.into[..blocks - 2]
-                    .iter()
-                    .all(|&row| live.sets.contains(row, 1))
-            );
-            assert!(live.sets.contains(live.into[0], 0));
-        }
-    }
-
-    /// Rule 13's rounds carry their dead accesses: after each round, the
-    /// carried ones are what a new liveness pass finds. The bodies hold
-    /// each shape a round can leave: two moves of one local whose spans
-    /// cross or nest, with and without a later read of it, a read of the
-    /// moved local inside a span, a span across a panic guard's blocks, a
-    /// tee's push read again, a moved constant, a dead tee, and a loop.
-    #[test]
-    fn rule_13_rounds_carry_the_dead_accesses_a_new_pass_finds() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let (get, set, tee) = (
-            |l| op(I::LocalGet(l)),
-            |l| op(I::LocalSet(l)),
-            |l| op(I::LocalTee(l)),
-        );
-        let add = op(I::I32Add);
-        let drop = op(I::Drop);
-        let crossing = vec![get(0), set(1), get(0), set(2), get(1), get(2), add, drop];
-        let nested = vec![get(0), set(1), get(0), set(2), get(2), get(1), add, drop];
-        let read_inside = vec![get(0), set(1), get(0), drop, get(1), drop];
-        let guard = vec![
-            get(0),
-            set(1),
-            op(I::I32Const(1)),
-            op(I::If(BlockType::Empty)),
-            op(I::Unreachable),
-            op(I::End),
-            get(1),
-            drop,
-        ];
-        let teed = vec![get(0), tee(1), drop, get(1), drop];
-        let constant = vec![op(I::I32Const(7)), set(1), get(1), drop];
-        let dead_tee = vec![get(0), tee(2), drop];
-        let mut cases = Vec::new();
-        for body in [
-            crossing,
-            nested,
-            read_inside,
-            guard,
-            teed,
-            constant,
-            dead_tee,
-        ] {
-            let mut later = body.clone();
-            later.extend([get(0), drop]);
-            let mut looped = vec![op(I::Loop(BlockType::Empty))];
-            looped.extend(later.iter().copied());
-            looped.extend([get(0), op(I::BrIf(0)), op(I::End)]);
-            cases.extend([body, later, looped]);
-        }
-        for body in cases {
-            let mut f = tracked(&symbols, 1, 2, body.clone());
-            let mut dead = Live::dead_accesses(&f).expect("analysed");
-            let mut rounds = 0;
-            while let Some(next) = live_once(&mut f, &Arity::new(), &dead) {
-                assert_eq!(
-                    Some(&next),
-                    Live::dead_accesses(&f).as_ref(),
-                    "{body:?} -> {:?}",
-                    f.body
-                );
-                dead = next;
-                rounds += 1;
-            }
-            assert!(rounds > 0, "{body:?} rewrites");
-        }
-    }
-
-    /// Rule 11's fixed point settles a loop before the blocks after it.
-    /// The loop copies a local its last round wrote, so its exit gets two
-    /// facts; taken first in first out, each of the `n` blocks after it
-    /// was visited once per fact, and now once.
-    #[test]
-    fn zero_facts_settle_a_loop_before_the_blocks_after_it() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        for n in [16usize, 256] {
-            let mut body = vec![
-                op(I::Loop(BlockType::Empty)),
-                op(I::LocalGet(1)),
-                op(I::LocalSet(2)),
-                op(I::LocalGet(0)),
-                op(I::LocalSet(1)),
-                op(I::LocalGet(0)),
-                op(I::BrIf(0)),
-                op(I::End),
-            ];
-            for _ in 0..n {
-                body.extend([
-                    op(I::Block(BlockType::Empty)),
-                    op(I::LocalGet(0)),
-                    op(I::BrIf(0)),
-                    op(I::End),
-                ]);
-            }
-            body.extend([op(I::I32Const(0)), op(I::LocalSet(2))]);
-            let mut f = tracked(&symbols, 1, 2, body);
-            let blocks = zero_edges(&f.body, &f.labels)
-                .map(|edges| basic_blocks(&edges, f.body.len()).1.len())
-                .expect("edges");
-            let mut visits = 0;
-            zero_releases_with(&mut f, &mut || visits += 1);
-            assert!(visits <= blocks + 4, "{visits} visits of {blocks} blocks");
-        }
-    }
-
-    /// A copy shares its source's local only where no other value of the
-    /// copy reaches: a branch around the copy brings the copy's older
-    /// value to the join, so the two stay apart. Without the branch they
-    /// share and the copy goes.
-    #[test]
-    fn a_copy_joined_by_a_branch_around_it_keeps_its_own_local() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
-        for branch in [true, false] {
-            let mut body = vec![
-                op(I::I32Const(7)),
-                op(I::LocalSet(1)),
-                op(I::I32Const(1)),
-                op(I::LocalSet(2)),
-                op(I::Block(BlockType::Empty)),
-            ];
-            if branch {
-                body.extend([op(I::LocalGet(0)), op(I::BrIf(0))]);
-            }
-            body.extend([
-                op(I::LocalGet(1)),
-                op(I::LocalSet(2)),
-                op(I::End),
-                op(I::LocalGet(2)),
-                release,
-                op(I::LocalGet(1)),
-                release,
-            ]);
-            let f = run(tracked(&symbols, 1, 2, body), coalesce);
-            assert_eq!(f.locals.len(), if branch { 2 } else { 1 }, "{:?}", f.body);
-        }
-    }
-
-    /// Each set of a multi-value copy pairs with its get from the end of
-    /// the run of gets, a tee ends the run, and a set whose source an
-    /// earlier set of the run wrote copies nothing.
-    #[test]
-    fn copy_sources_pair_each_set_of_a_run_with_its_get() {
-        let op = Ins::Op;
-        let body = [
-            op(I::LocalGet(1)),
-            op(I::LocalGet(2)),
-            op(I::LocalSet(1)),
-            op(I::LocalSet(2)),
-            op(I::LocalGet(3)),
-            op(I::LocalTee(4)),
-            op(I::I32Const(0)),
-            op(I::LocalSet(5)),
-            op(I::LocalGet(4)),
-            op(I::LocalGet(3)),
-            op(I::LocalSet(6)),
-            op(I::LocalTee(7)),
-        ];
-        assert_eq!(
-            copy_sources(&body, 8),
-            [
-                None,
-                None,
-                Some((2, 1)),
-                None,
-                None,
-                Some((3, 4)),
-                None,
-                None,
-                None,
-                None,
-                Some((3, 9)),
-                Some((4, 8)),
-            ]
-        );
-    }
-
-    #[test]
-    fn coalescing_keeps_apart_locals_live_over_a_backedge_or_from_entry() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
-        let locals = |f: &Func| f.locals.len();
-        // Local 1 is read in the loop before local 2 is written there, but
-        // the backedge reads 1 again: they never share.
-        let looped = vec![
-            op(I::I32Const(5)),
-            op(I::LocalSet(1)),
-            op(I::Loop(BlockType::Empty)),
-            op(I::LocalGet(1)),
-            release,
-            op(I::I32Const(7)),
-            op(I::LocalSet(2)),
-            op(I::LocalGet(2)),
-            release,
-            op(I::LocalGet(0)),
-            op(I::BrIf(0)),
-            op(I::End),
-        ];
-        assert_eq!(locals(&run(tracked(&symbols, 1, 2, looped), coalesce)), 2);
-        // Local 2 is written in one arm only, so the read after the `if`
-        // may read its zero: it is live from the entry, and does not take
-        // local 1's, whose value is dead by then.
-        let one_arm = vec![
-            op(I::I32Const(9)),
-            op(I::LocalSet(1)),
-            op(I::LocalGet(1)),
-            release,
-            op(I::LocalGet(0)),
-            op(I::If(BlockType::Empty)),
-            op(I::I32Const(3)),
-            op(I::LocalSet(2)),
-            op(I::End),
-            op(I::LocalGet(2)),
-            release,
-        ];
-        assert_eq!(locals(&run(tracked(&symbols, 1, 2, one_arm), coalesce)), 2);
-        // With both arms writing it, local 2 is not live at entry and
-        // shares a local with 1 or the parameter, both dead by then.
-        let both_arms = vec![
-            op(I::I32Const(9)),
-            op(I::LocalSet(1)),
-            op(I::LocalGet(1)),
-            release,
-            op(I::LocalGet(0)),
-            op(I::If(BlockType::Empty)),
-            op(I::I32Const(3)),
-            op(I::LocalSet(2)),
-            op(I::Else),
-            op(I::I32Const(4)),
-            op(I::LocalSet(2)),
-            op(I::End),
-            op(I::LocalGet(2)),
-            release,
-        ];
-        assert_eq!(
-            locals(&run(tracked(&symbols, 1, 2, both_arms), coalesce)),
-            1
-        );
-        // A copy of a running total whose source is written again only
-        // after the copy's last read shares the total's local, and the
-        // copy goes, in and out of a loop.
-        for looping in [false, true] {
-            let mut body = vec![op(I::I32Const(1)), op(I::LocalSet(1))];
-            if looping {
-                body.push(op(I::Loop(BlockType::Empty)));
-            }
-            body.extend([
-                op(I::LocalGet(1)),
-                op(I::LocalSet(2)),
-                op(I::LocalGet(0)),
-                release,
-                op(I::LocalGet(2)),
-                op(I::I32Const(1)),
-                op(I::I32Add),
-                op(I::LocalSet(1)),
-            ]);
-            if looping {
-                body.extend([op(I::LocalGet(0)), op(I::BrIf(0)), op(I::End)]);
-            }
-            body.extend([op(I::LocalGet(1)), release]);
-            let f = run(tracked(&symbols, 1, 2, body), coalesce);
-            assert_eq!(locals(&f), 1, "{looping}: {:?}", f.body);
-            let copies = f.body.windows(2).filter(
-                |w| matches!(w, [Ins::Op(I::LocalGet(a)), Ins::Op(I::LocalSet(b))] if a == b),
-            );
-            assert_eq!(copies.count(), 0, "{:?}", f.body);
-        }
-        // A copy whose source is written while the copy is still live
-        // keeps a local of its own (the parameter, read last, keeps its).
-        let clobbered = vec![
-            op(I::I32Const(1)),
-            op(I::LocalSet(1)),
-            op(I::LocalGet(1)),
-            op(I::LocalSet(2)),
-            op(I::I32Const(2)),
-            op(I::LocalSet(1)),
-            op(I::LocalGet(2)),
-            op(I::LocalGet(1)),
-            op(I::I32Add),
-            release,
-            op(I::LocalGet(0)),
-            release,
-        ];
-        assert_eq!(
-            locals(&run(tracked(&symbols, 1, 2, clobbered), coalesce)),
-            2
-        );
-    }
-
-    #[test]
-    fn coalesced_locals_never_hold_two_live_values() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let release = call(&symbols, Sym::Helper(Helper::ReleaseRef));
-        // Locals 1 and 2 live one after the other: one local. Local 3
-        // overlaps local 4, and local 5 is read before any write, so it
-        // keeps its own zero while 4 is live.
-        let body = vec![
-            op(I::LocalGet(0)),
-            op(I::LocalSet(1)),
-            op(I::LocalGet(1)),
-            release,
-            op(I::LocalGet(0)),
-            op(I::I32Eqz),
-            op(I::LocalSet(2)),
-            op(I::LocalGet(2)),
-            release,
-            op(I::I32Const(7)),
-            op(I::LocalSet(3)),
-            op(I::I32Const(8)),
-            op(I::LocalSet(4)),
-            op(I::LocalGet(3)),
-            op(I::LocalGet(4)),
-            op(I::I32Add),
-            release,
-            op(I::LocalGet(5)),
-            release,
-        ];
-        let mut f = run(tracked(&symbols, 1, 5, body), coalesce);
-        let named: Vec<u32> = f
-            .body
-            .iter()
-            .filter_map(|i| match i {
-                Ins::Op(I::LocalGet(l) | I::LocalSet(l)) => Some(*l),
-                _ => None,
-            })
-            .collect();
-        // 1 and 2 take the parameter's local, whose value is dead after
-        // its last read; 3 joins them too. 4 and 5 stay apart.
-        assert_eq!(named, [0, 0, 0, 0, 0, 1, 0, 1, 2], "{:?}", f.body);
-        assert_eq!(f.locals.len(), 2);
-        // A copy whose source keeps its value shares the source's local
-        // and goes.
-        f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(0)),
-                    release,
-                    op(I::LocalGet(1)),
-                    release,
-                ],
-            ),
-            coalesce,
-        );
-        assert_eq!(f.body.len(), 4);
-        assert!(f.locals.is_empty());
-        // A two-value copy shares each source's local and goes, though
-        // first fit would put its first destination in the parameter's
-        // class.
-        f = run(
-            tracked(
-                &symbols,
-                1,
-                4,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Eqz),
-                    op(I::LocalSet(1)),
-                    op(I::LocalGet(0)),
-                    op(I::I32Eqz),
-                    op(I::LocalSet(2)),
-                    op(I::LocalGet(1)),
-                    op(I::LocalGet(2)),
-                    op(I::LocalSet(4)),
-                    op(I::LocalSet(3)),
-                    op(I::LocalGet(3)),
-                    release,
-                    op(I::LocalGet(4)),
-                    release,
-                ],
-            ),
-            coalesce,
-        );
-        assert_eq!(f.body.len(), 10, "{:?}", f.body);
-    }
-
-    #[test]
-    fn zero_facts_without_locals_distinguish_reachable_and_unreachable_releases() {
-        let symbols = Symbols::default();
-        let f = run(
-            tracked(
-                &symbols,
-                0,
-                0,
-                vec![
-                    Ins::Op(I::I32Const(0)),
-                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                    Ins::Op(I::Return),
-                    Ins::Op(I::I32Const(0)),
-                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                ],
-            ),
-            |f| {
-                assert!(zero_releases(f));
-            },
-        );
-        assert!(matches!(
-            f.body.as_slice(),
-            [Ins::Op(I::Return), Ins::Op(I::I32Const(0)), Ins::Call(_, _)]
-        ));
-        assert_eq!(releases(&f), 1);
-    }
-
-    #[test]
-    fn zero_facts_meet_multiple_words_without_losing_other_high_locals() {
-        let symbols = Symbols::default();
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                129,
-                vec![
-                    Ins::Op(I::LocalGet(0)),
-                    Ins::Op(I::If(BlockType::Empty)),
-                    Ins::Op(I::LocalGet(0)),
-                    Ins::Op(I::LocalSet(65)),
-                    Ins::Op(I::Else),
-                    Ins::Op(I::I32Const(0)),
-                    Ins::Op(I::LocalSet(65)),
-                    Ins::Op(I::End),
-                    Ins::Op(I::LocalGet(65)),
-                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                    Ins::Op(I::LocalGet(129)),
-                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                ],
-            ),
-            |f| {
-                assert!(zero_releases(f));
-            },
-        );
-        assert_eq!(releases(&f), 1);
-        assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::LocalGet(65)))));
-        assert!(
-            !f.body
-                .iter()
-                .any(|i| matches!(i, Ins::Op(I::LocalGet(129))))
-        );
-    }
-
-    #[test]
-    fn zero_facts_preserve_source_origins() {
-        let symbols = Symbols::default();
-        let f = tracked(
-            &symbols,
-            1,
-            0,
-            vec![
-                Ins::Op(I::I32Const(0)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-                Ins::Op(I::LocalGet(0)),
-                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
-            ],
-        );
-        let f = run(f, |f| {
-            zero_releases(f);
-        });
-        assert_eq!(spans(&f), [12, 13]);
-    }
-
-    #[test]
-    fn an_if_with_nothing_in_it_drops_its_test() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let empty = wasm_encoder::BlockType::Empty;
-        // A pure test goes; a call's stays and its result
-        // is dropped; an `if` with something in it stays.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                0,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Load(mem(HEAP, 8, 2))),
-                    op(I::I32Eqz),
-                    op(I::If(empty)),
-                    op(I::End),
-                    call(&symbols, Sym::Helper(Helper::Alloc)),
-                    op(I::If(empty)),
-                    op(I::End),
-                    op(I::LocalGet(0)),
-                    op(I::If(empty)),
-                    op(I::Unreachable),
-                    op(I::End),
-                ],
-            ),
-            |f| {
-                drops(f);
-            },
-        );
-        assert_eq!(
-            format!("{:?}", f.body),
-            format!(
-                "{:?}",
-                [
-                    call(&symbols, Sym::Helper(Helper::Alloc)),
-                    op(I::Drop),
-                    op(I::LocalGet(0)),
-                    op(I::If(empty)),
-                    op(I::Unreachable),
-                    op(I::End),
-                ]
-            )
-        );
-    }
-
-    #[test]
-    fn a_drop_takes_back_what_pushed_its_value() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        // A discarded field read; a tee that is dropped;
-        // an addition of a read and a constant; a call's result stays.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                1,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Load(mem(HEAP, 8, 2))),
-                    op(I::Drop),
-                    op(I::I32Const(3)),
-                    op(I::LocalTee(1)),
-                    op(I::Drop),
-                    op(I::LocalGet(0)),
-                    op(I::I32Load(mem(HEAP, 0, 2))),
-                    op(I::I32Const(4)),
-                    op(I::I32Add),
-                    op(I::Drop),
-                    call(&symbols, Sym::Helper(Helper::Alloc)),
-                    op(I::Drop),
-                ],
-            ),
-            |f| {
-                drops(f);
-            },
-        );
-        assert_eq!(
-            format!("{:?}", f.body),
-            format!(
-                "{:?}",
-                [
-                    op(I::I32Const(3)),
-                    op(I::LocalSet(1)),
-                    call(&symbols, Sym::Helper(Helper::Alloc)),
-                    op(I::Drop),
-                ]
-            )
-        );
-        assert_eq!(spans(&f), [13, 15, 21, 22]);
-        // A division can trap, so it stays and its result is dropped.
-        let f = run(
-            tracked(
-                &symbols,
-                1,
-                0,
-                vec![
-                    op(I::LocalGet(0)),
-                    op(I::I32Const(2)),
-                    op(I::I32DivS),
-                    op(I::Drop),
-                ],
-            ),
-            |f| {
-                drops(f);
-            },
-        );
-        assert_eq!(f.body.len(), 4);
-    }
-
-    /// Rule 19 where its forms do not apply: a branch that carries a
-    /// value, a value that branches to its own `if`, a test with two
-    /// empty arms, and a test whose operand has no start in reach.
-    #[test]
-    fn a_short_circuit_value_stays_where_no_branch_chain_holds_it() {
-        let symbols = Symbols::default();
-        let op = Ins::Op;
-        let i32 = BlockType::Result(wasm_encoder::ValType::I32);
-        let value = |x: Vec<Ins>, k: i32| {
-            let mut v = vec![op(I::LocalGet(0)), op(I::If(i32))];
-            v.extend(x);
-            v.extend([op(I::Else), op(I::I32Const(k)), op(I::End)]);
-            v
-        };
-        let two = Ins::Call(symbols.intern(Sym::Inst(Hash128(7))), None);
-        let arity = vec![Some((0, 2)); symbols.len()];
-        let shaped = |params: usize, results: Vec<Val>, body: Vec<Ins>| {
-            let mut f = tracked(&symbols, params, 0, body);
-            f.results = results;
-            let changed = shapes(&mut f, u32::try_from(params).unwrap(), &arity);
-            (changed, f.body)
-        };
-        // `&&` falls through its `br_if`; the label takes the value under
-        // the test, which a new `if` would hide.
-        for (label, stays) in [(i32, true), (BlockType::Empty, false)] {
-            let mut body = vec![op(I::Block(label)), op(I::I32Const(5))];
-            body.extend(value(vec![op(I::LocalGet(1))], 0));
-            body.extend([op(I::BrIf(0)), op(I::End)]);
-            assert_eq!(shaped(2, vec![], body).0, !stays);
-        }
-        for (label, stays) in [
-            (BlockType::FunctionType(1), true),
-            (BlockType::Empty, false),
-        ] {
-            let mut body = vec![op(I::Loop(label))];
-            body.extend(value(vec![op(I::LocalGet(1))], 0));
-            body.extend([op(I::BrIf(0)), op(I::End)]);
-            assert_eq!(shaped(2, vec![], body).0, !stays);
-        }
-        for (results, stays) in [(vec![Val::I32], true), (vec![], false)] {
-            let mut body = value(vec![op(I::LocalGet(1))], 0);
-            body.push(op(I::BrIf(0)));
-            assert_eq!(shaped(2, results, body).0, !stays);
-        }
-        // `X` branches to its own `if` with the value.
-        let mut body = vec![op(I::Block(BlockType::Empty))];
-        body.extend(value(
-            vec![op(I::LocalGet(1)), op(I::LocalGet(1)), op(I::BrIf(0))],
-            0,
-        ));
-        body.extend([op(I::BrIf(0)), op(I::End)]);
-        assert!(!shaped(2, vec![], body).0);
-        // An `if` with no code on either arm.
-        let mut body = value(vec![op(I::LocalGet(1))], 1);
-        body.extend([op(I::If(BlockType::Empty)), op(I::End)]);
-        assert!(!shaped(2, vec![], body).0);
-        // `||` into an `if` needs a block around its operand: none past
-        // a block of unknown type, nor past the walk's reach.
-        let arms = [
-            op(I::If(BlockType::Empty)),
-            op(I::LocalGet(1)),
-            op(I::Drop),
-            op(I::End),
-        ];
-        let mut body = vec![op(I::Block(BlockType::FunctionType(1))), op(I::End)];
-        body.extend(value(vec![op(I::LocalGet(1))], 1));
-        body.extend(arms);
-        body[2] = op(I::I32Eqz);
-        assert!(!shaped(2, vec![], body).0);
-        let mut body = vec![op(I::LocalGet(0))];
-        body.extend((0..OPERAND_REACH).map(|_| op(I::I32Eqz)));
-        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
-        body.extend(arms);
-        assert!(!shaped(2, vec![], body).0);
-        let mut body = vec![op(I::LocalGet(0)), op(I::Block(BlockType::Empty))];
-        body.extend((0..OPERAND_REACH).map(|_| op(I::I32Eqz)));
-        body.extend([op(I::End), op(I::I32Eqz)]);
-        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
-        body.extend(arms);
-        assert!(!shaped(2, vec![], body).0);
-        // A call that pushes a value under the test as well.
-        let mut body = vec![two];
-        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
-        body.extend(arms);
-        body.push(op(I::Drop));
-        assert!(!shaped(2, vec![], body).0);
-        // Within reach, the same chain is one block, around a void block.
-        let mut body = vec![
-            op(I::LocalGet(0)),
-            op(I::Block(BlockType::Empty)),
-            op(I::End),
-        ];
-        body.push(op(I::I32Eqz));
-        body.extend(value(vec![op(I::LocalGet(1))], 1).into_iter().skip(1));
-        body.extend(arms);
-        let (changed, body) = shaped(2, vec![], body);
-        assert!(changed);
-        assert!(matches!(body[0], Ins::Op(I::Block(BlockType::Empty))));
-    }
-    #[test]
-    fn branch_only_shapes_compact_at_width_1000_depth_20_and_depth_50000() {
-        let symbols = Symbols::default();
-        let mut baseline = 0;
-        for (width, depth) in [(100usize, 20u32), (1000, 20), (1, 50_000)] {
-            let mut body = Vec::new();
-            for _ in 0..width {
-                body.push(Ins::Op(I::Block(BlockType::Empty)));
-                for level in 1..=depth {
-                    body.extend([
-                        Ins::Op(I::LocalGet(0)),
-                        Ins::Op(I::If(BlockType::Empty)),
-                        Ins::Op(I::Br(level)),
-                        Ins::Op(I::Else),
-                    ]);
-                }
-                body.extend(std::iter::repeat_n(Ins::Op(I::End), depth as usize + 1));
-            }
-            let size = body.len();
-            let mut f = tracked(&symbols, 1, 0, body);
-            let (changed, work) = crate::work::count_control(|| batch_branch_shapes(&mut f));
-            assert!(changed);
-            assert!(
-                work <= 4 * size as u64,
-                "{width} x {depth}: {work} for {size} instructions"
-            );
-            if width == 100 {
-                baseline = work;
-            }
-            if width == 1000 {
-                assert!(work <= 10 * baseline);
-            }
-            assert_eq!(f.body.len(), width * (2 + 2 * depth as usize));
-            assert!(
-                !f.body
-                    .iter()
-                    .any(|ins| matches!(ins, Ins::Op(I::If(_) | I::Else)))
-            );
-            validate_void_block_fixture(&f);
-            assert!(!batch_branch_shapes(&mut f));
-        }
-    }
-    #[test]
-    fn branch_only_compaction_preserves_a_targeted_if_label() {
-        let symbols = Symbols::default();
-        let mut f = tracked(
-            &symbols,
-            1,
-            0,
-            vec![
-                Ins::Op(I::Block(BlockType::Empty)),
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::If(BlockType::Empty)),
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::BrIf(0)),
-                Ins::Op(I::Else),
-                Ins::Op(I::Br(1)),
-                Ins::Op(I::End),
-                Ins::Op(I::End),
-            ],
-        );
-        validate_void_block_fixture(&f);
-        assert!(!batch_branch_shapes(&mut f));
-        assert!(matches!(f.body[2], Ins::Op(I::If(BlockType::Empty))));
-        assert!(matches!(f.body[4], Ins::Op(I::BrIf(0))));
-        assert!(matches!(f.body[6], Ins::Op(I::Br(1))));
-        validate_void_block_fixture(&f);
-    }
-    #[test]
-    fn branch_only_compaction_remaps_every_branch_table_target() {
-        let symbols = Symbols::default();
-        let mut f = tracked(&symbols, 1, 0, Vec::new());
-        let table = f.intern_labels(vec![1, 1]);
-        f.body = vec![
-            Ins::Op(I::Block(BlockType::Empty)),
-            Ins::Op(I::LocalGet(0)),
-            Ins::Op(I::If(BlockType::Empty)),
-            Ins::Op(I::Br(1)),
-            Ins::Op(I::Else),
-            Ins::Op(I::LocalGet(0)),
-            Ins::Op(I::BrTable(table, 1)),
-            Ins::Op(I::End),
-            Ins::Op(I::End),
-        ];
-        f.origins = None;
-        validate_void_block_fixture(&f);
-        assert!(batch_branch_shapes(&mut f));
-        let mapped = f
-            .body
-            .iter()
-            .find_map(|ins| match ins {
-                Ins::Op(I::BrTable(id, default)) => Some((*id, *default)),
-                _ => None,
-            })
-            .expect("the table remains");
-        assert_eq!(f.label_list(mapped.0), [0, 0]);
-        assert_eq!(mapped.1, 0);
-        validate_void_block_fixture(&f);
-    }
 }

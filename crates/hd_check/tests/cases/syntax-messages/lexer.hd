@@ -1,0 +1,45 @@
+# @dump: diagnostics
+# Each lexer diagnostic says its situation in words. A tab indents `pass`,
+# stands before the `2` of `1 + \t2` and inside "a\tb"; U+FEFF stands before
+# the `+` of `1 + 2`. The unclosed interpolation and bracket come last.
+fn f():
+	pass
+
+x := 1 + 	2
+
+fn f():
+    x := "a	b"
+
+x := \
+
+x := 'ab'
+
+x := `_`
+
+x := 1__0
+
+x := "bad\xescape"
+
+x := "bad\u{110000}"
+
+name := "Ada
+
+name := "Ada";
+
+x := 1 ﻿+ 2
+
+x := 1]
+
+fn f():
+    x := "$if"
+
+x := 0x
+
+x := 5else
+
+x := return"a"
+
+fn f():
+    x := "${
+
+x := (1 + 2

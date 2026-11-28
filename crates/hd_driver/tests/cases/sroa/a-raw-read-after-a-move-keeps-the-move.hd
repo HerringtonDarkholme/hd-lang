@@ -1,0 +1,33 @@
+# @dump: stdout
+# @build: release std | release checked std | std
+# A raw read of a list's block count through an address taken from
+# `mine`, after `mine` moves into `kept`, which keeps it. The address
+# holds no loan: the block moves with the list, so the read would only
+# delay a drop of `mine`, and `mine`'s last named use stays a move. A
+# copy there would share the block and print a count of 2.
+use std.meta.inline
+use std.rt.alloc.block_of
+use std.rt.memory.{address_of, load_u32}
+
+@inline(.Never)
+fn kept(xs: List[string]) -> List[List[string]]:
+    [xs]
+
+@inline(.Never)
+fn buffer(items: &List[string]) -> usize:
+    usize(load_u32(address_of(items)))
+
+fn count_at(address: usize) -> u32:
+    block := block_of(address)
+    if block == 0: 0 else: load_u32(block)
+
+@inline(.Never)
+fn moved() -> u32:
+    mine := ["ab".repeat(3), "cd".repeat(2)]
+    list := buffer(&mine)
+    theirs := kept(mine)
+    count := count_at(list)
+    if theirs[0].len() == 2: count else: 0
+
+pub fn main() -> void $ Console:
+    println("count ${moved()}")

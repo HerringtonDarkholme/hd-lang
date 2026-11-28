@@ -1,0 +1,129 @@
+# std.num: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.num` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.num.NAME` inside any package.
+std.num.Num  pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self] & Mul[  -- The trait every built-in number type implements: ordered, displayable, and closed under `+`, `-`, `*`, `/`, and `%`.
+std.num.Integer  pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[  -- The trait every built-in integer type implements: `Num` plus a total order, the bitwise operators, and the shifts.
+std.num.Integer.max_value  fn max_value() -> Self  -- The greatest value this integer type can hold.
+std.num.Integer.min_value  fn min_value() -> Self  -- The least value this integer type can hold.
+std.num.Float  pub trait Float < Num & PartialOrd & Neg[Out = Self]  -- The trait the built-in floating-point types implement: `Num` plus negation.
+std.num.ParseNumberError  pub enum ParseNumberError  -- Why number parsing failed: `Empty`, `InvalidDigit(position)`, or `OutOfRange`.
+std.num.TryFromIntError  pub struct TryFromIntError  -- An integer conversion failed because the value is outside the destination type's range.
+std.num.N.checked_add  pub fn checked_add(self, other: N) -> N?  -- The sum, or `.None` when it is out of the type's range.
+std.num.N.checked_sub  pub fn checked_sub(self, other: N) -> N?  -- The difference, or `.None` when it is out of the type's range.
+std.num.N.checked_mul  pub fn checked_mul(self, other: N) -> N?  -- The product, or `.None` when it is out of the type's range.
+std.num.N.checked_div  pub fn checked_div(self, other: N) -> N?  -- The quotient, or `.None` for a zero divisor or the one overflowing case.
+std.num.N.wrapping_add  pub fn wrapping_add(self, other: N) -> N  -- The sum, wrapping around the type's range.
+std.num.N.wrapping_sub  pub fn wrapping_sub(self, other: N) -> N  -- The difference, wrapping around the type's range.
+std.num.N.wrapping_mul  pub fn wrapping_mul(self, other: N) -> N  -- The product, wrapping around the type's range.
+std.num.N.saturating_add  pub fn saturating_add(self, other: N) -> N  -- The sum, capped at the type's largest or smallest value.
+std.num.N.saturating_sub  pub fn saturating_sub(self, other: N) -> N  -- The difference, capped at the type's largest or smallest value.
+std.num.N.count_ones  pub fn count_ones(self) -> u32  -- The number of one bits in the value.
+std.num.N.leading_zeros  pub fn leading_zeros(self) -> u32  -- The number of zero bits before the value's first one bit.
+std.num.N.trailing_zeros  pub fn trailing_zeros(self) -> u32  -- The number of zero bits after the value's last one bit, or its width for zero.
+std.num.N.rotate_left  pub fn rotate_left(self, count: u32) -> N  -- The bits rotated `count` places toward the most significant bit.
+std.num.N.rotate_right  pub fn rotate_right(self, count: u32) -> N  -- The bits rotated `count` places toward the least significant bit.
+std.num.N.pow  pub fn pow(self, exp: u32) -> N  -- The value raised to the power `exp`; `exp` of 0 gives 1.
+std.num.N.to_radix  pub fn to_radix(self, radix: u32) -> string  -- The value's digits in `radix` (2 to 36), lowercase, with a leading `-` when negative.
+std.num.N.parse_radix  pub fn parse_radix(text: string, radix: u32) -> Result[N, ParseNumberError]  -- Reads `text` as an integer in `radix` (2 to 36), or the first error.
+std.num.i8.abs_diff  pub fn abs_diff(self, other: i8) -> u8  -- The absolute difference of the two values.
+std.num.i8.abs  pub fn abs(self) -> i8  -- The absolute value; the minimum value overflows as `-self` does.
+std.num.i16.abs_diff  pub fn abs_diff(self, other: i16) -> u16  -- The absolute difference of the two values.
+std.num.i16.abs  pub fn abs(self) -> i16  -- The absolute value; the minimum value overflows as `-self` does.
+std.num.i32.abs_diff  pub fn abs_diff(self, other: i32) -> u32  -- The absolute difference of the two values.
+std.num.i32.abs  pub fn abs(self) -> i32  -- The absolute value; the minimum value overflows as `-self` does.
+std.num.i64.abs_diff  pub fn abs_diff(self, other: i64) -> u64  -- The absolute difference of the two values.
+std.num.i64.abs  pub fn abs(self) -> i64  -- The absolute value; the minimum value overflows as `-self` does.
+std.num.u8.abs_diff  pub fn abs_diff(self, other: u8) -> u8  -- The absolute difference of the two values.
+std.num.u16.abs_diff  pub fn abs_diff(self, other: u16) -> u16  -- The absolute difference of the two values.
+std.num.u32.abs_diff  pub fn abs_diff(self, other: u32) -> u32  -- The absolute difference of the two values.
+std.num.usize.abs_diff  pub fn abs_diff(self, other: usize) -> usize  -- The absolute difference of the two values.
+std.num.u64.abs_diff  pub fn abs_diff(self, other: u64) -> u64  -- The absolute difference of the two values.
+std.num.f64.to_bits  pub fn to_bits(self) -> u64  -- The IEEE 754 bit pattern of the value.
+std.num.f64.from_bits  pub fn from_bits(bits: u64) -> f64  -- The value whose IEEE 754 bit pattern is `bits`.
+std.num.f64.pi  pub fn pi() -> f64  -- The circle constant pi, rounded to binary64.
+std.num.f64.e  pub fn e() -> f64  -- Euler's number, rounded to binary64.
+std.num.f64.total_cmp  pub fn total_cmp(self, other: f64) -> Ordering  -- The IEEE 754 total order of two values, which orders NaNs and the zeros.
+std.num.f64.is_nan  pub fn is_nan(self) -> bool  -- True when the value is NaN.
+std.num.f64.is_finite  pub fn is_finite(self) -> bool  -- True when the value is neither NaN nor an infinity.
+std.num.f64.is_infinite  pub fn is_infinite(self) -> bool  -- True exactly for positive or negative infinity.
+std.num.f64.to_fixed  pub fn to_fixed(self, digits: usize) -> string  -- The value in fixed-point text with `digits` digits after the point.
+std.num.f64.abs  pub fn abs(self) -> f64  -- The absolute value; `-0.0` gives `0.0` and NaN stays NaN.
+std.num.f64.trunc  pub fn trunc(self) -> f64  -- The integer part, toward zero.
+std.num.f64.floor  pub fn floor(self) -> f64  -- The largest integer not above the value.
+std.num.f64.ceil  pub fn ceil(self) -> f64  -- The smallest integer not below the value.
+std.num.f64.round  pub fn round(self) -> f64  -- The nearest integer, with a tie rounded away from zero.
+std.num.f64.round_ties_even  pub fn round_ties_even(self) -> f64  -- The nearest integer, with a tie rounded to the even integer.
+std.num.f64.copysign  pub fn copysign(self, sign: f64) -> f64  -- The magnitude of this value with the sign of `sign`.
+std.num.f64.sqrt  pub fn sqrt(self) -> f64  -- The correctly rounded square root; a negative value gives NaN.
+std.num.f64.min  pub fn min(self, other: f64) -> f64  -- The smaller input, returning the numeric input when the other is NaN.
+std.num.f64.max  pub fn max(self, other: f64) -> f64  -- The larger input, returning the numeric input when the other is NaN.
+std.num.f64.sin  pub fn sin(self) -> f64  -- The sine of this angle in radians.
+std.num.f64.cos  pub fn cos(self) -> f64  -- The cosine of this angle in radians.
+std.num.f64.tan  pub fn tan(self) -> f64  -- The tangent of this angle in radians.
+std.num.f64.asin  pub fn asin(self) -> f64  -- The principal arcsine in radians.
+std.num.f64.acos  pub fn acos(self) -> f64  -- The principal arccosine in radians.
+std.num.f64.atan  pub fn atan(self) -> f64  -- The principal arctangent in radians.
+std.num.f64.atan2  pub fn atan2(self, x: f64) -> f64  -- The four-quadrant angle of (x, self), in radians.
+std.num.f64.sinh  pub fn sinh(self) -> f64  -- The hyperbolic sine.
+std.num.f64.cosh  pub fn cosh(self) -> f64  -- The hyperbolic cosine.
+std.num.f64.tanh  pub fn tanh(self) -> f64  -- The hyperbolic tangent.
+std.num.f64.asinh  pub fn asinh(self) -> f64  -- The inverse hyperbolic sine.
+std.num.f64.acosh  pub fn acosh(self) -> f64  -- The inverse hyperbolic cosine; NaN below 1.
+std.num.f64.atanh  pub fn atanh(self) -> f64  -- The inverse hyperbolic tangent; NaN outside [-1, 1].
+std.num.f64.exp  pub fn exp(self) -> f64  -- The natural exponential.
+std.num.f64.exp2  pub fn exp2(self) -> f64  -- Two raised to this value.
+std.num.f64.exp_m1  pub fn exp_m1(self) -> f64  -- The natural exponential less one, accurate near zero.
+std.num.f64.ln  pub fn ln(self) -> f64  -- The natural logarithm.
+std.num.f64.log2  pub fn log2(self) -> f64  -- The base-two logarithm.
+std.num.f64.log10  pub fn log10(self) -> f64  -- The base-ten logarithm.
+std.num.f64.ln_1p  pub fn ln_1p(self) -> f64  -- The natural logarithm of one plus this value, accurate near zero.
+std.num.f64.cbrt  pub fn cbrt(self) -> f64  -- The cube root.
+std.num.f64.hypot  pub fn hypot(self, other: f64) -> f64  -- The length of the hypotenuse of a right triangle with legs `self` and `other`.
+std.num.f64.mul_add  pub fn mul_add(self, a: f64, b: f64) -> f64  -- `self * a + b` with one rounding.
+std.num.f64.powf  pub fn powf(self, exponent: f64) -> f64  -- This value raised to a floating-point exponent.
+std.num.f64.powi  pub fn powi(self, exponent: i32) -> f64  -- This value raised to a signed integer exponent.
+std.num.f64.signum  pub fn signum(self) -> f64  -- The sign as negative one, positive one, or NaN.
+std.num.f32.to_bits  pub fn to_bits(self) -> u32  -- The IEEE 754 bit pattern of the value.
+std.num.f32.from_bits  pub fn from_bits(bits: u32) -> f32  -- The value whose IEEE 754 bit pattern is `bits`.
+std.num.f32.pi  pub fn pi() -> f32  -- The circle constant pi, rounded to binary32.
+std.num.f32.e  pub fn e() -> f32  -- Euler's number, rounded to binary32.
+std.num.f32.total_cmp  pub fn total_cmp(self, other: f32) -> Ordering  -- The IEEE 754 total order of two values, which orders NaNs and the zeros.
+std.num.f32.is_nan  pub fn is_nan(self) -> bool  -- True when the value is NaN.
+std.num.f32.is_finite  pub fn is_finite(self) -> bool  -- True when the value is neither NaN nor an infinity.
+std.num.f32.is_infinite  pub fn is_infinite(self) -> bool  -- True exactly for positive or negative infinity.
+std.num.f32.abs  pub fn abs(self) -> f32  -- The absolute value; `-0.0` gives `0.0` and NaN stays NaN.
+std.num.f32.trunc  pub fn trunc(self) -> f32  -- The integer part, toward zero.
+std.num.f32.floor  pub fn floor(self) -> f32  -- The largest integer not above the value.
+std.num.f32.ceil  pub fn ceil(self) -> f32  -- The smallest integer not below the value.
+std.num.f32.round  pub fn round(self) -> f32  -- The nearest integer, with a tie rounded away from zero.
+std.num.f32.round_ties_even  pub fn round_ties_even(self) -> f32  -- The nearest integer, with a tie rounded to the even integer.
+std.num.f32.copysign  pub fn copysign(self, sign: f32) -> f32  -- The magnitude of this value with the sign of `sign`.
+std.num.f32.sqrt  pub fn sqrt(self) -> f32  -- The correctly rounded square root; a negative value gives NaN.
+std.num.f32.min  pub fn min(self, other: f32) -> f32  -- The smaller input, returning the numeric input when the other is NaN.
+std.num.f32.max  pub fn max(self, other: f32) -> f32  -- The larger input, returning the numeric input when the other is NaN.
+std.num.f32.sin  pub fn sin(self) -> f32  -- The sine of this angle in radians.
+std.num.f32.cos  pub fn cos(self) -> f32  -- The cosine of this angle in radians.
+std.num.f32.tan  pub fn tan(self) -> f32  -- The tangent of this angle in radians.
+std.num.f32.asin  pub fn asin(self) -> f32  -- The principal arcsine in radians.
+std.num.f32.acos  pub fn acos(self) -> f32  -- The principal arccosine in radians.
+std.num.f32.atan  pub fn atan(self) -> f32  -- The principal arctangent in radians.
+std.num.f32.atan2  pub fn atan2(self, x: f32) -> f32  -- The four-quadrant angle of (x, self), in radians.
+std.num.f32.sinh  pub fn sinh(self) -> f32  -- The hyperbolic sine.
+std.num.f32.cosh  pub fn cosh(self) -> f32  -- The hyperbolic cosine.
+std.num.f32.tanh  pub fn tanh(self) -> f32  -- The hyperbolic tangent.
+std.num.f32.asinh  pub fn asinh(self) -> f32  -- The inverse hyperbolic sine.
+std.num.f32.acosh  pub fn acosh(self) -> f32  -- The inverse hyperbolic cosine; NaN below 1.
+std.num.f32.atanh  pub fn atanh(self) -> f32  -- The inverse hyperbolic tangent; NaN outside [-1, 1].
+std.num.f32.exp  pub fn exp(self) -> f32  -- The natural exponential.
+std.num.f32.exp2  pub fn exp2(self) -> f32  -- Two raised to this value.
+std.num.f32.exp_m1  pub fn exp_m1(self) -> f32  -- The natural exponential less one, accurate near zero.
+std.num.f32.ln  pub fn ln(self) -> f32  -- The natural logarithm.
+std.num.f32.log2  pub fn log2(self) -> f32  -- The base-two logarithm.
+std.num.f32.log10  pub fn log10(self) -> f32  -- The base-ten logarithm.
+std.num.f32.ln_1p  pub fn ln_1p(self) -> f32  -- The natural logarithm of one plus this value, accurate near zero.
+std.num.f32.cbrt  pub fn cbrt(self) -> f32  -- The cube root.
+std.num.f32.hypot  pub fn hypot(self, other: f32) -> f32  -- The length of the hypotenuse of a right triangle with legs `self` and `other`.
+std.num.f32.mul_add  pub fn mul_add(self, a: f32, b: f32) -> f32  -- `self * a + b` with one rounding.
+std.num.f32.powf  pub fn powf(self, exponent: f32) -> f32  -- This value raised to a floating-point exponent.
+std.num.f32.powi  pub fn powi(self, exponent: i32) -> f32  -- This value raised to a signed integer exponent.
+std.num.f32.signum  pub fn signum(self) -> f32  -- The sign as negative one, positive one, or NaN.

@@ -1,0 +1,11 @@
+pub trait Tag:
+    fn tag(self) -> i32
+
+pub trait Pick[T]:
+    fn pick(self) -> T
+
+pub struct Receiver:
+    pub n: i32
+
+pub struct Tagged[T < Tag]:
+    pub v: T

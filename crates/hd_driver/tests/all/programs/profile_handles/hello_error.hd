@@ -1,0 +1,4 @@
+use std.console.eprintln
+
+pub fn main() -> void $ Console:
+    eprintln("oops")

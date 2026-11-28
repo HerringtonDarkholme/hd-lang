@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+fn copied[T, E < ?Copy](value: &Result[T, E], fallback: T) -> T:
+    match value:
+        .Some(item) => item
+        .None => fallback
+
+fn borrowed[T < ?Copy, E < ?Copy](value: &Result[T, E]):
+    match value:
+        .Some(item) => let _ = item
+        .None => pass

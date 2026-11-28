@@ -8,11 +8,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $text.0 i32) (local $text.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $text.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 9 |     text := "AbC_09"
     i32.const 113 ;; &"AbC_09"
-    i32.const 6
-    local.set $text.1
     local.tee $text.0
     ;; 10 |     println(text.lower())
     i32.const 6
@@ -31,34 +29,32 @@
       call $rt:release_ref
     end
     local.get $text.0
-    local.get $text.1
+    i32.const 6
     i32.const 1
     call $ascii_case
-    local.set $text.1
-    local.tee $text.0
-    local.get $text.1
+    local.set $text.0
+    local.tee $t0
+    local.get $text.0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 9 |     text := "AbC_09"
-    local.get $text.0
+    local.get $t0
     if
-      local.get $text.0
+      local.get $t0
       call $rt:release_ref
     end
   )
-  (func $ascii_case (param $t2 i32) (param $t0 i32) (param $t5 i32) (result i32 i32) (local $t1 i64) (local $t4 i32) (local $t3 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $ascii_case (param $t1 i32) (param $t0 i32) (param $t4 i32) (result i32 i32) (local $t3 i32) (local $t2 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     block
     ;; (no span)
       local.get $t0
       i32.const 8
       i32.ge_u
       if
-        i64.const -9187201950435737472
-        local.set $t1
-        local.get $t2
+        local.get $t1
         i64.load $heap
-        local.get $t2
+        local.get $t1
         local.get $t0
         i32.add
         i32.const 8
@@ -71,249 +67,249 @@
         i64.ne
         br_if 1
         i32.const 8
-        local.set $t3
+        local.set $t2
         block
           loop
             local.get $t0
-            local.get $t3
+            local.get $t2
             i32.sub
             i32.const 32
             i32.ge_u
             i32.eqz
             br_if 1
+            local.get $t1
             local.get $t2
-            local.get $t3
             i32.add
             i64.load $heap
+            local.get $t1
             local.get $t2
-            local.get $t3
             i32.add
             i64.load $heap offset=8
             i64.or
+            local.get $t1
             local.get $t2
-            local.get $t3
             i32.add
             i64.load $heap offset=16
             i64.or
+            local.get $t1
             local.get $t2
-            local.get $t3
             i32.add
             i64.load $heap offset=24
             i64.or
-            local.get $t1
+            i64.const -9187201950435737472
             i64.and
             i64.const 0
             i64.ne
             br_if 3
-            local.get $t3
+            local.get $t2
             i32.const 32
             i32.add
-            local.set $t3
+            local.set $t2
             br 0
           end
         end
         block
           loop
             local.get $t0
-            local.get $t3
+            local.get $t2
             i32.sub
             i32.const 8
             i32.ge_u
             i32.eqz
             br_if 1
+            local.get $t1
             local.get $t2
-            local.get $t3
             i32.add
             i64.load $heap
-            local.get $t1
+            i64.const -9187201950435737472
             i64.and
             i64.const 0
             i64.ne
             br_if 3
-            local.get $t3
+            local.get $t2
             i32.const 8
             i32.add
-            local.set $t3
+            local.set $t2
             br 0
           end
         end
         i32.const 1
-        local.set $t4
+        local.set $t3
         br 1
       end
       block
         loop
-          local.get $t3
+          local.get $t2
           local.get $t0
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t3
+          local.get $t2
           local.get $t0
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
+          local.get $t1
           local.get $t2
-          local.get $t3
           i32.add
           i32.load8_u $heap
           i32.const 128
           i32.ge_u
           br_if 2
-          local.get $t3
+          local.get $t2
           i32.const 1
           i32.add
-          local.set $t3
+          local.set $t2
           br 0
         end
       end
       i32.const 1
-      local.set $t4
+      local.set $t3
     end
-    local.get $t4
+    local.get $t3
     i32.eqz
     if
-      local.get $t5
+      local.get $t4
       if (result i32)
-        local.get $t2
+        local.get $t1
         local.get $t0
         call $rt:prim/string_upper
-        local.set $t4
+        local.set $t3
       else
-        local.get $t2
+        local.get $t1
         local.get $t0
         call $rt:prim/string_lower
-        local.set $t4
+        local.set $t3
       end
-      local.get $t4
+      local.get $t3
       return
     end
-    local.get $t5
+    local.get $t4
     if (result i32)
       i32.const 97
     else
       i32.const 65
     end
-    local.tee $t4
+    local.tee $t3
     i32.const 25
     i32.add
     i32.const 255
     i32.and
-    local.set $t3
+    local.set $t2
     block
       loop
-        local.get $t6
+        local.get $t5
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t6
+        local.get $t5
         local.get $t0
         i32.ge_u
         if
           call $rt:panic
           unreachable
         end
-        local.get $t2
-        local.get $t6
+        local.get $t1
+        local.get $t5
         i32.add
         i32.load8_u $heap
-        local.tee $t7
-        local.get $t4
+        local.tee $t6
+        local.get $t3
         i32.ge_u
         if
-          local.get $t7
-          local.get $t3
+          local.get $t6
+          local.get $t2
           i32.le_u
           br_if 2
         end
-        local.get $t6
+        local.get $t5
         i32.const 1
         i32.add
-        local.set $t6
+        local.set $t5
         br 0
       end
     end
-    local.get $t6
+    local.get $t5
     local.get $t0
     i32.eq
     if
-      local.get $t2
+      local.get $t1
       local.get $t0
       return
     end
     local.get $t0
     i32.const 16
-    local.set $t7
+    local.set $t6
     if
       local.get $t0
       call $rt:str
-      local.set $t7
+      local.set $t6
     end
-    local.get $t7
-    local.tee $t8
-    local.get $t2
+    local.get $t6
+    local.tee $t7
+    local.get $t1
     local.get $t0
     call $rt:memory_copy/0/0
     block
       loop
-        local.get $t6
+        local.get $t5
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t6
+        local.get $t5
         local.get $t0
         i32.ge_u
         if
           call $rt:panic
           unreachable
         end
-        local.get $t2
-        local.get $t6
+        local.get $t1
+        local.get $t5
         i32.add
         i32.load8_u $heap
-        local.tee $t9
-        local.get $t4
+        local.tee $t8
+        local.get $t3
         i32.ge_u
         if
-          local.get $t9
-          local.get $t3
+          local.get $t8
+          local.get $t2
           i32.le_u
           if
-            local.get $t5
+            local.get $t4
             if
-              local.get $t9
+              local.get $t8
               i32.const 32
               i32.sub
               i32.const 255
               i32.and
-              local.set $t9
+              local.set $t8
             else
-              local.get $t9
+              local.get $t8
               i32.const 32
               i32.add
               i32.const 255
               i32.and
-              local.set $t9
+              local.set $t8
             end
-            local.get $t8
-            local.get $t6
+            local.get $t7
+            local.get $t5
             i32.add
-            local.get $t9
+            local.get $t8
             i32.store8 $heap
           end
         end
-        local.get $t6
+        local.get $t5
         i32.const 1
         i32.add
-        local.set $t6
+        local.set $t5
         br 0
       end
     end
-    local.get $t7
+    local.get $t6
     local.get $t0
   )
 )

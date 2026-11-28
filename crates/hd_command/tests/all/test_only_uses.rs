@@ -11,46 +11,15 @@ use std::process::Output;
 
 use hd_testkit::Scratch;
 
-const COINS: &str = "pub fn cents() -> i32:\n    100\n";
+const COINS: &str = include_str!("programs/test_only_uses/coins.hd");
 
 /// `total` and its doc test and `tests:` block; only test code uses
 /// `money.coins`.
-const LEDGER: &str = "\
-## The total.
-##
-## ```hd
-## use pkg.money.coins.{cents}
-## use pkg.ledger.{total}
-## use std.testing.assert_equal
-##
-## assert_equal(total() + cents(), 103, reason=\"doc\")
-## ```
-pub fn total() -> i32:
-    3
+const LEDGER: &str = include_str!("programs/test_only_uses/ledger.hd");
 
-tests:
-    use pkg.money.coins.cents
-    use std.testing.assert_equal
+const LEDGER_TEST: &str = include_str!("programs/test_only_uses/ledger_test.hd");
 
-    it(\"adds cents\"):
-        assert_equal(total() + cents(), 103, reason=\"block\")
-";
-
-const LEDGER_TEST: &str = "\
-use pkg.money.coins.cents
-use std.testing.assert_equal
-
-it(\"checks cents\"):
-    assert_equal(cents(), 100, reason=\"module\")
-";
-
-const BILL: &str = "\
-use pkg.money.coins.cents
-use std.testing.assert_equal
-
-it(\"bills\"):
-    assert_equal(cents(), 100, reason=\"file\")
-";
+const BILL: &str = include_str!("programs/test_only_uses/bill.hd");
 
 fn write(root: &Path, files: &[(&str, &str)]) {
     for (path, text) in files {
@@ -121,6 +90,11 @@ fn an_edit_of_a_module_only_test_code_uses_reaches_every_test() {
         &[
             ("hd.toml", "[package]\nname = \"shop\"\n"),
             ("src/money/coins.hd", COINS),
+            // A folder's modules are private to it (`module.vis.parent`).
+            (
+                "src/money/mod.hd",
+                include_str!("programs/facades/money_coins.hd"),
+            ),
             ("src/ledger.hd", LEDGER),
             ("src/ledger_test.hd", LEDGER_TEST),
             ("tests/bill.hd", BILL),
@@ -152,7 +126,9 @@ fn an_edit_of_a_module_only_test_code_uses_reaches_every_test() {
         &root,
         &[(
             "src/money/coins.hd",
-            "pub fn cents(n: i32) -> i32:\n    100 * n\n",
+            include_str!(
+                "programs/test_only_uses/an_edit_of_a_module_only_test_code_uses_reaches_every_test.hd"
+            ),
         )],
     );
     assert_eq!(
@@ -181,17 +157,23 @@ fn an_edit_of_a_dev_dependency_reaches_its_tests() {
             ),
             (
                 "shop/src/ledger.hd",
-                "pub fn total() -> i32:\n    3\n\ntests:\n    use dep.fixtures.sample\n    \
-                 use std.testing.assert_equal\n\n    it(\"adds a sample\"):\n        \
-                 assert_equal(total() + sample(), 13, reason=\"block\")\n",
+                include_str!(
+                    "programs/test_only_uses/an_edit_of_a_dev_dependency_reaches_its_tests.hd"
+                ),
             ),
             (
                 "shop/tests/bill.hd",
-                "use dep.fixtures.sample\nuse std.testing.assert_equal\n\n\
-                 it(\"samples\"):\n    assert_equal(sample(), 10, reason=\"file\")\n",
+                include_str!(
+                    "programs/test_only_uses/an_edit_of_a_dev_dependency_reaches_its_tests_2.hd"
+                ),
             ),
             ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
-            ("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    10\n"),
+            (
+                "fixtures/src/lib.hd",
+                include_str!(
+                    "programs/test_only_uses/an_edit_of_a_dev_dependency_reaches_its_tests_3.hd"
+                ),
+            ),
         ],
     );
     let shop = world.join("shop");
@@ -203,7 +185,12 @@ fn an_edit_of_a_dev_dependency_reaches_its_tests() {
 
     write(
         &world,
-        &[("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    20\n")],
+        &[(
+            "fixtures/src/lib.hd",
+            include_str!(
+                "programs/test_only_uses/an_edit_of_a_dev_dependency_reaches_its_tests_4.hd"
+            ),
+        )],
     );
     assert_eq!(
         panics(&shop, &cache),
@@ -217,7 +204,9 @@ fn an_edit_of_a_dev_dependency_reaches_its_tests() {
         &world,
         &[(
             "fixtures/src/lib.hd",
-            "pub fn sample(n: i32) -> i32:\n    10 * n\n",
+            include_str!(
+                "programs/test_only_uses/an_edit_of_a_dev_dependency_reaches_its_tests_5.hd"
+            ),
         )],
     );
     assert_eq!(

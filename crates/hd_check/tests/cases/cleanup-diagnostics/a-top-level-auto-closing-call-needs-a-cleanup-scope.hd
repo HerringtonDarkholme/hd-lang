@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# A module initializer is not a scope that can register deferred cleanup.
+use std.ops.defer
+
+defer(fn(): pass)

@@ -280,6 +280,9 @@ impl Wire for EntryKind {
     }
 }
 
+/// `File`, a host handle: its handle number.
+pub type File = Handle;
+
 /// `FormError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FormError {
@@ -460,7 +463,49 @@ impl Wire for HostError {
     }
 }
 
-/// `JsonError` of `lib/std/json.hd`.
+/// `IoError` of `lib/std/io.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum IoError {
+    Closed,
+    NotGranted { subject: String },
+    InvalidUtf8,
+    Other { message: String },
+}
+
+impl Wire for IoError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Closed => {
+                e.leb(0);
+            }
+            Self::NotGranted { subject } => {
+                e.leb(1);
+                subject.enc(e);
+            }
+            Self::InvalidUtf8 => {
+                e.leb(2);
+            }
+            Self::Other { message } => {
+                e.leb(3);
+                message.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(4)? {
+            0 => Self::Closed,
+            1 => Self::NotGranted {
+                subject: Wire::dec(d)?,
+            },
+            2 => Self::InvalidUtf8,
+            _ => Self::Other {
+                message: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
+/// `JsonError` of `lib/std/encoding/json.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JsonError {
     UnexpectedEnd { position: usize },
@@ -811,6 +856,40 @@ impl Wire for PropertyCase {
     }
 }
 
+/// `Signal` of `lib/std/host.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Signal {
+    Interrupt,
+    Terminate,
+    Hangup,
+}
+
+impl Wire for Signal {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Interrupt => {
+                e.leb(0);
+            }
+            Self::Terminate => {
+                e.leb(1);
+            }
+            Self::Hangup => {
+                e.leb(2);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(3)? {
+            0 => Self::Interrupt,
+            1 => Self::Terminate,
+            _ => Self::Hangup,
+        })
+    }
+}
+
+/// `StdinHandle`, a host handle: its handle number.
+pub type StdinHandle = Handle;
+
 /// `TcpListener`, a host handle: its handle number.
 pub type TcpListener = Handle;
 
@@ -837,7 +916,7 @@ impl Wire for Timestamp {
 /// `UdpSocket`, a host handle: its handle number.
 pub type UdpSocket = Handle;
 
-/// `WireHttpError` of `lib/std/http_wire.hd`.
+/// `WireHttpError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WireHttpError {
     NotGranted { host: String },
@@ -955,7 +1034,7 @@ impl Wire for WireHttpError {
     }
 }
 
-/// `WireIdentity` of `lib/std/http_wire.hd`.
+/// `WireIdentity` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireIdentity {
     pub certificate_chain: String,
@@ -975,7 +1054,7 @@ impl Wire for WireIdentity {
     }
 }
 
-/// `WireRequest` of `lib/std/http_wire.hd`.
+/// `WireRequest` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireRequest {
     pub method: Method,
@@ -1025,7 +1104,7 @@ impl Wire for WireRequest {
     }
 }
 
-/// `WireResponse` of `lib/std/http_wire.hd`.
+/// `WireResponse` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireResponse {
     pub status: u16,
@@ -1056,8 +1135,10 @@ impl Wire for WireResponse {
 pub enum Id {
     ConsoleWriteSync,
     ConsoleWriteErrorSync,
+    ConsoleIsTerminal,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
+    ConsoleInputStdin,
     ClockNow,
     ClockMonotonic,
     ClockSleep,
@@ -1065,6 +1146,7 @@ pub enum Id {
     FsReadReadText,
     FsReadListDir,
     FsReadStat,
+    FsReadOpen,
     FsWriteWriteBytes,
     FsWriteWriteText,
     FsWriteAppendText,
@@ -1081,10 +1163,12 @@ pub enum Id {
     NetListen,
     NetBindUdp,
     ProcessRun,
+    ProcessStatus,
     SysOs,
     SysArch,
     SysHostname,
     SysCpuCount,
+    SignalsWait,
     EnvGet,
     EnvNames,
     ArgsProgram,
@@ -1098,6 +1182,9 @@ pub enum Id {
     PropertyRunnerStart,
     PropertyRunnerRecord,
     PropertyRunnerShow,
+    FsReadFileRead,
+    FsReadFileDispose,
+    ConsoleInputStdinHandleRead,
     NetTcpStreamRead,
     NetTcpStreamWrite,
     NetTcpStreamSetTimeout,
@@ -1155,6 +1242,15 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Buffer("Result[void, ConsoleError]"),
     },
     HostMethod {
+        id: Id::ConsoleIsTerminal,
+        module: "hd:Console",
+        name: "is_terminal",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Buffer("ConsoleStream")],
+        result: Codec::Buffer("bool"),
+    },
+    HostMethod {
         id: Id::ConsoleInputReadLine,
         module: "hd:ConsoleInput",
         name: "read_line",
@@ -1171,6 +1267,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[],
         result: Codec::Buffer("Result[string, ConsoleError]"),
+    },
+    HostMethod {
+        id: Id::ConsoleInputStdin,
+        module: "hd:ConsoleInput",
+        name: "stdin",
+        wait: Wait::Never,
+        resource: None,
+        params: &[],
+        result: Codec::Buffer("StdinHandle"),
     },
     HostMethod {
         id: Id::ClockNow,
@@ -1234,6 +1339,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: Some(ResourceArg::Path),
         params: &[Codec::Buffer("Path")],
         result: Codec::Buffer("Result[Entry?, FsError]"),
+    },
+    HostMethod {
+        id: Id::FsReadOpen,
+        module: "hd:FsRead",
+        name: "open",
+        wait: Wait::May,
+        resource: Some(ResourceArg::Path),
+        params: &[Codec::Buffer("Path")],
+        result: Codec::Buffer("Result[File, FsError]"),
     },
     HostMethod {
         id: Id::FsWriteWriteBytes,
@@ -1380,6 +1494,15 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Buffer("Result[ProcessOutput, ProcessError]"),
     },
     HostMethod {
+        id: Id::ProcessStatus,
+        module: "hd:Process",
+        name: "status",
+        wait: Wait::May,
+        resource: Some(ResourceArg::Program),
+        params: &[Codec::Buffer("Command")],
+        result: Codec::Buffer("Result[i32, ProcessError]"),
+    },
+    HostMethod {
         id: Id::SysOs,
         module: "hd:Sys",
         name: "os",
@@ -1414,6 +1537,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: Some(ResourceArg::SysName),
         params: &[],
         result: Codec::Buffer("Result[u32, HostError]"),
+    },
+    HostMethod {
+        id: Id::SignalsWait,
+        module: "hd:Signals",
+        name: "wait",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Buffer("Signal")],
+        result: Codec::Void,
     },
     HostMethod {
         id: Id::EnvGet,
@@ -1535,6 +1667,33 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Void,
+    },
+    HostMethod {
+        id: Id::FsReadFileRead,
+        module: "hd:FsRead",
+        name: "File.read",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[List[u8], IoError]"),
+    },
+    HostMethod {
+        id: Id::FsReadFileDispose,
+        module: "hd:FsRead",
+        name: "File.dispose",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32)],
+        result: Codec::Void,
+    },
+    HostMethod {
+        id: Id::ConsoleInputStdinHandleRead,
+        module: "hd:ConsoleInput",
+        name: "StdinHandle.read",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Scalar(Scalar::I32), Codec::Scalar(Scalar::I32)],
+        result: Codec::Buffer("Result[List[u8], IoError]"),
     },
     HostMethod {
         id: Id::NetTcpStreamRead,

@@ -1,6 +1,6 @@
 # test: a closure written in a struct literal for a field of a type parameter with no lifetime bound may capture local references, as may a fn parameter given there, and the struct may be called and passed within their scope
 # Spec 13 Lifetime Bounds: ref.generic.outlives.field.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

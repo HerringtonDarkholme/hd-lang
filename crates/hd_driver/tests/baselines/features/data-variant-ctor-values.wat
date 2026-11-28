@@ -14,7 +14,7 @@
     local.tee $t1
     local.tee $e.1
     if
-      local.get $t0
+      i32.const 24 ;; &empty-buffer
       local.get $e.1
       call $rt:list_reserve
       local.set $t0
@@ -99,7 +99,7 @@
     local.tee $t1
     local.tee $e.1
     if
-      local.get $t0
+      i32.const 24 ;; &empty-buffer
       local.get $e.1
       call $rt:list_reserve
       local.set $t0
@@ -202,7 +202,7 @@
     local.tee $t1
     local.tee $e.1
     if
-      local.get $t0
+      i32.const 24 ;; &empty-buffer
       local.get $e.1
       call $rt:list_reserve
       local.set $t0

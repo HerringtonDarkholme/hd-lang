@@ -1,0 +1,15 @@
+use std.console.{ConsoleInput, stdin, read_line, read_all}
+use std.io.Read
+fn check!() -> void $ Console + ConsoleInput:
+    let mut input = stdin()
+    println(input.read!(0).expect("read").is_empty())
+    println(input.read!(1).expect("read") == [97u8])
+    println(read_line!().expect("read") == .Some(""))
+    println(input.read!(4).expect("read") == [255u8, 0u8, 13u8, 10u8])
+    println(read_line!().expect("read") == .Some("line�"))
+    println(read_all!().expect("read") == "b�\r\nc\r")
+    println(input.read!(100).expect("read").is_empty())
+
+check!()
+:reload
++7

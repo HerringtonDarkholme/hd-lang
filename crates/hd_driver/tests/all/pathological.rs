@@ -2020,7 +2020,7 @@ fn locating_many_diagnostics_indexes_their_file_once() {
 /// argument texts.
 fn tracked_calls(n: usize) -> String {
     let mut s = String::from(
-        "use std.debug.Location\n\n@track_caller\nfn at(x: i32) -> i32:\n    if Location::caller_args().is_empty(): 0 else: x\n\npub fn run() -> i32:\n    let s = 0\n",
+        "use std.meta.Location\n\n@track_caller\nfn at(x: i32) -> i32:\n    if Location::caller_args().is_empty(): 0 else: x\n\npub fn run() -> i32:\n    let s = 0\n",
     );
     for _ in 0..n {
         s.push_str("    s = at(s + 1)\n");
@@ -2408,11 +2408,11 @@ fn unknown_field_types(n: usize) -> String {
     s
 }
 
-// Resolver and checker: #1876, an unknown name's import hint asks each
-// interface's index of std exports by name, built once, with one probe:
+// Resolver and checker: #1876, an unknown name's import hint asks the
+// explicit std index by name, built once, with one probe:
 // a pass over every export of std per unknown name cost about 175 µs each.
 #[test]
-fn import_hints_probe_one_index_per_interface() {
+fn import_hints_probe_one_explicit_index() {
     on_test_stack(|| {
         for n in [1_000, 10_000] {
             let (out, work) = hd_resolve::work::count_hint_work(|| {
@@ -2421,7 +2421,7 @@ fn import_hints_probe_one_index_per_interface() {
             let shown = out.render();
             let hinted = shown.matches("; add `use std.text.StringBuilder`").count();
             assert_eq!(hinted, n / 2, "{n}: {shown}");
-            // The interfaces' exports indexed once (412 measured), then a
+            // The explicit std exports are indexed once, followed by a
             // few probes per unknown name (4.5 measured): not std's
             // exports per name.
             assert!(
@@ -2442,7 +2442,7 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
     );
     let shown = out.render();
     assert!(
-        shown.contains("`json` is not defined; add `use std.json`"),
+        shown.contains("`json` is not defined; add `use std.encoding.json`"),
         "{shown}"
     );
     assert!(
@@ -2474,9 +2474,9 @@ fn trait_impls(n: usize) -> String {
 }
 
 // Resolver: #1888, an implementation finds its trait, its part and its
-// trait's methods through the folder's index of items, one probe each,
+// trait's methods through the unit's index of items, one probe each,
 // and checks its methods against the trait's names hashed once: a scan
-// of every item of the folder per implementation cost n² / 2.
+// of every item of the unit per implementation cost n² / 2.
 #[test]
 fn trait_impls_find_their_traits_by_one_probe_each() {
     on_small_stack(|| {
@@ -2749,7 +2749,7 @@ fn inherent_members_are_compared_by_target_head() {
 /// `Debug`: `3n` derivations, each finding its template, its heads and
 /// its target's block.
 fn derived_types(n: usize) -> String {
-    let mut s = String::from("use std.structure.Structure\n\n");
+    let mut s = String::from("use std.meta.Structure\n\n");
     for i in 0..n {
         let _ = write!(
             s,
@@ -2955,7 +2955,7 @@ fn copy_goals_down_a_generic_chain_walk_each_level_once() {
 /// to a library marker's (`module.marker.structural`).
 fn marker_doubled(library: bool, n: usize) -> String {
     let mut s = String::from(
-        "use std.marker.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
+        "use std.meta.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
     );
     for i in 1..=n {
         let _ = writeln!(s, "    x{i} := Two {{ a: x{}, b: x{} }}", i - 1, i - 1);
@@ -2994,7 +2994,7 @@ fn marker_goals_walk_each_distinct_node_once() {
 /// (`fn.crossing.global`).
 fn crossing_chain(n: usize) -> String {
     let mut s = String::from(
-        "use std.marker.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
+        "use std.meta.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
     );
     let _ = writeln!(s, "fn g{n}() -> i32:\n    counter\n");
     for i in (0..n).rev() {
@@ -3031,7 +3031,7 @@ fn crossing_reach_is_linear_in_calls_and_closures() {
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(
-        "use std.serde.Serialize\nuse std.structure.Structure\n\npub fn main() -> void: pass\n",
+        "use std.encoding.Serialize\nuse std.meta.Structure\n\npub fn main() -> void: pass\n",
     );
     for i in 0..n {
         let _ = write!(
@@ -3376,15 +3376,15 @@ fn string_temporary_coalescing_work_is_near_linear() {
 // Emitter: #1914, rule 11's zero facts were a dense bit row of every
 // local per waiting block, copied at each forward branch, so `n` locals
 // across `n` blocks allocated `n²/64` words. They are persistent sets now,
-// shared between blocks and met by intersection.
+// shared between blocks and met by intersection. The rule is the
+// optimized link's, so the programs build optimized.
 #[test]
 fn zero_fact_work_is_linear_in_interpolations() {
     on_test_stack(|| {
-        let goal = Goal::Program {
-            entry: "main".into(),
-        };
         let build = |source: String| {
-            let (out, work) = hd_wasm::work::count_zero_facts(|| compile(&source, &goal));
+            let (out, work) = hd_wasm::work::count_zero_facts(|| {
+                build_at(&source, hd_driver::OptLevel::Optimized)
+            });
             assert!(!out.diags.has_errors(), "{}", out.render());
             work
         };
@@ -3430,7 +3430,7 @@ fn let_statements(n: usize) -> String {
 /// that only reads it: `n` argument promotion sites.
 fn promoted_calls(n: usize) -> String {
     let mut s = String::from(
-        "use std.annotation.inline\n\nstruct Wrap:\n    name: string\n\n@inline(.Never)\nfn label(w: &Wrap) -> usize:\n    w.name.len() + 1\n\npub fn main() -> void $ Console:\n    let w = Wrap { name: \"x\" }\n    let t = +0\n",
+        "use std.meta.inline\n\nstruct Wrap:\n    name: string\n\n@inline(.Never)\nfn label(w: &Wrap) -> usize:\n    w.name.len() + 1\n\npub fn main() -> void $ Console:\n    let w = Wrap { name: \"x\" }\n    let t = +0\n",
     );
     for _ in 0..n {
         s.push_str("    t = t + label(&w)\n");
@@ -4649,6 +4649,225 @@ fn nested_pattern_copy_questions_walk_each_type_once() {
     });
 }
 
+// Emitter: #2400, a nested tuple pattern reads each column from the one
+// above (`Read [%c .1]`), and each read copied the suffix tuple into
+// locals of its own: O(depth^2) locals, whose liveness the link's
+// coalescing then walked: a dev link with no `opt::locals` before it went
+// 30,379 -> 181,676 steps at 32 -> 128 levels. A field read that counts
+// nothing (or borrows) now names its part of the value's locals: 22,576
+// -> 27,916.
+#[test]
+fn nested_tuple_pattern_columns_copy_no_suffix() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) = hd_wasm::work::count_liveness(|| compile(&tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        work(0);
+        let zero = work(0);
+        let small = work(32) - zero;
+        let large = work(128) - zero;
+        assert!(
+            small > 0 && large <= 5 * small,
+            "liveness work over the empty body at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
+/// A tuple of `string`s nested `n` deep, built and dropped whole: the
+/// scale check's `tuple-nest-string` without its pattern.
+fn string_tuple_nest(n: usize) -> String {
+    let ty = format!("{}string{}", "(string, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    format!(
+        "pub fn main() -> void $ Console:\n    let t = \"s\"\n    let x: {ty} = {value}\n    println(\"ok\")\n"
+    )
+}
+
+// Emit: #2402, the release of a tuple kept by address counts each nested
+// tuple in place, calling that type's in-place shim. Emitting the call
+// asked for the part type's whole count layout, which queued its by-value
+// shims too, each O(its leaves), though no call site uses them: O(depth^2)
+// instructions emitted. rustc's `drop_in_place::<(String, (String, ..))>`
+// calls the inner tuple's glue and nothing else, as the in-place shims do.
+#[test]
+fn a_nested_tuple_release_emits_no_unused_count_shims() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_wasm::work::count_use_facts(|| compile(&string_tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        // Each size's work over the one 4x smaller: the program's own
+        // emission, std's common part cancelling out.
+        let (k4, k16, k64) = (work(4), work(16), work(64));
+        let (small, large) = (k16 - k4, k64 - k16);
+        assert!(
+            small > 0 && large <= 5 * small,
+            "emitted body instructions from 4 to 16 and from 16 to 64 levels: {small} and {large}"
+        );
+    });
+}
+
+/// `n` functions, each called once from `main` as `t = f0000(t)`: the
+/// scale check's `fn-items`.
+fn fn_items(n: usize) -> String {
+    let mut s = String::new();
+    for k in 0..n {
+        let _ = writeln!(s, "fn f{k:04}(x: i32) -> i32: x + 3\n");
+    }
+    s.push_str("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    t = f{k:04}(t)");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+/// `n` closures of `main`, each capturing `t` and called once: the scale
+/// check's `closures`.
+fn closure_items(n: usize) -> String {
+    let mut s = String::from("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for k in 0..n {
+        let _ = writeln!(s, "    c{k} := fn(x: i32) -> i32: x + t\n    t = c{k}(+1)");
+    }
+    s.push_str("    println(\"$t\")\n");
+    s
+}
+
+// Verifier: #2444, the read-after-move walk kept one state bit per move
+// site, so each `Store` of a local refilled, and each read of it checked,
+// every move of that local in the body: `main`'s n `t = f0000(t)` cost
+// O(n^2). The walk now keeps one bit per moved place, as rustc's
+// `MaybeUninitializedPlaces` keeps one per `MovePathIndex`. Its place
+// index was one for the body, so each of n closures' reads of `t` visited
+// every closure's path of `t`: it is now one per sub-body.
+#[test]
+fn moves_of_one_place_verify_in_linear_place_work() {
+    use hd_driver::{Packages, build_packages};
+    on_test_stack(|| {
+        let work = |program: fn(usize) -> String, n: usize| {
+            let mut src = MemorySources::default();
+            let text = program(n);
+            src.insert("main.hd", &text);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let packages = Packages {
+                verify_own: true,
+                ..Packages::default()
+            };
+            let goal = Goal::Program {
+                entry: "main".into(),
+            };
+            let (out, work) = hd_tir::work::count_empty_place_work(|| {
+                build_packages(&host, "app", &packages, &goal)
+            });
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        // The first build verifies std's bodies into the shared store.
+        work(fn_items, 0);
+        for (name, program) in [
+            ("functions", fn_items as fn(usize) -> String),
+            ("closures", closure_items),
+        ] {
+            let (n1, n4, n16) = (work(program, 25), work(program, 100), work(program, 400));
+            let (small, large) = (n4 - n1, n16 - n4);
+            assert!(
+                small > 0 && large <= 5 * small,
+                "place-verifier work from 25 to 100 and from 100 to 400 {name}: {small} and {large}"
+            );
+        }
+    });
+}
+
+// Emit: #2402, a tuple literal stored each part in fresh locals, so a
+// nest of `n` literals copied each level's whole suffix again: O(n^2)
+// locals and instructions before the link's coalescing removed them,
+// which the liveness work over that body paid. A part moved into the
+// literal now keeps its locals, as rustc's `DestinationPropagation`
+// makes `_2` the place `_3.1` for `_3 = (_1, move _2)`.
+#[test]
+fn a_nested_string_tuple_literal_copies_each_leaf_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_wasm::work::count_liveness(|| compile(&string_tuple_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        work(0);
+        let zero = work(0);
+        let small = work(32) - zero;
+        let large = work(128) - zero;
+        assert!(
+            small > 0 && large <= 5 * small,
+            "liveness work over the empty body at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
+/// A tuple of `string`s nested `n` deep, matched through a reference by
+/// one nested pattern that binds its deepest leaf.
+fn reference_match_nest(n: usize) -> String {
+    let ty = format!("{}string{}", "(string, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    let mut pattern = String::from("z");
+    for i in (0..n).rev() {
+        pattern = format!("(a{i}, {pattern})");
+    }
+    format!(
+        "fn last(x: {ty}) -> string:\n    match &x:\n        {pattern} => z\n\n\
+         pub fn main() -> void $ Console:\n    let t = \"s\"\n    println(last({value}))\n"
+    )
+}
+
+// Ownership: #2402, each payload read of a deep pattern matched through
+// `&x` walked its chain of reads up to the match's subject, and was
+// re-rooted at the scrutinee with its whole projection: O(depth^2) steps
+// and place words. Now one tour of the reads' root forest answers each
+// read, and a payload keeps its one link to the payload above it.
+#[test]
+fn a_deep_match_through_a_reference_walks_each_read_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) =
+                hd_tir::work::count_match_read_work(|| compile(&reference_match_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        // A pattern of depth 0 binds the reference itself. The first build
+        // fills what the run's memo then keeps of std, so each later size
+        // counts its program's own reads.
+        work(8);
+        let (small, large) = (work(32), work(128));
+        assert!(
+            small > 0 && large <= 5 * small,
+            "match-reference read work at 32 and 128 levels: {small} and {large}"
+        );
+    });
+}
+
 /// A `!Copy` struct held `n` tuples deep through named aliases
 /// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
 /// depth, deepest first: each copy question's answer is a blocker below
@@ -4786,10 +5005,10 @@ fn unknown_method_hints_ask_only_the_receivers_methods() {
     });
 }
 
-/// `k` folders of one module each, every module calling `get` on the
-/// struct `S` of the root folder's `shared` module: lane 126's measure
-/// of the folder slots a module's view scans per receiver head.
-fn modules_in_many_folders_call_one_type(k: usize) -> MemorySources {
+/// `k` units of one module each, every module calling `get` on the
+/// struct `S` of the root unit's `shared` module: lane 126's measure
+/// of the unit slots a module's view scans per receiver head.
+fn modules_in_many_units_call_one_type(k: usize) -> MemorySources {
     let mut src = MemorySources::default();
     src.insert(
         "shared.hd",
@@ -4808,15 +5027,15 @@ fn modules_in_many_folders_call_one_type(k: usize) -> MemorySources {
     src
 }
 
-// Driver and solver: each module's impl view held a slot per folder of
+// Driver and solver: each module's impl view held a slot per unit of
 // the program, made per module (`closure_impls`) and scanned once per
-// receiver head (`Impls::tables_at`), so k modules in k folders cost
-// k^2. The view now holds its closure's folders alone (`FolderSlots`).
+// receiver head (`Impls::tables_at`), so k modules in k units cost
+// k^2. The view now holds its closure's units alone (`UnitSlots`).
 #[test]
-fn modules_in_many_folders_scan_their_view_once_per_head() {
+fn modules_in_many_units_scan_their_view_once_per_head() {
     on_test_stack(|| {
         let work = |k: usize| {
-            let src = modules_in_many_folders_call_one_type(k);
+            let src = modules_in_many_units_call_one_type(k);
             let store = crate::warm_store();
             let host = Host {
                 render_tir: &[],
@@ -4833,7 +5052,7 @@ fn modules_in_many_folders_scan_their_view_once_per_head() {
         let (small, large) = (work(100), work(1_000));
         assert!(
             small > 0 && large <= 12 * small,
-            "view slots at 100 and 1,000 folders: {small} and {large}"
+            "view slots at 100 and 1,000 units: {small} and {large}"
         );
     });
 }
@@ -4992,6 +5211,15 @@ fn newtype_nest(n: usize) -> String {
     )
 }
 
+/// `source` with its `wrap` never inlined, so an optimized build keeps
+/// the call chain the static-value proof walks.
+fn kept_calls(source: &str) -> String {
+    format!(
+        "use std.meta.inline\n\n{}",
+        source.replacen("fn wrap", "@inline(.Never)\nfn wrap", 1)
+    )
+}
+
 /// [`generic_nest`] with nine parameters: each level's type
 /// `W^i[?t, ?a, ..., ?h]` holds the level below and the same eight
 /// literal variables, nine variables in all, which stay unbound to the
@@ -5096,13 +5324,11 @@ fn generic_nest_checks_walk_each_level_once() {
 // static-value proof went in rounds over every function, one level of
 // the call chain per round. Both cost O(depth^2). Now the run keeps one
 // memo of `Drop` answers, and the proof looks at a function again only
-// when a fact it reads was proved.
+// when a fact it reads was proved. The proof is the optimized link's, so
+// the programs build optimized, with `wrap` kept a call per level.
 #[test]
 fn generic_nest_builds_walk_each_level_once() {
     on_test_stack(|| {
-        let goal = Goal::Program {
-            entry: "main".into(),
-        };
         let shapes: [(&str, Generate); 2] = [
             ("generic-nest", generic_nest),
             ("generic-nest-in-generic", generic_nest_in_generic),
@@ -5110,7 +5336,9 @@ fn generic_nest_builds_walk_each_level_once() {
         for (name, generate) in shapes {
             let work = |n: usize| {
                 let ((out, looks), nodes) = hd_layout::work::count_member_layouts(|| {
-                    hd_wasm::work::count_static_looks(|| compile(&generate(n), &goal))
+                    hd_wasm::work::count_static_looks(|| {
+                        build_at(&kept_calls(&generate(n)), hd_driver::OptLevel::Optimized)
+                    })
                 });
                 assert!(!out.diags.has_errors(), "{name} {n}: {}", out.render());
                 (nodes, looks)
@@ -5170,7 +5398,7 @@ fn newtype_nest_drop_walks_are_linear() {
 /// `newtype`, each level is a newtype over the next instead.
 fn declaration_chain(n: usize, newtype: bool) -> String {
     let mut s = String::from(
-        "use std.annotation.inline\n\nstruct Bottom:\n    id: i32\n\nimpl !Copy for Bottom\n\n",
+        "use std.meta.inline\n\nstruct Bottom:\n    id: i32\n\nimpl !Copy for Bottom\n\n",
     );
     for i in 0..n {
         let (next, inner) = if i + 1 < n {

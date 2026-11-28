@@ -89,30 +89,23 @@
   )
   (func $uniq_read (param $xs i32) (param $i i32) (result i32)
     ;; 28 |     match xs.get_ref(i):
-    local.get $i
-    local.get $xs
-    i32.load $heap offset=8
-    i32.ge_u
-    if (result i32)
-      i32.const 0
-    else
-      local.get $xs
-      i32.load $heap
-      local.get $i
-      i32.const 8
-      i32.mul
-      i32.add
-    end
-    local.set $xs
     block
       block
-    ;; 29 |         .Some(s) => s.len()
-        local.get $xs
-        i32.eqz
-        br_if 1
-        br 0
-    ;; 28 |     match xs.get_ref(i):
-        unreachable
+        block
+          local.get $i
+          local.get $xs
+          i32.load $heap offset=8
+          i32.ge_u
+          br_if 2
+          local.get $xs
+          i32.load $heap
+          local.get $i
+          i32.const 8
+          i32.mul
+          i32.add
+          local.set $xs
+          br 1
+        end
       end
     ;; 29 |         .Some(s) => s.len()
       local.get $xs
@@ -171,49 +164,42 @@
   )
   (func $uniq_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32)
     ;; 33 |     match xs.get_mut(i):
-    local.get $i
-    local.get $xs
-    i32.load $heap offset=8
-    i32.ge_u
-    if (result i32)
-      i32.const 0
-    else
-      local.get $xs
-      i32.load $heap
-      local.get $i
-      i32.const 8
-      i32.mul
-      i32.add
-    end
-    local.set $xs
     block
       block
         block
-    ;; 34 |         .Some(r) => *r = s
+          local.get $i
           local.get $xs
-          i32.eqz
-          br_if 1
-          br 0
-    ;; 33 |     match xs.get_mut(i):
-          unreachable
-        end
-    ;; 34 |         .Some(r) => *r = s
-        local.get $xs
-        i32.load $heap
-        local.get $xs
-        local.get $s.0
-        i32.store $heap
-        local.get $xs
-        local.get $s.1
-        i32.store $heap offset=4
-        local.tee $xs
-        if
+          i32.load $heap offset=8
+          i32.ge_u
+          br_if 2
           local.get $xs
-          call $rt:release_ref
+          i32.load $heap
+          local.get $i
+          i32.const 8
+          i32.mul
+          i32.add
+          local.set $xs
+          br 1
         end
-    ;; 33 |     match xs.get_mut(i):
-        return
       end
+    ;; 34 |         .Some(r) => *r = s
+      local.get $xs
+      i32.load $heap
+      local.get $xs
+      local.get $s.0
+      i32.store $heap
+      local.get $xs
+      local.get $s.1
+      i32.store $heap offset=4
+      local.tee $xs
+      if
+        local.get $xs
+        call $rt:release_ref
+      end
+    ;; 33 |     match xs.get_mut(i):
+      return
+    end
+    block
     ;; 35 |         .None => panic("index")
       i32.const 65 ;; &"index"
       i32.const 5

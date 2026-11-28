@@ -12,13 +12,12 @@ let s:cpo_save = &cpo
 set cpo&vim
 
 " Reserved words: spec/lang/01-lexical-structure.md#keywords-and-reserved-words.
-" Keep this list in sync (`data` is reserved but declares nothing since
-" `struct` replaced it):
-"   Self break continue data defer dyn else enum false fn for if impl in is
+" Keep this list in sync:
+"   Self break continue dyn else enum false fn for if impl in is
 "   let match mut pass pub return self struct tests trait true type while
 syn keyword hdConditional if else match
 syn keyword hdRepeat      for while in
-syn keyword hdStatement   return break continue pass defer
+syn keyword hdStatement   return break continue pass
 syn keyword hdStructure   struct enum trait impl type
 syn keyword hdStorage     pub mut dyn
 syn keyword hdKeyword     fn let is tests

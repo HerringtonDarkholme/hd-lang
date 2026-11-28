@@ -3,7 +3,7 @@
 # @build: v8 release
 # #1383: a loop-site profitability decision cannot poison a root-site memo.
 # fn.capture.cell; fn.capture.cell.fresh; fn.trait.mut.call.
-use std.function.FnMut
+use std.ops.FnMut
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:
@@ -117,7 +117,7 @@ fn mixed(xs: List[string]) -> usize:
 >   %18 = Retain %32 Entry local $5 #0 : ()
 >   %19 = Read copy [$1] : usize
 >   %20 = Read borrow [$5] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L3 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
@@ -155,7 +155,7 @@ fn mixed(xs: List[string]) -> usize:
 >   %61 = Store [$11] %60 : ()
 >   %62 = Read copy [$1] : usize
 >   %63 = Read borrow [$13] : string
->   %64 = Call std/rt.bytes/bytes_len[] (%63) : usize
+>   %64 = Call std/core/bytes_len[] (%63) : usize
 >   %65 = Break L4 %64 : never
 >   %66 = Block - : usize
 >   %67 = Scope %66 [] : usize

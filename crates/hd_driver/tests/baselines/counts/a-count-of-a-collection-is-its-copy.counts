@@ -12,11 +12,14 @@ fn keep(xs: List[i64], name: string) -> (Bag, List[List[i64]], fn() -> usize, Li
     bag := Bag { items: xs, name: name }
 > app/main/keep
 >   retain List[i64] (stored)
+>   release List[i64] (last use)
+>   release string (last use)
     rows := [xs]
 >   retain List[i64] (stored)
     count := fn() -> usize: xs.len()
 > app/main/keep
 >   retain List[i64] (stored)
+>   release List[i64] (last use)
 >   release List[i64] (last use)
 >   retain counted reference (stored)
     (bag, rows, count, xs)

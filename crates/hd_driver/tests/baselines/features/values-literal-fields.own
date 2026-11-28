@@ -10,7 +10,6 @@ let START: List[i64] = [7, 8]
 > app/main/init.init
 >   %0 = NewList - [7:i64 8:i64] : List[i64]
 >   %1 = Store [@app/main/START] %0 : ()
->   %2 = Release %1 Operation #3 : ()
 
 struct Histogram:
     buckets: List[i64]
@@ -279,7 +278,7 @@ pub fn main() -> void $ Console:
 >   %142 = Call std/rt.memory/string_bytes[] (%141) : Ptr[u8]
 >   %143 = Read copy [%142 .address] : usize
 >   %144 = Read borrow [$19] : string
->   %145 = Call std/rt.bytes/bytes_len[] (%144) : usize
+>   %145 = Call std/core/bytes_len[] (%144) : usize
 >   %146 = Call std/rt.memory/copy[] (%140, %143, %145) : ()
 >   %147 = Break L4 - : never
 >   %148 = Block - : ()
@@ -313,7 +312,7 @@ pub fn main() -> void $ Console:
 >   %176 = Call std/rt.memory/string_bytes[] (%175) : Ptr[u8]
 >   %177 = Read copy [%176 .address] : usize
 >   %178 = Read borrow [$12] : string
->   %179 = Call std/rt.bytes/bytes_len[] (%178) : usize
+>   %179 = Call std/core/bytes_len[] (%178) : usize
 >   %180 = Call std/rt.memory/copy[] (%174, %177, %179) : ()
 >   %181 = Break L2 - : never
 >   %182 = Block - : ()

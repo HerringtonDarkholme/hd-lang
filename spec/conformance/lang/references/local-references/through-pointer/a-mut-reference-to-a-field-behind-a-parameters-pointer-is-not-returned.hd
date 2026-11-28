@@ -1,0 +1,10 @@
+# test: a function may not return a `&mut` to a field of the object a parameter's `*mut` field points to
+# Spec 13 Local References: ref.local.pointer.
+struct Node:
+    v: i32
+
+struct Team:
+    lead: *mut Node
+
+fn lead_v(t: &Team) -> &mut i32:
+    &mut t.lead.v # diagnostic: local-reference-escapes

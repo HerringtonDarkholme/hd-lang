@@ -1,0 +1,7 @@
+use pkg.mix.b.{get_w}
+use pkg.log.{recorded}
+
+pub fn main() -> void $ Console:
+    println(get_w())
+    for line in recorded():
+        println(line)

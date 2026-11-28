@@ -1,3 +1,0 @@
-# Spec 02 Data Types: grammar.data.struct-only.
-data Point:  # diagnostic: syntax-error
-    x: i32

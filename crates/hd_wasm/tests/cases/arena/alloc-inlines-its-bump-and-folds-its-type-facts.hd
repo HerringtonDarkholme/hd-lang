@@ -1,0 +1,21 @@
+# @dump: wat
+# @build: v8 release
+# expected: `alloc` inlines at each call: a round-up, one compare against
+# the chunk end and a store of the new next byte, then the value's
+# stores; `align_of` and `needs_drop` are constants with no call left.
+# A `Node` (no drop work) writes no drop entry; a `Label` (a `string`)
+# writes one. Only the chunk refill stays a call.
+use std.arena.Arena
+
+struct Node:
+    left: usize
+    right: usize
+
+struct Label:
+    text: string
+
+fn node(arena: &Arena, l: usize) -> &mut Node:
+    arena.alloc(Node { left: l, right: 0 })
+
+fn label(arena: &Arena, text: string) -> &mut Label:
+    arena.alloc(Label { text: text })

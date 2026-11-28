@@ -21,7 +21,7 @@ fn list_read(xs: List[string], i: usize) -> usize:
 >   %1 = Read borrow [$0 [%0]] : string
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read borrow [$2] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -101,7 +101,7 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >   %31 = Block %19 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
@@ -149,13 +149,13 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 s: &string [read assigned] value
->     uses $2: %34 -> %29 lend last
+>     uses $2: %22 -> %30 lend last
 >   local $3 self: &UniqList[string] [read] value
 >     uses $3: %2 -> %5 lend, %9 lend last
 >   local $4 index: usize [read] value
 >     uses $4: %3 -> %4 lend, %11 consume last
 >   local $6 index: usize [read] value
->     uses $6: %12 -> %15 lend last
+>     uses $6: %12 -> %14 lend last
 >   %0 = Read borrow [$0] : &UniqList[string]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$3] %0 : ()
@@ -163,42 +163,45 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %4 = Read copy [$4] : usize
 >   %5 = Read copy [*$3 .len] : usize
 >   %6 = Prim Ge [%4 %5] : bool
->   %7 = NewVariant #0 [] : &string?
->   %8 = Block %7 : &string?
+>   %7 = Break L3 - : never
+>   %8 = Block - : never
 >   %9 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Read copy [$4] : usize
 >   %12 = Store [$6] %11 : ()
->   %13 = Read copy [*%9 .address] : usize
->   %14 = NewStruct [%13] : Ptr[string]
->   %15 = Read copy [$6] : usize
->   %16 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%14, %15) : Ptr[string]
->   %17 = Break L0 %16 : never
->   %18 = Block - : Ptr[string]
->   %19 = Scope %18 [] : Ptr[string]
->   %20 = LoanClose %10 : ()
->   %21 = LoanEnd [%9] : ()
->   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%19) : &string
->   %23 = NewVariant #1 [%22] : &string?
->   %24 = Block %23 : &string?
->   %25 = If %6 [%8 %24] : &string?
->   %26 = Break L1 %25 : never
->   %27 = Block - : &string?
->   %28 = Scope %27 [] : &string?
->   %40 = Block - : never
->   %41 = Match %28 [%40 %31 %32] : usize
->   %42 = LoanEnd [%28] : ()
->   %43 = Block %41 : usize
+>   %13 = Read copy [*%9 .ptr] : Ptr[string]
+>   %14 = Read copy [$6] : usize
+>   %15 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%13, %14) : Ptr[string]
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : Ptr[string]
+>   %18 = Scope %17 [] : Ptr[string]
+>   %19 = LoanClose %10 : ()
+>   %20 = LoanEnd [%9] : ()
+>   %21 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%18) : &string
+>   %23 = Break L2 - : never
+>   %24 = Block - : never
+>   %25 = If %6 [%8 %24] : never
+>   %26 = Block - : never
+>   %27 = Scope %26 [] : never
+>   %28 = Block - : ()
+>   %29 = Scope %28 [] : ()
+>   %33 = Scope %32 [] : usize
+>   %34 = LoanEnd [$2] : ()
+>   %35 = Break L4 %33 : never
+>   %36 = Block - : ()
+>   %37 = Scope %36 [] : ()
+>   %39 = Scope %38 [] : usize
+>   %40 = Break L4 %39 : never
+>   %41 = Block - : usize
+>   %42 = Scope %41 [] : usize
+>   %43 = Block %42 : usize
         .Some(s) => s.len()
->   %29 = Read borrow [$2] : &string
->   %30 = Call std/text/impl string.len[] (%29) : usize
->   %31 = Block %30 : usize
->   %33 = Read borrow [%28 as #1 .0] : &string
->   %34 = Store [$2] %33 : ()
->   %36 = Block - : never
->   %39 = SwitchTag %28 [#1 %36 %38] : never
+>   %22 = Store [$2] %21 : ()
+>   %30 = Read borrow [$2] : &string
+>   %31 = Call std/text/impl string.len[] (%30) : usize
+>   %32 = Block %31 : usize
         .None => 0
->   %32 = Block 0:usize : usize
+>   %38 = Block 0:usize : usize
 >   summary kept []
 
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
@@ -208,16 +211,16 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %30 consume last
+>     uses $2: entry -> %31 consume last
 >   local $3 r: &mut string [read assigned] value
->     uses $3: %38 -> %32 lend last
+>     uses $3: %23 -> %33 lend last
 >   local $4 self: &mut UniqList[string] [read] value
 >     uses $4: %3 -> %6 lend, %10 lend last
 >   local $5 index: usize [read] value
 >     uses $5: %4 -> %5 lend, %12 consume last
 >   local $7 index: usize [read] value
->     uses $7: %13 -> %16 lend last
->   %0 = Retain %49 Entry local $2 #0 : ()
+>     uses $7: %13 -> %15 lend last
+>   %0 = Retain %48 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -226,46 +229,48 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %5 = Read copy [$5] : usize
 >   %6 = Read copy [*$4 .len] : usize
 >   %7 = Prim Ge [%5 %6] : bool
->   %8 = NewVariant #0 [] : &mut string?
->   %9 = Block %8 : &mut string?
+>   %8 = Break L3 - : never
+>   %9 = Block - : never
 >   %10 = Ref local [*$4 .buffer] : &Buffer[string]
 >   %11 = LoanBegin %10 #0 : ()
 >   %12 = Read copy [$5] : usize
 >   %13 = Store [$7] %12 : ()
->   %14 = Read copy [*%10 .address] : usize
->   %15 = NewStruct [%14] : Ptr[string]
->   %16 = Read copy [$7] : usize
->   %17 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%15, %16) : Ptr[string]
->   %18 = Break L0 %17 : never
->   %19 = Block - : Ptr[string]
->   %20 = Scope %19 [] : Ptr[string]
->   %21 = LoanClose %11 : ()
->   %22 = LoanEnd [%10] : ()
->   %23 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[string] (%20) : &mut string
->   %24 = NewVariant #1 [%23] : &mut string?
->   %25 = Block %24 : &mut string?
->   %26 = If %7 [%9 %25] : &mut string?
->   %27 = Break L1 %26 : never
->   %28 = Block - : &mut string?
->   %29 = Scope %28 [] : &mut string?
->   %44 = Block - : never
->   %45 = Match %29 [%44 %34 %36] : ()
->   %46 = LoanEnd [%29] : ()
+>   %14 = Read copy [*%10 .ptr] : Ptr[string]
+>   %15 = Read copy [$7] : usize
+>   %16 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%14, %15) : Ptr[string]
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : Ptr[string]
+>   %19 = Scope %18 [] : Ptr[string]
+>   %20 = LoanClose %11 : ()
+>   %21 = LoanEnd [%10] : ()
+>   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[string] (%19) : &mut string
+>   %24 = Break L2 - : never
+>   %25 = Block - : never
+>   %26 = If %7 [%9 %25] : never
+>   %27 = Block - : never
+>   %28 = Scope %27 [] : never
+>   %29 = Block - : ()
+>   %30 = Scope %29 [] : ()
+>   %36 = Scope %35 [] : ()
+>   %37 = LoanEnd [$3] : ()
+>   %38 = Break L4 - : never
+>   %39 = Block - : ()
+>   %40 = Scope %39 [] : ()
+>   %43 = Scope %42 [] : never
+>   %44 = Block - : ()
+>   %45 = Scope %44 [] : ()
+>   %46 = Drop [$2] : ()
 >   %47 = Drop [$2] : ()
->   %48 = Drop [$2] : ()
->   %49 = Block - : ()
+>   %48 = Block - : ()
         .Some(r) => *r = s
->   %30 = Read move [$2] : string
->   %31 = Intrinsic Empty [] : ()
->   %32 = Store [*$3] %30 : ()
->   %33 = Release %32 Operation #3 : ()
->   %34 = Block - : ()
->   %37 = Read borrow [%29 as #1 .0] : &mut string
->   %38 = Store [$3] %37 : ()
->   %40 = Block - : never
->   %43 = SwitchTag %29 [#1 %40 %42] : never
+>   %23 = Store [$3] %22 : ()
+>   %31 = Read move [$2] : string
+>   %32 = Intrinsic Empty [] : ()
+>   %33 = Store [*$3] %31 : ()
+>   %34 = Release %33 Operation #3 : ()
+>   %35 = Block - : ()
         .None => panic("index")
->   %35 = Call std/core/panic[] ("index") : never
->   %36 = Block - : never
+>   %41 = Call std/core/panic[] ("index") : never
+>   %42 = Block - : never
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes

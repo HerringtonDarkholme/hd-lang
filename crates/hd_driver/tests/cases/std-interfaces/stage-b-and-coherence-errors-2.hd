@@ -12,3 +12,5 @@ pub struct P:
 impl B for P:
     fn b(self) -> i32:
         1
+# @file: a/mod.hd
+pub use pkg.a.{x}

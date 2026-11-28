@@ -20,14 +20,14 @@ use super::validate::{at, covers_lookup, ip_literal, valid_host};
 /// The sockets an instance opened, by handle.
 #[derive(Default)]
 pub struct Client {
-    handles: HashMap<i64, Entry>,
+    pub handles: HashMap<i64, Entry>,
     /// The timeout `set_timeout` gave each handle that has one
     /// (`std-net.timeout.set`).
     bounds: HashMap<i64, Duration>,
     next_handle: u64,
 }
 
-enum Entry {
+pub enum Entry {
     Stream(Arc<Stream>),
     Listener(Arc<tokio::net::TcpListener>),
     Udp(Arc<Udp>),
@@ -36,7 +36,7 @@ enum Entry {
 }
 
 /// What a `.start` does: complete at once, or wait for `Job`.
-pub(crate) enum Start {
+pub enum Start {
     Ready(Enc),
     /// `close` of socket `handle`, answered by `reply`: the caller then
     /// ends the operations pending on the handle (`ops::dispose`).
@@ -47,7 +47,7 @@ pub(crate) enum Start {
     Run(Job),
 }
 
-pub(crate) enum Value {
+pub enum Value {
     None,
     Handle(u64),
     Addresses(Vec<String>),
@@ -56,7 +56,7 @@ pub(crate) enum Value {
     Address(SocketAddr),
 }
 
-pub(crate) enum Outcome {
+pub enum Outcome {
     Ok(Value),
     Error(NetError),
     Disposed,
@@ -83,7 +83,7 @@ impl Client {
     /// Closes every socket: the instance has ended. A stream's both
     /// directions shut first, so its peer reads the end even while an
     /// aborted task still holds it.
-    pub(crate) fn stop(&mut self) {
+    pub fn stop(&mut self) {
         for entry in self.handles.values() {
             if let Entry::Stream(stream) = entry {
                 stream.shutdown(Shutdown::Both);
@@ -96,7 +96,7 @@ impl Client {
     /// The `.start` of `method`, or its `close`. Refusals, unknown and
     /// closed handles, and what the handle already holds complete at once;
     /// the rest wait as a `Job`.
-    pub(crate) fn start(
+    pub fn start(
         &mut self,
         method: &str,
         params: &[i64],
@@ -337,7 +337,7 @@ impl Client {
 
     /// The `.finish` of a completed operation: a new socket gets its handle
     /// here, so handles follow the order the program takes results in.
-    pub(crate) fn finish(&mut self, done: Done) -> wasmtime::Result<Enc> {
+    pub fn finish(&mut self, done: Done) -> wasmtime::Result<Enc> {
         let outcome = match done.result {
             Err(error) => Outcome::Error(error),
             Ok(Got::None) => Outcome::Ok(Value::None),
@@ -361,7 +361,7 @@ impl Client {
     /// Keeps what a completed `read!` or `receive!` took, when its
     /// suspension was cancelled before `.finish` returned it, for the next
     /// call on that handle (`std-net.cancel.read`).
-    pub(crate) fn unread(&mut self, done: Done) {
+    pub fn unread(&mut self, done: Done) {
         match done.result {
             Ok(Got::Bytes { handle, bytes }) => {
                 if let Some(Entry::Stream(stream)) = self.handles.get(&handle) {
@@ -426,7 +426,7 @@ fn port(value: i64) -> wasmtime::Result<u16> {
 /// An operation's encoded result: `Result[T, NetError]`, where `T` is what
 /// its value holds; an operation on a closed handle is `Closed`
 /// (`std-net.handles.closed`).
-fn reply(outcome: Outcome, _resource: bool) -> wasmtime::Result<Enc> {
+pub fn reply(outcome: Outcome, _resource: bool) -> wasmtime::Result<Enc> {
     fn ok<T: Wire>(value: T) -> Enc {
         encode(&Ok::<T, NetError>(value))
     }
@@ -450,7 +450,3 @@ fn reply(outcome: Outcome, _resource: bool) -> wasmtime::Result<Enc> {
         }),
     })
 }
-
-#[cfg(test)]
-#[path = "client_tests.rs"]
-mod tests;

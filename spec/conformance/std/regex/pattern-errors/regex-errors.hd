@@ -1,5 +1,5 @@
 # test: each RegexError variant with its position and Display text, the first error winning, and the size limit
-# Spec std/regex Pattern Errors: std-regex.error.variants-with-decode, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.compile-decode-traits, std-regex.error.pattern-text, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.bad-group-name, std-regex.error.kind.duplicate-group-name, std-regex.error.kind.too-large, std-regex.syntax.escape.other, std-regex.syntax.class.unclosed, std-regex.syntax.class.bad-range, std-regex.syntax.group.unsupported, std-regex.syntax.group.bad-name, std-regex.syntax.group.duplicate-name, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (tasks #243, #244, #471).
+# Spec std/regex Pattern Errors: std-regex.error.variants-with-decode, std-regex.error.position, std-regex.error.first, std-regex.error.size-last, std-regex.error.compile-decode-traits, std-regex.error.pattern-text, std-regex.error.kind.missing-paren, std-regex.error.kind.unmatched-paren, std-regex.error.kind.missing-bracket, std-regex.error.kind.bad-escape, std-regex.error.kind.bad-range, std-regex.error.kind.nothing-to-repeat, std-regex.error.kind.bad-repeat, std-regex.error.kind.unsupported-group, std-regex.error.kind.bad-group-name, std-regex.error.kind.duplicate-group-name, std-regex.error.kind.too-large, std-regex.syntax.escape.rejected, std-regex.syntax.class.unclosed, std-regex.syntax.class.noncharacter-endpoints, std-regex.syntax.group.invalid-prefix, std-regex.syntax.group.bad-name, std-regex.syntax.group.duplicate-name, std-regex.syntax.group.unclosed, std-regex.syntax.group.unopened, std-regex.repeat.bad-count, std-regex.repeat.nothing, std-regex.time.size, std-regex.error.too-large (tasks #243, #244, #471).
 use std.regex.{Regex, RegexError}
 use std.text.r
 
@@ -42,7 +42,11 @@ tests:
 
     it("escapes"):
         assert_equal(error_of(r"a\q"), .Some(RegexError.BadEscape(1)), reason="an unknown letter")
-        assert_equal(error_of(r"\b"), .Some(RegexError.BadEscape(0)), reason="no word boundary")
+        assert_equal(
+            error_of(r"\u0041"),
+            .Some(RegexError.BadEscape(0)),
+            reason="Go/RE2 use hexadecimal x escapes",
+        )
         assert_equal(error_of(r"(a)\1"), .Some(RegexError.BadEscape(3)), reason="no backreference")
         assert_equal(error_of("a\\"), .Some(RegexError.BadEscape(1)), reason="a trailing backslash")
 
@@ -78,11 +82,15 @@ tests:
         assert_equal(error_of("a{3,2}"), .Some(RegexError.BadRepeat(1)), reason="n below m")
 
     it("groups"):
-        assert_equal(error_of("(?i)a"), .Some(RegexError.UnsupportedGroup(0)), reason="a flag")
         assert_equal(
-            error_of("a(?s:.)"),
+            error_of("(?q)a"),
+            .Some(RegexError.UnsupportedGroup(0)),
+            reason="an unknown flag",
+        )
+        assert_equal(
+            error_of("a(?q:.)"),
             .Some(RegexError.UnsupportedGroup(1)),
-            reason="a flag group",
+            reason="an unknown scoped flag",
         )
         assert_equal(error_of("(?=a)"), .Some(RegexError.UnsupportedGroup(0)), reason="a lookahead")
         assert_equal(

@@ -1,0 +1,11 @@
+# @dump: stdout
+# expected: unused imports validate module paths without parsing interfaces or bodies.
+pub fn main() -> void $ Console:
+    println("main")
+
+# @file: unused.hd
+use std.no_such_module.{value}
+use std.another_missing_module.value
+
+pub fn unused() -> void:
+    pass

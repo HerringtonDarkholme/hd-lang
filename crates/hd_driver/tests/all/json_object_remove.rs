@@ -4,7 +4,7 @@ use hd_sched::SerialOrder;
 
 #[test]
 fn ordered_object_removal_has_linear_work_for_unique_and_duplicate_keys() -> Result<(), String> {
-    let json = include_str!("../../../../lib/std/json.hd");
+    let json = include_str!("../../../../lib/std/encoding/json.hd");
     let scan = "        for entry in self.entries:";
     let start = json
         .find("    fn compact(&mut self)")
@@ -82,7 +82,7 @@ pub fn compaction_steps_for_test() -> usize: object_compaction_steps
         .replace("pub fn alloc_class(size: usize, class: usize) -> usize:\n", "pub fn alloc_class(size: usize, class: usize) -> usize:\n    if class != 0:\n        requested_bytes += u64(size)\n")
         + "\npub fn requested_bytes_for_test() -> u64: requested_bytes\n";
     let mut sources = hd_driver::std_sources();
-    sources.insert("json.hd", &instrumented_json);
+    sources.insert("encoding/json.hd", &instrumented_json);
     sources.insert("rt/alloc.hd", &instrumented_alloc);
     sources.insert(
         "rt_tests/json_object_remove.hd",

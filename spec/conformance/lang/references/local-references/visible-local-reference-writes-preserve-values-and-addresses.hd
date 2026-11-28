@@ -4,7 +4,7 @@
 # expect-stdout: true 23
 # expect-stdout: 17
 # expect-stdout: 20
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 struct State:
     word: i32

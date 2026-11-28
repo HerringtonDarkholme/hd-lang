@@ -221,7 +221,9 @@ for hashing, updates, tombstones, iteration and copy-on-write.
 
 These are ordinary std structs using the same aggregate and collection
 layouts. Their current implementations are in
-[collections.hd](../../lib/std/collections.hd); they have no independent
+[set.hd](../../lib/std/collections/set.hd),
+[deque.hd](../../lib/std/collections/deque.hd) and
+[heap.hd](../../lib/std/collections/heap.hd); they have no independent
 backend representation.
 
 ### Iterators And Ranges
@@ -246,7 +248,7 @@ and the [collection rules](../../crates/hd_mono/DESIGN.md#132-collection).
 name. Producing it allocates nothing. See
 [§23.19 Inspection](../../crates/hd_wasm/DESIGN.md#2319-closure-and-trait-values),
 [dyn_value.rs](../../crates/hd_wasm/src/emit/dyn_value.rs) and
-[inspect.hd](../../lib/std/inspect.hd).
+[inspect.hd](../../lib/std/meta.hd).
 
 ### Host Handles
 
@@ -557,7 +559,7 @@ default-body instance. See
 [§13.13](../../crates/hd_mono/DESIGN.md#1313-omitted-arguments-default-bodies-and-derived-facts)
 and `default_call` in [emit.rs](../../crates/hd_wasm/src/emit.rs).
 
-### Module Initialization Across Folders
+### Module Initialization Across Units
 
 `hd.init` initializes reachable module storage in dependency order; each
 binding has globals for its scalar leaves. See

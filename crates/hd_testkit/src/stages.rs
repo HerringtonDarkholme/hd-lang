@@ -5,6 +5,7 @@
 //! lines and interleaved below them. Blessing never rewrites source cases.
 //! `# @package: NAME` names the case's root package (`app` by default).
 //! `# @single-file: true` builds the case as a single-file program.
+//! `# @std-module: num.hd` checks a diagnostic case inside that std module.
 //! The `functions` view lists the linked program's functions in link order.
 //! `# @dependency: [KEY=]NAME [fetched]` begins a dependency package's `@file`s.
 
@@ -49,6 +50,10 @@ pub struct Program {
     /// The `@host` traits the case's package declares in its manifest's
     /// `[host]` (`# @host: main.Surface`), each package-relative.
     pub hosts: Vec<String>,
+    /// The `@host` traits its manifest binds to a C provider
+    /// (`# @c-host: main.Disk`, an entry `{ c = "stage" }`, or
+    /// `main.Disk=hd_disk` for another library).
+    pub c_hosts: Vec<String>,
     /// For a REPL session case (`# @repl: N`): the number of the input the
     /// case's own text is. Its earlier inputs are the `@input` modules.
     pub repl: Option<u32>,
@@ -75,6 +80,9 @@ pub struct Program {
     /// (`# @single-file: true`), whose declarations print under the
     /// file's stem (`trait.typeid.name.single-file`).
     pub single_file: bool,
+    /// A diagnostic-only std build prepends the case to this existing
+    /// module, so inherent implementations can be tested in their home.
+    pub std_module: Option<String>,
     /// The dependency packages the case declares
     /// (`# @dependency: money fetched`), which the root requires by name.
     pub deps: Vec<CaseDependency>,
@@ -122,6 +130,7 @@ impl Program {
             profile: None,
             helpers: Vec::new(),
             hosts: Vec::new(),
+            c_hosts: Vec::new(),
             repl: None,
             fuel: None,
             main: None,
@@ -129,6 +138,7 @@ impl Program {
             filter: None,
             package: None,
             single_file: false,
+            std_module: None,
             deps: Vec::new(),
             marked: span.is_some(),
         })
@@ -174,7 +184,8 @@ impl Program {
 /// `@profile` names a conformance runtime profile
 /// ([`crate::profile_traits`]) whose traits the case's main module
 /// declares; `@host` lists the package host traits its manifest declares
-/// (`module.host.package.marker`); `@helpers` selects functions the `wat`
+/// (`module.host.package.marker`), and `@c-host` those it binds to a C
+/// provider (`module.host.package.c-types`); `@helpers` selects functions the `wat`
 /// view prints whole, by short runtime name or exact ordinary item path,
 /// without following their calls, and `@helper` selects one item path
 /// that holds spaces, as a method's does. `@file` begins a virtual module;
@@ -212,6 +223,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut filter = None;
     let mut package = None;
     let mut single_file = false;
+    let mut std_module = None;
     let mut deps: Vec<CaseDependency> = Vec::new();
     let mut dep_names = std::collections::BTreeSet::new();
     // The current dependency file, once `@file` follows `@dependency`.
@@ -219,6 +231,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
+    let mut c_hosts = Vec::new();
     let mut modules = BTreeMap::<String, String>::new();
     let mut current = "main.hd".to_owned();
     let mut declared = Vec::new();
@@ -239,6 +252,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "build"
                         | "profile"
                         | "host"
+                        | "c-host"
                         | "helpers"
                         | "helper"
                         | "repl"
@@ -248,6 +262,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "filter"
                         | "package"
                         | "single-file"
+                        | "std-module"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -329,11 +344,18 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     current = hd_project::repl_file(next);
                 }
                 "host" => hosts.extend(value.split_whitespace().map(str::to_owned)),
+                "c-host" => c_hosts.extend(value.split_whitespace().map(str::to_owned)),
                 "main" => {
                     if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
                     }
                     main_path = Some(value.to_owned());
+                }
+                "std-module" => {
+                    if !module_path_ok(value) {
+                        return Err(format!("invalid std module path `{value}`"));
+                    }
+                    std_module = Some(value.to_owned());
                 }
                 "entry" => entries.extend(value.split_whitespace().map(str::to_owned)),
                 "filter" => filter = Some(value.to_owned()),
@@ -449,6 +471,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.profile = profile;
     program.helpers = helpers;
     program.hosts = hosts;
+    program.c_hosts = c_hosts;
     program.repl = repl;
     program.fuel = fuel;
     if (main_path.is_some()
@@ -499,6 +522,23 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 .to_owned(),
         );
     }
+    if let Some(path) = &std_module {
+        if builds.is_empty()
+            || !builds.iter().all(|(_, b)| b.std)
+            || dumps.iter().any(|d| d != "diagnostics")
+        {
+            return Err("`@std-module` requires only std diagnostic builds".to_owned());
+        }
+        let std = hd_driver::std_sources();
+        for file in
+            std::iter::once(path.as_str()).chain(program.files.iter().map(|(p, _)| p.as_str()))
+        {
+            if hd_project::SourceSet::read(&std, file).is_none() {
+                return Err(format!("no std module `{file}`"));
+            }
+        }
+    }
+    program.std_module = std_module;
     // A `std` build checks the case as std's `rt_tests/stage_case.hd`;
     // the `fixed` view applies its edits to the case's own file names.
     if builds.iter().any(|(_, b)| b.std) && dumps.iter().any(|d| d == "fixed") {
@@ -819,9 +859,40 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
+/// The root package's manifest host registrations, shared by linked and
+/// inspection builds. One manifest over the header bytes, parsed once; an
+/// empty header allocates nothing.
+fn host_packages(p: &Program, package: &str) -> Vec<hd_driver::HostPackage> {
+    if p.hosts.is_empty() && p.c_hosts.is_empty() {
+        Vec::new()
+    } else {
+        let manifest: String = std::iter::once("[host]\n".to_owned())
+            .chain(
+                p.hosts
+                    .iter()
+                    .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
+            )
+            .chain(p.c_hosts.iter().map(|t| {
+                // `TRAIT=LIBRARY` names the library; `stage` by default.
+                let (t, library) = t.split_once('=').unwrap_or((t, "stage"));
+                format!("\"{t}\" = {{ c = \"{library}\" }}\n")
+            }))
+            .collect();
+        vec![hd_driver::HostPackage {
+            package: 0,
+            identity: package.to_owned(),
+            versioned_source: None,
+            declarations: hd_project::parse_manifest(&manifest)
+                .expect("a stage case's `@host` traits make a manifest")
+                .host,
+            manifest: "hd.toml".to_owned(),
+        }]
+    }
+}
+
 /// The packages of a `diagnostics`, `spans`, `fixed`, `stdout`,
 /// `functions` or `tests` build of `p` as `build`: the case's `@fuel`,
-/// `@profile`, `@entry`, `@single-file` and `@dependency` packages, and
+/// `@profile`, `@entry`, `@single-file`, `@host` and `@dependency` packages, and
 /// `@build`'s level (`release` runs the optimized pipeline, and a
 /// program gets the release profile), engine target and checked runtime.
 /// Every build verifies the ownership passes' output
@@ -830,6 +901,7 @@ pub fn tir(p: &Program) -> String {
 /// only the case package's whole-result reuse, which a case never repeats.
 fn packages(p: &Program, build: Build) -> hd_driver::Packages<'_> {
     let mut packages = hd_driver::Packages {
+        host_packages: host_packages(p, if build.std { "std" } else { p.package_name() }),
         requires: p.deps.iter().map(|d| (d.key.clone(), d.index)).collect(),
         deps: p
             .deps
@@ -868,6 +940,33 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
     diagnostics::render(&check(p, build, &p.sources()))
 }
 
+/// The embedded std's sources with the case of `p` added as the std module
+/// [`own::STD_CASE`]: what a `std` build compiles, so the case may use the
+/// runtime modules (`module.rt.std-only`).
+fn std_with_case(p: &Program) -> hd_project::MemorySources {
+    let mut std = hd_driver::std_sources();
+    if let Some(path) = &p.std_module {
+        // Cost: one copy of each selected module, only for this fixture.
+        // Keeping the case first preserves its diagnostic source offsets.
+        for (path, added) in std::iter::once((path.as_str(), p.text.as_str())).chain(
+            p.files
+                .iter()
+                .map(|(path, text)| (path.as_str(), text.as_str())),
+        ) {
+            if let Some(original) = hd_project::SourceSet::read(&std, path) {
+                let mut text = String::with_capacity(added.len() + 1 + original.len());
+                text.push_str(added);
+                text.push('\n');
+                text.push_str(&String::from_utf8_lossy(&original));
+                std.insert(path, &text);
+            }
+        }
+    } else {
+        std.insert(own::STD_CASE, &p.text);
+    }
+    std
+}
+
 /// The `diagnostics` view's build of `p` as `build`, from `src`: the
 /// case's own sources, or the `fixed` view's edited ones.
 /// A `std` build checks the case as std's module `rt_tests.stage_case`,
@@ -876,9 +975,7 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
 fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_driver::Output {
     let in_std;
     let (sources, package) = if build.std {
-        let mut std = hd_driver::std_sources();
-        std.insert(own::STD_CASE, &p.text);
-        in_std = std;
+        in_std = std_with_case(p);
         (&in_std, "std")
     } else {
         (src, p.package_name())
@@ -891,7 +988,9 @@ fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_drive
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let mut packages = packages(p, build);
-    packages.std_leaf = build.std.then_some(own::STD_CASE);
+    packages.std_leaf = build
+        .std
+        .then_some(p.std_module.as_deref().unwrap_or(own::STD_CASE));
     let goal = if build.tests {
         Goal::CheckTests
     } else {
@@ -1017,27 +1116,42 @@ const RUN_LIMIT: std::time::Duration = std::time::Duration::from_mins(1);
 /// # Errors
 /// The build reports diagnostics or writes no Wasm.
 pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
-    let built = link(p, &packages(p, at))?;
+    let built = link(p, at, packages(p, at))?;
     Ok(built.wasm.expect("a linked program has Wasm"))
 }
 
-/// The program of `p` linked from `main` with `packages`, or the
-/// `stdout` view's text for a build that fails.
-fn link(p: &Program, packages: &hd_driver::Packages<'_>) -> Result<hd_driver::Output, String> {
-    let src = p.sources();
+/// The program of `p` linked from its `main` with `packages`, or the
+/// `stdout` view's text for a build that fails. A `std` build links the
+/// `main` of the std module [`own::STD_CASE`] in the `std` package, as the
+/// `diagnostics` view checks it.
+fn link(
+    p: &Program,
+    at: Build,
+    mut packages: hd_driver::Packages<'_>,
+) -> Result<hd_driver::Output, String> {
+    let in_std;
+    let src;
+    let (sources, package) = if at.std {
+        in_std = std_with_case(p);
+        packages.std_leaf = Some(own::STD_CASE);
+        (&in_std, "std")
+    } else {
+        src = p.sources();
+        (&src, p.package_name())
+    };
     let host = Host {
         render_tir: &[],
-        sources: &src,
+        sources,
         store: shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let built = hd_driver::build_packages(
         &host,
-        p.package_name(),
-        packages,
+        package,
+        &packages,
         &Goal::Program {
-            entry: "main".into(),
+            entry: at.module().into(),
         },
     );
     if built.wasm.is_some() && built.diags.is_empty() {
@@ -1056,7 +1170,7 @@ fn link(p: &Program, packages: &hd_driver::Packages<'_>) -> Result<hd_driver::Ou
 pub fn functions(p: &Program, at: Build) -> String {
     let mut packages = packages(p, at);
     packages.instruction_origins = true;
-    let built = match link(p, &packages) {
+    let built = match link(p, at, packages) {
         Ok(built) => built,
         Err(failed) => return failed,
     };
@@ -1159,7 +1273,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// `release`: the optimized pipeline and the release profile, as
 /// `--release` builds). `std` builds the case as module `std.rt_tests.stage_case`
 /// of the standard library, which may use the runtime modules
-/// (`module.rt.std-only`); the semantic and Wasm views read it.
+/// (`module.rt.std-only`); every view but `tests` reads it.
 /// `checked` links the checked runtime (`crates/hd_wasm/DESIGN.md`
 /// §23.24), whose walks mark buffers, as checked conformance runs do.
 /// `program` links from `pub fn main`, including the runtime helpers a
@@ -1179,6 +1293,16 @@ pub struct Build {
 }
 
 impl Build {
+    /// The module the case's `main` is in: [`own::STD_CASE_MODULE`] for a
+    /// `std` build.
+    fn module(self) -> &'static str {
+        if self.std {
+            own::STD_CASE_MODULE
+        } else {
+            "main"
+        }
+    }
+
     fn goal(self) -> Goal {
         if self.tests {
             return Goal::Tests {
@@ -1186,12 +1310,7 @@ impl Build {
                 filter: None,
             };
         }
-        let module = if self.std {
-            "rt_tests.stage_case"
-        } else {
-            "main"
-        }
-        .to_owned();
+        let module = self.module().to_owned();
         if self.program {
             Goal::Program { entry: module }
         } else {
@@ -1453,7 +1572,10 @@ fn run_case(
 
 #[cfg(test)]
 mod tests {
-    use super::{Build, Program, diff, parse, shown_run, tokens, without_cycle_report_in_json};
+    use super::{
+        Build, Program, diff, functions, parse, program_wasm, shown_run, tokens,
+        without_cycle_report_in_json,
+    };
 
     #[test]
     fn a_test_result_shows_the_same_text_with_and_without_the_checked_report() {
@@ -1496,6 +1618,24 @@ mod tests {
             shown_run("0", b"", text),
             "exit: 0\n-- stderr\nno cycles freed: here\n"
         );
+    }
+
+    /// A `std` build links the case as std's module, so a program only std
+    /// may write builds (#2324); the ordinary build refuses it.
+    #[test]
+    fn a_std_build_links_the_case_in_the_std_package() {
+        let case = Program::new(include_str!("stages/programs/std_only_use.hd")).expect("case");
+        let ordinary = Build::default();
+        let std = Build {
+            std: true,
+            ..ordinary
+        };
+        let refused = program_wasm(&case, ordinary).expect_err("only std may use it");
+        assert!(refused.contains("std-only-use"), "{refused}");
+        program_wasm(&case, std).expect("the std build links");
+        let linked = functions(&case, std);
+        assert!(linked.contains("rt_tests.stage_case"), "{linked}");
+        assert!(!functions(&case, ordinary).contains("rt_tests.stage_case"));
     }
 
     #[test]

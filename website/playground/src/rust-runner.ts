@@ -68,6 +68,11 @@ export interface RustRunner {
 
 /** The program's `Args.program`, as `hd run` gives a package's executable name. */
 const PROGRAM = "main";
+// This run worker's own script, which a program's `Workers` start again
+// (host/web.ts `browserWorkers`); none outside a worker.
+const workerScript = (globalThis as { WorkerGlobalScope?: unknown }).WorkerGlobalScope
+  ? globalThis.location.href
+  : undefined;
 
 /** Whether the entry file declares `pub fn main`; without it, Run builds a script. */
 const declaresMain = (source: string): boolean => /^pub fn main\b/m.test(source);
@@ -188,7 +193,7 @@ async function collectRecords({
           };
         }),
       },
-      createHost: (sink, env) => createWebHost(sink, Object.assign(env, { files })),
+      createHost: (sink, env) => createWebHost(sink, Object.assign(env, { files, workerScript })),
       files,
       notify: () => undefined,
       emit: (record) => {
@@ -480,12 +485,13 @@ export async function runCompiled(
       emit(line, true);
     }
   });
-  const host = createWebHost(
-    { out: (text) => out.write(text), err: (text) => err.write(text) },
-    { args: [], program: PROGRAM },
-  );
+  let host: ReturnType<typeof createWebHost> | undefined;
   try {
     const module = await WebAssembly.compile(compiled.wasm as BufferSource);
+    host = createWebHost(
+      { out: (text) => out.write(text), err: (text) => err.write(text) },
+      { args: [], program: PROGRAM, module, workerScript },
+    );
     // A trait the browser cannot provide stops the run before it starts.
     const missing = unboundTraits(module, host);
     if (missing.length > 0) {
@@ -515,6 +521,6 @@ export async function runCompiled(
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return finish("failure", diagnostics, message);
   } finally {
-    host.close();
+    host?.close();
   }
 }

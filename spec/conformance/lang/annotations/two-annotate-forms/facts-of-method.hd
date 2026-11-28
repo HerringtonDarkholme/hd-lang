@@ -1,5 +1,5 @@
 # test: facts_of rejects a method, which is not a module-level function
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct User:
     name: string

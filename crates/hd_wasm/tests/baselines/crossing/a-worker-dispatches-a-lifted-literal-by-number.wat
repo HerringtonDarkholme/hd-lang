@@ -3,14 +3,21 @@
   (import "fixture" "crossing_frame[(u32)]" (func $"crossing_frame[(u32)]" (param i64 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
+  (import "fixture" "impl Workers for LoopbackWorkers.send" (func $"impl Workers for LoopbackWorkers.send" (param i32 i32) (result i32 i32 i32)))
+  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
+  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
+  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
+  (import "fixture" "release_value[std.remote.Reply]" (func $"release_value[std.remote.Reply]" (param i32 i32 i32)))
+  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
+  (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "crossing_number[fn((u32)) -> u32]" (func $"crossing_number[fn((u32)) -> u32]" (param i64 i32 i32) (result i64)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "impl dyn Workers.run[u32]" (func $"impl dyn Workers.run[u32]" (param i32 i32 i32 i32 i32) (result i32 i32 i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
   (import "fixture" "crossing_number[fn((string)) -> string]" (func $"crossing_number[fn((string)) -> string]" (param i64 i32 i32) (result i64)))
   (import "fixture" "impl dyn Workers.run[string]" (func $"impl dyn Workers.run[string]" (param i32 i32 i32 i32 i32) (result i32 i32 i32 i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
@@ -19,11 +26,9 @@
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
-  (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
-  (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
-  (import "fixture" "rt:frame" (func $rt:frame (result i32)))
+  (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
+  (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
+  (import "fixture" "rt:frame'4" (func $rt:frame'4 (result i32)))
   (import "fixture" "crossing_frame[(string)]" (func $"crossing_frame[(string)]" (param i64 i32 i32) (result i32)))
   (import "fixture" "wire_decode[(u32)]" (func $"wire_decode[(u32)]" (param i32) (result i32 i32)))
   (import "fixture" "crossing_reply[u32]" (func $"crossing_reply[u32]" (param i32) (result i32)))
@@ -33,10 +38,10 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 63 funcref))
+  (import "fixture" "heap" (memory $heap 129))
+  (import "fixture" "table0" (table $table0 68 funcref))
   (func $main#2 (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
-    ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
+    ;; 30 |     a := workers.run!(fn() -> u32: side * 2)
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -92,8 +97,515 @@
     local.get $t3
     local.get $env
   )
+  (func $"impl Workers for PausingWorkers.send'1" (param $frame'1 i32) (param $self i32) (param $frame'2 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+    ;; 19 |         pause!()
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    local.get $frame'1
+    if
+      local.get $frame'1
+      local.get $frame'1
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $frame'1
+    if
+      local.get $frame'1
+      i32.const 24
+      i32.add
+      local.set $t1
+    else
+      local.get $t0
+      local.tee $t1
+      local.tee $t3
+      i64.const 0
+      i64.store $heap offset=8 align=1
+      local.get $t3
+      i64.const 0
+      i64.store $heap align=1
+      local.get $t1
+      local.get $self
+      i32.store $heap
+      local.get $t1
+      local.get $frame'2
+      i32.store $heap offset=4
+    end
+    block
+      block
+        local.get $frame'1
+        if
+          local.get $frame'1
+          i32.load $heap offset=8
+          local.set $t4
+        end
+        block
+          block
+            block
+              local.get $t4
+              i32.const 1
+              i32.eq
+              if
+                local.get $frame'1
+                i32.load $heap offset=12
+                i32.const 8
+                i32.and
+                br_if 1
+              end
+              i32.const 0
+              local.set $self
+              local.get $t4
+              i32.const 1
+              i32.eq
+              if
+                local.get $frame'1
+                i32.load $heap offset=16
+                local.set $self
+              end
+              local.get $self
+              call $pause'1
+              local.tee $frame'2
+              if
+                local.get $frame'2
+                i32.load $heap offset=12
+                i32.const 8
+                i32.and
+                if
+                  local.get $frame'1
+                  local.get $t1
+                  i32.const 0
+                  i32.const 1
+                  call $rt:frame_ensure'1
+                  drop
+                  local.tee $frame'1
+                  i32.const 24
+                  i32.add
+                  local.set $t1
+                  local.get $frame'1
+                  local.get $frame'2
+                  i32.store $heap offset=16
+                  local.get $frame'1
+                  local.get $frame'1
+                  i32.load $heap offset=12
+                  i32.const 24
+                  i32.or
+                  i32.store $heap offset=12
+                  br 2
+                end
+                i32.const 1
+                local.set $t4
+                br 5
+              end
+              local.get $self
+              if
+                local.get $frame'1
+                i32.const 0
+                i32.store $heap offset=16
+                local.get $self
+                if
+                  local.get $self
+                  call $rt:release_ref'2
+                end
+              end
+              br 1
+            end
+            local.get $frame'1
+            call $rt:cancel_child
+            local.get $frame'1
+            i32.load $heap offset=16
+            local.set $frame'2
+            if
+              i32.const 1
+              local.set $t4
+              br 4
+            end
+            local.get $frame'2
+            if
+              local.get $frame'1
+              i32.const 0
+              i32.store $heap offset=16
+              local.get $frame'2
+              if
+                local.get $frame'2
+                call $rt:release_ref'2
+              end
+            end
+            i32.const 0
+            local.set $t4
+            local.get $t1
+            i32.load $heap offset=4
+            local.tee $frame'2
+            if
+              local.get $frame'2
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $frame'2
+                call $rt:release_ref'1
+              end
+            end
+            i32.const 0
+            local.tee $frame'2
+            local.set $self
+            i32.const 1
+            local.set $t5
+            br 1
+          end
+    ;; 20 |         self.inner.send!(frame)
+          local.get $t1
+          i32.load $heap
+          local.get $t1
+          i32.load $heap offset=4
+          local.get $t1
+          i32.const 0
+          i32.store $heap offset=4
+          call $"impl Workers for LoopbackWorkers.send"
+    ;; 19 |         pause!()
+          local.get $t1
+          i32.const 0
+          i32.store $heap
+          local.get $t1
+          i32.load $heap offset=4
+          local.tee $self
+          if
+            local.get $self
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $self
+              call $rt:release_ref'1
+            end
+          end
+          local.set $self
+          local.set $t4
+          local.set $frame'2
+        end
+        local.get $t1
+        i32.load $heap offset=8
+        local.tee $t1
+        if
+          local.get $t1
+          call $rt:release_ref'2
+        end
+        local.get $frame'2
+        local.get $t4
+        local.get $self
+        local.get $frame'1
+        if
+          local.get $frame'1
+          local.get $frame'1
+          i32.load $heap offset=12
+          i32.const 64
+          i32.or
+          i32.store $heap offset=12
+        end
+        local.get $t5
+        if (result i32)
+          local.get $frame'1
+          local.get $frame'1
+          i32.load $heap offset=12
+          i32.const -17
+          i32.and
+          i32.store $heap offset=12
+          local.get $frame'1
+        else
+          i32.const 0
+        end
+        local.get $frame'1
+        if
+          local.get $frame'1
+          local.get $frame'1
+          i32.load $heap offset=12
+          i32.const -129
+          i32.and
+          local.get $t2
+          i32.or
+          i32.store $heap offset=12
+        end
+        local.get $t0
+        i32.const 16
+        i32.add
+        global.set $stack
+        return
+      end
+      local.get $frame'1
+      local.get $frame'1
+      i32.load $heap offset=12
+      i32.const 64
+      i32.or
+      i32.store $heap offset=12
+      local.get $frame'1
+      local.get $frame'1
+      i32.load $heap offset=12
+      i32.const -17
+      i32.and
+      i32.store $heap offset=12
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      local.get $frame'1
+      local.get $frame'1
+      if
+        local.get $frame'1
+        local.get $frame'1
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
+      local.get $t0
+      i32.const 16
+      i32.add
+      global.set $stack
+      return
+    end
+    local.get $frame'1
+    local.get $t1
+    i32.const 0
+    i32.const 1
+    call $rt:frame_ensure'1
+    drop
+    local.tee $frame'1
+    local.get $frame'2
+    i32.store $heap offset=16
+    local.get $frame'1
+    local.get $t4
+    i32.store $heap offset=8
+    i32.const 0
+    i32.const 0
+    i32.const 0
+    local.get $frame'1
+    local.get $frame'1
+    if
+      local.get $frame'1
+      local.get $frame'1
+      i32.load $heap offset=12
+      i32.const -129
+      i32.and
+      local.get $t2
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
+    return
+    local.get $frame'1
+    if
+      local.get $frame'1
+      local.get $frame'1
+      i32.load $heap offset=12
+      i32.const -129
+      i32.and
+      local.get $t2
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
+  )
+  (func $"impl Workers for PausingWorkers.send.poll" (param $t0 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
+    ;; 19 |         pause!()
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $"impl Workers for PausingWorkers.send'1"
+    local.set $t1
+    local.set $t2
+    local.set $t3
+    local.set $t4
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    local.get $t1
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      local.get $t4
+      local.get $t3
+      local.get $t2
+      return
+    end
+    i32.const 0
+    i32.const 0
+    i32.const 0
+    i32.const 0
+    return
+  )
+  (func $"impl Workers for PausingWorkers.send.cancel" (param $t1 i32) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32)
+    ;; 19 |         pause!()
+    call $rt:cancel_enter
+    local.set $t0
+    block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i32.const 0
+      i32.const 0
+      call $"impl Workers for PausingWorkers.send'1"
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.get $t2
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+        local.get $t5
+        local.get $t4
+        local.get $t3
+        call $"release_value[std.remote.Reply]"
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $"impl Workers for PausingWorkers.send.drop" (param $t0 i32) (local $t1 i32)
+    ;; 19 |         pause!()
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 64
+    i32.and
+    i32.eqz
+    if
+      local.get $t0
+      i32.load $heap offset=28
+      local.tee $t1
+      if
+        local.get $t1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
+      end
+      local.get $t0
+      i32.load $heap offset=32
+      local.tee $t1
+      if
+        local.get $t1
+        call $rt:release_ref'2
+      end
+    end
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
+    end
+  )
+  (func $"impl Workers for PausingWorkers.send.lent" (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 19 |         pause!()
+    call $rt:frame'1
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t0
+  )
+  (func $"impl Workers for PausingWorkers.send'2" (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 19 |         pause!()
+    call $rt:frame'1
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t1
+    if
+      local.get $t1
+      call $retain
+    end
+    local.get $t0
+    local.get $t1
+    i32.store $heap offset=32
+    local.get $t0
+  )
   (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $self.2 i32) (local $t4 i32) (local $b.1 i32) (local $self.1 i32) (local $t3 i64) (local $fallback i32) (local $self.0 i32) (local $value.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -212,8 +724,8 @@
               local.get $t1
               local.get $provider0.vtable
               i32.store $heap offset=8
-    ;; 16 |     name := "thumb"
-              i32.const 704 ;; &"thumb"
+    ;; 29 |     name := "thumb"
+              i32.const 736 ;; &"thumb"
               local.get $t1
               i32.const 5
               i32.store $heap offset=20
@@ -221,7 +733,7 @@
               local.get $t1
               local.get $provider0.vtable
               i32.store $heap offset=16
-    ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
+    ;; 30 |     a := workers.run!(fn() -> u32: side * 2)
               local.get $t1
               i32.load $heap offset=8
               local.get $t1
@@ -241,7 +753,7 @@
                 local.get $provider0.vtable
                 call $retain
               end
-              i32.const 21
+              i32.const 24
               local.get $t1
               i32.const 0
               i32.store $heap offset=36
@@ -255,12 +767,12 @@
               i32.load $heap offset=36
               local.set $provider0.vtable
               local.set $b.1
-              i64.const 8485422206848180342
+              i64.const 8902989296798280274
               local.get $b.1
               local.get $provider0.vtable
               call $"crossing_number[fn((u32)) -> u32]"
               local.set $t3
-              i32.const 22
+              i32.const 25
               i32.const 24
               i32.const -2147483646
               call $rt:new/class-2
@@ -273,9 +785,9 @@
               i32.load $heap offset=36
               i32.store $heap offset=4
               local.get $b.1
-    ;; 15 |     side := u32(64)
+    ;; 28 |     side := u32(64)
               i32.const 64
-    ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
+    ;; 30 |     a := workers.run!(fn() -> u32: side * 2)
               i32.store $heap offset=8
               local.get $b.1
               local.get $t3
@@ -293,9 +805,9 @@
               local.get $t1
               local.get $provider0.vtable
               i32.store $heap offset=40
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
             end
-    ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
+    ;; 30 |     a := workers.run!(fn() -> u32: side * 2)
             block
               block
                 local.get $self.2
@@ -351,7 +863,7 @@
                     local.get $t1
                     i32.const 0
                     i32.const 1
-                    call $rt:frame_ensure
+                    call $rt:frame_ensure'2
                     drop
                     local.tee $frame
                     i32.const 24
@@ -480,7 +992,7 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=48
-    ;; 18 |     b := workers.run!(fn() -> string: name)
+    ;; 31 |     b := workers.run!(fn() -> string: name)
             local.get $t1
             i32.load $heap offset=8
             local.get $t1
@@ -517,7 +1029,7 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=68
-            i32.const 23
+            i32.const 26
             local.get $t1
             i32.const 0
             i32.store $heap offset=80
@@ -531,12 +1043,12 @@
             i32.load $heap offset=80
             local.set $provider0.vtable
             local.set $b.1
-            i64.const 8485422206848180321
+            i64.const 7427911135542343400
             local.get $b.1
             local.get $provider0.vtable
             call $"crossing_number[fn((string)) -> string]"
             local.set $t3
-            i32.const 24
+            i32.const 27
             i32.const 24
             i32.const -2147483645
             call $rt:new/class-2
@@ -578,9 +1090,9 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=84
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
           end
-    ;; 18 |     b := workers.run!(fn() -> string: name)
+    ;; 31 |     b := workers.run!(fn() -> string: name)
           block
             block
               local.get $self.2
@@ -636,7 +1148,7 @@
                   local.get $t1
                   i32.const 0
                   i32.const 1
-                  call $rt:frame_ensure
+                  call $rt:frame_ensure'2
                   drop
                   local.tee $frame
                   i32.const 24
@@ -780,7 +1292,7 @@
           local.set $provider0
           i32.const 0
           local.set $fallback
-    ;; 19 |     println("${a.unwrap_or(0)} ${b.unwrap_or("")}")
+    ;; 32 |     println("${a.unwrap_or(0)} ${b.unwrap_or("")}")
           local.get $t1
           i32.load $heap offset=48
           local.get $t1
@@ -830,7 +1342,7 @@
               local.set $fallback
               br 1
             end
-            local.get $self.0
+            i32.const 16 ;; &bytes[32]
             i32.const 0
             local.set $self.0
             local.set $fallback
@@ -870,7 +1382,7 @@
           i32.add
           i32.const 32
           i32.store8 $heap
-          i32.const 709 ;; &" "
+          i32.const 741 ;; &" "
           call $rt:release_ref'2
           local.get $self.2
           local.get $provider0
@@ -890,7 +1402,7 @@
           local.get $t1
           i32.load $heap offset=4
           call $"println[string]"
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
           local.get $self.2
           if
             local.get $self.2
@@ -1020,7 +1532,7 @@
     local.get $t1
     i32.const 0
     i32.const 1
-    call $rt:frame_ensure
+    call $rt:frame_ensure'2
     drop
     local.tee $frame
     local.get $b.1
@@ -1062,7 +1574,7 @@
     global.set $stack
   )
   (func $main.poll (param $t0 i32) (result i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
     local.get $t0
     call $rt:poll_check
     if
@@ -1100,7 +1612,7 @@
     return
   )
   (func $main.cancel (param $t1 i32) (local $t0 i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
     call $rt:cancel_enter
     local.set $t0
     block
@@ -1137,7 +1649,7 @@
     call $rt:cancel_leave
   )
   (func $main.drop (param $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -1204,8 +1716,8 @@
     end
   )
   (func $main'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
-    call $rt:frame
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
+    call $rt:frame'2
     local.tee $t0
     local.get $t1
     i32.store $heap offset=24
@@ -1219,8 +1731,608 @@
     end
     local.get $t0
   )
+  (func $pause#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      local.tee $env
+      i32.const 128
+      i32.and
+      local.set $t0
+      local.get $env
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const 64
+      i32.or
+      i32.store $heap offset=12
+    end
+    i32.const 0
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const -129
+      i32.and
+      local.get $t0
+      i32.or
+      i32.store $heap offset=12
+    end
+  )
+  (func $pause#1.poll (param $t0 i32) (result i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    i32.const 0
+    i32.const 0
+    call $pause#1'1
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      return
+    end
+    i32.const 0
+    return
+  )
+  (func $pause#1.cancel (param $t1 i32) (local $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    call $rt:cancel_enter
+    local.set $t0
+    block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      i32.const 0
+      i32.const 0
+      call $pause#1'1
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $pause#1.drop (param $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $t0
+    i32.load $heap offset=28
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
+  )
+  (func $pause#1'2 (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    call $rt:frame'3
+    local.tee $t0
+    local.get $t1
+    i32.store $heap offset=24
+    local.get $t0
+    local.get $t2
+    i32.store $heap offset=28
+    local.get $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $t0
+  )
+  (func $pause'1 (param $frame i32) (result i32) (local $step.0 i32) (local $t3 i32) (local $step.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 8
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 8
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      local.tee $t1
+      i32.const 128
+      i32.and
+      local.set $t2
+      local.get $t1
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $frame
+    if
+      local.get $frame
+      i32.const 24
+      i32.add
+      local.set $t1
+    else
+      local.get $t0
+      local.tee $t1
+      i64.const 0
+      i64.store $heap align=1
+    end
+    block
+      block
+        local.get $frame
+        if
+          local.get $frame
+          i32.load $heap offset=8
+          local.set $step.0
+        end
+        block
+          local.get $step.0
+          i32.eqz
+          if
+            i32.const 35
+    ;; 24 |     step!()
+            local.get $t1
+            local.get $step.1
+            i32.store $heap
+            drop
+            local.get $t1
+            i32.load $heap
+            i32.const 0
+            call $pause#1'2
+            local.set $step.1
+            local.get $t1
+            local.get $step.1
+            i32.store $heap offset=4
+    ;; 23 |     step := fn!() -> void: pass
+          end
+    ;; 24 |     step!()
+          block
+            block
+              local.get $step.0
+              i32.const 1
+              i32.eq
+              if
+                local.get $frame
+                i32.load $heap offset=12
+                i32.const 8
+                i32.and
+                br_if 1
+              end
+              local.get $step.0
+              i32.const 1
+              i32.eq
+              if
+                local.get $frame
+                i32.load $heap offset=16
+                local.set $step.1
+                i32.const 1
+                local.set $step.0
+              else
+                local.get $t1
+                i32.load $heap offset=4
+                local.set $step.1
+                i32.const 0
+                local.set $step.0
+              end
+              local.get $step.1
+              local.get $step.1
+              i32.load $heap
+              call_indirect $table0 (param i32) (result i32)
+              i32.eqz
+              if
+                local.get $step.0
+                i32.eqz
+                if
+                  local.get $step.1
+                  if
+                    local.get $step.1
+                    call $retain
+                  end
+                end
+                local.get $step.1
+                i32.load $heap offset=12
+                i32.const 8
+                i32.and
+                if
+                  local.get $frame
+                  local.get $t1
+                  i32.const 0
+                  i32.const 1
+                  call $rt:frame_ensure'3
+                  drop
+                  local.tee $frame
+                  i32.const 24
+                  i32.add
+                  local.set $t1
+                  local.get $frame
+                  local.get $step.1
+                  i32.store $heap offset=16
+                  local.get $frame
+                  local.get $frame
+                  i32.load $heap offset=12
+                  i32.const 24
+                  i32.or
+                  i32.store $heap offset=12
+                  br 2
+                end
+                i32.const 1
+                local.set $step.0
+                br 5
+              end
+              local.get $step.0
+              if
+                local.get $step.1
+                if
+                  local.get $frame
+                  i32.const 0
+                  i32.store $heap offset=16
+                  local.get $step.1
+                  if
+                    local.get $step.1
+                    call $rt:release_ref'2
+                  end
+                end
+              end
+              br 1
+            end
+            local.get $frame
+            call $rt:cancel_child
+            local.get $frame
+            i32.load $heap offset=16
+            local.set $step.1
+            if
+              i32.const 1
+              local.set $step.0
+              br 4
+            end
+            local.get $step.1
+            if
+              local.get $frame
+              i32.const 0
+              i32.store $heap offset=16
+              local.get $step.1
+              if
+                local.get $step.1
+                call $rt:release_ref'2
+              end
+            end
+            local.get $t1
+            i32.load $heap
+            local.tee $t3
+            if
+              local.get $t3
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t3
+                call $rt:release_ref'1
+              end
+            end
+            local.get $t1
+            i32.const 0
+            i32.store $heap
+            local.get $t1
+            i32.load $heap offset=4
+            local.tee $t3
+            if
+              local.get $t3
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t3
+                call $rt:release_ref'1
+              end
+            end
+            local.get $t1
+            i32.const 0
+            i32.store $heap offset=4
+            i32.const 1
+            local.set $t3
+            br 1
+          end
+    ;; 23 |     step := fn!() -> void: pass
+          local.get $t1
+          i32.load $heap offset=4
+          local.tee $step.0
+          if
+            local.get $step.0
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $step.0
+              call $rt:release_ref'1
+            end
+          end
+          local.get $t1
+          i32.const 0
+          i32.store $heap offset=4
+          local.get $t1
+          i32.load $heap
+          local.tee $step.0
+          if
+            local.get $step.0
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $step.0
+              call $rt:release_ref'1
+            end
+          end
+          local.get $t1
+          i32.const 0
+          i32.store $heap
+        end
+        local.get $frame
+        if
+          local.get $frame
+          local.get $frame
+          i32.load $heap offset=12
+          i32.const 64
+          i32.or
+          i32.store $heap offset=12
+        end
+        local.get $t3
+        if (result i32)
+          local.get $frame
+          local.get $frame
+          i32.load $heap offset=12
+          i32.const -17
+          i32.and
+          i32.store $heap offset=12
+          local.get $frame
+        else
+          i32.const 0
+        end
+        local.get $frame
+        if
+          local.get $frame
+          local.get $frame
+          i32.load $heap offset=12
+          i32.const -129
+          i32.and
+          local.get $t2
+          i32.or
+          i32.store $heap offset=12
+        end
+        local.get $t0
+        i32.const 8
+        i32.add
+        global.set $stack
+        return
+      end
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const 64
+      i32.or
+      i32.store $heap offset=12
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const -17
+      i32.and
+      i32.store $heap offset=12
+      local.get $frame
+      local.get $frame
+      if
+        local.get $frame
+        local.get $frame
+        i32.load $heap offset=12
+        i32.const -129
+        i32.and
+        local.get $t2
+        i32.or
+        i32.store $heap offset=12
+      end
+      local.get $t0
+      i32.const 8
+      i32.add
+      global.set $stack
+      return
+    end
+    local.get $frame
+    local.get $t1
+    i32.const 0
+    i32.const 1
+    call $rt:frame_ensure'3
+    drop
+    local.tee $frame
+    local.get $step.1
+    i32.store $heap offset=16
+    local.get $frame
+    local.get $step.0
+    i32.store $heap offset=8
+    local.get $frame
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const -129
+      i32.and
+      local.get $t2
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $t0
+    i32.const 8
+    i32.add
+    global.set $stack
+    return
+    local.get $frame
+    if
+      local.get $frame
+      local.get $frame
+      i32.load $heap offset=12
+      i32.const -129
+      i32.and
+      local.get $t2
+      i32.or
+      i32.store $heap offset=12
+    end
+    local.get $t0
+    i32.const 8
+    i32.add
+    global.set $stack
+  )
+  (func $pause.poll (param $t0 i32) (result i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $t0
+    call $rt:poll_check
+    if
+      i32.const 0
+      return
+    end
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const 1
+    i32.or
+    i32.store $heap offset=12
+    local.get $t0
+    call $pause'1
+    local.get $t0
+    local.get $t0
+    i32.load $heap offset=12
+    i32.const -2
+    i32.and
+    i32.store $heap offset=12
+    i32.eqz
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 4
+      i32.or
+      i32.store $heap offset=12
+      i32.const 1
+      return
+    end
+    i32.const 0
+    return
+  )
+  (func $pause.cancel (param $t1 i32) (local $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    call $rt:cancel_enter
+    local.set $t0
+    block
+      local.get $t1
+      call $rt:cancel_check
+      i32.eqz
+      br_if 0
+      local.get $t1
+      i32.load $heap offset=8
+      i32.eqz
+      br_if 0
+      local.get $t1
+      local.get $t1
+      i32.load $heap offset=12
+      i32.const 16
+      i32.or
+      i32.store $heap offset=12
+      local.get $t1
+      call $pause'1
+      i32.eqz
+      if
+        local.get $t1
+        local.get $t1
+        i32.load $heap offset=12
+        i32.const -17
+        i32.and
+        i32.store $heap offset=12
+      end
+    end
+    local.get $t1
+    local.get $t0
+    call $rt:cancel_leave
+  )
+  (func $pause.drop (param $t0 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $t0
+    i32.load $heap offset=16
+    if
+      local.get $t0
+      i32.load $heap offset=16
+      local.tee $t0
+      if
+        local.get $t0
+        call $rt:release_ref'2
+      end
+    end
+  )
+  (func $pause'2 (result i32)
+    ;; 23 |     step := fn!() -> void: pass
+    call $rt:frame'4
+  )
   (func $main#3 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
-    ;; 18 |     b := workers.run!(fn() -> string: name)
+    ;; 31 |     b := workers.run!(fn() -> string: name)
     local.get $t0
     if
       local.get $t0
@@ -1230,7 +2342,7 @@
     local.get $t1
   )
   (func $main#4 (param $env i32) (param $t4 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
-    ;; 18 |     b := workers.run!(fn() -> string: name)
+    ;; 31 |     b := workers.run!(fn() -> string: name)
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -1298,7 +2410,7 @@
   (func $crossing_run (param $t0 i64) (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32)
     ;; (no span)
     local.get $t0
-    i64.const 6697187868413770755
+    i64.const 8902989296798280274
     i64.eq
     if (result i32)
       local.get $t1
@@ -1315,7 +2427,7 @@
       end
     else
       local.get $t0
-      i64.const 3917393885180365822
+      i64.const 7427911135542343400
       i64.eq
       if
         local.get $t1
@@ -1362,17 +2474,57 @@
     end
   )
   (func $main#1 (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
-    ;; 17 |     a := workers.run!(fn() -> u32: side * 2)
+    ;; 30 |     a := workers.run!(fn() -> u32: side * 2)
     local.get $t0
     i32.const 2
     i32.mul
   )
-  (func $rt:frame_ensure (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+  (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+    ;; 19 |         pause!()
     local.get $t0
     i32.eqz
     if
-      call $rt:frame
+      call $rt:frame'1
+      local.tee $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+      local.get $t0
+      i32.const 24
+      i32.add
+      local.get $t1
+      local.set $t2
+      local.tee $t3
+      local.get $t2
+      i64.load $heap align=1
+      local.set $t4
+      local.get $t2
+      i64.load $heap offset=8 align=1
+      i64.store $heap offset=8 align=1
+      local.get $t3
+      local.get $t4
+      i64.store $heap align=1
+      i32.const 1
+      local.set $t5
+    end
+    local.get $t6
+    local.get $t5
+    i32.and
+    if
+      i32.const 0
+      local.set $t5
+    end
+    local.get $t0
+    local.get $t5
+  )
+  (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
+    ;; 27 |     let mut workers: *mut dyn Workers = box(PausingWorkers { inner: LoopbackWorkers {} })
+    local.get $t0
+    i32.eqz
+    if
+      call $rt:frame'2
       local.tee $t0
       local.get $t0
       i32.load $heap offset=12
@@ -1395,6 +2547,37 @@
       local.get $t0
       i32.load $heap offset=24
       call $retain
+      i32.const 0
+      local.set $t2
+    end
+    local.get $t0
+    local.get $t2
+  )
+  (func $rt:frame_ensure'3 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
+    ;; 23 |     step := fn!() -> void: pass
+    local.get $t0
+    i32.eqz
+    if
+      call $rt:frame'4
+      local.tee $t0
+      local.get $t0
+      i32.load $heap offset=12
+      i32.const 128
+      i32.or
+      i32.store $heap offset=12
+      local.get $t0
+      i32.const 24
+      i32.add
+      local.get $t1
+      i64.load $heap align=1
+      i64.store $heap align=1
+      i32.const 1
+      local.set $t2
+    end
+    local.get $t3
+    local.get $t2
+    i32.and
+    if
       i32.const 0
       local.set $t2
     end

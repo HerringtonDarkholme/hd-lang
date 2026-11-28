@@ -5,4 +5,5 @@ app/main/main
   release counted reference (last use)
   release app.main.Message (cancelled)
   release string (last use)
+  retain string (stored)
   release app.main.Message (last use)

@@ -1,0 +1,5 @@
+# `hd build` in a package that binds a host trait to a C provider writes its header from the checked signatures: the token and completions, the function table in source order, the entry symbol and the contract hash. A second build writes the same bytes.
+run: hd build
+same-text: native/include/disk_sdk.h expected.h
+run: hd build
+same-text: native/include/disk_sdk.h expected.h

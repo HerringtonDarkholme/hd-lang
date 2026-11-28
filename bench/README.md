@@ -193,8 +193,8 @@ Wasm body.
 
 A default-tier V8 profile of JSON had 350 ticks: 247 (70.6%) in Wasm, 82
 (23.4%) in C++, one (0.3%) in GC, and the rest shared or unaccounted. Of
-the Wasm ticks, 104 were in named `std.json` bodies, 118 in generated or
-unnamed bodies, 17 in `std.rt.alloc`, five in `std.serde`, and three in
+the Wasm ticks, 104 were in named `std.encoding.json` bodies, 118 in generated or
+unnamed bodies, 17 in `std.rt.alloc`, five in `std.encoding`, and three in
 `main`. No one function dominates: the largest generated body is 8.9% of
 the Wasm ticks, `Parser.validate` is 7.7%, `TextWriter.start` is 4.0%, and
 `TextReader.next_item` is 3.6%. The cost is the JSON and generated

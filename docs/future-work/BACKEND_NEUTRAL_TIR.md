@@ -2,7 +2,8 @@
 
 Status: accepted design (owner, 2026-11-18: "accept all your
 recommendations"); domain: compiler internals. **Built** as of 2026-11-21:
-every step, but four of step 1's deletions are still open (Appendix D,
+every step. Step 1's four remaining deletions are kept: #2170 closed as
+not planned, since deleting `Mem.leaves` priced at +585 lines (Appendix D,
 "Dormant and parallel paths"). Step 4 (#2173, closed): 4a's boundary decisions and per-type
 count shims as lowered TIR, with the walk route and the collection-copy
 route deleted. Step 7 (#2176, closed): cleanup scopes and cancel exits
@@ -499,29 +500,30 @@ patterns overlap, so the rows do not sum to 154.
 | `Dst::Mem(at, base, &leaves)` | 10 | `Dst::Mem(at, base, LayoutId)` |
 | inside `layout.rs` | 13 | the layout builder, moved |
 
-**Dormant and parallel paths.** Each is deleted by the step named.
+**Dormant and parallel paths.** Each row names its step and where it stands
+at 5d12e2d9f.
 
 | Path | Where | Step |
 | --- | --- | --- |
 | The 4,096-leaf fallback | deleted in 3c229234e | 1, done |
-| Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1, open: both are still in the code |
-| Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1, open: `cached`'s copy of `Scope` is deleted (6c8abad84, −38); 142 lines of the thread-local scheme wait for a `Layouts` handle |
-| A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1, open: it memoizes facts `hd_layout` does not (`holds_coll`, `RefFacts` over unstripped types) and is shared across threads; it goes with `Layout.facts` |
+| Generic-body ownership that served it | `Env::owned_generated`, `ProgramEnv::supplied_body` | 1, kept: they build the compiler-supplied method and `dbg` bodies; #2170 closed as not planned |
+| Layout memo scopes | `hd_layout::cached`, `cached_for_run`, `Scope` | 1, kept: `cached`'s copy of `Scope` is deleted (6c8abad84, −38); `cached_for_run` is the parallel back end's per-link cache (#2383) |
+| A second per-type fact memo | `hd_driver/src/own.rs` `TypeTable`, `TypeFacts` | 1, kept: it waits on `Layout.facts`, which #2170 closed as not planned |
 | Step 4's second body copy | `ir/local_fns.rs`, deleted in 28fb8575a | 3b (#2180), done |
 | Verifier checks that re-prove a pass | `ir/owned.rs`, deleted (step 0, −365) | 0, done |
-| Storage found twice | `closure.rs` `shared_locals`, `cell_locals`; `borrow.rs` `StorageRoots`; `own/storage.rs` | 3 |
-| The settle pass hosted in the backend | `promote.rs` `settled` | 3 |
-| Two move-path tables | `own/parts.rs`, `own/drop_flags.rs` | 1, 3, open: both are still in the code |
-| Owned-or-lent decided twice (#2144) | the passes and `emit/count.rs` | 4 |
-| Count rules in the Wasm peephole | `opt.rs` rules 11 and 16 | 4, then measured |
-| Two origin analyses | `own/frame/origins.rs`; `excl.rs` `Origin*` | 5 |
-| Value ends found twice | `excl.rs` `ValueEnds`; `own/reason/future.rs` | 5 |
+| Storage found twice | `closure.rs` `shared_locals`, `cell_locals` (deleted); `StorageRoots` (now `hd_tir/src/own/pointer.rs`); `own/storage.rs` | 3 (#2172), done |
+| The settle pass hosted in the backend | `hd_wasm/src/emit/promote.rs` `settled` | 3, kept: still in the backend after #2172, which kept `boundary_inputs` for it |
+| Two move-path tables | `own/parts.rs`, `own/drop_flags.rs` `MovePaths` | 1, 3, kept: #2172 keeps `MovePaths` for drop elaboration |
+| Owned-or-lent decided twice | the passes and `emit/count.rs` | 4, done (#2144) |
+| Count rules in the Wasm peephole | `opt.rs` rules 11 and 16 | 4: both remain after #2173, with no measurement recorded |
+| Two origin analyses | `own/frame/origins.rs`; `excl.rs` `Origin*` (deleted) | 5 (#2174), done |
+| Value ends found twice | `excl.rs` `ValueEnds` (deleted); `own/reason/future.rs` | 5 (#2174), done |
 | Write effects found twice | `guards.rs` `Writes` (deleted); `own/memory_effects.rs` | 6, done |
-| Flag and loan saves chosen by hand for the destructor | `select_frame_drop_flags`, `select_frame_loan_cells` | 2 |
-| Suspension liveness found twice | `susp.rs` `save_area`; `own/frame.rs` | 7 |
-| Per-body fact caches for the emitter | `emit/body_facts.rs`, `Em::tir_flags`, `cell_layouts`, `list_alias_memo` | 3, 6 |
+| Flag and loan saves chosen by hand for the destructor | `select_frame_drop_flags`, `select_frame_loan_cells` (deleted) | 2, done |
+| Suspension liveness found twice | `susp.rs` `save_area`; `own/frame.rs` | 7 (#2176), done: `save_area` now only lays out the offsets it is given |
+| Per-body fact caches for the emitter | `emit/body_facts.rs`, `Em::cell_layouts`; `Em::tir_flags` and `list_alias_memo` deleted | 3, 6: `body_facts.rs` and `cell_layouts` remain after #2172 and #2175 |
 | The dev and release split | `Env::inlined_instance`'s `dev` flag, and `generic_inlined` (both deleted) | 8, done |
-| `gap: #2075`, a projection chain past its depth | `hd_mono/src/lib.rs:590` | not on this path; stays with #2075 |
+| `gap: #2075`, a projection chain past its depth | `hd_mono/src/lib.rs` | not on this path; stays with #2075 |
 
 **What instance TIR built.** Its record is in git history at 421bcec83,
 `INSTANCE_TIR.md`. Its four decisions stand: no

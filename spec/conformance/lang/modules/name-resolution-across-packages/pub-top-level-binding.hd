@@ -1,4 +1,4 @@
-# test: top-level bindings cannot be public
-# Spec 10 Fully Annotated Declarations: module.package.no-pub-binding.
-# Spec 10 Name Resolution Across Packages: "Top-level bindings cannot be public."
+# test: a := binding cannot be public
+# Spec 10 Fully Annotated Declarations: module.package.pub-binding.
+# Spec 10 Name Resolution Across Packages: a public binding is `pub let NAME: T = value`.
 pub answer := 42  # diagnostic: syntax-error

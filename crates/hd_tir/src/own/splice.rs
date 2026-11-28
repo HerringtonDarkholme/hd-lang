@@ -11,7 +11,7 @@
 //! instruction of the statement it precedes, and the whole body is
 //! renumbered once: every word that names an instruction, by the operand
 //! schema, and the columns that name instructions (labels, sub-body roots,
-//! suspension rows, the fallback rows).
+//! fallback rows).
 
 use hd_base::NodeIdx;
 use hd_base::SliceSort as _;
@@ -44,10 +44,27 @@ pub fn insert_batch(
     topo: &Topology,
     inserts: &[BatchInsert],
 ) -> Result<Vec<u32>, String> {
-    if inserts.is_empty() {
+    edit_batch(b, topo, inserts, &[])
+}
+
+/// [`insert_batch`], which also deletes the instructions of `removed`:
+/// statements and pure values that no surviving instruction uses.
+///
+/// # Errors
+/// An invalid insertion position or a malformed operand during renumbering.
+pub fn edit_batch(
+    b: &mut Body,
+    topo: &Topology,
+    inserts: &[BatchInsert],
+    removed: &[u32],
+) -> Result<Vec<u32>, String> {
+    if inserts.is_empty() && removed.is_empty() {
         return Ok((0..u32_of(b.len())).collect());
     }
     let mut tables = Tables::default();
+    for &x in removed {
+        tables.remove(x);
+    }
     for edit in inserts {
         let block = edit.block as usize;
         if b.tags.get(block) != Some(&Tag::Block)
@@ -185,7 +202,6 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         return Ok(());
     }
     let n = b.len();
-    let k = t.edits.len();
     t.dead.clear();
     t.dead.resize(n, false);
     for &x in &t.removed {
@@ -364,19 +380,27 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         t.order.push(u32_of(n) + t.anchor[a].1);
         a += 1;
     }
-    t.new_of.clear();
-    t.new_of.resize(n + k, NONE);
-    for (new, &old) in t.order.iter().enumerate() {
-        t.new_of[old as usize] = u32_of(new);
+    reorder(b, &t.order, &mut t.new_of)
+}
+
+/// Keeps the instructions of `order`, in that order, and renumbers the
+/// body, leaving each old instruction's new number in `new_of` (`NONE`:
+/// deleted). A pass that rebuilds block records (moving members between
+/// blocks, adding blocks) lists the result in evaluation order, a
+/// block's members before the block, and every instruction it leaves out
+/// is deleted with its side rows. Cost: one pass over the columns and
+/// the operand words.
+///
+/// # Errors
+/// A surviving operand that names a deleted instruction.
+pub fn reorder(b: &mut Body, order: &[u32], new_of: &mut Vec<u32>) -> Result<(), String> {
+    new_of.clear();
+    new_of.resize(b.len(), NONE);
+    for (new, &old) in order.iter().enumerate() {
+        new_of[old as usize] = u32_of(new);
     }
-    permute_columns(b, &t.order);
-    crate::ir::renumber(
-        b,
-        &mut crate::ir::Through {
-            new_of: &t.new_of,
-            konst: 0,
-        },
-    )
+    permute_columns(b, order);
+    crate::ir::renumber(b, &mut crate::ir::Through { new_of, konst: 0 })
 }
 
 /// Puts the instruction columns in `order`: row `k` becomes old row

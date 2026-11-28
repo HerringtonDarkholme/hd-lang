@@ -4,7 +4,7 @@
 //   scripts/lane-gate.sh STEP [CASES]
 //   scripts/lane-gate.sh --plan [A..B] [CASES]    print the selected steps, run none
 //
-// STEP names the #1399 step whose evidence plancheck prints. CASES is a
+// STEP names the run; its logs go to target/lane-gate/STEP. CASES is a
 // comma-separated list of conformance path or rule parts, or `none`; fixtures
 // the diff adds or changes always run too. The diff is `origin/main...HEAD`
 // (GATE_RANGE or the --plan range overrides it). GATE_STAGES_DONE says the
@@ -18,10 +18,12 @@
 //                     (normal and build edges, transitively), plus the direct
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
-//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_driver's
+//   tests of a crate  hd_driver, hd_check, hd_wasm: unit tests and `--test stages`; hd_driver's
 //                     `--features analysis --test analysis` when an analysis.rs changes; hd_check's
 //                     also run when any compiler crate is selected, since its
-//                     stage baselines dump later stages through hd_testkit;
+//                     stage baselines dump later stages through hd_testkit, and
+//                     hd_wasm's when hd_check is, since its baselines dump
+//                     checked bodies;
 //                     hd_command: `--lib` when touched, plus `--test all` for the test
 //                     modules the diff changes; hd_cache: also `--features disk --lib`,
 //                     as CI runs it; every other touched crate: all its targets; a
@@ -31,7 +33,6 @@
 //                     whose one test binary asserts on checker facts. Never bare
 //                     `-p hd_driver`, never `--test conformance` without
 //                     HD_CONFORMANCE_ONLY.
-//   golden std TIR    hd_check, hd_tir or lib/std touched.
 //   std fmt           lib/std changed: hd_fmt's std test, std is `hd fmt` clean.
 //   metrics fixtures  bench/metrics fixtures changed (CI runs them for every
 //                     diagnostic change).
@@ -44,7 +45,7 @@
 //                     .rs, .ts, the cost allowlist or the ast-grep rules (cost).
 //   cargo fmt/clippy  .rs changed (clippy on the selected crates, all targets).
 //   oxlint, oxfmt     the changed .ts and .js files.
-// A docs-only diff therefore runs plancheck, spec-sync and nothing heavy.
+// A docs-only diff therefore runs spec-sync and nothing heavy.
 //
 // Stops at the first failing step and prints its log tail. Logs:
 // target/lane-gate/STEP/NAME.log.
@@ -53,7 +54,7 @@
 // process per planned step; steps grow with the crates the change reaches.
 
 import { spawnSync } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 type Env = Record<string, string>;
@@ -62,6 +63,7 @@ type Change = { status: string; path: string };
 type Workspace = {
   byDir: Map<string, string>;
   defaults: Set<string>;
+  unit: Map<string, string[]>;
   normalRev: Map<string, Set<string>>;
   devRev: Map<string, Set<string>>;
 };
@@ -75,6 +77,7 @@ type Context = {
   cargoRoot: boolean;
   named: string;
   stagesDone: boolean;
+  unit: Map<string, string[]>;
 };
 type Rule = (ctx: Context) => Step[];
 
@@ -119,6 +122,7 @@ function readWorkspace(root: string): Workspace {
       name: string;
       manifest_path: string;
       dependencies: { name: string; kind: string | null }[];
+      targets: { name: string; kind: string[]; test: boolean }[];
     }[];
     workspace_default_members: string[];
   };
@@ -127,8 +131,14 @@ function readWorkspace(root: string): Workspace {
   const idName = new Map<string, string>();
   const normalRev = new Map<string, Set<string>>();
   const devRev = new Map<string, Set<string>>();
+  // A crate whose unit tests moved to `tests/unit` (`[lib] test = false`) runs
+  // that target; `--lib` would build the library in test mode for no test.
+  const unit = new Map<string, string[]>();
   for (const pkg of meta.packages) {
     byDir.set(relative(root, dirname(pkg.manifest_path)), pkg.name);
+    const lib = pkg.targets.find((target) => target.kind.includes("lib"));
+    const moved = lib?.test === false && pkg.targets.some((target) => target.name === "unit");
+    unit.set(pkg.name, moved ? ["--test", "unit"] : ["--lib"]);
     idName.set(pkg.id, pkg.name);
     for (const dep of pkg.dependencies.filter((entry) => names.has(entry.name))) {
       const table = dep.kind === "dev" ? devRev : normalRev;
@@ -136,7 +146,7 @@ function readWorkspace(root: string): Workspace {
     }
   }
   const defaults = new Set(meta.workspace_default_members.map((id) => idName.get(id)!));
-  return { byDir, defaults, normalRev, devRev };
+  return { byDir, defaults, unit, normalRev, devRev };
 }
 
 function selectCrates(ws: Workspace, touched: Set<string>, extra: string[]): Set<string> {
@@ -186,7 +196,6 @@ function captures(ctx: Context, pattern: RegExp): string[] {
 }
 
 const planRule: Rule = (ctx) => [
-  step("plancheck", "always: the #1399 step's evidence", ["python3", "scripts/plancheck.py"]),
   ...(has(ctx, /^(?!crates\/[^/]+\/(src|tests)\/)/)
     ? [
         step("spec_sync", "a file outside crate sources changed", [
@@ -297,7 +306,8 @@ const stageRule: Rule = (ctx) => {
   const steps: Step[] = [];
   const stages = (crate: string, name: string, why = `${crate} selected`) => {
     if (!ctx.stagesDone) {
-      steps.push(step(name, why, cargoTest("-p", crate, "--lib", "--test", "stages")));
+      const unit = ctx.unit.get(crate) ?? ["--lib"];
+      steps.push(step(name, why, cargoTest("-p", crate, ...unit, "--test", "stages")));
     }
   };
   // hd_check's stage cases dump own, counts and wat through hd_testkit, a
@@ -308,8 +318,12 @@ const stageRule: Rule = (ctx) => {
   } else if (anyOf(ctx.selected, COMPILER_CRATES)) {
     stages("hd_check", "check_stages", "a compiler stage selected: hd_check's baselines dump it");
   }
+  // hd_wasm's stage cases dump own and wat of checked bodies, so the
+  // checker's loans and diagnostics reach its baselines too (#2339's merge).
   if (ctx.selected.has("hd_wasm")) {
     stages("hd_wasm", "wasm_stages");
+  } else if (ctx.selected.has("hd_check")) {
+    stages("hd_wasm", "wasm_stages", "hd_check selected: hd_wasm's baselines dump checked bodies");
   }
   return steps;
 };
@@ -320,12 +334,13 @@ const driverRule: Rule = (ctx) => {
   }
   const targets = captures(ctx, /^crates\/hd_driver\/tests\/(count_reasons)\.rs$/);
   const stages = ctx.stagesDone ? [] : ["--test", "stages"];
+  const unit = ctx.unit.get("hd_driver") ?? ["--lib"];
   const extra = targets.flatMap((name) => ["--test", name]);
   const why = ctx.stagesDone
     ? "hd_driver selected (stages done by the caller)"
     : "hd_driver selected";
   const steps = [
-    step("hd_driver", why, cargoTest("-p", "hd_driver", "--lib", ...stages, ...extra)),
+    step("hd_driver", why, cargoTest("-p", "hd_driver", ...unit, ...stages, ...extra)),
   ];
   // tests/analysis.rs is `#![cfg(feature = "analysis")]`: without the feature
   // `--test analysis` builds and runs 0 tests. Its feature build is the one
@@ -447,6 +462,9 @@ const stdRtRule: Rule = (ctx) => {
         "--exact",
         "std_runtime_modules_pass_their_hd_tests_on_the_linear_backend",
       ),
+      // The conformance target refuses an unfiltered local run; this
+      // test runs the std runtime modules' own tests, which `std` names.
+      { HD_CONFORMANCE_ONLY: "std" },
     ),
   ];
 };
@@ -493,6 +511,7 @@ function context(root: string, changes: Change[], named: string, ws: Workspace):
     cargoRoot,
     named,
     stagesDone: Boolean(process.env.GATE_STAGES_DONE),
+    unit: ws.unit,
   };
 }
 
@@ -510,24 +529,9 @@ function showPlan(range: string, count: number, ctx: Context, steps: Step[]) {
   }
 }
 
-function fetchPlan(logs: string): string {
-  // cost: one gh call per run.
-  const body = spawnSync("gh", ["issue", "view", "1399", "--json", "body", "-q", ".body"], {
-    encoding: "utf8",
-  });
-  if (body.status !== 0) {
-    console.log("cannot fetch #1399");
-    process.exit(2);
-  }
-  const file = join(logs, "plan.md");
-  writeFileSync(file, body.stdout);
-  return file;
-}
-
 /** Runs one step into its log; returns false after printing the log tail on failure. */
-function runStep(ctx: Context, entry: Step, logs: string, stepName: string): boolean {
-  const argv =
-    entry.name === "plancheck" ? [...entry.argv, fetchPlan(logs), "--show", stepName] : entry.argv;
+function runStep(ctx: Context, entry: Step, logs: string): boolean {
+  const argv = entry.argv;
   process.stdout.write(entry.name.padEnd(16));
   const started = Date.now();
   const log = join(logs, `${entry.name}.log`);
@@ -554,13 +558,6 @@ function runStep(ctx: Context, entry: Step, logs: string, stepName: string): boo
   console.log(`FAIL ${seconds}s  ${log}`);
   console.log(text.split("\n").slice(-21).join("\n"));
   return false;
-}
-
-function writeEvidence(logs: string, stepName: string) {
-  const text = readFileSync(join(logs, "plancheck.log"), "utf8");
-  const lines = text.split("\n").filter((line) => line.startsWith("  "));
-  writeFileSync(join(logs, "evidence.txt"), lines.map((line) => `${line}\n`).join(""));
-  console.log(`evidence: ${lines.length} lines for ${stepName} in ${join(logs, "evidence.txt")}`);
 }
 
 function main() {
@@ -591,11 +588,8 @@ function main() {
   mkdirSync(logs, { recursive: true });
   const started = Date.now();
   for (const entry of steps) {
-    if (!runStep(ctx, entry, logs, stepName)) {
+    if (!runStep(ctx, entry, logs)) {
       process.exit(1);
-    }
-    if (entry.name === "plancheck") {
-      writeEvidence(logs, stepName);
     }
   }
   console.log(`PASS ${Math.round((Date.now() - started) / 1000)}s`);

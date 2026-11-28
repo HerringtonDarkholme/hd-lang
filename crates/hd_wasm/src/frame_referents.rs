@@ -45,20 +45,20 @@ pub(crate) fn for_type(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Guard {
+pub struct Guard {
     pub parent: Option<usize>,
     pub discr: Discr,
     pub variant: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct Referent {
+pub struct Referent {
     pub guard: Option<usize>,
     pub value: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Plan {
+pub struct Plan {
     /// Parents precede children, allowing one forward guard evaluation.
     pub guards: Vec<Guard>,
     pub refs: Vec<Referent>,

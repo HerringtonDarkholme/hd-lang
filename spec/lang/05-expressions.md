@@ -317,7 +317,7 @@ fn indent() -> Pixels:
 [typed fact type](14-annotations.md#member-typed-facts):
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Num
 
 @annotate::[F](.Fn)
@@ -472,7 +472,7 @@ fn by_id(id: i64) -> Query:
 `std.ops` declares the marker and the template:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Fn)
 pub struct StrPrefix[F]: pass
@@ -1601,8 +1601,9 @@ fn scale(x: i64, n: i32) -> i64:
 7. r[expr.power.float.same-type] For a floating-point base, the exponent must have the base's type, as for a [binary numeric operator](04-type-system.md#binary-numeric-operators). A floating-point literal exponent takes that type. Error: `type-mismatch`.
 8. r[expr.power.float.special] For each special case of IEEE 754-2019 `pow` in clause 9.2, floating `x ** y` gives exactly the result in the table below.
 9. r[expr.power.float.within-ulp] Every other floating `x ** y` is within 1 ULP of the exact value of `x` raised to `y`, in the operands' format. It need not be the correctly rounded value.
-10. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
-11. r[expr.power.type-parameter] For a base of a type parameter, its bound picks the rule: `T < Integer` takes the integer rules, and `T < Float` the float rules. Any other type parameter base is an error. Error: `type-mismatch`.
+10. r[expr.power.float.f32-libm] Outside the special cases above, `f32` power returns musl libm 1.2.5's `powf` result.
+11. r[expr.power.mixed] Integer and floating operands do not mix without an explicit cast; a mixed power expression is an error. Error: `type-mismatch`.
+12. r[expr.power.type-parameter] For a base of a type parameter, its bound picks the rule: `T < Integer` takes the integer rules, and `T < Float` the float rules. Any other type parameter base is an error. Error: `type-mismatch`.
 
 | `x` | `y` | `x ** y` |
 | --- | --- | --- |

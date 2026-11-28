@@ -2,7 +2,7 @@
 # @build: v8 release program
 # expected: a field reference passes into the inlined binding with no
 # count, and the program's only callback is a direct call.
-use std.annotation.inline
+use std.meta.inline
 
 struct Pair:
     id: usize

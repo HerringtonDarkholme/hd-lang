@@ -1,6 +1,6 @@
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]

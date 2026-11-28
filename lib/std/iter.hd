@@ -1,5 +1,8 @@
+use std.collections.UniqList
+use std.rt.{ByteBuffer, char_width, write_char_sized}
+
 # std.iter: user-defined cursors and lazy, named adapter values.
-use std.function.FnMut
+use std.ops.FnMut
 use std.num.Num
 use std.cmp.{Ord, Ordering}
 
@@ -646,12 +649,6 @@ impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
 
-impl[T] List[T]:
-    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
-    ## See [std-iter.list.enumerate.borrow](../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
-    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
-        self.iter().enumerate()
-
 ## A cursor whose front and back share the same remaining sequence.
 pub trait DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]:
     fn next_back(&mut self) -> T?
@@ -1002,3 +999,46 @@ impl[
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn rev(self) -> Rev[Self, U]:
         Rev { source: self }
+
+## A cursor yielding an optional's payload once, if present.
+## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
+pub struct OptionIter[T]:
+    value: T?
+
+impl[T] Iterator[T] for OptionIter[T]:
+    fn next(&mut self) -> T?:
+        value := self.value
+        self.value = .None
+        value
+
+impl[T] Iterable[T] for T?:
+    type IntoIter = OptionIter[T]
+    fn iter(self) -> OptionIter[T]:
+        OptionIter { value: self }
+
+impl[T] DoubleEndedIterator[T] for OptionIter[T]:
+    fn next_back(&mut self) -> T?:
+        self.next()
+
+impl[T] ExactSizeIterator[T] for OptionIter[T]:
+    fn len(&self) -> usize:
+        if self.value.is_some(): 1 else: 0
+
+impl[T] OptionIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+# Rust's String::from_iter<char>: encode scalars into one growing UTF-8 buffer.
+impl FromIterator[char] for string:
+    fn from_iter[I < ?Copy & Iterator[char]](items: I) -> string:
+        let mut cursor = items
+        let mut output = UniqList::[u8].new()
+        while true:
+            match cursor.next():
+                .Some(value) =>
+                    width := char_width(value)
+                    write_char_sized(value, output.spare(width))
+                    output.advance(width)
+                .None => return output.take_text()

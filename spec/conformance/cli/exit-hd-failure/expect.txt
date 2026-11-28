@@ -1,4 +1,14 @@
+# The error is printed as `severity: file:line:column: code: message`, then
+# the summary line.
 run: hd check src/util.hd
 exit: 101
+stderr: error: src/util.hd:2:5: type-mismatch: in result: expected i32, found string
 run: hd test
 exit: 101
+# The thread count changes no output (`cli.jobs.result`).
+run: hd check --jobs 1 src/util.hd
+exit: 101
+stderr: error: src/util.hd:2:5: type-mismatch: in result: expected i32, found string
+run: hd check --jobs=8 src/util.hd
+exit: 101
+stderr: error: src/util.hd:2:5: type-mismatch: in result: expected i32, found string

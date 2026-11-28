@@ -1,40 +1,23 @@
 //! A SIGINT or SIGTERM sent to the `hd` process alone is a Ctrl-C
-//! (`cli.cancel.signals`, `cli.cancel.forward`, #534). On the Node engine
+//! (`cli.cancel.unhandled-signals`, `cli.cancel.forward`, #534). On the Node engine
 //! the program runs in a child process that `hd` must pass the interrupt
 //! on to; on wasmtime `hd` cancels the run itself. Both end with
 //! `cancelled` on standard error and status 130, after the dispose's wait.
 
 use std::io::{BufRead as _, BufReader, Read as _};
 use std::os::unix::process::CommandExt as _;
-use std::process::{Child, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use hd_testkit::Scratch;
 use nix::sys::signal::{Signal, kill};
-use nix::unistd::Pid;
+use nix::unistd::{Pid, getpgid, getpgrp};
 
 /// The entry waits on a timer that never ends, and its dispose waits
 /// 300 ms: a cancel that waits for the dispose ends `cancelled`, and one
 /// that abandons it ends `cancelled, cleanup abandoned`.
-const PROGRAM: &str = "use std.ops.AsyncDisposable
-use std.time.{Clock, ms, sleep}
-
-struct Conn:
-    closing: Suspend[void]
-
-impl AsyncDisposable for Conn:
-    fn dispose!(&mut self) -> void:
-        let mut closing = self.closing
-        closing!()
-
-pub fn main!() -> void $ Console + Clock:
-    using! conn = Conn { closing: sleep(ms(300)) }
-    println(\"ready\")
-    let mut forever = sleep(ms(600000))
-    forever!()
-    println(\"never\")
-";
+const PROGRAM: &str = include_str!("programs/interrupt_signal/program.hd");
 
 /// A running `hd`, in a process group of its own, whose program has
 /// printed `ready`.
@@ -74,7 +57,7 @@ impl Run {
         let line = heard.recv_timeout(Duration::from_mins(2));
         assert_eq!(line, Ok(Some("ready".to_owned())), "the program is running");
         // A signal in the instant between `ready` and the wait would find
-        // the program computing, which a Ctrl-C stops (`cli.cancel.computing`).
+        // the program computing, which a Ctrl-C stops (`cli.cancel.unhandled-computing`).
         std::thread::sleep(Duration::from_millis(200));
         Self { child, _dir: dir }
     }
@@ -127,10 +110,56 @@ fn cancels(engine: &str, signal: Signal) {
     );
 }
 
+/// A sibling in the test binary's group observes an escaped group kill.
+/// It has its own deadline and is reaped even when an assertion fails.
+struct GroupSibling(Child);
+
+impl GroupSibling {
+    fn start() -> Self {
+        // Outlast Run's two-minute start and one-minute finish deadlines.
+        let child = Command::new("sleep")
+            .arg("300")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start process-group sibling");
+        let sibling = Self(child);
+        let pid = Pid::from_raw(i32::try_from(sibling.0.id()).expect("sibling pid"));
+        assert_eq!(getpgid(Some(pid)).expect("sibling group"), getpgrp());
+        sibling
+    }
+
+    fn assert_running(&mut self) {
+        assert_eq!(
+            self.0.try_wait().expect("poll sibling"),
+            None,
+            "cancellation signalled a sibling in the test binary's process group"
+        );
+    }
+}
+
+impl Drop for GroupSibling {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 /// A second signal after the cancel abandons the dispose at once, long
-/// before the 30 s bound.
+/// before the 30 s bound, without signalling the harness's process group.
 fn second_abandons(engine: &str) {
+    let mut sibling = GroupSibling::start();
     let run = Run::start(engine, &format!("{engine}-second"), "30s");
+    let pid = Pid::from_raw(i32::try_from(run.child.id()).expect("hd pid"));
+    let group = getpgid(Some(pid)).expect("hd process group");
+    assert_eq!(group, pid, "hd must lead its own process group");
+    assert_ne!(
+        group,
+        getpgrp(),
+        "hd must not share the test binary's group"
+    );
+    sibling.assert_running();
     run.send(Signal::SIGINT);
     // The first signal has cancelled the entry and the dispose waits.
     std::thread::sleep(Duration::from_millis(100));
@@ -143,6 +172,7 @@ fn second_abandons(engine: &str) {
     );
     assert_eq!(code, Some(130), "{engine}");
     assert!(elapsed < Duration::from_secs(20), "{engine}: {elapsed:?}");
+    sibling.assert_running();
 }
 
 #[test]

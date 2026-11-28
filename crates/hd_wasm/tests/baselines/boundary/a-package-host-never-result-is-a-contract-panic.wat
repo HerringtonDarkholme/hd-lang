@@ -2,7 +2,7 @@
 (module
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 6 funcref))
+  (import "fixture" "table0" (table $table0 5 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32)
     ;; 13 |     println("before")
     block
@@ -14,6 +14,14 @@
     ;; 14 |     $.use(Surface).stop()
       local.get $provider1
       local.get $provider1.vtable
+      local.set $provider0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider1
+      i32.const 0
+      local.set $provider1.vtable
+      local.get $provider0.vtable
+      local.get $provider0
       i32.load $heap
       call_indirect $table0 (param i32)
       unreachable

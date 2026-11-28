@@ -1,7 +1,7 @@
 # test: a captured parameter with more than sixteen scalar fields shares reassignment
 # Spec 07: fn.capture.cell, fn.capture.cell.writes.
 # expect: test
-use std.annotation.inline
+use std.meta.inline
 
 struct Wide:
     values: (

@@ -4,6 +4,8 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
+pub(crate) const INTERVAL: Duration = Duration::from_millis(10);
+
 type Engines = Arc<Mutex<Vec<Weak<wasmtime::Engine>>>>;
 
 pub fn register(engine: &Arc<wasmtime::Engine>) -> Result<(), String> {
@@ -15,7 +17,7 @@ pub fn register(engine: &Arc<wasmtime::Engine>) -> Result<(), String> {
             .name("hd-epochs".into())
             .spawn(move || {
                 loop {
-                    std::thread::sleep(Duration::from_millis(10));
+                    std::thread::sleep(INTERVAL);
                     ticking
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)

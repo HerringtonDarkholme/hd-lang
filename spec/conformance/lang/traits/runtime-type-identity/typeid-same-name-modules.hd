@@ -4,7 +4,7 @@
 # fixture-package-tree: same-name-items/src/check.hd
 use pkg.left
 use pkg.right
-use std.inspect.{TypeId}
+use std.meta.{TypeId}
 tests:
     use std.testing.{assert, assert_equal}
 

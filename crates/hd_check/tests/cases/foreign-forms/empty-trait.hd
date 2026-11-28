@@ -1,0 +1,3 @@
+# @dump: diagnostics fixed
+# expected: empty trait declarations omit the colon and body
+trait Empty: pass

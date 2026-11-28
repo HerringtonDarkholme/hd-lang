@@ -45,12 +45,14 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
 | `hd cache gc` | [evicts compiled entries](#compiled-cache) down to the size cap |
+| `hd --version` | prints the compiler release version and exits |
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
 2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and `--name`, and the help of `hd clean` names `--cache`.
 3. r[cli.command.positional.operands] A positional word denotes the command's declared NAME, FILE, SOURCE, PATH or TARGET.
 4. r[cli.command.positional.package-directory] A directory operand to `hd run` or `hd test` is an error whose message suggests [`-p`](#selecting-members).
+5. r[cli.command.version] `hd --version` prints `hd VERSION` followed by a newline and exits with status 0, where VERSION is the compiler release version.
 
 ```sh
 hd help          # the command list
@@ -118,8 +120,8 @@ hd notes.hd
 
 ### Prebuilt Modules
 
-`hd FILE.wasm` runs a Wasm module that `hd build` wrote, without its
-source. FILE's extension picks the mode:
+`hd FILE.wasm` runs a portable Wasm module, and `hd FILE.cwasm` runs a native
+release artifact, without its source. FILE's extension picks the mode:
 
 ```sh
 hd build                                  # writes build/debug/greeter.wasm
@@ -127,7 +129,7 @@ hd build/debug/greeter.wasm -- a b        # runs it with the arguments a and b
 hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 101
 ```
 
-1. r[cli.wasm.run] When FILE's name ends in `.wasm`, `hd FILE` instantiates FILE as a module that [`hd build`](#r-cli.build.output) wrote, and runs it.
+1. r[cli.wasm.run] When FILE's name ends in `.wasm`, `hd FILE` instantiates FILE as a module that [`hd build`](#r-cli.build.output.artifact) wrote, and runs it.
 2. r[cli.wasm.mode] Only the extension picks the mode: `hd FILE` for a FILE whose name ends in `.hd` runs a single-file program, by [`cli.file.run`](#r-cli.file.run).
 3. r[cli.wasm.host] The module runs under the [default profile](#host-capabilities), in the working directory of the `hd` command.
 4. r[cli.wasm.host.imports] `hd` binds each trait of the default profile that the module's import list names.
@@ -140,6 +142,18 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 11. r[cli.wasm.not-hd] A valid module that `hd build` did not write is an error, with status 101.
 12. r[cli.wasm.not-hd.detect] `hd` knows such a module by a missing entry export, or by an import of a host function that `hd` does not provide.
 13. r[cli.wasm.not-hd.message] The error's message names the missing export or the unknown import, and suggests rebuilding the module with `hd build`.
+14. r[cli.wasm.build-level] `hd build` records its optimization level in the module, and `hd FILE.wasm` uses that level.
+15. r[cli.wasm.legacy-level] A module without a recorded optimization level runs with the dev pipeline.
+16. r[cli.wasm.release-flag] `hd FILE.wasm` rejects `--release`, because the module determines its optimization level.
+17. r[cli.native.run] When FILE ends in `.cwasm`, `hd FILE` loads and runs the native artifact without translating its Wasm program.
+18. r[cli.native.engine] A `.cwasm` artifact requires Wasmtime; selecting Node is an error suggesting `--format wasm` for portable output.
+19. r[cli.native.host] Native artifacts use the same host imports, capability checks, arguments and exit-status protocol as prebuilt Wasm modules.
+20. r[cli.native.standalone] A native artifact contains its host and source-position metadata and requires no original source checkout to run.
+21. r[cli.native.compatibility] An unloadable native artifact, including a Wasmtime-version or CPU-target mismatch, fails with a rebuild error suggesting `hd build --release` or portable `--format wasm` output.
+22. r[cli.native.release-flag] `hd FILE.cwasm` rejects `--release`, because the native artifact already determines its release behavior.
+
+> **Why.** Native output pays compilation cost at build or installation time.
+> Portable Wasm remains available for other engines and machines.
 
 > **Why.** Builtin-only modules need no package source or manifest.
 > A package provider needs the app's manifest consent and its SDK's provider map.
@@ -150,6 +164,26 @@ hd build/debug/greeter.wasm --cap Console=false   # refused before it starts: 10
 > defines. `hd` cannot tell which profile built a module, and the module
 > keeps that profile's overflow behavior. A module from an incompatible
 > `hd` shows only as a missing entry export or an unknown import.
+
+### Sampling Profiles
+
+Wasmtime can record guest stacks while a program runs:
+
+```sh
+hd run --release --engine wasmtime --profile
+hd src/main.hd --engine wasmtime --profile=cpu.json
+hd build/release/app.cwasm --engine wasmtime --profile=cpu.json
+```
+
+1. r[cli.sampling.run] `hd run --profile[=FILE]` and `hd FILE --profile[=FILE]` record Wasmtime guest stack samples in Firefox profiler JSON.
+2. r[cli.sampling.output] With no joined path, the output is `profile.json` in the working directory; `--profile=FILE` chooses FILE.
+3. r[cli.sampling.names] Profiles retain hd function names in dev, release, portable Wasm, and native `.cwasm` programs.
+4. r[cli.sampling.node] Selecting Node with `--profile` is an error that suggests `--engine wasmtime`, with status 101.
+5. r[cli.sampling.arguments] `--profile` consumes no following word; arguments after `--` remain program arguments.
+6. r[cli.sampling.empty-path] `--profile=` is an error with status 101.
+
+> **Why.** Guest samples expose hot language functions without requiring
+> callers to reconstruct the module's host imports in an external runner.
 
 ## Running A Package
 
@@ -224,11 +258,12 @@ modules that tasks share:
 | `tasks/build.hd` | task `build`, which uses `use self.shared.zip` |
 | `tasks/seed.hd` | task `seed` |
 | `tasks/shared/zip.hd` | a shared task module |
+| `tasks/shared/mod.hd` | its folder's module, which re-exports it: `pub use self.{zip}` |
 
 1. r[cli.task.file] Each file `tasks/NAME.hd` in the package directory is a task named `NAME`, and it is an entry module.
 2. r[cli.task.program] Each task is its own program, compiled separately from the package's other tasks.
 2. r[cli.task.no-path] Tasks and shared task modules are not modules of the package: they have no module path, so a library module such as `src/tasks/zip.hd` never clashes with `tasks/zip.hd`.
-3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it.
+3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it where its folder's `mod.hd` re-exports it, as [`module.vis.parent`](../lang/10-modules.md#r-module.vis.parent) requires of every module.
 4. r[cli.task.beside-directory] A file directly under `tasks` beside a directory of the same name, such as `tasks/shared.hd` beside `tasks/shared/`, is an error. It has no fix-it, and its message names the file's target, `tasks/shared/mod.hd`. Error: `duplicate-module-name`.
 5. r[cli.task.relative] In a task or a shared task module, relative lookup works as it does under `src`, with `tasks` in place of the package root.
 6. r[cli.task.root-file] A task resolves relative uses as a [root file](../lang/10-modules.md#r-module.relative.root-file) does, so its lookup starts at `tasks`. From `tasks/build.hd`, `self.shared.zip` names `tasks/shared/zip.hd`.
@@ -289,7 +324,7 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 3. r[cli.args.extra-word] A further positional word before `--`, as in `hd run gen x`, is an error whose message suggests `--`.
 
 > **Note.** A program reads its arguments through the host capability
-> trait [`Args`](../std/host.md#program-arguments)
+> trait [`Args`](../std/cli.md#program-arguments)
 > ([`module.entry.host-facilities`](../lang/10-modules.md#r-module.entry.host-facilities)).
 
 ## Host Capabilities
@@ -303,7 +338,7 @@ profile**, which binds these traits:
 | --- | --- | --- |
 | `Console` | `std.console` | `write_sync` writes to standard output, and `write_error_sync` to standard error |
 | `ConsoleInput` | `std.console` | reads standard input |
-| `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
+| `Args` | `std.cli` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
 | `Env` | `std.host` | the environment of the `hd` process |
 | `Clock` | `std.time` | the system's wall clock and monotonic clock; `sleep!` waits in real time |
 | `Random` | `std.random` | the operating system's random source |
@@ -312,6 +347,7 @@ profile**, which binds these traits:
 | `Http` | `std.http` | sends each request from the host |
 | `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
 | `Sys` | `std.host` | the host's operating system, architecture, host name, and processor count |
+| `Signals` | `std.host` | operating-system notifications awaited by the program |
 | `Workers` | `std.remote` | runs each crossing in a worker, a second instance of the program's module on a thread of its own |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
@@ -379,7 +415,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
 | `Sys` | `std.host.Sys` | method names of `Sys` |
-| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args`, `std.remote.Workers` | none: only `true` or `false` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers`, `Signals` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.cli.Args`, `std.remote.Workers`, `std.host.Signals` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
 2. r[cli.cap.table.keys.with-package-host] Its keys are built-in capability names or quoted package capability paths beginning with `pkg.` or `dep.`.
@@ -599,13 +635,18 @@ hd test src/billing.hd    # the tests of module billing
 6. r[cli.check.tests.doc] `hd check --tests` also checks the package's [doc tests](../lang/10-modules.md#doc-tests), except compile-fail ones, which only `hd test` judges.
 7. r[cli.check.all] `hd check --all` checks the library, the executables, the test code, and the package's [tasks](#tasks).
 8. r[cli.build.directory] The **build directory** is the directory `build` in the package directory, where `hd` writes its build and cache output.
-9. r[cli.build.output] A whole-package `hd build` writes each executable NAME to `build/debug/NAME.wasm`, or to `build/release/NAME.wasm` with `--release`.
-10. r[cli.build.output.file] `hd build FILE` writes FILE's module to `build/debug/files/STEM.wasm`, or to `build/release/files/STEM.wasm` with `--release`. STEM is FILE's name without its `.hd` extension.
-11. r[cli.build.library-only] A whole-package `hd build` of a package with no executable, such as a library-only package, checks the package and writes no `.wasm` file.
+9. r[cli.build.output.artifact] A whole-package `hd build` writes each executable NAME to `build/PROFILE/NAME.EXT`, using the selected profile directory and artifact extension.
+10. r[cli.build.output.file-artifact] `hd build FILE` writes FILE's module to `build/PROFILE/files/STEM.EXT`, where STEM is FILE's name without `.hd`.
+11. r[cli.build.library-only.no-artifact] A whole-package `hd build` of a package with no executable checks the package and writes no executable artifact.
 12. r[cli.build.library-only.cache] It still writes the package's interface and its entries in the [compiled cache](#compiled-cache), so a dependent's next command reuses them.
-13. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: the [instantiation limit](../lang/04-type-system.md#r-types.generic.instantiation-depth.error)'s `instantiation-too-deep`.
-14. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report the instantiation limit. It does report a [generic call cycle](../lang/04-type-system.md#r-types.generic.polymorphic-recursion) that grows. A package that `hd check` accepts may still fail `hd build`.
-15. r[cli.build.facts-at-run-time] Checking or building a program evaluates no fact. A fact's panic is the runtime panic `fact-evaluation-failed` of the running program that reads it.
+13. r[cli.build.artifact.profile-directory] PROFILE is `release` with `--release`, and `debug` otherwise.
+14. r[cli.build.artifact.native] A release build for Wasmtime uses the extension `.cwasm`, unless `--format wasm` requests portable output.
+15. r[cli.build.artifact.portable] A dev build, a Node build, or a build with `--format wasm` uses `.wasm`.
+16. r[cli.build.artifact.native-pipeline] Native release output uses Cranelift's speed optimization and inlining, within the command's compiler-thread budget.
+17. r[cli.run.native-release] A release `hd run` using Wasmtime reuses the corresponding native build artifact when its sources, manifest and compiler settings are unchanged.
+18. r[cli.build.depth-error] `hd build`, `hd run`, `hd test`, and `hd FILE` report the one error that only building a program finds: the [instantiation limit](../lang/04-type-system.md#r-types.generic.instantiation-depth.error)'s `instantiation-too-deep`.
+19. r[cli.check.no-depth-error] `hd check` builds no program, so it does not report the instantiation limit. It does report a [generic call cycle](../lang/04-type-system.md#r-types.generic.polymorphic-recursion) that grows. A package that `hd check` accepts may still fail `hd build`.
+20. r[cli.build.facts-at-run-time] Checking or building a program evaluates no fact. A fact's panic is the runtime panic `fact-evaluation-failed` of the running program that reads it.
 
 ```sh
 hd check     # 0: checking compiles no instantiation
@@ -631,9 +672,10 @@ hd check --summary         # a count per code and file, in place of each diagnos
 3. r[cli.check.summary-mode] In text output, `hd check --summary` prints, in place of each diagnostic, one line for each pair of a code and a file, with its count. The summary follows.
 4. r[cli.check.output-options] `--max-errors` and `--summary` change only what is printed. They change no diagnostic, count, or exit status.
 5. r[cli.check.report.stream] In text output, `hd check` writes its diagnostics and its summary to standard error, and nothing to standard output.
-6. r[cli.check.report.summary] The last line is the summary: `check result: ok.` when the run reported no error, or `check result: FAILED.` when it did, then `errors: E; warnings: W` with both counts, zero counts included.
-7. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic, by [`cli.diagnostic.file`](#r-cli.diagnostic.file).
-8. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
+6. r[cli.check.report.compact-summary] A check with no diagnostics prints `check result: ok.`; a default check with diagnostics prints no summary.
+7. r[cli.check.report.explicit-totals] With diagnostics, `--summary` and `--max-errors` append `check result: ok|FAILED. errors: E; warnings: W`, counting every diagnostic.
+8. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic, by [`cli.diagnostic.file`](#r-cli.diagnostic.file).
+9. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
 
 ```sh
 hd check --summary
@@ -943,10 +985,10 @@ hd test --release     # still checked, with optimized code
 
 1. r[cli.profile.default] `hd FILE`, `hd run`, `hd build`, `hd test`, and the REPL use the debug profile, which panics on integer overflow by [`types.arith.checked`](../lang/04-type-system.md#r-types.arith.checked).
 2. r[cli.profile.release] `--release` on `hd build` and `hd run` selects the release profile, which wraps on integer overflow by [`types.arith.release`](../lang/04-type-system.md#r-types.arith.release).
-3. r[cli.profile.release.file] `--release` on `hd FILE` selects the release profile too.
+3. r[cli.profile.release.hd-file] `--release` on `hd FILE.hd` selects the release profile too.
 4. r[cli.profile.test] `hd test` always uses a checked build, the test profile, including for the executables it builds by [`cli.test.builds-executables`](#r-cli.test.builds-executables).
 5. r[cli.profile.test.release] `hd test --release` keeps the test profile, so integer overflow still panics. The flag selects only the pipeline.
-6. r[cli.profile.release.commands] `hd FILE`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
+6. r[cli.profile.release.source-commands] `hd FILE.hd`, `hd run`, `hd build`, and `hd test` take `--release`. No other command takes it.
 7. r[cli.profile.cfg-selection] For a configured declaration, the debug and test profiles select its `.Debug` body, including under `hd test --release`; the release profile selects its `.Release` body.
 
 > **Why.** Cargo has the same two profiles, and checks overflow in one
@@ -987,12 +1029,12 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 
 1. r[cli.engine.define] An **engine** is the runtime that executes a program's compiled module.
 2. r[cli.engine.offered] An implementation offers one or more engines. Which engines exist, and what they are called, is implementation-defined.
-3. r[cli.engine.flag] `hd FILE`, `hd FILE.wasm`, `hd run`, `hd build`, and `hd test` take `--engine NAME`, where NAME names an engine.
+3. r[cli.engine.flag.commands] `hd FILE`, `hd FILE.wasm`, `hd FILE.cwasm`, `hd run`, `hd build`, `hd install`, and `hd test` take `--engine NAME`, where NAME names an engine.
 4. r[cli.engine.select] A command that takes `--engine` uses the engine that the flag names. Without the flag, it uses the engine that the environment variable `HD_ENGINE` names. Without both, it uses the default engine.
 5. r[cli.engine.env-empty] An empty `HD_ENGINE` counts as unset.
 6. r[cli.engine.default.shipped] The released `hd` binary defaults to Wasmtime, running programs and tests in process.
 7. r[cli.engine.default.development] Developer and test builds of `hd` default to Node.
-8. r[cli.engine.build] `hd build --engine NAME` builds the module for that engine. A module that `hd build` wrote runs on every engine, whichever engine it was built for.
+8. r[cli.engine.build.target] `hd build --engine NAME` builds for that engine; portable `.wasm` output runs on every engine, while `.cwasm` requires Wasmtime.
 9. r[cli.engine.same-behavior] A program's output, exit status, panic categories, and panic sites are the same on every engine, as [`cli.profile.pipeline.unobservable`](#r-cli.profile.pipeline.unobservable) says of pipelines.
 10. r[cli.engine.differences] Between engines, only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
 11. r[cli.engine.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). That includes an engine that this build lacks.
@@ -1000,7 +1042,7 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 
 > **Note.** Without the flag, a module requiring a package host trait runs
 > on Node, by
-> [`cli.host.package.native-cli-node`](#r-cli.host.package.native-cli-node).
+> [`cli.host.package.native-cli-choice`](#r-cli.host.package.native-cli-choice).
 
 > **Why.** Engines differ in speed and in what they cost, not in what a
 > program means. So a user, CI, or an agent picks one by name, and a
@@ -1050,7 +1092,7 @@ hd uninstall tool --root ./my-hd
 2. r[cli.install.resolve] SOURCE follows the path, repository and version-query forms of [dependency targets](#targets), without requiring a library.
 3. r[cli.install.executables] Installation builds every [executable](#executables) of the selected package.
 4. r[cli.install.no-executable] A source without a package manifest or without executables is an error.
-5. r[cli.install.release-wasm] Each installed executable is release Wasm with a launcher through the current `hd` runtime.
+5. r[cli.install.release-artifact] Each installed executable uses the release artifact format selected by its engine and `--format wasm`, with a launcher through the current `hd` runtime.
 6. r[cli.install.no-execution] Installation runs no guest entry, test, package provider or installation hook.
 7. r[cli.install.root] The installation root is `--root DIR`, else `HD_INSTALL_ROOT`, else `.hd` in the user's home directory.
 8. r[cli.install.layout] Launchers live under `ROOT/bin`, and managed artifacts and installation records under `ROOT/installed`.
@@ -1234,9 +1276,9 @@ build/doc/llms.txt        # the index for agents
 
 ```sh
 # in the doc comments of src/text.hd:
-# /// Reads what [`slugify`] wrote.      # a link to #slugify on this page
-# /// See [`std.json.parse`].            # a link to the standard library reference
-# /// See [`sluggify`].                  # warning: broken-doc-link
+# /// Reads what [`slugify`] wrote.         # a link to #slugify on this page
+# /// See [`std.encoding.json.parse`].     # a link to the standard library reference
+# /// See [`sluggify`].                     # warning: broken-doc-link
 ```
 
 ### Looking Up One Item
@@ -1250,9 +1292,9 @@ build/doc/llms.txt        # the index for agents
 7. r[cli.doc.name.missing] A NAME that names no documented item is an error. That includes a `std` NAME that names no item the standard library reference specifies.
 
 ```sh
-hd doc text.slugify      # the slugify section of text.md, on standard output
-hd doc text              # the whole page of module text
-hd doc std.json.parse    # parse's signature, summary, and reference link
+hd doc text.slugify             # the slugify section of text.md, on standard output
+hd doc text                     # the whole page of module text
+hd doc std.encoding.json.parse  # parse's signature, summary, and reference link
 ```
 
 > **Why.** The Markdown pages let an agent fetch one module in one
@@ -1294,6 +1336,8 @@ hd check shape.hd
 
 1. r[cli.text.fix-line] In text output, each fix-it of a diagnostic prints on its own line after the diagnostic's line: four spaces, `fix: `, and the fix-it's message, as [`cli.json.fix.object.v2`](#r-cli.json.fix.object.v2) gives it.
 
+2. r[cli.text.secondary-label] In text output, a secondary source label follows its diagnostic as an indented `note:` line naming its file and position.
+
 > **Note.** The rest of a text diagnostic's layout is the implementation's.
 > [Machine Output](#machine-output) is the stable form, and it also holds
 > each fix-it's edits.
@@ -1303,7 +1347,7 @@ hd check shape.hd
 ```sh
 hd check --format json
 # {"kind":"diagnostic","code":"type-mismatch","severity":"error","message":"...","file":"src/cart.hd","line":3,"column":5}
-# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}
+# {"kind":"summary","errors":1,"warnings":0,"status":101}
 ```
 
 1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, `hd FILE`, and the [dependency commands](#dependency-commands) take `--format json`.
@@ -1316,17 +1360,24 @@ hd check --format json
 8. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
 9. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
 10. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
-11. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
-12. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
-13. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
-14. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
-15. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
-16. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
-17. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
-18. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
-19. r[cli.json.fix.ranked] When a diagnostic has two or more plausible repairs, `fixes` lists them in order, likeliest first.
-20. r[cli.json.fix.guess] `guess` is `true` for an uncertain repair, including the first alternative when several repairs are plausible.
-21. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+11. r[cli.json.summary.command-result] The last object is a summary, with error and warning counts and the command's exit status, on success too.
+12. r[cli.json.summary.common-fields] Every summary object has `errors`, `warnings`, and `status`, the command's exit status.
+13. r[cli.json.summary.check-counters] The summary of `hd check` and `hd lint` omits `passed`, `failed`, and `ignored`.
+14. r[cli.json.summary.test-counters] Other commands' summary objects also have `passed`, `failed`, and `ignored` counts.
+15. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
+16. r[cli.json.diagnostic.nonempty-fixes] A diagnostic with fix-its has a nonempty `fixes` list; a diagnostic without fix-its omits `fixes`.
+17. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
+18. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
+19. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
+20. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
+21. r[cli.json.fix.ranked] When a diagnostic has two or more plausible repairs, `fixes` lists them in order, likeliest first.
+22. r[cli.json.fix.guess] `guess` is `true` for an uncertain repair, including the first alternative when several repairs are plausible.
+23. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+
+24. r[cli.json.diagnostic.labels] A diagnostic with secondary source labels has a nonempty `labels` array; a diagnostic without labels omits it.
+25. r[cli.json.label.fields] A label has `message`, `file`, `line`, `column`, `end_line`, and `end_column` fields.
+26. r[cli.json.label.position] A label's lines and character columns are 1-based, and its end position is exclusive.
+27. r[cli.json.label.file] A label's `file` follows [`cli.diagnostic.file`](#r-cli.diagnostic.file).
 
 > **Note.** A diagnostic object's `file` names its file by
 > [`cli.diagnostic.file`](#r-cli.diagnostic.file), as text output does.
@@ -1335,13 +1386,16 @@ hd check --format json
 hd check --format json
 # {"kind":"diagnostic","code":"unknown-name","severity":"error","message":"...","file":"src/cart.hd","line":4,"column":12,
 #  "fixes":[{"message":"replace 'totl' with 'total'","guess":true,"edits":[{"file":"src/cart.hd","start":61,"end":65,"text":"total"}]}]}
-# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":1}
+# {"kind":"summary","errors":1,"warnings":0,"status":101,"modules_checked":1}
 ```
 
 > **Note.** `modules_checked` counts work, not results. A second run
 > with no edit can load every module from the cache, and count 0.
 
-> **Why.** A stream lets an agent act on the first error. The summary
+> **Why.** Empty repairs and check-only test counters convey no action.
+> Omitting them keeps diagnostic output compact.
+>
+> A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's
 > [`build-finished` message](https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages)
 > does, and a missing summary means that `hd` did not finish.
@@ -1385,16 +1439,16 @@ hd run --cleanup-limit 30s      # Ctrl-C: cleanup runs, up to 30 seconds
 hd run --cleanup-limit 0s       # Ctrl-C: cleanup is abandoned at once
 ```
 
-1. r[cli.cancel.ctrl-c] A Ctrl-C while the program of `hd FILE`, `hd FILE.wasm`, or `hd run` waits on the host cancels its entry suspension, by [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel).
+1. r[cli.cancel.unhandled-ctrl-c] A Ctrl-C not handled by an active `Signals` wait while the program of `hd FILE`, `hd FILE.wasm`, or `hd run` waits on the host cancels its entry suspension, by [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel).
 2. r[cli.cancel.bound] The [cleanup bound](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound) of that cancel is the `--cleanup-limit` value.
 3. r[cli.cancel.flag] `--cleanup-limit DURATION` takes a DURATION of the forms in [Program Limits](#program-limits). Those three commands take the flag, before the `--` of the program arguments.
 4. r[cli.cancel.default] Without the flag, the cleanup bound is ten seconds.
 5. r[cli.cancel.zero] A cleanup bound of zero abandons the entry at the first moment it waits on the host after the cancel, by [`req.entry.cancel.bound.cooperative`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound.cooperative).
 6. r[cli.cancel.second] A second Ctrl-C after the cancel abandons the entry at once, by [`req.entry.cancel.abandon`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.abandon). A later one does nothing more.
-7. r[cli.cancel.computing] A Ctrl-C while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
+7. r[cli.cancel.unhandled-computing] A Ctrl-C not handled by an active `Signals` wait while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
 8. r[cli.cancel.end] A cancelled entry, by [`req.entry.cancelled`](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled), writes `cancelled` to standard error when its cleanup ran to its end, and `cancelled, cleanup abandoned` when it was abandoned.
 9. r[cli.cancel.status] A run that is cancelled or stopped exits with status 130, its [cancellation status](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled.status), on every platform.
-10. r[cli.cancel.signals] On Unix, a SIGINT or a SIGTERM that is sent to `hd` alone is a Ctrl-C in every rule above, on every engine.
+10. r[cli.cancel.unhandled-signals] On Unix, a SIGINT or a SIGTERM sent to `hd` alone, without an active `Signals` wait for its kind, is a Ctrl-C in every rule above, on every engine.
 11. r[cli.cancel.forward] On the Node engine, `hd` passes each Ctrl-C it hears on to the process that runs the program. That process hears each one once, from a terminal or from a signal sent to `hd` alone.
 12. r[cli.cancel.windows] On Windows, `hd` passes nothing on, since the console delivers a Ctrl-C to every process attached to it, the Node process included. A Ctrl-Break is not a Ctrl-C there on the Node engine, and the in-process engine takes it as one.
 
@@ -1454,7 +1508,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 14. r[cli.fmt.width.close] A broken group's closing delimiter starts a separate line at the opening line's indentation.
 15. r[cli.fmt.width.signature] An overlong function signature breaks its parameter list before breaking its result type.
 16. r[cli.fmt.width.binary-continuation] A broken binary chain uses parentheses only in positions that require them for line continuation.
-17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets or braces places its operands on separate lines without adding parentheses.
+17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets, braces, or a call's positional or named argument places its operands on separate lines without adding parentheses.
 18. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
 19. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
 20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma, unless that element ends in a suite.
@@ -1563,6 +1617,11 @@ cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 3. r[cli.name.std] No package is named `std`, the standard library's name.
 4. r[cli.name.std.manifest] An `hd.toml` whose `[package]` table names the package `std` is an error at the line of its `name` key, for every command that reads it. Error: `invalid-manifest`.
 5. r[cli.name.std.new] `hd new` with a package directory named `std` is an error, and it writes nothing.
+6. r[cli.name.dot] A package name must not contain `.`.
+7. r[cli.name.dot.manifest] A dotted package name is an error at its `name` line in every command reading that manifest. Error: `invalid-manifest`.
+8. r[cli.name.dot.key] A dependency key containing `.` is an error at its manifest line. Error: `invalid-requirement`.
+9. r[cli.name.dot.diagnostic] A diagnostic rejecting a dotted package name or dependency key names the character `.`.
+10. r[cli.name.dot.new] `hd new` with a package directory name containing `.` is an error, and it writes nothing.
 
 ```sh
 hd new my-app       # a package's name may contain -
@@ -1575,6 +1634,17 @@ hd new std          # error: no package is named std
 [package]
 name = "std"        # error: invalid-manifest
 ```
+
+```toml
+[package]
+name = "alpha.beta" # error: invalid-manifest
+
+[dependencies]
+"money.core" = { path = "money" } # error: invalid-requirement
+```
+
+> **Why.** A dot separates modules, so forbidding it in package names
+> keeps distinct package identities from becoming module ancestors.
 
 > **Why.** The name `std` is the standard library's identity, so a package
 > with that name would stand for std itself. Cargo refuses `cargo new std`
@@ -1815,7 +1885,7 @@ hd --repl --engine wasmtime session.in
 3. r[cli.repl.script.echo] Before the session runs a line it has read, it writes the prompt, one space, and the line to standard output, then LF. The prompt is `hd>` for the first line of an input and `...` for each line that continues it. An empty line shows its prompt alone. Standard output is then the session's transcript.
 4. r[cli.repl.script.output] Everything else the session writes goes where a terminal session sends it, by [`cli.repl.value.stream`](#r-cli.repl.value.stream) and [`cli.dbg.repl`](#r-cli.dbg.repl), after the echo of the line that started the input.
 5. r[cli.repl.script.exit] The command exits 0 when the session ends, whether or not an input panicked or was rejected. A FILE that cannot be read, or a session scope that cannot load, is [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-6. r[cli.repl.script.engine] `hd --repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag`](#r-cli.engine.flag), and [`cli.engine.select`](#r-cli.engine.select) picks the engine, except that with neither `--engine` nor `HD_ENGINE` the session runs on the engine of the terminal REPL. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
+6. r[cli.repl.script.engine] `hd --repl` takes `--engine NAME`, as `hd run` does by [`cli.engine.flag.commands`](#r-cli.engine.flag.commands), and [`cli.engine.select`](#r-cli.engine.select) picks the engine, except that with neither `--engine` nor `HD_ENGINE` the session runs on the engine of the terminal REPL. An engine that cannot run a session is refused as [`cli.engine.unknown`](#r-cli.engine.unknown) says.
 
 > **Note.** A script is how a [conformance CLI case](../conformance/README.md#session-cases)
 > tests the session rules, since a case runs `hd` with a closed standard
@@ -2268,23 +2338,26 @@ See also: [Package Manifest](../lang/10-modules.md#package-manifest),
 
 ### Package Host Declarations
 
-The SDK maps each owned host trait to its provider file:
+The SDK maps each owned host trait to its provider file, or to a C
+library and a provider file:
 
 ```toml
 [host]
 "server.HttpServer" = "providers/http.mjs"
 "ui.Surface" = "providers/ui.mjs"
+"db.Sqlite" = { c = "hd_sqlite", js = "providers/sqlite.mjs" }
 ```
 
-1. r[cli.host.declaration.map] `[host]` must be a table mapping trait paths to nonempty provider-file strings. Error: `invalid-manifest`.
-2. r[cli.host.declaration.map-key] Each key must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
-3. r[cli.host.declaration.map-unique] Each trait path must occur at most once in the table. Error: `invalid-manifest`.
-4. r[cli.host.declaration.mapped] Each key must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
-5. r[cli.host.declaration.marker-mapped] Each trait marked `@host` must have an entry in its owning package's `[host]` table. Error: `invalid-manifest`.
-6. r[cli.host.declaration.map-locations] A source/map mismatch diagnostic identifies the trait and its source and manifest locations.
-7. r[cli.host.declaration.mapping-no-consent] A dependency's host mapping does not grant consent to load its provider.
-8. r[cli.host.declaration.map-recheck] Changing the host map must recheck source/map agreement even when the source has not changed.
-9. r[cli.host.declaration.provider-relative] A provider-file value must be relative to its declaring package. Error: `invalid-manifest`.
+1. r[cli.host.declaration.map-table] `[host]` must be a table mapping trait paths to provider values, each naming a nonempty provider file or library. Error: `invalid-manifest`.
+2. r[cli.host.declaration.kinds] A `[host]` value is a provider-file string, or a table with a `c` library name, a `js` provider file, or both. Error: `invalid-manifest`.
+3. r[cli.host.declaration.map-key] Each key must be a package-relative trait path of canonical identifier names separated by dots. Error: `invalid-manifest`.
+4. r[cli.host.declaration.map-unique] Each trait path must occur at most once in the table. Error: `invalid-manifest`.
+5. r[cli.host.declaration.mapped] Each key must name a trait declared with `@host` in its owning package. Error: `invalid-manifest`.
+6. r[cli.host.declaration.marker-mapped] Each trait marked `@host` must have an entry in its owning package's `[host]` table. Error: `invalid-manifest`.
+7. r[cli.host.declaration.map-locations] A source/map mismatch diagnostic identifies the trait and its source and manifest locations.
+8. r[cli.host.declaration.mapping-no-consent] A dependency's host mapping does not grant consent to load its provider.
+9. r[cli.host.declaration.map-recheck] Changing the host map must recheck source/map agreement even when the source has not changed.
+10. r[cli.host.declaration.provider-relative] A provider-file value must be relative to its declaring package. Error: `invalid-manifest`.
 
 ### Package Host Bindings
 
@@ -2311,7 +2384,7 @@ hd run --engine node
 10. r[cli.host.package.missing] A missing provider causes a startup refusal naming the package, version and trait.
 11. r[cli.host.package.duplicate] Registering multiple providers for one nominal capability is an error.
 12. r[cli.host.package.generated] JS host glue is generated from checked host trait signatures, including value conversion and suspension plumbing.
-13. r[cli.host.package.companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside `NAME.wasm`.
+13. r[cli.host.package.artifact-companion] A build requiring package host bindings writes generated `NAME.host.mjs` beside its executable artifact.
 14. r[cli.host.package.no-companion] A build requiring no package host binding emits no companion glue file.
 15. r[cli.host.package.completion-forms] A suspending provider method may return a ready value, a Promise, or a pollable operation.
 16. r[cli.host.package.block-on-promise] A synchronous `block_on` whose drive waits on a Promise a package provider returned suspends the guest stack with JavaScript Promise Integration (JSPI) until the Promise settles, then resumes it. A host without JSPI fails that call with a message naming the trait and the method. Panic: `host-contract`. Waits on ready values, pollable operations and timers never need JSPI.
@@ -2376,16 +2449,16 @@ A native package provider is Rust code that an application embedding Wasmtime re
 hd build --engine wasmtime
 ```
 
-1. r[cli.host.package.native-companion] `hd build --engine wasmtime` of a module requiring package host bindings also writes generated `NAME.host.rs` beside `NAME.wasm`.
+1. r[cli.host.package.native-artifact-companion] `hd build --engine wasmtime` requiring package host bindings also writes generated `NAME.host.rs` beside its executable artifact.
 2. r[cli.host.package.native-generated] The Rust companion holds one provider trait per required host interface, its value codecs, and a provider registry, generated from the module's checked package host contract.
 3. r[cli.host.package.native-deterministic] Building the same module twice writes byte-identical Rust companion text.
-4. r[cli.host.package.native-wasm-identity] Writing the Rust companion leaves `NAME.wasm` byte-identical to the module a JavaScript-engine build writes.
+4. r[cli.host.package.native-portable-identity] Writing the Rust companion does not alter the portable Wasm module.
 5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
-6. r[cli.host.package.native-no-discovery] An implementation never discovers or loads a dynamic library for a package host trait.
-7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that a native provider needs a Rust program that embeds the Wasmtime host.
-8. r[cli.host.package.native-cli-node] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node, whichever engine `HD_ENGINE` or the default names.
+6. r[cli.host.package.native-library-scope] An implementation loads a dynamic library only for a C provider that a package's `[host]` table names, from that package's `native/<target-triple>/` folder.
+7. r[cli.host.package.native-cli-binds-c] On Wasmtime, `hd` binds C providers, and refuses a required trait that has neither a C provider nor an embedder's registration, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that another native provider needs a Rust program that embeds the Wasmtime host.
+8. r[cli.host.package.native-cli-choice] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Wasmtime when every required package host trait has a C provider, and else on Node, whichever engine `HD_ENGINE` or the default names.
 9. r[cli.host.package.native-cli-startup] That choice is made from the module's package host contract before the module loads, and the run never changes engine afterwards, by [`cli.host.package.no-fallback`](#r-cli.host.package.no-fallback).
-10. r[cli.host.package.native-cli-explicit] `hd --engine wasmtime` still refuses such a module, by [`cli.host.package.native-cli`](#r-cli.host.package.native-cli).
+10. r[cli.host.package.native-cli-named] `hd --engine wasmtime` still refuses a module with a required trait that no C provider serves, by [`cli.host.package.native-cli-binds-c`](#r-cli.host.package.native-cli-binds-c).
 11. r[cli.host.package.native-cli-no-node] When Node cannot be started, a run that chose it this way fails before the guest starts, with a message naming the Node engine.
 12. r[cli.host.package.native-two-keys] A native provider runs only when the app's root manifest consents to its trait and the embedder registered it.
 13. r[cli.host.package.native-reachable] Native startup requires a registered provider only for each root interface in the module's contract, not for every consented trait.
@@ -2406,15 +2479,65 @@ hd build --engine wasmtime
 > process's authority. Registration selects native code and grants the guest
 > nothing; root consent still decides what the guest may use.
 
-> **Why.** Only an embedder can register a native provider, and `hd` is
-> not one. A user who names no engine gets the engine that can run the
-> module; a user who names Wasmtime gets the refusal, not a silent switch.
+> **Why.** Only an embedder can register a Rust native provider, and `hd`
+> is not one; `hd` binds only C providers. A user who names no engine gets
+> the engine that can run the module; a user who names Wasmtime gets the
+> refusal, not a silent switch.
 
 > **Why.** Checking registrations against the module's reachable contract,
 > not every dependency's declarations, lets a native entry skip a renderer it
 > never reaches.
 
 See also: [Package Host Traits](../lang/10-modules.md#package-host-traits), [Engines](#engines).
+
+#### C Providers
+
+A C provider is a library a package ships for its host trait, named by
+the `c` key of the trait's `[host]` entry:
+
+```toml
+[host]
+"db.Sqlite" = { c = "hd_sqlite" }
+```
+
+1. r[cli.host.c.name] A `c` library name is a C identifier: an ASCII letter or `_`, then ASCII letters, digits or `_`. Error: `invalid-manifest`.
+2. r[cli.host.c.engine] A trait with only a C provider is refused on JavaScript hosts before the guest starts. Error: `native-provider-missing`.
+3. r[cli.host.c.file] `c = "NAME"` names the file `libNAME.so`, `libNAME.dylib` or `NAME.dll` in the package's `native/<target-triple>/` folder.
+4. r[cli.host.c.target-missing] A missing file for the running target refuses the run before the guest starts, naming the package and the triple. Error: `native-provider-missing`.
+5. r[cli.host.c.entry] The library exports one function per trait, named `NAME_TRAIT`, that returns the trait's table.
+6. r[cli.host.c.check] A table whose `abi_version` or `contract_hash` differs from the module's contract refuses the run, naming the trait.
+7. r[cli.host.c.create] The host calls `create` once for each reachable C-bound trait before the guest starts, and `destroy` once when the instance closes, whether or not it trapped.
+8. r[cli.host.c.slot] A called method whose slot the library left null refuses the run before the guest starts, naming the package, the trait and the method.
+9. r[cli.host.c.abort-slot] A called suspending method whose abort slot the library left null refuses the run before the guest starts.
+10. r[cli.host.c.thread] The host calls every slot on the instance's thread. A library may call `hd_complete_*` on any thread.
+11. r[cli.host.c.complete] `hd_complete_*` returns true when the host accepts the value, which then decides the call's result, and false when the call is already aborting or completed; the library then keeps the value.
+12. r[cli.host.c.abort] Cancelling a call before the guest takes its result runs its abort slot once, also after the library completed it; `completed` is true when the host accepted a completion.
+13. r[cli.host.c.token] A library completes a token at most once, and uses it only until that completion returns or its abort slot returns.
+14. r[cli.host.c.bytes] `hd_complete_bytes` copies the bytes before it returns, and the guest receives them as a new `List[u8]`.
+15. r[cli.host.c.complete-types] `hd_complete_i32` completes an integer of 32 bits or fewer, `hd_complete_i64` a 64-bit integer, `hd_complete_f64` a float, and `hd_complete_bytes` a `List[u8]`.
+16. r[cli.host.c.complete-kind] A `Result` result also takes `hd_complete_error`, and a completion its result does not take fails the call. Boundary failure: `host-contract`.
+17. r[cli.host.c.handle] A returned handle's trait table comes from the same library's entry `NAME_TRAIT`, checked as a root trait's is, and the host calls its `destroy` once at the handle's last release.
+18. r[cli.host.c.test] `hd test` on Wasmtime binds the C providers of a program it runs by name.
+19. r[cli.host.c.entry-unique] Two traits of one `[host]` table that would export one entry symbol `NAME_TRAIT` from one library are an error, naming both traits. Error: `invalid-manifest`.
+20. r[cli.host.c.handle-library] A handle trait that traits bound to two libraries return is an error, naming the trait and both libraries. Error: `boundary-not-safe`.
+21. r[cli.host.c.handle-entry] A handle trait whose entry symbol `NAME_TRAIT` another C-bound trait of its package takes in the same library is an error, naming both traits. Error: `boundary-not-safe`.
+22. r[cli.host.c.unseen-conflict] A conflict of the two rules above that no check sees, as between modules checked apart, refuses the run before the guest starts.
+23. r[cli.host.c.header] `hd build` in a package declaring a C-bound trait writes `native/include/<package>.h`, and writing it twice gives the same bytes.
+24. r[cli.host.c.header-contents] The header declares each C-bound trait's function table in source order, its entry symbol, its contract hash, and the token's completion functions.
+
+> **Why.** A cancel may race the library's completion. The completion's
+> result and the abort slot's `completed` tell the library, together,
+> exactly one outcome: the guest took the value, the host discarded it, or
+> the host refused it and the library still holds it.
+
+> **Why.** The library's entry symbol joins its name and the trait's, so
+> the name is a C identifier.
+
+> **Why.** The header comes from the checked trait, so a library built
+> against it carries the hash the program checks; a changed trait changes
+> the hash, and a stale library is refused.
+
+See also: [C Value Table](../lang/10-modules.md#c-value-table), [Native Package Providers](#native-package-providers).
 
 ## Synchronous Host Driver
 

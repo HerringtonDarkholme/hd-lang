@@ -1,5 +1,5 @@
 # test: a row alias after $ as the row argument of Fn in an implementation head is a concrete row
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 

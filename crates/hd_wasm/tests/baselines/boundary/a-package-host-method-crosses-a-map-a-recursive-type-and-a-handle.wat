@@ -17,242 +17,435 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 13 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (import "fixture" "table0" (table $table0 12 funcref))
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (local $width i32) (local $size i32) (local $result.0 i32) (local $offset i32) (local $t0 i32) (local $value i64) (local $t1 i64) (local $t2 i64)
     ;; 23 |     store := $.use(Store)
-    local.get $provider0
+    block
     ;; 24 |     println("${store.tally({"a": +1})}")
-    i32.const 4
-    call $rt:map_seed
-    call $rt:map_table
-    local.set $t0
-    i32.const 113 ;; &"a"
-    i32.const 1
-    local.get $t0
-    i64.load $heap offset=24
-    call $rt:map_hash
-    local.set $t1
-    local.get $t0
-    local.get $t1
-    i32.const 113 ;; &"a"
-    i32.const 1
-    call $rt:map_find
-    local.set $t2
-    local.get $t0
-    local.get $t1
-    local.get $t2
-    i32.const 113 ;; &"a"
-    i32.const 1
-    i32.const 1
-    call $rt:map_put
-    local.tee $t0
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.get $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref'1
-      end
-    end
-    i64.extend_i32_s
-    local.tee $t3
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t0
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
+      i32.const 4
+      call $rt:map_seed
+      call $rt:map_table
+      local.set $width
+      i32.const 113 ;; &"a"
+      local.set $size
       i32.const 1
-      local.set $t4
-    end
-    local.get $t0
-    i64.extend_i32_u
-    local.get $t4
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t4
-    local.tee $t0
-    i32.const 16
-    local.set $t1
-    if
-      local.get $t0
-      call $rt:str
-      local.set $t1
-    end
-    local.get $t3
-    local.get $t1
-    local.get $t4
-    call $write_signed_sized
-    local.get $t1
-    local.get $t0
-    local.get $provider1
-    local.get $provider1.vtable
-    call $"println[string]"
-    ;; 25 |     _ := store.grow(Tree.Node([Tree.Leaf(+1)]))
-    i32.const 1
-    call $rt:list_buf
-    local.tee $t4
-    i32.const 1
-    i32.store $heap offset=4
-    local.get $t4
-    i32.const 0
-    i32.store $heap offset=16
-    local.get $t4
-    i32.const 1
-    i32.store $heap offset=20
-    i32.const 1
-    local.set $t0
-    local.get $provider0
-    local.get $t0
-    local.get $t4
-    local.get $provider0.vtable
-    i32.load $heap offset=4
-    call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-    call $"release_value[Tree]"
-    local.get $t0
-    local.get $t4
-    call $"release_value[Tree]"
-    ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
-    local.get $provider0
-    i32.const 0
-    i32.const 1
-    i32.const 0
-    i32.const 2
-    local.get $provider0.vtable
-    i32.load $heap offset=8
-    call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-    i64.extend_i32_s
-    local.tee $t3
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t4
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t5
-    end
-    local.get $t4
-    i64.extend_i32_u
-    local.get $t5
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t4
-    local.tee $t5
-    i32.const 16
-    local.set $t0
-    if
-      local.get $t5
-      call $rt:str
+      local.set $result.0
+      local.get $size
+      local.get $result.0
+      local.get $width
+      i64.load $heap offset=24
+      call $rt:map_hash
+      local.set $offset
+      local.get $width
+      local.get $offset
+      local.get $size
+      local.get $result.0
+      call $rt:map_find
       local.set $t0
-    end
-    local.get $t3
-    local.get $t0
-    local.get $t4
-    call $write_signed_sized
-    local.get $t0
-    local.get $t5
-    local.get $provider1
-    local.get $provider1.vtable
-    call $"println[string]"
-    ;; 27 |     println("${store.open().read()}")
-    local.get $provider0
-    local.get $provider0.vtable
-    i32.load $heap offset=12
-    call_indirect $table0 (param i32) (result i32 i32)
-    local.set $provider0
-    local.tee $provider0.vtable
-    local.tee $t4
-    if
-      local.get $t4
-      call $retain
-    end
-    local.get $provider0.vtable
-    if
-      local.get $provider0.vtable
-      call $rt:release_ref'2
-    end
-    local.get $t4
-    local.get $provider0
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
-    local.get $t4
-    if
-      local.get $t4
-      call $rt:release_ref'2
-    end
-    i64.extend_i32_s
-    local.tee $t3
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $provider0
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
+      local.get $width
+      local.get $offset
+      local.get $t0
+      local.get $size
+      local.get $result.0
       i32.const 1
-      local.set $t6
-    end
-    local.get $provider0
-    i64.extend_i32_u
-    local.get $t6
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $provider0
-    local.tee $provider0.vtable
-    i32.const 16
-    local.set $t4
-    if
+      call $rt:map_put
+      local.set $width
+      local.get $provider0
+      local.get $width
       local.get $provider0.vtable
-      call $rt:str
-      local.set $t4
+      i32.load $heap
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $size
+      local.get $width
+      call $rt:release_ref'1
+      i32.const 0
+      local.set $width
+      local.get $size
+      i64.extend_i32_s
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t1
+              local.get $t1
+              call $unsigned_width
+              local.set $width
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $width
+              i64.extend_i32_u
+              local.set $t1
+              local.get $size
+              i64.extend_i32_u
+              local.set $t2
+              local.get $t1
+              local.get $t2
+              i64.add
+              local.set $t1
+              local.get $t1
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic
+                unreachable
+              end
+              local.get $t1
+              i32.wrap_i64
+              local.set $width
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $width
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $width
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider1
+      local.get $provider1.vtable
+      call $"println[string]"
+    ;; 25 |     _ := store.grow(Tree.Node([Tree.Leaf(+1)]))
+      i32.const 0
+      i32.const 1
+      local.set $width
+      local.set $size
+      i32.const 1
+      local.set $result.0
+      local.get $result.0
+      call $rt:list_buf
+      local.set $offset
+      local.get $offset
+      local.get $result.0
+      i32.store $heap offset=4
+      local.get $offset
+      local.set $result.0
+      local.get $result.0
+      local.get $size
+      i32.store $heap offset=16
+      local.get $result.0
+      local.get $width
+      i32.store $heap offset=20
+      local.get $result.0
+      i32.const 8
+      i32.add
+      local.set $result.0
+      i32.const 1
+      local.set $width
+      local.get $provider0
+      local.get $width
+      local.get $offset
+      local.get $provider0.vtable
+      i32.load $heap offset=4
+      call_indirect $table0 (param i32 i32 i32) (result i32 i32)
+      local.set $size
+      local.set $result.0
+      local.get $result.0
+      local.get $size
+      call $"release_value[Tree]"
+      i32.const 0
+      local.set $result.0
+      i32.const 0
+      local.set $size
+      local.get $width
+      local.get $offset
+      call $"release_value[Tree]"
+      i32.const 0
+      local.set $width
+      i32.const 0
+      local.set $offset
+    ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
+      i32.const 0
+      i32.const 1
+      local.set $width
+      local.set $size
+      i32.const 0
+      i32.const 2
+      local.set $result.0
+      local.set $offset
+      local.get $provider0
+      local.get $size
+      local.get $width
+      local.get $offset
+      local.get $result.0
+      local.get $provider0.vtable
+      i32.load $heap offset=8
+      call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
+      local.set $t0
+      local.get $offset
+      local.get $result.0
+      call $"release_value[Tree]"
+      i32.const 0
+      local.set $offset
+      i32.const 0
+      local.set $result.0
+      local.get $size
+      local.get $width
+      call $"release_value[Tree]"
+      i32.const 0
+      local.set $size
+      i32.const 0
+      local.set $width
+      local.get $t0
+      i64.extend_i32_s
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t1
+              local.get $t1
+              call $unsigned_width
+              local.set $width
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $width
+              i64.extend_i32_u
+              local.set $t1
+              local.get $size
+              i64.extend_i32_u
+              local.set $t2
+              local.get $t1
+              local.get $t2
+              i64.add
+              local.set $t1
+              local.get $t1
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic
+                unreachable
+              end
+              local.get $t1
+              i32.wrap_i64
+              local.set $width
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $width
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $width
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $result.0
+      local.get $size
+      local.get $provider1
+      local.get $provider1.vtable
+      call $"println[string]"
+    ;; 27 |     println("${store.open().read()}")
+      local.get $provider0
+      local.get $provider0.vtable
+      i32.load $heap offset=12
+      call_indirect $table0 (param i32) (result i32 i32)
+      local.set $width
+      local.set $size
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      local.get $size
+      local.get $width
+      local.set $provider0
+      local.set $provider0.vtable
+      local.get $provider0.vtable
+      call $retain
+      local.get $size
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $size
+      i32.const 0
+      local.set $width
+      local.get $provider0.vtable
+      local.get $provider0
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $width
+      local.get $provider0.vtable
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
+      local.get $width
+      i64.extend_i32_s
+      local.set $value
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t1
+              local.get $t1
+              call $unsigned_width
+              local.set $provider0
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $provider0.vtable
+              local.get $provider0.vtable
+              if
+                i32.const 1
+                local.set $provider0.vtable
+              else
+                i32.const 0
+                local.set $provider0.vtable
+              end
+              local.get $provider0
+              i64.extend_i32_u
+              local.set $t1
+              local.get $provider0.vtable
+              i64.extend_i32_u
+              local.set $t2
+              local.get $t1
+              local.get $t2
+              i64.add
+              local.set $t1
+              local.get $t1
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic
+                unreachable
+              end
+              local.get $t1
+              i32.wrap_i64
+              local.set $provider0
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $provider0
+      i32.add
+      local.set $provider0.vtable
+      block
+        block
+          i32.const 16
+          local.set $width
+          local.get $provider0.vtable
+          if
+            local.get $provider0.vtable
+            call $rt:str
+            local.set $width
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $size
+      block
+        block
+          local.get $width
+          local.get $size
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $size
+          local.get $value
+          local.get $size
+          local.get $provider0
+          call $write_signed_sized
+          br 0
+        end
+      end
+      local.get $width
+      local.get $provider0.vtable
+      local.get $provider1
+      local.get $provider1.vtable
+      call $"println[string]"
+    ;; 23 |     store := $.use(Store)
     end
-    local.get $t3
-    local.get $t4
-    local.get $provider0
-    call $write_signed_sized
-    local.get $t4
-    local.get $provider0.vtable
-    local.get $provider1
-    local.get $provider1.vtable
-    call $"println[string]"
   )
 )

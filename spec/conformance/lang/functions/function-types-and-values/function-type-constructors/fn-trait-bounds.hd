@@ -1,5 +1,5 @@
 # test: Fn sugar and tuple bounds accept plain functions and closures
-use std.function.Fn
+use std.ops.Fn
 
 fn apply[F < Fn(i32) -> i32](f: F, value: i32) -> i32:
     f(value)

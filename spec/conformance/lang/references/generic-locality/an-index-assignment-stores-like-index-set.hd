@@ -1,0 +1,23 @@
+# test: an index assignment through a user IndexSet stores its value into the receiver, so a local reference cannot escape through it
+# Spec 13 Generic Locality: ref.generic.store; Spec 5: expr.index.trait.write-ref.
+use std.ops.IndexSet
+
+struct P:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+impl[T] IndexSet[usize, T] for Holder[T]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.value = value
+
+fn keep(h: &mut Holder[&P]) -> void:
+    p := P { name: "x${1}" }
+    h[0] = &p # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    let mut h = Holder { value: &q }
+    keep(&mut h)
+    println(h.value.name)

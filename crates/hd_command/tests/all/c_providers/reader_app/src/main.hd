@@ -1,0 +1,29 @@
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+@host
+pub trait Reader:
+    fn read!(&mut self, wait: u32) -> Result[List[u8], i32]
+    fn total!(&mut self, n: i32) -> i64
+    fn aborts(&self) -> i32
+    fn discarded(&self) -> i32
+
+fn slow!(wait: u32) -> Result[List[u8], i32] $ Reader:
+    $.use(Reader).read!(wait)
+
+fn late!(wait: i64) -> Result[List[u8], i32] $ Clock:
+    sleep!(ms(wait))
+    .Err(-1)
+
+fn show(read: Result[List[u8], i32]) -> string:
+    match read:
+        .Ok(bytes) => "ok ${bytes.len()} ${debug(bytes)}"
+        .Err(code) => "error $code"
+
+pub fn main!() -> void $ Console + Clock + Reader:
+    reader := $.use(Reader)
+    println(show(reader.read!(5)))
+    println(show(reader.read!(0)))
+    println("total ${reader.total!(40)}")
+    println(show(race!(slow(60000), late(20))))
+    println("aborts ${reader.aborts()} discarded ${reader.discarded()}")

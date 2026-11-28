@@ -141,7 +141,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 16 |     (*r, p.value)
     local.get $r
     local.get $t3
     local.get $t2

@@ -3,7 +3,7 @@
 # @build: v8 release
 # expected: conditional read-only selections take no count. A separate
 # owned use of any input prevents lending its connected selection group.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 > app/main/keep
@@ -66,7 +66,7 @@ fn nested(c: bool, d: bool, a: string, b: string, e: string) -> usize:
 >   %33 = Block %17 : usize
     selected.len()
 >   %13 = Read borrow [$5] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %14 = Call std/core/bytes_len[] (%13) : usize
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize
@@ -118,7 +118,7 @@ fn matched(k: i64, a: string, b: string) -> usize:
 >   %7 = Block %6 : string
     selected.len()
 >   %22 = Read borrow [$3] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %23 = Call std/core/bytes_len[] (%22) : usize
 >   %24 = Break L0 %23 : never
 >   %25 = Block - : usize
 >   %26 = Scope %25 [] : usize
@@ -149,7 +149,7 @@ fn trapping(c: bool, a: string) -> usize:
 >   %18 = Block %12 : usize
     selected.len()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -211,13 +211,13 @@ fn connected(c: bool, a: string, b: string, d: string) -> usize:
 >   %28 = Store [$6] %27 : ()
     x.len() + y.len() + kept[0].len()
 >   %29 = Read borrow [$4] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %30 = Call std/core/bytes_len[] (%29) : usize
 >   %31 = Break L2 %30 : never
 >   %32 = Block - : usize
 >   %33 = Scope %32 [] : usize
 >   %34 = Drop [$4] : ()
 >   %35 = Read borrow [$5] : string
->   %36 = Call std/rt.bytes/bytes_len[] (%35) : usize
+>   %36 = Call std/core/bytes_len[] (%35) : usize
 >   %37 = Break L1 %36 : never
 >   %38 = Block - : usize
 >   %39 = Scope %38 [] : usize
@@ -228,7 +228,7 @@ fn connected(c: bool, a: string, b: string, d: string) -> usize:
 >   %44 = Drop [$6] : ()
 >   %45 = Store [$7] %42 : ()
 >   %46 = Read borrow [$7] : string
->   %47 = Call std/rt.bytes/bytes_len[] (%46) : usize
+>   %47 = Call std/core/bytes_len[] (%46) : usize
 >   %48 = Break L0 %47 : never
 >   %49 = Block - : usize
 >   %50 = Scope %49 [] : usize
@@ -300,7 +300,7 @@ fn closure() -> fn(bool, string, string) -> usize:
 >   %13 = Store [$3] %12 : ()
         selected.len()
 >   %14 = Read borrow [$3] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize

@@ -1,0 +1,16 @@
+# std.crypto.cipher: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.crypto.cipher` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.crypto.cipher.NAME` inside any package.
+std.crypto.cipher.Block  pub trait Block < ?Copy  -- An immutable block cipher writing into caller-provided storage.
+std.crypto.cipher.CipherError  pub enum CipherError  -- A rejected GCM configuration, or a message that did not authenticate.
+std.crypto.cipher.Gcm  pub struct Gcm[B < ?Copy & Block]  -- Galois/Counter Mode with a fixed nonce size and authentication tag size.
+std.crypto.cipher.Gcm.new  pub fn new(block: B) -> Result[Gcm[B], CipherError]  -- Uses 12-byte nonces and 16-byte tags, as Go's NewGCM does.
+std.crypto.cipher.Gcm.with_nonce_size  pub fn with_nonce_size(block: B, size: usize) -> Result[Gcm[B], CipherError]  -- Uses the given positive nonce size and 16-byte tags.
+std.crypto.cipher.Gcm.with_tag_size  pub fn with_tag_size(block: B, size: usize) -> Result[Gcm[B], CipherError]  -- Uses 12-byte nonces and tags between 12 and 16 bytes.
+std.crypto.cipher.Gcm.nonce_size  pub fn nonce_size(&self) -> usize  -- The nonce size selected at construction.
+std.crypto.cipher.Gcm.overhead  pub fn overhead(&self) -> usize  -- The number of authentication bytes appended by seal.
+std.crypto.cipher.Gcm.seal  pub fn seal(&self, nonce: List[u8], plaintext: List[u8], associated: List[u8]) -> List[u8]  -- Encrypts plaintext and appends its authentication tag.
+std.crypto.cipher.Gcm.open  pub fn open( &self, nonce: List[u8], sealed: List[u8], associated: List[u8], ) -> Result[List[u8], CipherError]  -- Authenticates before allocating or decrypting any plaintext.
+std.crypto.cipher.Ctr  pub struct Ctr[B < ?Copy & Block]  -- Counter mode, retaining unused keystream bytes across calls.
+std.crypto.cipher.Ctr.new  pub fn new(block: B, iv: List[u8]) -> *mut Ctr[B]  -- Starts with the given full-width big-endian counter.
+std.crypto.cipher.Ctr.xor_key_stream  pub fn xor_key_stream(*mut self, bytes: List[u8]) -> List[u8]  -- XORs the next keystream bytes with input and advances the stream.

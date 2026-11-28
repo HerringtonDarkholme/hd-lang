@@ -2,7 +2,7 @@
 # annot.bound.declared and req.row.param.data-substitute: a derived
 # implementation retains the target's row argument, including in fields.
 
-use std.structure.{Structure, Describer, Variant, Field}
+use std.meta.{Structure, Describer, Variant, Field}
 
 trait Fields:
     fn fields() -> usize

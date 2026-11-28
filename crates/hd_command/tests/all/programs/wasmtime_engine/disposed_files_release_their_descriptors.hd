@@ -1,0 +1,10 @@
+use std.fs.{FsRead, open}
+use std.io.Read
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    let total: usize = 0
+    for _ in 0..usize(2048):
+        using! file = open!(Path("one.txt")).expect("open")
+        total = total + file.read!(4).expect("read").len()
+    println("read $total")

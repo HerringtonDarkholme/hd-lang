@@ -1313,7 +1313,7 @@ lang/annotations/typed-derivation/derivation-blocks/fact-line-keeps-member-walke
 lang/annotations/typed-derivation/self-references/structure-self-ref.hd	accept	lang/14-annotations.md#r-annot.self-ref.member	-4	
 lang/annotations/typed-derivation/self-references/structure-self-ref-enum.hd	accept	lang/14-annotations.md#r-annot.self-ref.needs.enum	-4	
 lang/annotations/typed-derivation/self-references/structure-self-ref-omitted.hd	accept	lang/14-annotations.md#r-annot.self-ref.variant.omitted	-4	
-lang/annotations/typed-derivation/the-stdstructure-module/structure-module-names.hd	accept	lang/14-annotations.md#r-annot.structure.decl	-12	
+lang/annotations/typed-derivation/the-stdmeta-module/structure-module-names.hd	accept	lang/14-annotations.md#r-annot.structure.decl	-12	
 lang/annotations/typed-derivation/the-structure-trait/structure-protocol-ref.hd	accept	lang/14-annotations.md#r-annot.structure.protocol-ref	-1	
 lang/annotations/two-annotate-forms/decorator-target-kinds.hd	accept	lang/14-annotations.md#r-annot.target.limit	-4	
 lang/annotations/typed-derivation/members-and-variants/data-variant-facts-empty.hd	accept	lang/14-annotations.md#r-annot.variant.data-facts	-4	
@@ -1370,12 +1370,12 @@ std/collections/set/set-properties.hd	accept	std/collections.md#set	-90
 std/console/printing-without-a-newline/console-raw-writes.hd	accept	std/console.md#printing-without-a-newline	-4	
 std/console/buffer-console/console-struct-fake-ref.hd	accept	std/console.md#r-std-console.buffer.install-ref	-8	
 std/console/console-errors/console-error-traits.hd	accept	std/console.md#r-std-console.error.traits	-16	
-std/digest/hmac/digest-hmac.hd	accept	std/digest.md#r-std-digest.hmac.vectors	-66	
-std/digest/sha-256/digest-sha256-long.hd	accept	std/digest.md#r-std-digest.sha256.fips	-4	
-std/digest/sha-256/digest-sha256-vectors.hd	accept	std/digest.md#r-std-digest.sha256.fips	-12	
-std/digest/streaming/sha256-handle-shared.hd	accept	std/digest.md#r-std-digest.sha256.new-ref	-2	
-std/digest/streaming/digest-sha256-properties.hd	accept	std/digest.md#r-std-digest.sha256.update-ref	-60	
-std/digest/streaming/digest-sha256-stream.hd	accept	std/digest.md#r-std-digest.sha256.update-ref	-26	
+std/crypto/hmac/digest-hmac.hd	accept	std/crypto.md#r-std-crypto.hmac.vectors	-66	
+std/crypto/sha-256/digest-sha256-long.hd	accept	std/crypto.md#r-std-crypto.sha256.fips	-4	
+std/crypto/sha-256/digest-sha256-vectors.hd	accept	std/crypto.md#r-std-crypto.sha256.fips	-12	
+std/crypto/streaming/sha256-handle-shared.hd	accept	std/crypto.md#r-std-crypto.sha256.new-ref	-2	
+std/crypto/streaming/digest-sha256-properties.hd	accept	std/crypto.md#r-std-crypto.sha256.update-ref	-60	
+std/crypto/streaming/digest-sha256-stream.hd	accept	std/crypto.md#r-std-crypto.sha256.update-ref	-26	
 std/encoding/base64/encoding-decode-errors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.order	-158	
 std/encoding/base64/encoding-base64-vectors.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-16	
 std/encoding/base64/encoding-properties.hd	accept	std/encoding.md#r-std-encoding.base64.decode.value	-69	

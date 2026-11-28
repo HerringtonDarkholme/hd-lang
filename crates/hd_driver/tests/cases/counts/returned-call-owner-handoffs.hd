@@ -1,7 +1,7 @@
 # @dump: own counts stdout
 # @build: release checked
 # expected: returned loans preserve their source and temporary owners transfer once.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 use std.testing.assert_equal
 
 @cold

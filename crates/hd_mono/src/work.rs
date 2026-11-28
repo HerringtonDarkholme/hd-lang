@@ -14,6 +14,12 @@ pub struct DynWork {
     pub emitted: u64,
     pub paths: u64,
     pub conversions: u64,
+    /// Table slots left pending and resolved when a later call through a
+    /// trait value first names their method (`Cx::note_dyn`).
+    pub late_slots: u64,
+    /// Tables, traits and records the slot facts fold visits
+    /// (`Cx::fold_slot_facts`).
+    pub folded: u64,
 }
 
 thread_local! {
@@ -54,6 +60,46 @@ pub fn dyn_path(n: usize) {
 }
 pub fn dyn_conversion(n: usize) {
     dyn_add(n, |w| &mut w.conversions);
+}
+pub fn dyn_slot(n: usize) {
+    dyn_add(n, |w| &mut w.late_slots);
+}
+pub fn dyn_fold(n: usize) {
+    dyn_add(n, |w| &mut w.folded);
+}
+
+thread_local! {
+    static REPS: std::cell::RefCell<Option<Vec<(String, hd_base::Hash128)>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Each root instance's final `callee_reps`, by its item's description,
+/// of every collection `run` makes on this thread: what a code key holds
+/// besides the instance's own TIR, for tests of what an edit invalidates.
+pub fn capture_reps<R>(run: impl FnOnce() -> R) -> (R, Vec<(String, hd_base::Hash128)>) {
+    struct Restore(Option<Vec<(String, hd_base::Hash128)>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            REPS.set(self.0.take());
+        }
+    }
+    let restore = Restore(REPS.replace(Some(Vec::new())));
+    let result = run();
+    let reps = REPS.replace(None).unwrap_or_default();
+    drop(restore);
+    (result, reps)
+}
+
+pub(crate) fn reps_wanted() -> bool {
+    REPS.with(|r| r.borrow().is_some())
+}
+
+pub(crate) fn note_reps(name: String, reps: hd_base::Hash128) {
+    REPS.with(|r| {
+        if let Some(all) = r.borrow_mut().as_mut() {
+            all.push((name, reps));
+        }
+    });
 }
 
 thread_local! {

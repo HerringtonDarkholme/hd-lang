@@ -95,7 +95,7 @@ pub use elaborate::{cell_drop, elaborate};
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
-pub use splice::{BatchInsert, insert_batch};
+pub use splice::{BatchInsert, edit_batch, insert_batch, reorder};
 mod storage;
 mod temporaries;
 pub use storage::RecursiveBindings;
@@ -206,6 +206,11 @@ pub trait OwnCx {
         self.holds_coll(ty)
     }
     fn cold_parameter_transfers(&self, _item: hd_base::DefId, _ty: Ty) -> bool {
+        false
+    }
+    /// Whether the init body `init` belongs to the module that declares
+    /// the top-level binding `global`, the one module that initializes it.
+    fn declares_binding(&self, _init: hd_base::DefId, _global: hd_base::DefId) -> bool {
         false
     }
     fn string_slice(&self, _callee: &Callee) -> bool {
@@ -348,9 +353,10 @@ pub trait OwnCx {
         let _ = ty;
         None
     }
-    /// Whether the trait immediately behind reference `from` is `to`
-    /// or declares it as a supertrait. This is a declaration fact only.
-    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+    /// Whether converting the full source `from` to `to` reads an already
+    /// erased referent's data owner, rather than keeping the source address
+    /// or making a fresh box. Collection and ownership use the same decision.
+    fn trait_value_widens(&self, from: Ty, to: Ty) -> bool {
         let _ = (from, to);
         false
     }
@@ -396,6 +402,15 @@ pub trait OwnCx {
     fn plain_result(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
+    }
+    /// The arguments of a call of `callee`, by bit, that hold a raw address
+    /// the call reads or writes memory through, or makes a reference from
+    /// (`load_u32`, both of `copy`'s, `Ptr.as_ref`): the intrinsic table's
+    /// `addresses`. Such an access is an access of what owns that memory
+    /// (`frame::addresses`). The default answers none.
+    fn raw_addresses(&self, callee: &Callee) -> u32 {
+        let _ = callee;
+        0
     }
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
     /// passed. `Lent` whenever it is not `Owned`: a lent argument the
@@ -1261,8 +1276,11 @@ pub(crate) fn frame_reference_uses(
     }
     let mut t = frame::Tables::default();
     // Ending a reference reads nothing through it.
-    frame::uses(b, topo, cx, &mut t, |i, l, in_frame| {
-        if in_frame && wanted[l as usize] && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
+    frame::uses(b, topo, cx, &mut t, |i, l, in_frame, kind| {
+        if in_frame
+            && kind == frame::UseKind::Access
+            && wanted[l as usize]
+            && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
         {
             out.push((i, l));
         }
@@ -2061,6 +2079,93 @@ pub(crate) mod tests {
         super::counts::run(b, cx, &topo, edits).unwrap();
         let errors = verify_owned(b, cx);
         assert!(errors.is_empty(), "{errors:?}");
+    }
+
+    /// Asserts that the owned verifier rejects `b` with count statement
+    /// `i` broken in each way its contract forbids: each of `infos` as its
+    /// packet, the other action (`Retain` and `Release` swapped), the
+    /// body's root as its point, and the statement removed, repeated after
+    /// itself, or moved before its point.
+    pub(crate) fn assert_contract_enforced(
+        b: &Body,
+        i: usize,
+        infos: &[crate::ir::count::Info],
+        cx: &dyn super::OwnCx,
+    ) {
+        let rejected = |wrong: &Body, what: &str| {
+            assert!(!verify_owned(wrong, cx).is_empty(), "{what} was accepted");
+        };
+        for &info in infos {
+            let mut wrong = b.clone();
+            wrong.data[i][1] = info.write(&mut wrong);
+            rejected(&wrong, &format!("{info:?}"));
+        }
+        let mut wrong = b.clone();
+        wrong.tags[i] = match b.tags[i] {
+            Tag::Retain => Tag::Release,
+            _ => Tag::Retain,
+        };
+        rejected(&wrong, "the other action");
+        let mut wrong = b.clone();
+        wrong.data[i][0] = wrong.sub_root[0];
+        rejected(&wrong, "the root as its point");
+        assert_placement_enforced(b, i, cx);
+    }
+
+    /// Asserts that the owned verifier rejects `b` with count statement
+    /// `i` removed, repeated after itself, or moved before its point.
+    pub(crate) fn assert_placement_enforced(b: &Body, i: usize, cx: &dyn super::OwnCx) {
+        for mode in ["removed", "repeated", "moved"] {
+            let mut wrong = b.clone();
+            let topo = crate::ir::Topology::new(&wrong);
+            let target = wrong.data[i][0] as usize;
+            let mut edits = super::splice::Tables::default();
+            if mode != "repeated" {
+                edits.remove(crate::ir::u32_of(i));
+            }
+            if mode != "removed" {
+                let at = if mode == "repeated" {
+                    topo.pos[i] + 1
+                } else {
+                    topo.pos[target]
+                };
+                let (tag, data) = (wrong.tags[i], wrong.data[i]);
+                edits.insert(topo.blk[target], at, tag, data, Ty::VOID, NodeIdx::NONE);
+            }
+            super::splice::apply(&mut wrong, &topo, &mut edits).unwrap();
+            assert!(!verify_owned(&wrong, cx).is_empty(), "{mode} was accepted");
+        }
+    }
+
+    /// Asserts that the owned verifier reports a bundle's `Release` at
+    /// `release` as absent or repeated when it is removed, repeated, or
+    /// separated from its point by a copy of `b`'s first call.
+    pub(crate) fn assert_bundle_adjacent(b: &Body, release: usize) {
+        for mode in ["removed", "repeated", "separated"] {
+            let mut wrong = b.clone();
+            let topo = crate::ir::Topology::new(&wrong);
+            let point = wrong.data[release][0] as usize;
+            let mut edits = super::splice::Tables::default();
+            let (blk, after) = (topo.blk[point], topo.pos[point] + 1);
+            match mode {
+                "removed" => edits.remove(crate::ir::u32_of(release)),
+                "repeated" => {
+                    let data = wrong.data[release];
+                    edits.insert(blk, after, Tag::Release, data, Ty::VOID, NodeIdx::NONE);
+                }
+                _ => {
+                    let call = wrong.tags.iter().position(|&t| t == Tag::Call).unwrap();
+                    let data = wrong.data[call];
+                    edits.insert(blk, after, Tag::Call, data, Ty::VOID, NodeIdx::NONE);
+                }
+            }
+            super::splice::apply(&mut wrong, &topo, &mut edits).unwrap();
+            let errors = verify_owned(&wrong, &Cx);
+            assert!(
+                errors.iter().any(|e| e.what.contains("absent or repeated")),
+                "{mode}: {errors:?}"
+            );
+        }
     }
 
     /// A list type: counted, and changed in place by a push.
@@ -4029,7 +4134,7 @@ pub(crate) mod tests {
                     &topo,
                     &Cx,
                     &mut super::frame::Tables::default(),
-                    |i, l, frame| {
+                    |i, l, frame, _| {
                         if i == use_at {
                             assert!(!frame);
                             used.push(l);

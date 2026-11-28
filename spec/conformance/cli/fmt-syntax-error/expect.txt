@@ -2,5 +2,6 @@
 # error, so it exits 101. It still formats src/util.hd.
 run: hd fmt
 exit: 101
+stderr: error: src/lib.hd:1:14: unclosed-delimiter: the file does not parse, so `hd fmt` leaves it as it is
 run: hd fmt --check src/util.hd
 stdout-json: []

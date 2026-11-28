@@ -1,0 +1,6 @@
+use std.cli.{Args, args}
+
+pub fn main() -> void $ Console + Args:
+    println($.use(Args).program())
+    for word in args():
+        println("[${word}]")

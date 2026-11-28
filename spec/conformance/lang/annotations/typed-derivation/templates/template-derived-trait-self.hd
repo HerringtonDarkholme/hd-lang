@@ -5,7 +5,7 @@
 # annot.template.body, annot.template.instance.
 # Named::name() takes no argument, so no inference gives its Self; the template's T does.
 # Named declares its own receiverless `name`, so Structure::name() and Named::name() are different calls.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 trait Named:
     fn name() -> string
     fn title() -> string

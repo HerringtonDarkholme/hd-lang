@@ -1,7 +1,7 @@
 # Wasm size of decode with 20 derived types (#1809): each type is read once
 # from a fixed text, so every derived `deserialize` is linked.
-use std.json.decode
-use std.serde.Deserialize
+use std.encoding.json.decode
+use std.encoding.Deserialize
 
 @derive(Deserialize)
 struct T0:

@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 //! `hd_run_wasmtime`: the wasmtime engine and the default profile's host
 //! (`crates/hd_mono/DESIGN.md` §11.4; `docs/compiler/engines-and-test-runner.md` §18; `crates/hd_run_wasmtime/DESIGN.md`
 //! §17.5).
@@ -40,31 +40,27 @@ mod codec;
 mod console;
 mod engine;
 mod fs;
-#[cfg(test)]
-#[path = "../tests/support/hd_source.rs"]
-mod hd_source;
 mod host;
 mod http;
 mod instance;
+#[cfg(feature = "testing")]
+pub mod internals;
 mod limits;
 pub mod native;
 mod net;
+#[allow(unsafe_code)]
+mod precompiled;
 pub mod prim;
 mod process;
 mod profiles;
 mod run;
 mod runtime;
+mod sampling;
 pub mod scenario;
 mod session;
-#[cfg(test)]
-mod session_tests;
 mod sys;
 mod test_engine;
-#[cfg(all(test, unix))]
-mod test_fifo;
 pub mod testing;
-#[cfg(test)]
-mod tests;
 mod workers;
 
 pub use cancel::HostInterrupt;
@@ -77,7 +73,7 @@ pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
     Captured, run, run_cancellable, run_captured, run_captured_reading, run_captured_with_profile,
-    run_traced, run_with_profile,
+    run_sampled, run_traced, run_with_profile,
 };
 pub use runtime::io::io_started;
 pub use session::{Ran, Stopper, WasmtimeSession};
@@ -85,3 +81,6 @@ pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
     TestModule, TestPoolConfig,
 };
+
+pub use precompiled::{load as load_native, precompile, precompile_key};
+pub use run::{run_native, run_native_sampled, run_with_c_providers};

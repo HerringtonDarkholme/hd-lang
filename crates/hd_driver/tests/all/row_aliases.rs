@@ -17,6 +17,7 @@ fn sources(files: &[(&str, &str)]) -> MemorySources {
     for (path, text) in files {
         s.insert(path, text);
     }
+    crate::add_facades(&mut s);
     s
 }
 
@@ -36,31 +37,8 @@ fn run(store: &MemoryStore, src: &MemorySources, goal: &Goal) -> Output {
 /// leaves the dependent module's check entry valid.
 #[test]
 fn two_spellings_of_one_row_share_the_interface() {
-    let geo = "\
-pub trait Db:
-    fn id(self) -> i32
-
-pub trait Cache
-
-pub type AppRow = $ Db + Cache
-
-pub fn load() -> i32 $ AppRow:
-    $.use(Db).id()
-";
-    let main = "\
-use pkg.geo.shapes.{Db, Cache, load}
-
-struct Store: pass
-
-impl Db for Store:
-    fn id(self) -> i32: 7
-
-impl Cache for Store
-
-pub fn main() -> void $ Console:
-    $.with(Db=Store {}, Cache=Store {}):
-        println(load())
-";
+    let geo = include_str!("programs/row_aliases/geo.hd");
+    let main = include_str!("programs/row_aliases/main.hd");
     let goal = Goal::Program {
         entry: "main".into(),
     };
@@ -83,7 +61,7 @@ pub fn main() -> void $ Console:
     assert!(warm.diags.is_empty(), "{}", warm.render());
     let c = &warm.counters;
     assert_eq!(
-        c.deep_hashes["app.geo"], cold.counters.deep_hashes["app.geo"],
+        c.deep_hashes["app.geo.shapes"], cold.counters.deep_hashes["app.geo.shapes"],
         "one row, one interface"
     );
     assert_eq!(c.modules_checked, vec!["app.geo.shapes".to_owned()]);

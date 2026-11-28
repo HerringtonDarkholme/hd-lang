@@ -295,7 +295,7 @@ pub fn main() -> void $ Console:
 >   %91 = Call std/rt.memory/string_bytes[] (%90) : Ptr[u8]
 >   %92 = Read copy [%91 .address] : usize
 >   %93 = Read borrow [$11] : string
->   %94 = Call std/rt.bytes/bytes_len[] (%93) : usize
+>   %94 = Call std/core/bytes_len[] (%93) : usize
 >   %95 = Call std/rt.memory/copy[] (%89, %92, %94) : ()
 >   %96 = Break L2 - : never
 >   %97 = Block - : ()

@@ -1,6 +1,6 @@
 # test: a struct with a string field is not Sync, since the string holds a counted buffer
 # Spec 10 Markers: module.marker.sync.leaf, module.marker.sync.structural.
-use std.marker.Sync
+use std.meta.Sync
 
 struct Named:
     name: string

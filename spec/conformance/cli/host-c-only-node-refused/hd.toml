@@ -1,0 +1,9 @@
+[package]
+name = "host_c_only"
+
+[host]
+"main.Only" = { c = "hd_only" }
+
+[capabilities]
+Console = true
+"pkg.main.Only" = true

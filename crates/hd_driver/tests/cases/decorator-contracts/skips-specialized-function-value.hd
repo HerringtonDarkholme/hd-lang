@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # annot.impl-fact.skips.decl: the known callee's type argument is read without a call wrapper.
-use std.structure.skips
+use std.meta.skips
 
 struct Flag: pass
 struct Value: pass

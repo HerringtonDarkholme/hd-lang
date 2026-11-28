@@ -5,7 +5,7 @@
 # builds once in static data (#889): keeping a copy counts that one address,
 # which the runtime skips for static data. No count reaches the record's
 # member information, facts list or closures.
-use std.structure.Field
+use std.meta.Field
 
 struct Point:
     x: i32
@@ -13,4 +13,4 @@ struct Point:
 fn keep(all: &mut List[Field[Point, i32]], h: Field[Point, i32]) -> void:
     all.push(h)
 > app/main/keep
->   unique List[*std.structure.FieldRecord[app.main.Point, i32]] (may be shared)
+>   unique List[*std.meta.FieldRecord[app.main.Point, i32]] (may be shared)

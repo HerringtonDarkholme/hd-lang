@@ -1,7 +1,7 @@
 # test: Number keeps i64 and u64 integers exact, adds f64, follows the serde_json equality, and prints as JSON
 # Spec std/json Numbers: std-json.number.constructors, std-json.number.accessors, std-json.number.eq, std-json.number.display (JSON-SURFACE; task #226).
 use std.format.debug
-use std.json.{parse, Json, Number}
+use std.encoding.json.{parse, Json, Number}
 fn read(text: string) -> Number:
     match parse(text):
         .Ok(.Number(found)) => found

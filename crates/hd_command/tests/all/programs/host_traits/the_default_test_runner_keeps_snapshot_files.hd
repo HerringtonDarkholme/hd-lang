@@ -1,0 +1,8 @@
+pub fn greet(name: string) -> string:
+    "hello, ${name}"
+
+tests:
+    use std.testing.snapshot_file
+
+    it("Greets Ada!"):
+        snapshot_file(greet("Ada"))

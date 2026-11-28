@@ -1,7 +1,7 @@
 # test: a Deserialize-only derivation cannot select an enum tagging representation
 # Rule: std-serde.enum-tagging.declaration-fact.
-use std.serde.{Deserialize, tag}
-use std.structure.Structure
+use std.encoding.{Deserialize, tag}
+use std.meta.Structure
 
 enum Message:
     Text(value: string)

@@ -1,0 +1,36 @@
+# The declarations each unit reads (#2423): `area` reads `Shape`'s
+# layout and whether it copies, `twice` calls `bump`, and `keep` holds
+# an `Item`.
+
+struct Shape:
+    w: i64
+    h: i64
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+# One edit uncomments this line: `Shape` stops copying.
+#copy: impl !Copy for Shape
+
+fn area(s: Shape) -> i64:
+    s.w * s.h
+
+fn bump(x: i64) -> i64:
+    x + 1
+
+fn twice(x: i64) -> i64:
+    bump(bump(x))
+
+fn keep(name: string) -> usize:
+    let x = Item { name: name }
+    x.name.len()
+
+# One edit uncomments the two lines below: a function no unit calls.
+#~ fn unused(x: i64) -> i64:
+#~     x * 7
+
+pub fn main() -> void $ Console:
+    let s = Shape { w: 2, h: 3 }
+    println("${area(s)} ${twice(1)} ${keep("ab")}")

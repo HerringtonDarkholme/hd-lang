@@ -1,0 +1,150 @@
+# Tagged binaries only; no nightly or scheduled build.
+# Runner cost: expect ~100-150 native build minutes (five cold dist builds),
+# plus ~10 for package verification. Hard budgets: gate 5 + 5*60 builds +
+# publication 15 + optional registry upload 360 = 680 runner-minutes/run.
+# Registry's first publication can wait for crates.io's new-name rate limit.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Require the matching version and a commit on main
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-workflow.ts gate
+
+  build:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
+      HD_JOBS: 2
+      HD_CACHE: target/hd-release-cache
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: release-${{ matrix.target }}
+      - name: Build the shipped binary
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
+        run: cargo build --locked --profile dist -p hd_command --features dist --target "$TARGET"
+      - name: Package and smoke-test the unpacked native archive
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
+        run: node scripts/release-workflow.ts pack "$TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            target/release-assets/hd-*.tar.gz
+            target/release-assets/hd-*.zip
+            target/release-assets/hd-*.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [gate, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: target/release-download
+      - name: Verify all five archives and upload the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.gate.outputs.tag }}
+        run: node scripts/release-workflow.ts publish
+
+  registry:
+    needs: [gate, publish]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      HD_CACHE: target/hd-publish-cache
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Skip publishing until the owner adds the registry token
+        if: env.CARGO_REGISTRY_TOKEN == ''
+        run: echo "::notice::CARGO_REGISTRY_TOKEN is absent; crates.io publishing skipped. The owner adds this repository secret."
+      - name: Dry run packages first
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        timeout-minutes: 30
+        run: node scripts/publish-crates.ts
+      - name: Publish packages, skipping existing versions
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        timeout-minutes: 330
+        run: node scripts/publish-crates.ts --publish

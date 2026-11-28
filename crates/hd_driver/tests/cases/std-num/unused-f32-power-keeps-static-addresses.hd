@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: dev program | release program
+# An unreachable f32 power collects neither its implementation nor its table data.
+fn unused(x: f32, y: f32) -> f32:
+    x ** y
+
+pub fn main() -> void $ Console:
+    println("marker")

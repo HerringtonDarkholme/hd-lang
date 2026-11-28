@@ -1,0 +1,9 @@
+# test: GCM wrong nonce length is a caller-contract panic
+use std.crypto.aes.Aes
+use std.crypto.cipher.Gcm
+
+tests:
+    it("nonce contract"):
+        key := Aes::new([for _ in 0..16 => u8(0)]).unwrap()
+        mode := Gcm::[Aes].new(key).unwrap()
+        _ := mode.seal([], [], []) # panic: explicit-panic

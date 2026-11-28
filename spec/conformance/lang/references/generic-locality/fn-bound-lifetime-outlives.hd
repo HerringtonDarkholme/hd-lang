@@ -1,6 +1,6 @@
 # test: a struct value whose closure field captures a reference to an inner block's local outlives the local
 # Spec 13 Lifetime Bounds: ref.generic.outlives.position; Local Scope: ref.dep.scope.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

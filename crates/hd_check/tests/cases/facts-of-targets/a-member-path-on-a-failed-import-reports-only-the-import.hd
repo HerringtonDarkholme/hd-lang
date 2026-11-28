@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # A `use` that fails is the one error: `Gone::[i32]::x` through it reports
 # nothing more.
-use std.annotation.facts_of
+use std.meta.facts_of
 use std.nowhere.Gone
 
 value := facts_of(Gone::[i32]::x)

@@ -502,7 +502,7 @@ b093	lang/traits/sealed-traits/sealed-traits-a-user-impl-of-float-is-rejected.hd
 b093	lang/traits/sealed-traits/inspectable-user-implementation.hd	MERGE	C1	Same case as sealed-traits-a-user-impl-of-inspectable-is-rejected.hd: impl Inspectable for a struct. The two differ only in struct name and one field.	fixed in #1944: the twin `sealed-traits-a-user-impl-of-inspectable-is-rejected` was deleted and this copy kept
 b093	lang/traits/runtime-type-identity/runtime-type-names-the-recorded-type.hd	FIX	B5	Timeout (lines 18-25) and FsError (lines 27-35) are declared but never used. Remove them.	
 b093	lang/traits/runtime-type-identity/downcast-mut-and-bound-receivers.hd	FIX	B5	FsError enum and its Display and Error impls (lines 27-35) are never used by main or the helpers. Remove them.	
-b093	lang/traits/sealed-traits/sealed-traits-an-inherent-method-may-share-a-sealed-member-name.hd	FIX	B5	use std.inspect.TypeId on line 2 is unused; the inherent method returns string.	
+b093	lang/traits/sealed-traits/sealed-traits-an-inherent-method-may-share-a-sealed-member-name.hd	FIX	B5	use std.meta.TypeId on line 2 is unused; the inherent method returns string.	
 b094	lang/traits/trait-delegation/trait-delegation.hd	UNSURE	C1	Same Describe/Logger/Service/Worker/show declarations as lang/traits/trait-delegation/trait-delegation-forwards.hd, which also type-checks them and asserts behavior; possible subsumed twin.	not a defect (#1944 log): phase differs (type against runtime), so a type-only selection still needs it.
 b095	lang/traits/trait-implementations/generic-inherent-box.hd	FIX	B4	Non-pub main is not an entry point and there is no tests block, so through and get never run; add a tests block asserting 43.	
 b095	lang/traits/trait-implementations/trait-default-method-instantiates-params.hd	FIX	B4	Non-pub main never runs and there is no tests block, so the defaulted second is never called; add a test asserting Some(2).	
@@ -790,7 +790,7 @@ b153	lang/references/pointer-loans/struct/pointer-loan-struct-ref-umap-read.hd	U
 b153	std/collections/uniqlist/function-value-copy-inputs-preserve-owners.hd	UNSURE	B7	Cites std/collections.md#uniqlist, but the test checks fn.type.values, fn.capture.copies and ref.copy.structure, and imports std.http.Url; tier of citation unclear.	
 b153	std/collections/list-methods/list-view-run.hd	UNSURE	B1	Title promises a window read "with no copy", but the asserts only check values; nothing observes copying.	fixed in the #1964 lane commit: the title drops the no-copy claim no assert observes
 b153	std/collections/list-methods/list-span.hd	UNSURE	B1	Title promises reading and iterating "without copying its elements", but the asserts only check values; nothing observes copying.	fixed in the #1964 lane commit: the title drops the no-copy claim no assert observes
-b153	std/digest/digest/digest-value-copy.hd	FIX	B5	Imports Digest, which the program never names; import only sha256.	
+b153	std/crypto/digest/digest-value-copy.hd	FIX	B5	Imports Digest, which the program never names; import only sha256.	
 b154	std/encoding/base64/encoding-decode-errors.hd	FIX	B3	Display check only asserts the text is non-empty; assert the exact text "invalid character at position 4" from lib/std/encoding.hd.	
 b154	std/error/standard-error-types/std-errors-erased.hd	FIX	B5	Imports ParseNumberError, which the program never names; remove it from the use line.	
 b154	std/encoding/base64/encoding-properties.hd	UNSURE	C1	The bad-base64 table repeats encoding-decode-errors.hd cases with the same inputs and expectations, such as "Zm-_", "Zg=a", "Zh==" and "Zm9v\n".	not a defect: the code differs beyond names (#1944 log), and A12 (2026-11-16) finds no sibling holding every code line of it
@@ -803,9 +803,9 @@ b155	std/hash/fnv-1a-hasher/fnv1a-hasher.hd	UNSURE	B8	The typed-writes test expe
 b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	B8	The oracle hashes usize as 4 bytes; std-hash.bytes.integer says usize uses its own width, so the expected digests vary by target.	
 b155	std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd	UNSURE	B8	Literal digests assume usize hashes as 4 bytes; std-hash.bytes.integer says usize uses its own width, so they vary by target.	
 b155	std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	UNSURE	C1	Its edge list is the same 13 values, with the same FNV-1a expectation, as the first case list in std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd; only the expected source differs.	not a defect: the code differs beyond names (#1944 log), and A12 (2026-11-16) finds no sibling holding every code line of it
-b156	std/http/request-builder/http-form-map-number.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; no part in the case.	
-b156	std/http/request-builder/http-form-root-list.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case has no Serialize derive or impl.	
-b156	std/http/request-builder/http-form-root-scalar.hd	FIX	B5	Unused import use std.serde.Serialize on line 4; the case uses no Serialize item.	
+b156	std/http/request-builder/http-form-map-number.hd	FIX	B5	Unused import use std.encoding.Serialize on line 4; no part in the case.
+b156	std/http/request-builder/http-form-root-list.hd	FIX	B5	Unused import use std.encoding.Serialize on line 4; the case has no Serialize derive or impl.
+b156	std/http/request-builder/http-form-root-scalar.hd	FIX	B5	Unused import use std.encoding.Serialize on line 4; the case uses no Serialize item.
 b156	std/http/read-once-bodies/http-body-serialize-removed.hd	UNSURE	B7	Cites body.declaration, which says only private shared state; no rule states that Body is not Serialize.	
 b158	std/json/typed-json/json-typed-round-trip.hd	FIX	B8	Lines 53 and 108 expect map output in insertion order; map order is unspecified (types.map.order.unspecified).	
 b158	std/json/typed-json/json-model-round-trips.hd	FIX	B8	Sets round trip expects encoding in first-occurrence order (line 253); set iteration order is unspecified (std-collections.set.iter).	

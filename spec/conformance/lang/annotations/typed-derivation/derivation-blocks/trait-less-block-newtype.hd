@@ -1,5 +1,5 @@
 # test: a block with no trait cannot target a newtype
-use std.structure.Structure
+use std.meta.Structure
 
 type Meters(i64)
 

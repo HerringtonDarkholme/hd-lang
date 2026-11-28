@@ -107,6 +107,9 @@ impl<'a, 'e> View<'a, 'e> {
 // Only the structural effect index reads this view. The ownership passes
 // continue to use Env and their existing physical-layout admission.
 impl OwnCx for View<'_, '_> {
+    fn declares_binding(&self, init: hd_base::DefId, global: hd_base::DefId) -> bool {
+        OwnCx::declares_binding(self.env, init, global)
+    }
     fn temporary_owner_name(&self) -> hd_base::Symbol {
         OwnCx::temporary_owner_name(self.env)
     }
@@ -182,12 +185,16 @@ fn equation(
     instance: Option<Node>,
 ) -> BodyEffects {
     let view = View::new(env, instance);
+    // These summaries describe synchronous calls; awaits remain opaque even
+    // though the inliner can now discover their statically known callees.
     let mut handles = vec![HandleOrigin::Unknown; body.len()];
     for (i, source) in index.value_sources(body).iter().enumerate() {
         handles[i] = match *source {
             ValueSource::Parameter(parameter) => HandleOrigin::Parameter(parameter),
             ValueSource::Value(word) => value(&handles, word),
-            ValueSource::Producer => hd_tir::inline::known_call(body, i)
+            ValueSource::Producer => (body.tags[i] != hd_tir::Tag::Await)
+                .then(|| hd_tir::inline::known_call(body, i))
+                .flatten()
                 .map(|callee| view.callee(&callee))
                 .and_then(|callee| env.callee_node(&callee))
                 .and_then(|node| StructureEnv::generated_structure_handle(env, node.0))
@@ -198,6 +205,9 @@ fn equation(
     let mut known = vec![None; body.len()];
     let mut required = Writes::default();
     for i in 0..body.len() {
+        if body.tags[i] == hd_tir::Tag::Await {
+            continue;
+        }
         let Some(callee) = hd_tir::inline::known_call(body, i) else {
             continue;
         };
@@ -300,6 +310,7 @@ impl Env<'_> {
             let view = View::new(self, Some(node));
             let mut seen = hd_base::HashSet::default();
             (0..body.len())
+                .filter(|&i| body.tags[i] != hd_tir::Tag::Await)
                 .filter_map(|i| hd_tir::inline::known_call(body, i))
                 .filter_map(|callee| self.callee_node(&view.callee(&callee)))
                 .filter(|node| {

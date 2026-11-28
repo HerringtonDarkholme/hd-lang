@@ -1,0 +1,4 @@
+use pkg.a.x.{x}
+
+pub fn main() -> void:
+    let v: i32 = x() + price()

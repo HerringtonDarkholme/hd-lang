@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# The loop's `IsUnique` of `w.items`, hoisted right before it, may replace
+# that list's buffer only: `w.limit` parts from it at a field, so its load
+# is read once before the check instead of per element.
+struct Wrap:
+    items: List[i32]
+    limit: i32
+
+fn first_above(w: &mut Wrap) -> i32:
+    # subject
+    for x in &mut w.items:
+        if *x > w.limit:
+            return *x
+    0

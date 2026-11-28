@@ -1,0 +1,7 @@
+# lead
+
+fn f() -> i32:  # trailing
+    # own line
+    x := 1
+
+    return x

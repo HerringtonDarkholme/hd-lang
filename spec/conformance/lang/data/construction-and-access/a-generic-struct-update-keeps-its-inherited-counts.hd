@@ -1,7 +1,7 @@
 # test: a generic struct update copies the base's fields, so a push to the copy's list leaves the base's list as it was
 # expect-stdout: old 1 new 2
 # expect-stdout: 7
-use std.annotation.cold
+use std.meta.cold
 
 struct Record[T]:
     kept: T

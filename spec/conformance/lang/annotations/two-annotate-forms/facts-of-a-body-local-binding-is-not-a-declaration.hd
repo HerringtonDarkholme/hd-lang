@@ -1,6 +1,6 @@
 # test: a local binding in a function body resolves, so it is not a function declaration
 # Spec 14 facts_of: annot.facts-of.target.error.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 fn get_user(id: string) -> string:
     id

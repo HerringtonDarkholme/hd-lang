@@ -1,6 +1,6 @@
 # test: decoding into a type that does not implement Deserialize is an error
 # Spec std/json Encode And Decode: std-json.decode.deserialize (task #241, #320).
-use std.json.{decode, JsonError}
+use std.encoding.json.{decode, JsonError}
 
 struct Plain:
     id: i32

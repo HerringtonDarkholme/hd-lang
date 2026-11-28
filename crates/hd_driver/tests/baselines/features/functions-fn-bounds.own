@@ -6,7 +6,7 @@
 # expected: `invoke` instances call `width` and the closure directly
 # (inlined) with no closure allocation; `fn_mut`'s closure shares `n`
 # in a cell or frame slot and takes no count per element.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn width(s: string) -> usize:
     s.len()
@@ -14,7 +14,7 @@ fn width(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -60,7 +60,7 @@ fn static_bound(s: string) -> usize:
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$2] : fn(string) -> usize
 >   %3 = Read borrow [$0] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L4 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -72,7 +72,7 @@ fn static_bound(s: string) -> usize:
 >   %13 = Scope %12 [] : usize
 >   %14 = Drop [$2] : ()
 >   %15 = Read borrow [$0] : string
->   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %16 = Call std/core/bytes_len[] (%15) : usize
 >   %17 = Break L1 %16 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
@@ -190,7 +190,7 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %18 = Store [$7] %17 : ()
 >   %19 = Read copy [$1] : usize
 >   %20 = Read borrow [$9] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L2 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize

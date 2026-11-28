@@ -1,0 +1,743 @@
+# AES constant-time S-box: Boyar-Peralta's Boolean circuit, as used by
+# BearSSL br_aes_ct_bitslice_Sbox. Each u32 is a plane of independent bytes;
+# this module uses sixteen lanes for a block and four for a key word.
+# Source: https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/symcipher/aes_ct.c
+# 
+# Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+# 
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# 
+
+type Planes = (u32, u32, u32, u32, u32, u32, u32, u32)
+
+## Why an AES key was rejected.
+## See [std-crypto-aes.key-error](../../../spec/std/crypto-aes.md#r-std-crypto-aes.key-error).
+@derive(Debug, Eq)
+@error
+pub enum AesError:
+    @error("AES key must contain 16, 24, or 32 bytes; got $length")
+    InvalidKeyLength(length: usize)
+
+## An immutable expanded AES key for encryption and decryption.
+## See [std-crypto-aes.type](../../../spec/std/crypto-aes.md#r-std-crypto-aes.type).
+pub struct Aes:
+    keys: List[Planes]
+
+impl Aes:
+    ## Expands a 16-, 24-, or 32-byte AES key.
+    ## See [std-crypto-aes.new](../../../spec/std/crypto-aes.md#r-std-crypto-aes.new).
+    pub fn new(key: List[u8]) -> Result[Aes, AesError]:
+        if key.len() != 16 && key.len() != 24 && key.len() != 32:
+            return .Err(.InvalidKeyLength(key.len()))
+        .Ok(Aes { keys: expand_key(key) })
+
+    ## AES always processes 16-byte blocks.
+    ## See [std-crypto-aes.block-size](../../../spec/std/crypto-aes.md#r-std-crypto-aes.block-size).
+    pub fn block_size(&self) -> usize:
+        16
+
+    ## Encrypts one block, returning a new 16-byte list.
+    ## See [std-crypto-aes.encrypt](../../../spec/std/crypto-aes.md#r-std-crypto-aes.encrypt).
+    pub fn encrypt_block(&self, block: List[u8]) -> List[u8]:
+        if block.len() != 16:
+            panic("AES encryption requires exactly 16 bytes")
+        encrypt(self.keys, block)
+
+    ## Encrypts sixteen bytes in a caller buffer, starting at offset.
+    ## See [std-crypto-aes.encrypt-into](../../../spec/std/crypto-aes.md#r-std-crypto-aes.encrypt-into).
+    pub fn encrypt_block_into(&self, block: &mut List[u8], offset: usize) -> void:
+        if offset > block.len() || block.len() - offset < 16:
+            panic("AES encryption requires sixteen bytes at the given offset")
+        state := encrypt_planes(self.keys, read_planes(block, offset, 16))
+        for byte in 0..16:
+            block[offset + byte] = lane(state, byte)
+
+    ## Decrypts one block, returning a new 16-byte list.
+    ## See [std-crypto-aes.decrypt](../../../spec/std/crypto-aes.md#r-std-crypto-aes.decrypt).
+    pub fn decrypt_block(&self, block: List[u8]) -> List[u8]:
+        if block.len() != 16:
+            panic("AES decryption requires exactly 16 bytes")
+        decrypt(self.keys, block)
+
+# Fixed scalar tuples keep the complete block state in Wasm locals.
+# The only List construction below is the optional value-returning wrapper.
+fn read_planes(bytes: &List[u8], offset: usize, count: usize) -> Planes:
+    let q0: u32 = 0
+    let q1: u32 = 0
+    let q2: u32 = 0
+    let q3: u32 = 0
+    let q4: u32 = 0
+    let q5: u32 = 0
+    let q6: u32 = 0
+    let q7: u32 = 0
+    for index in 0..count:
+        value := u32(bytes[offset + index])
+        shift := u32(index)
+        q0 = q0 | (((value >> 0) & 1) << shift)
+        q1 = q1 | (((value >> 1) & 1) << shift)
+        q2 = q2 | (((value >> 2) & 1) << shift)
+        q3 = q3 | (((value >> 3) & 1) << shift)
+        q4 = q4 | (((value >> 4) & 1) << shift)
+        q5 = q5 | (((value >> 5) & 1) << shift)
+        q6 = q6 | (((value >> 6) & 1) << shift)
+        q7 = q7 | (((value >> 7) & 1) << shift)
+    (q0, q1, q2, q3, q4, q5, q6, q7)
+
+fn planes(bytes: List[u8]) -> Planes:
+    read_planes(&bytes, 0, bytes.len())
+
+fn lane(state: Planes, index: usize) -> u8:
+    shift := u32(index)
+    u8(
+        (((state._0 >> shift) & 1) << 0)
+        | (((state._1 >> shift) & 1) << 1)
+        | (((state._2 >> shift) & 1) << 2)
+        | (((state._3 >> shift) & 1) << 3)
+        | (((state._4 >> shift) & 1) << 4)
+        | (((state._5 >> shift) & 1) << 5)
+        | (((state._6 >> shift) & 1) << 6)
+        | (((state._7 >> shift) & 1) << 7),
+    )
+
+fn unplane(state: Planes, count: usize) -> List[u8]:
+    [for index in 0..count => lane(state, index)]
+
+fn substitute(bytes: List[u8], inverse: bool) -> List[u8]:
+    unplane(substitute_planes(planes(bytes), inverse), bytes.len())
+
+fn substitute_planes(state: Planes, inverse: bool) -> Planes:
+    if inverse:
+        return inverse_affine(sbox(inverse_affine(state)))
+    sbox(state)
+
+# Inverse affine map across eight scalar planes; only sixteen lanes are active.
+fn inverse_affine(state: Planes) -> Planes:
+    (
+        (state._7 ^ state._5 ^ state._2 ^ 0xffff) & 0xffff,
+        (state._0 ^ state._6 ^ state._3) & 0xffff,
+        (state._1 ^ state._7 ^ state._4 ^ 0xffff) & 0xffff,
+        (state._2 ^ state._0 ^ state._5) & 0xffff,
+        (state._3 ^ state._1 ^ state._6) & 0xffff,
+        (state._4 ^ state._2 ^ state._7) & 0xffff,
+        (state._5 ^ state._3 ^ state._0) & 0xffff,
+        (state._6 ^ state._4 ^ state._1) & 0xffff,
+    )
+
+# Straight-line AND/XOR/NOT circuit: no secret branch or memory address.
+fn sbox(q: Planes) -> Planes:
+    x0 := q._7
+    x1 := q._6
+    x2 := q._5
+    x3 := q._4
+    x4 := q._3
+    x5 := q._2
+    x6 := q._1
+    x7 := q._0
+    y14 := x3 ^ x5
+    y13 := x0 ^ x6
+    y9 := x0 ^ x3
+    y8 := x0 ^ x5
+    t0 := x1 ^ x2
+    y1 := t0 ^ x7
+    y4 := y1 ^ x3
+    y12 := y13 ^ y14
+    y2 := y1 ^ x0
+    y5 := y1 ^ x6
+    y3 := y5 ^ y8
+    t1 := x4 ^ y12
+    y15 := t1 ^ x5
+    y20 := t1 ^ x1
+    y6 := y15 ^ x7
+    y10 := y15 ^ t0
+    y11 := y20 ^ y9
+    y7 := x7 ^ y11
+    y17 := y10 ^ y11
+    y19 := y10 ^ y8
+    y16 := t0 ^ y11
+    y21 := y13 ^ y16
+    y18 := x0 ^ y16
+    t2 := y12 & y15
+    t3 := y3 & y6
+    t4 := t3 ^ t2
+    t5 := y4 & x7
+    t6 := t5 ^ t2
+    t7 := y13 & y16
+    t8 := y5 & y1
+    t9 := t8 ^ t7
+    t10 := y2 & y7
+    t11 := t10 ^ t7
+    t12 := y9 & y11
+    t13 := y14 & y17
+    t14 := t13 ^ t12
+    t15 := y8 & y10
+    t16 := t15 ^ t12
+    t17 := t4 ^ t14
+    t18 := t6 ^ t16
+    t19 := t9 ^ t14
+    t20 := t11 ^ t16
+    t21 := t17 ^ y20
+    t22 := t18 ^ y19
+    t23 := t19 ^ y21
+    t24 := t20 ^ y18
+    t25 := t21 ^ t22
+    t26 := t21 & t23
+    t27 := t24 ^ t26
+    t28 := t25 & t27
+    t29 := t28 ^ t22
+    t30 := t23 ^ t24
+    t31 := t22 ^ t26
+    t32 := t31 & t30
+    t33 := t32 ^ t24
+    t34 := t23 ^ t33
+    t35 := t27 ^ t33
+    t36 := t24 & t35
+    t37 := t36 ^ t34
+    t38 := t27 ^ t36
+    t39 := t29 & t38
+    t40 := t25 ^ t39
+    t41 := t40 ^ t37
+    t42 := t29 ^ t33
+    t43 := t29 ^ t40
+    t44 := t33 ^ t37
+    t45 := t42 ^ t41
+    z0 := t44 & y15
+    z1 := t37 & y6
+    z2 := t33 & x7
+    z3 := t43 & y16
+    z4 := t40 & y1
+    z5 := t29 & y7
+    z6 := t42 & y11
+    z7 := t45 & y17
+    z8 := t41 & y10
+    z9 := t44 & y12
+    z10 := t37 & y3
+    z11 := t33 & y4
+    z12 := t43 & y13
+    z13 := t40 & y5
+    z14 := t29 & y2
+    z15 := t42 & y9
+    z16 := t45 & y14
+    z17 := t41 & y8
+    t46 := z15 ^ z16
+    t47 := z10 ^ z11
+    t48 := z5 ^ z13
+    t49 := z9 ^ z10
+    t50 := z2 ^ z12
+    t51 := z2 ^ z5
+    t52 := z7 ^ z8
+    t53 := z0 ^ z3
+    t54 := z6 ^ z7
+    t55 := z16 ^ z17
+    t56 := z12 ^ t48
+    t57 := t50 ^ t53
+    t58 := z4 ^ t46
+    t59 := z3 ^ t54
+    t60 := t46 ^ t57
+    t61 := z14 ^ t57
+    t62 := t52 ^ t58
+    t63 := t49 ^ t58
+    t64 := z4 ^ t59
+    t65 := t61 ^ t62
+    t66 := z1 ^ t63
+    s0 := t59 ^ t63
+    s6 := t56 ^ ~t62
+    s7 := t48 ^ ~t60
+    t67 := t64 ^ t65
+    s3 := t53 ^ t66
+    s4 := t51 ^ t66
+    s5 := t47 ^ t65
+    s1 := t64 ^ ~s3
+    s2 := t55 ^ ~t67
+    (s7, s6, s5, s4, s3, s2, s1, s0)
+
+# FIPS 197 key expansion; the public constructor validates key length.
+# Key sizes are public; all key-word substitutions use the Boolean circuit.
+fn expand_key(key: List[u8]) -> List[Planes]:
+    let mut expanded = key
+    rounds := key.len() / 4 + 6
+    let rcon: u8 = 1
+    while expanded.len() < 16 * (rounds + 1):
+        let mut word = expanded.slice(expanded.len() - 4, expanded.len())
+        if expanded.len() % key.len() == 0:
+            word = substitute([word[1], word[2], word[3], word[0]], false)
+            word[0] = word[0] ^ rcon
+            rcon = xtime(rcon)
+        else if key.len() == 32 && expanded.len() % key.len() == 16:
+            word = substitute(word, false)
+        for index in 0..4:
+            expanded.push(expanded[expanded.len() - key.len()] ^ word[index])
+    [for round in 0..(rounds + 1) => planes(expanded.slice(16 * round, 16 * (round + 1)))]
+
+fn xtime(value: u8) -> u8:
+    (value << 1) ^ (u8(0).wrapping_sub(value >> 7) & 0x1b)
+
+fn add_key(state: Planes, key: Planes) -> Planes:
+    (
+        state._0 ^ key._0,
+        state._1 ^ key._1,
+        state._2 ^ key._2,
+        state._3 ^ key._3,
+        state._4 ^ key._4,
+        state._5 ^ key._5,
+        state._6 ^ key._6,
+        state._7 ^ key._7,
+    )
+
+fn rotate_plane(plane: u32, count: u32) -> u32:
+    ((plane >> count) | (plane << (16 - count))) & 0xffff
+
+fn shift_plane(word: u32, first: u32, third: u32) -> u32:
+    (
+        (word & 0x1111)
+        | (rotate_plane(word & 0xffff, first) & 0x2222)
+        | (rotate_plane(word & 0xffff, 8) & 0x4444)
+        | (rotate_plane(word & 0xffff, third) & 0x8888)
+    )
+
+fn shift_rows(state: Planes, inverse: bool) -> Planes:
+    first := if inverse: 12u32 else: 4u32
+    third := if inverse: 4u32 else: 12u32
+    (
+        shift_plane(state._0, first, third),
+        shift_plane(state._1, first, third),
+        shift_plane(state._2, first, third),
+        shift_plane(state._3, first, third),
+        shift_plane(state._4, first, third),
+        shift_plane(state._5, first, third),
+        shift_plane(state._6, first, third),
+        shift_plane(state._7, first, third),
+    )
+
+fn rotate_rows(word: u32) -> u32:
+    ((word >> 1) & 0x7777) | ((word << 3) & 0x8888)
+
+fn xtime_planes(q: Planes) -> Planes:
+    (q._7, q._0 ^ q._7, q._1, q._2 ^ q._7, q._3 ^ q._7, q._4, q._5, q._6)
+
+fn mixed_word(word: u32) -> u32:
+    rotate_rows(word) ^ rotate_rows(rotate_rows(word)) ^ rotate_rows(rotate_rows(rotate_rows(word)))
+
+fn mix_columns(state: Planes, inverse: bool) -> Planes:
+    let work = state
+    if inverse:
+        pairs := (
+            work._0 ^ rotate_rows(rotate_rows(work._0)),
+            work._1 ^ rotate_rows(rotate_rows(work._1)),
+            work._2 ^ rotate_rows(rotate_rows(work._2)),
+            work._3 ^ rotate_rows(rotate_rows(work._3)),
+            work._4 ^ rotate_rows(rotate_rows(work._4)),
+            work._5 ^ rotate_rows(rotate_rows(work._5)),
+            work._6 ^ rotate_rows(rotate_rows(work._6)),
+            work._7 ^ rotate_rows(rotate_rows(work._7)),
+        )
+        work = add_key(work, xtime_planes(xtime_planes(pairs)))
+    adjacent := xtime_planes(
+        (
+            work._0 ^ rotate_rows(work._0),
+            work._1 ^ rotate_rows(work._1),
+            work._2 ^ rotate_rows(work._2),
+            work._3 ^ rotate_rows(work._3),
+            work._4 ^ rotate_rows(work._4),
+            work._5 ^ rotate_rows(work._5),
+            work._6 ^ rotate_rows(work._6),
+            work._7 ^ rotate_rows(work._7),
+        ),
+    )
+    (
+        mixed_word(work._0) ^ adjacent._0,
+        mixed_word(work._1) ^ adjacent._1,
+        mixed_word(work._2) ^ adjacent._2,
+        mixed_word(work._3) ^ adjacent._3,
+        mixed_word(work._4) ^ adjacent._4,
+        mixed_word(work._5) ^ adjacent._5,
+        mixed_word(work._6) ^ adjacent._6,
+        mixed_word(work._7) ^ adjacent._7,
+    )
+
+fn encrypt_planes(keys: List[Planes], first: Planes) -> Planes:
+    let state = add_key(first, keys[0])
+    for round in 1..keys.len():
+        state = shift_rows(substitute_planes(state, false), false)
+        if round + 1 < keys.len():
+            state = mix_columns(state, false)
+        state = add_key(state, keys[round])
+    state
+
+fn encrypt(keys: List[Planes], block: List[u8]) -> List[u8]:
+    unplane(encrypt_planes(keys, read_planes(&block, 0, 16)), 16)
+
+fn decrypt(keys: List[Planes], block: List[u8]) -> List[u8]:
+    let round = keys.len() - 1
+    let state = add_key(read_planes(&block, 0, 16), keys[round])
+    while round > 0:
+        round -= 1
+        state = substitute_planes(shift_rows(state, true), true)
+        state = add_key(state, keys[round])
+        if round > 0:
+            state = mix_columns(state, true)
+    unplane(state, 16)
+
+tests:
+    use std.encoding.hex.hex_decode
+
+    fn vector(text: string) -> List[u8]:
+        match hex_decode(text):
+            .Ok(bytes) => bytes
+            .Err(error) => panic("invalid published vector: $error")
+
+    it("FIPS 197 S-box and inverse cover every byte and every lane"):
+        let expected: List[u8] = [
+            0x63,
+            0x7c,
+            0x77,
+            0x7b,
+            0xf2,
+            0x6b,
+            0x6f,
+            0xc5,
+            0x30,
+            0x1,
+            0x67,
+            0x2b,
+            0xfe,
+            0xd7,
+            0xab,
+            0x76,
+            0xca,
+            0x82,
+            0xc9,
+            0x7d,
+            0xfa,
+            0x59,
+            0x47,
+            0xf0,
+            0xad,
+            0xd4,
+            0xa2,
+            0xaf,
+            0x9c,
+            0xa4,
+            0x72,
+            0xc0,
+            0xb7,
+            0xfd,
+            0x93,
+            0x26,
+            0x36,
+            0x3f,
+            0xf7,
+            0xcc,
+            0x34,
+            0xa5,
+            0xe5,
+            0xf1,
+            0x71,
+            0xd8,
+            0x31,
+            0x15,
+            0x4,
+            0xc7,
+            0x23,
+            0xc3,
+            0x18,
+            0x96,
+            0x5,
+            0x9a,
+            0x7,
+            0x12,
+            0x80,
+            0xe2,
+            0xeb,
+            0x27,
+            0xb2,
+            0x75,
+            0x9,
+            0x83,
+            0x2c,
+            0x1a,
+            0x1b,
+            0x6e,
+            0x5a,
+            0xa0,
+            0x52,
+            0x3b,
+            0xd6,
+            0xb3,
+            0x29,
+            0xe3,
+            0x2f,
+            0x84,
+            0x53,
+            0xd1,
+            0x0,
+            0xed,
+            0x20,
+            0xfc,
+            0xb1,
+            0x5b,
+            0x6a,
+            0xcb,
+            0xbe,
+            0x39,
+            0x4a,
+            0x4c,
+            0x58,
+            0xcf,
+            0xd0,
+            0xef,
+            0xaa,
+            0xfb,
+            0x43,
+            0x4d,
+            0x33,
+            0x85,
+            0x45,
+            0xf9,
+            0x2,
+            0x7f,
+            0x50,
+            0x3c,
+            0x9f,
+            0xa8,
+            0x51,
+            0xa3,
+            0x40,
+            0x8f,
+            0x92,
+            0x9d,
+            0x38,
+            0xf5,
+            0xbc,
+            0xb6,
+            0xda,
+            0x21,
+            0x10,
+            0xff,
+            0xf3,
+            0xd2,
+            0xcd,
+            0xc,
+            0x13,
+            0xec,
+            0x5f,
+            0x97,
+            0x44,
+            0x17,
+            0xc4,
+            0xa7,
+            0x7e,
+            0x3d,
+            0x64,
+            0x5d,
+            0x19,
+            0x73,
+            0x60,
+            0x81,
+            0x4f,
+            0xdc,
+            0x22,
+            0x2a,
+            0x90,
+            0x88,
+            0x46,
+            0xee,
+            0xb8,
+            0x14,
+            0xde,
+            0x5e,
+            0xb,
+            0xdb,
+            0xe0,
+            0x32,
+            0x3a,
+            0xa,
+            0x49,
+            0x6,
+            0x24,
+            0x5c,
+            0xc2,
+            0xd3,
+            0xac,
+            0x62,
+            0x91,
+            0x95,
+            0xe4,
+            0x79,
+            0xe7,
+            0xc8,
+            0x37,
+            0x6d,
+            0x8d,
+            0xd5,
+            0x4e,
+            0xa9,
+            0x6c,
+            0x56,
+            0xf4,
+            0xea,
+            0x65,
+            0x7a,
+            0xae,
+            0x8,
+            0xba,
+            0x78,
+            0x25,
+            0x2e,
+            0x1c,
+            0xa6,
+            0xb4,
+            0xc6,
+            0xe8,
+            0xdd,
+            0x74,
+            0x1f,
+            0x4b,
+            0xbd,
+            0x8b,
+            0x8a,
+            0x70,
+            0x3e,
+            0xb5,
+            0x66,
+            0x48,
+            0x3,
+            0xf6,
+            0xe,
+            0x61,
+            0x35,
+            0x57,
+            0xb9,
+            0x86,
+            0xc1,
+            0x1d,
+            0x9e,
+            0xe1,
+            0xf8,
+            0x98,
+            0x11,
+            0x69,
+            0xd9,
+            0x8e,
+            0x94,
+            0x9b,
+            0x1e,
+            0x87,
+            0xe9,
+            0xce,
+            0x55,
+            0x28,
+            0xdf,
+            0x8c,
+            0xa1,
+            0x89,
+            0xd,
+            0xbf,
+            0xe6,
+            0x42,
+            0x68,
+            0x41,
+            0x99,
+            0x2d,
+            0xf,
+            0xb0,
+            0x54,
+            0xbb,
+            0x16,
+        ]
+        for start in 0..16:
+            input := [for lane in 0..16 => u8(16 * start + lane)]
+            forward := substitute(input, false)
+            for lane in 0..16:
+                assert_equal(forward[lane], expected[16 * start + lane], reason="FIPS S-box")
+            assert_equal(substitute(forward, true), input, reason="inverse S-box")
+        for value in 0..256:
+            input := [for _ in 0..16 => u8(value)]
+            assert_equal(
+                substitute(input, false),
+                [for _ in 0..16 => expected[value]],
+                reason="all lanes",
+            )
+
+    it("FIPS 197 AES-128 AES-192 AES-256 encryption and inverse"):
+        plain := vector("00112233445566778899aabbccddeeff")
+        for (key, ciphertext) in [
+            ("000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a"),
+            (
+                "000102030405060708090a0b0c0d0e0f1011121314151617",
+                "dda97ca4864cdfe06eaf70a0ec0d7191",
+            ),
+            (
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                "8ea2b7ca516745bfeafc49904b496089",
+            ),
+        ]:
+            keys := expand_key(vector(key))
+            expected := vector(ciphertext)
+            assert_equal(encrypt(keys, plain), expected, reason="FIPS encryption")
+            assert_equal(decrypt(keys, expected), plain, reason="FIPS inverse")
+
+    it("public AES construction validates key sizes and keeps the expanded key immutable"):
+        for length in [0, 1, 15, 17, 23, 25, 31, 33]:
+            match Aes::new([for _ in 0..length => u8(0)]):
+                .Err(error) =>
+                    assert_equal(error, AesError::InvalidKeyLength(length), reason="key length")
+                .Ok(_) => panic("accepted invalid AES key length")
+        for length in [16, 24, 32]:
+            match Aes::new([for index in 0..length => u8(index)]):
+                .Err(error) => panic("rejected valid AES key: $error")
+                .Ok(cipher) =>
+                    assert_equal(cipher.block_size(), 16, reason="AES block size")
+                    plain := [for index in 0..16 => u8(index * 17)]
+                    before := plain
+                    encrypted := cipher.encrypt_block(plain)
+                    assert_equal(
+                        cipher.decrypt_block(encrypted),
+                        before,
+                        reason="public round trip",
+                    )
+                    assert_equal(cipher.encrypt_block(plain), encrypted, reason="key reuse")
+                    assert_equal(plain, before, reason="input value unchanged")
+
+    it("caller-buffer AES preserves surrounding bytes and value aliases"):
+        plain := vector("00112233445566778899aabbccddeeff")
+        for (key, ciphertext) in [
+            ("000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a"),
+            (
+                "000102030405060708090a0b0c0d0e0f1011121314151617",
+                "dda97ca4864cdfe06eaf70a0ec0d7191",
+            ),
+            (
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                "8ea2b7ca516745bfeafc49904b496089",
+            ),
+        ]:
+            match Aes::new(vector(key)):
+                .Err(error) => panic("valid vector key rejected: $error")
+                .Ok(cipher) =>
+                    let mut buffer: List[u8] = [9, 9]
+                    buffer.extend(plain)
+                    buffer.extend([7, 7])
+                    before := buffer
+                    cipher.encrypt_block_into(&mut buffer, 2)
+                    assert_equal(buffer.slice(2, 18), vector(ciphertext), reason="FIPS in-place")
+                    assert_equal(buffer.slice(0, 2), [9, 9], reason="prefix unchanged")
+                    assert_equal(buffer.slice(18, 20), [7, 7], reason="suffix unchanged")
+                    assert_equal(before.slice(2, 18), plain, reason="value alias unchanged")

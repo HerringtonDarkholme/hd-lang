@@ -65,6 +65,7 @@
 use hd_base::SliceSort as _;
 
 use super::flow::{Backward, BitArena, Flow, backward};
+use super::frame::UseKind;
 use super::{Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, tracked};
 use crate::ir::{
     Body, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, is_suspension, place, u32_of,
@@ -421,16 +422,23 @@ fn frame_move_apart(b: &Body, topo: &Topology, t: &Tables, i: usize) -> bool {
 
 /// The uses of each frame candidate through what may point into it
 /// ([`super::frame::run`]), but its drops: a drop of a value that points
-/// into a local reads nothing there.
+/// into a local reads nothing there. A use through raw addresses alone
+/// blocks no move: the memory moves with the value (`UseKind::DropOnly`).
+/// Insertion already put the drop after it.
 fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
     let mut out = std::mem::take(&mut t.frame_uses);
     out.clear();
     let (lnum, frame) = (&t.lnum, &t.frame);
     let mut ft = std::mem::take(&mut t.frame_scratch);
     let tags = b.tags.clone();
-    super::frame::run(b, topo, cx, &mut ft, |i, l, in_frame| {
+    super::frame::run(b, topo, cx, &mut ft, |i, l, in_frame, kind| {
         let bit = lnum[l as usize];
-        if in_frame && frame[l as usize] && bit != NONE && tags[i as usize] != Tag::Drop {
+        if in_frame
+            && kind == UseKind::Access
+            && frame[l as usize]
+            && bit != NONE
+            && tags[i as usize] != Tag::Drop
+        {
             out.push((i, bit));
         }
     });
@@ -444,16 +452,26 @@ fn frame_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
 }
 
 /// Adds the uses of each root local through what may point into it
-/// ([`super::frame::roots`]) to [`Tables::frame_uses`], drops aside:
-/// whether there was any.
+/// ([`super::frame::roots`]) to [`Tables::frame_uses`], drops and uses
+/// through raw addresses alone aside: whether there was any. A binding
+/// local owns no count of what it holds, so a use through it is a use of
+/// the borrow it holds and of what that borrow lives on ([`Tables::deps`]),
+/// as the borrow pass and the verifier read it.
 fn root_reads(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let mut out = std::mem::take(&mut t.frame_uses);
     let before = out.len();
-    let lnum = &t.lnum;
-    super::frame::roots(b, cx, |i, l| {
-        let bit = lnum[l as usize];
-        if bit != NONE && b.tags[i as usize] != Tag::Drop {
+    let shared = &*t;
+    super::frame::roots(b, cx, |i, l, kind| {
+        if kind != UseKind::Access || b.tags[i as usize] == Tag::Drop {
+            return;
+        }
+        let bit = shared.lnum[l as usize];
+        if bit != NONE {
             out.push((i, bit));
+        }
+        let held = shared.holds[l as usize];
+        if held != NONE {
+            shared.deps(b, held, &mut |bit| out.push((i, bit)));
         }
     });
     let added = out.len() > before;
@@ -635,8 +653,10 @@ fn part_uses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let mut ft = std::mem::take(&mut t.frame_scratch);
     for chunk in parts.chunks(64) {
         let targets: Vec<_> = chunk.iter().map(|&(l, word, _)| (l, word)).collect();
-        let escaped = super::frame::part_uses(b, cx, &mut ft, &targets, |i, k| {
-            t.part_uses.push((i, chunk[k].2));
+        let escaped = super::frame::part_uses(b, cx, &mut ft, &targets, |i, k, kind| {
+            if kind == UseKind::Access {
+                t.part_uses.push((i, chunk[k].2));
+            }
         });
         for (k, &(_, _, bit)) in chunk.iter().enumerate() {
             if escaped & (1 << k) != 0 {

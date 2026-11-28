@@ -111,7 +111,7 @@ raises with a category other than `explicit-panic`.
 | `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`: a call through a function value's code and environment, whose layout only the compiler knows ([`fn.trait.decl`](../lang/07-functions.md#r-fn.trait.decl), [`fn.trait.mut.decl`](../lang/07-functions.md#r-fn.trait.mut.decl)) |
 | `ref_identity` | the identity of a reference's place, which `deep_equal` keys its visited pairs by; the checker reads it from the reference |
 | `mem_ref_address` | the address of a borrowed place, used for scalar scratch storage and returned by `MembersRecord.id` for a member directory's static record ([`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id)) |
-| `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()` in `std.debug`: the call site of the enclosing `@track_caller` function, which only the compiler knows ([`fn.caller.location`](../lang/07-functions.md#r-fn.caller.location)) |
+| `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()` in `std.meta`: the call site of the enclosing `@track_caller` function, which only the compiler knows ([`fn.caller.location`](../lang/07-functions.md#r-fn.caller.location)) |
 | `descriptor_glue_mask` | the checked report's mask of a block descriptor's glue bits, which the compiler lays out |
 
 **Runtime.** The memory intrinsics of `std.rt.memory` and its typed
@@ -218,15 +218,18 @@ file of its own.
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `ParseTimeError`; the serialization opt-in of the time types |
 | [`sync.md`](sync.md) | `std.sync` | `std-sync` | `Arc` and `Weak`, shared ownership across threads over atomic counts |
 | [`thread.md`](thread.md) | `std.thread` | `std-thread` | `scope`, `Scope` and `Handle`: scoped threads on one heap |
+| [`arena.md`](arena.md) | `std.arena` | `std-arena` | `Arena`: values of any types that live and die together |
 | [`task.md`](task.md) | `std.task` | `std-task` | `Layer` and `apply!`; retry, timeout, fallback, breaker and hedge policies; `TimedOut` and `CircuitOpen`; `map_join!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of`; the stable hasher `Fnv1a` |
 | [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or_insert`, `counts`, `Set`, `Deque`, and `Heap` |
-| [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` and `read_all!` |
+| [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, `read_line!` and `read_all!`, and `Stdin` with `stdin()` |
 | [`contract.md`](contract.md) | `std.contract` | `std-contract` | the always-checked precondition helper `require` |
-| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args`, `Env`, and `Sys`, the helpers `args` and `env`, the providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, `HostError`, and the rules every host operation follows |
-| [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
+| [`convert.md`](convert.md) | `std.convert` | `std-convert` | explicit fallible conversions through `TryFrom` |
+| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Env` and `Sys`, the helper `env`, the providers `ScriptedEnv` and `ScriptedSys`, `HostError`, and the rules every host operation follows |
+| [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, `File` and `open!`, and the provider `MemoryFs` |
+| [`io.md`](io.md) | `std.io` | `std-io` | the trait `Read` of byte sources read in chunks, `IoError`, `Cursor`, and `BufReader` with its `Lines` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
 | [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, request sending and checked `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
@@ -236,11 +239,15 @@ file of its own.
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
 | [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64`; `to_fixed` |
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with private error wrappers |
-| [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, the enum `Base64` with `encode` and `decode`, and `DecodeError` |
-| [`digest.md`](digest.md) | `std.digest` | `std-digest` | `Digest` with constant-time equality, the streaming `Sha256` with `Sha256::hmac`, and `sha256` |
-| [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
-| [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
-| [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
+| [`encoding.md`](encoding.md) | `std.encoding`, `std.encoding.hex`, `std.encoding.base64` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, the enum `Base64` with `encode` and `decode`, and `DecodeError` |
+| [`crypto-rand.md`](crypto-rand.md) | `std.crypto.rand` | `std-crypto-rand` | Secure bytes from the default random provider |
+| [`crypto-cipher.md`](crypto-cipher.md) | `std.crypto.cipher` | `std-crypto-cipher` | Generic GCM and CTR encryption modes |
+| [`crypto-aes.md`](crypto-aes.md) | `std.crypto.aes` | `std-crypto-aes` | AES-128, AES-192 and AES-256 block encryption and decryption |
+| [`crypto-sha512.md`](crypto-sha512.md) | `std.crypto.sha512` | `std-crypto-sha512` | Streaming SHA-512 and HMAC-SHA512 |
+| [`crypto.md`](crypto.md) | `std.crypto`, `std.crypto.sha256` | `std-crypto` | `Digest` with constant-time equality; in `sha256`, the streaming `Sha256` with `Sha256::hmac`, and `sha256` |
+| [`json.md`](json.md) | `std.encoding.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode`; `decode_stream` over a `Read`, with `JsonStream` and `StreamError` |
+| [`serde.md`](serde.md) | `std.encoding` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
+| [`cli.md`](cli.md) | `std.cli` | `std-cli` | the command line: the host trait `Args`, the helper `args`, the provider `ScriptedArgs`, and argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
 | [`remote.md`](remote.md) | `std.remote` | `std-remote` | the homes `per_request` and `home`, served functions `Call` and `action`, and the HTTP adapters `http_transport` and `http_handler` |
 | [`validate.md`](validate.md) | `std.validate` | `std-validate` | post-reader value validation, typed rule facts, structural paths, issue caps, and reader-selected path names |

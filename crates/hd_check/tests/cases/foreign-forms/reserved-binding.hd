@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+fn read() -> void:
+    let type = +1

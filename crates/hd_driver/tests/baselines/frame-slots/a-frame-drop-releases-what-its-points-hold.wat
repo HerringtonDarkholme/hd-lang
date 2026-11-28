@@ -23,7 +23,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $gone'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 27 |     n := text(1).len()
     global.get $stack
@@ -907,7 +907,7 @@
     end
     local.get $t0
   )
-  (func $text (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $text (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32)
     ;; 13 |     "t${n}"
     local.get $n
     i64.extend_i32_s
@@ -928,28 +928,27 @@
     i32.add
     local.set $n
     i32.const 1
-    local.tee $t1
     local.get $n
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 116
     i32.store8 $heap
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 1
     i32.add
     local.get $n
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
   (func $holds'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 24 |     total(text(1), pause!())

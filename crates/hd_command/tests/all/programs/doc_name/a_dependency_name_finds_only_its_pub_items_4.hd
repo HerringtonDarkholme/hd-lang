@@ -1,0 +1,7 @@
+## `cents`
+
+```hd
+pub fn cents(euros: i32) -> i32
+```
+
+Turns euros into cents.

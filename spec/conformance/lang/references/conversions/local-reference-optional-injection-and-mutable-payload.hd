@@ -1,6 +1,6 @@
 # test: optional injection and mutable local-reference payloads keep no count
 # Rules: ref.convert.lend, ref.count.local.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

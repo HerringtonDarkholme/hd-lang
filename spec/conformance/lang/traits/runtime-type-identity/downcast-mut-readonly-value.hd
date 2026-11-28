@@ -1,5 +1,5 @@
 # test: mutable recovery needs a mutable reference
-use std.inspect.Inspectable
+use std.meta.Inspectable
 struct Counter:
     count: i32
 fn invalid(value: *dyn Inspectable) -> void:

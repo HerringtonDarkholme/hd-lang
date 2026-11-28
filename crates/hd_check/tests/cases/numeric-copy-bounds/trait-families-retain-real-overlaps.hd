@@ -1,0 +1,70 @@
+# @dump: diagnostics
+# @build: std
+# expected: each later member/implementation still collides with the numeric family.
+use std.num.{Num, Integer, Float}
+
+trait Family0_0:
+    fn value(self) -> bool
+
+impl[N < Copy & Num] Family0_0 for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Integer & Copy] Family0_0 for N:
+    fn value(self) -> bool:
+        false
+
+trait Family0_1:
+    fn value(self) -> bool
+
+impl[N < Num & Copy] Family0_1 for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Copy & Integer] Family0_1 for N:
+    fn value(self) -> bool:
+        false
+
+trait Family1_0:
+    fn value(self) -> bool
+
+impl[N < Copy & Num] Family1_0 for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Float & Copy] Family1_0 for N:
+    fn value(self) -> bool:
+        false
+
+trait Family1_1:
+    fn value(self) -> bool
+
+impl[N < Num & Copy] Family1_1 for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Copy & Float] Family1_1 for N:
+    fn value(self) -> bool:
+        false
+
+trait Family2_0:
+    fn value(self) -> bool
+
+impl[N < Copy & Integer] Family2_0 for N:
+    fn value(self) -> bool:
+        true
+
+impl Family2_0 for i32:
+    fn value(self) -> bool:
+        false
+
+trait Family2_1:
+    fn value(self) -> bool
+
+impl[N < Integer & Copy] Family2_1 for N:
+    fn value(self) -> bool:
+        true
+
+impl Family2_1 for i32:
+    fn value(self) -> bool:
+        false

@@ -1,9 +1,9 @@
-//! Use resolution and header lowering for one folder (resolution-and-
+//! Use resolution and header lowering for one unit (resolution-and-
 //! interfaces.md §4.9, §4.10 steps 1 to 4): item heads, use declarations
 //! in every form, the export worklist with `pub use` chains, module scopes
 //! with the prelude, and every header lowered to `hd_types`.
 //!
-//! The same code serves two modes. While `FolderIface(F)` runs, uses of
+//! The same code serves two modes. While `UnitIface(F)` runs, uses of
 //! sibling modules resolve through F's own heads and a worklist. Once F's
 //! interface is frozen, `ModulePrep` and `Body` resolve them through its
 //! export index instead.
@@ -27,9 +27,8 @@ use hd_types::{
 use crate::const_eval::{ConstArg, ConstName};
 use crate::generic_scope::{Entry, Scoped};
 use crate::iface::{
-    CallAttrs, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item,
-    ItemData, Lookup, Names, ResultPath, TraitData, Variant, fill_trait_args, fill_type_args,
-    show_ty,
+    CallAttrs, Export, Field, FnAttrs, FnSig, Generic, HeadKind, ImplKind, Item, ItemData, Lookup,
+    Names, ResultPath, TraitData, UnitIface, Variant, fill_trait_args, fill_type_args, show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -283,28 +282,21 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .map(|(module, _)| names.item(module, name))
 }
 
-/// The modules the prelude's names come from: each module's folder gets an
-/// edge to theirs (`module.prelude.fixed-uses`).
-#[must_use]
-pub fn prelude_modules(module: &str) -> Vec<&'static str> {
-    prelude_rows(module).iter().map(|p| p.0).collect()
-}
-
-/// The outside of one folder: which folder holds a module, and the frozen
-/// interfaces of other folders.
+/// The outside of one unit: which unit holds a module, and the frozen
+/// interfaces of other units.
 pub trait World {
-    fn module_folder(&self, module: &str) -> Option<u32>;
+    fn module_unit(&self, module: &str) -> Option<u32>;
     /// Dotted text already owned by the world, when it indexes module nodes.
     fn module_path_node(&self, _module: PathId) -> Option<&str> {
         None
     }
-    /// A known module's folder without rendering a dotted path. Small worlds
+    /// A known module's unit without rendering a dotted path. Small worlds
     /// may keep the text-only implementation; the project driver indexes nodes.
-    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+    fn module_unit_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
         if let Some(text) = self.module_path_node(module) {
-            self.module_folder(text)
+            self.module_unit(text)
         } else {
-            self.module_folder(&names.module_text(module))
+            self.module_unit(&names.module_text(module))
         }
     }
     /// Whether a `use` may name the module: it exists and is not its own
@@ -314,7 +306,12 @@ pub trait World {
     /// test module), which non-test code may not use
     /// (`module.test.non-test-use.test-module`).
     fn test_only(&self, module: &str) -> bool;
-    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>>;
+    /// Whether the parent of the module at `module` re-exports it
+    /// (`module.use.facade.module`); `None` when no module has that path.
+    fn published(&self, module: &str) -> Option<bool>;
+    fn iface(&self, unit: u32) -> Option<Arc<UnitIface>>;
+    /// Explicit immutable std advice, independent of the checked interfaces.
+    fn import_hints(&self) -> crate::iface::ImportHints<'_>;
     /// Holds (`true`) or resumes the recording of the reads that follow,
     /// in a world that records them ([`Recorded`]): binding a use reads
     /// quietly, since its reads count only once a lookup consults a name
@@ -322,12 +319,12 @@ pub trait World {
     fn hold_reads(&self, _held: bool) {}
 }
 
-/// A [`World`] that records what one folder's header lowering reads of
+/// A [`World`] that records what one unit's header lowering reads of
 /// it (#248): each module path it asks about, found or not, and each
-/// folder whose interface it opens. A use's own reads are held while it
+/// unit whose interface it opens. A use's own reads are held while it
 /// binds, and count once a lookup consults a name it binds
-/// ([`build_folder`] reads them again then). `FolderIface(F)` keys F's
-/// interface by these reads, not by every folder F's uses reach
+/// ([`build_unit`] reads them again then). `UnitIface(F)` keys F's
+/// interface by these reads, not by every unit F's uses reach
 /// (`crates/hd_cache/DESIGN.md` §5.3).
 pub struct Recorded<'a> {
     world: &'a dyn World,
@@ -338,10 +335,10 @@ pub struct Recorded<'a> {
 /// What a [`Recorded`] world was asked, sorted, without repeats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reads {
-    /// Each module path asked for its folder, its use, or its test role.
+    /// Each module path asked for its unit, its use, or its test role.
     pub modules: Vec<String>,
-    /// Each folder whose interface was opened, by folder ID.
-    pub folders: Vec<u32>,
+    /// Each unit whose interface was opened, by unit ID.
+    pub units: Vec<u32>,
 }
 
 impl<'a> Recorded<'a> {
@@ -382,20 +379,23 @@ impl<'a> Recorded<'a> {
 }
 
 impl World for Recorded<'_> {
+    fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+        self.world.import_hints()
+    }
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.world.module_path_node(module)
     }
-    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+    fn module_unit_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
         if let Some(text) = self.world.module_path_node(module) {
             self.module(text);
         } else {
             self.module(&names.module_text(module));
         }
-        self.world.module_folder_node(names, module)
+        self.world.module_unit_node(names, module)
     }
-    fn module_folder(&self, module: &str) -> Option<u32> {
+    fn module_unit(&self, module: &str) -> Option<u32> {
         self.module(module);
-        self.world.module_folder(module)
+        self.world.module_unit(module)
     }
     fn usable(&self, module: &str) -> bool {
         self.module(module);
@@ -405,14 +405,18 @@ impl World for Recorded<'_> {
         self.module(module);
         self.world.test_only(module)
     }
-    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
+    fn published(&self, module: &str) -> Option<bool> {
+        self.module(module);
+        self.world.published(module)
+    }
+    fn iface(&self, unit: u32) -> Option<Arc<UnitIface>> {
         if !self.held() {
             let mut r = self.lock();
-            if let Err(at) = r.folders.binary_search(&folder) {
-                r.folders.insert(at, folder);
+            if let Err(at) = r.units.binary_search(&unit) {
+                r.units.insert(at, unit);
             }
         }
-        self.world.iface(folder)
+        self.world.iface(unit)
     }
     fn hold_reads(&self, held: bool) {
         self.held.store(held, std::sync::atomic::Ordering::Relaxed);
@@ -444,6 +448,8 @@ pub struct UseDecl {
     /// The path before its roots were rewritten, for a missing module's
     /// message when its absolute path names compiler-owned test code.
     written_path: String,
+    /// Where the written path is, from its first segment to its last.
+    path_span: Span,
     /// A synthetic doc-test module sees only the package's library view.
     doc_test: bool,
     /// Its source holds a parse diagnostic (`grammar.recovery.item`): it
@@ -458,20 +464,30 @@ impl UseDecl {
     }
 
     fn missing_module(&self, module: &str) -> String {
-        let written = self.doc_test
-            || self
-                .path
-                .iter()
-                .any(|s| matches!(s.as_str(), "$tests" | "$tasks"));
-        let path = if written { &self.written_path } else { module };
-        let mut message = format!("no module named `{path}`");
-        if self.doc_test && self.written_root == "pkg" {
-            message.push_str(
-                "; doc tests see only library modules, not the executable's declarations",
-            );
-        }
-        message
+        missing_module_diagnostic(
+            module,
+            &self.written_path,
+            self.doc_test,
+            &self.written_root,
+        )
     }
+}
+
+/// Formats a missing module found in either skim metadata or full resolution.
+#[must_use]
+pub fn missing_module_diagnostic(
+    module: &str,
+    written_path: &str,
+    doc_test: bool,
+    written_root: &str,
+) -> String {
+    let written = doc_test || module.split('.').any(|s| matches!(s, "$tests" | "$tasks"));
+    let path = if written { written_path } else { module };
+    let mut message = format!("no module named `{path}`");
+    if doc_test && written_root == "pkg" {
+        message.push_str("; doc tests see only library modules, not the executable's declarations");
+    }
+    message
 }
 
 /// The top-level use declarations of a file, in order. The uses of its
@@ -511,6 +527,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
     let mut public = false;
     let mut after_as = false;
     let mut seen_use = false;
+    let mut path_span: Option<Span> = None;
     for t in item.direct_tokens() {
         match src.tkind(t) {
             Some(TokenKind::KwPub) => public = true,
@@ -524,6 +541,8 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
                     alias = Some(text.to_owned());
                 } else {
                     path.push(text.to_owned());
+                    let at = src.token_span(t);
+                    path_span = Some(path_span.map_or(at, |p| Span { hi: at.hi, ..p }));
                 }
             }
             // ruled out: a match on a token kind; punctuation and the other tokens of a `use` line add nothing to its path.
@@ -581,6 +600,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         root_error,
         written_root,
         written_path,
+        path_span: path_span.unwrap_or_else(|| src.span(item)),
         doc_test: roots.doc_test,
         broken: src.parse.is_broken(item.index()),
     }
@@ -750,6 +770,7 @@ fn decl_kind(src: &Src<'_>, n: NodeRef<'_>) -> Option<HeadKind> {
         }
         SyntaxKind::TypeDecl => HeadKind::Newtype,
         SyntaxKind::ImplDecl => HeadKind::Impl,
+        SyntaxKind::LetStmt if src.is_pub(n) => HeadKind::Binding,
         _ => return None,
     })
 }
@@ -870,7 +891,13 @@ pub fn heads<'t>(names: &Names<'_>, src: &Src<'t>, module: &str, tests: bool) ->
                 test: holder,
             }
         } else {
-            let t = n.name_part(&src.parse.tokens);
+            // A public binding's name is its pattern's, which the parser
+            // builds as one name (`module.vis.pub.binding.one-name`).
+            let name_node = match kind {
+                HeadKind::Binding => n.children().next().unwrap_or(n),
+                _ => n,
+            };
+            let t = name_node.name_part(&src.parse.tokens);
             let text = src.text(t);
             Head {
                 name: src.symbol(t, names.syms),
@@ -897,7 +924,12 @@ fn item_local_heads<'t>(
     top: (NodeRef<'t>, Option<NodeRef<'t>>),
     out: &mut Vec<Head<'t>>,
 ) {
-    if matches!(
+    if h.kind == HeadKind::Binding {
+        // A public binding's statement holds its local declarations as
+        // any top-level statement does: under the module.
+        let owner = DefId::from_raw(names.paths.parent(PathId::from_raw(h.def.raw())).raw());
+        local_heads(names, src, (owner, h.node), top, out);
+    } else if matches!(
         h.kind,
         HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias
     ) {
@@ -1302,7 +1334,7 @@ fn local_decls<'t>(n: NodeRef<'t>, out: &mut Vec<(NodeRef<'t>, NodeRef<'t>)>) {
 /// The kind of every item a scope can name.
 pub type Kinds = HashMap<DefId, HeadKind>;
 
-/// One module of the folder being resolved.
+/// One module of the unit being resolved.
 pub struct ModIn<'t> {
     pub path: String,
     /// What the roots of its use paths name.
@@ -1312,7 +1344,7 @@ pub struct ModIn<'t> {
     pub seeds: Vec<Item>,
     /// Whether its test code is checked (`hd check --tests`, `hd test`):
     /// the items of its `tests:` block are then items of the module, which
-    /// only the block sees. A folder interface never holds them.
+    /// only the block sees. A unit interface never holds them.
     pub tests: bool,
     /// For a REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the session scope its own
     /// scope is nested in. Every top-level declaration and `use` of the
@@ -1348,7 +1380,7 @@ pub struct ModOut {
     /// (`names.tests.sees-module`, `names.tests.shadow`).
     pub tests: Option<ModuleScope>,
     /// The diagnostics of its `tests:` block's uses and item headers,
-    /// which no folder interface reports.
+    /// which no unit interface reports.
     pub test_diags: DiagBuf,
     pub kinds: Kinds,
     /// Declaration-relative positions of the items (`anchor`).
@@ -1357,16 +1389,16 @@ pub struct ModOut {
     pub blocks: Vec<hd_base::NodeIdx>,
 }
 
-pub struct FolderOut {
+pub struct UnitOut {
     pub modules: Vec<ModOut>,
     pub exports: Vec<Export>,
     /// The interface's private-name index: each top-level declaration
     /// without `pub`, as (module path, name), sorted (§4.9).
     pub private_names: Vec<(String, Symbol)>,
-    /// Names no use can reach through this folder: each public name whose
+    /// Names no use can reach through this unit: each public name whose
     /// `pub use` chain returns to a `pub use` it passed
     /// (`module.pub-use.chain.loop`), as (module path, name), sorted. A
-    /// use through another folder reads them as a loop, quietly.
+    /// use through another unit reads them as a loop, quietly.
     pub loop_names: Vec<(String, Symbol)>,
     /// The names of declarations whose source holds a parse diagnostic
     /// (`grammar.recovery.item`), as (module path, name), sorted. A use
@@ -1380,7 +1412,7 @@ pub struct FolderOut {
 /// What one resolution needs from the run.
 pub struct Cx<'a> {
     pub names: Names<'a>,
-    pub folder: u32,
+    pub unit: u32,
     pub world: &'a dyn World,
 }
 
@@ -1388,13 +1420,13 @@ type Res = Result<(DefId, HeadKind), Code>;
 
 struct Resolver<'a, 'b> {
     cx: &'b Cx<'a>,
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
     // Module identity is the package/module trie node, never an item node or
     // an hd_project::ModuleTable row. Text is shared only at World/blob boundaries.
     module_keys: HashMap<Arc<str>, PathId>,
     module_paths: HashMap<PathId, Arc<str>>,
     own: HashMap<(PathId, Symbol), (DefId, HeadKind, bool)>,
-    /// The names of the folder's broken declarations ([`broken_names`]).
+    /// The names of the unit's broken declarations ([`broken_names`]).
     broken: HashSet<(PathId, Symbol)>,
     pub_uses: HashMap<(PathId, Symbol), (PathId, Symbol)>,
     memo: RefCell<HashMap<(PathId, Symbol), Res>>,
@@ -1406,18 +1438,18 @@ struct Resolver<'a, 'b> {
     top_bindings: RefCell<HashMap<Box<str>, Arc<TopBindings>>>,
     /// Each module's [`Enclosing`], built on its first local header.
     enclosing: RefCell<HashMap<Box<str>, Arc<Enclosing>>>,
-    /// Associated type names of this folder's traits, from their heads.
+    /// Associated type names of this unit's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
-    /// The declared variance markers of the folder's own declarations.
+    /// The declared variance markers of the unit's own declarations.
     variances: HashMap<DefId, Vec<i8>>,
-    /// Whether each generic parameter of the folder's own declarations is
+    /// Whether each generic parameter of the unit's own declarations is
     /// a row parameter, from their heads.
     row_params: HashMap<DefId, Vec<bool>>,
-    /// The kind of each non-lifetime generic parameter of a folder
-    /// declaration, from their heads. Other folders' come from their
+    /// The kind of each non-lifetime generic parameter of a unit
+    /// declaration, from their heads. Other units' come from their
     /// interfaces' [`Generic::const_type`].
     const_params: HashMap<DefId, Vec<Slot>>,
-    /// This folder's aliases, each lowered after the aliases it names:
+    /// This unit's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, AliasBody>>,
     /// Each alias's [`Lower::alias_in_order`] answer, asked at every use.
@@ -1435,7 +1467,7 @@ struct Resolver<'a, 'b> {
     /// whatever the declaration order, and a private trait (which a frozen
     /// interface leaves out) is filled as while it was built.
     own_traits: RefCell<HashMap<DefId, Vec<Generic>>>,
-    /// The declared parameters of the folder's own aliases and of its data
+    /// The declared parameters of the unit's own aliases and of its data
     /// types, enums and newtypes that declare a default, so a written type
     /// fills its omitted trailing arguments from them (`fill_type_args`).
     /// They are recorded by [`lower_aliases`], each after the aliases and
@@ -1450,7 +1482,7 @@ struct Resolver<'a, 'b> {
     /// declares its associated type (trait.binding.name-reach) whatever
     /// the declaration order.
     own_supers: RefCell<HashMap<DefId, Vec<Ty>>>,
-    /// The supertrait edges dropped to break the folder's supertrait
+    /// The supertrait edges dropped to break the unit's supertrait
     /// cycles, by child trait, in declared order: each cycle is reported
     /// (`trait.super.acyclic`), and the lowered graph keeps no cycle, so
     /// every later walk over supertraits ends without a depth limit.
@@ -1509,16 +1541,8 @@ impl Resolver<'_, '_> {
         self.cx.world.usable(module)
     }
 
-    fn export(&self, module: &str, name: Symbol) -> Res {
-        let Some(f) = self
-            .cx
-            .world
-            .module_folder(module)
-            .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
-        else {
-            return Err(Code::UnknownModule);
-        };
-        let frozen = |i: &FolderIface| {
+    fn export<'s>(&'s self, mut module: &'s str, mut name: Symbol) -> Res {
+        let frozen = |i: &UnitIface, module: &str, name: Symbol| {
             i.export(module, name)
                 .map(|e| (e.def, e.kind))
                 .ok_or(if i.is_private(module, name) {
@@ -1531,56 +1555,72 @@ impl Resolver<'_, '_> {
                     Code::UnknownImport
                 })
         };
-        if f != self.cx.folder {
-            let Some(i) = self.cx.world.iface(f) else {
-                // A test-only module has no interface outside a test
-                // build; naming it from non-test code is test-only-use,
-                // not unknown-module (`module.test.non-test-use`).
-                if self.cx.world.test_only(module) {
-                    return Err(Code::TestOnlyUse);
-                }
-                return Err(Code::UnknownModule);
+        // A re-export has one successor. Walk it once, then memoize the
+        // result for every link: no native stack depth or chain rescans.
+        // Direct declarations and memo hits allocate no chain storage.
+        let mut chain = Vec::new();
+        let result = loop {
+            let Some(f) = self
+                .cx
+                .world
+                .module_unit(module)
+                .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
+            else {
+                break Err(Code::UnknownModule);
             };
-            return frozen(&i);
-        }
-        if let Some(i) = &self.frozen {
-            return frozen(i);
-        }
-        // An unfrozen folder normally supplies every module. If a caller
-        // supplies a subset, preserve its previous absent-head lookup result.
-        let Some(&module) = self.module_keys.get(module) else {
-            return Err(Code::UnknownImport);
-        };
-        let key = (module, name);
-        if let Some(r) = self.memo.borrow().get(&key) {
-            return *r;
-        }
-        let r = if let Some(&(d, k, public)) = self.own.get(&key) {
-            if public {
-                Ok((d, k))
-            } else {
-                Err(Code::PrivateImport)
+            if f != self.cx.unit {
+                break match self.cx.world.iface(f) {
+                    Some(i) => frozen(&i, module, name),
+                    None if self.cx.world.test_only(module) => Err(Code::TestOnlyUse),
+                    None => Err(Code::UnknownModule),
+                };
             }
-        } else if let Some((m, n)) = self.pub_uses.get(&key) {
+            if let Some(i) = &self.frozen {
+                break frozen(i, module, name);
+            }
+            let Some(&node) = self.module_keys.get(module) else {
+                break Err(Code::UnknownImport);
+            };
+            let key = (node, name);
+            if let Some(result) = self.memo.borrow().get(&key) {
+                break *result;
+            }
+            if let Some(&(def, kind, public)) = self.own.get(&key) {
+                let result = if public {
+                    Ok((def, kind))
+                } else {
+                    Err(Code::PrivateImport)
+                };
+                self.memo.borrow_mut().insert(key, result);
+                break result;
+            }
+            let Some(&(next, next_name)) = self.pub_uses.get(&key) else {
+                let result = Err(if self.broken.contains(&key) {
+                    Code::SyntaxError
+                } else {
+                    Code::UnknownImport
+                });
+                self.memo.borrow_mut().insert(key, result);
+                break result;
+            };
             if !self.visiting.borrow_mut().insert(key) {
-                return Err(Code::ReExportLoop);
+                break Err(Code::ReExportLoop);
             }
-            let r = self.export(self.module_text(*m), *n);
-            self.visiting.borrow_mut().remove(&key);
-            r
-        } else if self.broken.contains(&key) {
-            Err(Code::SyntaxError)
-        } else {
-            Err(Code::UnknownImport)
+            chain.push(key);
+            module = self.module_text(next);
+            name = next_name;
         };
-        self.memo.borrow_mut().insert(key, r);
-        r
+        for key in chain {
+            self.memo.borrow_mut().insert(key, result);
+            self.visiting.borrow_mut().remove(&key);
+        }
+        result
     }
 
-    /// Whether `module` lives in the folder being lowered: only then did
-    /// the lookup above follow this folder's own `pub use` chain.
-    fn is_own_folder(&self, module: &str) -> bool {
-        self.cx.world.module_folder(module) == Some(self.cx.folder)
+    /// Whether `module` lives in the unit being lowered: only then did
+    /// the lookup above follow this unit's own `pub use` chain.
+    fn is_own_unit(&self, module: &str) -> bool {
+        self.cx.world.module_unit(module) == Some(self.cx.unit)
     }
 
     /// The `pub use` cycle reachable from `key`, if following the chain
@@ -1609,10 +1649,10 @@ impl Resolver<'_, '_> {
     }
 
     /// Reports a re-export loop once per cycle, at `span`. A loop through
-    /// another folder was reported when its interface was built, so its
+    /// another unit was reported when its interface was built, so its
     /// uses stay quiet here.
     fn report_loop(&self, diags: &mut DiagBuf, span: hd_base::Span, module: &str, name: Symbol) {
-        if !self.is_own_folder(module) {
+        if !self.is_own_unit(module) {
             return;
         }
         let cycle = self
@@ -1621,7 +1661,7 @@ impl Resolver<'_, '_> {
             .and_then(|&module| self.export_cycle((module, name)));
         let fresh = match cycle {
             Some(cycle) => self.loops_reported.borrow_mut().insert(cycle),
-            // No cycle in this folder's chain: report, as before.
+            // No cycle in this unit's chain: report, as before.
             None => true,
         };
         if fresh {
@@ -1630,14 +1670,14 @@ impl Resolver<'_, '_> {
         }
     }
 
-    /// An item of another folder or a seed, for kinds and alias bodies.
+    /// An item of another unit or a seed, for kinds and alias bodies.
     fn item(&self, d: DefId) -> Option<Item> {
         if let Some(i) = self.seeds.get(&d) {
             return Some(i.clone());
         }
         let module = self.cx.names.module_node(d);
-        let f = self.cx.world.module_folder_node(&self.cx.names, module)?;
-        let iface = if f == self.cx.folder {
+        let f = self.cx.world.module_unit_node(&self.cx.names, module)?;
+        let iface = if f == self.cx.unit {
             self.frozen.clone()?
         } else {
             self.cx.world.iface(f)?
@@ -1735,9 +1775,9 @@ impl Resolver<'_, '_> {
         let iface = self
             .cx
             .world
-            .module_folder_node(&self.cx.names, module)
+            .module_unit_node(&self.cx.names, module)
             .and_then(|f| {
-                if f == self.cx.folder {
+                if f == self.cx.unit {
                     self.frozen.clone()
                 } else {
                     self.cx.world.iface(f)
@@ -1879,7 +1919,7 @@ fn scope_of(
     if r.frozen.is_none() {
         scope.track();
     }
-    bind_uses(r, &mut scope, &mut kinds, uses, diags);
+    bind_uses(r, &m.path, &mut scope, &mut kinds, uses, diags);
     if let Some(outer) = &m.session {
         let seen = scope.looked_up.take();
         scope = outer.scope.overlay(&scope);
@@ -1898,7 +1938,7 @@ fn scope_of(
 /// own names win inside it (`names.tests.shadow`).
 fn test_scope_of(
     r: &Resolver<'_, '_>,
-    src: &Src<'_>,
+    (src, importer): (&Src<'_>, &str),
     heads: &[Head<'_>],
     (scope, kinds): (&ModuleScope, &mut Kinds),
     uses: &[UseDecl],
@@ -1938,14 +1978,65 @@ fn test_scope_of(
         let msg = "a use of a `tests:` block cannot be `pub`";
         diags.error(Code::PublicTestItem, u.span, msg);
     }
-    bind_uses(r, &mut inner, kinds, uses, diags);
+    bind_uses(r, importer, &mut inner, kinds, uses, diags);
     scope.overlay(&inner)
+}
+
+/// The same use-root failure at normalization and full name resolution.
+#[must_use]
+pub fn use_root_diagnostic<S: AsRef<str>>(error: UseRootError, path: &[S]) -> (Code, String) {
+    let dep = path.get(1).map_or("", AsRef::as_ref);
+    match error {
+        UseRootError::AboveRoot => (
+            Code::UnknownModule,
+            "the path goes above the root".to_owned(),
+        ),
+        UseRootError::UnknownDependency => (
+            Code::UnknownModule,
+            format!("`dep.{dep}` names no dependency of this package"),
+        ),
+        UseRootError::UnknownRoot => (
+            Code::UnknownModule,
+            format!(
+                "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
+                path.first().map_or("", AsRef::as_ref)
+            ),
+        ),
+        // `module.test.non-test-use.dev-dependency`,
+        // `cli.dep.dev-use.remove-first`.
+        UseRootError::TestOnly => (
+            Code::TestOnlyUse,
+            format!(
+                "`dep.{dep}` is a dev dependency, which only test code may use; to use it here, run `hd remove {dep}`, then `hd add {dep} PATH@VERSION` to put it in [dependencies]"
+            ),
+        ),
+        // `module.test.cyclic-dev-unit`.
+        UseRootError::CyclicTest => (
+            Code::CyclicTestDependency,
+            format!(
+                "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
+            ),
+        ),
+        // `module.rt.std-only.error`.
+        UseRootError::StdOnly => (
+            Code::StdOnlyUse,
+            format!(
+                "`{}` is a runtime module, which only the standard library may use",
+                path.iter()
+                    .take(3)
+                    .map(AsRef::as_ref)
+                    .collect::<Vec<_>>()
+                    .join(".")
+            ),
+        ),
+    }
 }
 
 /// Binds the names of `uses` in `scope`, and reports each use that names
 /// nothing, whose names stay quiet (poisoned).
 fn bind_uses(
     r: &Resolver<'_, '_>,
+    importer: &str,
     scope: &mut ModuleScope,
     kinds: &mut Kinds,
     uses: &[UseDecl],
@@ -1953,6 +2044,7 @@ fn bind_uses(
 ) {
     let names = &r.cx.names;
     r.cx.world.hold_reads(true);
+    let mut child = String::new();
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
@@ -1961,51 +2053,14 @@ fn bind_uses(
             continue;
         }
         if let Some(e) = u.root_error {
-            let dep = u.path.get(1).map_or("", String::as_str);
-            let (code, msg) = match e {
-                UseRootError::AboveRoot => (
-                    Code::UnknownModule,
-                    "the path goes above the root".to_owned(),
-                ),
-                UseRootError::UnknownDependency => (
-                    Code::UnknownModule,
-                    format!("`dep.{dep}` names no dependency of this package"),
-                ),
-                UseRootError::UnknownRoot => (
-                    Code::UnknownModule,
-                    format!(
-                        "`{}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`",
-                        u.path.first().map_or("", String::as_str)
-                    ),
-                ),
-                // `module.test.non-test-use.dev-dependency`,
-                // `cli.dep.dev-use.remove-first`.
-                UseRootError::TestOnly => (
-                    Code::TestOnlyUse,
-                    format!(
-                        "`dep.{dep}` is a dev dependency, which only test code may use; to use it here, run `hd remove {dep}`, then `hd add {dep} PATH@VERSION` to put it in [dependencies]"
-                    ),
-                ),
-                // `module.test.cyclic-dev-unit`.
-                UseRootError::CyclicTest => (
-                    Code::CyclicTestDependency,
-                    format!(
-                        "`dep.{dep}` depends on this package, so a unit test may not use it; use it from an integration test under tests/"
-                    ),
-                ),
-                // `module.rt.std-only.error`.
-                UseRootError::StdOnly => (
-                    Code::StdOnlyUse,
-                    format!(
-                        "`{}` is a runtime module, which only the standard library may use",
-                        u.path.iter().take(3).cloned().collect::<Vec<_>>().join(".")
-                    ),
-                ),
-            };
+            let (code, msg) = use_root_diagnostic(e, &u.path);
             diags.error(code, u.span, &msg);
             poison_use(scope, names, u, row);
             continue;
         }
+        // A use of a module it may not name still binds its names, so the
+        // module's code checks against them (`module.vis.parent`).
+        report_private(r, importer, u, diags);
         if let Some(group) = &u.group {
             {
                 if !r.module_exists(&module) {
@@ -2016,7 +2071,21 @@ fn bind_uses(
                 }
                 for g in group {
                     let sym = names.syms.intern(&g.name);
-                    match r.export(&module, sym) {
+                    child.clear();
+                    child.push_str(&module);
+                    child.push('.');
+                    child.push_str(&g.name);
+                    // In a module's own `pub use M.{c}`, `c` names its child
+                    // module, since re-exporting its own binding means
+                    // nothing (`module.use.facade.module`). Elsewhere a
+                    // declaration of the module wins.
+                    let own = u.public && module == importer && r.module_exists(&child);
+                    let found = r.export(&module, sym);
+                    if own || (found == Err(Code::UnknownImport) && r.module_exists(&child)) {
+                        reexport_child(r, importer, (scope, &mut *diags), u, g, row);
+                        continue;
+                    }
+                    match found {
                         Ok((d, k)) => {
                             let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                             let origin = if u.public {
@@ -2107,6 +2176,141 @@ fn bind_uses(
     r.cx.world.hold_reads(false);
 }
 
+/// The written form of the first `k` segments of `u`'s absolute path:
+/// the same segments past the root, which `pkg`, `self`, `super` or
+/// `dep.NAME` spelled. The absolute path when the root covers them.
+fn written_prefix(u: &UseDecl, k: usize) -> String {
+    let written: Vec<&str> = u.written_path.split('.').collect();
+    match (k + written.len()).checked_sub(u.path.len()) {
+        Some(keep) if (1..=written.len()).contains(&keep) => written[..keep].join("."),
+        _ => u.path[..k].join("."),
+    }
+}
+
+/// Reports `u` when its path names a module `importer` may not name: a
+/// nested module outside whose parent's subtree `importer` is, and which
+/// the parent does not re-export (`module.vis.parent`). When the parent
+/// re-exports each declaration the use names, a fix-it names them through
+/// the parent (`module.vis.parent.fix`). Cost: one `published` question
+/// per path segment, and two export lookups per name for the fix-it.
+fn report_private(r: &Resolver<'_, '_>, importer: &str, u: &UseDecl, diags: &mut DiagBuf) {
+    let world = r.cx.world;
+    let Some(k) = hd_project::hidden_prefix(importer, &u.path, |p| world.published(p)) else {
+        return;
+    };
+    let hidden = written_prefix(u, k);
+    let parent = written_prefix(u, k - 1);
+    // A directory without `mod.hd` is no module, so nothing can re-export
+    // its modules (`module.vis.parent.root`): say where the facade goes.
+    let owner = u.path[..k - 1].join(".");
+    let hint = if !hd_project::is_root_path(&owner) && !r.module_exists(&owner) {
+        let child = &u.path[k - 1];
+        format!(
+            "; `{parent}` is a directory without `mod.hd`: add one with `pub use self.{{{child}}}`"
+        )
+    } else {
+        String::new()
+    };
+    let msg = format!(
+        "`{hidden}` is a child module of `{parent}`, which does not re-export it, so only `{parent}` and the modules below it may use it{hint}"
+    );
+    diags.error(Code::PrivateModule, u.span, &msg);
+    // Unlike ordinary use binding, this query contributes to the interface's
+    // diagnostic and exact repair. Record the facade exports it reads so a
+    // redirect invalidates the finding even when no header uses that facade.
+    world.hold_reads(false);
+    let repair = reexported_path(r, u, k, &parent);
+    world.hold_reads(true);
+    if let Some(path) = repair {
+        let shown = match &u.group {
+            Some(group) => {
+                let names: Vec<&str> = group.iter().map(|g| g.name.as_str()).collect();
+                format!("{path}.{{{}}}", names.join(", "))
+            }
+            None => path.clone(),
+        };
+        let title = format!("use `{shown}`, which `{parent}` re-exports");
+        diags.add_fix(&title, hd_diag::FixSafety::Exact, &[(u.path_span, &path)]);
+    }
+}
+
+/// The written path that names `u`'s declarations through the parent of
+/// the hidden module at `u.path[..k]`, written `parent`, when the parent
+/// exports each under its own name as the same declaration. `None` for a
+/// use of a module's namespace, which no declaration re-export replaces.
+fn reexported_path(r: &Resolver<'_, '_>, u: &UseDecl, k: usize, parent: &str) -> Option<String> {
+    let names = &r.cx.names;
+    let owner = u.path[..k - 1].join(".");
+    let (declaring, written): (String, Vec<&str>) = if let Some(group) = &u.group {
+        (u.module(), group.iter().map(|g| g.name.as_str()).collect())
+    } else {
+        if r.module_exists(&u.module()) {
+            return None;
+        }
+        let (last, path) = u.path.split_last()?;
+        (path.join("."), vec![last.as_str()])
+    };
+    for name in &written {
+        if r.module_exists(&format!("{declaring}.{name}")) {
+            return None;
+        }
+        let sym = names.syms.intern(name);
+        let (d, _) = r.export(&declaring, sym).ok()?;
+        let (via, _) = r.export(&owner, sym).ok()?;
+        if d != via {
+            return None;
+        }
+    }
+    Some(match (&u.group, written.as_slice()) {
+        (None, [last]) => format!("{parent}.{last}"),
+        _ => parent.to_owned(),
+    })
+}
+
+/// The grouped name `g` of `u` names a child module of `u`'s module that
+/// declares no such name. In a `pub use` in that module it re-exports the
+/// child and binds no name (`module.use.facade.module`): a root facade
+/// re-exports modules named like prelude names, such as `std.meta`.
+/// Any other module may not re-export it
+/// (`module.use.facade.module.own`), and a plain grouped use names
+/// declarations only (`module.use.grouped`): the namespace is `use M.child`.
+fn reexport_child(
+    r: &Resolver<'_, '_>,
+    importer: &str,
+    (scope, diags): (&mut ModuleScope, &mut DiagBuf),
+    u: &UseDecl,
+    g: &UseName,
+    row: u32,
+) {
+    let local =
+        r.cx.names
+            .syms
+            .intern(g.alias.as_deref().unwrap_or(&g.name));
+    let module = u.module();
+    let (code, msg) = if !u.public {
+        let path = written_prefix(u, u.path.len());
+        (
+            Code::UnknownImport,
+            format!(
+                "`{path}` declares no `{0}`; `{0}` is its child module, which `use {path}.{0}` names",
+                g.name
+            ),
+        )
+    } else if module != importer {
+        (
+            Code::PrivateModule,
+            format!(
+                "only `{module}` may re-export its child module `{}`; a module re-exports only its own children",
+                g.name
+            ),
+        )
+    } else {
+        return;
+    };
+    diags.error(code, g.span, &msg);
+    bind_poison(scope, local, use_origin(u), row);
+}
+
 /// Asks the world again what [`bind_uses`] asked it for each use of
 /// `uses` that binds a name of `seen`, so a recording world
 /// ([`Recorded`]) counts those reads.
@@ -2124,6 +2328,7 @@ fn reread_uses(r: &Resolver<'_, '_>, uses: &[UseDecl], seen: &HashSet<Symbol>) {
                     asked = true;
                     let _ = r.module_exists(&module);
                 }
+                let _ = r.module_exists(&format!("{module}.{}", g.name));
                 let _ = r.export(&module, names.syms.intern(&g.name));
             }
         } else if let Some((last, parent)) = u.path.split_last()
@@ -2152,8 +2357,17 @@ fn reexports(r: &Resolver<'_, '_>, m: &ModIn<'_>, u: &UseDecl) -> Vec<(Symbol, S
             return Vec::new();
         }
         let module = u.module();
+        // A name of a child module that the module does not declare
+        // re-exports the module, no declaration (`module.use.facade.module`).
         return group
             .iter()
+            .filter(|g| {
+                let child = format!("{module}.{}", g.name);
+                if module == m.path {
+                    return !r.module_exists(&child);
+                }
+                declares(r, &module, names.syms.intern(&g.name)) || !r.module_exists(&child)
+            })
             .map(|g| {
                 let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                 (local, module.clone(), names.syms.intern(&g.name))
@@ -2170,6 +2384,19 @@ fn reexports(r: &Resolver<'_, '_>, m: &ModIn<'_>, u: &UseDecl) -> Vec<(Symbol, S
         .syms
         .intern(u.alias.as_deref().unwrap_or(last.as_str()));
     vec![(local, parent.join("."), names.syms.intern(last))]
+}
+
+/// Whether `module` declares `name`: a head of this unit's own module, or
+/// an export of another unit's frozen interface. A unit's own `pub use`
+/// links are still being collected, so they are not asked.
+fn declares(r: &Resolver<'_, '_>, module: &str, name: Symbol) -> bool {
+    if r.is_own_unit(module) {
+        r.module_keys
+            .get(module)
+            .is_some_and(|&m| r.own.contains_key(&(m, name)))
+    } else {
+        r.export(module, name).is_ok()
+    }
 }
 
 /// What the user reads when `module` does not give `name` to an import.
@@ -2289,7 +2516,7 @@ type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<u16>, Vec<Ty>, Vec<Vec<u16>>);
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
 
-/// A same-folder alias's parameter kinds, expanded body and the declared
+/// A same-unit alias's parameter kinds, expanded body and the declared
 /// lifetime of each body reference slot.
 type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 
@@ -2606,8 +2833,8 @@ struct Lower<'a, 'r, 'x> {
     /// named `Self` (`names.local-type.refs`), since `Self` there is the
     /// eventual implementing type.
     outer_takes_self: bool,
-    /// The chain edges of this folder's `@track_caller` functions: a
-    /// function, and a function of this folder its body may call, which it
+    /// The chain edges of this unit's `@track_caller` functions: a
+    /// function, and a function of this unit its body may call, which it
     /// passes its call site on to (`fn.caller.chain`). [`caller_chains`]
     /// follows them once every module is lowered.
     chains: Vec<(DefId, DefId)>,
@@ -2866,18 +3093,7 @@ impl Lower<'_, '_, '_> {
         if self.in_std() {
             return crate::iface::ImportHint::default();
         }
-        let world = self.r.cx.world;
-        // std's root folder holds the public modules and their export
-        // index; `std.core` is a folder of its own, whose traits the root
-        // modules re-export. Prelude has child modules, so its own folder
-        // is only re-exports.
-        let root = self.names.module_node(self.names.known.ordering);
-        world
-            .module_folder_node(&self.names, root)
-            .and_then(|folder| world.iface(folder))
-            .map_or_else(crate::iface::ImportHint::default, |iface| {
-                crate::iface::std_import_hint(&self.names, [&*iface], name)
-            })
+        self.r.cx.world.import_hints().hint(name)
     }
 
     fn segments(&self, n: NodeRef<'_>) -> Vec<(String, hd_base::TokenIdx)> {
@@ -2957,6 +3173,24 @@ impl Lower<'_, '_, '_> {
         for (s, _) in &segs[1..segs.len() - 1] {
             module.push('.');
             module.push_str(s);
+        }
+        // A root's name leads to its nested modules only where a use
+        // could name them (`module.vis.parent`).
+        if segs.len() > 2 {
+            let world = self.r.cx.world;
+            let path: Vec<&str> = module.split('.').collect();
+            if let Some(k) = hd_project::hidden_prefix(self.module, &path, |p| world.published(p)) {
+                let written: Vec<&str> = segs[..k.min(segs.len())]
+                    .iter()
+                    .map(|(s, _)| s.as_str())
+                    .collect();
+                let hidden = written.join(".");
+                let parent = written[..written.len() - 1].join(".");
+                let msg = format!(
+                    "`{hidden}` is a child module of `{parent}`, which does not re-export it, so only `{parent}` and the modules below it may use it"
+                );
+                self.diags.error(Code::PrivateModule, span, &msg);
+            }
         }
         let (last, token) = segs.last()?;
         let last_sym = self.sym_token(*token);
@@ -3583,10 +3817,7 @@ impl Lower<'_, '_, '_> {
         span: Span,
     ) -> Ty {
         let pool = self.names.pool;
-        if self
-            .names
-            .declared_in(def, self.names.known.function_module)
-        {
+        if self.names.declared_in(def, self.names.known.ops_module) {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
                 let inputs = args.first().copied().unwrap_or(Ty::POISON);
@@ -3683,7 +3914,7 @@ impl Lower<'_, '_, '_> {
                     .add_fix(message, hd_diag::FixSafety::Exact, &[(at, prefix)]);
                 Ty::POISON
             }
-            HeadKind::Fn | HeadKind::Impl => {
+            HeadKind::Fn | HeadKind::Impl | HeadKind::Binding => {
                 let msg = format!(
                     "no type named `{}`: not a type",
                     self.names.display_name(def)
@@ -3817,9 +4048,29 @@ impl Lower<'_, '_, '_> {
             }
             if segs.len() == 1 {
                 let hint = self.import_hint(&first);
-                let msg = format!("no type named `{first}`{}", hint.text);
+                let params: Vec<Symbol> = gn.tys.iter().map(|p| p.name).collect();
+                let best = hint.text.is_empty().then(|| {
+                    let kind = |d| {
+                        self.kinds
+                            .get(&d)
+                            .copied()
+                            .or_else(|| self.r.item(d)?.kind())
+                    };
+                    let scope = (&*self.scope, &*self.locals, self.at);
+                    crate::iface::type_typo(&self.names, scope, Some(&params), &first, kind)
+                });
+                let best = best.flatten().map(str::to_owned);
+                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                let numeric = if hint.text.is_empty() {
+                    crate::iface::numeric_type_hint(&first)
+                } else {
+                    ""
+                };
+                let msg = format!("no type named `{first}`{}{did}{numeric}", hint.text);
                 self.diags.error(Code::UnknownType, span, &msg);
                 hint.add_fix(&self.src, self.diags);
+                self.diags
+                    .add_typo_fix(self.src.token_span(ft), best.as_deref());
             }
             return Ty::POISON;
         };
@@ -6114,6 +6365,7 @@ impl Lower<'_, '_, '_> {
                 (self.module, session),
                 (DefId::NONE, TyList::EMPTY, self_ty),
                 ImplKind::Written,
+                false,
             )
             .is_none();
         let msg = if trait_ != self.names.known.copy {
@@ -6243,7 +6495,7 @@ impl Lower<'_, '_, '_> {
             .and_then(|i| toks.get(i + 1))
             .map(|t| self.src.text(*t).to_owned());
         // `annot.block.structure-use`: `by Structure` must name
-        // `std.structure.Structure`, imported with `use` like any other
+        // `std.meta.Structure`, imported with `use` like any other
         // name.
         if by.as_deref() == Some("Structure")
             && self.r.frozen.is_none()
@@ -6258,7 +6510,7 @@ impl Lower<'_, '_, '_> {
             self.diags.error(
                 Code::UnknownTrait,
                 at,
-                "`Structure` is unknown without `use std.structure.Structure`",
+                "`Structure` is unknown without `use std.meta.Structure`",
             );
         }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
@@ -6368,10 +6620,11 @@ impl Lower<'_, '_, '_> {
         // (`trait.target.bare-parameter`). A derivation template is no
         // implementation (`trait.target.template`), and a standard-library
         // numeric family is the one exception (`trait.target.numeric-family`).
-        if bare_param
+        let numeric_family = bare_param
             && by.as_deref() != Some("Structure")
-            && !(self.in_std() && self.numeric_family(&generics))
-        {
+            && self.in_std()
+            && self.numeric_family(&generics);
+        if bare_param && by.as_deref() != Some("Structure") && !numeric_family {
             if self.r.frozen.is_none() {
                 self.diags.error(
                     Code::BareParameterImplTarget,
@@ -6427,6 +6680,7 @@ impl Lower<'_, '_, '_> {
             (self.module, session),
             (trait_, trait_args, self_ty),
             kind,
+            numeric_family,
         ) {
             if self.r.frozen.is_none() {
                 let name = self.names.display_name(h.def);
@@ -6560,14 +6814,10 @@ impl Lower<'_, '_, '_> {
     /// `Integer` and `Float`: the standard library's numeric families
     /// (`trait.target.numeric-family`).
     fn numeric_family(&self, generics: &[Generic]) -> bool {
-        let known = &self.names.known;
-        generics.iter().filter(|g| !g.row).all(|g| {
-            let written: Vec<Ty> = (g.bounds.iter().copied())
-                .filter(|b| self.trait_of(*b) != Some(known.copy))
-                .collect();
-            matches!(written.as_slice(), [b]
-                if self.trait_of(*b).is_some_and(|t| [known.num, known.integer, known.float].contains(&t)))
-        })
+        generics
+            .iter()
+            .filter(|g| !g.row)
+            .all(|g| g.numeric_family(&self.names).is_some())
     }
 
     /// Whether the target of an inherent implementation is a tuple or a
@@ -7175,8 +7425,8 @@ impl Lower<'_, '_, '_> {
     /// names `caller` (`Location::caller()`, `fn.caller.reads`), the
     /// argument texts too when it names `caller_args`
     /// (`fn.caller.record.args`), and what a `@track_caller` function of
-    /// another folder it may call reads (`fn.caller.chain`). A function of
-    /// this folder it may call becomes a chain edge instead, which
+    /// another unit it may call reads (`fn.caller.chain`). A function of
+    /// this unit it may call becomes a chain edge instead, which
     /// [`caller_chains`] follows once every module is lowered.
     ///
     /// A name counts when the module scope binds it to an item, or when it
@@ -7186,10 +7436,10 @@ impl Lower<'_, '_, '_> {
     /// while a missed read loses the call site.
     ///
     /// Cost: one pass over the body's tokens, one scope lookup per name,
-    /// and one interface lookup per distinct function of another folder;
-    /// in a frozen folder, one interface lookup.
+    /// and one interface lookup per distinct function of another unit;
+    /// in a frozen unit, one interface lookup.
     fn caller_reads(&mut self, def: DefId, block: NodeRef<'_>) -> SiteReads {
-        // A frozen folder's interface holds what its chains settled, while
+        // A frozen unit's interface holds what its chains settled, while
         // the modules lowered now may leave out a chain's callee.
         if self.r.frozen.is_some()
             && let Some(a) = self.r.item(def).and_then(|it| it.fn_attrs().copied())
@@ -7271,8 +7521,8 @@ impl Lower<'_, '_, '_> {
                 .r
                 .cx
                 .world
-                .module_folder_node(names, names.module_node(d))
-                == Some(self.r.cx.folder)
+                .module_unit_node(names, names.module_node(d))
+                == Some(self.r.cx.unit)
             {
                 self.chains.push((def, d));
             } else if let Some(a) = self
@@ -7487,6 +7737,13 @@ impl Lower<'_, '_, '_> {
                 it.generics = generics;
                 out.push(it);
             }
+            // The written type alone, which the parser requires
+            // (`module.vis.pub.binding.type`): an importer reads it from
+            // the header, as Rust's metadata carries a `pub const`'s type.
+            HeadKind::Binding => {
+                let t = self.ty_in_slot(1, Src::type_child(n), &Gen::default());
+                out.push(Item::new(h.def, h.name, h.public, ItemData::Binding(t)));
+            }
         }
         if let Some(item) = out.iter_mut().rev().find(|item| item.def == h.def) {
             self.declaration_docs(n, &mut item.docs, &[]);
@@ -7610,7 +7867,7 @@ impl Lower<'_, '_, '_> {
         out.push(it);
     }
 
-    /// The folder declarations (by index in `index`) that the part `scan`
+    /// The unit declarations (by index in `index`) that the part `scan`
     /// of the declaration `n` names, other than through its own generic
     /// parameters.
     fn named_in_order(
@@ -7729,7 +7986,7 @@ fn declares_params(h: &Head<'_>) -> bool {
     )
 }
 
-/// Lowers every alias of the folder before any other header, each after
+/// Lowers every alias of the unit before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
 /// (`crates/hd_resolve/DESIGN.md`, "Row aliases and context types in
 /// interfaces"). Every struct, enum and newtype takes part in that
@@ -7942,7 +8199,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
 }
 
 /// `trait.super.acyclic`, `trait.super.cycle-report`: the supertrait graph
-/// of the folder's traits has no cycle. A cycle is one error, on its trait
+/// of the unit's traits has no cycle. A cycle is one error, on its trait
 /// that comes first by module and then by source position.
 fn supertrait_cycles(
     r: &Resolver<'_, '_>,
@@ -8004,14 +8261,14 @@ fn supertrait_cycles(
     }
 }
 
-/// Breaks every cycle of the folder's supertrait graph: a depth-first
+/// Breaks every cycle of the unit's supertrait graph: a depth-first
 /// walk from each trait in declaration order, supertraits in declared
 /// order, records each edge to a trait still on its path as cut
 /// ([`Resolver::cut_supers`]) and drops it from `own_supers`; the lowered
 /// declarations leave it out too. What is left is acyclic and keeps every
 /// other edge, so a bound on the first trait of a cycle still reaches the
 /// rest of it. Each cycle is reported by [`supertrait_cycles`]. Linear in
-/// the folder's traits and supertrait edges, once per folder.
+/// the unit's traits and supertrait edges, once per unit.
 fn cut_supertrait_cycles(r: &mut Resolver<'_, '_>, all_heads: &[Vec<Head<'_>>]) {
     let traits: Vec<DefId> = all_heads
         .iter()
@@ -8101,9 +8358,9 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
 /// The placement error of an implementation head, if it is outside its
 /// owners (`trait.own.*`): `OrphanImpl` when no owner is in the impl's
 /// package, `NonlocalImpl` when one is but not in this module. An
-/// inherent implementation is owned by its target alone. `None` for the
-/// standard library, and for what is no implementation of its own: a
-/// template or a derivation block.
+/// inherent implementation is owned by its target's declaring module,
+/// or its fixed built-in std home. `None` for what is no implementation
+/// of its own: a template or a derivation block.
 ///
 /// `session` holds the modules that count as `module` too: for a REPL
 /// input, `src/lib.hd` and the earlier inputs, since a session is one
@@ -8114,12 +8371,11 @@ pub fn impl_placement(
     (module, session): (&str, &[String]),
     (trait_, trait_args, self_ty): (DefId, TyList, Ty),
     kind: ImplKind,
+    numeric_family: bool,
 ) -> Option<Code> {
     let pool = names.pool;
-    let package = module.split('.').next().unwrap_or("");
-    if package == "std" {
-        return None;
-    }
+    let std_package = module.split('.').next() == Some("std");
+    let numeric_family = std_package && numeric_family;
     let module = names.module(module);
     let session: Vec<PathId> = session.iter().map(|m| names.module(m)).collect();
     let package = names.package_node(DefId::from_raw(module.raw()));
@@ -8134,6 +8390,9 @@ pub fn impl_placement(
             | TyData::Adt(AdtId::Product { .. }, _)
             | TyData::Fn { .. }
             | TyData::Ref { .. } => Some(names.known.core_module),
+            // `trait.target.numeric-family.each`: the validated family
+            // stands for primitive types, all declared by the core module.
+            TyData::Param(_) if numeric_family => Some(names.known.core_module),
             _ => None,
         }
     };
@@ -8144,7 +8403,22 @@ pub fn impl_placement(
         if kind != ImplKind::Written {
             return None;
         }
-        owners.extend(ctor_module(self_ty));
+        // Built-in inherent implementations use their fixed std home;
+        // a numeric family expands only to the primitives of std.num.
+        let home = std_package
+            .then(|| {
+                if numeric_family && matches!(pool.get(self_ty), TyData::Param(_)) {
+                    Some(crate::known::NUM_MODULE)
+                } else {
+                    names.known.inherent_home(pool, self_ty)
+                }
+            })
+            .flatten();
+        if let Some(home) = home {
+            owners.push(names.module(home));
+        } else {
+            owners.extend(ctor_module(self_ty));
+        }
     } else {
         if !kind.is_impl() {
             return None;
@@ -8415,12 +8689,12 @@ impl SiteReads {
 }
 
 /// `fn.caller.reads` and `fn.caller.record.args` through a chain, across
-/// the folder's modules: a `@track_caller` function that may call one of
-/// the folder that reads its record passes its call site on, so it reads
+/// the unit's modules: a `@track_caller` function that may call one of
+/// the unit that reads its record passes its call site on, so it reads
 /// its own record too, and its records hold argument texts when the
-/// callee's do. A chain into another folder was settled while lowering
-/// ([`Lower::caller_reads`]), from that folder's interface. `fns` are the
-/// folder's functions; the result counts the edges followed.
+/// callee's do. A chain into another unit was settled while lowering
+/// ([`Lower::caller_reads`]), from that unit's interface. `fns` are the
+/// unit's functions; the result counts the edges followed.
 ///
 /// Cost: linear in the functions and the chain edges, whatever the chains'
 /// width or depth: each function gains each of its two bits at most once,
@@ -8735,7 +9009,7 @@ fn related_derives(
     true
 }
 
-/// Whether `Structure` in `scope` names `std.structure.Structure`
+/// Whether `Structure` in `scope` names `std.meta.Structure`
 /// (`annot.block.structure-use`).
 #[must_use]
 pub fn names_std_structure(names: &Names<'_>, scope: &ModuleScope) -> bool {
@@ -8974,7 +9248,7 @@ fn session_targets(
         }
         let Some(iface) =
             r.cx.world
-                .module_folder_node(names, names.module_node(def))
+                .module_unit_node(names, names.module_node(def))
                 .and_then(|f| r.cx.world.iface(f))
         else {
             continue;
@@ -8994,11 +9268,7 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     let names = &r.cx.names;
     let mut out = HashSet::default();
     for m in r.session_modules.get(module).into_iter().flatten() {
-        let Some(iface) =
-            r.cx.world
-                .module_folder(m)
-                .and_then(|f| r.cx.world.iface(f))
-        else {
+        let Some(iface) = r.cx.world.module_unit(m).and_then(|f| r.cx.world.iface(f)) else {
             continue;
         };
         let node = names.module(m);
@@ -9021,11 +9291,11 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     out
 }
 
-/// The diagnostics a use of the folder's modules reports when it names
-/// nothing (`USE_CODES`), in the order [`build_folder`] meets them:
+/// The diagnostics a use of the unit's modules reports when it names
+/// nothing (`USE_CODES`), in the order [`build_unit`] meets them:
 /// `HeaderCheck(F)` reports them (#248), so the interface entry, keyed
-/// by the folders F's headers read, holds none. They depend on every
-/// folder F's uses reach, and on F's own uses.
+/// by the units F's headers read, holds none. They depend on every
+/// unit F's uses reach, and on F's own uses.
 pub fn use_diags(cx: &Cx<'_>, mods: &[ModIn<'_>], diags: &mut DiagBuf) {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
@@ -9042,8 +9312,8 @@ pub fn use_diags(cx: &Cx<'_>, mods: &[ModIn<'_>], diags: &mut DiagBuf) {
 }
 
 /// The codes a `use` that names nothing reports while module scopes are
-/// built: [`use_diags`]' codes, which `build_folder` leaves out.
-/// `re-export-loop` is not one: it depends only on the folder's own
+/// built: [`use_diags`]' codes, which `build_unit` leaves out.
+/// `re-export-loop` is not one: it depends only on the unit's own
 /// source, and its interface reports it once per loop.
 pub const USE_CODES: [Code; 6] = [
     Code::UnknownImport,
@@ -9058,14 +9328,14 @@ fn is_use_code(code: Code) -> bool {
     USE_CODES.contains(&code)
 }
 
-/// The resolver of one folder's lowering: its own heads and `pub use`
+/// The resolver of one unit's lowering: its own heads and `pub use`
 /// links, over `frozen` once its interface is built.
 fn resolver<'a, 'b>(
     cx: &'b Cx<'a>,
     mods: &[ModIn<'_>],
     all_heads: &[Vec<Head<'_>>],
     all_uses: &[Vec<UseDecl>],
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
 ) -> Resolver<'a, 'b> {
     let names = &cx.names;
     let mut r = Resolver {
@@ -9283,31 +9553,77 @@ impl TopBindings {
             init: src.parse.tree.node(init),
         })
     }
-
-    /// How many names the module binds at its top level.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Whether the module binds no name at its top level.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
-/// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
-/// Without `frozen`, `mods` must be every module of the folder: sibling
-/// uses resolve through their heads, and the folder's exports are
+/// Public declaration and re-export names, grouped by input module.
+/// Cost: one pass over the own names and written uses, not an own-name scan
+/// per module. Resolution itself shares the resolver's export-chain memo.
+fn public_names(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    uses: &[Vec<UseDecl>],
+) -> Vec<Vec<Symbol>> {
+    let mut own: HashMap<PathId, Vec<Symbol>> = HashMap::default();
+    for (&(module, name), &(_, _, public)) in &r.own {
+        if public {
+            own.entry(module).or_default().push(name);
+        }
+    }
+    mods.iter()
+        .zip(uses)
+        .map(|(m, us)| {
+            let mut names = own
+                .remove(&r.module_keys[m.path.as_str()])
+                .unwrap_or_default();
+            for u in us {
+                names.extend(reexports(r, m, u).into_iter().map(|(local, _, _)| local));
+            }
+            names
+        })
+        .collect()
+}
+
+/// Resolve only public names and their declaration identities: no type or
+/// body lowering, interface construction, or implementation indexing.
+/// The same name resolver and public-use rules serve ordinary interfaces.
+#[must_use]
+pub fn public_exports(cx: &Cx<'_>, mods: &[ModIn<'_>]) -> Vec<Export> {
+    let all_heads: Vec<_> = mods
+        .iter()
+        .map(|m| heads(&cx.names, &m.src, &m.path, false))
+        .collect();
+    let all_uses: Vec<_> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
+    let r = resolver(cx, mods, &all_heads, &all_uses, None);
+    let mut seen = HashSet::default();
+    let mut exports = Vec::new();
+    for (m, names) in mods.iter().zip(public_names(&r, mods, &all_uses)) {
+        for name in names {
+            if seen.insert((m.path.as_str(), name))
+                && let Ok((def, kind)) = r.export(&m.path, name)
+            {
+                exports.push(Export {
+                    module: m.path.clone(),
+                    name,
+                    def,
+                    kind,
+                });
+            }
+        }
+    }
+    exports
+}
+
+/// Resolves and lowers the modules of one unit (§4.10 steps 1 to 4).
+/// Without `frozen`, `mods` must be every module of the unit: sibling
+/// uses resolve through their heads, and the unit's exports are
 /// computed. With `frozen`, sibling uses read its export index, and `mods`
 /// may be any subset.
-pub fn build_folder(
+pub fn build_unit(
     cx: &Cx<'_>,
     mods: &[ModIn<'_>],
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
     diags: &mut DiagBuf,
-) -> FolderOut {
+) -> UnitOut {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
@@ -9315,7 +9631,7 @@ pub fn build_folder(
         .collect();
     let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
     let mut r = resolver(cx, mods, &all_heads, &all_uses, frozen);
-    let mut out = FolderOut {
+    let mut out = UnitOut {
         modules: Vec::new(),
         exports: Vec::new(),
         private_names: Vec::new(),
@@ -9336,7 +9652,14 @@ pub fn build_folder(
             let mut test_diags = DiagBuf::default();
             let tests = m.tests.then(|| {
                 let uses = test_use_decls(&m.src, &m.roots);
-                test_scope_of(&r, &m.src, hs, (&scope, &mut kinds), &uses, &mut test_diags)
+                test_scope_of(
+                    &r,
+                    (&m.src, &m.path),
+                    hs,
+                    (&scope, &mut kinds),
+                    &uses,
+                    &mut test_diags,
+                )
             });
             ModScopes {
                 scope,
@@ -9346,7 +9669,7 @@ pub fn build_folder(
             }
         })
         .collect();
-    // A use bound above may have filled the memo of this folder's own
+    // A use bound above may have filled the memo of this unit's own
     // `pub use` chains while its reads were held: they are read again,
     // recorded, when a lookup needs them.
     r.memo.borrow_mut().clear();
@@ -9432,6 +9755,7 @@ pub fn build_folder(
                     | ItemData::Method { .. }
                     | ItemData::AssocType { .. }
                     | ItemData::Alias { .. }
+                    | ItemData::Binding(_)
                     | ItemData::Builtin => {}
                 }
             }
@@ -9499,7 +9823,7 @@ pub fn build_folder(
             blocks,
         });
     }
-    let index = FolderItems::new(&out.modules);
+    let index = UnitItems::new(&out.modules);
     drop_extra_methods(&r, &mut out.modules, &index);
     delegations(&r, &mut out.modules, &index);
     caller_chains(
@@ -9552,17 +9876,12 @@ pub fn build_folder(
     if r.frozen.is_none() {
         decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::default();
-        for (m, us) in mods.iter().zip(&all_uses) {
+        for ((m, us), publics) in mods
+            .iter()
+            .zip(&all_uses)
+            .zip(public_names(&r, mods, &all_uses))
+        {
             let module = r.module_keys[m.path.as_str()];
-            let mut publics: Vec<Symbol> = r
-                .own
-                .iter()
-                .filter(|((mp, _), (_, _, p))| *mp == module && *p)
-                .map(|((_, n), _)| *n)
-                .collect();
-            for u in us {
-                publics.extend(reexports(&r, m, u).into_iter().map(|(local, _, _)| local));
-            }
             for name in publics {
                 if !seen.insert((module, name)) {
                     continue;
@@ -9653,14 +9972,14 @@ pub fn build_folder(
     out
 }
 
-/// The folder's lowered items by `DefId`, as (module, item): the first of
+/// The unit's lowered items by `DefId`, as (module, item): the first of
 /// each `DefId`, as a scan would find it. Built once, after every module
 /// is lowered, so each implementation finds its trait, part and trait
 /// methods by one probe (#1888). The passes that read it only add items
 /// after their scan, so the positions hold while it is read.
-struct FolderItems(HashMap<DefId, (usize, usize)>);
+struct UnitItems(HashMap<DefId, (usize, usize)>);
 
-impl FolderItems {
+impl UnitItems {
     fn new(modules: &[ModOut]) -> Self {
         let mut at = HashMap::default();
         for (mi, m) in modules.iter().enumerate() {
@@ -9668,10 +9987,10 @@ impl FolderItems {
                 at.entry(it.def).or_insert((mi, ii));
             }
         }
-        FolderItems(at)
+        UnitItems(at)
     }
 
-    /// The item `d`: the folder's, or else another folder's or a seed.
+    /// The item `d`: the unit's, or else another unit's or a seed.
     fn get<'a>(
         &self,
         r: &Resolver<'_, '_>,
@@ -9691,7 +10010,7 @@ impl FolderItems {
 /// method is no part of the trait implementation, so a later call to it is
 /// the ordinary unknown method. The checker reports it once, where its body
 /// is checked.
-fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
+fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &UnitItems) {
     // Each trait's method names, hashed once however many implementations
     // it has; `None` for a trait reference that names no trait.
     let mut declared: HashMap<DefId, Option<HashSet<Symbol>>> = HashMap::default();
@@ -9736,7 +10055,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &Fold
 
 /// The members a delegating implementation `impl Tr for C by E` takes
 /// from its part (spec 09 "Delegation", `crates/hd_check/DESIGN.md` (trait solver) §3.10), once every
-/// item of the folder is lowered:
+/// item of the unit is lowered:
 ///
 /// - each associated type of `Tr` is bound to the projection
 ///   `<F as Tr[A]>::Name`, where `F` is the embedded field `E`'s type at
@@ -9754,7 +10073,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &Fold
 ///
 /// An implementation whose part is not an embedded field of a struct
 /// takes nothing: the checker reports it (`invalid-delegation`).
-fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
+fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &UnitItems) {
     let names = &r.cx.names;
     let pool = names.pool;
     let item = |d: DefId| index.get(r, modules, d);
@@ -9921,7 +10240,7 @@ struct Taken {
     forwarders: Vec<Item>,
 }
 
-/// One module's scopes while its folder resolves: its own, and with test
+/// One module's scopes while its unit resolves: its own, and with test
 /// code, its `tests:` block's, whose diagnostics are kept apart.
 struct ModScopes {
     scope: ModuleScope,
@@ -9957,8 +10276,13 @@ pub fn body_nodes<'t>(
                     }
                 }
             }
-            // A type declaration has no body.
-            HeadKind::Struct | HeadKind::Enum | HeadKind::Alias | HeadKind::Newtype => {}
+            // A type declaration has no body; a public binding's value
+            // is its module's init statement.
+            HeadKind::Struct
+            | HeadKind::Enum
+            | HeadKind::Alias
+            | HeadKind::Newtype
+            | HeadKind::Binding => {}
         }
     }
     out
@@ -10077,6 +10401,94 @@ mod prelude_tests {
         assert_eq!(exports, expected);
     }
 
+    /// A partial std source is a valid resolver input while its interface
+    /// is being built. Missing/private exports must not become bindings.
+    #[test]
+    fn partial_prelude_binds_only_exports_present_in_the_source() -> Result<(), &'static str> {
+        use super::{Cx, ModIn, World, build_unit};
+        use crate::{BindingKind, KnownItems, Names, Origin, UnitIface};
+        use hd_base::FileId;
+        use hd_diag::DiagBuf;
+        use hd_intern::{PathTable, ShardedInterner};
+        use hd_project::UseRoots;
+        use hd_types::InternPool;
+        use std::sync::Arc;
+
+        struct PartialStd;
+        impl World for PartialStd {
+            fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+                crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+            }
+
+            fn module_unit(&self, module: &str) -> Option<u32> {
+                matches!(module, "std.cmp" | "app").then_some(0)
+            }
+            fn usable(&self, module: &str) -> bool {
+                self.module_unit(module).is_some()
+            }
+            fn test_only(&self, _: &str) -> bool {
+                false
+            }
+            fn published(&self, module: &str) -> Option<bool> {
+                self.usable(module).then_some(false)
+            }
+            fn iface(&self, _: u32) -> Option<Arc<UnitIface>> {
+                None
+            }
+        }
+
+        let text = include_str!("../tests/fixtures/partial-prelude/cmp.hd");
+        let parsed = hd_syntax::parse(text.as_bytes());
+        assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+        let empty = hd_syntax::parse(b"");
+        let pool = InternPool::new();
+        let paths = PathTable::new();
+        let syms = ShardedInterner::default();
+        let known = KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let cx = Cx {
+            names,
+            unit: 0,
+            world: &PartialStd,
+        };
+        let mods: Vec<_> = [(0, "std.cmp", text, &parsed), (1, "app", "", &empty)]
+            .into_iter()
+            .map(|(file, path, text, parse)| ModIn {
+                path: path.into(),
+                roots: UseRoots::default(),
+                src: Src {
+                    parse,
+                    text,
+                    file: FileId::from_raw(file),
+                },
+                seeds: Vec::new(),
+                tests: false,
+                session: None,
+            })
+            .collect();
+        let mut diags = DiagBuf::default();
+        let out = build_unit(&cx, &mods, None, &mut diags);
+        assert!(diags.is_empty(), "{:?}", diags.code);
+        let scope = &out.modules.get(1).ok_or("app module")?.scope;
+        let eq = syms.intern("Eq");
+        let binding = scope.lookup(eq).ok_or("public Eq binding")?;
+        assert_eq!(binding.kind, BindingKind::Item);
+        assert_eq!(binding.value, names.item("std.cmp", "Eq").raw());
+        let row = scope.index[&eq] as usize;
+        assert_eq!(scope.origin[row], Origin::Prelude);
+        for absent in ["Ord", "PartialOrd", "Ordering", "Display", "i32"] {
+            assert_eq!(scope.lookup(syms.intern(absent)), None, "{absent}");
+        }
+        assert_eq!(out.exports.len(), 1);
+        assert_eq!(out.exports[0].def, names.item("std.cmp", "Eq"));
+        Ok(())
+    }
+
     #[test]
     fn ordinary_prelude_matches_its_hd_exports() {
         assert_exports(include_str!("../../../lib/std/prelude.hd"), PRELUDE);
@@ -10094,17 +10506,26 @@ mod prelude_tests {
 #[cfg(test)]
 mod module_key_tests {
     use super::{Cx, Recorded, Resolver, World, resolver};
-    use crate::{FolderIface, HeadKind, KnownItems, Names};
+    use crate::{HeadKind, KnownItems, Names, UnitIface};
     use hd_base::{DefId, PathId};
     use hd_diag::Code;
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::InternPool;
     use std::sync::Arc;
 
+    std::thread_local! {
+        static EXPORT_LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
     struct Modules;
 
     impl World for Modules {
-        fn module_folder(&self, module: &str) -> Option<u32> {
+        fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+        }
+
+        fn module_unit(&self, module: &str) -> Option<u32> {
+            EXPORT_LOOKUPS.with(|count| count.set(count.get() + 1));
             match module {
                 "app" | "app.a" | "app.z" => Some(0),
                 "dep.mod" => Some(1),
@@ -10113,14 +10534,18 @@ mod module_key_tests {
         }
 
         fn usable(&self, module: &str) -> bool {
-            self.module_folder(module).is_some()
+            self.module_unit(module).is_some()
         }
 
         fn test_only(&self, _module: &str) -> bool {
             false
         }
 
-        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+        fn published(&self, module: &str) -> Option<bool> {
+            self.usable(module).then_some(false)
+        }
+
+        fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
             None
         }
     }
@@ -10138,7 +10563,7 @@ mod module_key_tests {
         };
         let cx = Cx {
             names,
-            folder: 0,
+            unit: 0,
             world: &Modules,
         };
         test(&mut resolver(&cx, &[], &[], &[], None));
@@ -10175,13 +10600,17 @@ mod module_key_tests {
                 app: PathId,
             }
             impl World for Indexed {
-                fn module_folder(&self, _: &str) -> Option<u32> {
+                fn import_hints(&self) -> crate::iface::ImportHints<'_> {
+                    crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX)
+                }
+
+                fn module_unit(&self, _: &str) -> Option<u32> {
                     panic!("node lookup must not fall back to text");
                 }
                 fn module_path_node(&self, node: PathId) -> Option<&str> {
                     (node == self.app).then_some("app.a")
                 }
-                fn module_folder_node(&self, _: &Names<'_>, node: PathId) -> Option<u32> {
+                fn module_unit_node(&self, _: &Names<'_>, node: PathId) -> Option<u32> {
                     (node == self.app).then_some(0)
                 }
                 fn usable(&self, _: &str) -> bool {
@@ -10190,25 +10619,28 @@ mod module_key_tests {
                 fn test_only(&self, _: &str) -> bool {
                     false
                 }
-                fn iface(&self, _: u32) -> Option<Arc<FolderIface>> {
+                fn published(&self, _: &str) -> Option<bool> {
+                    Some(false)
+                }
+                fn iface(&self, _: u32) -> Option<Arc<UnitIface>> {
                     None
                 }
             }
             let names = &r.cx.names;
             let app = names.module("app.a");
             let missing = names.module("missing");
-            assert_eq!(Modules.module_folder_node(names, app), Some(0));
-            assert_eq!(Modules.module_folder_node(names, missing), None);
+            assert_eq!(Modules.module_unit_node(names, app), Some(0));
+            assert_eq!(Modules.module_unit_node(names, missing), None);
             let world = Indexed { app };
             let recorded = Recorded::new(&world);
-            assert_eq!(recorded.module_folder_node(names, app), Some(0));
-            assert_eq!(recorded.module_folder_node(names, app), Some(0));
+            assert_eq!(recorded.module_unit_node(names, app), Some(0));
+            assert_eq!(recorded.module_unit_node(names, app), Some(0));
             assert_eq!(recorded.reads().modules, vec!["app.a"]);
             recorded.hold_reads(true);
-            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.module_unit_node(names, missing), None);
             assert_eq!(recorded.reads().modules, vec!["app.a"]);
             recorded.hold_reads(false);
-            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.module_unit_node(names, missing), None);
             assert_eq!(recorded.reads().modules, vec!["app.a", "missing"]);
         });
     }
@@ -10236,6 +10668,48 @@ mod module_key_tests {
             assert_eq!(r.export("missing", hidden), Err(Code::UnknownModule));
             assert_eq!(r.export("dep.mod", hidden), Err(Code::UnknownModule));
         });
+    }
+
+    #[test]
+    fn reexport_chains_share_linear_work_without_native_recursion() {
+        for (width, depth) in [(100, 2), (1000, 20), (1, 20_000)] {
+            with_resolver(|r| {
+                let module = r.intern_module("app.a");
+                let names = &r.cx.names;
+                let tail: Vec<_> = (0..=depth)
+                    .map(|i| names.syms.intern(&format!("step_{i}")))
+                    .collect();
+                let def = names.item("app.a", "value");
+                r.own
+                    .insert((module, tail[depth]), (def, HeadKind::Fn, true));
+                for pair in tail.windows(2) {
+                    r.pub_uses.insert((module, pair[0]), (module, pair[1]));
+                }
+                let roots: Vec<_> = (0..width)
+                    .map(|i| names.syms.intern(&format!("entry_{i}")))
+                    .collect();
+                for &root in &roots {
+                    r.pub_uses.insert((module, root), (module, tail[0]));
+                }
+                EXPORT_LOOKUPS.with(|count| count.set(0));
+                for &root in &roots {
+                    assert_eq!(r.export("app.a", root), Ok((def, HeadKind::Fn)));
+                }
+                // Each new link is resolved once. Later roots share the
+                // tail's memo; module_unit and usable each query the world.
+                let cold = EXPORT_LOOKUPS.with(std::cell::Cell::get);
+                assert!(
+                    cold <= 2 * (2 * width + depth + 1),
+                    "{width}/{depth}: {cold}"
+                );
+                EXPORT_LOOKUPS.with(|count| count.set(0));
+                for &root in &roots {
+                    assert_eq!(r.export("app.a", root), Ok((def, HeadKind::Fn)));
+                }
+                assert_eq!(EXPORT_LOOKUPS.with(std::cell::Cell::get), 2 * width);
+                assert!(r.visiting.borrow().is_empty());
+            });
+        }
     }
 
     #[test]
@@ -10303,7 +10777,7 @@ mod top_binding_tests {
             file: hd_base::FileId::from_raw(0),
         };
         let index = TopBindings::of(&src);
-        assert_eq!(index.len(), 4002);
+        assert_eq!(index.0.len(), 4002);
         assert_eq!(init_text(&src, &index, "N3999"), Some("3999"));
         assert_eq!(init_text(&src, &index, "N2000"), Some("2000"));
         // A chain binds each name to its last initializer; the first

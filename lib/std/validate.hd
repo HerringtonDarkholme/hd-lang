@@ -1,11 +1,11 @@
 # std.validate: value validation after decoding or construction.
-use std.annotation.annotate
-use std.function.Fn
+use std.meta.annotate
+use std.ops.Fn
 use std.hash.Hash
 use std.http.Url as HttpUrl
-use std.inspect.Inspectable
+use std.meta.Inspectable
 use std.regex.{Regex, RegexError}
-use std.structure.{Facts, Field, Member, Structure, Variant, Walker}
+use std.meta.{Facts, Field, Member, Structure, Variant, Walker}
 use std.text.r
 
 ## One structural step in the path to an invalid value.

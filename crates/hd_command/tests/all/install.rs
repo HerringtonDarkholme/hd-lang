@@ -20,19 +20,7 @@ fn write(path: &Path, text: &str) {
     std::fs::write(path, text).unwrap();
 }
 
-const PROGRAM: &str = "use std.console.{ConsoleInput, read_all}
-use std.host.{Args, args}
-use std.process.ExitCode
-
-pub fn main!() -> ExitCode $ Args + ConsoleInput + Console:
-    println(\"VERSION\")
-    println(\"name=${$.use(Args).program()}\")
-    for word in args():
-        println(\"arg=$word\")
-    text := read_all!().expect(\"stdin\")
-    println(\"stdin=$text\")
-    ExitCode(7)
-";
+const PROGRAM: &str = include_str!("programs/install/program.hd");
 
 impl Case {
     fn new(label: &str) -> Self {
@@ -237,7 +225,9 @@ fn updates_preserve_old_commands_on_failure_and_deny_is_one_time() {
     );
     write(
         &other.join("src/main.hd"),
-        "pub fn main() -> void $ Console:\n    println(\"other\")\n",
+        include_str!(
+            "programs/install/updates_preserve_old_commands_on_failure_and_deny_is_one_time.hd"
+        ),
     );
     rejected(
         &c.hd(&[
@@ -252,7 +242,9 @@ fn updates_preserve_old_commands_on_failure_and_deny_is_one_time() {
     // Intentional invalid source tests transactional build failure.
     write(
         &c.app.join("src/main.hd"),
-        "pub fn main() -> void:\n    intentionally_missing_name()\n",
+        include_str!(
+            "programs/install/updates_preserve_old_commands_on_failure_and_deny_is_one_time_2.hd"
+        ),
     );
     assert_eq!(c.install().status.code(), Some(101));
     assert_eq!(std::fs::read(c.registry()).unwrap(), original);
@@ -321,7 +313,9 @@ fn install_time_path_grants_do_not_follow_the_callers_package() {
     );
     write(
         &c.app.join("src/main.hd"),
-        "use std.fs.{FsRead, read_text}\nuse std.path.Path\nuse std.host.{Args, args}\n\npub fn main!() -> void $ Args + Console + FsRead:\n    match read_text!(Path(args()[0])):\n        .Ok(text) => println(text)\n        .Err(_) => println(\"denied\")\n",
+        include_str!(
+            "programs/install/install_time_path_grants_do_not_follow_the_callers_package.hd"
+        ),
     );
     let inside = c.app.join("data/value.txt");
     let outside = c.caller.join("data/value.txt");
@@ -392,4 +386,68 @@ fn shared_payloads_survive_other_removals_and_launchers_are_owned() {
     let list = c.hd(&["install", "--list", "--root", c.root.to_str().unwrap()]);
     ok(&list);
     assert!(!String::from_utf8_lossy(&list.stdout).contains("side-tool"));
+}
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn native_install_uses_a_cwasm_payload_and_needs_no_checkout() {
+    let c = Case::new("install-native");
+    let out = c.hd(&[
+        "install",
+        c.app.to_str().unwrap(),
+        "--root",
+        c.root.to_str().unwrap(),
+        "--engine",
+        "wasmtime",
+    ]);
+    ok(&out);
+    let record: Value = serde_json::from_slice(&std::fs::read(c.registry()).unwrap()).unwrap();
+    let record = &record["commands"]["install-control"];
+    assert_eq!(record["format"], "cwasm");
+    let generation = record["generation"].as_str().unwrap();
+    let payload = c
+        .root
+        .join("installed")
+        .join(generation)
+        .join("install-control.cwasm");
+    assert!(payload.is_file());
+    std::fs::remove_dir_all(&c.app).unwrap();
+    let out = c.invoke_on("wasmtime", "install-control", &["native"], b"input\n");
+    assert_eq!(out.status.code(), Some(7), "{out:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        expected("v1", &["native"], "input\n")
+    );
+    assert!(out.stderr.is_empty(), "{out:?}");
+}
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn a_native_install_can_request_portable_wasm() {
+    let c = Case::new("install-portable");
+    let out = c.hd(&[
+        "install",
+        c.app.to_str().unwrap(),
+        "--root",
+        c.root.to_str().unwrap(),
+        "--engine=wasmtime",
+        "--format=wasm",
+    ]);
+    ok(&out);
+    let registry: Value = serde_json::from_slice(&std::fs::read(c.registry()).unwrap()).unwrap();
+    let record = &registry["commands"]["install-control"];
+    assert_eq!(record["format"], "wasm");
+    let generation = record["generation"].as_str().unwrap();
+    let payload = c
+        .root
+        .join("installed")
+        .join(generation)
+        .join("install-control.wasm");
+    assert!(payload.is_file());
+    let out = c.invoke_on("wasmtime", "install-control", &[], b"portable\n");
+    assert_eq!(out.status.code(), Some(7), "{out:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        expected("v1", &[], "portable\n")
+    );
 }

@@ -1,6 +1,6 @@
 # test: a derivation through a transparent alias sees its base type's Structure, so its name
 # Spec 14 The Structure Trait: annot.structure.name.alias.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn type_name() -> string

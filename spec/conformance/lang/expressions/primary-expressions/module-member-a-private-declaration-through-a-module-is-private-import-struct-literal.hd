@@ -1,0 +1,7 @@
+# test: a private struct through a module is private import, also in a literal
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    secret := shapes.Secret { count: 1 } # diagnostic: private-import
+    pass

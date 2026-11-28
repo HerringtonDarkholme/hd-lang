@@ -10,9 +10,9 @@ run: hd check --all --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json controls.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":2,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":5,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":8,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":11,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":14,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":17,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":22,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":25,"fixes":[]},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":28,"fixes":[]},{"kind":"summary","errors":9,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":2},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":5},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":8},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":11},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":14},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":17},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":22},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":25},{"kind":"diagnostic","code":"unknown-method","file":"controls.hd","line":28},{"kind":"summary","errors":9,"warnings":0,"status":101}]
 run: hd check --format json valid.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json trait-control.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"trait-control.hd","line":7,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","file":"trait-control.hd","line":7},{"kind":"summary","errors":1,"warnings":0,"status":101}]

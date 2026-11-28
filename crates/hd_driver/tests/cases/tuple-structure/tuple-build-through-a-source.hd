@@ -5,8 +5,8 @@
 # whatever order the keys come in. (std's tuple `Default` builds through
 # its own source; the conformance fixture `default-tuple-thirteen-elements`
 # runs it.)
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Source, Members, Key}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Source, Members, Key}
 
 trait Fill:
     fn fill() -> Self

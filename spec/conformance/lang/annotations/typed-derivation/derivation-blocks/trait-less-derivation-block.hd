@@ -1,5 +1,5 @@
 # test: a block with no trait extends and replaces decorator metadata
-use std.structure.Structure
+use std.meta.Structure
 
 struct MinLen:
     value: i32

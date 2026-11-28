@@ -1,0 +1,2 @@
+pub fn balance() -> i32:
+    1

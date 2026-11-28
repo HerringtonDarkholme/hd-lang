@@ -74,7 +74,7 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %40 = Block %35 : usize
     s.len()
 >   %23 = Read borrow [$1] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
+>   %24 = Call std/core/bytes_len[] (%23) : usize
 >   %25 = Break L0 %24 : never
 >   %26 = Block - : usize
 >   %27 = Scope %26 [] : usize
@@ -122,7 +122,7 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   %12 = LoanBegin %11 #0 : ()
 >   %13 = Store [$4] %11 : ()
 >   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize

@@ -5,7 +5,7 @@
 # function value and prints no `keeps` line; `keep` returns `f`, so its
 # call keeps the closure (`%c keeps %v`), as a call through a function
 # value keeps every argument (`g`). Frame planning will read this (#1399 19a).
-use std.annotation.inline
+use std.meta.inline
 
 fn each(xs: List[string], f: fn(string) -> void) -> void:
     for x in xs:
@@ -128,7 +128,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %18 = Store [$9] %17 : ()
 >   %19 = Read copy [$2] : usize
 >   %20 = Read borrow [$11] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L2 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize

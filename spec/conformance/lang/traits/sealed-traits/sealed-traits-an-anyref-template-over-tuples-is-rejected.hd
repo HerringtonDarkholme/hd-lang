@@ -1,6 +1,6 @@
 # test: sealed traits an anyref template over tuples is rejected
 use std.core.AnyRef
-use std.function.Tuple
-use std.structure.Structure
+use std.ops.Tuple
+use std.meta.Structure
 
 impl[T < Tuple] AnyRef for T by Structure # diagnostic: sealed-trait-implementation

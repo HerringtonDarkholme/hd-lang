@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+struct Photo:
+    width: u32
+
+impl !Copy for Photo
+
+struct Pair:
+    a: Photo
+
+fn mutable(r: *mut Pair) -> Photo:
+    r.a # diagnostic: move-out-of-place

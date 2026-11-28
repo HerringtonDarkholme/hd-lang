@@ -1,0 +1,7 @@
+pub enum IoError:
+    Failed(message: string)
+    Closed
+
+pub trait FileHandle:
+    fn read!(&mut self) -> Result[string, IoError]
+    fn close(&mut self) -> Result[void, IoError]

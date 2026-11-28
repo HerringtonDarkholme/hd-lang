@@ -113,7 +113,7 @@ fn selected_file_closure_collects_root_modules_but_not_dependencies_or_unreached
 }
 
 #[test]
-fn cached_folder_facts_include_sibling_derive_identities() {
+fn cached_unit_facts_include_sibling_derive_identities() {
     let original =
         include_str!("../../../../spec/conformance/cli/lint-derivation-advice/src/drift_derive.hd");
     let mut sources = MemorySources::default();

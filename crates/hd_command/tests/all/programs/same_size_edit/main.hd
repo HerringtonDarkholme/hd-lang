@@ -1,0 +1,4 @@
+use pkg.price.price
+
+pub fn main() -> void $ Console:
+    println(price())

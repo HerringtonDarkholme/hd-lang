@@ -1,0 +1,4 @@
+# test: nonnumeric parameter is not a cast target
+# Rule: types.cast.family.
+fn invalid[T < Display](value: i64) -> T:
+    T(value) # diagnostic: unknown-name

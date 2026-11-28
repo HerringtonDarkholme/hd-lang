@@ -14,7 +14,7 @@
   (import "fixture" "std/cmp/impl Ord for string.cmp'2" (func $"std/cmp/impl Ord for string.cmp'2" (param i32 i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 15 funcref))
   (func $"impl[T < Ord] Queue[T].add[string]" (param $self i32) (param $value.0 i32) (param $value.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 16 |         self.items.push(value)
@@ -33,7 +33,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 4
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
@@ -338,7 +338,7 @@
     ;; 49 |     q.settle(0, "z")
     local.get $q
     i32.const 0
-    i32.const 236 ;; &"z"
+    i32.const 168 ;; &"z"
     i32.const 1
     call $"impl[T < Ord] Queue[T].settle[string]"
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -710,7 +710,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 9
+      i32.const 6
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
@@ -856,7 +856,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 10
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self

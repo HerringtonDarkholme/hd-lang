@@ -79,6 +79,12 @@ mod cost {
         pub claim_nested: u64,
         /// Shard logs a reader read, each a view of its shard.
         pub views_read: u64,
+        /// Index files written whole: pages, heads, pack tables, logs.
+        pub index_files: u64,
+        /// Index page files read.
+        pub pages_read: u64,
+        /// Index rows decoded or encoded.
+        pub rows_visited: u64,
     }
 
     thread_local! {
@@ -1120,6 +1126,17 @@ mod packed {
     /// many bytes, about one page: a reader reads at most that much more
     /// than the head it replaced.
     const FOLD_AT: u64 = 4096;
+    const SEG_MAGIC: &[u8; 8] = b"HDSEG001";
+    /// A segment's directory entry: its bucket's first and end op, a checksum.
+    const SEG_ENTRY: usize = 16;
+    /// A fold rewrites up to one page per bucket, so it waits until the
+    /// rows it applies reach at least this many per bucket; until then a
+    /// full log spills into a segment (#2458). A fold then writes at most one
+    /// page per this many changed rows, as a cold publication fills a page
+    /// per [`LOAD`] rows, at any index size. Shard `s` waits for
+    /// `SPILL_RATIO * (1 + s / SHARDS)` rows per bucket: shards that grow
+    /// together fold in different publications, not all in one.
+    const SPILL_RATIO: u64 = LOAD;
     type Key = (u16, u128);
     type Entries = BTreeMap<Key, Location>;
     type Batch = [(EntryKind, Hash128, Arc<[u8]>)];
@@ -1135,7 +1152,7 @@ mod packed {
     }
 
     struct Opened {
-        file: File,
+        file: files::Handle,
         len: u64,
     }
 
@@ -1147,6 +1164,8 @@ mod packed {
         /// Pages read under the views' heads, by shard and bucket, with
         /// the fold epoch that wrote each.
         pages: BTreeMap<(u8, u64), (Entries, u32)>,
+        /// The segment buckets read under the views (#2458).
+        segments: SegmentCache,
         files: BTreeMap<u128, Opened>,
         touched: BTreeMap<Key, u64>,
         /// Packs found missing after the index was read again: each one
@@ -1316,6 +1335,9 @@ mod packed {
         abandoned: Vec<PathBuf>,
         /// Crashed writers' temporary index files, by shard.
         temps: Vec<(u8, PathBuf)>,
+        /// Segment files, by shard: those no log names any more are a crashed
+        /// spill's or fold's.
+        segments: Vec<(u8, u128, PathBuf)>,
         /// The index's page files, by shard and bucket, and their bytes.
         pages: Vec<(u8, u64)>,
         page_bytes: [u64; SHARDS as usize],
@@ -1413,6 +1435,7 @@ mod packed {
     fn rows(bytes: &[u8]) -> io::Result<Entries> {
         let mut entries = Entries::new();
         let mut previous = None;
+        count!(rows_visited, bytes.len() / ROW);
         for row in bytes.chunks_exact(ROW) {
             let key = (u16_at(row, 0), u128_at(row, 2));
             if !EntryKind::ALL
@@ -1487,6 +1510,7 @@ mod packed {
 
     /// A page of `entries`, stamped with the fold `epoch` that wrote it.
     fn page_encode(entries: &Entries, epoch: u32) -> Vec<u8> {
+        count!(rows_visited, entries.len());
         frame(*PAGE_MAGIC, entries, page_len(entries.len()), epoch)
     }
 
@@ -1683,7 +1707,7 @@ mod packed {
 
     /// Reads a regular file of at most `limit` bytes; `None` when missing.
     fn read_small(path: &Path, limit: usize) -> io::Result<Option<Vec<u8>>> {
-        match std::fs::symlink_metadata(path) {
+        match files::metadata(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e),
             Ok(meta)
@@ -1695,10 +1719,10 @@ mod packed {
             Ok(_) => {}
         }
         let mut bytes = Vec::new();
-        match File::open(path) {
+        match files::open(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e),
-            Ok(file) => file
+            Ok(file) => (&*file)
                 .take(u64::try_from(limit + 1).expect("limit"))
                 .read_to_end(&mut bytes)?,
         };
@@ -1718,6 +1742,7 @@ mod packed {
         let Some(bytes) = read_small(&dir.join(page_name(bucket)), MAX_INDEX)? else {
             return Ok(None);
         };
+        count!(pages_read, 1);
         let len = bytes.len() as u64;
         let (rows, epoch) = page_decode(&bytes)?;
         Ok(Some((rows, len, epoch)))
@@ -1734,7 +1759,8 @@ mod packed {
                 .open(&tmp)?;
             file.write_all(bytes)?;
             count!(index_written, bytes.len());
-            std::fs::rename(&tmp, dir.join(name))?;
+            count!(index_files, 1);
+            files::rename(&tmp, &dir.join(name))?;
             Ok(file)
         })();
         if result.is_err() {
@@ -1744,9 +1770,487 @@ mod packed {
     }
 
     fn remove_missing_ok(path: &Path) -> io::Result<()> {
-        match std::fs::remove_file(path) {
+        match files::remove(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             result => result,
+        }
+    }
+
+    /// The file operations whose Windows behaviour differs from Unix's
+    /// (#2458), in one place, so a test can give them Windows' semantics on
+    /// any host. On Windows a file removed while another handle holds it
+    /// stays *delete pending*: its name stays until the last handle closes,
+    /// and opening, querying, removing or renaming onto it fails with
+    /// `ERROR_ACCESS_DENIED` (`PermissionDenied`). Unix frees the name at
+    /// once. A reader holds packs and segments for its whole command, so
+    /// another reader whose older log names one a merge removed meets that
+    /// state, not `NotFound`.
+    mod files {
+        use std::fs::{File, Metadata};
+        use std::io;
+        use std::path::Path;
+
+        /// An open pack, segment or index file.
+        pub(super) struct Handle {
+            file: File,
+            #[cfg(test)]
+            _hold: Option<windows::Hold>,
+        }
+
+        impl std::ops::Deref for Handle {
+            type Target = File;
+            fn deref(&self) -> &File {
+                &self.file
+            }
+        }
+
+        impl std::ops::DerefMut for Handle {
+            fn deref_mut(&mut self) -> &mut File {
+                &mut self.file
+            }
+        }
+
+        /// Whether `error`, opening or querying a file an index named, says
+        /// the file is gone: removed (`NotFound`), or removed on Windows
+        /// while another handle holds it (delete pending, `PermissionDenied`).
+        /// Packs and segments are removed only after the index stops naming
+        /// them, so either way a later index no longer names it.
+        pub(super) fn gone(error: &io::Error) -> bool {
+            matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+            )
+        }
+
+        pub(super) fn open(path: &Path) -> io::Result<Handle> {
+            #[cfg(test)]
+            if let Some(opened) = windows::open(path) {
+                return opened;
+            }
+            Ok(Handle {
+                file: File::open(path)?,
+                #[cfg(test)]
+                _hold: None,
+            })
+        }
+
+        /// The file's own metadata, not a link's target.
+        pub(super) fn metadata(path: &Path) -> io::Result<Metadata> {
+            #[cfg(test)]
+            windows::query(path)?;
+            std::fs::symlink_metadata(path)
+        }
+
+        pub(super) fn remove(path: &Path) -> io::Result<()> {
+            #[cfg(test)]
+            if let Some(removed) = windows::remove(path) {
+                return removed;
+            }
+            std::fs::remove_file(path)
+        }
+
+        /// The waits before each retry of a rename another process blocks:
+        /// git's for an unlink or rename a file in use fails
+        /// (`retry_ask_yes_no` in `compat/mingw.c`), 71 ms in all. The
+        /// names renamed onto are pages, heads, tables and logs, which
+        /// readers hold only for one read, and a scanner's handle without
+        /// `FILE_SHARE_DELETE` is as short.
+        const IN_USE_MS: [u64; 5] = [0, 1, 10, 20, 40];
+
+        /// Renames `from` onto `to`, retrying while `to` is in use: delete
+        /// pending after a removal while a reader read it, or held by a
+        /// process that denies its deletion. At most [`IN_USE_MS`] waits.
+        pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
+            let mut waits = IN_USE_MS.iter();
+            loop {
+                #[cfg(test)]
+                let renamed =
+                    windows::rename(from, to).unwrap_or_else(|| std::fs::rename(from, to));
+                #[cfg(not(test))]
+                let renamed = std::fs::rename(from, to);
+                let error = match renamed {
+                    Ok(()) => return Ok(()),
+                    Err(error) => error,
+                };
+                // ERROR_SHARING_VIOLATION has no error kind of its own.
+                let in_use = error.kind() == io::ErrorKind::PermissionDenied
+                    || (cfg!(windows) && error.raw_os_error() == Some(32));
+                match waits.next() {
+                    Some(&ms) if in_use => {
+                        std::thread::sleep(std::time::Duration::from_millis(ms));
+                    }
+                    _ => return Err(error),
+                }
+            }
+        }
+
+        /// Windows' delete-pending semantics, on any host, for the files
+        /// under the roots a test names: [`emulate`] (#2458).
+        #[cfg(test)]
+        pub(super) mod windows {
+            use std::collections::BTreeMap;
+            use std::io;
+            use std::path::{Path, PathBuf};
+            use std::sync::{Mutex, MutexGuard, PoisonError};
+
+            use super::Handle;
+
+            /// A name some handle holds: which opening of it, the handles
+            /// open, and whether it is delete pending.
+            struct Name {
+                id: u64,
+                open: usize,
+                pending: bool,
+            }
+
+            struct State {
+                roots: Vec<PathBuf>,
+                names: BTreeMap<PathBuf, Name>,
+                next: u64,
+            }
+
+            static STATE: Mutex<State> = Mutex::new(State {
+                roots: Vec::new(),
+                names: BTreeMap::new(),
+                next: 0,
+            });
+
+            fn state() -> MutexGuard<'static, State> {
+                STATE.lock().unwrap_or_else(PoisonError::into_inner)
+            }
+
+            /// Gives the files under `root` Windows' semantics.
+            pub(in super::super) fn emulate(root: &Path) {
+                state().roots.push(root.to_path_buf());
+            }
+
+            /// The emulation's state, when `path` is under an emulated root.
+            fn under(path: &Path) -> Option<MutexGuard<'static, State>> {
+                let state = state();
+                state
+                    .roots
+                    .iter()
+                    .any(|root| path.starts_with(root))
+                    .then_some(state)
+            }
+
+            fn pending() -> io::Error {
+                io::Error::new(io::ErrorKind::PermissionDenied, "delete pending")
+            }
+
+            /// One open handle of a name; the last one to close removes a
+            /// delete-pending file.
+            pub(super) struct Hold {
+                path: PathBuf,
+                id: u64,
+            }
+
+            impl Drop for Hold {
+                fn drop(&mut self) {
+                    let mut state = state();
+                    let Some(name) = state.names.get_mut(&self.path) else {
+                        return;
+                    };
+                    // A rename onto the name replaced the file this held.
+                    if name.id != self.id {
+                        return;
+                    }
+                    name.open -= 1;
+                    if name.open == 0 {
+                        let pending = name.pending;
+                        state.names.remove(&self.path);
+                        if pending {
+                            let _ = std::fs::remove_file(&self.path);
+                        }
+                    }
+                }
+            }
+
+            pub(super) fn open(path: &Path) -> Option<io::Result<Handle>> {
+                let mut state = under(path)?;
+                if state.names.get(path).is_some_and(|n| n.pending) {
+                    return Some(Err(pending()));
+                }
+                let file = match std::fs::File::open(path) {
+                    Ok(file) => file,
+                    Err(e) => return Some(Err(e)),
+                };
+                let next = state.next;
+                let name = state.names.entry(path.to_path_buf()).or_insert(Name {
+                    id: next,
+                    open: 0,
+                    pending: false,
+                });
+                name.open += 1;
+                let id = name.id;
+                state.next += 1;
+                Some(Ok(Handle {
+                    file,
+                    _hold: Some(Hold {
+                        path: path.to_path_buf(),
+                        id,
+                    }),
+                }))
+            }
+
+            pub(super) fn query(path: &Path) -> io::Result<()> {
+                match under(path) {
+                    Some(state) if state.names.get(path).is_some_and(|n| n.pending) => {
+                        Err(pending())
+                    }
+                    _ => Ok(()),
+                }
+            }
+
+            /// A removal: a name a handle holds becomes delete pending.
+            pub(super) fn remove(path: &Path) -> Option<io::Result<()>> {
+                let mut state = under(path)?;
+                Some(match state.names.get_mut(path) {
+                    Some(name) if name.pending => Err(pending()),
+                    Some(name) => {
+                        name.pending = true;
+                        Ok(())
+                    }
+                    None => std::fs::remove_file(path),
+                })
+            }
+
+            /// A rename onto a name that is not delete pending succeeds even
+            /// while a handle holds it, as std's POSIX-semantics fallback does.
+            pub(super) fn rename(from: &Path, to: &Path) -> Option<io::Result<()>> {
+                let mut state = under(to)?;
+                let busy = |p: &Path| state.names.get(p).is_some_and(|n| n.pending);
+                if busy(from) || busy(to) {
+                    return Some(Err(pending()));
+                }
+                if let Err(e) = std::fs::rename(from, to) {
+                    return Some(Err(e));
+                }
+                // The handles of either name now hold files no name reaches.
+                state.names.remove(to);
+                state.names.remove(from);
+                Some(Ok(()))
+            }
+        }
+    }
+
+    /// A segment as its shard's log names it (#2458): an immutable file of the
+    /// changes a log spilled, `2^level` buckets by a key's low bits.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct Segment {
+        id: u128,
+        level: u32,
+        rows: u64,
+        /// The file's length.
+        len: u64,
+    }
+
+    /// Each key's last change, `None` for a removal.
+    type Changes = BTreeMap<Key, Option<Location>>;
+
+    fn segment_name(id: u128) -> String {
+        format!("{id:032x}.seg")
+    }
+
+    /// The checksum of one segment bucket's directory entry and ops: it ties
+    /// them to the segment and the bucket, so a stray or torn read is a miss.
+    fn segment_sum(id: u128, bucket: u64, start: u32, end: u32, ops: &[u8]) -> u64 {
+        let mut h = StableHasher::new("cache-storage-segment-v1");
+        h.bytes(&id.to_le_bytes());
+        h.u64(bucket);
+        h.u64(u64::from(start));
+        h.u64(u64::from(end));
+        h.bytes(ops);
+        // The low half of the 128-bit hash.
+        u64_at(&h.finish().0.to_le_bytes(), 0)
+    }
+
+    /// Segment `id` of `changes`: a [`HEADER`]-byte header (magic, rows, level,
+    /// zero), a directory of [`SEG_ENTRY`]-byte entries, one per bucket
+    /// (its first and end op and their checksum), then the [`OP`]-byte
+    /// ops bucket by bucket, each bucket in key order. About [`LOAD`] ops
+    /// per bucket, so a reader reads one entry and about one page of ops.
+    fn segment_encode(id: u128, changes: &Changes) -> (Segment, Vec<u8>) {
+        let rows = changes.len() as u64;
+        let level = rows
+            .div_ceil(LOAD)
+            .max(1)
+            .next_power_of_two()
+            .ilog2()
+            .min(MAX_LEVEL);
+        let buckets = 1_usize << level;
+        let mask = (buckets as u128) - 1;
+        // A counting sort by bucket keeps each bucket's keys in order.
+        let mut starts = vec![0_u32; buckets + 1];
+        for key in changes.keys() {
+            starts[(key.1 & mask) as usize + 1] += 1;
+        }
+        for b in 0..buckets {
+            starts[b + 1] += starts[b];
+        }
+        let ops_at = HEADER + buckets * SEG_ENTRY;
+        let mut out = vec![0_u8; ops_at + changes.len() * OP];
+        let mut next = starts.clone();
+        let mut op = Vec::with_capacity(OP);
+        for (&key, change) in changes {
+            let b = (key.1 & mask) as usize;
+            op.clear();
+            match change {
+                Some(loc) => Op::Set(key, *loc),
+                None => Op::Remove(key),
+            }
+            .encode(&mut op);
+            let at = ops_at + next[b] as usize * OP;
+            out[at..at + OP].copy_from_slice(&op);
+            next[b] += 1;
+        }
+        out[..8].copy_from_slice(SEG_MAGIC);
+        out[8..12].copy_from_slice(&u32::try_from(rows).unwrap_or(u32::MAX).to_le_bytes());
+        out[12..16].copy_from_slice(&level.to_le_bytes());
+        for b in 0..buckets {
+            let (start, end) = (starts[b], starts[b + 1]);
+            let ops = &out[ops_at + start as usize * OP..ops_at + end as usize * OP];
+            let sum = segment_sum(id, b as u64, start, end, ops);
+            let at = HEADER + b * SEG_ENTRY;
+            out[at..at + 4].copy_from_slice(&start.to_le_bytes());
+            out[at + 4..at + 8].copy_from_slice(&end.to_le_bytes());
+            out[at + 8..at + 16].copy_from_slice(&sum.to_le_bytes());
+        }
+        count!(rows_visited, changes.len());
+        let segment = Segment {
+            id,
+            level,
+            rows,
+            len: out.len() as u64,
+        };
+        (segment, out)
+    }
+
+    /// The changes of one segment bucket, from its directory entry and the
+    /// ops it names, each checked; `entry` and `ops` read the file.
+    fn segment_bucket(
+        segment: &Segment,
+        bucket: u64,
+        entry: &[u8],
+        read_ops: impl FnOnce(u64, usize) -> io::Result<Vec<u8>>,
+    ) -> io::Result<Changes> {
+        if entry.len() != SEG_ENTRY {
+            return Err(invalid("truncated cache segment"));
+        }
+        let (start, end) = (u32_at(entry, 0), u32_at(entry, 4));
+        if start > end || u64::from(end) > segment.rows {
+            return Err(invalid("invalid cache segment bucket"));
+        }
+        let ops_at = (HEADER as u64) + ((SEG_ENTRY as u64) << segment.level);
+        let n = (end - start) as usize;
+        let ops = read_ops(ops_at + u64::from(start) * OP as u64, n * OP)?;
+        if ops.len() != n * OP
+            || segment_sum(segment.id, bucket, start, end, &ops) != u64_at(entry, 8)
+        {
+            return Err(invalid("corrupt cache segment bucket"));
+        }
+        count!(rows_visited, n);
+        let mut changes = Changes::new();
+        let mask = (1_u128 << segment.level) - 1;
+        for raw in ops.chunks_exact(OP) {
+            match Op::decode(raw) {
+                Some(Op::Set(key, loc)) if key.1 & mask == u128::from(bucket) => {
+                    changes.insert(key, Some(loc));
+                }
+                Some(Op::Remove(key)) if key.1 & mask == u128::from(bucket) => {
+                    changes.insert(key, None);
+                }
+                _ => return Err(invalid("invalid cache segment op")),
+            }
+        }
+        Ok(changes)
+    }
+
+    /// Reads one segment bucket from `file`: its directory entry, then its ops.
+    fn segment_read(file: &File, segment: &Segment, bucket: u64) -> io::Result<Changes> {
+        let read_at = |at: u64, n: usize| -> io::Result<Vec<u8>> {
+            let mut f = file;
+            f.seek(SeekFrom::Start(at))?;
+            let mut bytes = Vec::with_capacity(n);
+            f.take(n as u64).read_to_end(&mut bytes)?;
+            count!(index_read, bytes.len());
+            Ok(bytes)
+        };
+        let entry = read_at(HEADER as u64 + bucket * SEG_ENTRY as u64, SEG_ENTRY)?;
+        segment_bucket(segment, bucket, &entry, read_at)
+    }
+
+    /// Every change of segment `segment` in `dir`, read whole: for folds, merges
+    /// and collections.
+    fn segment_all(dir: &Path, segment: &Segment) -> io::Result<Changes> {
+        let bytes = read_small(&dir.join(segment_name(segment.id)), MAX_INDEX)?
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "cache segment is gone"))?;
+        if bytes.len() as u64 != segment.len || bytes.get(..8) != Some(SEG_MAGIC.as_slice()) {
+            return Err(invalid("invalid cache segment"));
+        }
+        let mut all = Changes::new();
+        for bucket in 0..1_usize << segment.level {
+            let at = HEADER + bucket * SEG_ENTRY;
+            let entry = bytes.get(at..at + SEG_ENTRY).unwrap_or_default();
+            let changes = segment_bucket(segment, bucket as u64, entry, |at, n| {
+                let at = usize::try_from(at).map_err(io::Error::other)?;
+                Ok(bytes.get(at..at + n).unwrap_or_default().to_vec())
+            })?;
+            all.extend(changes);
+        }
+        Ok(all)
+    }
+
+    /// The segments a reader or writer has opened, and the buckets it read.
+    #[derive(Default)]
+    struct SegmentCache {
+        files: BTreeMap<u128, files::Handle>,
+        buckets: BTreeMap<(u128, u64), Changes>,
+    }
+
+    impl SegmentCache {
+        /// `key`'s change in `segments`, newest first: `None` when no segment holds
+        /// it. One directory entry and one bucket per segment, each read once.
+        /// A segment gone from `dir` ([`files::gone`]: removed, or delete
+        /// pending on Windows) was replaced by a later spill or fold.
+        // Outer: whether a segment holds the key; inner: its change.
+        #[allow(clippy::option_option)]
+        fn change(
+            &mut self,
+            dir: &Path,
+            segments: &[Segment],
+            key: Key,
+        ) -> io::Result<Option<Option<Location>>> {
+            for segment in segments.iter().rev() {
+                let bucket = u64_at(&(key.1 & ((1_u128 << segment.level) - 1)).to_le_bytes(), 0);
+                if !self.buckets.contains_key(&(segment.id, bucket)) {
+                    let file = match self.files.entry(segment.id) {
+                        Slot::Occupied(file) => file.into_mut(),
+                        Slot::Vacant(slot) => {
+                            slot.insert(files::open(&dir.join(segment_name(segment.id)))?)
+                        }
+                    };
+                    let changes = segment_read(file, segment, bucket)?;
+                    self.buckets.insert((segment.id, bucket), changes);
+                }
+                if let Some(change) = self
+                    .buckets
+                    .get(&(segment.id, bucket))
+                    .and_then(|b| b.get(&key))
+                {
+                    return Ok(Some(*change));
+                }
+            }
+            Ok(None)
+        }
+
+        /// Forgets the segments of `old` that `new`, the same shard's later
+        /// list, no longer names.
+        fn forget(&mut self, old: &[Segment], new: &[Segment]) {
+            for segment in old.iter().filter(|r| !new.contains(r)) {
+                self.files.remove(&segment.id);
+                self.buckets.retain(|(id, _), _| *id != segment.id);
+            }
         }
     }
 
@@ -2014,7 +2518,17 @@ mod packed {
                     .disk
                     .iter()
                     .filter(|(key, _)| head.bucket(key.1) != bucket && !page.rows.contains_key(key))
-                    .map(|(k, l)| (*k, *l))
+                    // A committed log can have replaced and removed the
+                    // disk pack. Preserve the row's current destination,
+                    // never its obsolete disk location. A disk-only row
+                    // absent there was deleted or belongs to a superset
+                    // from an older fold; it need not be preserved again.
+                    .filter_map(|(key, _)| {
+                        self.pages
+                            .get(&head.bucket(key.1))
+                            .and_then(|target| target.rows.get(key))
+                            .map(|location| (*key, *location))
+                    })
                     .collect();
                 let bytes = if moved.is_empty() {
                     page_encode(&page.rows, epoch)
@@ -2048,7 +2562,14 @@ mod packed {
                     change(-(HEAD_LEN as i128));
                     Vec::new()
                 })
-            } else if self.head_dirty() {
+            } else if self.head_dirty()
+                || self
+                    .stored
+                    .is_some_and(|stored| stored.generation != u128::from(epoch))
+            {
+                // A location-only fold still advances page epochs. Torn
+                // log headers recover this epoch from the head, so it
+                // must advance even when row counts and buckets do not.
                 self.head.generation = u128::from(epoch);
                 change(i128::from(self.stored.map_or(HEAD_LEN as u64, |_| 0)));
                 Some(self.head.encode())
@@ -2114,6 +2635,8 @@ mod packed {
         Remove(Key),
         Track(u128, u64),
         Untrack(u128),
+        /// A segment the log's earlier changes were spilled into (#2458).
+        Segment(Segment),
     }
 
     impl Op {
@@ -2136,6 +2659,16 @@ mod packed {
                     Location {
                         pack: id,
                         ..Location::default()
+                    },
+                ),
+                Op::Segment(segment) => (
+                    4,
+                    (0, 0),
+                    Location {
+                        pack: segment.id,
+                        offset: u64::from(segment.level),
+                        len: segment.rows,
+                        used: segment.len,
                     },
                 ),
             };
@@ -2161,6 +2694,14 @@ mod packed {
                 1 if known => Some(Op::Remove(key)),
                 2 => Some(Op::Track(loc.pack, loc.len)),
                 3 => Some(Op::Untrack(loc.pack)),
+                4 if loc.offset <= u64::from(MAX_LEVEL) && loc.len > 0 && loc.used <= MAX_ENTRY => {
+                    Some(Op::Segment(Segment {
+                        id: loc.pack,
+                        level: u32::try_from(loc.offset).ok()?,
+                        rows: loc.len,
+                        len: loc.used,
+                    }))
+                }
                 _ => None,
             }
         }
@@ -2265,10 +2806,12 @@ mod packed {
         }
     }
 
-    /// What a shard's log adds over its pages: each key's last change
-    /// (`None` for a removal) and each pack's tracking.
+    /// What a shard's log adds over its pages: the segments it names, oldest
+    /// first, then each key's last change since them (`None` for a
+    /// removal) and each pack's tracking.
     #[derive(Clone, Default)]
     struct Overlay {
+        segments: Vec<Segment>,
         rows: BTreeMap<Key, Option<Location>>,
         table: BTreeMap<u128, Option<u64>>,
     }
@@ -2288,7 +2831,13 @@ mod packed {
                 Op::Untrack(id) => {
                     self.table.insert(id, None);
                 }
+                Op::Segment(segment) => self.segments.push(segment),
             }
+        }
+
+        /// The rows the log and its segments hold beyond the pages.
+        fn pending_rows(&self) -> u64 {
+            self.segments.iter().map(|r| r.rows).sum::<u64>() + self.rows.len() as u64
         }
     }
 
@@ -2323,6 +2872,8 @@ mod packed {
         /// The folded pages, head and table, read when first needed: a
         /// publication that only appends reads none of them.
         txn: Option<Txn>,
+        /// The segment buckets this writer read.
+        segments: SegmentCache,
         dir: PathBuf,
         #[cfg(test)]
         on_pause: Option<Arc<dyn Fn(&'static str) + Send + Sync>>,
@@ -2336,11 +2887,53 @@ mod packed {
             Ok(self.txn.as_mut().expect("opened"))
         }
 
-        /// `key`'s location: the log's last change, else the pages'.
+        /// `key`'s location: the log's last change, else its segments',
+        /// newest first, else the pages'. Under the shard's lock no other
+        /// writer removes a segment this log names, so a segment that cannot be
+        /// read is corrupt: its keys are misses, never an older location.
         fn get(&mut self, key: Key) -> io::Result<Option<Location>> {
-            match self.overlay.rows.get(&key) {
-                Some(change) => Ok(*change),
-                None => self.txn()?.get(key),
+            if let Some(change) = self.overlay.rows.get(&key) {
+                return Ok(*change);
+            }
+            match self.segments.change(&self.dir, &self.overlay.segments, key) {
+                Ok(Some(change)) => Ok(change),
+                Ok(None) => self.txn()?.get(key),
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::InvalidData
+                    ) =>
+                {
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
+        }
+
+        /// The changes of every segment, oldest first, then the log's: what
+        /// the pages lack.
+        fn changes(&self) -> io::Result<Changes> {
+            let mut all = Changes::new();
+            for segment in &self.overlay.segments {
+                all.extend(self.segment_changes(segment)?);
+            }
+            all.extend(self.overlay.rows.iter().map(|(&k, &c)| (k, c)));
+            Ok(all)
+        }
+
+        /// Every change of `segment`. A corrupt segment, its keys misses to readers,
+        /// has none: a fold or merge loses its rows, as a corrupt page's.
+        fn segment_changes(&self, segment: &Segment) -> io::Result<Changes> {
+            match segment_all(&self.dir, segment) {
+                Err(e)
+                    if matches!(
+                        e.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::InvalidData
+                    ) =>
+                {
+                    Ok(Changes::new())
+                }
+                read => read,
             }
         }
 
@@ -2387,7 +2980,7 @@ mod packed {
         /// tools.
         fn all(&mut self) -> io::Result<Entries> {
             let mut rows = self.txn()?.all()?;
-            for (&key, change) in &self.overlay.rows {
+            for (&key, change) in &self.changes()? {
                 match change {
                     Some(loc) => rows.insert(key, *loc),
                     None => rows.remove(&key),
@@ -2445,7 +3038,113 @@ mod packed {
                 self.pending.clear();
             }
             if self.end > (LOG_HEADER as u64) + FOLD_AT {
-                self.fold()?;
+                // A fold rewrites up to every bucket's page: it waits until
+                // its rows pay for them (#2458).
+                let buckets = self.header.head.map_or(0, Head::buckets);
+                let ratio = SPILL_RATIO + SPILL_RATIO * u64::from(self.id) / u64::from(SHARDS);
+                if buckets.saturating_mul(ratio) <= self.overlay.pending_rows() {
+                    self.fold()?;
+                } else {
+                    self.spill()?;
+                }
+            }
+            Ok(())
+        }
+
+        /// Spills the log's changes into a new segment, then merges the newest
+        /// segments while the older is no larger, as a binary counter carries
+        /// (Bentley and Saxe's logarithmic method; LSM tiering), and
+        /// replaces the log with one that names the segments. Pack tracking
+        /// goes to the pack table. Cost: the spilled rows, and each row
+        /// copied once per segment size it climbs, O(log) times in all; at
+        /// most `log2` of the rows segments. The fold epoch stays: the pages
+        /// are untouched, and a reader of the old log still holds its
+        /// changes.
+        fn spill(&mut self) -> io::Result<()> {
+            debug_assert!(self.pending.is_empty());
+            let base = self.header.total;
+            let mut delta = 0_i128;
+            let table = std::mem::take(&mut self.overlay.table);
+            if !table.is_empty() {
+                let epoch = self.header.epoch;
+                let txn = self.txn()?;
+                for (id, len) in table {
+                    match len {
+                        Some(len) => txn.track(id, len)?,
+                        None => txn.untrack(id)?,
+                    }
+                }
+                // No page or head changes at the same epoch: the table alone.
+                delta += txn.commit(epoch, |_| {}, |_| Ok(()))?;
+            }
+            // The newest segments up to twice the spilled changes merge into
+            // them first: each segment is over twice the next, so a shard has
+            // at most `log2` of its rows segments.
+            let mut segments = self.overlay.segments.clone();
+            let mut gone = Vec::new();
+            let mut fresh = std::mem::take(&mut self.overlay.rows);
+            while let Some(&older) = segments.last()
+                && older.rows <= 2 * fresh.len() as u64
+            {
+                segments.pop();
+                let mut merged = self.segment_changes(&older)?;
+                merged.append(&mut fresh);
+                fresh = merged;
+                gone.push(older);
+            }
+            if !fresh.is_empty() {
+                let (segment, bytes) = segment_encode(unique(), &fresh);
+                // Count the bytes before they are final.
+                delta += i128::from(segment.len);
+                if let Some(total) = &mut self.header.total {
+                    *total =
+                        u64::try_from((i128::from(base.unwrap_or(0)) + delta).max(0)).unwrap_or(0);
+                }
+                self.write_header()?;
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(self.dir.join(segment_name(segment.id)))?;
+                file.write_all(&bytes)?;
+                count!(index_written, bytes.len());
+                count!(index_files, 1);
+                segments.push(segment);
+            }
+            if let Some(total) = &mut self.header.total {
+                *total = u64::try_from((i128::from(base.unwrap_or(0)) + delta).max(0)).unwrap_or(0);
+            }
+            let mut bytes = self.header.encode().to_vec();
+            if !segments.is_empty() {
+                bytes.extend(log_frame(
+                    &segments
+                        .iter()
+                        .map(|&segment| Op::Segment(segment))
+                        .collect::<Vec<_>>(),
+                ));
+            }
+            let log_dir = self
+                .dir
+                .parent()
+                .ok_or_else(|| invalid("cache shard has no parent"))?;
+            self.file = replace_file(log_dir, &format!("{:x}.log", self.id), &bytes)?;
+            self.end = bytes.len() as u64;
+            self.segments.forget(&self.overlay.segments, &segments);
+            self.overlay.segments = segments;
+            // Readers of the old log find a merged segment gone and read the
+            // log again.
+            self.remove_segments(&gone)
+        }
+
+        /// Removes segments no log names any more, lowering the total.
+        fn remove_segments(&mut self, segments: &[Segment]) -> io::Result<()> {
+            let mut removed = 0;
+            for segment in segments {
+                if remove_missing_ok(&self.dir.join(segment_name(segment.id))).is_ok() {
+                    removed += segment.len;
+                }
+            }
+            if removed > 0 {
+                self.removed(removed)?;
             }
             Ok(())
         }
@@ -2458,7 +3157,10 @@ mod packed {
         /// worst, once per [`FOLD_AT`] bytes appended.
         fn fold(&mut self) -> io::Result<()> {
             debug_assert!(self.pending.is_empty());
-            for (&key, change) in &std::mem::take(&mut self.overlay.rows) {
+            let changes = self.changes()?;
+            self.overlay.rows.clear();
+            let segments = std::mem::take(&mut self.overlay.segments);
+            for (&key, change) in &changes {
                 match change {
                     Some(loc) => self.txn()?.set(key, *loc)?,
                     None => self.txn()?.remove(key)?,
@@ -2524,7 +3226,10 @@ mod packed {
             self.end = LOG_HEADER as u64;
             self.header.total =
                 base.map(|t| u64::try_from((i128::from(t) + delta).max(0)).unwrap_or(0));
-            self.write_header()
+            self.write_header()?;
+            // The pages hold the segments now, and the log names none.
+            self.segments.forget(&segments, &[]);
+            self.remove_segments(&segments)
         }
     }
 
@@ -2661,6 +3366,7 @@ mod packed {
                 overlay,
                 pending: Vec::new(),
                 txn,
+                segments: SegmentCache::default(),
                 dir,
                 #[cfg(test)]
                 on_pause: self.on_pause.clone(),
@@ -2680,6 +3386,8 @@ mod packed {
             let Ok(Some(bytes)) = read_small(&self.log_path(shard), MAX_INDEX) else {
                 return View::default();
             };
+            #[cfg(test)]
+            self.pause("view-read");
             let log = log_decode(&bytes);
             // A header read while a writer rewrites it is torn: the head
             // file names the last fold, and the batches, checksummed on
@@ -2798,10 +3506,10 @@ mod packed {
 
         fn open(&self, id: u128) -> io::Result<Opened> {
             let path = self.path(id);
-            if !std::fs::symlink_metadata(&path)?.file_type().is_file() {
+            if !files::metadata(&path)?.file_type().is_file() {
                 return Err(invalid("cache pack is not a regular file"));
             }
-            let file = File::open(path)?;
+            let file = files::open(&path)?;
             count!(packs_opened, 1);
             let len = file.metadata()?.len();
             Ok(Opened { file, len })
@@ -2826,10 +3534,40 @@ mod packed {
         fn locate(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
             let shard = shard_of(key.1);
             let dir = self.index_dir(shard);
-            let Snapshot { views, pages, .. } = state;
+            let Snapshot {
+                views,
+                pages,
+                segments,
+                ..
+            } = state;
             loop {
                 let view = views.entry(shard).or_insert_with(|| self.read_view(shard));
-                let change = view.overlay.rows.get(&key).copied();
+                // The log's change, else its segments', newest first (#2458). A
+                // segment gone means a spill or fold replaced the log since: read
+                // it again, as for a vanished pack. A log that still names
+                // the segment it lacks, or a corrupt segment, is a miss: never an
+                // older location of a key the segment replaced.
+                let change = match view.overlay.rows.get(&key) {
+                    Some(change) => Some(*change),
+                    None => match segments.change(&dir, &view.overlay.segments, key) {
+                        Ok(change) => change,
+                        Err(e) if files::gone(&e) => {
+                            let fresh = self.read_view(shard);
+                            if fresh.epoch == view.epoch
+                                && fresh.overlay.segments == view.overlay.segments
+                            {
+                                return None;
+                            }
+                            if fresh.epoch != view.epoch {
+                                pages.retain(|(s, _), _| *s != shard);
+                            }
+                            segments.forget(&view.overlay.segments, &fresh.overlay.segments);
+                            *view = fresh;
+                            continue;
+                        }
+                        Err(_) => return None,
+                    },
+                };
                 if view.head.is_none() && change.is_some() && !view.probed {
                     // A fold after this view was read leaves a head: its
                     // pages are newer than the view's changes.
@@ -2857,9 +3595,17 @@ mod packed {
                 }
                 let fresh = self.read_view(shard);
                 if fresh.epoch == view.epoch {
-                    *epoch = view.epoch;
-                    return change.flatten();
+                    // Appends can replace locations without advancing the
+                    // fold epoch. The refreshed log, not this older view,
+                    // supplies the changes while the next fold writes pages.
+                    // The page lacks the key; it now reads as of this view,
+                    // so the next pass answers from the refreshed changes.
+                    *epoch = fresh.epoch;
+                    segments.forget(&view.overlay.segments, &fresh.overlay.segments);
+                    *view = fresh;
+                    continue;
                 }
+                segments.forget(&view.overlay.segments, &fresh.overlay.segments);
                 *view = fresh;
                 pages.retain(|(s, _), _| *s != shard);
             }
@@ -2912,9 +3658,7 @@ mod packed {
                     }
                     // A pack the index still names after a refresh is
                     // missing for good: a miss, left to the collection.
-                    Err(e)
-                        if e.kind() == io::ErrorKind::NotFound && state.gone.insert(loc.pack) =>
-                    {
+                    Err(e) if files::gone(&e) && state.gone.insert(loc.pack) => {
                         state.views.clear();
                         state.pages.clear();
                     }
@@ -3695,6 +4439,15 @@ mod packed {
                     let e = e?;
                     let name = e.file_name();
                     let Some(name) = name.to_str() else { continue };
+                    if let Some(id) = name.strip_suffix(".seg").and_then(parse_key)
+                        && e.file_type()?.is_file()
+                    {
+                        let n = len(&e)?.map_or(0, |meta| meta.len());
+                        inv.total = inv.total.saturating_add(n);
+                        inv.index[usize::from(shard)] += n;
+                        inv.segments.push((shard, id.0, e.path()));
+                        continue;
+                    }
                     if !Self::index_file(name) || !e.file_type()?.is_file() {
                         continue;
                     }
@@ -3747,14 +4500,33 @@ mod packed {
                                     );
                                 }
                                 // A missing or corrupt page is empty to
-                                // writers too.
+                                // writers too; one a merge removed since is
+                                // newer than the view, which the epoch check
+                                // below finds.
                                 Ok(None) => {}
-                                Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
+                                Err(e)
+                                    if e.kind() == io::ErrorKind::InvalidData
+                                        || files::gone(&e) => {}
                                 Err(e) => return Err(e),
                             }
                         }
                     }
-                    for (&key, change) in &view.overlay.rows {
+                    // The segments' changes, oldest first, then the log's. A
+                    // segment a spill merged or a fold applied since is gone:
+                    // the read is tried again.
+                    let mut changes = Changes::new();
+                    let mut whole = true;
+                    for segment in &view.overlay.segments {
+                        match segment_all(&dir, segment) {
+                            Ok(segment) => changes.extend(segment),
+                            Err(e) if files::gone(&e) => whole = false,
+                            // A corrupt segment is misses to readers too.
+                            Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    changes.extend(view.overlay.rows.iter().map(|(&k, &c)| (k, c)));
+                    for (&key, change) in &changes {
                         if folded.contains(&key) {
                             continue;
                         }
@@ -3765,7 +4537,7 @@ mod packed {
                     }
                     #[cfg(test)]
                     self.pause("read");
-                    let same = self.read_view(shard).epoch == view.epoch;
+                    let same = whole && self.read_view(shard).epoch == view.epoch;
                     last = (rows, same);
                     if same {
                         break;
@@ -3818,7 +4590,7 @@ mod packed {
                     let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
                     // An open reader on Windows may postpone this; a later
                     // collection retries it.
-                    if std::fs::remove_file(path).is_ok() {
+                    if files::remove(&path).is_ok() {
                         gone += size;
                     }
                 }
@@ -3859,12 +4631,12 @@ mod packed {
                 let mut file = match self.open(source.id) {
                     Ok(opened) => opened.file,
                     // Another collection or merge took it first.
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(0),
+                    Err(e) if files::gone(&e) => return Ok(0),
                     Err(e) => return Err(e),
                 };
                 for &(key, from, len) in &source.copy {
                     file.seek(SeekFrom::Start(from))?;
-                    let got = io::copy(&mut (&mut file).take(len), &mut lease.file)?;
+                    let got = io::copy(&mut (&mut *file).take(len), &mut lease.file)?;
                     count!(merge_frames, 1);
                     count!(merge_bytes, got);
                     if got != len {
@@ -4131,7 +4903,7 @@ mod packed {
             let doomed = self.evict(&inv, &suspects, &victims, &dead)?;
             // Packs no row names: no lock, as no row can name them again.
             for id in doomed {
-                let _ = std::fs::remove_file(self.path(id));
+                let _ = files::remove(&self.path(id));
             }
             let over = before > cap;
             for (id, copy) in rows_of {
@@ -4159,6 +4931,13 @@ mod packed {
                     let mut txn = self.open_shard(shard)?;
                     if txn.end > LOG_HEADER as u64 {
                         txn.fold()?;
+                    }
+                    // Segments are written and named under this lock: one the
+                    // walk found that the log does not name is a crash's.
+                    for (_, id, path) in inv.segments.iter().filter(|r| r.0 == shard) {
+                        if !txn.overlay.segments.iter().any(|r| r.id == *id) {
+                            let _ = remove_missing_ok(path);
+                        }
                     }
                     self.adopt(&txn);
                 }
@@ -4353,7 +5132,7 @@ mod packed {
                 let buckets = txn.txn()?.head.buckets();
                 for &(_, bucket) in inv.pages.iter().filter(|(s, _)| *s == shard) {
                     if bucket >= buckets {
-                        let _ = std::fs::remove_file(self.index_dir(shard).join(page_name(bucket)));
+                        let _ = files::remove(&self.index_dir(shard).join(page_name(bucket)));
                     }
                 }
                 self.adopt(&txn);
@@ -5211,6 +5990,169 @@ mod packed {
                 .collect()
         }
 
+        /// A moved pack can disappear while the cached page still names
+        /// it. One torn total-header read must recover the latest fold's
+        /// epoch, rather than letting that old page hide the log overlay.
+        #[test]
+        fn a_torn_header_after_a_location_only_fold_keeps_a_merged_key_readable()
+        -> Result<(), Box<dyn std::error::Error>> {
+            let root = scratch("location-fold-torn-header");
+            let writer = Store::new(&root);
+            let key = (EntryKind::Check as u16, 1);
+            writer.publish(&[item(1, b"first")])?;
+            writer.open_shard(0)?.fold()?;
+            writer.publish(&[item(1, b"replacement")])?;
+            writer.open_shard(0)?.fold()?;
+            let location = load(&writer).get(&key).copied().ok_or("published key")?;
+
+            // Cache the old page without retaining an open pack descriptor.
+            let mut reader = Store::new(&root);
+            {
+                let mut guard = reader.state();
+                let snapshot = Store::snapshot(&mut guard);
+                assert_eq!(reader.locate(snapshot, key), Some(location));
+            }
+            writer.rewrite(&[Source {
+                id: location.pack,
+                copy: vec![(key, location.offset, location.len)],
+                keys: vec![key],
+            }])?;
+            assert!(!writer.path(location.pack).try_exists()?);
+
+            let log_path = writer.log_path(0);
+            let bytes = read_small(&log_path, MAX_INDEX)?.ok_or("published log")?;
+            let stable_header = bytes[..LOG_HEADER].to_vec();
+            let mut torn_header = stable_header.clone();
+            torn_header[LOG_HEADER - 1] ^= 1;
+            OpenOptions::new()
+                .write(true)
+                .open(&log_path)?
+                .write_all(&torn_header)?;
+            let restored = Arc::new(AtomicBool::new(false));
+            let restoring = Arc::clone(&restored);
+            reader.on_pause = Some(Arc::new(move |at| {
+                if at == "view-read" && !restoring.swap(true, Ordering::Relaxed) {
+                    // Complete the header write after one reader captured
+                    // its torn bytes, so every later read is consistent.
+                    let written = (|| -> io::Result<()> {
+                        OpenOptions::new()
+                            .write(true)
+                            .open(&log_path)?
+                            .write_all(&stable_header)
+                    })();
+                    assert!(written.is_ok(), "restore stable log header: {written:?}");
+                }
+            }));
+            cost::take();
+            let got = reader.get(EntryKind::Check, &Hash128(1));
+            let work = cost::take();
+            assert!(
+                restored.load(Ordering::Relaxed),
+                "one torn read was captured"
+            );
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(1))
+                    .as_deref(),
+                Some(b"replacement".as_slice()),
+                "the committed pack and index remain intact",
+            );
+            assert_eq!(got.as_deref(), Some(b"replacement".as_slice()));
+            assert_eq!(work.views_read, 1, "one vanished-pack refresh");
+            assert_eq!(work.packs_opened, 1);
+            assert_eq!(work.writer_locks, 0);
+            assert_eq!(work.dirs_listed, 0);
+            Ok(())
+        }
+
+        /// Appends do not change the fold epoch. A reader older than those
+        /// appends must use the refreshed overlay while a split is publishing.
+        #[test]
+        fn a_reader_before_an_append_finds_its_key_during_the_next_split()
+        -> Result<(), Box<dyn std::error::Error>> {
+            let root = scratch("append-before-split");
+            let mut writer = Store::new(&root);
+            let batch = |from: u128, to: u128| -> Vec<_> {
+                (from..to).map(|k| item(k, &k.to_le_bytes())).collect()
+            };
+            writer.publish(&batch(0, 30))?;
+            writer.open_shard(0)?.fold()?;
+            let reader = Store::new(&root);
+            let view = reader.read_view(0);
+            Store::snapshot(&mut reader.state()).views.insert(0, view);
+            writer.publish(&batch(30, 60))?;
+            let visited = Arc::new(AtomicBool::new(false));
+            let visiting = Arc::clone(&visited);
+            writer.on_pause = Some(Arc::new(move |at| {
+                if at == "paged" {
+                    visiting.store(true, Ordering::Relaxed);
+                    cost::take();
+                    assert_eq!(
+                        reader.get(EntryKind::Check, &Hash128(31)).as_deref(),
+                        Some(31_u128.to_le_bytes().as_slice()),
+                        "the refreshed same-epoch log contains the published key",
+                    );
+                    let work = cost::take();
+                    assert_eq!(work.views_read, 1);
+                    assert_eq!(work.packs_opened, 1);
+                    assert_eq!(work.writer_locks, 0);
+                    assert_eq!(work.dirs_listed, 0);
+                }
+            }));
+            writer.open_shard(0)?.fold()?;
+            assert!(visited.load(Ordering::Relaxed));
+            Ok(())
+        }
+
+        /// A split's old-head page must retain the moved row's current
+        /// location, since a merge can already have removed its disk pack.
+        #[test]
+        fn a_split_retains_current_pack_locations_for_readers_of_its_old_head()
+        -> Result<(), Box<dyn std::error::Error>> {
+            for (before, after, key) in [(30_u128, 60, 1_u128), (60, 90, 18)] {
+                let root = scratch("split-after-pack-move");
+                let mut writer = Store::new(&root);
+                let batch = |from: u128, to: u128| -> Vec<_> {
+                    (from..to).map(|k| item(k, &k.to_le_bytes())).collect()
+                };
+                writer.publish(&batch(0, before))?;
+                writer.open_shard(0)?.fold()?;
+                let rows = load(&writer);
+                let source = Source {
+                    id: rows.values().next().ok_or("published pack")?.pack,
+                    copy: rows.iter().map(|(k, l)| (*k, l.offset, l.len)).collect(),
+                    keys: rows.keys().copied().collect(),
+                };
+                let old = source.id;
+                writer.rewrite(&[source])?;
+                assert!(!writer.path(old).try_exists()?);
+                let visited = Arc::new(AtomicBool::new(false));
+                let visiting = Arc::clone(&visited);
+                let reader_root = root.clone();
+                writer.on_pause = Some(Arc::new(move |at| {
+                    if at == "paged" {
+                        visiting.store(true, Ordering::Relaxed);
+                        let reader = Store::new(&reader_root);
+                        cost::take();
+                        assert_eq!(
+                            reader.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                            Some(key.to_le_bytes().as_slice()),
+                            "the old-head bucket retains the committed replacement location",
+                        );
+                        let work = cost::take();
+                        assert_eq!(work.views_read, 1);
+                        assert_eq!(work.packs_opened, 1);
+                        assert_eq!(work.writer_locks, 0);
+                        assert_eq!(work.dirs_listed, 0);
+                    }
+                }));
+                writer.publish(&batch(before, after))?;
+                writer.open_shard(0)?.fold()?;
+                assert!(visited.load(Ordering::Relaxed));
+            }
+            Ok(())
+        }
+
         /// Cold, then warm with another process's merge between (#1538):
         /// every indexed pack exists after each step, and a reader whose
         /// page predates the merge reads the index again once and hits.
@@ -5383,6 +6325,505 @@ mod packed {
             }
         }
 
+        /// Commands that each publish the same change into one cache, as an
+        /// edit-and-build loop does (#2458): it replaces [`REPLACED`] keys
+        /// and adds [`ADDED`] new ones, spread over every shard, as a
+        /// declaration edit re-emits a program's units under new keys. The
+        /// counts of each command's publication, then of its settlement.
+        const REPLACED: u128 = 4;
+        const ADDED: u128 = 512;
+        fn edit_loop(root: &Path, commands: u128) -> Vec<(cost::Counts, cost::Counts)> {
+            // Hash-spread keys, as content hashes are.
+            let spread = |n: u128| n.wrapping_mul(0x9e37_79b9_7f4a_7c15_f39c_c060_5ced_c835) | 1;
+            let mut counts = Vec::new();
+            cost::take();
+            for run in 0..commands {
+                let store = DiskStore::new(root.to_path_buf());
+                let batch: Vec<_> = (0..REPLACED)
+                    .map(|k| item(spread(k), &[3; 32]))
+                    .chain((0..ADDED).map(|k| item(spread(1_000 + run * ADDED + k), &[5; 32])))
+                    .collect();
+                store.put_many(&batch);
+                let publish = cost::take();
+                drop(store);
+                counts.push((publish, cost::take()));
+            }
+            let reader = Store::new(root);
+            for k in (0..REPLACED).chain(1_000..1_000 + commands * ADDED) {
+                assert!(
+                    reader.get(EntryKind::Check, &Hash128(spread(k))).is_some(),
+                    "{k}"
+                );
+            }
+            counts
+        }
+
+        /// Rule (#2458): a command publishing the same change does no more
+        /// index work as the cache grows. Averaged over the first 160
+        /// commands, 4 times the index of the first 40, a command costs at
+        /// most twice as much as over those 40, the logarithmic copies of
+        /// segments: bytes and files written, pages and bytes read, rows
+        /// visited. Averages span the periodic folds. A settlement's merges
+        /// copy each frame once per size class it climbs, so its work is
+        /// per copied frame, at most two page reads each. Before segments, a
+        /// fold rewrote up to a page per changed row: 160 commands averaged
+        /// 2.6 to 3.7 times the work of 40, on the way to 4.
+        #[test]
+        fn publishing_the_same_change_costs_the_same_at_four_times_the_index() {
+            let root = scratch("edit-loop");
+            let counts = edit_loop(&root, 160);
+            let average = |n: usize, settle: bool| {
+                let mut sum = [0_u64; 6];
+                for (publish, settled) in &counts[..n] {
+                    let c = if settle { settled } else { publish };
+                    for (s, n) in sum.iter_mut().zip([
+                        c.index_read,
+                        c.index_written,
+                        c.index_files,
+                        c.pages_read,
+                        c.rows_visited,
+                        c.merge_frames,
+                    ]) {
+                        *s += n;
+                    }
+                }
+                // Per command, or per copied frame for a settlement.
+                let per = if settle { sum[5].max(1) } else { n as u64 };
+                sum.map(|x| x * 100 / per)
+            };
+            for settle in [false, true] {
+                let (early, late) = (average(40, settle), average(160, settle));
+                eprintln!(
+                    "settle {settle}, x100 per command or frame (read, written, files, pages \
+                     read, rows, frames): {early:?} {late:?}"
+                );
+                // Reads per copied frame approach a bound: one page lookup
+                // where the merge reads the frame's row, one where its commit
+                // checks it.
+                // Rows are bounded by the merge rule itself, below: as a
+                // ratio of two averages they swing with where the folds fall
+                // (1.3x to 2.1x across runs and platforms).
+                let checked = if settle { 1..3 } else { 0..4 };
+                for (what, (a, b)) in ["read", "written", "files", "pages read", "rows"]
+                    .iter()
+                    .zip(early.into_iter().zip(late))
+                    .take(checked.end)
+                    .skip(checked.start)
+                {
+                    assert!(
+                        b <= 2 * a.max(100),
+                        "{what}, settle {settle}: {early:?} {late:?}"
+                    );
+                }
+                if !settle {
+                    // Bentley-Saxe: each changed row is copied once per size
+                    // class it climbs, at most log2 of the index's rows. A
+                    // fold that rewrote a page per changed row (the #2458 bug)
+                    // visited about 20,000 rows per command here; this allows
+                    // about 8,800.
+                    let changed = REPLACED + ADDED;
+                    let index = REPLACED + 160 * ADDED;
+                    let log = u128::from(u128::BITS - index.leading_zeros());
+                    assert!(
+                        u128::from(late[4]) <= changed * log * 100,
+                        "rows per command past {changed} x log2 {log}: {late:?}"
+                    );
+                }
+                if settle {
+                    assert!(late[3] <= 2 * 100, "pages read per frame: {late:?}");
+                    assert!(
+                        late[4] <= 4 * SLOTS as u64 * 100,
+                        "rows per frame: {late:?}"
+                    );
+                }
+            }
+        }
+
+        /// Shard 0 with 2,000 rows folded into pages, about 57 buckets, so
+        /// a log of 80 changes spills into a segment rather than folding.
+        fn paged(label: &str) -> (PathBuf, Store) {
+            let root = scratch(label);
+            let writer = Store::new(&root);
+            let base: Vec<_> = (0..2000).map(|k| item(k, b"base")).collect();
+            writer.publish(&base).unwrap();
+            assert!(writer.open_shard(0).unwrap().overlay.segments.is_empty());
+            (root, writer)
+        }
+
+        fn batch(
+            keys: std::ops::Range<u128>,
+            bytes: &[u8],
+        ) -> Vec<(EntryKind, Hash128, Arc<[u8]>)> {
+            keys.map(|k| item(k, bytes)).collect()
+        }
+
+        /// Spilled segments (#2458) are part of the log a reader read: a reader
+        /// whose log names a segment a later spill merged away, or a later fold
+        /// applied and removed, reads the log again once and finds every
+        /// key, with no writer lock and no directory listing.
+        #[test]
+        fn a_reader_finds_keys_of_segments_merged_or_folded_since_its_view() {
+            let (root, writer) = paged("segment-reader");
+            writer.publish(&batch(10_000..10_080, b"one")).unwrap();
+            let segments = |w: &Store| w.open_shard(0).unwrap().overlay.segments.clone();
+            let first = segments(&writer);
+            assert_eq!(first.len(), 1, "a spill, not a fold");
+            // A change after the segment, which the reader finds in the log
+            // alone: its view names the segment but has not opened it.
+            writer.publish(&[item(20_000, b"tail")]).unwrap();
+            let reader = Store::new(&root);
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(20_000)).as_deref(),
+                Some(b"tail".as_slice())
+            );
+            // The next spill merges the two segments and removes the first.
+            writer.publish(&batch(10_080..10_160, b"two")).unwrap();
+            let merged = segments(&writer);
+            assert_eq!(merged.len(), 1);
+            assert_ne!(merged, first);
+            assert_eq!(merged[0].rows, 161);
+            cost::take();
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(10_001)).as_deref(),
+                Some(b"one".as_slice())
+            );
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(10_101)).as_deref(),
+                Some(b"two".as_slice())
+            );
+            assert_eq!(
+                reader.get(EntryKind::Check, &Hash128(7)).as_deref(),
+                Some(b"base".as_slice())
+            );
+            let work = cost::take();
+            assert_eq!(
+                (work.views_read, work.writer_locks, work.dirs_listed),
+                (1, 0, 0),
+                "{work:?}"
+            );
+            // A fold applies the segments to the pages and removes them.
+            writer.publish(&[item(20_001, b"tail")]).unwrap();
+            let older = Store::new(&root);
+            assert!(older.get(EntryKind::Check, &Hash128(20_001)).is_some());
+            let mut shard = writer.open_shard(0).unwrap();
+            shard.fold().unwrap();
+            drop(shard);
+            assert!(segments(&writer).is_empty());
+            assert!(
+                !root
+                    .join(NAMESPACE)
+                    .join("index/0")
+                    .join(segment_name(merged[0].id))
+                    .exists()
+            );
+            cost::take();
+            for (key, bytes) in [(10_002, &b"one"[..]), (10_102, b"two"), (8, b"base")] {
+                assert_eq!(
+                    older.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                    Some(bytes)
+                );
+            }
+            let work = cost::take();
+            assert_eq!(
+                (work.views_read, work.writer_locks, work.dirs_listed),
+                (1, 0, 0),
+                "{work:?}"
+            );
+            assert_eq!(load(&writer).len(), 2000 + 160 + 2);
+        }
+
+        /// Two writers spill, merge segments, fold and merge packs in one shard
+        /// while a reader checks every key they published so far: a reader
+        /// never misses a published key across segments replaced under it.
+        /// With `windows`, under Windows' delete-pending semantics (#2458).
+        /// A writer that fails, or no end within the deadline, fails the
+        /// test rather than leave the reader polling.
+        fn readers_race_spills_merges_and_folds(label: &str, windows: bool) {
+            const BATCHES: u128 = 24;
+            // A run takes about 0.5 s; this is the slowest CI host's margin.
+            const DEADLINE: Duration = Duration::from_mins(2);
+            let (root, _) = paged(label);
+            if windows {
+                files::windows::emulate(&root);
+            }
+            let done = [AtomicU64::new(0), AtomicU64::new(0)];
+            let start = Instant::now();
+            std::thread::scope(|scope| {
+                let writers: Vec<_> = done
+                    .iter()
+                    .enumerate()
+                    .map(|(w, done)| {
+                        let root = &root;
+                        // cost: two test threads, 24 publications of 80 keys each.
+                        scope.spawn(move || {
+                            for b in 0..BATCHES {
+                                let from = 100_000 * (w as u128 + 1) + b * 80;
+                                let store = Store::new(root);
+                                store.publish(&batch(from..from + 80, b"segment")).unwrap();
+                                store.settle(u64::MAX).unwrap();
+                                done.store(u64::try_from(b + 1).unwrap(), Ordering::Release);
+                            }
+                        })
+                    })
+                    .collect();
+                loop {
+                    let seen = done
+                        .each_ref()
+                        .map(|d| u128::from(d.load(Ordering::Acquire)));
+                    let reader = Store::new(&root);
+                    for (w, &batches) in seen.iter().enumerate() {
+                        let from = 100_000 * (w as u128 + 1);
+                        for k in (from..from + batches * 80).step_by(7) {
+                            assert_eq!(
+                                reader.get(EntryKind::Check, &Hash128(k)).as_deref(),
+                                Some(b"segment".as_slice()),
+                                "key {k} after {batches} batches"
+                            );
+                        }
+                    }
+                    assert_eq!(
+                        reader.get(EntryKind::Check, &Hash128(1_999)).as_deref(),
+                        Some(b"base".as_slice())
+                    );
+                    if seen == [BATCHES; 2] {
+                        break;
+                    }
+                    for (w, writer) in writers.iter().enumerate() {
+                        // Its last store happens before it ends.
+                        let ended = writer.is_finished();
+                        let batches = u128::from(done[w].load(Ordering::Acquire));
+                        assert!(
+                            !ended || batches == BATCHES,
+                            "writer {w} failed after {batches} batches"
+                        );
+                    }
+                    assert!(start.elapsed() < DEADLINE, "no end after {seen:?} batches");
+                }
+            });
+            assert_eq!(load(&Store::new(&root)).len(), 2000 + 2 * 24 * 80);
+        }
+
+        #[test]
+        fn readers_find_every_key_while_writers_spill_merge_and_fold_segments() {
+            readers_race_spills_merges_and_folds("segment-writers", false);
+        }
+
+        /// The same race under Windows' semantics (#2458): a reader holds the
+        /// packs and segments it read until it ends, so merges leave them
+        /// delete pending. Before #2458's fix a reader missed a key whose
+        /// segment was pending, and a merge failed on a pending source.
+        #[test]
+        fn readers_find_every_key_while_writers_spill_merge_and_fold_on_windows() {
+            readers_race_spills_merges_and_folds("segment-writers-windows", true);
+        }
+
+        /// On Windows a segment a spill merged away while a reader held it
+        /// stays delete pending (#2458): another reader whose older log names it
+        /// cannot open it, and reads the log again as for a removed one: one
+        /// log read, no writer lock, no directory listing.
+        #[test]
+        fn a_reader_finds_a_key_whose_segment_a_spill_removed_while_another_held_it() {
+            let (root, writer) = paged("segment-pending");
+            files::windows::emulate(&root);
+            writer.publish(&batch(10_000..10_080, b"one")).unwrap();
+            let first = writer.open_shard(0).unwrap().overlay.segments.clone();
+            assert_eq!(first.len(), 1, "a spill, not a fold");
+            writer.publish(&[item(20_000, b"tail")]).unwrap();
+            // A reader whose log names the segment, which it has not opened.
+            let stale = Store::new(&root);
+            assert_eq!(
+                stale.get(EntryKind::Check, &Hash128(20_000)).as_deref(),
+                Some(b"tail".as_slice())
+            );
+            let holder = Store::new(&root);
+            assert_eq!(
+                holder.get(EntryKind::Check, &Hash128(10_001)).as_deref(),
+                Some(b"one".as_slice())
+            );
+            // The next spill merges the segment into a new one and removes it.
+            writer.publish(&batch(10_080..10_160, b"two")).unwrap();
+            let pending = root
+                .join(NAMESPACE)
+                .join("index/0")
+                .join(segment_name(first[0].id));
+            assert!(pending.exists(), "delete pending while held");
+            cost::take();
+            assert_eq!(
+                stale.get(EntryKind::Check, &Hash128(10_002)).as_deref(),
+                Some(b"one".as_slice())
+            );
+            let work = cost::take();
+            assert_eq!(
+                (work.views_read, work.writer_locks, work.dirs_listed),
+                (1, 0, 0),
+                "{work:?}"
+            );
+            drop(holder);
+            assert!(!pending.exists(), "removed at its last close");
+        }
+
+        /// On Windows a pack a merge removed while a reader held it stays
+        /// delete pending (#2458): a second merge that chose it before then
+        /// skips it, as a removed one, rather than fail its run's settlement.
+        #[test]
+        fn a_merge_skips_packs_another_merge_removed_while_a_reader_held_them() {
+            let root = scratch("merge-pending");
+            files::windows::emulate(&root);
+            let keys = 0..FANOUT as u128;
+            {
+                let store = Store::new(&root);
+                for key in keys.clone() {
+                    store.publish(&[item(key, &[3; 64])]).unwrap();
+                }
+            }
+            let holder = Store::new(&root);
+            for key in keys.clone() {
+                assert!(holder.get(EntryKind::Check, &Hash128(key)).is_some());
+            }
+            // This merge chose the packs; another merges them first.
+            let mut late = Store::new(&root);
+            let other = root.clone();
+            let raced = Arc::new(AtomicBool::new(false));
+            let once = Arc::clone(&raced);
+            late.on_pause = Some(Arc::new(move |at| {
+                if at == "copy" && !once.swap(true, Ordering::Relaxed) {
+                    Store::new(&other).merge_small(1).unwrap();
+                }
+            }));
+            late.merge_small(1).unwrap();
+            assert!(raced.load(Ordering::Relaxed));
+            let packs = || {
+                // cost: a test listing one namespace of a handful of files.
+                std::fs::read_dir(root.join(NAMESPACE))
+                    .unwrap()
+                    .filter_map(Result::ok)
+                    .filter(|e| {
+                        Path::new(&e.file_name())
+                            .extension()
+                            .is_some_and(|x| x == "pack")
+                    })
+                    .count()
+            };
+            assert_eq!(packs(), FANOUT + 1, "the merged sources are delete pending");
+            for key in keys.clone() {
+                assert_eq!(
+                    Store::new(&root)
+                        .get(EntryKind::Check, &Hash128(key))
+                        .as_deref(),
+                    Some([3; 64].as_slice())
+                );
+                assert!(holder.get(EntryKind::Check, &Hash128(key)).is_some());
+            }
+            drop(holder);
+            assert_eq!(packs(), 1);
+        }
+
+        /// A rename onto a delete-pending name retries within git's 71 ms, then
+        /// fails; once the last handle closes it succeeds (#2458).
+        #[test]
+        fn a_rename_onto_a_delete_pending_name_is_retried_a_bounded_time() {
+            let root = scratch("rename-pending");
+            files::windows::emulate(&root);
+            let name = page_name(1);
+            let page = root.join(&name);
+            std::fs::write(&page, b"old").unwrap();
+            let held = files::open(&page).unwrap();
+            files::remove(&page).unwrap();
+            assert_eq!(
+                files::open(&page).err().map(|e| e.kind()),
+                Some(io::ErrorKind::PermissionDenied)
+            );
+            let start = Instant::now();
+            let error = replace_file(&root, &name, b"new").err();
+            assert_eq!(
+                error.map(|e| e.kind()),
+                Some(io::ErrorKind::PermissionDenied)
+            );
+            assert!(start.elapsed() >= Duration::from_millis(71));
+            drop(held);
+            replace_file(&root, &name, b"new").unwrap();
+            assert_eq!(std::fs::read(&page).unwrap(), b"new");
+            // cost: a test listing a directory of one file.
+            assert_eq!(
+                std::fs::read_dir(&root).unwrap().count(),
+                1,
+                "no temporary left"
+            );
+        }
+
+        /// A segment that fails its checksum hides its keys: a reader and a
+        /// writer miss them rather than find an older location in a page.
+        #[test]
+        fn a_corrupt_segment_is_a_miss_never_an_older_location() {
+            let (root, writer) = paged("segment-corrupt");
+            let mut changed = batch(10_000..10_079, b"x");
+            changed.push(item(5, b"new"));
+            writer.publish(&changed).unwrap();
+            let segments = writer.open_shard(0).unwrap().overlay.segments.clone();
+            assert_eq!(segments.len(), 1);
+            let path = root
+                .join(NAMESPACE)
+                .join("index/0")
+                .join(segment_name(segments[0].id));
+            let mut bytes = std::fs::read(&path).unwrap();
+            // Key 5's bucket fails its checksum; the others stay whole.
+            let bucket = 5 & ((1 << segments[0].level) - 1);
+            let entry = HEADER + bucket * SEG_ENTRY;
+            let start = u32_at(&bytes, entry) as usize;
+            let ops = HEADER + (SEG_ENTRY << segments[0].level);
+            bytes[ops + start * OP + 1] ^= 0xff;
+            std::fs::write(&path, &bytes).unwrap();
+            assert_eq!(Store::new(&root).get(EntryKind::Check, &Hash128(5)), None);
+            let other = 6 + u128::from(6 & ((1 << segments[0].level) - 1) == bucket);
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(other))
+                    .as_deref(),
+                Some(b"base".as_slice())
+            );
+            assert!(
+                !Store::new(&root)
+                    .set_used(EntryKind::Check, &Hash128(5), 1)
+                    .unwrap()
+            );
+        }
+
+        /// A collection folds the segments a log names, and removes a segment file
+        /// no log names, as a crash between writing and naming it leaves;
+        /// both count toward the running total until then.
+        #[test]
+        fn a_collection_folds_named_segments_and_removes_a_crashed_spills_segment() {
+            let (root, writer) = paged("segment-collect");
+            writer.publish(&batch(10_000..10_080, b"one")).unwrap();
+            let dir = root.join(NAMESPACE).join("index/0");
+            let stray = dir.join(segment_name(unique()));
+            std::fs::write(&stray, b"crashed spill").unwrap();
+            let segments = || {
+                // cost: a test listing one shard directory, linear in its
+                // entries: about 60 pages and two segment files.
+                std::fs::read_dir(&dir)
+                    .unwrap()
+                    .filter_map(Result::ok)
+                    .filter(|e| {
+                        Path::new(&e.file_name())
+                            .extension()
+                            .is_some_and(|x| x == "seg")
+                    })
+                    .count()
+            };
+            assert_eq!(segments(), 2);
+            let collected = writer.collect(DEFAULT).unwrap();
+            assert_eq!(segments(), 0);
+            assert_eq!(writer.total(), Some(collected.after));
+            assert_eq!(load(&writer).len(), 2080);
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(10_050))
+                    .as_deref(),
+                Some(b"one".as_slice())
+            );
+        }
+
         #[test]
         fn a_small_merge_copies_each_source_frame_once_at_ten_times_the_entries() {
             for n in [1000, 10_000] {
@@ -5504,7 +6945,7 @@ mod packed {
             let mut collector = Store::new(&root);
             collector.on_pause = Some(Arc::new(move |stop| {
                 // Its folds stop inside the writer lock.
-                if matches!(stop, "paged" | "headed") {
+                if matches!(stop, "paged" | "headed" | "view-read") {
                     return;
                 }
                 at.send(stop).unwrap();
@@ -6102,7 +7543,9 @@ mod packed {
             let mut b = DiskStore::new(root.clone()).with_claims();
             let (waiting, waits) = std::sync::mpsc::channel();
             b.packed.on_pause = Some(Arc::new(move |at| {
-                let _ = waiting.send(at);
+                if at != "view-read" {
+                    let _ = waiting.send(at);
+                }
             }));
             drop(b.packed.join());
             // cost: one test thread, one miss.

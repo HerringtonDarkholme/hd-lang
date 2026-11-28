@@ -172,6 +172,57 @@ pub fn needs(imports: &[(String, String)]) -> Vec<&'static str> {
         .collect()
 }
 
+/// The original module offsets of the length-prefixed function bodies.
+/// Only body headers are read; instructions are skipped in constant time.
+pub(crate) fn code_starts(base: usize, body: &[u8]) -> Result<Vec<u64>, String> {
+    let mut reader = Bytes { b: body, at: 0 };
+    let mut starts = Vec::new();
+    for _ in 0..reader.len()? {
+        let size = reader.len()?;
+        starts.push((base + reader.at) as u64);
+        reader.at = reader
+            .at
+            .checked_add(size)
+            .filter(|end| *end <= body.len())
+            .ok_or("a function body ends after the code section")?;
+    }
+    Ok(starts)
+}
+
+/// The import/export descriptions and custom metadata of `wasm`, without
+/// function bodies or data. This is a metadata projection, never runnable
+/// Wasm. Native artifacts use the same host and frame readers as Wasm.
+/// Cost: one section-header walk and copies of retained sections only.
+pub fn metadata_projection(wasm: &[u8]) -> Result<Vec<u8>, String> {
+    let sections = all_sections(wasm)?;
+    let mut out = wasm[..8].to_vec();
+    let mut start = 8;
+    let mut starts = Vec::new();
+    for (id, at, body) in sections {
+        let end = at + body.len();
+        if matches!(id, 0 | 2 | 7) {
+            out.extend_from_slice(&wasm[start..end]);
+        } else if id == 10 {
+            starts = code_starts(at, body)?;
+        }
+        start = end;
+    }
+    let mut positions = Vec::new();
+    hd_base::leb::put(&mut positions, crate::frames::CODE_STARTS.len() as u64);
+    positions.extend_from_slice(crate::frames::CODE_STARTS.as_bytes());
+    hd_base::leb::put(&mut positions, starts.len() as u64);
+    let mut previous = 0;
+    for start in starts {
+        // Length-prefixed bodies have strictly increasing starts.
+        hd_base::leb::put(&mut positions, start - previous);
+        previous = start;
+    }
+    out.push(0);
+    hd_base::leb::put(&mut out, positions.len() as u64);
+    out.extend(positions);
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{module_exports, module_imports, needs, unknown_import};

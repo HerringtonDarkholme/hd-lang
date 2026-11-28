@@ -1,9 +1,10 @@
 # @dump: wat
-# A program with 32,768 method slots. Release glues take the function
+# A program with 32,768 method slots, each called through a trait value
+# so its table keeps it. Release glues take the function
 # table's first slots, so `box(Leaf ...)` writes a small descriptor (glue
 # slot plus one, plus the cycle bit when set), while the closure's code
 # takes a slot past 32,767.
-use std.annotation.inline
+use std.meta.inline
 
 struct Leaf:
     value: i32
@@ -192,6 +193,69 @@ pub fn main() -> void $ Console:
     l0(+0, &mut out)
     let sum = +0
     for g in out:
+        sum = sum + g.g0()
+        sum = sum + g.g1()
+        sum = sum + g.g2()
+        sum = sum + g.g3()
+        sum = sum + g.g4()
+        sum = sum + g.g5()
+        sum = sum + g.g6()
+        sum = sum + g.g7()
+        sum = sum + g.g8()
+        sum = sum + g.g9()
+        sum = sum + g.g10()
+        sum = sum + g.g11()
+        sum = sum + g.g12()
+        sum = sum + g.g13()
+        sum = sum + g.g14()
+        sum = sum + g.g15()
+        sum = sum + g.g16()
+        sum = sum + g.g17()
+        sum = sum + g.g18()
+        sum = sum + g.g19()
+        sum = sum + g.g20()
+        sum = sum + g.g21()
+        sum = sum + g.g22()
+        sum = sum + g.g23()
+        sum = sum + g.g24()
+        sum = sum + g.g25()
+        sum = sum + g.g26()
+        sum = sum + g.g27()
+        sum = sum + g.g28()
+        sum = sum + g.g29()
+        sum = sum + g.g30()
+        sum = sum + g.g31()
+        sum = sum + g.g32()
+        sum = sum + g.g33()
+        sum = sum + g.g34()
+        sum = sum + g.g35()
+        sum = sum + g.g36()
+        sum = sum + g.g37()
+        sum = sum + g.g38()
+        sum = sum + g.g39()
+        sum = sum + g.g40()
+        sum = sum + g.g41()
+        sum = sum + g.g42()
+        sum = sum + g.g43()
+        sum = sum + g.g44()
+        sum = sum + g.g45()
+        sum = sum + g.g46()
+        sum = sum + g.g47()
+        sum = sum + g.g48()
+        sum = sum + g.g49()
+        sum = sum + g.g50()
+        sum = sum + g.g51()
+        sum = sum + g.g52()
+        sum = sum + g.g53()
+        sum = sum + g.g54()
+        sum = sum + g.g55()
+        sum = sum + g.g56()
+        sum = sum + g.g57()
+        sum = sum + g.g58()
+        sum = sum + g.g59()
+        sum = sum + g.g60()
+        sum = sum + g.g61()
+        sum = sum + g.g62()
         sum = sum + g.g63()
     # subject
     if sum > 0:

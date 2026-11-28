@@ -3,7 +3,7 @@
 # expected: TIR borrows the counted pointee with Ref; ownership keeps the
 # declared owner through the cold callback, then releases it. The local
 # reference payload takes no count.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read(value: (&i32)?) -> i32:
@@ -14,6 +14,7 @@ fn read(value: (&i32)?) -> i32:
 fn call() -> i32:
     let owner: *i32 = box(+7)
 > app/main/call
+>   release fn(&i32?) -> i32 (last use)
 >   release *i32 (last use)
     let callback: fn((&i32)?) -> i32 = read
     callback(.Some(owner))

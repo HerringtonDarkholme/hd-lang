@@ -8,13 +8,14 @@ use crate::abi::{self, Entry, EntryKind, FsError};
 use crate::codec::{Dec, Enc, Wire, encode};
 use crate::runtime::reactor::Done;
 
-use super::io::{open, read, write};
+use super::io::{open, open_read, read, write};
 use super::ops::{Env, at, run};
 use super::sandbox::{Place, Sandbox, Stat, is_escape};
 
 /// The methods that open the path, so that a special file can make them
 /// wait. The others never open it, or fail at once on it.
 const OPENING: &[&str] = &[
+    "open",
     "read_bytes",
     "read_text",
     "write_bytes",
@@ -23,25 +24,28 @@ const OPENING: &[&str] = &[
 ];
 
 /// What `.start` of an `Fs` method does.
-pub(crate) enum Start {
+pub enum Start {
     /// The result, at once: a refusal, an error, or a regular file or a
     /// directory, which run inline on the program thread.
     Ready(Enc),
     /// A special file (`std-fs.special-file`): the call waits on the
     /// blocking pool, and `.finish` delivers its result.
     Run(Box<Job>),
+    /// `open` of a regular file or a directory, run inline: the file, or
+    /// the encoded error.
+    Opened(Result<std::fs::File, Enc>),
 }
 
 /// A call on a special file, ready to run off the program thread.
-pub(crate) struct Job {
-    method: String,
-    path: String,
-    to: Option<String>,
+pub struct Job {
+    pub method: String,
+    pub path: String,
+    pub to: Option<String>,
     /// Where the call acts, and where a `rename` moves to.
-    place: Place,
-    to_place: Option<Place>,
-    payload: Option<Vec<u8>>,
-    cwd: PathBuf,
+    pub place: Place,
+    pub to_place: Option<Place>,
+    pub payload: Option<Vec<u8>>,
+    pub cwd: PathBuf,
 }
 
 impl Job {
@@ -53,7 +57,14 @@ impl Job {
     /// is within the spec: a special file has no deadline guarantee
     /// beyond "other tasks run" (`std-fs.special-file.deadline`), and a
     /// cancelled write may have happened (`std-fs.cancel.write`).
-    pub(crate) async fn run(self: Box<Self>) -> Done {
+    pub async fn run(self: Box<Self>) -> Done {
+        if self.method == "open" {
+            return match tokio::task::spawn_blocking(move || self.opened(None)).await {
+                Ok(Some(opened)) => Done::Opened(opened),
+                Ok(None) => Done::Opened(Err(error_text("the open ran past a deadline"))),
+                Err(error) => Done::Opened(Err(error_text(&format!("the open failed: {error}")))),
+            };
+        }
         match tokio::task::spawn_blocking(move || self.run_blocking()).await {
             Ok(encoded) => Done::Fs(encoded),
             Err(error) => Done::Fs(error_text(&format!("the file operation failed: {error}"))),
@@ -61,7 +72,8 @@ impl Job {
     }
 
     /// The call, run on this thread, which waits for the file.
-    pub(crate) fn run_blocking(self: Box<Self>) -> Enc {
+    #[must_use]
+    pub fn run_blocking(self: Box<Self>) -> Enc {
         self.execute(None, None)
             .unwrap_or_else(|| error_text("the file operation ran past a deadline"))
     }
@@ -124,6 +136,17 @@ impl Job {
         }
         check_deadline(deadline).ok()?;
         Some(ok(()))
+    }
+
+    /// `open`: the file opened for reading, or the encoded error as
+    /// `read_bytes` reports it; `None` once the deadline passed.
+    fn opened(&self, deadline: Option<Instant>) -> Option<Result<std::fs::File, Enc>> {
+        match open_read(&self.place, deadline) {
+            Ok((file, _)) => Some(Ok(file)),
+            Err(Failure::Deadline) => None,
+            Err(Failure::NotGranted) => Some(Err(not_granted_at(&self.path, &self.cwd, true))),
+            Err(err) => Some(Err(failure(&self.path, "open", &self.path, &err))),
+        }
     }
 
     /// The encoded result, or `None` once the deadline passed.
@@ -201,7 +224,7 @@ fn error_text(text: &str) -> Enc {
 /// acts under the handle of the granted directory that covers it
 /// (`sandbox`). A regular file or a directory runs here;
 /// anything else (a FIFO, a device, a named pipe) comes back as a `Job`.
-pub(crate) fn start(
+pub fn start(
     key: &str,
     method: &str,
     bytes: &[u8],
@@ -279,6 +302,12 @@ pub(crate) fn start(
     if special {
         return Ok(Start::Run(Box::new(job)));
     }
+    if method == "open" {
+        return match job.opened(deadline) {
+            Some(opened) => Ok(Start::Opened(opened)),
+            None => Err(crate::host::Stop::TimeLimit.into()),
+        };
+    }
     match job.execute(deadline, Some(sandbox)) {
         Some(encoded) => Ok(Start::Ready(encoded)),
         None => Err(crate::host::Stop::TimeLimit.into()),
@@ -286,8 +315,8 @@ pub(crate) fn start(
 }
 
 /// `start` for a test that waits for a special file on its own thread.
-#[cfg(test)]
-pub(crate) fn call_until_at(
+#[cfg(feature = "testing")]
+pub fn call_until_at(
     key: &str,
     method: &str,
     bytes: &[u8],
@@ -298,14 +327,16 @@ pub(crate) fn call_until_at(
     let sandbox = Sandbox::default();
     Ok(
         match start(key, method, bytes, grants, &sandbox, deadline, cwd)? {
-            Start::Ready(encoded) => encoded,
+            Start::Ready(encoded) | Start::Opened(Err(encoded)) => encoded,
+            // A test's call registers no handle: the file closes here.
+            Start::Opened(Ok(_)) => ok(crate::codec::Handle(0)),
             Start::Run(job) => job.run_blocking(),
         },
     )
 }
 
-#[cfg(test)]
-pub(crate) fn call_until(
+#[cfg(feature = "testing")]
+pub fn call_until(
     key: &str,
     method: &str,
     bytes: &[u8],
@@ -316,17 +347,12 @@ pub(crate) fn call_until(
     call_until_at(key, method, bytes, grants, deadline, &cwd)
 }
 
-#[cfg(test)]
-pub(crate) fn call(
-    key: &str,
-    method: &str,
-    bytes: &[u8],
-    grants: &Grants,
-) -> wasmtime::Result<Enc> {
+#[cfg(feature = "testing")]
+pub fn call(key: &str, method: &str, bytes: &[u8], grants: &Grants) -> wasmtime::Result<Enc> {
     call_until(key, method, bytes, grants, None)
 }
 
-pub(crate) enum Failure {
+pub enum Failure {
     Deadline,
     System {
         error: io::Error,
@@ -342,7 +368,8 @@ pub(crate) enum Failure {
 }
 
 impl Failure {
-    pub(crate) fn new(syscall: &'static str, error: io::Error) -> Self {
+    #[must_use]
+    pub fn new(syscall: &'static str, error: io::Error) -> Self {
         if is_escape(&error) {
             return Self::NotGranted;
         }
@@ -463,7 +490,8 @@ fn other(message: &str) -> FsError {
     }
 }
 
-pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -> Enc {
+#[must_use]
+pub fn failure(path: &str, method: &str, from: &str, failure: &Failure) -> Enc {
     let (err, syscall, error_path) = match failure {
         Failure::Deadline => unreachable!("a deadline is a host stop, not an Fs error"),
         Failure::Message(message) => return error(other(message)),
@@ -492,305 +520,4 @@ pub(crate) fn failure(path: &str, method: &str, from: &str, failure: &Failure) -
         format!("{path:?}")
     };
     error(other(&format!("{syscall} {paths}: {err}")))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Failure, call, call_until_at};
-    use crate::codec::{Dec, Enc};
-    use crate::fs::test_support::{TempDir, assert_time_limit, error, limited};
-    use hd_run::{Grants, Limit};
-    use std::fs;
-    use std::time::Instant;
-
-    #[test]
-    fn copy_uses_independent_endpoint_grants_and_preserves_opened_aliases() {
-        let dir = TempDir::new();
-        let source = dir.0.join("source");
-        let target = dir.0.join("target");
-        fs::write(&source, [0, 255, 10]).unwrap();
-        fs::write(&target, b"an old longer destination").unwrap();
-        let entries = |path: &std::path::Path| {
-            Limit::Entries(vec![
-                hd_run::resolve_path(path).to_string_lossy().into_owned(),
-            ])
-        };
-        let grants = |read: Limit, write: Limit| {
-            Grants::with_limits([("FsRead".into(), read), ("FsWrite".into(), write)])
-        };
-        let invoke = |grants: &Grants| {
-            let mut args = Enc::default();
-            args.str("source").str("target");
-            call_until_at("FsWrite", "copy", args.done(), grants, None, &dir.0)
-                .unwrap()
-                .done()
-                .to_vec()
-        };
-        let both = grants(entries(&source), entries(&target));
-        assert_eq!(invoke(&both), [0]);
-        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
-        let no_read = grants(Limit::Deny, entries(&target));
-        assert_eq!(invoke(&no_read), error("source", 2).done());
-        let no_write = grants(entries(&source), Limit::Deny);
-        assert_eq!(invoke(&no_write), error("target", 2).done());
-        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
-        fs::remove_file(&target).unwrap();
-        fs::hard_link(&source, &target).unwrap();
-        assert_eq!(invoke(&grants(entries(&source), entries(&target))), [0]);
-        assert_eq!(fs::read(&source).unwrap(), [0, 255, 10]);
-        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn copy_refuses_final_links_replaced_after_scoped_resolution() {
-        use super::{Job, Sandbox};
-        use std::os::unix::fs::symlink;
-        let dir = TempDir::new();
-        for name in ["source", "target", "outside"] {
-            fs::write(dir.0.join(name), name).unwrap();
-        }
-        let source = dir.0.join("source");
-        let target = dir.0.join("target");
-        let outside = dir.0.join("outside");
-        let grants = Grants::with_limits(vec![
-            (
-                "FsRead".into(),
-                Limit::Entries(vec![
-                    hd_run::resolve_path(&source).to_string_lossy().into_owned(),
-                ]),
-            ),
-            (
-                "FsWrite".into(),
-                Limit::Entries(vec![
-                    hd_run::resolve_path(&target).to_string_lossy().into_owned(),
-                ]),
-            ),
-        ]);
-        let sandbox = Sandbox::default();
-        let job = || {
-            Box::new(Job {
-                method: "copy".into(),
-                path: "source".into(),
-                to: Some("target".into()),
-                place: sandbox
-                    .place(&grants, "FsRead", &source, true, false)
-                    .unwrap(),
-                to_place: Some(
-                    sandbox
-                        .place(&grants, "FsWrite", &target, true, false)
-                        .unwrap(),
-                ),
-                payload: None,
-                cwd: dir.0.clone(),
-            })
-        };
-        let pending = job();
-        fs::remove_file(&source).unwrap();
-        symlink(&outside, &source).unwrap();
-        let encoded = pending.run_blocking();
-        let mut decoded = Dec::new(encoded.done());
-        assert_eq!(decoded.leb().unwrap(), 1);
-        assert_eq!(decoded.leb().unwrap(), 2); // NotGranted
-        assert_eq!(fs::read(&target).unwrap(), b"target");
-        fs::remove_file(&source).unwrap();
-        fs::write(&source, b"source").unwrap();
-        let pending = job();
-        fs::remove_file(&target).unwrap();
-        symlink(&outside, &target).unwrap();
-        let encoded = pending.run_blocking();
-        let mut decoded = Dec::new(encoded.done());
-        assert_eq!(decoded.leb().unwrap(), 1);
-        assert_eq!(decoded.leb().unwrap(), 2);
-        assert_eq!(fs::read(&outside).unwrap(), b"outside");
-    }
-
-    #[test]
-    fn concurrent_case_directories_do_not_change_process_cwd() {
-        let before = std::env::current_dir().unwrap();
-        let left = TempDir::new();
-        let right = TempDir::new();
-        std::thread::scope(|scope| {
-            for (dir, payload) in [(&left, b"left".as_slice()), (&right, b"right".as_slice())] {
-                scope.spawn(move || {
-                    let mut args = Enc::default();
-                    args.str("value").bytes(payload);
-                    let result = call_until_at(
-                        "FsWrite",
-                        "write_bytes",
-                        args.done(),
-                        &Grants::default(),
-                        None,
-                        &dir.0,
-                    )
-                    .unwrap();
-                    assert_eq!(result.done(), &[0]);
-                    let mut args = Enc::default();
-                    args.str("value");
-                    let result = call_until_at(
-                        "FsRead",
-                        "read_bytes",
-                        args.done(),
-                        &Grants::default(),
-                        None,
-                        &dir.0,
-                    )
-                    .unwrap();
-                    let mut dec = Dec::new(result.done());
-                    assert_eq!(dec.leb().unwrap(), 0);
-                    assert_eq!(dec.bytes().unwrap(), payload);
-                });
-            }
-        });
-        assert_eq!(std::env::current_dir().unwrap(), before);
-        assert_eq!(fs::read(left.0.join("value")).unwrap(), b"left");
-        assert_eq!(fs::read(right.0.join("value")).unwrap(), b"right");
-    }
-    #[test]
-    fn case_directory_results_keep_guest_paths_and_grant_resolution() {
-        let dir = TempDir::new();
-        fs::write(dir.0.join("item"), b"x").unwrap();
-        let invoke = |key: &str, method: &str, path: &str, grants: &Grants| {
-            let mut args = Enc::default();
-            args.str(path);
-            call_until_at(key, method, args.done(), grants, None, &dir.0).unwrap()
-        };
-        let result = invoke("FsRead", "list_dir", ".", &Grants::default());
-        let mut dec = Dec::new(result.done());
-        assert_eq!(dec.leb().unwrap(), 0);
-        assert_eq!(dec.leb().unwrap(), 1);
-        assert_eq!(dec.str().unwrap(), "./item");
-        assert_eq!(dec.leb().unwrap(), 0);
-        assert_eq!(dec.leb().unwrap(), 1);
-        assert_eq!(
-            invoke("FsRead", "read_text", "absent", &Grants::default()).done(),
-            error("absent", 0).done()
-        );
-        let grants = Grants::with_limits(vec![(
-            "FsRead".into(),
-            Limit::Entries(vec![
-                hd_run::resolve_path(&dir.0.join("item"))
-                    .to_string_lossy()
-                    .into_owned(),
-            ]),
-        )]);
-        assert_eq!(
-            invoke("FsRead", "read_text", "item", &grants).done(),
-            Enc::default().leb(0).str("x").done()
-        );
-        assert_eq!(
-            invoke("FsRead", "read_text", "../outside", &grants).done(),
-            error("../outside", 2).done()
-        );
-        assert_eq!(
-            invoke("FsWrite", "create_dir_all", "", &Grants::default()).done(),
-            error("", 0).done()
-        );
-    }
-    #[test]
-    fn expired_deadline_prevents_filesystem_mutation_and_is_a_host_stop() {
-        let dir = TempDir::new();
-        let path = dir.path("keep");
-        fs::write(&path, b"original").unwrap();
-        let expired = Instant::now();
-        assert_time_limit(limited("write_bytes", &path, Some(b"replacement"), expired));
-        assert_eq!(fs::read(&path).unwrap(), b"original");
-        assert_time_limit(limited(
-            "create_dir_all",
-            &dir.path("new/a/b"),
-            None,
-            expired,
-        ));
-        assert!(!std::path::Path::new(&dir.path("new")).exists());
-        assert_time_limit(limited("remove", &path, None, expired));
-        assert_eq!(fs::read(&path).unwrap(), b"original");
-    }
-    #[test]
-    fn grants_precede_validation_and_cover_both_rename_paths() {
-        let denied = Grants::with_limits(vec![("FsWrite".into(), Limit::Deny)]);
-        // Every argument decodes before the grant is checked: a missing
-        // payload breaks the ABI even outside the grant.
-        let mut args = Enc::default();
-        args.str("bad\0path");
-        let Err(err) = call("FsWrite", "write_text", args.done(), &denied) else {
-            panic!("a call with no payload decodes");
-        };
-        assert_eq!(err.to_string(), "an argument does not decode");
-        args.str("text");
-        assert_eq!(
-            call("FsWrite", "write_text", args.done(), &denied)
-                .unwrap()
-                .done(),
-            error("bad\0path", 2).done()
-        );
-        let dir = TempDir::new();
-        // This is a plain absolute path, not an alias through the host's
-        // temporary-directory symlink (such as /var -> /private/var).
-        let allowed = hd_run::canonicalize(&dir.0)
-            .unwrap()
-            .join("from")
-            .to_string_lossy()
-            .into_owned();
-        let refused = format!("{allowed}-outside");
-        fs::write(&allowed, "keep").unwrap();
-        let grants = Grants::with_limits(vec![(
-            "FsWrite".into(),
-            Limit::Entries(vec![
-                hd_run::canonicalize(&allowed)
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-            ]),
-        )]);
-        for (from, to, rejected) in [
-            (&allowed, &refused, &refused),
-            (&refused, &allowed, &refused),
-        ] {
-            let mut args = Enc::default();
-            args.str(from).str(to);
-            assert_eq!(
-                call("FsWrite", "rename", args.done(), &grants)
-                    .unwrap()
-                    .done(),
-                error(rejected, 2).done()
-            );
-        }
-        assert_eq!(fs::read(&allowed).unwrap(), b"keep");
-    }
-    #[test]
-    fn nul_paths_have_readable_validation_errors() {
-        for (from, to, argument) in [
-            ("a\0b", "to", "source path"),
-            ("from", "a\0b", "destination path"),
-        ] {
-            let mut args = Enc::default();
-            args.str(from).str(to);
-            assert_eq!(
-                call("FsWrite", "rename", args.done(), &Grants::default())
-                    .unwrap()
-                    .done(),
-                error(&format!("{argument} contains a NUL byte"), 7).done()
-            );
-        }
-    }
-    #[test]
-    fn other_errors_keep_native_messages_and_operation_paths() {
-        for (method, syscall) in [
-            ("read_bytes", "read"),
-            ("write_text", "write"),
-            ("rename", "rename"),
-        ] {
-            let native = std::io::Error::other("native failure");
-            let failure = Failure::new(syscall, native);
-            let paths = if method == "rename" {
-                "\"from\" -> \"to\""
-            } else {
-                "\"to\""
-            };
-            assert_eq!(
-                super::failure("to", method, "from", &failure).done(),
-                error(&format!("{syscall} {paths}: native failure"), 7).done()
-            );
-        }
-    }
 }

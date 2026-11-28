@@ -1,5 +1,5 @@
 # test: shared recovery preserves identity and copying is explicit
-use std.inspect.Inspectable
+use std.meta.Inspectable
 struct User:
     name: string
 struct Post:

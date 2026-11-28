@@ -1,0 +1,42 @@
+# std.net: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.net` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.net.NAME` inside any package.
+std.net.NetError  pub enum NetError  -- Every failure of a lookup or a socket, as one error enum.
+std.net.Net  pub trait Net  -- The host capability trait: DNS lookup, TCP, and UDP.
+std.net.lookup  pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net  -- Resolves `host` through the covering `Net` provider.
+std.net.connect  pub fn connect!(host: string, port: u16) -> Result[*mut dyn TcpStream, NetError] $ Net  -- Connects through the covering `Net` provider.
+std.net.listen  pub fn listen!(host: string, port: u16) -> Result[*mut dyn TcpListener, NetError] $ Net  -- Listens through the covering `Net` provider.
+std.net.bind_udp  pub fn bind_udp!(host: string, port: u16) -> Result[*mut dyn UdpSocket, NetError] $ Net  -- Binds a UDP socket through the covering `Net` provider.
+std.net.TcpStream  pub trait TcpStream < AsyncDisposable  -- A TCP stream: a closable handle that a `using!` binding disposes.
+std.net.TcpListener  pub trait TcpListener < AsyncDisposable  -- A TCP listener: a closable handle that a `using!` binding disposes.
+std.net.Datagram  pub struct Datagram  -- One UDP datagram with its sender.
+std.net.UdpSocket  pub trait UdpSocket < AsyncDisposable  -- A UDP socket: a closable handle that a `using!` binding disposes.
+std.net.ScriptedStream  pub struct ScriptedStream  -- A scripted TCP stream: it returns its chunks in order and records what is written.
+std.net.ScriptedStream.new  pub fn new(reads: List[List[u8]]) -> *mut ScriptedStream  -- Returns a stream that returns the chunks of `reads` in order, one per `read!`.
+std.net.ScriptedStream.failing  pub fn failing(reads: List[List[u8]], error: NetError) -> *mut ScriptedStream  -- Returns a stream that returns the chunks of `reads`, then fails every `read!` and `write!` with `error`.
+std.net.ScriptedStream.written  pub fn written(&self) -> List[u8]  -- Every byte written to the stream, in order.
+std.net.ScriptedStream.timeout  pub fn timeout(&self) -> Duration?  -- The timeout that `set_timeout` stored last, or `.None` before any call.
+std.net.ScriptedStream.nodelay  pub fn nodelay(&self) -> bool  -- Whether `set_nodelay` last turned nodelay on; `false` before any call.
+std.net.ScriptedStream.keepalive  pub fn keepalive(&self) -> Duration?  -- The idle time `set_keepalive` stored last, or `.None` before any call or after `.None`.
+std.net.ScriptedStream.is_closed  pub fn is_closed(&self) -> bool  -- Whether the stream is closed.
+std.net.ScriptedListener  pub struct ScriptedListener  -- A scripted TCP listener: it accepts its streams in order.
+std.net.ScriptedListener.new  pub fn new(connections: List[*mut ScriptedStream]) -> *mut ScriptedListener  -- Returns a listener that accepts the streams of `connections` in order.
+std.net.ScriptedListener.failing  pub fn failing( connections: List[*mut ScriptedStream], error: NetError, ) -> *mut ScriptedListener  -- Returns a listener that accepts the streams of `connections`, then fails every `accept!` with `error`.
+std.net.ScriptedListener.timeout  pub fn timeout(&self) -> Duration?  -- The timeout that `set_timeout` stored last, or `.None` before any call.
+std.net.ScriptedListener.set_local_address  pub fn set_local_address(&mut self, host: string, port: u16) -> void  -- Makes `local_address()` return `.Ok((host, port))`.
+std.net.ScriptedListener.is_closed  pub fn is_closed(&self) -> bool  -- Whether the listener is closed.
+std.net.ScriptedUdp  pub struct ScriptedUdp  -- A scripted UDP socket: it receives its datagrams in order and records what is sent.
+std.net.ScriptedUdp.new  pub fn new(incoming: List[Datagram]) -> *mut ScriptedUdp  -- Returns a socket that receives the datagrams of `incoming` in order.
+std.net.ScriptedUdp.failing  pub fn failing(incoming: List[Datagram], error: NetError) -> *mut ScriptedUdp  -- Returns a socket that receives the datagrams of `incoming`, then fails every `receive!` with `error`; `send_to!` still works.
+std.net.ScriptedUdp.timeout  pub fn timeout(&self) -> Duration?  -- The timeout that `set_timeout` stored last, or `.None` before any call.
+std.net.ScriptedUdp.set_local_address  pub fn set_local_address(&mut self, host: string, port: u16) -> void  -- Makes `local_address()` return `.Ok((host, port))`.
+std.net.ScriptedUdp.sent  pub fn sent(&self) -> List[Datagram]  -- Every datagram sent, with its destination, in order.
+std.net.ScriptedUdp.is_closed  pub fn is_closed(&self) -> bool  -- Whether the socket is closed.
+std.net.ScriptedNet  pub struct ScriptedNet  -- The deterministic `Net` provider: it answers from what the test added, records every call, and opens no socket.
+std.net.ScriptedNet.new  pub fn new() -> *mut ScriptedNet  -- Returns a provider with nothing scripted.
+std.net.ScriptedNet.add_host  pub fn add_host(&mut self, host: string, addresses: List[string]) -> void  -- Answers each `lookup!(host)` with `addresses`.
+std.net.ScriptedNet.add_connection  pub fn add_connection(&mut self, address: string, stream: *mut ScriptedStream) -> void  -- Queues `stream` for one `connect!` of `address` (`host:port`).
+std.net.ScriptedNet.fail_connection  pub fn fail_connection(&mut self, address: string, error: NetError) -> void  -- Queues `error` for one `connect!` of `address` (`host:port`).
+std.net.ScriptedNet.add_listener  pub fn add_listener(&mut self, address: string, listener: *mut ScriptedListener) -> void  -- Queues `listener` for one `listen!` of `address` (`host:port`).
+std.net.ScriptedNet.add_udp  pub fn add_udp(&mut self, address: string, socket: *mut ScriptedUdp) -> void  -- Queues `socket` for one `bind_udp!` of `address` (`host:port`).
+std.net.ScriptedNet.received  pub fn received(&self) -> List[string]  -- The address of every call, in order, the failed ones included; a lookup records the host alone.

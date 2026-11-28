@@ -1,0 +1,16 @@
+use std.fs.{FsRead, open, read_bytes}
+use std.io.Read
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    using! file = open!(Path("big.bin")).expect("open")
+    head := file.read!(16).expect("head")
+    let total = head.len()
+    let calls: usize = 1
+    while total < 1048576 + 16:
+        total = total + file.read!(65536).expect("chunk").len()
+        calls = calls + 1
+    println("read $total bytes in $calls calls")
+    match read_bytes!(Path("big.bin")):
+        .Ok(_) => println("whole read")
+        .Err(_) => println("whole read refused")

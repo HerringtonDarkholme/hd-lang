@@ -1335,7 +1335,7 @@ fn imports(wasm: &[u8], module: &str) -> bool {
 /// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
 /// the package's `[capabilities]` table and no flags, as `hd run NAME`
 /// would (`cli.cap.source.hd-run.entry`). Each child's contract chooses its
-/// engine independently of the test module (`cli.host.package.native-cli-node`).
+/// engine independently of the test module (`cli.host.package.native-cli-choice`).
 fn build_programs(
     root: &Path,
     package: &str,
@@ -1357,23 +1357,40 @@ fn build_programs(
             &[],
         );
         let contract = crate::host_contract(&wasm).map_err(|e| rep.fail(&e))?;
+        let (tables, mut c) = crate::host_c_tables(&wasm).map_err(|e| rep.fail(&e))?;
+        // A Node session runs every child on Node, which binds no C
+        // provider; a Wasmtime session's children may bind theirs.
+        if engine == crate::engine::EngineKind::Node {
+            c.clear();
+        }
         let kind = crate::engine::Choice {
             kind: engine,
             named: false,
         }
-        .for_module(contract.as_ref())
+        .for_module(contract.as_ref(), &c)
         .map_err(|e| rep.fail(&e))?;
-        let providers = if kind == crate::engine::EngineKind::Node {
-            crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants)
-                .map_err(|e| rep.fail(&e))?
+        let refused = |refusal: crate::node::Refusal, rep: &mut report::Reporter| {
+            rep.diag(&refusal.diag());
+            rep.finish(crate::HD_FAILURE)
+        };
+        // A child whose every root trait has a C provider runs on
+        // Wasmtime, with its libraries (`cli.host.c.file`).
+        let (providers, c) = if kind == crate::engine::EngineKind::Node {
+            let providers = crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants)
+                .map_err(|r| refused(r, rep))?;
+            (providers, Vec::new())
         } else {
-            Vec::new()
+            let c =
+                crate::node::manifest_c_libraries(contract.as_ref(), &tables, Some(&p), &grants)
+                    .map_err(|r| refused(r, rep))?;
+            (Vec::new(), c)
         };
         list.push(crate::engine::TestProgram {
             name: r.name,
             wasm,
             grants,
             providers,
+            c,
             #[cfg(feature = "wasmtime")]
             engine: kind,
         });
@@ -2108,32 +2125,7 @@ fn shell_quoted(word: &str) -> String {
 #[cfg(all(test, unix))]
 mod stored_build_tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use hd_base::Hash128;
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_testkit::Scratch;
-
-    /// A store that counts its lookups.
-    #[derive(Default)]
-    struct Counted {
-        store: MemoryStore,
-        gets: AtomicUsize,
-    }
-
-    impl CacheStore for Counted {
-        fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
-            self.gets.fetch_add(1, Ordering::Relaxed);
-            self.store.get(kind, key)
-        }
-        fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
-            self.store.put(kind, key, bytes);
-        }
-        fn touch(&self, kind: EntryKind, key: &Hash128) {
-            self.store.touch(kind, key);
-        }
-    }
+    use hd_testkit::{CountingStore, Scratch};
 
     /// A package `shop` of `n` modules, each with a `tests:` block, and a
     /// doc test in the first.
@@ -2171,17 +2163,14 @@ mod stored_build_tests {
         let o = parse(&[]).expect("options");
         for n in [1, 40] {
             let dir = package(&format!("test-stored-build-{n}"), n);
-            let store = Counted::default();
+            let store = CountingStore::default();
             let load = || disk::load_package(&dir, "main").expect("package");
             let (key, client) =
                 stored_build(&load(), (None, None, false), &o, &store).expect("a key");
             assert!(key.read(&store, client).is_none(), "{n}: cold");
             let mut stamps = affected::Stamps::at(&dir, false);
             let prep = prepare(&mut load(), (&dir, None, None), &o, &store, &mut stamps);
-            assert!(
-                store.gets.load(Ordering::Relaxed) > n,
-                "{n}: the build looks up"
-            );
+            assert!(store.gets() > n, "{n}: the build looks up");
             assert_eq!(
                 prep.selected.len(),
                 n + 1,
@@ -2190,12 +2179,12 @@ mod stored_build_tests {
             assert!(prep.built.iter().all(|b| b.frames.is_some()));
             let bytes = encode_prepared(&prep).expect("encodes");
             key.write(&store, client, &bytes);
-            store.gets.store(0, Ordering::Relaxed);
+            store.reset();
             let (key, client) =
                 stored_build(&load(), (None, None, false), &o, &store).expect("a key");
             let warm =
                 decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-            assert_eq!(store.gets.load(Ordering::Relaxed), 2, "{n}: warm");
+            assert_eq!(store.gets(), 2, "{n}: warm");
             assert_eq!(encode_prepared(&warm), Some(bytes), "{n}");
             assert!(warm.built.iter().all(|b| b.frames.is_none()));
         }
@@ -2214,26 +2203,26 @@ mod stored_build_tests {
         );
         std::fs::write(
             dir.join("alone.hd"),
-            "fn v() -> i32: 1\n\ntests:\n    it(\"v is 1\"):\n        assert(v() == 1, \"v\")\n",
+            include_str!("tests/programs/test_cmd/a_warm_single_file_test_build_is_one_lookup.hd"),
         )
         .expect("file");
         std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));
-        let store = Counted::default();
+        let store = CountingStore::default();
         let load = || disk::load_file(&dir.join("alone.hd")).expect("file");
         let at = (Some("alone.hd"), None, true);
         let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
         assert!(key.read(&store, client).is_none(), "cold");
         let mut stamps = affected::Stamps::at(&dir, true);
         let prep = prepare(&mut load(), (&dir, at.0, None), &o, &store, &mut stamps);
-        assert!(store.gets.load(Ordering::Relaxed) > 3, "the build looks up");
+        assert!(store.gets() > 3, "the build looks up");
         assert_eq!(prep.selected.len(), 1);
         let bytes = encode_prepared(&prep).expect("encodes");
         key.write(&store, client, &bytes);
-        store.gets.store(0, Ordering::Relaxed);
+        store.reset();
         let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
         let warm =
             decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-        assert_eq!(store.gets.load(Ordering::Relaxed), 2, "warm");
+        assert_eq!(store.gets(), 2, "warm");
         assert_eq!(encode_prepared(&warm), Some(bytes));
     }
 }

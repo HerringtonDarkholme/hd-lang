@@ -14,8 +14,6 @@ pub(crate) mod property;
 pub(crate) mod provider;
 pub(crate) mod runner;
 pub(crate) mod state;
-#[cfg(test)]
-mod tests;
 
 pub use case::{BodyResult, CaseRun, PanicFrame, PanicInfo, Recorded, Snapshot, TestCase};
 pub use runner::{BodyRunner, execute_case};

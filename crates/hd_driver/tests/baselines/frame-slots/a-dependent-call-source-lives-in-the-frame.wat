@@ -6,7 +6,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $length (result i32) (local $seen i32) (local $t0 i32) (local $user i32)
     ;; 19 |     let mut seen = +0
     global.get $stack

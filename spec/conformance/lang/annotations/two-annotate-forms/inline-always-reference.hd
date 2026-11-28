@@ -1,6 +1,6 @@
 # test: inline Always accepts a reference parameter
 # Spec 14 Inline And Cold: annot.inline.always.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always)
 fn sum(values: &List[i32]) -> i32:

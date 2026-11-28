@@ -1,6 +1,6 @@
 # test: a read-only optional tag test borrows, while a writing callback preserves its value snapshot
 # expect: test
-use std.annotation.inline
+use std.meta.inline
 use std.testing.{assert, assert_equal}
 
 @inline(.Never)

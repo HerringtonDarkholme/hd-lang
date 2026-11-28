@@ -34,3 +34,9 @@ struct Secret:
 impl Secret:
     pub fn new() -> Secret:
         Secret { count: 0 }
+
+pub struct Swatch:
+    shade: Shade
+
+enum Shade:
+    Light

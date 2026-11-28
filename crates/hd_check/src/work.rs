@@ -347,7 +347,8 @@ thread_local! {
 /// key index and its probes (`crate::rows`), a trait method lookup's
 /// probes and the input types constraining const slots (`crate::call`),
 /// the impl methods a call's initialization
-/// facts reach (`crate::init`), the nodes of a scope path
+/// facts reach (`crate::init`), the function and dispatch summaries
+/// cycle initialization scans (`crate::stages`), the nodes of a scope path
 /// (`crate::dep_results`), and the body scans and per-argument windows
 /// of a call's exclusivity check (`dep_results::constraints::exclusive`). Use the driver's serial executor to measure a
 /// whole build.
@@ -365,23 +366,6 @@ pub(crate) fn scan_work(n: usize) {
             c.set(Some(w + n as u64));
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{count_join_work, join_work};
-
-    #[test]
-    fn join_work_counts_only_inside_a_measurement_and_restores_the_outer_one() {
-        join_work(5);
-        let ((), outer) = count_join_work(|| {
-            join_work(1);
-            let ((), inner) = count_join_work(|| join_work(2));
-            assert_eq!(inner, 2);
-            join_work(3);
-        });
-        assert_eq!(outer, 4);
-    }
 }
 
 thread_local! {
@@ -502,3 +486,14 @@ pub(crate) fn loan_words(n: usize) {
         }
     });
 }
+
+#[cfg(feature = "testing")]
+#[path = "../tests/support/method_context_work.rs"]
+mod method_context_work;
+#[cfg(feature = "testing")]
+pub use method_context_work::count_method_context_steps;
+#[cfg(feature = "testing")]
+pub(crate) use method_context_work::method_context_step;
+#[cfg(not(feature = "testing"))]
+#[inline]
+pub(crate) fn method_context_step() {}

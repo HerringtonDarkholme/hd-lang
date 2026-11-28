@@ -1,0 +1,5 @@
+use pkg.f0.{value}
+use std.testing.{assert_equal}
+
+it("value"):
+    assert_equal(value(), 0)

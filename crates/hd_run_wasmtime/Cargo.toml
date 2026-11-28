@@ -8,7 +8,19 @@ repository.workspace = true
 include.workspace = true
 description = "The in-process wasmtime engine and its host providers (hd compiler internals, no stable API; install `hd-lang`)"
 
+# The unit tests are `tests/unit`, over the `internals` facade
+# (src/internals.rs): a test build then compiles this library once, not
+# again in test mode.
+[lib]
+test = false
+
+[features]
+# What `tests/unit` reaches inside the engine and its test hooks; the
+# dev-dependency on itself below turns it on.
+testing = []
+
 [dependencies]
+tempfile = "=3.27.0"
 # `OptLevel`, which selects the engine options (`EngineConfig::pipeline`).
 hd_base = { workspace = true }
 # The compiled cache's private `clpack` entries (`code_cache.rs`).
@@ -28,6 +40,11 @@ ureq = { version = "=3.4.2", default-features = false, features = ["rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "=1.0.9"
 serde_json = "1"
+# C providers (#2388): opens a package's `native/<target-triple>/` library
+# and takes its entry symbol, on every platform `hd` ships for.
+libloading = "=0.9.1"
+# Scoped compiler workers inherit the current module's function-cache session.
+rayon = "1"
 # The `hd-io` runtime that offloaded host operations run on
 # one current-thread runtime, so no `rt-multi-thread`; no `macros`,
 # `signal` or `fs`.
@@ -46,11 +63,23 @@ tokio = { version = "=1.53.2", default-features = false, features = [
 wasmtime = { version = "=49.0.2", default-features = false, features = [
     "cranelift",
     "incremental-cache",
+    "parallel-compilation",
     "pooling-allocator",
+    "profiling",
     "runtime",
     "std",
     "threads",
 ] }
+# C provider trampolines (#2388 step 6, `native/c_trampoline.rs`): one
+# native function per distinct C signature, compiled at run time with the
+# Cranelift that Wasmtime already builds (the same 0.136.2 release), so
+# no second code generator enters the build. `cranelift-jit` and
+# `cranelift-module` add only its executable-memory and icache handling.
+cranelift-codegen = { version = "=0.136.2", default-features = false, features = ["std", "host-arch"] }
+cranelift-frontend = { version = "=0.136.2", default-features = false, features = ["std"] }
+cranelift-native = "=0.136.2"
+cranelift-jit = "=0.136.2"
+cranelift-module = "=0.136.2"
 
 [lints]
 workspace = true
@@ -62,6 +91,7 @@ name = "child_signals"
 harness = false
 
 [dev-dependencies]
+hd_run_wasmtime = { path = ".", features = ["testing"] }
 # The Rust companion generator, whose output `tests/all/native_companion.rs`
 # snapshots and compiles against this crate's `native` surface.
 hd_host_abi = { path = "../hd_host_abi", features = ["native-rust"] }

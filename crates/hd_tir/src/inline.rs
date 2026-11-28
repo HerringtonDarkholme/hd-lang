@@ -1,5 +1,5 @@
 //! The inliner's body copy (`docs/compiler/tir-v2.md`, "The inliner"): a
-//! `Call` of a small body becomes a copy of that body, run before the
+//! `Call` or driven `Await` of a small body becomes a copy, run before the
 //! ownership passes so they see the combined body. The copy's locals,
 //! labels, constants, strings and records move past the caller's; its
 //! used parameters are bound by a `Store` of the call's argument (an
@@ -27,8 +27,8 @@ pub use closures::{
 };
 
 /// The statically known callee of call `i` when its requirement context
-/// needs no copying: a `Call` with no providers. Its argument record may
-/// still contain an omitted argument's `DefaultCall`.
+/// needs no copying: a `Call` or driven `Await` with no providers. Its
+/// argument record may still contain an omitted argument's `DefaultCall`.
 #[must_use]
 pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
     if b.call_providers(i) != crate::ir::Providers::None {
@@ -43,7 +43,7 @@ pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
             targs: TyList(*targs),
         });
     }
-    if b.tags[i] != Tag::Call {
+    if !matches!(b.tags[i], Tag::Call | Tag::Await) {
         return None;
     }
     Callee::from_words(b.record(b.data[i][0]))
@@ -102,7 +102,7 @@ impl Chosen {
 pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>) {
     for i in 0..k.len() {
         let at = k.data[i][0] as usize;
-        if k.tags[i] == Tag::Call
+        if matches!(k.tags[i], Tag::Call | Tag::Await)
             && let Some(Callee::TraitMethod {
                 trait_,
                 self_ty,
@@ -121,11 +121,13 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>
 }
 
 /// Whether `c` may be copied structurally: a function of one sub-body, its
-/// root block last, with no suspension, `defer`, closure, escaping context or
+/// root block last, with no `defer`, closure, escaping context or
 /// ownership statement, and no call with explicit providers. A generic
 /// local function's instantiation, which names its item's sub-body, is
 /// not a closure here: only that item's bodies copy one. A copied `With`
-/// retains its lexical scope; copied `ProviderGet`s resolve there, exactly
+/// retains its lexical scope. Direct awaits are allowed while preparing
+/// nested copies; the optimizer must eliminate every suspension point before
+/// publishing an inline copy. Copied `ProviderGet`s resolve there, exactly
 /// as they resolved at the call. Context construction keeps its call boundary.
 #[must_use]
 pub fn copyable(c: &Body) -> bool {
@@ -135,12 +137,11 @@ pub fn copyable(c: &Body) -> bool {
         .map(|i| c.record(c.data[i][1])[1] as usize)
         .sum();
     let refused = |i: usize| match c.tags[i] {
-        Tag::Call => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
+        Tag::Call | Tag::Await => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
         Tag::Closure => !c.is_instantiation(i),
         t => matches!(
             t,
-            Tag::Await
-                | Tag::AwaitValue
+            Tag::AwaitValue
                 | Tag::AwaitAll
                 | Tag::AwaitRace
                 | Tag::Hook
@@ -164,7 +165,6 @@ pub fn copyable(c: &Body) -> bool {
     matches!(c.kind, BodyKind::Fn | BodyKind::Default)
         && n >= 1
         && c.sub_root == [u32_of(n - 1)]
-        && c.susp.is_empty()
         // Only eliminated shared-cell facts and instantiations' captures
         // remain, not a callee environment.
         && c.cap_local.len() == c.inlined_shared.len() + held
@@ -191,7 +191,15 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
         }
         if matches!(
             tag,
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+            Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
         ) {
             slots(c, i, |_, _, word| {
                 if matches!(
@@ -217,7 +225,15 @@ pub fn leaf(c: &Body) -> bool {
     !c.tags.iter().any(|t| {
         matches!(
             t,
-            Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+            Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
         )
     })
 }
@@ -286,17 +302,20 @@ impl Ready {
 pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String> {
     inline_bound_calls(
         b,
+        None,
         sites.into_iter().map(|site| (site, Vec::new())).collect(),
     )
 }
 
 /// [`inline_calls`] with each site's environment: the copy's captured
-/// locals, sorted, and the caller's locals each stands for.
+/// locals, sorted, and the caller's locals each stands for, and the
+/// caller's [`crate::ir::Topology::sub`] when the caller has it.
 ///
 /// # Errors
 /// As [`inline_calls`].
 pub fn inline_bound_calls(
     b: &mut Body,
+    subs: Option<Vec<u32>>,
     sites: Vec<(Site, Vec<(u32, u32)>)>,
 ) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
@@ -312,7 +331,7 @@ pub fn inline_bound_calls(
             }
         }
     }
-    let subs = b.inst_subs();
+    let subs = subs.unwrap_or_else(|| b.inst_subs());
     let (mut ready, mut by_value_reads) = (Vec::new(), Vec::new());
     for (s, (site, environment)) in sites.into_iter().enumerate() {
         let (c, by_value) = (site.call, site.by_value);
@@ -417,104 +436,7 @@ pub fn inline_bound_calls(
             b.local_flags[l as usize] &= !local_flags::CAPTURED;
         }
     }
-    carry_inner_loans(b)?;
     Ok(copied)
-}
-
-/// After the copies: a copied call's INNER loan (`LoanBegin` naming the
-/// `Scope` its call became, `crate::own::loans`) stood for the loans the
-/// callee's result carries out, which the callee closed where its result
-/// left it: at its root's end and before each `return`. Those closes move
-/// to where the caller closed the INNER loan, which goes: the loans the
-/// result holds then live while the caller's holders of it do, as the
-/// checker placed them for the call. Cost: one pass over the body, then
-/// each moved close.
-fn carry_inner_loans(b: &mut Body) -> Result<(), String> {
-    let n = b.len();
-    let inner: Vec<(u32, u32)> = (0..n)
-        .filter(|&i| {
-            b.tags[i] == Tag::LoanBegin
-                && b.data[i][1] & crate::ir::loan_word::INNER != 0
-                && b.tags.get(b.data[i][0] as usize) == Some(&Tag::Scope)
-        })
-        .map(|i| (u32_of(i), b.data[i][0]))
-        .collect();
-    if inner.is_empty() {
-        return Ok(());
-    }
-    let topo = crate::ir::Topology::new(b);
-    let mut closes: HashMap<u32, Vec<u32>> = HashMap::default();
-    let mut breaks: HashMap<u32, Vec<u32>> = HashMap::default();
-    for i in 0..n {
-        match b.tags[i] {
-            Tag::LoanClose => closes.entry(b.data[i][0]).or_default().push(u32_of(i)),
-            Tag::Break => {
-                if let Some(&to) = b.label_inst.get(b.data[i][0] as usize) {
-                    breaks.entry(to).or_default().push(u32_of(i));
-                }
-            }
-            _ => {}
-        }
-    }
-    // The closes in a block just before position `end`.
-    let trailing = |blk: u32, end: usize, out: &mut Vec<u32>| {
-        let members = b.record(b.data[blk as usize][0]);
-        for &m in members[..end].iter().rev() {
-            match b.tags[m as usize] {
-                Tag::LoanClose => out.push(m),
-                Tag::Block => {}
-                _ => break,
-            }
-        }
-    };
-    let mut edits = crate::own::splice::Tables::default();
-    let mut retarget = Vec::new();
-    for (x, scope) in inner {
-        let body = b.data[scope as usize][0];
-        if b.tags.get(body as usize) != Some(&Tag::Block) {
-            continue;
-        }
-        let mut carried = Vec::new();
-        trailing(body, b.record(b.data[body as usize][0]).len(), &mut carried);
-        let targets = [scope, body];
-        for &j in targets
-            .iter()
-            .flat_map(|t| breaks.get(t).into_iter().flatten())
-        {
-            let blk = topo.blk[j as usize];
-            if blk != NONE {
-                trailing(blk, topo.pos[j as usize] as usize, &mut carried);
-            }
-        }
-        if carried.is_empty() {
-            continue;
-        }
-        let mut ys: Vec<u32> = carried.iter().map(|&c| b.data[c as usize][0]).collect();
-        ys.sort_stable();
-        ys.dedup();
-        for &c in &carried {
-            edits.remove(c);
-        }
-        edits.remove(x);
-        for &c in closes.get(&x).into_iter().flatten() {
-            retarget.push((c, ys[0]));
-            let (blk, pos) = (topo.blk[c as usize], topo.pos[c as usize] + 1);
-            for &y in &ys[1..] {
-                edits.insert(
-                    blk,
-                    pos,
-                    Tag::LoanClose,
-                    [y, NONE],
-                    Ty::VOID,
-                    b.syn[c as usize],
-                );
-            }
-        }
-    }
-    for (c, y) in retarget {
-        b.data[c as usize][0] = y;
-    }
-    crate::own::splice::apply(b, &topo, &mut edits)
 }
 
 /// Whether local `l` of `b`, whose `Ref`s a by-value binding now reads

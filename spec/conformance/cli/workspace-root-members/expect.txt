@@ -1,0 +1,25 @@
+# At a workspace root, commands act on every member: `lib` does not check.
+# `-p NAME` selects members by package name, and may repeat.
+run: hd check
+exit: 101
+stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
+run: hd check --package app
+stderr: check result: ok.
+run: hd check -p lib
+exit: 101
+stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
+run: hd check -p app -p lib
+exit: 101
+stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
+# `hd run NAME` finds the one member with NAME, and builds only what it runs.
+run: hd run -p app
+stdout: hello
+run: hd run app
+stdout: hello
+run: hd build -p app
+file: app/build/debug/app.wasm
+# A bare `hd run` and an unknown member are errors.
+run: hd run
+exit: 101
+run: hd test -p nope
+exit: 101

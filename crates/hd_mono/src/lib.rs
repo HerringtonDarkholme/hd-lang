@@ -15,6 +15,7 @@ pub mod layout;
 pub mod opaque;
 pub mod plan;
 pub mod rows;
+pub mod scalar;
 pub mod work;
 
 use hd_base::SliceSort as _;
@@ -51,6 +52,11 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
+    /// An ordinary std implementation needed by this primitive operation.
+    /// Collection follows the implicit call only in a reachable instance,
+    /// as rustc's mono collector follows backend-inserted helper calls.
+    fn float_operator(&self, op: hd_tir::ir::PrimOp, ty: Ty) -> Option<DefId>;
+
     /// Whether `ty` has the layout and owned parameter convention of
     /// the A1 class [`A1Class::Ref`]. References with a loan convention
     /// keep their concrete keys even when they fit in one address.
@@ -74,18 +80,14 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per sub-body of `def`'s checked body, the type-parameter ranges of
     /// the generic local functions it stands in
     /// (`hd_tir::ir::local_function_scopes`); empty with no body.
-    fn local_scopes(&self, _def: DefId) -> Vec<Vec<(u32, u32)>> {
-        Vec::new()
-    }
+    fn local_scopes(&self, _def: DefId) -> Vec<Vec<(u32, u32)>>;
     /// Release (#1118): the exclusive copy of `def`'s instance at `args`,
     /// which borrows through the parameters in its mask across calls that
     /// may write, and which a call may run where
     /// `hd_tir::own::exclusive_call` holds.
     fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)>;
     /// Release (#1151): `def`'s promoted copy at `args`, which takes the
-    /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
-    /// which a call may run where `hd_tir::own::promote::promoted_call_in`
-    /// holds.
+    /// `&T` parameters in its nonzero mask by value (`hd_tir::own::promote`).
     /// With `exclusive`, the promoted copy of `def`'s exclusive copy
     /// ([`ProgramEnv::exclusive_body`]). Only the parameters in `want.0`
     /// may be taken by value (`hd_tir::own::promote::promotable_args_in`), and one whose referent
@@ -112,9 +114,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
     /// Whether a method has a `where` bound on its owner's parameters,
     /// which keeps it off a vtable (`trait.dyn.member.where`).
-    fn where_bounded(&self, _def: DefId) -> bool {
-        false
-    }
+    fn where_bounded(&self, _def: DefId) -> bool;
     /// Per instance argument: is a row parameter (`$R`), including owner
     /// arguments. A trait owner's implicit `Self` is not a row parameter.
     fn generic_rows(&self, def: DefId) -> Vec<bool>;
@@ -123,9 +123,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The declared parameter types (`self` first for a method).
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Source parameter names (`self` first), when declaration metadata exists.
-    fn parameter_names(&self, _def: DefId) -> Option<Vec<String>> {
-        None
-    }
+    fn parameter_names(&self, _def: DefId) -> Option<Vec<String>>;
 
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
@@ -227,13 +225,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// qualified name.
     fn type_name(&self, def: DefId) -> String;
     /// The source declaration name, without its package or module path.
-    fn source_type_name(&self, def: DefId) -> String {
-        self.type_name(def)
-            .rsplit(['.', '/'])
-            .next()
-            .unwrap_or("")
-            .to_owned()
-    }
+    fn source_type_name(&self, def: DefId) -> String;
 
     /// The same declaration as it prints (trait.typeid.name.*): a package
     /// root by its manifest name, a single-file program's by nothing.
@@ -246,7 +238,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The text of a string const argument (`hd_types::ConstValue::Str`).
     fn const_text(&self, p: hd_base::PathId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
-    /// folders (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
+    /// units (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
     /// universe.
     fn impls(&self) -> Impls<'_>;
     /// The program's impl universe and the run's proof memo, which
@@ -297,21 +289,10 @@ pub trait ProgramEnv: LayoutEnv {
     fn debug_trait(&self) -> DefId;
     /// `std.remote`'s `crossing_number`, `crossing_run` and `worker_serve`,
     /// and `Wire` (`fn.crossing.lift`); `None` without `std.remote`.
-    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
-        None
-    }
-    /// The canonical digest of `ty`, as `type_number[ty]` returns it.
-    fn type_number(&self, _ty: Ty) -> u64 {
-        0
-    }
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)>;
     /// `crossing_run`'s body over the lifted literals `arms` (number, the
     /// lifted function's type), in order (`hd_structure::remote`).
-    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body> {
-        Err(NotImplemented::bug(
-            Stage::Collect,
-            "no crossing dispatcher",
-        ))
-    }
+    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body>;
     /// The private `by Structure` templates (`DbgStructural`,
     /// `WireStructural`), one row per method: the template's method, the
     /// trait's method and the trait; then the `Structure` trait, whose
@@ -401,6 +382,13 @@ pub fn key_order(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Call(CallTarget),
+    /// The existing crossing-number helper, with its first scalar argument
+    /// resolved from the lifted code's full instance key. The remaining
+    /// arguments keep the ordinary call's ownership and ABI.
+    CrossingNumber {
+        call: CallTarget,
+        number: u64,
+    },
     /// An omitted argument's default body (`crates/hd_mono/DESIGN.md` §13.13): its
     /// instance, and whether the body makes a call, so emission brackets
     /// it with the forbidden-context counter (§12.3).
@@ -453,8 +441,11 @@ pub struct VTableId(pub usize);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VTable {
     pub trait_: DefId,
-    pub slots: Vec<CallTarget>,
-    /// Per slot, how its adapter hands the payload to the target.
+    /// Per method of [`slot_methods`], its target, or `None` for one that
+    /// keeps no slot ([`Collected::slots`]): collection never resolves it.
+    pub slots: Vec<Option<CallTarget>>,
+    /// Per method of [`slot_methods`], how its adapter hands the payload
+    /// to the target.
     pub recv: Vec<SlotRecv>,
     pub parents: Vec<VTableId>,
     /// Own slot representations and ordered parent digests, computed once.
@@ -475,34 +466,23 @@ pub enum SlotRecv {
     ReadThrough,
 }
 
-/// A reference whose immediate referent is an erased trait can widen to
-/// that trait or a declared supertrait without wrapping its referent again.
-/// Nested references still erase their reference-valued referent normally.
-pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
-    let TyData::Ref { inner, .. } = pool.get(from) else {
+/// Whether a fresh reference coercion reads an erased referent's data and
+/// vtable. Materialized supertrait coercions are handled by the caller.
+/// Identity erasure describes the immediate referent, including a reference
+/// value; it does not peel through that value to its erased referent.
+#[must_use]
+pub fn trait_value_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+    let sealed = env.decls().sealed();
+    if matches!(pool.get(to), TyData::TraitValue { def, .. }
+        if def == sealed.inspectable || def == sealed.any)
+    {
         return false;
-    };
-    let (TyData::TraitValue { def: from, .. }, TyData::TraitValue { def: to, .. }) =
-        (pool.get(inner), pool.get(to))
-    else {
-        return false;
-    };
-    let mut todo = vec![from];
-    let mut seen = HashSet::default();
-    while let Some(trait_) = todo.pop() {
-        if trait_ == to {
-            return true;
-        }
-        if !seen.insert(trait_) {
-            continue;
-        }
-        for sup in env.decls().supertraits(trait_) {
-            if let TyData::TraitValue { def, .. } = pool.get(*sup) {
-                todo.push(def);
-            }
-        }
     }
-    false
+    let mut value = from;
+    while let TyData::Ref { inner, .. } = pool.get(value) {
+        value = inner;
+    }
+    is_trait_value(pool, value)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -559,11 +539,13 @@ pub struct Collected {
     /// Shared concrete vtable DAG, in postorder. Parent IDs always precede
     /// their child, so emission, hashing and destruction need no recursion.
     pub vtables: Vec<VTable>,
+    /// Traits whose tables can come from a host provider or returned handle.
+    /// Recorded by the existing boundary walk, including supertraits.
+    pub host_traits: HashSet<DefId>,
     /// Per instance: the hash of what its code reads besides its own TIR:
     /// callees' representation summaries and signatures (walking skeleton,
     /// SK-3) and the layouts of its types; each code key holds it.
     pub callee_reps: Vec<Hash128>,
-    pub imports: BTreeSet<u32>,
     /// Data types the program builds or reads.
     pub data: BTreeSet<DefIdOrd>,
     /// The init bodies' instances, in initialization order.
@@ -582,6 +564,14 @@ pub struct Collected {
     /// The trait methods that scanned code calls through a trait value
     /// ([`Target::Dyn`], a function reference's adapter included).
     pub dyn_methods: HashSet<DefId>,
+    /// Whether every method with a slot keeps it ([`Collected::slots`]):
+    /// a REPL session's, whose later inputs call the tables built earlier.
+    pub all_slots: bool,
+    /// Per instance, the slot facts its code reads besides its own TIR
+    /// (`Cx::fold_slot_facts`), also folded into its `callee_reps`: the
+    /// kept slots of each trait whose table layout it may read, and the
+    /// final digest of each table it builds. Zero for one that reads none.
+    pub slot_facts: Vec<Hash128>,
     /// Concrete data types whose release glue first calls their
     /// `std.rt.Drop.drop` implementation, by type and instance key.
     pub drop_glue: HashMap<Ty, Hash128>,
@@ -611,6 +601,37 @@ impl Collected {
     pub fn calls_dyn(&self, method: DefId) -> bool {
         self.dyn_methods.contains(&method)
     }
+
+    /// The methods of trait `trait_` that keep a slot in this program's
+    /// dispatch tables, in slot order: [`slot_methods`] less those no call
+    /// site can reach ([`slot_kept`]). Every table of the trait and every
+    /// call through one number their slots by this one list.
+    #[must_use]
+    pub fn slots(&self, env: &dyn ProgramEnv, trait_: DefId) -> Vec<DefId> {
+        let mut methods = slot_methods(env, trait_);
+        methods.retain(|&m| slot_kept(env, self.all_slots, &self.dyn_methods, trait_, m));
+        methods
+    }
+}
+
+/// Whether method `m` of trait `trait_`, one of [`slot_methods`], keeps
+/// its slot in a program whose trait-value calls name the methods
+/// `called`. A call through a trait value ([`Target::Dyn`]) is what reads
+/// a slot, so a method that no such call names has none, and no
+/// implementation of it is collected for a table. Kept besides: every
+/// slot when `all` (a REPL session, whose later inputs call the tables
+/// earlier inputs built), and every slot of a compiler-supplied trait,
+/// whose `runtime_type` slot the `runtime_type` and downcast intrinsics
+/// read with no call site (`trait.inspect.dynamic`).
+#[must_use]
+pub fn slot_kept(
+    env: &dyn ProgramEnv,
+    all: bool,
+    called: &HashSet<DefId>,
+    trait_: DefId,
+    m: DefId,
+) -> bool {
+    all || called.contains(&m) || env.decls().sealed().supplies(trait_)
 }
 
 pub use layout::InstanceTable;
@@ -834,7 +855,7 @@ mod collection_tests;
 /// The printable name of `t`'s runtime identity (trait.typeid.name.*),
 /// which a `TypeId` holds as its key (its printable name is
 /// [`printed_type_name`]). Equality of `TypeId`s compares keys
-/// (`lib/std/inspect.hd`), so the name spells exactly what runtime
+/// (`lib/std/meta.hd`), so the name spells exactly what runtime
 /// identity compares (trait.identity.*): each declaration by its qualified
 /// name, applied to its arguments; an inner `mut`, never the outer one;
 /// `T?` for `Option[T]`. Types are concrete here, aliases expanded.
@@ -1396,9 +1417,21 @@ struct Cx<'a> {
     drop_checked: HashSet<Ty>,
     /// One node per concrete instantiated trait, across coercion sites.
     vtables: HashMap<(Ty, DefId, TyList), VTableId>,
+    /// The slots built tables leave unresolved, by method, until a call
+    /// through a trait value names it ([`Cx::note_dyn`]).
+    pending: HashMap<DefId, Vec<PendingSlot>>,
+    /// Per scanned instance, each trait whose table layout its code may
+    /// read: a trait value type among its values, its row keys, or the
+    /// row keys of a function value it holds ([`Cx::fold_slot_facts`]).
+    slot_users: Vec<(InstId, DefId)>,
+    /// Per scanned instance, each table its coercions build.
+    table_users: Vec<(InstId, VTableId)>,
     /// Each lifted `Wire` crossing literal an instance numbers: its
     /// number, its function's code instance and type (`fn.crossing.lift`).
     crossings: Vec<(u64, Hash128, Ty)>,
+    /// Collision lookup in expected O(1), while `crossings` retains the
+    /// deterministic first-seen order of dispatcher arms.
+    crossing_numbers: HashMap<u64, Hash128>,
     /// `crossing_run`, once a body calls it: its body waits for every
     /// literal, so it is generated after the worklist drains.
     crossing_run: Option<DefId>,
@@ -1406,6 +1439,22 @@ struct Cx<'a> {
     crossing_arms: Vec<Hash128>,
     /// Whether a body sends a crossing to a worker (`crossing_sent`).
     worker_sends: bool,
+    /// [`ProgramEnv::crossing_items`], resolved once: a scan asks per call.
+    crossing: Option<(DefId, DefId, DefId, DefId)>,
+}
+
+/// A table's slot whose method no call through a trait value has named
+/// yet ([`Cx::vtable_node`]): what resolving its target takes.
+struct PendingSlot {
+    vtable: VTableId,
+    /// Its index in [`slot_methods`].
+    slot: usize,
+    trait_: DefId,
+    trait_args: TyList,
+    /// The type whose implementation fills the slot.
+    self_ty: Ty,
+    /// The instance whose coercion built the table.
+    parent: InstId,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -1545,21 +1594,15 @@ impl Cx<'_> {
     }
 
     /// Pushes an instance that `parent` requests; returns its key. A new
-    /// instance over a limit of `crates/hd_mono/DESIGN.md` §13.4 stops collection. `raw`
-    /// is the request's type arguments before A1 classification: when a
-    /// request re-enters an ancestor instance with a differently shaped
-    /// request, the recursion grows concrete types through erased
-    /// positions, which is polymorphic recursion
-    /// (`types.generic.polymorphic-recursion`).
+    /// instance over a limit of `crates/hd_mono/DESIGN.md` §13.4 stops collection.
     fn push(
         &mut self,
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         parent: InstId,
     ) -> StageResult<Hash128> {
-        self.push_known(item, sub, args, raw, &[], parent)
+        self.push_known(item, sub, args, &[], parent)
     }
 
     /// [`Self::push`] of the instance specialized on `known` (option A2 of
@@ -1569,11 +1612,10 @@ impl Cx<'_> {
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         known: &[(u32, Hash128)],
         parent: InstId,
     ) -> StageResult<Hash128> {
-        self.push_specialized(item, sub, args, raw, known, &[], parent)
+        self.push_specialized(item, sub, args, known, &[], parent)
     }
 
     fn push_specialized(
@@ -1581,26 +1623,15 @@ impl Cx<'_> {
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         known: &[(u32, Hash128)],
         defaults: &[(u32, defaults::Value)],
         parent: InstId,
     ) -> StageResult<Hash128> {
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(item, sub, args, known, defaults) {
-            let key = table.key[id.idx()];
-            // Re-entering an ancestor instance with a differently shaped
-            // request passes ever larger concrete types through
-            // reference layouts that classify alike: each cycle wraps
-            // again, so collection would never reach a limit on its own
-            // (`types.generic.polymorphic-recursion`). An identical
-            // request is ordinary recursion; a hit outside the
-            // requester's ancestry is a shared instance, not a cycle.
-            let changed = raw != table.args[id.idx()];
-            if changed && table.is_generic_ancestor(id, parent) {
-                return Err(self.stop_poly_recursion(item, raw, parent));
-            }
-            return Ok(key);
+            // The lookup compares the complete normalized specialization key.
+            // A raw permission difference does not grow the instance graph.
+            return Ok(table.key[id.idx()]);
         }
         let table = &self.out.table;
         let chain = table.request_chain_len(parent, args);
@@ -1659,8 +1690,7 @@ impl Cx<'_> {
             return Ok(t);
         }
         let mark = [defaults::EXCLUSIVE];
-        let key =
-            self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], &mark, caller)?;
+        let key = self.push_specialized(t.item, Sub::Body(0), t.args, &[], &mark, caller)?;
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], &mark) {
             self.out.instance_bodies.entry(id).or_insert(copy);
@@ -1718,12 +1748,11 @@ impl Cx<'_> {
         else {
             return Ok(None);
         };
-        if !hd_tir::own::promote::promoted_call_in(body, at, by_value, facts) {
-            return Ok(None);
-        }
+        // The callee intersects its mask with `want`; the caller's body and
+        // promotion facts have not changed, so this subset is already proved.
         let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
         let mark = if exclusive { &marks[..] } else { &marks[..1] };
-        let key = self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], mark, caller)?;
+        let key = self.push_specialized(t.item, Sub::Body(0), t.args, &[], mark, caller)?;
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], mark) {
             self.out.instance_bodies.entry(id).or_insert(copy);
@@ -1773,8 +1802,7 @@ impl Cx<'_> {
         let Some(transformed) = defaults::specialize(callee, &values) else {
             return Ok(None);
         };
-        let raw = rowless(self.pool, self.env, def, targs);
-        let key = self.push_specialized(def, Sub::Body(0), inst, raw, &[], &values, parent)?;
+        let key = self.push_specialized(def, Sub::Body(0), inst, &[], &values, parent)?;
         if let Some(id) = self
             .out
             .table
@@ -1851,54 +1879,6 @@ impl Cx<'_> {
         };
         let message = format!(
             "instantiating {last} does not end: {why}; the chain: {}",
-            shown.join(" -> ")
-        );
-        self.too_deep = Some(TooDeep {
-            at: self.at,
-            message,
-        });
-        NotImplemented::new(Stage::Collect, "instantiation-too-deep")
-    }
-
-    /// Records polymorphic recursion through reference layouts
-    /// (`types.generic.polymorphic-recursion`): the request of `item`
-    /// re-enters an ancestor instance with a differently shaped request,
-    /// so concrete types grow through positions that classify alike and
-    /// no depth limit trips. Same `instantiation-too-deep` error as
-    /// [`Self::stop_too_deep`].
-    fn stop_poly_recursion(&mut self, item: DefId, args: TyList, parent: InstId) -> NotImplemented {
-        let table = &self.out.table;
-        let mut ids = Vec::new();
-        let mut p = parent;
-        while p != InstId::NONE {
-            ids.push(p);
-            p = table.parent[p.idx()];
-        }
-        ids.reverse();
-        let name = |item: DefId, args: TyList| {
-            let args = self.pool.list_items(args);
-            if args.is_empty() {
-                format!("`{}`", self.env.describe(item))
-            } else {
-                let shown: Vec<String> = args
-                    .iter()
-                    .map(|&t| shown_type(self.pool, self.env, t))
-                    .collect();
-                format!("`{}[{}]`", self.env.describe(item), shown.join(", "))
-            }
-        };
-        let mut shown: Vec<String> = ids
-            .iter()
-            .take(3)
-            .map(|id| name(table.item[id.idx()], table.args[id.idx()]))
-            .collect();
-        if ids.len() > 3 {
-            shown.push("...".to_owned());
-        }
-        shown.push(name(item, args));
-        let last = format!("`{}`", self.env.describe(item));
-        let message = format!(
-            "instantiating {last} does not end: its type arguments grow through reference layouts that classify alike; the chain: {}",
             shown.join(" -> ")
         );
         self.too_deep = Some(TooDeep {
@@ -2103,7 +2083,7 @@ impl Cx<'_> {
             return self.dbg_target(def, &key, args, parent);
         }
         // The worker's dispatcher: generated once every literal is numbered.
-        if self.env.crossing_items().is_some_and(|c| c.1 == def) {
+        if self.crossing.is_some_and(|c| c.1 == def) {
             self.crossing_run = Some(def);
             return Ok(CallTarget {
                 key: defaults::key(self.key(def, Sub::Body(0), TyList::EMPTY), &[], &[]),
@@ -2135,7 +2115,7 @@ impl Cx<'_> {
             .first()
             .is_some_and(|&self_ty| self.out.supplied.contains_key(&(def, self_ty)))
         {
-            let key = self.push(def, Sub::Body(0), args, args, parent)?;
+            let key = self.push(def, Sub::Body(0), args, parent)?;
             return Ok(CallTarget {
                 key,
                 item: def,
@@ -2180,20 +2160,13 @@ impl Cx<'_> {
             ));
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
-        let raw = args;
         let args = self.classify(def, self.pool.list_items(args), own_from);
         // One instance serves every row of the item's own row parameters
         // (`req.poly.one-body`, §12.4): it is keyed at the open row, and
         // the target keeps the call's rows, whose keys the caller passes
         // in the context.
         let (pool, env) = (self.pool, self.env);
-        let key = self.push(
-            def,
-            Sub::Body(0),
-            rowless(pool, env, def, args),
-            rowless(pool, env, def, raw),
-            parent,
-        )?;
+        let key = self.push(def, Sub::Body(0), rowless(pool, env, def, args), parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -2332,6 +2305,7 @@ impl Cx<'_> {
             if !visited.insert((trait_, targs, package)) {
                 continue;
             }
+            self.out.host_traits.insert(trait_);
             let full = self.pool.list(
                 &std::iter::once(class_ref(self.pool))
                     .chain(self.pool.list_items(targs).iter().copied())
@@ -2484,7 +2458,7 @@ impl Cx<'_> {
             }
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
-        let key = self.push(method, Sub::Body(0), args, args, parent)?;
+        let key = self.push(method, Sub::Body(0), args, parent)?;
         Ok(Some(CallTarget {
             key,
             item: method,
@@ -2521,7 +2495,7 @@ impl Cx<'_> {
             let body = self.env.dbg_body(def, key, ty, debug)?;
             self.out.supplied.insert((def, ty), Arc::new(body));
         }
-        let key = self.push(def, Sub::Body(0), args, args, parent)?;
+        let key = self.push(def, Sub::Body(0), args, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -2553,31 +2527,37 @@ impl Cx<'_> {
     }
 
     /// Records the ordinary method instance that release glue calls for a
-    /// concrete type implementing `std.rt.Drop`. Absence of an impl is the
+    /// concrete type implementing `std.rt.Drop`, and for each type its
+    /// fields and payloads hold, at any depth. Absence of an impl is the
     /// common case, just as it is for the optional `Debug` specialization.
+    /// The types are visited in depth-first preorder, fields in order, off
+    /// an explicit stack: a chain of 1,500 structs each holding the next
+    /// costs no native stack depth (#2423). Cost: each distinct type once.
     fn note_drop(&mut self, ty: Ty, parent: InstId) -> StageResult<()> {
-        if !self.drop_checked.insert(ty) {
-            return Ok(());
-        }
-        // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
-        if self.pool.adt(ty).is_some()
-            && let Some((trait_, method)) = self.env.drop_items()
-            && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
-        {
-            let target = self.method_target(trait_, method, ty, &[], None, parent)?;
-            if target.kind != TargetKind::Instance {
-                return err("a `std.rt.Drop` implementation without an hd body");
+        let mut stack = vec![ty];
+        while let Some(ty) = stack.pop() {
+            if !self.drop_checked.insert(ty) {
+                continue;
             }
-            self.out.drop_glue.insert(ty, target.key);
-        }
-        let children = match self.pool.get(ty) {
-            TyData::Adt(def, args) => layout::enum_variants(self.pool, self.env, def, args)
-                .unwrap_or_else(|| vec![layout::product_fields(self.pool, self.env, def, args)]),
-
-            _ => Vec::new(),
-        };
-        for child in children.into_iter().flatten() {
-            self.note_drop(child, parent)?;
+            // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
+            if self.pool.adt(ty).is_some()
+                && let Some((trait_, method)) = self.env.drop_items()
+                && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
+            {
+                let target = self.method_target(trait_, method, ty, &[], None, parent)?;
+                if target.kind != TargetKind::Instance {
+                    return err("a `std.rt.Drop` implementation without an hd body");
+                }
+                self.out.drop_glue.insert(ty, target.key);
+            }
+            if let TyData::Adt(def, args) = self.pool.get(ty) {
+                let children = layout::enum_variants(self.pool, self.env, def, args)
+                    .unwrap_or_else(|| {
+                        vec![layout::product_fields(self.pool, self.env, def, args)]
+                    });
+                // Reversed, so the first field is visited first.
+                stack.extend(children.into_iter().flatten().rev());
+            }
         }
         Ok(())
     }
@@ -2666,13 +2646,14 @@ impl Cx<'_> {
     /// Build a concrete vtable DAG with rustc's visited, explicit-stack
     /// traversal (`prepare_vtable_segments`; see `dyn_graph`). Each node's
     /// slots and ordered edges are built once, even across coercion sites.
+    /// The coercing instance `parent` takes the table's final digest
+    /// once every slot is resolved ([`Cx::fold_slot_facts`]).
     fn vtable(
         &mut self,
         trait_: DefId,
         trait_args: TyList,
         from: Ty,
         parent: InstId,
-        reps: &mut StableHasher,
     ) -> StageResult<VTableId> {
         struct Frame {
             key: (Ty, DefId, TyList),
@@ -2713,18 +2694,26 @@ impl Cx<'_> {
                 }
                 continue;
             }
-            let node = self.vtable_node(key.1, key.2, from, parent, current.parents)?;
+            let (node, pending) = self.vtable_node(key.1, key.2, from, parent, current.parents)?;
             let id = VTableId(self.out.vtables.len());
             self.out.vtables.push(node);
             self.vtables.insert(key, id);
+            for (m, slot) in pending {
+                self.pending
+                    .entry(m)
+                    .or_default()
+                    .push(PendingSlot { vtable: id, ..slot });
+            }
         }
         let id = self.vtables[&root];
-        reps.hash(self.out.vtables[id.0].digest);
+        self.table_users.push((parent, id));
         Ok(id)
     }
 
-    /// The nonrecursive part of one DAG node. Cost: its own method slots
-    /// plus direct parent edges; parent digests are constant-sized.
+    /// The nonrecursive part of one DAG node, and its slots whose methods
+    /// no call through a trait value has named yet, left for
+    /// [`Cx::note_dyn`]. Cost: its own method slots plus direct parent
+    /// edges; parent digests are constant-sized.
     fn vtable_node(
         &mut self,
         trait_: DefId,
@@ -2732,11 +2721,10 @@ impl Cx<'_> {
         from: Ty,
         parent: InstId,
         parents: Vec<VTableId>,
-    ) -> StageResult<VTable> {
+    ) -> StageResult<(VTable, Vec<(DefId, PendingSlot)>)> {
         work::dyn_collect(1);
         let mut reps = StableHasher::new("dyn-vtable-node");
         let (pool, env) = (self.pool, self.env);
-        let targs = pool.list_items(trait_args);
         let is_ref = |t: Ty| matches!(pool.get(t), TyData::Ref { .. });
         let takes_ref = |d: DefId| {
             env.params(d)
@@ -2754,56 +2742,237 @@ impl Cx<'_> {
         reps.u8(u8::from(inner.is_some()));
         let mut slots = Vec::new();
         let mut recv = Vec::new();
+        let mut pending = Vec::new();
         let methods = slot_methods(env, trait_);
         reps.u64(methods.len() as u64);
-        for m in methods {
+        for (slot, m) in methods.into_iter().enumerate() {
             work::dyn_collect(1);
-            let (t, r) = match inner {
-                Some(s) => {
-                    let t = self.method_target(trait_, m, s, targs, None, parent)?;
-                    // The slot ABI follows the trait declaration. An impl
-                    // for a reference can lower a value receiver to that
-                    // reference type without making the slot a reference
-                    // receiver.
-                    let r = if takes_ref(m) {
-                        SlotRecv::Payload
-                    } else {
-                        SlotRecv::ReadThrough
-                    };
-                    (t, r)
-                }
-                None if takes_ref(m) => {
-                    // A slot whose body the compiler supplies, such as
-                    // `runtime_type`'s `RuntimeType` helper, reads no
-                    // payload, so a reference receiver needs none.
-                    let t = self.method_target(trait_, m, from, targs, None, parent)?;
-                    if !matches!(t.kind, TargetKind::Builtin { .. }) {
-                        return err("a reference-receiver vtable without a reference payload");
-                    }
-                    (t, SlotRecv::Payload)
-                }
-                None => (
-                    self.method_target(trait_, m, from, targs, None, parent)?,
-                    SlotRecv::Payload,
-                ),
+            let (self_ty, r) = match inner {
+                // The slot ABI follows the trait declaration. An impl for
+                // a reference can lower a value receiver to that reference
+                // type without making the slot a reference receiver.
+                Some(s) if takes_ref(m) => (s, SlotRecv::Payload),
+                Some(s) => (s, SlotRecv::ReadThrough),
+                // A slot whose body the compiler supplies, such as
+                // `runtime_type`'s `RuntimeType` helper, reads no payload,
+                // so a reference receiver needs none.
+                None => (from, SlotRecv::Payload),
             };
+            let at = PendingSlot {
+                vtable: VTableId(usize::MAX),
+                slot,
+                trait_,
+                trait_args,
+                self_ty,
+                parent,
+            };
+            reps.u8(r as u8);
+            recv.push(r);
+            if !slot_kept(env, self.out.all_slots, &self.out.dyn_methods, trait_, m) {
+                // No call reads this slot yet: its target, and the
+                // instance that fills it, wait for one ([`Cx::note_dyn`]).
+                reps.hash(env.path_hash(m));
+                slots.push(None);
+                pending.push((m, at));
+                continue;
+            }
+            let t = self.slot_target(m, &at)?;
             reps.hash(t.key);
             reps.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
-            reps.u8(r as u8);
-            slots.push(t);
-            recv.push(r);
+            slots.push(Some(t));
         }
         reps.u64(parents.len() as u64);
         for id in &parents {
             reps.hash(self.out.vtables[id.0].digest);
         }
-        Ok(VTable {
+        let node = VTable {
             trait_,
             slots,
             recv,
             parents,
             digest: reps.finish(),
-        })
+        };
+        Ok((node, pending))
+    }
+
+    /// The target of method `m`'s slot `at`: its implementation at the
+    /// slot's type, which this pushes.
+    fn slot_target(&mut self, m: DefId, at: &PendingSlot) -> StageResult<CallTarget> {
+        let pool = self.pool;
+        let targs = pool.list_items(at.trait_args);
+        // ruled out: a user reference receiver without a reference payload,
+        // by trait.dyn.ref.written. Sealed compiler-supplied methods need none.
+        self.method_target(at.trait_, m, at.self_ty, targs, None, at.parent)
+    }
+
+    /// Records that scanned code calls trait method `m` through a trait
+    /// value ([`Target::Dyn`]), and fills every table slot of `m` built
+    /// before this first call, pushing the implementations they name.
+    /// This is rapid type analysis's other half (Bacon and Sweeney, 1996;
+    /// Go's linker `deadcode` keeps an interface method of a converted type
+    /// only once some call names it): a table built later resolves `m` at
+    /// once. Cost: each pending slot is resolved once, so all calls cost
+    /// O(total slots of built tables) besides their targets.
+    fn note_dyn(&mut self, m: DefId) -> StageResult<()> {
+        if !self.out.dyn_methods.insert(m) {
+            return Ok(());
+        }
+        for at in self.pending.remove(&m).unwrap_or_default() {
+            work::dyn_slot(1);
+            let t = self.slot_target(m, &at)?;
+            self.out.vtables[at.vtable.0].slots[at.slot] = Some(t);
+        }
+        Ok(())
+    }
+
+    /// Records that instance `id`'s code may read the table layout of the
+    /// trait a value of type `t` carries: `t` itself, through references,
+    /// or each key of a function value's row. A dynamic call's slot, a
+    /// parent pointer's offset, a row adapter's or a downcast's path all
+    /// start at such a value or key.
+    fn note_slot_user(&mut self, id: InstId, t: Ty) {
+        let pool = self.pool;
+        let mut t = layout::strip_newtype(pool, self.env, t);
+        while let TyData::Ref { inner, .. } = pool.get(t) {
+            t = inner;
+        }
+        match pool.get(t) {
+            TyData::TraitValue { def, .. } => self.slot_users.push((id, def)),
+            TyData::Fn { row, .. } => {
+                for k in pool.row_data(row).keys {
+                    if let TyData::TraitValue { def, .. } = pool.get(k) {
+                        self.slot_users.push((id, def));
+                    }
+                }
+            }
+            // A value of any other type is neither a trait value nor a
+            // function value, so code reads no trait table through it.
+            // `Ref` is stripped above.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Adt(..)
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Ref { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
+        }
+    }
+
+    /// Folds the program's final slot facts into each instance's
+    /// `callee_reps`, which every code key holds
+    /// (`docs/compiler/tiering.md` §6.4): which slots a trait keeps depends
+    /// on calls in other instances, so no instance's own scan can hash it.
+    /// An instance takes, per trait it recorded ([`Cx::note_slot_user`]),
+    /// the kept slots of that trait and of every supertrait, and per table
+    /// it built, the table's final digest, slots resolved late included.
+    ///
+    /// Cost: one visit per table, per trait of a recorded supertrait DAG
+    /// (memoized; an explicit stack, as `reach_hash`), and per record, so
+    /// linear in the program's tables, traits and scanned types.
+    fn fold_slot_facts(&mut self) {
+        let env = self.env;
+        let mut finals: Vec<Hash128> = Vec::with_capacity(self.out.vtables.len());
+        for node in &mut self.out.vtables {
+            work::dyn_fold(1);
+            let mut h = StableHasher::new("dyn-vtable-final");
+            h.hash(node.digest);
+            for slot in &node.slots {
+                match slot {
+                    Some(t) => {
+                        h.u8(1);
+                        h.hash(t.key);
+                        h.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
+                    }
+                    None => h.u8(0),
+                }
+            }
+            // Parents precede their children (`Collected::vtables`).
+            for p in &node.parents {
+                h.hash(finals[p.0]);
+            }
+            node.digest = h.finish();
+            finals.push(node.digest);
+        }
+        let mut layouts: HashMap<DefId, Hash128> = HashMap::default();
+        let mut folds: HashMap<InstId, StableHasher> = HashMap::default();
+        for &(id, def) in &std::mem::take(&mut self.slot_users) {
+            work::dyn_fold(1);
+            let layout = self.slot_layout(def, &mut layouts);
+            folds
+                .entry(id)
+                .or_insert_with(|| StableHasher::new("slot-facts"))
+                .hash(layout);
+        }
+        for &(id, vt) in &std::mem::take(&mut self.table_users) {
+            work::dyn_fold(1);
+            folds
+                .entry(id)
+                .or_insert_with(|| StableHasher::new("slot-facts"))
+                .hash(finals[vt.0]);
+        }
+        self.out.slot_facts = vec![Hash128(0); self.out.callee_reps.len()];
+        for (id, fold) in folds {
+            // ruled out: an absent instance; collect extends callee_reps to
+            // table.len() immediately before folding these recorded users.
+            let reps = &mut self.out.callee_reps[id.idx()];
+            let facts = fold.finish();
+            self.out.slot_facts[id.idx()] = facts;
+            let mut h = StableHasher::new("callee-reps-folded");
+            h.hash(*reps);
+            h.hash(facts);
+            *reps = h.finish();
+        }
+    }
+
+    /// The hash of the slots trait `root` and each of its supertraits keep
+    /// ([`Collected::slots`]), which fix every table offset of its values:
+    /// a Merkle hash over the supertrait DAG, post-order on an explicit
+    /// stack and memoized per trait in `memo`.
+    fn slot_layout(&self, root: DefId, memo: &mut HashMap<DefId, Hash128>) -> Hash128 {
+        let (pool, env) = (self.pool, self.env);
+        let supers = |d: DefId| -> Vec<DefId> {
+            (env.decls().supertraits(d).iter())
+                // ruled out: a non-trait supertype. Resolver::supers_of
+                // produces only trait-value types (trait.super.bound).
+                .map(|&s| pool.trait_value_parts(s).0)
+                .collect()
+        };
+        // ruled out: a cycle, by `trait.super.acyclic` in hd_resolve.
+        let mut stack = vec![(root, false)];
+        while let Some((d, ready)) = stack.pop() {
+            if memo.contains_key(&d) {
+                continue;
+            }
+            let parents = supers(d);
+            if !ready {
+                stack.push((d, true));
+                stack.extend(
+                    (parents.into_iter())
+                        .filter(|p| !memo.contains_key(p))
+                        .map(|p| (p, false)),
+                );
+                continue;
+            }
+            work::dyn_fold(1);
+            let mut h = StableHasher::new("slot-layout");
+            let kept = self.out.slots(env, d);
+            h.len(kept.len());
+            for m in kept {
+                h.hash(env.path_hash(m));
+            }
+            h.len(parents.len());
+            for p in &parents {
+                h.hash(memo[p]);
+            }
+            memo.insert(d, h.finish());
+        }
+        memo[&root]
     }
 
     /// The parameters of `def` a known value is worth specializing on, by
@@ -2917,7 +3086,7 @@ impl Cx<'_> {
             return Ok(Specialize::Plain);
         }
         let inst = rowless(pool, env, def, cargs);
-        let key = self.push_known(def, Sub::Body(0), inst, inst, &known, id)?;
+        let key = self.push_known(def, Sub::Body(0), inst, &known, id)?;
         let ret = env.ret(def).unwrap_or(Ty::VOID);
         // As in `target`: keyed at the open row, called at the call's rows.
         Ok(Specialize::Copy(CallTarget {
@@ -3003,6 +3172,10 @@ impl Cx<'_> {
                 (&mut self.layouts, &mut self.reaches),
             ));
             note_data(pool, env, t, &mut self.out.data);
+            self.note_slot_user(id, t);
+        }
+        for k in env.row_keys(item, args) {
+            self.note_slot_user(id, k);
         }
         reps.u8(u8::from(env.suspends(item)));
         let t = match env.parent(item) {
@@ -3023,7 +3196,7 @@ impl Cx<'_> {
                     Target::Call(self.target(item, args, id)?)
                 } else if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
-                    self.out.dyn_methods.insert(item);
+                    self.note_dyn(item)?;
                     Target::Dyn
                 } else {
                     Target::Call(self.method_target(trait_, item, self_ty, targs, None, id)?)
@@ -3136,10 +3309,10 @@ impl Cx<'_> {
             self.out.table.sub[id.idx()],
             self.out.table.args[id.idx()],
         );
-        match sub {
+        let sub_body = match sub {
             Sub::Adapter => return self.scan_adapter(id),
-            Sub::Body(_) => {}
-        }
+            Sub::Body(k) => k,
+        };
         let pool = self.pool;
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
@@ -3179,6 +3352,11 @@ impl Cx<'_> {
         for ty in signature {
             self.note_drop(s(ty), id)?;
         }
+        // Its provider context's keys, which a call's or row adapter's
+        // projection to a supertrait key starts at.
+        for k in env.row_keys(item, args) {
+            self.note_slot_user(id, k);
+        }
         let plan = if instance_body.is_some() {
             self.planner.plan(item, body, env)
         } else {
@@ -3192,10 +3370,7 @@ impl Cx<'_> {
         // scanning its whole item once per closure grows with the square
         // of a body holding many closures. Each nested closure is an
         // instance of its own, requested by its `Closure`.
-        let own_sub = match sub {
-            Sub::Body(k) if k != 0 => Some(u32::from(k)),
-            _ => None,
-        };
+        let own_sub = (sub_body != 0).then_some(u32::from(sub_body));
         let subs = (own_sub.is_some()
             || plan.as_ref().is_some_and(|p| !p.spec_args.is_empty())
             || !known.is_empty())
@@ -3219,6 +3394,7 @@ impl Cx<'_> {
                     &mut self.canons,
                     (&mut self.layouts, &mut self.reaches),
                 ));
+                self.note_slot_user(id, ty);
             }
             note_data(pool, env, ty, &mut self.out.data);
             self.note_drop(ty, id)?;
@@ -3231,8 +3407,13 @@ impl Cx<'_> {
             let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
-                Tag::CallHost => {
-                    self.out.imports.insert(a);
+                Tag::Prim => {
+                    if let Some(op) = hd_tir::ir::PrimOp::from_u32(a)
+                        && let Some(def) = env.float_operator(op, ty)
+                    {
+                        let target = self.target(def, TyList::EMPTY, id)?;
+                        self.hash_target(&target, &mut reps);
+                    }
                 }
                 Tag::Call | Tag::Await => {
                     let Some(c) = Callee::from_words(body.record(a)) else {
@@ -3243,9 +3424,15 @@ impl Cx<'_> {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             let targs = pool.list(&targs);
-                            if self.env.crossing_items().is_some_and(|c| c.0 == def) {
+                            if self.crossing.is_some_and(|c| c.0 == def) {
                                 let f = pool.list_items(targs).first().copied();
-                                self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls)?;
+                                let number =
+                                    self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls, id)?;
+                                let call = self.target(def, targs, id)?;
+                                self.hash_target(&call, &mut reps);
+                                reps.u64(number);
+                                calls.insert(ix, Target::CrossingNumber { call, number });
+                                continue;
                             }
                             if let Some(target) = self.default_target(body, i, def, targs, id)? {
                                 self.hash_target(&target, &mut reps);
@@ -3259,10 +3446,7 @@ impl Cx<'_> {
                                         body,
                                         at: i,
                                         sources,
-                                        own: match sub {
-                                            Sub::Body(k) => u32::from(k) == subs[i],
-                                            Sub::Adapter => true,
-                                        },
+                                        own: u32::from(sub_body) == subs[i],
                                         known: &known,
                                         calls: &calls,
                                     };
@@ -3322,7 +3506,7 @@ impl Cx<'_> {
                                     continue;
                                 }
                                 reps.hash(env.path_hash(method));
-                                self.out.dyn_methods.insert(method);
+                                self.note_dyn(method)?;
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
@@ -3474,15 +3658,8 @@ impl Cx<'_> {
                     } else {
                         args
                     };
-                    let key = self.push_specialized(
-                        item,
-                        Sub::Body(sub_k),
-                        at,
-                        at,
-                        &carried,
-                        &defaults,
-                        id,
-                    )?;
+                    let key =
+                        self.push_specialized(item, Sub::Body(sub_k), at, &carried, &defaults, id)?;
                     let shared = if at == args {
                         instance_body.clone()
                     } else {
@@ -3512,7 +3689,7 @@ impl Cx<'_> {
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let pushed = pool.list(&targs);
-                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pushed, pushed, id)?;
+                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pushed, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
@@ -3524,15 +3701,7 @@ impl Cx<'_> {
                     // A reference whose target is already a trait value
                     // widens without a new implementation or vtable
                     // (trait.erase.keeps, trait.dyn.widen).
-                    let mut value_ty = from;
-                    while let TyData::Ref { inner, .. } = pool.get(value_ty) {
-                        value_ty = inner;
-                    }
-                    let sealed = env.decls().sealed();
-                    let sealed_identity = matches!(pool.get(ty), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
-                    if (!sealed_identity || trait_reference_widens(pool, env, from, ty))
-                        && is_trait_value(pool, value_ty)
-                    {
+                    if trait_value_widens(pool, env, from, ty) {
                         continue;
                     }
                     let to = ty;
@@ -3553,7 +3722,7 @@ impl Cx<'_> {
                         } else {
                             (trait_, trait_args)
                         };
-                    let vt = self.vtable(trait_, trait_args, from, id, &mut reps)?;
+                    let vt = self.vtable(trait_, trait_args, from, id)?;
                     calls.insert(ix, Target::VTable(vt));
                 }
                 // A map's key operations (`crates/hd_mono/DESIGN.md` §13.12): a literal
@@ -3588,7 +3757,7 @@ impl Cx<'_> {
         }
         // The dispatcher's arm k calls the code instance of lifted literal
         // k directly (`fn.crossing.lift`), as a known closure.
-        if self.env.crossing_items().is_some_and(|c| c.1 == item) {
+        if self.crossing.is_some_and(|c| c.1 == item) {
             let values = (0..body.len()).filter(|&i| body.tags[i] == Tag::CallValue);
             for (i, &key) in values.zip(&self.crossing_arms) {
                 calls.insert(hd_tir::ir::u32_of(i), Target::KnownClosure(key));
@@ -3627,11 +3796,10 @@ fn direct_calls(
         .iter()
         .any(|d| matches!(d.1, Source::Param(_)))
         .then(|| body.inst_subs());
+    // The planner names CallValue instructions in this exact body; the scan
+    // above records other tags, so none has a target before this loop.
     for &(ix, source) in &plan.direct {
         let i = ix as usize;
-        if body.tags.get(i) != Some(&Tag::CallValue) || calls.contains_key(&ix) {
-            continue;
-        }
         let key = match source {
             Source::Made(m) => match calls.get(&m) {
                 Some(&Target::Closure(key)) => key,
@@ -3871,16 +4039,13 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 
 /// Collection from `root` (`crates/hd_mono/DESIGN.md` §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
-/// instance, each call's target, the imports and data types; or the stop
+/// instance, each call's target and the data types; or the stop
 /// at an instantiation limit. With `joined_inputs` (a REPL session's
 /// program, every kept input joined), each init body is also a root of the
 /// host boundary, since each input's init runs with the entry's providers.
-/// `refs`
-/// are function references the module holds though its code takes none:
-/// each item's adapter instance at its type arguments, as a REPL
-/// session's prelude holds them for later inputs (`f1c55020:future-work/compiler/repl-plan.md` job C8).
-/// `planner` holds the pipeline's body-unit passes, whose plans
-/// collection applies (`plan`).
+/// With `open_world` (a REPL input, which later inputs extend), every
+/// table keeps every slot ([`Collected::all_slots`]). `planner` holds the
+/// pipeline's body-unit passes, whose plans collection applies (`plan`).
 pub fn collect(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -3888,8 +4053,8 @@ pub fn collect(
     root: DefId,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
-    refs: &[(DefId, TyList)],
     joined_inputs: bool,
+    open_world: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     collect_roots(
@@ -3899,8 +4064,8 @@ pub fn collect(
         Some(root),
         inits,
         extra,
-        refs,
         joined_inputs,
+        open_world,
         planner,
     )
 }
@@ -3917,7 +4082,7 @@ pub fn collect_fixtures(
     roots: &[(DefId, TyList)],
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
-    collect_roots(pool, env, solver, None, inits, roots, &[], false, planner)
+    collect_roots(pool, env, solver, None, inits, roots, false, false, planner)
 }
 
 fn collect_roots(
@@ -3927,8 +4092,8 @@ fn collect_roots(
     root: Option<DefId>,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
-    refs: &[(DefId, TyList)],
     joined_inputs: bool,
+    open_world: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
@@ -3947,7 +4112,10 @@ fn collect_roots(
         depths: HashMap::default(),
         at: None,
         too_deep: None,
-        out: Collected::default(),
+        out: Collected {
+            all_slots: open_world,
+            ..Collected::default()
+        },
         work: Vec::new(),
         joined_inputs,
         planner,
@@ -3958,12 +4126,17 @@ fn collect_roots(
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
+        pending: HashMap::default(),
+        slot_users: Vec::new(),
+        table_users: Vec::new(),
         crossings: Vec::new(),
+        crossing_numbers: HashMap::default(),
         crossing_run: None,
         crossing_arms: Vec::new(),
         worker_sends: false,
+        crossing: env.crossing_items(),
     };
-    if let Err(e) = cx.run(root, inits, extra, refs) {
+    if let Err(e) = cx.run(root, inits, extra) {
         return match cx.too_deep.take() {
             Some(t) => Ok(Err(t)),
             None => Err(locate_stop(e, cx.at, |item, node| {
@@ -3971,9 +4144,17 @@ fn collect_roots(
             })),
         };
     }
+    cx.out.callee_reps.resize(cx.out.table.len(), Hash128(0));
+    cx.fold_slot_facts();
     let mut out = cx.out;
     out.calls.resize_with(out.table.len(), HashMap::default);
-    out.callee_reps.resize(out.table.len(), Hash128(0));
+    if work::reps_wanted() {
+        for (i, reps) in out.callee_reps.iter().enumerate() {
+            if out.table.sub[i] == Sub::Body(0) {
+                work::note_reps(env.describe(out.table.item[i]), *reps);
+            }
+        }
+    }
     Ok(Ok(out))
 }
 
@@ -3997,19 +4178,12 @@ impl Cx<'_> {
         root: Option<DefId>,
         inits: &[DefId],
         extra: &[(DefId, TyList)],
-        refs: &[(DefId, TyList)],
     ) -> StageResult<()> {
         if let Some(root) = root {
-            self.push(
-                root,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
         }
         for i in inits {
-            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, TyList::EMPTY, InstId::NONE)?;
+            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
         }
         // Extra roots with type arguments: the test cases after the first
@@ -4018,9 +4192,6 @@ impl Cx<'_> {
         for (d, args) in extra {
             let t = self.target(*d, *args, InstId::NONE)?;
             self.out.extra.push(t.key);
-        }
-        for (d, args) in refs {
-            self.push(*d, Sub::Adapter, *args, *args, InstId::NONE)?;
         }
         if let Some(root) = root {
             let mut boundary_roots = vec![(root, TyList::EMPTY)];
@@ -4044,15 +4215,9 @@ impl Cx<'_> {
         // A program that sends to a worker holds the worker's root, which a
         // second instance runs (`std-remote.workers.serve`).
         if self.worker_sends
-            && let Some((.., serve, _)) = self.env.crossing_items()
+            && let Some((.., serve, _)) = self.crossing
         {
-            let key = self.push(
-                serve,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            let key = self.push(serve, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.worker = Some((serve, key));
             while next < self.work.len() {
                 let id = self.work[next];
@@ -4065,7 +4230,7 @@ impl Cx<'_> {
         if let Some(def) = self.crossing_run.take() {
             // A worker runs a closure that does not suspend and whose result
             // crosses back; no domain sends another.
-            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.3);
+            let wire = self.crossing.map_or(DefId::NONE, |c| c.3);
             let mut arms = Vec::new();
             for &(number, key, f) in &self.crossings.clone() {
                 if let TyData::Fn {
@@ -4081,13 +4246,7 @@ impl Cx<'_> {
             }
             let body = self.env.crossing_run_body(def, &arms)?;
             self.out.supplied.insert((def, Ty::VOID), Arc::new(body));
-            self.push(
-                def,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            self.push(def, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             while next < self.work.len() {
                 let id = self.work[next];
                 next += 1;
@@ -4101,16 +4260,20 @@ impl Cx<'_> {
     }
 
     /// A call of `crossing_number[F](literal, code)` (`fn.crossing.lift`):
-    /// records the lifted function `code` names under the number the call
-    /// returns, for the dispatcher. Cost: a few instructions back to the
-    /// closure; once per literal and instance.
+    /// records the lifted function `code` names under its full instance
+    /// identity, for both the helper's argument and the dispatcher. The
+    /// instance key includes the literal and enclosing type arguments,
+    /// like rustc's monomorphized symbol identity, not just its signature.
+    /// Cost: a few generated instructions back to the closure, one hash
+    /// and one expected O(1) collision lookup per literal and instance.
     fn note_crossing(
         &mut self,
         body: &Body,
         i: usize,
         f: Ty,
         calls: &HashMap<u32, Target>,
-    ) -> StageResult<()> {
+        caller: InstId,
+    ) -> StageResult<u64> {
         let (Some(&literal), Some(&code)) = (body.call_args(i).first(), body.call_args(i).get(1))
         else {
             return err("a malformed crossing number");
@@ -4132,18 +4295,36 @@ impl Cx<'_> {
                 .find(|&s| body.tags[s] == Tag::Store && body.data[s][0] == word)
                 .map_or(usize::MAX, |s| body.data[s][1] as usize);
         }
-        let (Some(literal), Some(&Target::Closure(key))) =
+        let (Some(_literal), Some(&Target::Closure(key))) =
             (literal, calls.get(&hd_tir::ir::u32_of(at)))
         else {
             return err("a crossing number without its literal");
         };
-        let number = literal ^ self.env.type_number(f);
-        match self.crossings.iter().find(|c| c.0 == number) {
-            Some(c) if c.1 != key => err("two lifted crossing literals share a number"),
-            Some(_) => Ok(()),
-            None => {
+        let mut hash = StableHasher::new("crossing-instance");
+        hash.hash(key);
+        let bytes = hash.finish().0.to_le_bytes();
+        let number = u64::from_le_bytes(std::array::from_fn(|i| bytes[i]));
+        match self.crossing_numbers.entry(number) {
+            hd_base::hash::hash_map::Entry::Occupied(prior) if *prior.get() != key => {
+                let table = &self.out.table;
+                let args = self.pool.list_items(table.args[caller.idx()]);
+                let shown: Vec<_> = args
+                    .iter()
+                    .map(|&t| shown_type(self.pool, self.env, t))
+                    .collect();
+                err(&format!(
+                    "two lifted crossing literals share number {number}: `{}[{}]` {:?}, instance {key:?}, conflicts with instance {:?}",
+                    self.env.describe(table.item[caller.idx()]),
+                    shown.join(", "),
+                    table.sub[caller.idx()],
+                    prior.get(),
+                ))
+            }
+            hd_base::hash::hash_map::Entry::Occupied(_) => Ok(number),
+            hd_base::hash::hash_map::Entry::Vacant(slot) => {
+                slot.insert(key);
                 self.crossings.push((number, key, f));
-                Ok(())
+                Ok(number)
             }
         }
     }

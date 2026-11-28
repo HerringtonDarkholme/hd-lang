@@ -1,0 +1,10 @@
+use std.process.Command
+use std.testing.{assert_equal, hd_run}
+
+it("runs the seed task"):
+    out := hd_run!(*Command::new("seed").arg("x").stdin("rows\n"))
+    assert_equal(out.stdout, "seeded 1 rows\nfrom the package\n", reason="the task's report")
+    assert_equal(out.status, 0, reason="a clean exit")
+
+it("names no program"):
+    _ := hd_run!(*Command::new("nothing"))

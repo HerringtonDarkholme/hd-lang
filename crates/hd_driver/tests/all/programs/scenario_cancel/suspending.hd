@@ -1,0 +1,9 @@
+# Awaiting a suspending closure is a suspension point, so `main!`
+# suspends: a bang call that completes at once would not (#2419).
+fn ready!() -> i32:
+    value := fn!() -> i32: 42
+    value!()
+
+pub fn main!() -> void $ Console:
+    value := ready!()
+    println("value=$value")

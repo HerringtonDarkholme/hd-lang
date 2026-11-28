@@ -8,140 +8,15 @@
 # a toolchain but not across toolchains, and `hash_of` hashes a value into a
 # new one (spec/std/hash.md#default-hasher). `Fnv1a` is 64-bit FNV-1a, whose
 # digests are published (spec/std/hash.md#fnv-1a-hasher).
-use std.annotation.inline
-use std.function.Tuple
-use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{bytes_len, bytes_at, char_scalar}
+use std.meta.inline
+use std.ops.Tuple
+use std.meta.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.{bytes_len, bytes_at, char_scalar}
 
 # `Hash` and `Hasher` are declared in std.core, which `Map` names.
 pub use std.core.{Hash, Hasher}
-use std.rt.hash.FoldHasher
+use std.rt.{FoldHasher}
 use std.format.DebugWriter
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for string:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u64(u64(bytes_len(*self)))
-        state.write_str(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for char:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        char_scalar(*self).hash(state)
-
-# An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
-# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
-impl[T < ?Copy & Hash] Hash for T?:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        match self:
-            .None => state.write_u8(0)
-            .Some(value) =>
-                state.write_u8(1)
-                value.hash(state)
-
-# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < ?Copy & Hash] Hash for *T:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        (*(*self)).hash(state)
-
-# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < ?Copy & Hash] Hash for *mut T:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        (*(*self)).hash(state)
-
-# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < ?Copy & Hash] Hash for &T:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        (*(*self)).hash(state)
-
-# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
-impl[T < ?Copy & Hash] Hash for &mut T:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        (*(*self)).hash(state)
-
-# A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
-# its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
-# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
-impl[T < ?Copy & Hash, E < ?Copy & Hash] Hash for Result[T, E]:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        match self:
-            .Ok(value) =>
-                state.write_u8(0)
-                value.hash(state)
-            .Err(error) =>
-                state.write_u8(1)
-                error.hash(state)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for bool:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        let byte: u8 = 0
-        if *self:
-            byte = 1
-        state.write_u8(byte)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for i8:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_i8(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for i16:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_i16(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for i32:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_i32(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for i64:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_i64(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for u8:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u8(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for u16:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u16(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for u32:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u32(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for usize:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_usize(*self)
-
-# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
-impl Hash for u64:
-    @inline(.Always)
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u64(*self)
-
-# A list hashes its length as a `u64`, then each item in order
-# (spec/std/hash.md#list-hashing), so equal lists hash the same.
-# Keep handwritten Hash: hash the logical length and entries, not backing storage.
-impl[T < Hash] Hash for List[T]:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        state.write_u64(u64(self.len()))
-        for item in self:
-            item.hash(state)
 
 # `Fnv1a`: 64-bit FNV-1a with no seed, whose digests are published
 # (spec/std/hash.md#fnv-1a-hasher). The state starts at the FNV offset
@@ -234,49 +109,6 @@ pub fn hash_of[T < Hash](value: T) -> u64:
     let mut hasher = DefaultHasher::new()
     value.hash(&mut hasher)
     hasher.finish()
-
-# Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
-# as a `u32`, then each member in declaration order.
-impl[T < ?Copy] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(self, &mut w)
-
-# Union `Hash`: the ordinary enum derivation, including the active case index.
-impl[T < ?Copy & UnionType] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(self, &mut w)
-
-# The field is public because the prototype checks the instantiated walker
-# in the deriving module.
-struct HashWalker[S < ?Copy, H < Hasher, 'a]:
-    pub state: &'a mut H
-
-impl['a, S < ?Copy, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
-    type Error = never
-
-    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
-        if !v.info.of_data:
-            u32(v.info.index).hash(&mut *self.state)
-        .Ok(())
-
-    # A rest member is one `List[T]` member (annot.walk.rest.default),
-    # which needs `T < Hash` here, as `member` needs `F < Hash`.
-    fn rest[T < Hash](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, never]:
-        self.member(h, items)
-
-    fn member[F < ?Copy & Hash](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
-        value.hash(&mut *self.state)
-        .Ok(())
-
-# Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
-# every size. A rest element hashes as its `List`, so a rest tuple is
-# hashable when its rest's items are (r-std-hash.tuple.rest-list).
-impl[T < ?Copy & Tuple] Hash for T by Structure:
-    fn hash[H < Hasher](&self, state: &mut H) -> void:
-        let mut w = HashWalker::[T, H] { state: state }
-        _ := Structure::walk(self, &mut w)
 
 # Equality of non-inline map keys is ordinary value equality.
 fn key_equal[T < Eq](left: T, right: T) -> bool:

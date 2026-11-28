@@ -4,18 +4,24 @@
 //! store's one walk of the place. A `Store` with none only writes.
 //!
 //! No statement follows a store of nothing that counts or a store known to
-//! find its place empty ([`Stores::finds_empty`]).
+//! find its place empty ([`Stores::finds_empty`]): a local's first store,
+//! and a module init's first store of a top-level binding, which declares
+//! it (#2328).
 
 use super::{OwnCx, splice};
 use crate::ir::count::{At, Info, Part};
-use crate::ir::{Body, NONE, Ref, Tag, Topology, local_flags, u32_of};
-use hd_base::HashSet;
+
+use crate::ir::{Body, BodyKind, NONE, Ref, Root, Tag, Topology, local_flags, u32_of};
+use hd_base::{HashMap, HashSet};
 use hd_types::Ty;
 
 /// Where a body's stores stand, per local.
 struct Stores {
     /// The first instruction that stores into the local, whole or in part.
     first: Vec<u32>,
+    /// In a module init, the first instruction that stores into each
+    /// top-level binding, whole or in part.
+    first_global: HashMap<u32, u32>,
     /// Empty-place proofs from the existing known-null walk, after splicing.
     empty: HashSet<u32>,
     /// Whether a `Ref` or a capture reaches the local: it lives in a slot or
@@ -28,15 +34,19 @@ impl Stores {
         let locals = b.local_ty.len();
         let mut s = Stores {
             first: vec![NONE; locals],
+            first_global: HashMap::default(),
             empty: empty.iter().copied().collect(),
             placed: vec![false; locals],
         };
         for i in 0..b.len() {
             match b.tags[i] {
                 Tag::Store => {
-                    if let Some(l) = b.view(b.data[i][0]).local() {
+                    let p = b.view(b.data[i][0]);
+                    if let Some(l) = p.local() {
                         let first = &mut s.first[l as usize];
                         *first = (*first).min(u32_of(i));
+                    } else if let (BodyKind::Init, Root::Global(d, _)) = (b.kind, p.root) {
+                        s.first_global.entry(d.raw()).or_insert(u32_of(i));
                     }
                 }
                 Tag::Ref => {
@@ -74,7 +84,27 @@ impl Stores {
                     .is_some_and(|c| cx.counted(c.0)),
             },
         };
-        counts && !whole.is_some_and(|l| self.finds_empty(b, topo, i, l))
+        counts
+            && !whole.is_some_and(|l| self.finds_empty(b, topo, i, l))
+            && !self.declares(b, cx, topo, i)
+    }
+
+    /// Whether Store `i` is the declaring module init's first, whole
+    /// store of a top-level binding, outside any loop: the binding's
+    /// initialization, which finds its slot empty, since nothing reads or
+    /// writes a binding before it is initialized (`module.init.definite`).
+    /// Releasing the empty slot would run the glue or `Drop` hook of a
+    /// value never made. A later REPL input that assigns an earlier one's
+    /// binding belongs to another module, so its store still releases.
+    fn declares(&self, b: &Body, cx: &dyn OwnCx, topo: &Topology, i: usize) -> bool {
+        let p = b.view(b.data[i][0]);
+        let Root::Global(d, _) = p.root else {
+            return false;
+        };
+        p.whole()
+            && self.first_global.get(&d.raw()) == Some(&u32_of(i))
+            && topo.loop_of[i] == NONE
+            && cx.declares_binding(b.item, d)
     }
 
     /// Whether Store i finds its whole local empty: the existing known-null

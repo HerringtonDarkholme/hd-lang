@@ -1,0 +1,10 @@
+# test: text uses collections, whose facade re-exports a child that uses format, which uses text: the facade's `pub use` makes no edge, so there is no loop
+# Spec 10 Module Graph: module.cycle.edge, module.cycle.edge.no-pub-use, module.cycle.siblings.
+# fixture-package-tree: facade-loop/src/text.hd
+use pkg.collections.{UniqList}
+
+pub struct Builder:
+    pub size: i32
+
+pub fn size(list: UniqList) -> i32:
+    list.writer.builder.size

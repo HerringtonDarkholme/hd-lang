@@ -301,9 +301,7 @@ fn raw_loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
     match b.tags[i] {
         Tag::Ref => path_of(b, b.data[i][0]),
         Tag::Read
-            if excl
-                || super::local_ref(s.pool, b.ty[i]).is_some_and(|(counted, _)| counted)
-                || mut_result(s, w(i)).is_some() =>
+            if excl || super::local_ref(s.pool, b.ty[i]).is_some_and(|(counted, _)| counted) =>
         {
             path_of(b, b.data[i][0]).map(|(l, mut p)| {
                 p.push(Proj::Deref);
@@ -330,9 +328,8 @@ fn raw_loan_path(s: &Inputs<'_>, i: u32) -> Option<Path> {
 
 /// The place loan `i` covers and its kind: a `Ref`'s place, or what a
 /// `&mut` binding refers to where a call reads it as `&` or as `&mut`
-/// (`ref.excl.call`), or a `&` binding where a call's `&mut` result holds
-/// it. An element reference covers the collection its last element step
-/// indexes, when only fields follow that step; any other path with an
+/// (`ref.excl.call`). An element reference covers the collection its last
+/// element step indexes, when only fields follow that step; any other path with an
 /// element through a counted pointer still borrows the slot that holds it.
 fn loan_path(s: &Inputs<'_>, i: u32) -> Option<(Path, Kind)> {
     let b = s.b;
@@ -378,14 +375,6 @@ fn held_path(s: &Inputs<'_>, i: u32, (l, path): &Path, kind: Kind) -> Option<(us
         let mut path = path.clone();
         path.extend(steps.iter().copied());
         Some((c as usize, (*l, path)))
-    })
-}
-
-/// The call whose `&mut` result holds argument `i`, whatever the
-/// argument's kind: after the call, its loan is exclusive (`ref.excl.call`).
-fn mut_result(s: &Inputs<'_>, i: u32) -> Option<usize> {
-    s.calls.iter().find_map(|(&c, sig)| {
-        (sig.held.contains(&i) && is_mut(s.pool, s.b.ty[c as usize])).then_some(c as usize)
     })
 }
 
@@ -788,11 +777,6 @@ impl Gen<'_, '_> {
             if let Some((_, p)) = held_path(self.s, i, &place, kind) {
                 place = p;
             }
-            // A `&mut` result's loan is exclusive from its call on.
-            let mut from = i;
-            if let (Kind::Shared, Some(c)) = (kind, mut_result(self.s, i)) {
-                (kind, from) = (Kind::Excl, w(c));
-            }
             let holders: Vec<(u32, Vec<u32>)> = (0..self.locals)
                 .filter(|&h| h != place.0 && has(&self.local(h).0, w(loan)))
                 .map(|h| {
@@ -809,9 +793,9 @@ impl Gen<'_, '_> {
             let lp = matches!(kind, Kind::Elem(_))
                 .then(|| order.ref_loop(i))
                 .flatten();
-            sites.push((i, from, place, kind, holders, lp));
+            sites.push((i, place, kind, holders, lp));
         }
-        if sites.iter().all(|s| s.4.is_empty() && s.5.is_none()) {
+        if sites.iter().all(|s| s.3.is_empty() && s.4.is_none()) {
             return Vec::new();
         }
         let users = self.users();
@@ -840,7 +824,7 @@ impl Gen<'_, '_> {
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
-            'site: for (i, from, (r, sp), kind, holders, lp) in &sites {
+            'site: for (i, (r, sp), kind, holders, lp) in &sites {
                 // A rooted loan's source resolves through the binding that
                 // holds it; `resolved` is computed whenever any loan is rooted.
                 let (root, path) = match &resolved {
@@ -863,7 +847,7 @@ impl Gen<'_, '_> {
                     continue;
                 }
                 for (h, other) in holders {
-                    let (i, h) = (*from, *h);
+                    let (i, h) = (*i, *h);
                     if !order.hop(i, at, h) || order.kills(other, i, at) {
                         continue;
                     }

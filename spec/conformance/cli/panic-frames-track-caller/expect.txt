@@ -1,0 +1,19 @@
+# A `@track_caller` function leaves its own frames out: the panic is reported
+# at its caller, the same from `hd run`, a built module, and a release build.
+run: hd run
+exit: 3
+stderr: panic: explicit-panic: not positive
+stderr:     src/main.hd:12 shop.main.total
+stderr:     src/main.hd:16 shop.main.main
+run: hd build
+run: hd build/debug/shop.wasm
+exit: 3
+stderr: panic: explicit-panic: not positive
+stderr:     src/main.hd:12 shop.main.total
+stderr:     src/main.hd:16 shop.main.main
+run: hd build --release --format wasm
+run: hd build/release/shop.wasm
+exit: 3
+stderr: panic: explicit-panic: not positive
+stderr:     src/main.hd:12 shop.main.total
+stderr:     src/main.hd:16 shop.main.main

@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# expected: a poisoned or never-returning call-place callee does not check a meaningless right-hand side.
+fn unresolved() -> void:
+    missing() = absent_right()
+    unknown() += absent_other()
+
+fn diverging() -> void:
+    (panic("stopped"))() = absent_after_panic()

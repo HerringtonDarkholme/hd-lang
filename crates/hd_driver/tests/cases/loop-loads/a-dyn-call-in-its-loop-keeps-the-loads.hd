@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: wasmtime release
+# #2374: a call through `dyn Step` may run any implementation, so no
+# write summary covers it: the buffer pointer loads on every iteration
+# and the check stays.
+use std.collections.UniqList
+
+pub trait Step:
+    fn step(self, s: i64, x: i64) -> i64
+
+pub fn fold(xs: &UniqList[i64], f: &dyn Step) -> i64:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s = f.step(s, xs[i])
+    s

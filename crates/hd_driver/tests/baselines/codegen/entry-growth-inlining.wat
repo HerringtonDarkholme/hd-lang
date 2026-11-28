@@ -11,7 +11,7 @@
   (import "fixture" "rt:prim/format_f64" (func $rt:prim/format_f64 (param f64) (result i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $exercise (param $count i32) (param $number f64) (result i32) (local $worker i32) (local $t0 i32) (local $t1 i32) (local $first'1 i32) (local $t2 i32) (local $first'2 i32)
     ;; 74 |     worker := Worker { amount: 1 }

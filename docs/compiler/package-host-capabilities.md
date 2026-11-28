@@ -11,8 +11,9 @@ provider. The provider default-exports plain methods; generated app glue
 handles the Wasm ABI. The decided surface is the
 [owner-confirmed #51 review](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6388965405).
 
-General exported-function embedding and dylib loading are deferred with no
-design. Native provider registration on Wasmtime is the built native host bindings design (git history at 10e74b76a,
+General exported-function embedding is deferred with no design. Loading
+a package's C provider library is the [native FFI](../future-work/FFI.md)
+design (#2388). Native provider registration on Wasmtime is the built native host bindings design (git history at 10e74b76a,
 `NATIVE_PACKAGE_HOST_BINDINGS.md`),
 specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
 `hd build --engine wasmtime` writes its Rust companion `NAME.host.rs`, and
@@ -282,6 +283,7 @@ Those cannot be inferred from a successful local Request/Response call.
 ## The Decided Surface
 
 The decided surface is `[host] "server.HttpServer" = "providers/http.mjs"`, paired exactly with bare `@host` on an owned public trait.
+An entry may instead be a table naming a C library, a JavaScript file or both, `{ c = "hd_sqlite", js = "providers/sqlite.mjs" }`; a `c` entry holds the trait to the [C value table](../../spec/lang/10-modules.md#c-value-table) ([native FFI](../future-work/FFI.md), #2388).
 `traits = [...]`, `javascript = ...`, `--host` and `defineProvider` are superseded.
 Library manifests never grant root consent.
 An app continues using ordinary rows, `$.use` and `$.with` fakes.
@@ -354,11 +356,11 @@ Resource cleanup remains an explicit operation, such as `dispose!`; release does
 
 ## Wasmtime Refusal And Deferred Native Loading
 
-The native host refuses a required package capability with no registered native provider before entering the guest.
-The `hd` command registers none, so `hd --engine wasmtime` refuses every package capability, naming the trait and saying that a native provider needs a Rust program embedding `hd_run_wasmtime`.
-Without `--engine`, `hd run` and `hd FILE.wasm` choose Node for such a module, whatever `HD_ENGINE` says: `engine::Choice::for_module` reads the contract that `execute` decodes once for the run, after the capability refusal and before the module loads, so there is still no engine fallback mid-run ([`cli.host.package.native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node)).
+The native host refuses a required package capability with no registered native provider and no C provider before entering the guest.
+The `hd` command registers no Rust provider; it binds a trait's C provider from its package's `native/<target-triple>/` folder ([C Providers](../../spec/cli/command-line.md#c-providers)).
+Without `--engine`, `hd run` and `hd FILE.wasm` choose Wasmtime for a module whose every root trait has a C provider, and Node for any other module with one, whatever `HD_ENGINE` says: `engine::Choice::for_module` reads the contract and the C tables that `execute` decodes for the run, after the capability refusal and before the module loads, so there is still no engine fallback mid-run ([`cli.host.package.native-cli-choice`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-choice)).
 [Native Package Providers](../../spec/cli/command-line.md#native-package-providers) specifies embedder registration, built by #2077 to #2083.
-Dylib loading and general exported functions remain deferred.
+General exported functions remain deferred.
 
 ## A GUI-Shaped Current-Compiler Control
 

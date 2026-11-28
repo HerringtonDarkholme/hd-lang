@@ -1,0 +1,4 @@
+root.children[0].value += 1
+if saved() != 2:
+    panic("captured cycle was lost")
+pass

@@ -1,0 +1,28 @@
+# test: crypto random bytes delegate to the covering Random provider
+use std.crypto.rand.fill
+use std.random.Random
+
+fn nonce() -> List[u8] $ Random:
+    fill(12)
+
+struct Source:
+    counts: List[usize]
+
+impl Random for Source:
+    fn next_u64(&mut self) -> u64:
+        panic("fill does not use integer draws")
+
+    fn fill(&mut self, count: usize) -> List[u8]:
+        self.counts.push(count)
+        [for index in 0..count => u8(index)]
+
+tests:
+    it("preserves provider semantics and request boundaries"):
+        source := box(Source { counts: [] })
+        $.with(Random=source):
+            assert_equal(fill(0), [], reason="zero bytes")
+            assert_equal(nonce(), [for index in 0..12 => u8(index)], reason="example")
+            large := fill(65537)
+            assert_equal(large.len(), 65537, reason="large request")
+            assert_equal(large[65536], u8(0), reason="provider data")
+        assert_equal(source.counts, [0, 12, 65537], reason="exactly once")

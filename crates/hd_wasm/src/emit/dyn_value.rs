@@ -164,10 +164,30 @@ impl Em<'_, '_, '_> {
             _ => None,
         };
         let methods = hd_mono::slot_methods(self.env(), table.trait_);
+        let collected = self.input.collected;
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             hd_mono::work::dyn_emit(1);
             let env = self.input.env;
+            // A method no call through a trait value names has no slot
+            // (`Collected::slots`), and collection left its target out.
+            let kept = hd_mono::slot_kept(
+                env,
+                collected.all_slots,
+                &collected.dyn_methods,
+                table.trait_,
+                *m,
+            );
+            let t = match (kept, t) {
+                (false, _) => continue,
+                (true, Some(t)) => t,
+                (true, None) => {
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a kept vtable slot without its target",
+                    ));
+                }
+            };
             let mut params = Vec::new();
             // Counts the target needs from the slot's lent receiver
             // and borrowed arguments. Owned cold parameters and inline
@@ -287,6 +307,7 @@ impl Em<'_, '_, '_> {
             } else {
                 Helper::DynSlot {
                     target: t.key,
+                    body: false,
                     retained_result: retained_result.clone(),
                     leaves: leaves.map(<[Leaf]>::to_vec),
                     params,
@@ -533,9 +554,14 @@ impl Em<'_, '_, '_> {
         let mut paths = self.m.dyn_paths.borrow_mut();
         let paths = match paths.entry(at) {
             hd_base::hash::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            hd_base::hash::hash_map::Entry::Vacant(entry) => entry.insert(
-                hd_mono::dyn_graph::DynPaths::new(self.pool(), self.env(), at)?,
-            ),
+            hd_base::hash::hash_map::Entry::Vacant(entry) => {
+                entry.insert(hd_mono::dyn_graph::DynPaths::new(
+                    self.pool(),
+                    self.env(),
+                    self.input.collected,
+                    at,
+                ))
+            }
         };
         paths.path(to).ok_or_else(|| {
             hd_base::NotImplemented::bug(

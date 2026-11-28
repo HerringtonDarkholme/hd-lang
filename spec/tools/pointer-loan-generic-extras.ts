@@ -7,7 +7,7 @@ export const genericExtras: Extra[] = [
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a generic optional carrier returns its present reference and an alias grows that source",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -42,7 +42,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a generic optional carrier returns its fallback reference and an alias grows that source",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -77,7 +77,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a generic padded struct carrier forwards its reference to a result slot",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -113,7 +113,7 @@ pub fn main() -> void $ Console:
     panic: false,
     rule: "ref.excl.alias.loan",
     what: "a generic tuple result keeps its second reference while the unused first source changes",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 struct Slots:
     items: List[string]
 impl Slots:

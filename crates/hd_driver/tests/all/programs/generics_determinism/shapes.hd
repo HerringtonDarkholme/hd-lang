@@ -1,0 +1,30 @@
+pub trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+pub struct Ints:
+    pub value: i32
+
+pub struct Words:
+    pub value: string
+
+impl Supplier for Ints:
+    type Item = i32
+    fn get(self) -> i32:
+        self.value
+
+impl Supplier for Words:
+    type Item = string
+    fn get(self) -> string:
+        self.value
+
+pub trait Named:
+    fn name(self) -> string
+
+impl Named for Ints:
+    fn name(self) -> string:
+        "ints"
+
+impl Named for Words:
+    fn name(self) -> string:
+        self.value

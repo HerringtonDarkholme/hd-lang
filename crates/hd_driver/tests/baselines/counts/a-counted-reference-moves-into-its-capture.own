@@ -4,7 +4,7 @@
 # expected: capture and handle donate their incoming counted reference to
 # the environment; fresh donates the box. A live caller copies once.
 # Local references and their newtype wrappers remain borrowed.
-use std.annotation.cold
+use std.meta.cold
 
 struct Point:
     name: string

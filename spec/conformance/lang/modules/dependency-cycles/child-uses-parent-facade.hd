@@ -1,0 +1,7 @@
+# test: a child may use its parent, whose `pub use` names the child: a `pub use` makes no edge
+# Spec 10 Module Graph: module.cycle.edge.no-pub-use, module.cycle.sibling-group.siblings.
+# fixture-package-tree: nested-folders/src/shop/orders/mod.hd
+use pkg.shop.{money}
+
+pub fn order() -> i32:
+    money()

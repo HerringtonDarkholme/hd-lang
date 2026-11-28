@@ -1,0 +1,9 @@
+use pkg.mix.b.{get_y}
+use pkg.log.{record}
+
+let x = get_y() + 1
+record("a second")
+let z = x * 10
+
+pub fn get_z() -> i32:
+    z

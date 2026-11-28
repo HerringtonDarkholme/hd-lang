@@ -1,0 +1,2 @@
+pub fn main() -> void $ Console:
+    let n: i32 = "no"

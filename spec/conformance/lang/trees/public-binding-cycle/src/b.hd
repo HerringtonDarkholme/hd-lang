@@ -1,0 +1,4 @@
+use pkg.a.{BASE}
+
+pub fn twice() -> i64:
+    BASE * 2

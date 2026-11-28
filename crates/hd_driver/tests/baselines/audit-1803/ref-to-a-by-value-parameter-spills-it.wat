@@ -9,7 +9,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $value i64) (local $t3 i32)
     ;; 21 |     println("${sum(Point { x: 1, y: 2, name: "a" + "b" })}")
     i32.const 2

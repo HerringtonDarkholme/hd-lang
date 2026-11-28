@@ -1,0 +1,23 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Optional scalar leaves inside an address argument must not shift row parameters.
+struct Scalars:
+    value_i8: i8? = .None
+    value_u8: u8? = .None
+    value_i16: i16? = .None
+    value_u16: u16? = .None
+    value_i32: i32? = .None
+    value_u32: u32? = .None
+    value_i64: i64? = .None
+    value_u64: u64? = .None
+    value_usize: usize? = .None
+    value_f32: f32? = .None
+    value_f64: f64? = .None
+    value_bool: bool? = .None
+    value_char: char? = .None
+
+fn finish(opts: Scalars) -> i64 $ Console:
+    7
+
+pub fn main() -> void $ Console:
+    println("${finish(Scalars {})}")

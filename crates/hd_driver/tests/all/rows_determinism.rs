@@ -11,61 +11,18 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const KEYS: &str = "\
-pub trait Clock:
-    fn now(self) -> i32
+const KEYS: &str = include_str!("programs/rows_determinism/keys.hd");
 
-pub trait Tag:
-    fn id(self) -> i32
+const MAIN: &str = include_str!("programs/rows_determinism/main.hd");
 
-pub struct FixedClock:
-    pub value: i32
-
-pub struct FixedTag:
-    pub value: i32
-
-impl Clock for FixedClock:
-    fn now(self) -> i32: self.value
-
-impl Tag for FixedTag:
-    fn id(self) -> i32: self.value
-";
-
-const MAIN: &str = "\
-use pkg.geo.keys.{Clock, Tag, FixedClock, FixedTag}
-
-fn run_all[$R](callback: fn() -> i32 $ R + Clock + Tag) -> i32 $ R:
-    $.with(Clock=FixedClock { value: 7 }, Tag=FixedTag { value: 10 }):
-        callback()
-
-fn run_two[$R](callback: fn() -> i32 $ R + Tag + Console) -> i32 $ R + Console:
-    $.with(Tag=FixedTag { value: 20 }):
-        callback()
-
-fn three() -> i32 $ Tag + Clock + Console:
-    println(\"${$.use(Tag).id()}\")
-    $.use(Clock).now()
-
-fn tagged() -> i32 $ Console + Clock:
-    run_all(fn(): $.use(Tag).id() + $.use(Clock).now())
-
-pub fn main() -> void $ Console:
-    $.with(Clock=FixedClock { value: 1 }):
-        println(\"${tagged()}\")
-        println(\"${run_two(fn(): $.use(Tag).id())}\")
-        println(\"${run_all(fn(): three())}\")
-";
-
-const UNRELATED: &str = "\
-pub fn unrelated(a: i32) -> i32:
-    a + 1
-";
+const UNRELATED: &str = include_str!("programs/rows_determinism/unrelated.hd");
 
 fn sources(files: &[(&str, &str)]) -> MemorySources {
     let mut s = MemorySources::default();
     for (path, text) in files {
         s.insert(path, text);
     }
+    crate::add_facades(&mut s);
     s
 }
 

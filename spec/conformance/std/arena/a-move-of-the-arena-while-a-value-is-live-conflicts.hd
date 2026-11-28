@@ -1,0 +1,12 @@
+# test: moving the arena while an `alloc` result is still used is a conflicting access
+# Spec std Arena: std-arena.alloc.lent.
+use std.arena.Arena
+
+struct Account:
+    balance: i64
+
+fn move_live() -> i64:
+    bank := Arena::new()
+    a := bank.alloc(Account { balance: 1 })
+    moved := bank # diagnostic: conflicting-access
+    a.balance

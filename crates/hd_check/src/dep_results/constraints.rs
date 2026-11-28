@@ -302,6 +302,21 @@ impl Gen<'_, '_> {
         (self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Read).then_some(v)
     }
 
+    /// The counted reference the place `word` dereferences first, by the
+    /// instruction that reads it, or the local that holds it: a reference
+    /// made there is local to the function (`ref.local.pointer`).
+    fn through_pointer(&self, word: u32) -> Option<u32> {
+        let b = self.s.b;
+        let p = b.decode_place(word)?;
+        let counted = |t: Ty| matches!(local_ref(self.s.pool, t), Some((true, _)));
+        match p.root {
+            PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
+                self.s.ty(v.0).filter(|&t| counted(t)).map(|_| v.0)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether value `v` is a read of a whole local, with no projection.
     fn whole_binding_read(&self, v: u32) -> bool {
         let b = self.s.b;
@@ -962,10 +977,19 @@ impl Gen<'_, '_> {
             self.each_into(&rs, &me.0);
             return;
         }
+        // A result slot behind a `&mut` is the place the callee lent, so a
+        // store through it lands in its variable (`ref.generic.store`):
+        // `*h.at(0) = v` with `fn at(&mut self, k: usize) -> &mut T`.
+        let lay = ls.of(me.1);
         for (k, &to) in me.0.iter().enumerate() {
+            let lent = under_mut(pool, &lay, k);
             for &v in sig.outs.get(k).into_iter().flatten() {
                 let r = var(&mut self.t, v);
-                self.flow(r, to);
+                if lent {
+                    self.c.equal(r, to, self.at);
+                } else {
+                    self.flow(r, to);
+                }
             }
         }
     }
@@ -1431,6 +1455,14 @@ impl Gen<'_, '_> {
         {
             return self.relate(&v, &me, false, false);
         }
+        // `$.use(K)` lends the provider the body received, which lies in no
+        // parameter: a local reference, never returned or stored past the
+        // body (`req.use.value.local`).
+        if b.provider_ref(iu) {
+            for &slot in &self.s.ls.of(me.1).tops {
+                self.seed(me.0[slot], Origin::Hidden(i));
+            }
+        }
         match b.tags[iu] {
             Tag::Store => {
                 if self.static_field_place(a) {
@@ -1505,6 +1537,9 @@ impl Gen<'_, '_> {
                     self.seed(me.0[0], Origin::Site(i));
                 } else if exclusive::runtime_site(self.s, i) {
                     self.seed(me.0[0], Origin::Lent(i));
+                }
+                if let Some(h) = self.through_pointer(a) {
+                    self.seed(me.0[0], Origin::Through(h));
                 }
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
                 // A reborrow of a local's or a reference's part, shared or
@@ -2063,55 +2098,6 @@ impl Gen<'_, '_> {
             };
             rows.extend(from.iter().map(|&k| (Holder::Value(i), k)));
             by_val.entry(i).or_default().extend(from);
-        }
-        // A call whose result holds an argument's loan may return a
-        // reference into an object the callee reached through a pointer:
-        // an INNER site at the call, which the link pass keeps only where
-        // the callee does (`hd_tir::own::pointer`). It lives while the
-        // values after the call that hold the argument's loan do.
-        let mut by_value: HashMap<u32, Vec<u32>> = HashMap::default();
-        for &(h, k) in &rows {
-            if let Holder::Value(v) = h {
-                by_value.entry(v).or_default().push(k);
-            }
-        }
-        let mut inner = Vec::new();
-        for c in 0..w(b.len()) {
-            if !matches!(
-                b.tags[c as usize],
-                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-            ) || by_inst.contains_key(&c)
-            {
-                continue;
-            }
-            let Some(held) = by_value.get(&c) else {
-                continue;
-            };
-            let k = w(sites.len());
-            let excl = is_mut(self.s.pool, b.ty[c as usize]);
-            sites.push(Site {
-                at: c,
-                word: hd_tir::ir::loan_word::INNER
-                    | (u32::from(excl) * hd_tir::ir::loan_word::EXCL),
-                activate: NONE,
-            });
-            inner.push((c, k, held.clone()));
-        }
-        if !inner.is_empty() {
-            rows.sort_stable_by_key(|r| r.1);
-            let at = |k: u32| rows.partition_point(|r| r.1 < k);
-            let mut extra = Vec::new();
-            for (c, k, held) in inner {
-                extra.push((Holder::Value(c), k));
-                for s in held {
-                    for &(h, _) in &rows[at(s)..at(s + 1)] {
-                        if !matches!(h, Holder::Value(v) if v < c) {
-                            extra.push((h, k));
-                        }
-                    }
-                }
-            }
-            rows.extend(extra);
         }
         crate::work::scan_work(rows.len());
         rows.sort_stable();

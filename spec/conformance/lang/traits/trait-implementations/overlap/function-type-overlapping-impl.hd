@@ -1,6 +1,6 @@
 # test: an implementation over Fn[Args, O, $ R] overlaps one for a concrete function type
 # Spec 09 Traits: trait.target.function-type, trait.overlap.unify, trait.overlap.error.
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 trait Marker
 

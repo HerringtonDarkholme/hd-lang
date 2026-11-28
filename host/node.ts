@@ -8,6 +8,8 @@
 
 // module.profile.panic-status).
 
+import { isatty } from "node:tty";
+import { signalSource } from "./signals.ts";
 import { receiveReply } from "./worker-control.ts";
 import type { MessagePort, Worker as NodeWorker } from "node:worker_threads";
 import type { CoreEnv, Host, Sink } from "./core.ts";
@@ -33,6 +35,7 @@ import {
   fileOperation,
   fileOperations,
   fsErr,
+  readOpen,
   resolvePath,
   validHost,
 } from "./node-files.ts";
@@ -45,7 +48,7 @@ type DynamicRecord = Record<string, Dynamic>;
 export interface HostEnv extends CoreEnv {
   /** A file descriptor, or `null` for a closed standard input. */
   stdin?: number | null;
-  /** Explicit hd executable used for Windows Process Job ownership. */
+  /** Explicit hd executable used for inherited Process groups and Windows Jobs. */
   processLauncher?: string;
   tempDir?: string;
   snapshot?: { dir: string; shown?: string; slug: string; update: boolean };
@@ -69,6 +72,7 @@ interface SyncClient {
 export interface LineReader {
   (): string | null | false;
   all(): string | false;
+  bytes(max: number): Uint8Array | false;
 }
 
 interface ErrorWithCode {
@@ -301,9 +305,10 @@ export function lineReader(fd: number | null): LineReader {
   if (fd === null) {
     const none = (() => null) as LineReader;
     none.all = () => "";
+    none.bytes = () => new Uint8Array();
     return none;
   }
-  let pending = Buffer.alloc(0);
+  let pending: Buffer = Buffer.alloc(0);
   let parts: Buffer[] = [];
   let length = 0;
   let ended = false;
@@ -370,8 +375,8 @@ export function lineReader(fd: number | null): LineReader {
       }
     }
   }) as LineReader;
-  // The rest of the input as read, with `\r\n` read as `\n`
-  // (std-console.input.read-all-host-coded-error).
+  // The rest of the input without newline translation
+  // (std-console.input.read-all-host-preserves-bytes).
   line.all = () => {
     retain(pending);
     pending = Buffer.alloc(0);
@@ -382,7 +387,27 @@ export function lineReader(fd: number | null): LineReader {
       retain(pending);
       pending = Buffer.alloc(0);
     }
-    return take().toString("utf8").replaceAll("\r\n", "\n");
+    return take().toString("utf8");
+  };
+  line.bytes = (max) => {
+    max >>>= 0;
+    if (max === 0) {
+      return new Uint8Array();
+    }
+    // Only a failed text read can retain earlier fragments. Recover them
+    // once before continuing with the same buffered descriptor.
+    if (length) {
+      retain(pending);
+      pending = take();
+    }
+    while (!pending.length && !ended) {
+      if (!fill()) {
+        return false;
+      }
+    }
+    const bytes = pending.subarray(0, Math.min(max, pending.length));
+    pending = pending.subarray(bytes.length);
+    return bytes;
   };
   return line;
 }
@@ -392,11 +417,12 @@ export function lineReader(fd: number | null): LineReader {
 // of the input worker (the REPL keeps its framed control reader).
 function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): DynamicRecord {
   if (env.readLine === undefined && env.stdin !== null) {
-    const read = (kind: string): Dynamic => {
+    const read = (kind: string, max = 0): Dynamic => {
       flush();
       const { ok: operation } = inputClient.call({
         op: "wait_start",
         kind,
+        max,
         fd: env.stdin ?? 0,
       });
       let result: Dynamic = null;
@@ -414,7 +440,9 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
       };
       const output = () => {
         if (result.error !== undefined) {
-          return Err({ tag: "Other", code: result.error });
+          return kind === "bytes"
+            ? Err({ tag: "Other", message: `standard input read error ${result.error}` })
+            : Err({ tag: "Other", code: result.error });
         }
         return result.closed ? Err({ tag: "Closed" }) : Ok(result.ok);
       };
@@ -430,7 +458,14 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
         (ready) => inputClient.subscribe(operation, ready),
       );
     };
-    return { read_line: () => read("line"), read_all: () => read("all") };
+    // Standard input's one handle; its reads share the worker's buffered
+    // input with `read_line` and `read_all` (std-console.stdin.exact).
+    return {
+      read_line: () => read("line"),
+      read_all: () => read("all"),
+      stdin: () => 1,
+      "StdinHandle.read": (_handle: number, max: number) => read("bytes", max >>> 0),
+    };
   }
   // The REPL's framed control reader and a test's explicitly closed stdin.
 
@@ -451,6 +486,12 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
       return text;
     });
   return {
+    stdin: () => 1,
+    "StdinHandle.read": (_handle: number, max: number) => {
+      flush();
+      const bytes = readLine.bytes(max >>> 0);
+      return bytes === false ? Err({ tag: "Closed" }) : Ok(new Uint8Array(bytes));
+    },
     read_line: () => {
       // A completed prompt must reach the sink before this read blocks.
       flush();
@@ -773,7 +814,10 @@ function envProvider({ grant, sink, st, flush }: DynamicRecord): DynamicRecord {
 
 // Only methods that open a path can wait for a special-file peer. A
 // missing or uninspectable path stays inline and reports its ordinary error.
+// `open` of a special file leaves its descriptor with the helper child
+// that opened it (fs.ts), which makes the file's reads.
 const fileOpening = new Set([
+  "open",
   "read_bytes",
   "read_text",
   "write_bytes",
@@ -811,8 +855,49 @@ const fileKind = (path: string): "special" | number | null => {
   return st.isDirectory() ? null : "special";
 };
 
+// A special-file call the file worker started (fs.ts): pending until the
+// worker has its result. `.finish` takes the result from the worker, since
+// a dispose after the poll makes a read's `Closed`
+// (std-io.read.pending-closed), and `deliver` makes it the program's.
+const waitFile = (
+  fsClient: Dynamic,
+  { ok: operation }: { ok: number },
+  deliver: (result: Dynamic) => Dynamic = (result) => result,
+): Dynamic => {
+  let result: Dynamic = null;
+  const poll = () => {
+    const outcome = fsClient.call({ op: "wait_poll", operation });
+    if (outcome.pending) {
+      return false;
+    }
+    result = outcome.result;
+    return true;
+  };
+  return pendingOperation(
+    poll,
+    () => result,
+    () => fsClient.cancel({ op: "wait_abort", operation }),
+    () => deliver(fsClient.call({ op: "wait_finish", operation }).result),
+    (ready) => fsClient.subscribe(operation, ready),
+  );
+};
+
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
 function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
+  // An open file's handle is a number never issued twice, not its
+  // descriptor, so an alias of a disposed file is `Closed` even once the
+  // OS reuses the descriptor (std-fs.open.dispose). A regular file's
+  // descriptor is this thread's; a special file is the file worker's
+  // number for it.
+  const files = new Map<number, { fd: number } | { special: number }>();
+  let nextFile = 1;
+  const issue = (file: { fd: number } | { special: number }): Dynamic => {
+    files.set(nextFile, file);
+    return Ok(nextFile++);
+  };
+  // A special file's handle is issued when the program takes its open.
+  const openedSpecial = (opened: Dynamic): Dynamic =>
+    opened.ok ? issue({ special: opened.value }) : opened;
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.ts). A
   // special-file call is offloaded after these checks. Output is flushed
@@ -848,25 +933,8 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
           // cost: one stat per path a file-opening call names.
           const kinds = fileOpening.has(name) ? ps.map(fileKind) : [];
           if (kinds.includes("special")) {
-            const { ok: operation } = fsClient.call({ op: "wait_start", module, name, args });
-            let result: Dynamic = null;
-            const poll = () => {
-              const outcome = fsClient.call({ op: "wait_poll", operation });
-              if (outcome.pending) {
-                return false;
-              }
-              result = outcome.result;
-              return true;
-            };
-            return pendingOperation(
-              poll,
-              () => result,
-              () => fsClient.cancel({ op: "wait_abort", operation }),
-              () => {
-                fsClient.call({ op: "wait_finish", operation });
-              },
-              (ready) => fsClient.subscribe(operation, ready),
-            );
+            const started = fsClient.call({ op: "wait_start", module, name, args });
+            return waitFile(fsClient, started, name === "open" ? openedSpecial : undefined);
           }
           if (module === "hd:FsRead" && typeof kinds[0] === "number") {
             return fileOperation(module, name, [...args, kinds[0]]);
@@ -876,9 +944,54 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
         return [name, provider];
       }),
     );
-  return Object.fromEntries(
+  const providers = Object.fromEntries(
     Object.entries(fileOperations).map(([module, ops]) => [module, fsOps(module, ops)]),
   );
+  const reads = providers["hd:FsRead"];
+  return {
+    ...providers,
+    "hd:FsRead": {
+      ...reads,
+      // A regular file opens inline; a special file's open is pending in
+      // the file worker, and `openedSpecial` issues its handle.
+      open: (path: string) => {
+        const opened = reads.open(path);
+        return opened.ok === true ? issue({ fd: opened.value }) : opened;
+      },
+      "File.read": (file: number, max: number) => {
+        flush();
+        const open = files.get(file);
+        if (open === undefined) {
+          return Err({ tag: "Closed" });
+        }
+        if ("special" in open) {
+          // std-fs.open.special-file: the read waits off this thread.
+          const started = fsClient.call({ op: "read_start", file: open.special, max });
+          return waitFile(fsClient, started);
+        }
+        try {
+          return Ok(readOpen(open.fd, max >>> 0));
+        } catch (error) {
+          return Err({ tag: "Other", message: `read: ${(error as Error).message}` });
+        }
+      },
+      // `dispose!` closes an open file; disposing a closed one does
+      // nothing. A special file's pending reads answer `Closed`.
+      "File.dispose": (file: number) => {
+        const open = files.get(file);
+        if (open === undefined) {
+          return;
+        }
+        files.delete(file);
+        if ("special" in open) {
+          // A release, so it runs past the run's deadline too.
+          fsClient.cancel({ op: "file_dispose", file: open.special });
+        } else {
+          closeSync(open.fd);
+        }
+      },
+    },
+  };
 }
 
 // The checks the Rust host makes before it starts a child
@@ -966,13 +1079,10 @@ function processCommand({ env, name, argv, pairs, dir }: DynamicRecord): Dynamic
 // package's executables and tasks by name, the default profile's a host
 // program.
 function processProvider({ grant, env, left, processClient }: DynamicRecord): DynamicRecord {
-  const run = ({
-    program: name,
-    args: argv,
-    env: pairs,
-    current_dir: dir,
-    stdin: text,
-  }: DynamicRecord): Dynamic => {
+  const run = (
+    inherit: boolean,
+    { program: name, args: argv, env: pairs, current_dir: dir, stdin: text }: DynamicRecord,
+  ): Dynamic => {
     if (!grant.coversName("Process", name)) {
       return Err({ tag: "NotGranted" });
     }
@@ -996,6 +1106,7 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
       cwd,
       env: childEnvironment(pairs),
       input: text,
+      inherit,
       timeout: ms,
     });
     let result: Dynamic = null;
@@ -1022,7 +1133,7 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
         }
         return Err({ tag: "Other", message });
       }
-      return Ok({ ...result.ok, program: name });
+      return Ok(inherit ? result.ok.status : { ...result.ok, program: name });
     };
     if (poll()) {
       finish();
@@ -1038,7 +1149,10 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
       (ready) => processClient.subscribe(operation, ready),
     );
   };
-  return { run };
+  return {
+    run: (command: Dynamic) => run(false, command),
+    status: (command: Dynamic) => run(true, command),
+  };
 }
 
 // The files of a test run on disk (cases.ts): the case's temporary
@@ -1130,7 +1244,8 @@ export const nodeLayer = {
       const http = syncClient("./http.ts", null, reactor);
       const child = syncClient("./process.ts", "close", reactor);
       const files = syncClient("./fs.ts", "close", reactor);
-      const input = syncClient("./input.ts", null, reactor);
+      const input = syncClient("./input.ts", "close", reactor);
+      const workers = workersProvider(env.module, reactor);
       // A bare Promise does not keep Node alive. Reference one idle message
       // port while the guest waits, without a polling timer or worker spin.
       let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
@@ -1175,6 +1290,25 @@ export const nodeLayer = {
         traits: {
           "hd:ConsoleInput": consoleInputProvider({ env, flush, inputClient: client(input) }),
           "hd:Sys": sysProvider({ grant }),
+          "hd:Signals": {
+            wait: (kind: { tag: import("./signals.ts").SignalKind }) => {
+              if (!grant.allows("Signals")) {
+                throw new HostContract("capability not granted: Signals");
+              }
+              let delivered = false;
+              return pendingOperation(
+                () => delivered,
+                () => undefined,
+                null,
+                null,
+                (notify) =>
+                  signalSource()!.wait(kind.tag, () => {
+                    delivered = true;
+                    notify();
+                  }),
+              );
+            },
+          },
           "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
           "hd:Net": netProvider({ grant, netClient }),
           "hd:Env": envProvider({ grant, sink, st, flush }),
@@ -1186,7 +1320,7 @@ export const nodeLayer = {
             processClient: client(child),
           }),
           "hd:TestRunner": testRunner.provider,
-          "hd:Workers": workersProvider(env.module),
+          "hd:Workers": workers.provider,
         },
         tempDir: testRunner.tempDir,
         keepAlive,
@@ -1196,6 +1330,7 @@ export const nodeLayer = {
           child.drainReady();
           files.drainReady();
           input.drainReady();
+          workers.drain();
         },
         // The sockets still open, by kind (cli.test.leak).
         leaks: () => {
@@ -1234,8 +1369,27 @@ export const nodeLayer = {
     };
     let platform: Dynamic;
     const get = () => (platform ??= initialize());
-    const traits: DynamicRecord = {};
-    for (const module of NODE_PROVIDER_MODULES) {
+    const traits: DynamicRecord = {
+      "hd:Console": {
+        // Worker stdio wrappers have no isTTY; query the inherited OS fd.
+        is_terminal: (stream: { tag: string }) => {
+          if (!grant.allows("Console")) {
+            return false;
+          }
+          switch (stream.tag) {
+            case "Stdout":
+              return isatty(1);
+            case "Stderr":
+              return isatty(2);
+            case "Stdin":
+              return isatty(0);
+            default:
+              throw new HostContract("unknown console stream");
+          }
+        },
+      },
+    };
+    for (const module of [...NODE_PROVIDER_MODULES, ...(signalSource() ? ["hd:Signals"] : [])]) {
       Object.defineProperty(traits, module, {
         enumerable: true,
         get: () => get().traits[module],

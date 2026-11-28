@@ -1,0 +1,7 @@
+use std.process.Command
+use std.testing.{assert_equal, hd_run}
+
+it("walks the store"):
+    out := hd_run!(*Command::new("walk"))
+    assert_equal(out.stdout, "11 12 21\n", reason="each cursor counts on its own")
+    assert_equal(out.status, 0, reason="a clean exit")

@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+struct Item: pass
+
+impl !Copy for Item
+
+fn present(value: &Result[Item, Item]) -> bool:
+    match value:
+        .Some(_) => true
+        rest => rest.is_err()

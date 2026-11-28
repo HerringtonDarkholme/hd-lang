@@ -11,6 +11,7 @@ const {
   closeSync,
   copyFileSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -291,8 +292,65 @@ const readBytes = (path: string, size?: number): Uint8Array => {
   }
 };
 
+// The most bytes one `readSync` of an open file asks for; a read of more
+// makes more calls, so a chunk is never allocated ahead of its bytes.
+const READ_CHUNK = 65536;
+
+// `File.read`: the next bytes of the open file `fd`, at most `max`,
+// all that are left when fewer, as the Rust host reads a regular file.
+// cost: one host call per chunk, ceil(n / READ_CHUNK) `readSync` calls,
+// and O(n) memory for the n bytes read.
+export const readOpen = (fd: number, max: number): Uint8Array => {
+  const parts: Buffer[] = [];
+  let left = max;
+  while (left > 0) {
+    const chunk = Buffer.allocUnsafe(Math.min(left, READ_CHUNK));
+    const count = readSync(fd, chunk, 0, chunk.length, null);
+    if (count === 0) {
+      break;
+    }
+    parts.push(chunk.subarray(0, count));
+    left -= count;
+  }
+  return parts.length === 1 ? parts[0]! : Buffer.concat(parts);
+};
+
+// `File.read` of a special file `fd` (std-fs.open.special-file): one
+// `readSync`, which waits for any bytes and returns those it has, at most
+// `max` and at most READ_CHUNK, or none at the end (libuv retries an
+// interrupted read). It runs on a thread of the helper child that holds
+// the file (fs.ts), as the Rust host's `read_once` runs on its blocking
+// pool. A short read is copied out, since posting a view would copy its
+// whole buffer. cost: one system call and O(min(max, READ_CHUNK)) memory.
+export const readSpecial = (fd: number, max: number): Result<Uint8Array, TaggedValue> => {
+  const chunk = new Uint8Array(Math.min(max, READ_CHUNK));
+  try {
+    const count = readSync(fd, chunk, 0, chunk.length, null);
+    return Ok(count === chunk.length ? chunk : chunk.slice(0, count));
+  } catch (error) {
+    // ConsoleInput's inherited-descriptor helper also reports its OS code;
+    // the filesystem ABI continues to encode only Other.message.
+    return Err({
+      tag: "Other",
+      message: `read: ${(error as Error).message}`,
+      errno: (error as NodeJS.ErrnoException).errno,
+    });
+  }
+};
+
 export const fileOperations = {
   "hd:FsRead": {
+    // A file opened for reading: its descriptor, which `File.dispose`
+    // closes (std-fs.open.dispose). A directory is `IsADirectory`, as its
+    // read would be.
+    open: (path: string) => {
+      const fd = opening(path, () => openSync(path, "r"));
+      if (fstatSync(fd).isDirectory()) {
+        closeSync(fd);
+        return fsErr(path, "IsADirectory");
+      }
+      return Ok(fd);
+    },
     read_bytes: (path: string, size?: number) => Ok(readBytes(path, size)),
     read_text: (path: string, size?: number) => {
       const bytes = readBytes(path, size);

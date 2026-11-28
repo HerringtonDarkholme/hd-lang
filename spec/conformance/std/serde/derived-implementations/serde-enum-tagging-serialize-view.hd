@@ -1,7 +1,7 @@
 # test: a Serialize-only derivation cannot select an enum tagging representation
 # Rule: std-serde.enum-tagging.declaration-fact.
-use std.serde.{Serialize, tag}
-use std.structure.Structure
+use std.encoding.{Serialize, tag}
+use std.meta.Structure
 
 enum Message:
     Text(value: string)

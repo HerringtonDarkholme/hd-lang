@@ -1,0 +1,4 @@
+# test: a plain grouped use names declarations only, so a grouped name of a child module is unknown
+# Spec 10 Use Forms: module.use.grouped, module.use.facade.module.
+# fixture-package-tree: nested-privacy/src/report.hd
+use pkg.shop.{cart} # diagnostic: unknown-import

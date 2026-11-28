@@ -1,6 +1,6 @@
 //! Declaration-relative source positions for interface items
 //! (`docs/compiler/data-structures.md` §3.7 "Token anchors", `crates/hd_resolve/DESIGN.md`
-//! §4.10 `anchors`). A folder interface keeps no byte offsets: an anchor
+//! §4.10 `anchors`). A unit interface keeps no byte offsets: an anchor
 //! names the top-level declaration by its place among the file's
 //! declarations, an optional member of its block, and a token range inside
 //! that node. Whitespace and comments are not tokens, and a function body
@@ -278,7 +278,7 @@ pub(crate) fn collect(
                 let mut slot = 1;
                 cx.fields(h.def, Src::child(n, SyntaxKind::Block), &mut slot, n);
             }
-            HeadKind::Newtype | HeadKind::Alias => {
+            HeadKind::Newtype | HeadKind::Alias | HeadKind::Binding => {
                 if let Some(base) = n.children().find(|c| c.kind().is_type()) {
                     let a = cx.at(n, 0, base, false);
                     cx.push(h.def, 1, a);
@@ -322,8 +322,8 @@ pub(crate) fn collect(
                     }
                     // Every member `fn` has a name here: the parser reports
                     // `expected a function name` for one without, and the
-                    // driver builds no folder interface, so lowers nothing,
-                    // for a folder with a module that fails to parse.
+                    // driver builds no unit interface, so lowers nothing,
+                    // for a unit with a module that fails to parse.
                     let name = f.name(&src.parse.tokens).map_or("", |t| src.text(t));
                     let def = names.member(h.def, PathKind::Member, name);
                     let member = u32::try_from(i + 1).unwrap_or(u32::MAX);
@@ -472,6 +472,178 @@ pub fn of_span(src: &Src<'_>, lo: u32, hi: u32) -> Anchor {
     }
 }
 
+/// Source-position lookup for many diagnostics in one parsed file. Declarations
+/// are indexed once; a declaration's members are indexed only on first use.
+/// Like rustc's `SourceMap`, ordered source endpoints use binary search.
+/// Initialization is linear in the declaration/header/member nodes read once;
+/// an anchor resolves in O(1), and a span anchors in O(log declarations +
+/// log members + log tokens). No walk depends on expression nesting.
+pub struct SpanIndex {
+    decls: SpanChildren,
+    members: Vec<std::sync::OnceLock<SpanChildren>>,
+    #[cfg(test)]
+    work: std::sync::atomic::AtomicUsize,
+}
+
+struct SpanChildren {
+    nodes: Vec<hd_base::NodeIdx>,
+    /// Valid endpoints only; raw node ordinals remain in `nodes` for replay.
+    ends: Vec<(u32, usize)>,
+}
+
+impl SpanChildren {
+    fn new<'t>(src: &Src<'t>, nodes: impl Iterator<Item = NodeRef<'t>>) -> Self {
+        let nodes: Vec<_> = nodes.map(NodeRef::index).collect();
+        let ends = nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, &id)| {
+                let node = src.parse.tree.node(id);
+                src.tkind(src.first(node))?;
+                src.tkind(src.last(node))?;
+                Some((src.parse.tokens.span(src.last(node)).1, ordinal))
+            })
+            .collect();
+        Self { nodes, ends }
+    }
+
+    fn cover<'t>(
+        &self,
+        src: &Src<'t>,
+        lo: u32,
+        hi: u32,
+        mut probe: impl FnMut(),
+    ) -> Option<(usize, NodeRef<'t>)> {
+        if lo >= hi {
+            return None;
+        }
+        let i = self.ends.partition_point(|&(end, _)| {
+            probe();
+            end < hi
+        });
+        let &(_, ordinal) = self.ends.get(i)?;
+        let node = src.parse.tree.node(self.nodes[ordinal]);
+        (src.parse.tokens.span(src.first(node)).0 <= lo).then_some((ordinal, node))
+    }
+}
+
+impl SpanIndex {
+    #[must_use]
+    pub fn new(src: &Src<'_>) -> Self {
+        let decls = SpanChildren::new(src, src.root().children());
+        let members = (0..decls.nodes.len())
+            .map(|_| std::sync::OnceLock::new())
+            .collect();
+        Self {
+            #[cfg(test)]
+            work: std::sync::atomic::AtomicUsize::new(decls.nodes.len()),
+            decls,
+            members,
+        }
+    }
+
+    fn members(&self, src: &Src<'_>, decl: usize) -> &SpanChildren {
+        self.members[decl].get_or_init(|| {
+            let node = src.parse.tree.node(self.decls.nodes[decl]);
+            let block = Src::child(node, SyntaxKind::Block);
+            let children = SpanChildren::new(src, block.into_iter().flat_map(NodeRef::children));
+            #[cfg(test)]
+            {
+                self.work
+                    .fetch_add(children.nodes.len(), std::sync::atomic::Ordering::Relaxed);
+            }
+            children
+        })
+    }
+
+    #[must_use]
+    pub fn of_span(&self, src: &Src<'_>, lo: u32, hi: u32) -> Anchor {
+        let raw = Anchor {
+            decl: RAW,
+            member: 0,
+            tok: lo,
+            count: hi,
+        };
+        let Some((decl, node)) = self.decls.cover(src, lo, hi, || {
+            #[cfg(test)]
+            {
+                self.work.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }) else {
+            return raw;
+        };
+        let (member, base) = self
+            .members(src, decl)
+            .cover(src, lo, hi, || {
+                #[cfg(test)]
+                {
+                    self.work.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            })
+            .map_or((0, node), |(i, child)| (i + 1, child));
+        let first = src.first(base).raw() as usize;
+        let last = src.last(base).raw() as usize;
+        let toks = &src.parse.tokens;
+        let low = toks.end[first..=last].partition_point(|&end| {
+            #[cfg(test)]
+            {
+                self.work.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            end <= lo
+        });
+        let t_lo = first + low;
+        if t_lo > last {
+            return raw;
+        }
+        let n = toks.start[t_lo..=last].partition_point(|&start| {
+            #[cfg(test)]
+            {
+                self.work.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            start < hi
+        });
+        if n == 0 {
+            return raw;
+        }
+        Anchor {
+            decl: u32::try_from(decl).unwrap_or(RAW),
+            member: u32::try_from(member).unwrap_or(0),
+            tok: u32::try_from(t_lo - first).unwrap_or(0),
+            count: u32::try_from(n).unwrap_or(0),
+        }
+    }
+
+    #[must_use]
+    pub fn resolve(&self, src: &Src<'_>, a: &Anchor) -> Option<Span> {
+        #[cfg(test)]
+        {
+            self.work.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        if a.decl == RAW {
+            return Some(Span {
+                file: src.file,
+                lo: a.tok,
+                hi: a.count,
+            });
+        }
+        let decl = a.decl as usize;
+        let mut node = *self.decls.nodes.get(decl)?;
+        if a.member != 0 {
+            node = *self.members(src, decl).nodes.get(a.member as usize - 1)?;
+        }
+        let base = src.parse.tree.node(node);
+        let lo = hd_base::TokenIdx::from_raw(src.first(base).raw().checked_add(a.tok)?);
+        let hi = hd_base::TokenIdx::from_raw(lo.raw().checked_add(a.count.checked_sub(1)?)?);
+        src.tkind(lo)?;
+        src.tkind(hi)?;
+        Some(Span {
+            file: src.file,
+            lo: src.parse.tokens.span(lo).0,
+            hi: src.parse.tokens.span(hi).1,
+        })
+    }
+}
+
 /// The span an anchor names in the file it was taken from.
 #[must_use]
 pub fn resolve(src: &Src<'_>, a: &Anchor) -> Option<Span> {
@@ -548,6 +720,90 @@ pub fn decode(bytes: &[u8]) -> Option<Vec<(u32, u32, u32, Anchor)>> {
 #[cfg(test)]
 mod tests {
     use super::{Anchor, decode, encode};
+
+    #[test]
+    fn indexed_spans_agree_with_declaration_anchors() {
+        use crate::Src;
+        use hd_base::FileId;
+        for text in [
+            include_str!("../tests/all/inputs/trait_queries.hd"),
+            include_str!("../tests/all/inputs/anchor_index.hd"),
+        ] {
+            let parsed = hd_syntax::parse(text.as_bytes());
+            assert!(parsed.diagnostics.is_empty());
+            let src = Src {
+                parse: &parsed,
+                text,
+                file: FileId::from_raw(0),
+            };
+            let index = super::SpanIndex::new(&src);
+            // Every syntax node, including whole declarations, fields,
+            // method signatures and bodies, keeps the existing anchor.
+            for node in src.root().descendants() {
+                if src.tkind(src.first(node)).is_none() || src.tkind(src.last(node)).is_none() {
+                    continue;
+                }
+                let lo = parsed.tokens.span(src.first(node)).0;
+                let hi = parsed.tokens.span(src.last(node)).1;
+                let a = super::of_span(&src, lo, hi);
+                assert_eq!(index.of_span(&src, lo, hi), a, "{lo}..{hi}");
+                assert_eq!(index.resolve(&src, &a), super::resolve(&src, &a));
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_span_work_is_logarithmic_in_width_and_independent_of_native_depth() {
+        use crate::Src;
+        use hd_base::FileId;
+        const TEMPLATE: &str = include_str!("../tests/all/inputs/anchor_index.hd");
+        let layer = TEMPLATE
+            .lines()
+            .find_map(|line| line.split_once(": ").map(|(_, ty)| ty))
+            .expect("field type");
+        let comparisons = |n: usize| n.checked_ilog2().map_or(1, |n| n as usize + 2);
+        for width in [100, 1000] {
+            for depth in [1, 20] {
+                let mut ty = "i32".to_owned();
+                for _ in 0..depth {
+                    ty = layer.replace("i32", &ty);
+                }
+                let unit = TEMPLATE.replace(layer, &ty);
+                let text: String = (0..width)
+                    .map(|i| unit.replace("ItemMARK", &format!("Item{i}")))
+                    .collect();
+                let parsed = hd_syntax::parse(text.as_bytes());
+                assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+                let src = Src {
+                    parse: &parsed,
+                    text: &text,
+                    file: FileId::from_raw(0),
+                };
+                let index = super::SpanIndex::new(&src);
+                let mut bound = width;
+                for decl in src.root().children() {
+                    let first = src.first(decl);
+                    let last = src.last(decl);
+                    let lo = parsed.tokens.span(first).0;
+                    let hi = parsed.tokens.span(last).1;
+                    let anchor = index.of_span(&src, lo, hi);
+                    let span = index.resolve(&src, &anchor).expect("source anchor");
+                    assert_eq!((span.lo, span.hi), (lo, hi));
+                    // One member indexed once, then bounded binary searches
+                    // over declarations, members and this declaration's tokens.
+                    let tokens = (last.raw() - first.raw() + 1) as usize;
+                    bound += 1 + comparisons(width) + comparisons(1) + 2 * comparisons(tokens) + 1;
+                }
+                let work = index.work.load(std::sync::atomic::Ordering::Relaxed);
+                eprintln!("anchor index: width={width} depth={depth} work={work} bound={bound}");
+                assert!(
+                    work <= bound,
+                    "width {width}, depth {depth}: {work} > {bound}"
+                );
+                assert_eq!(index.decls.nodes.len(), width);
+            }
+        }
+    }
 
     #[test]
     fn section_round_trips_and_rejects_truncation() {

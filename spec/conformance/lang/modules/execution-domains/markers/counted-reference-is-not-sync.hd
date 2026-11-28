@@ -1,6 +1,6 @@
 # test: a counted reference is not Sync, even to a type that is
 # Spec 10 Markers: module.marker.sync.refs.
-use std.marker.Sync
+use std.meta.Sync
 
 struct Point:
     x: i32

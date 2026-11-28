@@ -1,0 +1,16 @@
+# @dump: functions
+# @build: dev | release
+# `close!` has no suspension point, so it completes at once: dev calls
+# its body as a plain call and release may inline it. Neither build
+# links a `.poll`, `.cancel` or `.drop` for it (#2419).
+struct Mem:
+    closed: bool
+
+impl Mem:
+    fn close!(&mut self) -> void:
+        self.closed = true
+
+pub fn main!() -> void $ Console:
+    let mut m = Mem { closed: false }
+    m.close!()
+    println(if m.closed: "closed" else: "open")

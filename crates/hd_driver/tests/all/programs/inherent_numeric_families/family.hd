@@ -1,0 +1,3 @@
+impl[N < Copy & Integer] N:
+    fn family_probe(self) -> usize:
+        0

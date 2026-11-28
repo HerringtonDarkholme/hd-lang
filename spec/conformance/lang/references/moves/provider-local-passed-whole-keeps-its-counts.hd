@@ -1,7 +1,7 @@
 # expect-stdout: 2
 # test: a local bound to a provider and passed whole to a function that returns it still writes to the provider, which stays alive
 # Rules: req.ref.host.reference-values, ref.type.local-uncounted.
-use std.annotation.inline
+use std.meta.inline
 trait Sink:
     fn put(&mut self, text: string) -> void
 

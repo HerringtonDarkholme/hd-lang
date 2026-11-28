@@ -1,0 +1,4 @@
+fn slurp!(path: string) -> string $ FsRead:
+    match $.use(FsRead).read_bytes!(Path(path)):
+        .Ok(bytes) => "read ${bytes.len()}"
+        .Err(e) => "${e}"

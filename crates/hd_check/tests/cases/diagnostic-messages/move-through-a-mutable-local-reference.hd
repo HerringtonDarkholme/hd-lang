@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+struct Holder['a]:
+    target: &'a mut i32
+    count: i32
+
+fn field(r: &mut Holder) -> void:
+    t := r.target # diagnostic: move-out-of-place
+    *t = 2

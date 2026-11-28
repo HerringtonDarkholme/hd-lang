@@ -4,7 +4,7 @@
 # expect-stdout: Reply:Raw#1(_0=hi;)
 # expect-stdout: Reply:Busy#2()
 # expect-stdout: Reply|Sent id|Raw _0|Busy
-use std.structure.{Structure, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Field, Variant, Walker, Describer}
 
 trait Listing:
     fn listing(self) -> string

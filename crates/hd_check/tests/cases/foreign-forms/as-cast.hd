@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: numeric casts use calls
+fn f(x: usize) -> i32:
+    x as i32

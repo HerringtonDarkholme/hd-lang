@@ -1,0 +1,5 @@
+[package]
+name = "fmt_let_else"
+
+[capabilities]
+Console = true

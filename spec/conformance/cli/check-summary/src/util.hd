@@ -1,2 +1,8 @@
 pub fn double(value: i32) -> i32:
     value * 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("doubles"):
+        assert_equal(double(2), 4, reason="two twos")

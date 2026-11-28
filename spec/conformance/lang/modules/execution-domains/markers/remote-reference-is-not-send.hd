@@ -1,6 +1,6 @@
 # test: a remote reference is not Send, since a stub calls through its own transport
 # Spec 10 Remote References: module.remote.ref.not-send; Spec 10 Markers: module.marker.table.remote.
-use std.marker.Send
+use std.meta.Send
 use std.remote.{CrossError, Remote}
 
 trait Users < Remote:

@@ -43,12 +43,18 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
 
 /** The stdlib chapters in spec/std/, one per std module, in reading order. */
 const STD_CHAPTERS: readonly [module: string, title: string][] = [
+  ["arena", "Arena"],
   ["cli", "Cli"],
   ["cmp", "Cmp"],
   ["collections", "Collections"],
   ["console", "Console"],
   ["contract", "Contract"],
-  ["digest", "Digest"],
+  ["convert", "Conversions"],
+  ["crypto", "Crypto"],
+  ["crypto-sha512", "SHA-512"],
+  ["crypto-aes", "AES"],
+  ["crypto-cipher", "Cipher modes"],
+  ["crypto-rand", "Secure random bytes"],
   ["encoding", "Encoding"],
   ["error", "Error"],
   ["format", "Format"],
@@ -56,6 +62,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["hash", "Hash"],
   ["host", "Host"],
   ["http", "Http"],
+  ["io", "Io"],
   ["iter", "Iterators"],
   ["json", "Json"],
   ["net", "Net"],
@@ -103,6 +110,12 @@ export const PAGES: readonly PageSource[] = [
     "Guide",
   ),
   page("website/guide/COMMANDS.md", "guide/commands.html", "The `hd` Command", "Guide"),
+  page(
+    "website/guide/DIAGNOSTICS.md",
+    "guide/diagnostics.html",
+    "Understanding Diagnostics",
+    "Guide",
+  ),
   page("website/guide/USING_HD.md", "guide/using-hd.html", "Using hd", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
   // The number comes from the file name, so a removed chapter (13, GADTs)

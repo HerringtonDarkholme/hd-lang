@@ -3,6 +3,7 @@
 // Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test
 // abi_model` rewrites it. host/wire.ts says how each value crosses.
 import {
+  boolean,
   bytes,
   data,
   handle,
@@ -90,6 +91,7 @@ export const Entry = data({
   size: unsigned64,
   modified: option(Timestamp),
 });
+export const File = handle;
 export const FsError = variants({
   NotFound: { path: Path },
   PermissionDenied: { path: Path },
@@ -106,6 +108,12 @@ export const HostError = variants({
   Other: { message: str },
   InvalidValue: { name: str, reason: str },
   Missing: { name: str },
+});
+export const IoError = variants({
+  Closed: {},
+  NotGranted: { subject: str },
+  InvalidUtf8: {},
+  Other: { message: str },
 });
 export const Method = variants({
   Get: {},
@@ -145,6 +153,12 @@ export const PropertyCase = data({
   size: signed,
   replay: list(signed64),
 });
+export const Signal = variants({
+  Interrupt: {},
+  Terminate: {},
+  Hangup: {},
+});
+export const StdinHandle = handle;
 export const TcpListener = handle;
 export const TcpStream = handle;
 export const UdpSocket = handle;
@@ -208,6 +222,12 @@ export const METHODS = {
       params: [str],
       result: result(unit, ConsoleError),
     },
+    is_terminal: {
+      wait: "never",
+      resource: null,
+      params: [ConsoleStream],
+      result: boolean,
+    },
   },
   "hd:ConsoleInput": {
     read_line: {
@@ -221,6 +241,18 @@ export const METHODS = {
       resource: null,
       params: [],
       result: result(str, ConsoleError),
+    },
+    stdin: {
+      wait: "never",
+      resource: null,
+      params: [],
+      result: StdinHandle,
+    },
+    "StdinHandle.read": {
+      wait: "may",
+      resource: null,
+      params: ["i32", "i32"],
+      result: result(bytes, IoError),
     },
   },
   "hd:Clock": {
@@ -267,6 +299,24 @@ export const METHODS = {
       resource: "path",
       params: [Path],
       result: result(option(Entry), FsError),
+    },
+    open: {
+      wait: "may",
+      resource: "path",
+      params: [Path],
+      result: result(File, FsError),
+    },
+    "File.read": {
+      wait: "may",
+      resource: null,
+      params: ["i32", "i32"],
+      result: result(bytes, IoError),
+    },
+    "File.dispose": {
+      wait: "may",
+      resource: null,
+      params: ["i32"],
+      result: "void",
     },
   },
   "hd:FsWrite": {
@@ -484,6 +534,12 @@ export const METHODS = {
       params: [Command],
       result: result(ProcessOutput, ProcessError),
     },
+    status: {
+      wait: "may",
+      resource: "program",
+      params: [Command],
+      result: result(signed, ProcessError),
+    },
   },
   "hd:Sys": {
     os: {
@@ -509,6 +565,14 @@ export const METHODS = {
       resource: "sys-name",
       params: [],
       result: result(unsigned, HostError),
+    },
+  },
+  "hd:Signals": {
+    wait: {
+      wait: "may",
+      resource: null,
+      params: [Signal],
+      result: "void",
     },
   },
   "hd:Env": {

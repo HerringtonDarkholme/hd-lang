@@ -1,0 +1,13 @@
+# test: children may use the parent facade that re-exports them
+# Spec 10 Module Graph and Public Uses: module.cycle.edge.no-pub-use, module.pub-use.facade.
+# fixture-package-tree: folder-loop/src/shop/cart.hd
+use pkg.shop.{Item}
+
+pub struct Cart:
+    pub items: List[Item]
+
+pub fn total(cart: Cart) -> i32:
+    let sum = +0
+    for item in cart.items:
+        sum = sum + item.price
+    sum

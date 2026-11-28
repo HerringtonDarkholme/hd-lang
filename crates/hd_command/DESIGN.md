@@ -16,18 +16,18 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 2. Open the session: `toolchain_key` and the disk store. The thread pool
    is used when the thread count is above 1, and `hd check` creates no
    Wasm engine.
-3. Read and skim every source file; build the folder graph from the
-   skims' use lists.
-4. Bottom-up over folders: read the folder's read list, compute
-   `iface_key` from it, look it up, and on a miss parse the folder's
-   files and run `FolderIface`.
+3. Read and skim every source file; build the module graph and its units
+   from the skims' use lists.
+4. Bottom-up over units: read the unit's read list, compute
+   `iface_key` from it, look it up, and on a miss parse the unit's
+   files and run `UnitIface`.
 5. For each module, compute `check_key`; on a hit take its result, on a
    miss parse it and run M1 to M3.
-6. Run `HeaderCheck` per folder, `Coherence` once and `InitOrder` per
-   folder, each looked up by its key first.
+6. Run `HeaderCheck` per unit, `Coherence` once and `InitOrder` per
+   unit, each looked up by its key first.
 7. Print diagnostics in content order once every task that can add one
-   is done (§6.5), then the summary. Text output ends with
-   `check result: ok|FAILED. errors: E; warnings: W`. `--summary`
+   is done (§6.5). A clean check prints `check result: ok.`; a default
+   check with diagnostics needs no summary. `--summary`
    prints one line per severity, file and code instead, in path then
    code order. `--max-errors N` stops printing after the Nth error;
    the counts and the exit status still cover everything. Eviction, if a
@@ -49,8 +49,8 @@ thread after output (§5.4).
 
 ### 7.2 `hd check FILE`
 
-1. As steps 1 to 4 above, but only for the folders that FILE's module
-   deeply depends on, plus its own folder.
+1. As steps 1 to 4 above, but only for the units that FILE's module
+   deeply depends on, plus its own unit.
 2. Check FILE's module and every module it uses, deeply: FILE's module
    "linked with the rest of the package" (`cli.package.file`). A module
    FILE does not reach stays silent, so a sibling's error is not
@@ -59,7 +59,7 @@ thread after output (§5.4).
    is test code.
 3. Coherence runs only for traits with an impl in FILE.
 4. Output: the diagnostics of those modules, in content order, plus one
-   note per used folder whose interface has errors ("src/shop has 2
+   note per used unit whose interface has errors ("src/shop has 2
    errors; run hd check"). JSON output keeps its contract: each
    diagnostic, then the summary.
 5. A FILE under no root is a single-file program
@@ -69,9 +69,9 @@ thread after output (§5.4).
 Implementation differs: the driver checks the bodies of FILE's module,
 its doc tests and the modules they use, deeply (`Packages::check_roots`,
 `Run::check_scope`), and builds the interfaces of their closures'
-folders, all modules of each. Coherence runs over those interfaces, not
+units, all modules of each. Coherence runs over those interfaces, not
 only for the traits with an impl in FILE. `check_cmd.rs` still filters
-the output to the same modules, and there are no per-folder notes.
+the output to the same modules, and there are no per-unit notes.
 
 ### 7.3 `hd test`
 
@@ -233,7 +233,7 @@ on wasmtime only.
 1. In package mode the session acts as code inside `src/lib.hd`
    ([`cli.repl.package.lib`](../../spec/cli/command-line.md#r-cli.repl.package.lib)):
    the driver adds `lib.hd`'s private items to each input's scope.
-2. Each input is a synthetic file `repl#n` in folder `src`, built with
+2. Each input is a synthetic file `repl#n` in unit `src`, built with
    `Goal::ReplInput`. Its scope is `lib.hd`'s scope, the uses of every
    earlier input, and the earlier inputs' top-level bindings with their
    fixed types
@@ -306,9 +306,9 @@ release does, so the compiler needs no spec decision. The full table:
 | `module.test.code`, `cli.check.default`, `cli.check.tests` | test code compiles only in test builds (`hd test`); `hd check` skips it unless `--tests` | same: release builds compile executables/library, no test code |
 | `cli.profile.default` / `release` / `release.file` | `hd FILE/run/build/test`, REPL: debug (checked) | `--release` on `hd FILE/run/build`: wrapping profile |
 | `cli.profile.test` / `test.release` | `hd test`: always checked; `--release` keeps checks, selects pipeline only | n/a (test stays checked) |
-| `cli.profile.release.commands` | — | only `hd FILE/run/build/test` take `--release` |
+| `cli.profile.release.source-commands` | — | only `hd FILE.hd/run/build/test` take `--release` |
 | `cli.profile.pipeline.*` | dev pipeline (fast builds) | optimized pipeline; unobservable except speed, memory, stack/heap depth, backtraces |
-| `cli.build.output` | `build/debug/` | `build/release/` |
+| `cli.build.output.artifact` | `build/debug/` | `build/release/` |
 | `types.generic.instantiation-depth` / `cli.build.depth-error` | `instantiation-too-deep`: limit is implementation-defined, same in every build | same in every build |
 
 ## 20. Command Flows Completed
@@ -344,9 +344,10 @@ Continuing §7.3 at step 4:
    compile it in process; Cranelift takes each function's machine code
    from the module's `clpack` entry when an earlier run compiled it
    (docs/compiler/engines-and-test-runner.md §18.2), so a warm run
-   translates the module and compiles no function. wasmtime's
-   precompiled modules are not cached, since deserializing them is
-   `unsafe`.
+   translates the module and compiles no function. This describes the
+   portable-Wasm path. Built native release artifacts instead map the
+   precompiled image without translating Wasm (§20.3); their unsafe
+   loading contract is confined to the native-artifact boundary.
 2. Read the import list; refuse a totally denied need with status 101.
 3. Instantiate with the default profile's providers and the grant.
 4. Call `hd.init`, then drive `hd.poll` and the reactor (§14.4).
@@ -355,11 +356,14 @@ Continuing §7.3 at step 4:
 
 ### 20.3 `hd build`
 
-- Writes the link entry's bytes to `build/debug/NAME.wasm` or
-  `build/release/NAME.wasm`, per executable, and
-  `build/{debug,release}/files/STEM.wasm` for `hd build FILE`. The file
-  is a copy of a cache entry, so an unchanged program writes identical
-  bytes.
+- Dev, Node, and explicit `--format wasm` builds write portable Wasm to
+  `build/{debug,release}/NAME.wasm`, or `files/STEM.wasm` for `hd build FILE`.
+  Wasmtime release builds instead write `.cwasm` native images at those
+  locations. Matching source, manifest, toolchain and Wasmtime compatibility
+  keys permit reuse without translation or compilation.
+- Native images include the metadata needed for imports, exports and source
+  positions. Publication replaces the file atomically, preserving existing
+  mappings; direct execution loads the open image without copying its code.
 - A library-only package writes no `.wasm` (§7.5).
 - No grant is written into the module
   ([`cli.cap.build`](../../spec/cli/command-line.md#r-cli.cap.build)).

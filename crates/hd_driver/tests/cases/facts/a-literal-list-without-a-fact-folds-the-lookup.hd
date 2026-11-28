@@ -2,9 +2,9 @@
 # @build: v8 release
 # A fixed literal list with an unrelated fact has no EnumTagging.
 # expected: a general optimization folds the lookup to None, leaving only value + 2.
-use std.inspect.Inspectable
-use std.serde.{EnumTagging, RenameCase, rename_all}
-use std.structure.Facts
+use std.meta.Inspectable
+use std.encoding.{EnumTagging, RenameCase, rename_all}
+use std.meta.Facts
 
 pub fn absent(value: i64) -> i64:
     let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]

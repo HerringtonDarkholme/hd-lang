@@ -1,0 +1,58 @@
+# test: BufReader reads lines with their endings kept exactly, across buffer refills
+# Spec std/io Buffered Reading: std-io.buf-reader.decl, std-io.buf-reader.capacity, std-io.buf-reader.read-line,
+# std-io.buf-reader.lines, std-io.buf-reader.read, std-io.buf-reader.invalid-utf8, std-io.buf-reader.into-inner.
+use std.io.{BufReader, Cursor, IoError, Read}
+
+fn all_lines![R < Read](reader: BufReader[R]) -> List[Result[string, IoError]]:
+    let mut lines = reader.lines()
+    let mut found: List[Result[string, IoError]] = []
+    while true:
+        match lines.next!():
+            .Some(line) => found.push(line)
+            .None => break
+    found
+
+tests:
+    use std.testing.assert_equal
+
+    it("keeps \\r\\n and \\n, and a last line with no ending"):
+        input := "ab\r\ncdefg\n\nlast\r".to_utf8()
+        for capacity in [1, 2, 3, 8192]:
+            assert_equal(
+                all_lines!(BufReader::with_capacity(capacity, Cursor::new(input))),
+                [.Ok("ab\r\n"), .Ok("cdefg\n"), .Ok("\n"), .Ok("last\r")],
+                reason="capacity $capacity",
+            )
+
+    it("read_line! returns .None at the end, and again after it"):
+        let mut reader = BufReader::new(Cursor::new("one\n".to_utf8()))
+        assert_equal(reader.read_line!(), .Ok(.Some("one\n")), reason="the line")
+        assert_equal(reader.read_line!(), .Ok(.None), reason="the end")
+        assert_equal(reader.read_line!(), .Ok(.None), reason="the end, again")
+
+    it("a line that is not UTF-8 is InvalidUtf8, and the next line still reads"):
+        let mut reader = BufReader::with_capacity(2, Cursor::new([255, 10, 104, 105, 10]))
+        assert_equal(reader.read_line!(), .Err(IoError.InvalidUtf8), reason="the bad line")
+        assert_equal(reader.read_line!(), .Ok(.Some("hi\n")), reason="the next line")
+
+    it("reads bytes from the buffer, then lines, then the rest"):
+        let mut reader = BufReader::with_capacity(4, Cursor::new("xy\nzw\nrest".to_utf8()))
+        assert_equal(reader.read!(1), .Ok([120]), reason="one byte from a refill")
+        assert_equal(reader.read_line!(), .Ok(.Some("y\n")), reason="the rest of the line")
+        assert_equal(reader.read!(0), .Ok([]), reason="max 0")
+        assert_equal(reader.read!(64), .Ok([122]), reason="what the buffer holds")
+        assert_equal(reader.read_line!(), .Ok(.Some("w\n")), reason="the next line")
+        assert_equal(reader.read!(64), .Ok("re".to_utf8()), reason="the rest of that refill")
+        assert_equal(
+            reader.read!(64),
+            .Ok("st".to_utf8()),
+            reason="a large read goes to the source",
+        )
+        assert_equal(reader.read!(64), .Ok([]), reason="the end")
+
+    it("into_inner returns the source past what was buffered"):
+        let mut reader = BufReader::with_capacity(2, Cursor::new([1, 2, 3, 4, 5]))
+        assert_equal(reader.read!(1), .Ok([1]), reason="one byte, two buffered")
+        let mut inner = reader.into_inner()
+        assert_equal(inner.position(), 2, reason="the source is two bytes in")
+        assert_equal(inner.read!(9), .Ok([3, 4, 5]), reason="the rest of the source")

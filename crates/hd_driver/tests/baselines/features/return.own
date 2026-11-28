@@ -100,7 +100,7 @@ fn ret_new(n: i64) -> string:
 >   %38 = Call std/rt.memory/string_bytes[] (%37) : Ptr[u8]
 >   %39 = Read copy [%38 .address] : usize
 >   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
+>   %41 = Call std/core/bytes_len[] (%40) : usize
 >   %42 = Call std/rt.memory/copy[] (%36, %39, %41) : ()
 >   %43 = Break L1 - : never
 >   %44 = Block - : ()
@@ -145,8 +145,6 @@ fn use_rets(r: Rec) -> usize:
 >     uses $1: %7 -> %8 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %19 -> %20 lend last
->   local $3 r: &Rec [read] value
->     uses $3: %27 -> %28 lend last
 >   local $5 r: Rec [read] value
 >     uses $5: %14 -> %15 consume last
 >   local $7 s: string [read] value
@@ -160,7 +158,7 @@ fn use_rets(r: Rec) -> usize:
 >   %6 = Scope %5 [] : string
 >   %7 = Store [$1] %6 : ()
 >   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L3 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -172,28 +170,25 @@ fn use_rets(r: Rec) -> usize:
 >   %18 = Scope %17 [] : string
 >   %19 = Store [$2] %18 : ()
 >   %20 = Read borrow [$2] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L1 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize
 >   %25 = Prim Add [%12 %24] : usize
->   %26 = Ref local frame [$0] : &Rec
->   %27 = Store [$3] %26 : ()
->   %28 = Ref local [*$3 .name] : &string
->   %29 = LoanBegin %28 #0 : ()
->   %30 = LoanClose %29 : ()
->   %31 = Break L0 %28 : never
->   %32 = Block - : &string
->   %33 = Scope %32 [] : &string
->   %34 = Call std/text/impl string.len[] (%33) : usize
->   %35 = LoanEnd [%33] : ()
->   %36 = LoanEnd [$3] : ()
->   %37 = Prim Add [%25 %34] : usize
->   %38 = Intrinsic ParamOwned [0:i32] : bool
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Release %43 Exit local $0 #2 : ()
->   %43 = Block %37 : usize
+>   %26 = Ref local frame [$0 .name] : &string
+>   %27 = LoanBegin %26 #0 : ()
+>   %28 = LoanClose %27 : ()
+>   %29 = Break L0 %26 : never
+>   %30 = Block - : &string
+>   %31 = Scope %30 [] : &string
+>   %32 = Call std/text/impl string.len[] (%31) : usize
+>   %33 = LoanEnd [%31] : ()
+>   %34 = Prim Add [%25 %32] : usize
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $0 #2 : ()
+>   %40 = Block %34 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]

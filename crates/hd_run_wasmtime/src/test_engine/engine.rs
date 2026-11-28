@@ -40,7 +40,7 @@ pub(crate) struct Inner {
 }
 
 #[derive(Clone)]
-pub struct TestEngine(Arc<Inner>);
+pub struct TestEngine(pub(crate) Arc<Inner>);
 
 pub(crate) struct Compiled {
     report: Option<crate::checked_report::Report>,
@@ -107,7 +107,7 @@ impl TestEngine {
         let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
         crate::runtime::epochs::register(&engine)?;
         Ok(Self(Arc::new(Inner {
-            cache: crate::cache::ModuleCache::new(&engine, code),
+            cache: crate::cache::ModuleCache::new(&engine, code, config.compilation_jobs),
             config,
             engine,
         })))
@@ -182,6 +182,8 @@ pub(crate) enum NamedCode {
         engine: Arc<WasmtimeEngine>,
         module: Arc<Module>,
         grants: Grants,
+        /// The libraries of its C-bound root traits (`crate::native::c`).
+        c: Arc<[crate::native::c::Library]>,
     },
     Command {
         program: String,
@@ -196,6 +198,19 @@ impl NamedProgram {
         wasm: &[u8],
         grants: Grants,
     ) -> Result<Self, String> {
+        Self::compile_with_c(config, name, wasm, grants, Vec::new())
+    }
+
+    /// [`NamedProgram::compile`] with `c`, the libraries the invoker
+    /// selected for the child's C-bound root traits, which each run of the
+    /// child binds before its guest starts (`cli.host.c.create`).
+    pub fn compile_with_c(
+        config: EngineConfig,
+        name: String,
+        wasm: &[u8],
+        grants: Grants,
+        c: Vec<crate::native::c::Library>,
+    ) -> Result<Self, String> {
         let engine = Arc::new(WasmtimeEngine::new(config)?);
         let module = Arc::new(
             engine
@@ -208,6 +223,7 @@ impl NamedProgram {
                 engine,
                 module,
                 grants,
+                c: Arc::from(c),
             },
         })
     }
@@ -229,45 +245,4 @@ pub struct TestEnvironment {
     pub cwd: PathBuf,
     pub program: String,
     pub children: Vec<NamedProgram>,
-}
-
-#[cfg(test)]
-mod wide_memory_tests {
-    use super::{TestEngine, TestPoolConfig};
-    use crate::EngineConfig;
-
-    #[test]
-    fn pool_holds_three_memories_for_every_worker() {
-        let engine = TestEngine::new(
-            EngineConfig::default(),
-            TestPoolConfig {
-                workers: 2,
-                shrink_spares: 0,
-            },
-        )
-        .expect("create pool");
-        let mut memories = wasm_encoder::MemorySection::new();
-        for _ in 0..3 {
-            memories.memory(wasm_encoder::MemoryType {
-                minimum: 1,
-                maximum: None,
-                memory64: false,
-                shared: false,
-                page_size_log2: None,
-            });
-        }
-        let mut module = wasm_encoder::Module::new();
-        module.section(&memories);
-        let module = engine
-            .compile(&module.finish())
-            .expect("compile three memories");
-        let mut stores = Vec::new();
-        for _ in 0..2 {
-            let mut store = wasmtime::Store::new(&engine.0.engine, ());
-            let _instance = wasmtime::Instance::new(&mut store, &module.0.module, &[])
-                .expect("each worker has three pool memory slots");
-            stores.push(store);
-        }
-        assert_eq!(stores.len(), 2);
-    }
 }

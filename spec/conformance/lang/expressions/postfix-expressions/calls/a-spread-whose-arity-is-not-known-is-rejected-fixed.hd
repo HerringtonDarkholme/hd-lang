@@ -1,6 +1,6 @@
 # test: a spread whose arity is not known is rejected
 # Spec 05 Positional Spreads: expr.call.spread.inputs.
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn add(a: i32, b: i32) -> i32:
     a + b

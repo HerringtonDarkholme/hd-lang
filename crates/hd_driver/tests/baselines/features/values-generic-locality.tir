@@ -34,17 +34,14 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %6 = Block %5 : &User?
 >   %7 = If %0 [%4 %6] : &User?
 >   %8 = Store [$2] %7 : ()
->   %18 = Block %13 : &User
+>   %15 = Block %12 : &User
     o.unwrap_or(&pair.right)
 >   %9 = Read [$2] : &User?
->   %10 = LoanClose %14 : ()
->   %11 = Ref local [*$0 .right] : &User
->   %12 = LoanBegin %11 #0 : ()
->   %13 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%9, %11) : &User
->   %14 = LoanBegin %13 #4 : ()
->   %15 = LoanClose %2 : ()
->   %16 = LoanClose %12 : ()
->   %17 = LoanClose %14 : ()
+>   %10 = Ref local [*$0 .right] : &User
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%9, %10) : &User
+>   %13 = LoanClose %2 : ()
+>   %14 = LoanClose %11 : ()
 
 fn demo(u: &User) -> usize:
     n := id(&u.name)
@@ -53,14 +50,12 @@ fn demo(u: &User) -> usize:
 >   %0 = Ref local [*$0 .name] : &string
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Call app/main/id[&string] (%0) : &string
->   %3 = LoanBegin %2 #4 : ()
->   %4 = Store [$1] %2 : ()
->   %9 = Block %6 : usize
+>   %3 = Store [$1] %2 : ()
+>   %7 = Block %5 : usize
     n.len()
->   %5 = Read [$1] : &string
->   %6 = Call std/text/impl string.len[] (%5) : usize
->   %7 = LoanClose %1 : ()
->   %8 = LoanClose %3 : ()
+>   %4 = Read [$1] : &string
+>   %5 = Call std/text/impl string.len[] (%4) : usize
+>   %6 = LoanClose %1 : ()
 
 fn keep[T < 'static](value: T) -> *mut T:
     box(value)

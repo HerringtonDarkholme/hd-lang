@@ -1,0 +1,8 @@
+# test: two children of one parent may use each other in a loop
+# Spec 03 Use Declarations: names.use.cycles-siblings. The tree's src/shop/item.hd uses
+# pkg.shop.cart, and this file uses pkg.shop.item.
+# fixture-package-tree: file-pair/src/shop/cart.hd
+use pkg.shop.item.{Item}
+
+pub struct Cart:
+    pub items: List[Item]

@@ -6,11 +6,18 @@ enum Input[T]:
     Present(value: T)
 
 fn optional!(value: (&i32)?) -> i32:
+    pause!()
     match value:
         .Some(item) => *item
         .None => -1
 
 fn tagged!(value: Input[(&i32, i32)]) -> i32:
+    pause!()
     match value:
         .Present(pair) => *pair._0 + pair._1
         .Missing(text) => i32(text.len())
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

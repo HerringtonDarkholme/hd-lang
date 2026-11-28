@@ -1,0 +1,5 @@
+## ```hd
+## use pkg.f0.{nothing}
+## pass
+## ```
+pub fn zero() -> i32: 0

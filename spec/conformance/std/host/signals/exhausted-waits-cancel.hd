@@ -1,0 +1,30 @@
+# test: an exhausted scripted wait starts, remains pending, and runs cleanup once on cancellation
+# Spec std/host Signals: std-host.signals.exhausted.
+# expect-empty-stdout: true
+use std.host.{Signal, Signals, ScriptedSignals}
+use std.ops.defer
+use std.task.race
+use std.testing.assert_equal
+
+struct Trace:
+    entered: usize
+    closed: usize
+
+fn pending!(kind: Signal, trace: *mut Trace) -> i32 $ Signals:
+    trace.entered += 1
+    defer(fn() -> void: trace.closed += 1)
+    $.use(Signals).wait!(kind)
+    7
+
+fn finish!(trace: *mut Trace) -> i32:
+    assert_equal(trace.entered, 1, reason="the signal wait started before cancellation")
+    9
+
+pub fn main!() -> void:
+    let kinds: List[Signal] = [.Interrupt, .Terminate, .Hangup]
+    for kind in kinds:
+        trace := box(Trace { entered: 0, closed: 0 })
+        $.with(Signals=ScriptedSignals::new([])):
+            answer := race!(pending(kind, trace), finish(trace))
+            assert_equal(answer, 9, reason="an exhausted signal wait cannot win")
+        assert_equal(trace.closed, 1, reason="cancellation ran cleanup exactly once")

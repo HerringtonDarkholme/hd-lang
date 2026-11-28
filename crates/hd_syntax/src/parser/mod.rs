@@ -408,10 +408,18 @@ impl<'t> Parser<'t> {
     /// ([`broken_items`]).
     fn finish_diagnostics(&mut self) -> (Vec<Diagnostic>, Vec<u32>) {
         let mut out = Vec::new();
-        for (code, at, message) in &self.cur.errors {
+        for (code, at, message, fix) in &self.cur.errors {
             let (lo, hi) = self.token_span(*at);
             if !self.lexed_covers(lo) {
-                out.push(diag(*code, lo, hi, message.clone()));
+                let mut d = diag(*code, lo, hi, message.clone());
+                if let Some(text) = fix {
+                    d.fixes.push(DiagnosticFix {
+                        message: format!("write `{text}`"),
+                        safety: FixSafety::Exact,
+                        edits: vec![(d.primary, (*text).to_owned())],
+                    });
+                }
+                out.push(d);
             }
         }
         let mut placed: Vec<u32> = out.iter().map(|d| d.primary.lo).collect();
@@ -532,7 +540,17 @@ impl<'t> Parser<'t> {
         if self.eat(kind) {
             return true;
         }
-        self.expected(what);
+        if kind == TokenKind::Colon
+            && self.toks.kind.get(self.pos()) == Some(&TokenKind::Colon)
+            && self.at_layout(Layout::Newline)
+        {
+            self.error(
+                Code::SyntaxError,
+                "keep ':' on the header's final line; wrap a multiline expression in parentheses",
+            );
+        } else {
+            self.expected(what);
+        }
         false
     }
 
@@ -550,8 +568,68 @@ impl<'t> Parser<'t> {
         if self.eat_name() {
             return true;
         }
-        self.expected(what);
+        self.expected_name(what);
         false
+    }
+
+    /// A keyword in a name position has the same raw-identifier repair
+    /// for declarations, parameters, fields, members and import segments.
+    pub(crate) fn expected_name(&mut self, what: &str) {
+        self.expected_name_at(what, self.pos());
+    }
+
+    pub(crate) fn expected_name_at(&mut self, what: &str, at: usize) {
+        let keyword = self
+            .toks
+            .kind
+            .get(at)
+            .copied()
+            .is_some_and(TokenKind::is_keyword)
+            && (at != self.pos() || self.current().is_some());
+        // A keyword after a nameless header can be the next item rather
+        // than a misspelled name. Like rustc's identifier recovery, require
+        // a following name delimiter, or an existing dotted name path.
+        let distance = at - self.pos();
+        let follows_name = !self.nth_line_first(distance + 1)
+            && matches!(
+                self.toks.kind.get(at + 1),
+                Some(
+                    TokenKind::Colon
+                        | TokenKind::ColonEq
+                        | TokenKind::Eq
+                        | TokenKind::Comma
+                        | TokenKind::LParen
+                        | TokenKind::RParen
+                        | TokenKind::LBracket
+                        | TokenKind::RBracket
+                        | TokenKind::RBrace
+                        | TokenKind::Dot
+                        | TokenKind::ColonColon
+                        | TokenKind::FatArrow
+                        | TokenKind::Lt
+                        | TokenKind::Ellipsis
+                )
+            );
+        let after_dot = at > 0
+            && self.toks.kind.get(at - 1) == Some(&TokenKind::Dot)
+            && !self.nth_line_first(distance);
+        if keyword && (follows_name || after_dot) {
+            let word = self.nth_text(distance);
+            let error = self.errors.len();
+            self.error_at(
+                Code::SyntaxError,
+                at,
+                &format!("expected {what}; '{word}' is reserved: write `{word}` between backticks"),
+            );
+            let (lo, hi) = self.token_span(at);
+            self.fix_error(
+                error,
+                "escape the reserved name with backticks",
+                &[(lo, hi, &format!("`{word}`"))],
+            );
+        } else {
+            self.expected_at(what, at);
+        }
     }
 
     // ----------------------------------------------------------- markers
@@ -704,6 +782,22 @@ impl<'t> Parser<'t> {
 
     /// Attaches to the just-reported error only; suppressed errors have
     /// no row at `index`, so never borrow another statement's fix.
+    /// [`Self::error_at`] with the one certain fix-it `title`, whose
+    /// `edits` are byte ranges and their new text; none when the edit is
+    /// not certain, so `edits` is empty.
+    pub(crate) fn error_fixed(
+        &mut self,
+        (code, at, message): (Code, usize, &str),
+        title: &str,
+        edits: &[(u32, u32, &str)],
+    ) {
+        let index = self.errors.len();
+        self.error_at(code, at, message);
+        if !edits.is_empty() {
+            self.fix_error(index, title, edits);
+        }
+    }
+
     pub(crate) fn fix_error(&mut self, index: usize, message: &str, edits: &[(u32, u32, &str)]) {
         self.error_fix(index, message, FixSafety::Exact, edits);
     }
@@ -928,7 +1022,21 @@ impl<'t> Parser<'t> {
     /// then its lines are read as part of the current suite.
     pub(crate) fn stray_indent(&mut self) {
         self.stmt_errored = false;
-        self.error(Code::SyntaxError, "unexpected indentation");
+        let continuation = self
+            .toks
+            .kind
+            .get(self.pos())
+            .copied()
+            .and_then(exprs::infix)
+            .is_some();
+        self.error(
+            Code::SyntaxError,
+            if continuation {
+                "unexpected indentation; wrap a continued expression in parentheses"
+            } else {
+                "unexpected indentation"
+            },
+        );
         let marker = self.start();
         self.bump();
         self.statements(true);

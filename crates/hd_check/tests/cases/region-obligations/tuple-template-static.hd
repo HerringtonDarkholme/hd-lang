@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # @build: dev | checked | release
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

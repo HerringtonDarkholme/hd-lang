@@ -31,29 +31,30 @@ fn through_owned_box() -> usize:
 > std/rt_tests.stage_case/through_owned_box
 >   local $0 $ref: Bag [read assigned captured captured-assigned] place
 >   local $1 bag: *mut Bag [:= read assigned] value
->     uses $1: %13 -> %14 lend last
+>     uses $1: %14 -> %15 lend last
 >   local $2 capacity: usize [read] value
->     uses $2: %0 -> %1 lend, %4 consume last
+>     uses $2: %0 -> %1 lend, %5 consume last
 >   %0 = Store [$2] 4:usize : ()
 >   %1 = Read copy [$2] : usize
 >   %2 = Call std/rt.memory/size_of[i32] () : usize
 >   %3 = Call std/rt.memory/room[] (%1, %2) : usize
->   %4 = Read copy [$2] : usize
->   %5 = NewStruct [%3 %4] : Buffer[i32]
->   %6 = Break L0 %5 : never
->   %7 = Block - : Buffer[i32]
->   %8 = Scope %7 [] : Buffer[i32]
->   %9 = NewStruct [%8] : Bag
->   %10 = Box #0 #1 : ()
->   %11 = Store [$0] %9 : ()
->   %12 = Ref take mut [$0] : *mut Bag
->   %13 = Store [$1] %12 : ()
->   %20 = Block %16 : usize
+>   %4 = NewStruct [%3] : Ptr[i32]
+>   %5 = Read copy [$2] : usize
+>   %6 = NewStruct [%4 %5] : Buffer[i32]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : Buffer[i32]
+>   %9 = Scope %8 [] : Buffer[i32]
+>   %10 = NewStruct [%9] : Bag
+>   %11 = Box #0 #1 : ()
+>   %12 = Store [$0] %10 : ()
+>   %13 = Ref take mut [$0] : *mut Bag
+>   %14 = Store [$1] %13 : ()
+>   %21 = Block %17 : usize
     bag.buffer.capacity()
->   %14 = Ref local [*$1 .buffer] : &Buffer[i32]
->   %15 = LoanBegin %14 #0 : ()
->   %16 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%14) : usize
->   %17 = LoanClose %15 : ()
->   %18 = LoanEnd [%14] : ()
->   %19 = Drop [$1] : ()
+>   %15 = Ref local [*$1 .buffer] : &Buffer[i32]
+>   %16 = LoanBegin %15 #0 : ()
+>   %17 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%15) : usize
+>   %18 = LoanClose %16 : ()
+>   %19 = LoanEnd [%15] : ()
+>   %20 = Drop [$1] : ()
 >   storage sub 0: $0 cell

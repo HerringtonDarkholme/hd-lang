@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+# Repair both the method and the named parameter when appending one element.
+fn words(text: string) -> List[string]:
+    let mut found: List[string] = []
+    found.append(other=text)
+    found

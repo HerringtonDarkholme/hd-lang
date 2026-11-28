@@ -1,0 +1,3 @@
+use dep.wrap.Service
+pub fn main() -> void $ Console + Service:
+    println($.use(Service).read("hello"))

@@ -1,7 +1,7 @@
 # @dump: own wat stdout
 # @build: release checked
 # expected: declared result conversions survive copied tails and explicit returns.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 use std.testing.assert_equal
 
 struct Holder[+T]:

@@ -1,20 +1,22 @@
 # test: std derivations preserve structural output and behavior-specific impls
 # Spec std/format: std-format.debug.std-types, std-format.debug.std-types.generic.
-use std.annotation.{Annotate, Target}
+use std.meta.{Annotate, Target}
 use std.cli.{Arg, ArgKind, CliError}
 use std.cmp.Reverse
-use std.encoding.{Base64, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
 use std.error.{Error, ErrorReport}
 use std.fs.{Entry, EntryKind}
-use std.host.{HostError, ScriptedArgs}
+use std.host.HostError
+use std.cli.ScriptedArgs
 use std.http.{Method, Request, Response, Url}
-use std.json.{Json, Number}
+use std.encoding.json.{Json, Number}
 use std.net.{Datagram, NetError}
 use std.ops.RangeFull
 use std.path.Path
 use std.process.{ExitCode, ProcessError, ProcessOutput}
 use std.regex.Match
-use std.structure.SelfRef
+use std.meta.SelfRef
 use std.task.{CleanupEnd, TimedOut}
 use std.time.{Date, ParseTimeError, ms}
 
@@ -137,10 +139,8 @@ tests:
             reason="struct field differs",
         )
         assert(
-            (
-                Request::get(Url::parse("https://example.test/a").expect("fixture URL"))
-                != Request::get(Url::parse("https://example.test/b").expect("fixture URL"))
-            ),
+            Request::get(Url::parse("https://example.test/a").expect("fixture URL"))
+            != Request::get(Url::parse("https://example.test/b").expect("fixture URL")),
             reason="request field differs",
         )
         assert(Response::status(.Ok) != Response::status(.Created), reason="response field differs")

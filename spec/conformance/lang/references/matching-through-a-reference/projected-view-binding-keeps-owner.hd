@@ -1,5 +1,5 @@
 # test: a projected runtime view survives an inlined borrowing binding through its callback
-use std.annotation.inline
+use std.meta.inline
 use std.testing.assert_equal
 
 struct Pair:

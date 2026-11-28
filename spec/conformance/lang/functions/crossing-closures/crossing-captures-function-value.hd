@@ -1,6 +1,6 @@
 # test: a crossing closure that captures a function value is rejected, since only the literal crosses
 # Spec 07 Crossing Closures: fn.crossing.fn-value.
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

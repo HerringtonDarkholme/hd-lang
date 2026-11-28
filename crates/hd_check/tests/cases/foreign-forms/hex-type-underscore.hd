@@ -1,0 +1,3 @@
+# @dump: diagnostics fixed
+# expected: an underscore before a foreign suffix is repaired with it
+fn value() -> u8: 0xff_u8

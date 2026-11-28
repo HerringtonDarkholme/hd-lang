@@ -1,0 +1,15 @@
+# @dump: own wat
+# @build: v8 release
+# #2367: the inlined body's result is an `if` whose two arms each build
+# a variant; the join of the two constructors reaches the match, and each
+# arm of the `if` jumps to its arm of the match.
+use std.meta.inline
+
+@inline
+fn half(k: i64) -> i64?:
+    if k % 2 == 0: .Some(k / 2) else: .None
+
+pub fn halves(k: i64) -> i64:
+    match half(k):
+        .Some(h) => h + 1
+        .None => -1

@@ -1,6 +1,6 @@
 # test: optional and nominal local-reference payloads release their counted sources
 # Rules: ref.count.local, ref.convert.lend.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 enum Payload[T]:

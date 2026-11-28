@@ -16,7 +16,7 @@ pub(crate) type Prepared = hd_run_wasmtime::PreparedTest;
 /// The named child programs of a test run: name, module and grants. They
 /// stay typed here; only Node needs a scratch-file configuration.
 pub(crate) struct Programs {
-    pub(crate) native: Vec<(String, Vec<u8>, hd_run::Grants)>,
+    pub(crate) native: Vec<(String, Vec<u8>, hd_run::Grants, Vec<crate::node::CLibrary>)>,
     node: Option<crate::node::Programs>,
 }
 
@@ -36,11 +36,24 @@ impl Programs {
         Ok(Self {
             native: native
                 .into_iter()
-                .map(|child| (child.name, child.wasm, child.grants))
+                .map(|child| (child.name, child.wasm, child.grants, child.c))
                 .collect(),
             node,
         })
     }
+}
+
+/// The selected C libraries as the Wasmtime host takes them.
+fn libraries(c: &[crate::node::CLibrary]) -> Vec<hd_run_wasmtime::native::c::Library> {
+    c.iter()
+        .map(|l| hd_run_wasmtime::native::c::Library {
+            module: l.module.clone(),
+            path: l.path.clone(),
+            name: l.name.clone(),
+            package: l.package.clone(),
+            triple: l.triple.clone(),
+        })
+        .collect()
 }
 
 /// The code cache of this command's wasmtime engines
@@ -65,7 +78,8 @@ impl Session {
         programs: Option<&TestPrograms>,
     ) -> Result<Self, String> {
         let code = code_cache();
-        let config = hd_run_wasmtime::EngineConfig::pipeline(level);
+        let mut config = hd_run_wasmtime::EngineConfig::pipeline(level);
+        config.compilation_jobs = jobs;
         let workers = u32::try_from(jobs).map_err(|_| "too many test workers")?;
         let engine = hd_run_wasmtime::TestEngine::new(
             config,
@@ -79,12 +93,13 @@ impl Session {
                 let mut children = programs
                     .native
                     .iter()
-                    .map(|(name, wasm, grants)| {
-                        hd_run_wasmtime::NamedProgram::compile(
+                    .map(|(name, wasm, grants, c)| {
+                        hd_run_wasmtime::NamedProgram::compile_with_c(
                             config,
                             name.clone(),
                             wasm,
                             grants.clone(),
+                            libraries(c),
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -210,32 +225,98 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
 
 /// Runs a built program to its end with the process's standard streams.
 /// With a cleanup bound, each Ctrl-C is a request to cancel its entry
-/// (`cli.cancel.ctrl-c`).
+/// (`cli.cancel.unhandled-ctrl-c`). The C providers `c` are bound before
+/// the guest starts (`hd_run_wasmtime::run_with_c_providers`).
+#[allow(unsafe_code)]
 pub(crate) fn run_program(
     level: hd_driver::OptLevel,
-    wasm: &[u8],
+    image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
+    c: &[crate::node::CLibrary],
+    sampling: Option<&std::path::Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
-    let _code = code_cache();
-    let config = hd_run_wasmtime::EngineConfig::pipeline(level);
-    let io = hd_run_wasmtime::HostIo::process();
-    let Some(ms) = host.limits.cleanup_ms else {
-        return hd_run_wasmtime::run_traced(config, wasm, host, io);
+    let _code = match image {
+        hd_run::artifact::Image::Wasm(_) => code_cache(),
+        hd_run::artifact::Image::Native(_) => None,
     };
-    let interrupt = hd_run_wasmtime::HostInterrupt::new();
-    let handler = interrupt.clone();
-    super::on_ctrl_c(move || handler.request());
-    hd_run_wasmtime::run_cancellable(
-        config,
-        wasm,
-        host,
-        io,
-        &interrupt,
-        std::time::Duration::from_millis(ms),
-    )
+    let mut config = hd_run_wasmtime::EngineConfig::pipeline(level);
+    config.compilation_jobs = crate::default_jobs();
+    let _configured = hd_base::trace::span("engine", || {
+        format!("wasmtime OptLevel::{:?}", config.cranelift_opt)
+    });
+    let io = hd_run_wasmtime::HostIo::process();
+    let interrupt = host
+        .limits
+        .cleanup_ms
+        .map(|_| hd_run_wasmtime::HostInterrupt::new());
+    let _signals = interrupt.as_ref().map(|interrupt| {
+        let handler = interrupt.clone();
+        super::on_ctrl_c(move |_| handler.request())
+    });
+    let cancel = interrupt
+        .as_ref()
+        .zip(host.limits.cleanup_ms)
+        .map(|(interrupt, ms)| (interrupt, std::time::Duration::from_millis(ms)));
+    if !c.is_empty() {
+        let libraries = libraries(c);
+        let config = match image {
+            hd_run::artifact::Image::Wasm(_) => config,
+            hd_run::artifact::Image::Native(_) => {
+                hd_run_wasmtime::EngineConfig::pipeline(hd_base::OptLevel::Optimized)
+            }
+        };
+        // SAFETY: as `run_native_image`: the CLI passes only an explicitly
+        // selected native artifact or its own build output, held open for
+        // this run; each library is one the root manifest consented to.
+        return unsafe {
+            hd_run_wasmtime::run_with_c_providers(
+                config, image, host, io, &libraries, cancel, sampling,
+            )
+        };
+    }
+    match image {
+        hd_run::artifact::Image::Wasm(wasm) => match (sampling, cancel) {
+            (Some(output), cancel) => {
+                hd_run_wasmtime::run_sampled(config, wasm, host, io, output, cancel)
+            }
+            (None, Some((interrupt, bound))) => {
+                hd_run_wasmtime::run_cancellable(config, wasm, host, io, interrupt, bound)
+            }
+            (None, None) => hd_run_wasmtime::run_traced(config, wasm, host, io),
+        },
+        hd_run::artifact::Image::Native(native) => {
+            run_native_image(native, host, io, cancel, sampling)
+        }
+    }
+}
+
+pub(crate) fn native_key() -> Result<hd_base::Hash128, String> {
+    hd_run_wasmtime::precompile_key()
+}
+pub(crate) fn precompile(wasm: &[u8]) -> Result<Vec<u8>, String> {
+    hd_run_wasmtime::precompile(wasm, crate::default_jobs())
 }
 
 /// The stack a test worker thread needs to host a guest.
 pub(crate) fn worker_stack(level: hd_driver::OptLevel) -> usize {
     hd_run_wasmtime::thread_stack(&hd_run_wasmtime::EngineConfig::pipeline(level))
+}
+
+#[allow(unsafe_code)]
+fn run_native_image(
+    native: &hd_run::artifact::Native,
+    host: &HostSetup,
+    io: hd_run_wasmtime::HostIo,
+    cancel: Option<(&hd_run_wasmtime::HostInterrupt, std::time::Duration)>,
+    sampling: Option<&std::path::Path>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    // SAFETY: the CLI only passes an explicitly selected native artifact
+    // or its own build/install output, held open for this run. Its writers
+    // publish replacements instead of modifying existing mapped files.
+    unsafe {
+        match sampling {
+            Some(output) => hd_run_wasmtime::run_native_sampled(native, host, io, output, cancel),
+            None => hd_run_wasmtime::run_native(native, host, io, cancel),
+        }
+    }
 }

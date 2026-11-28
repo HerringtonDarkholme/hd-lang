@@ -8,8 +8,8 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $show (result i32 i32) (local $t0 i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $show (result i32 i32) (local $t0 i32) (local $result.0 i32) (local $v i32) (local $size i32) (local $value i64) (local $t1 i64) (local $t2 i64) (local $offset i32)
     ;; 27 |     let v = make4()
     global.get $stack
     global.get $stack_limit
@@ -25,59 +25,115 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i32.const 8
-    i32.add
-    call $make4
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.load $heap offset=8
+    block
+      local.get $t0
+      i32.const 8
+      i32.add
+      call $make4
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $v
     ;; 28 |     "${v._0._0._0._0._0}"
-    i64.extend_i32_s
-    local.tee $t1
-    local.tee $value
-    call $signed_magnitude
-    call $unsigned_width
-    local.set $t2
-    local.get $value
-    i64.const 0
-    i64.lt_s
-    if
-      i32.const 1
-      local.set $t3
-    end
-    local.get $t2
-    i64.extend_i32_u
-    local.get $t3
-    i64.extend_i32_u
-    i64.add
-    local.tee $value
-    i64.const 4294967295
-    i64.gt_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $value
-    i32.wrap_i64
-    local.tee $t3
-    local.tee $t2
-    i32.const 16
-    local.set $t4
-    if
-      local.get $t2
-      call $rt:str
-      local.set $t4
-    end
-    local.get $t1
-    local.get $t4
-    local.get $t3
-    call $write_signed_sized
-    local.get $t4
-    local.get $t2
+      local.get $v
+      i32.load $heap
+      local.set $size
+      i32.const 0
+      local.set $v
+      local.get $size
+      i64.extend_i32_s
+      local.set $value
+      i32.const 0
+      local.set $v
+      block
+        block
+          block
+            block
+              local.get $value
+              call $signed_magnitude
+              local.set $t1
+              local.get $t1
+              call $unsigned_width
+              local.set $v
+              local.get $value
+              i64.const 0
+              i64.lt_s
+              local.set $size
+              local.get $size
+              if
+                i32.const 1
+                local.set $size
+              else
+                i32.const 0
+                local.set $size
+              end
+              local.get $v
+              i64.extend_i32_u
+              local.set $t1
+              local.get $size
+              i64.extend_i32_u
+              local.set $t2
+              local.get $t1
+              local.get $t2
+              i64.add
+              local.set $t1
+              local.get $t1
+              i64.const 4294967295
+              i64.gt_u
+              if
+                call $rt:panic'2
+                unreachable
+              end
+              local.get $t1
+              i32.wrap_i64
+              local.set $v
+              br 0
+            end
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.get $v
+      i32.add
+      local.set $size
+      block
+        block
+          i32.const 16
+          local.set $result.0
+          local.get $size
+          if
+            local.get $size
+            call $rt:str
+            local.set $result.0
+          end
+          br 0
+        end
+      end
+      i32.const 0
+      local.set $offset
+      block
+        block
+          local.get $result.0
+          local.get $offset
+          i32.const 1
+          i32.mul
+          i32.add
+          local.set $offset
+          local.get $value
+          local.get $offset
+          local.get $v
+          call $write_signed_sized
+          br 0
+        end
+      end
     ;; 27 |     let v = make4()
+    end
+    local.get $result.0
+    local.get $size
     local.get $t0
     i32.const 136
     i32.add
@@ -216,24 +272,84 @@
     local.get $t16
     i32.store $heap offset=124
   )
-  (func $make0 (result i32 i32)
+  (func $make0 (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 12 |     (1, 2)
     i32.const 1
     i32.const 2
+    local.set $t0
+    local.set $t1
+    local.get $t1
+    local.get $t0
   )
-  (func $make3 (result i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
+  (func $make3 (result i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32)
     ;; 21 |     (make2(), make2())
     call $make2
+    local.set $t0
+    local.set $t1
+    local.set $t2
+    local.set $t3
+    local.set $t4
+    local.set $t5
+    local.set $t6
+    local.set $t7
     call $make2
+    local.set $t8
+    local.set $t9
+    local.set $t10
+    local.set $t11
+    local.set $t12
+    local.set $t13
+    local.set $t14
+    local.set $t15
+    local.get $t7
+    local.get $t6
+    local.get $t5
+    local.get $t4
+    local.get $t3
+    local.get $t2
+    local.get $t1
+    local.get $t0
+    local.get $t15
+    local.get $t14
+    local.get $t13
+    local.get $t12
+    local.get $t11
+    local.get $t10
+    local.get $t9
+    local.get $t8
   )
-  (func $make2 (result i32 i32 i32 i32 i32 i32 i32 i32)
+  (func $make2 (result i32 i32 i32 i32 i32 i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32)
     ;; 18 |     (make1(), make1())
     call $make1
+    local.set $t0
+    local.set $t1
+    local.set $t2
+    local.set $t3
     call $make1
+    local.set $t4
+    local.set $t5
+    local.set $t6
+    local.set $t7
+    local.get $t3
+    local.get $t2
+    local.get $t1
+    local.get $t0
+    local.get $t7
+    local.get $t6
+    local.get $t5
+    local.get $t4
   )
-  (func $make1 (result i32 i32 i32 i32)
+  (func $make1 (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; 15 |     (make0(), make0())
     call $make0
+    local.set $t0
+    local.set $t1
     call $make0
+    local.set $t2
+    local.set $t3
+    local.get $t1
+    local.get $t0
+    local.get $t3
+    local.get $t2
   )
 )

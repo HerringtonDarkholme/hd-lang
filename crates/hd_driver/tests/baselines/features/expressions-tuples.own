@@ -16,7 +16,7 @@ fn select(t: (string, List[string])) -> usize:
 >   %0 = Read borrow [$0 .0] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
@@ -41,7 +41,7 @@ fn nested(t: ((string, string), string)) -> usize:
 >   %0 = Read borrow [$0 .0 .1] : string
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize

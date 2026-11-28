@@ -1,8 +1,8 @@
 # test: a tuple template derives a trait for every tuple type whose elements meet its walker's bound
 # Spec 14 Tuple Templates: annot.template.tuple.form and annot.template.tuple.implements; Tuple Structure:
 # annot.tuple.members (owner decision O3b, batch 36, 2026-10-01).
-use std.function.Tuple
-use std.structure.{Structure, Facts, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Facts, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

@@ -1,0 +1,35 @@
+struct Node:
+    value: i32
+    next: *Node?
+
+fn push(list: *Node?, value: i32) -> *Node:
+    box(Node { value: value, next: list })
+
+fn total(list: *Node?) -> i32:
+    match list:
+        .Some(node) => node.value + total(node.next)
+        .None => 0
+
+fn reverse(list: *Node?) -> *Node?:
+    let out: *Node? = .None
+    let at = list
+    while true:
+        match at:
+            .Some(node) =>
+                out = .Some(box(Node { value: node.value, next: out }))
+                at = node.next
+            .None => return out
+
+fn first(list: *Node?) -> i32:
+    match list:
+        .Some(node) => node.value
+        .None => -1
+
+pub fn main() -> void $ Console:
+    let list: *Node? = .None
+    list = push(list, 1)
+    list = push(list, 2)
+    list = push(list, 3)
+    println(total(list))
+    println(first(list))
+    println(first(reverse(list)))

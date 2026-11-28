@@ -12,28 +12,67 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "buf" (memory $buf 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i64) (local $t5 i32) (local $t4 i64)
     ;; 13 |     _ := $.use(Vault).keep(._1(7i64))
-    i32.const 1
-    i32.const 0
-    i32.const 7
-    local.set $t0
-    local.set $t1
-    local.set $t2
-    local.get $provider0
-    local.get $t2
-    local.get $t1
-    local.get $t0
-    i64.const 7
-    local.get $provider0.vtable
-    i32.load $heap
-    call_indirect $table0 (param i32 i32 i32 i32 i64) (result i32 i32 i32 i64)
-    call $"release_value[string | i64]"
-    local.get $t2
-    local.get $t1
-    local.get $t0
-    i64.const 7
-    call $"release_value[string | i64]"
+    block
+      local.get $provider0
+      local.get $provider0.vtable
+      local.set $t0
+      local.set $t1
+      i32.const 0
+      local.set $provider0
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 1
+      i32.const 0
+      i64.const 7
+      i64.const 4294967295
+      i64.and
+      i32.wrap_i64
+      i64.const 7
+      local.set $t2
+      local.set $provider0
+      local.set $provider0.vtable
+      local.set $t3
+      local.get $t1
+      local.get $t3
+      local.get $provider0.vtable
+      local.get $provider0
+      local.get $t2
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32 i32 i64) (result i32 i32 i32 i64)
+      local.set $t4
+      local.set $t0
+      local.set $t1
+      local.set $t5
+      local.get $t5
+      local.get $t1
+      local.get $t0
+      local.get $t4
+      call $"release_value[string | i64]"
+      i32.const 0
+      local.set $t5
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      i64.const 0
+      local.set $t4
+      local.get $t3
+      local.get $provider0.vtable
+      local.get $provider0
+      local.get $t2
+      call $"release_value[string | i64]"
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $provider0.vtable
+      i32.const 0
+      local.set $provider0
+      i64.const 0
+      local.set $t2
+    end
   )
   (func $rt:hd:Vault/keep (param $t5 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i64) (result i32 i32 i32 i64) (local $t0 i32)
     ;; (no span)
@@ -43,6 +82,8 @@
     local.get $t3
     local.get $t4
     call $rt:enc'1
+    local.set $t0
+    local.get $t0
     call $hd:Vault/keep
     drop
     i32.const 0
@@ -60,6 +101,8 @@
     i64.shr_s
     i64.xor
     call $rt:leb_put
+    local.set $t0
+    local.get $t0
   )
   (func $rt:enc'3 (param $t0 i32) (param $t2 i32) (param $t1 i32) (result i32)
     ;; (no span)
@@ -67,7 +110,8 @@
     local.get $t1
     i64.extend_i32_u
     call $rt:leb_put
-    local.tee $t0
+    local.set $t0
+    local.get $t0
     local.get $t1
     i32.add
     call $rt:fit
@@ -78,6 +122,8 @@
     local.get $t0
     local.get $t1
     i32.add
+    local.set $t0
+    local.get $t0
   )
   (func $rt:enc'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i64) (result i32)
     ;; (no span)
@@ -111,7 +157,8 @@
     local.get $t0
     call $rt:leb_get
     local.set $t0
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i64.const 1
     i64.shr_u
     i64.const 0
@@ -120,6 +167,8 @@
     i64.and
     i64.sub
     i64.xor
+    local.set $t1
+    local.get $t1
     local.get $t0
   )
   (func $rt:dec'3 (param $t0 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32)
@@ -128,7 +177,8 @@
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     memory.size $buf
     i32.const 16
     i32.shl
@@ -145,7 +195,8 @@
     if
       local.get $t1
       call $rt:str
-      local.tee $t2
+      local.set $t2
+      local.get $t2
       local.get $t0
       local.get $t1
       call $rt:memory_copy/1/0
@@ -164,7 +215,8 @@
     call $rt:leb_get
     local.set $t0
     i32.wrap_i64
-    local.tee $t1
+    local.set $t1
+    local.get $t1
     i32.const 2
     i32.ge_u
     if
@@ -172,7 +224,8 @@
       unreachable
     end
     local.get $t1
-    i32.eqz
+    i32.const 0
+    i32.eq
     if
       local.get $t0
       call $rt:dec'3
@@ -190,7 +243,8 @@
       local.get $t0
       call $rt:dec'2
       local.set $t0
-      local.tee $t4
+      local.set $t4
+      local.get $t4
       i64.const 4294967295
       i64.and
       i32.wrap_i64

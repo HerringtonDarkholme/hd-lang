@@ -1,0 +1,19 @@
+# @dump: stdout functions
+# @build: dev | checked | release | release checked
+# ScriptedStream's ready read/write/dispose calls use the plain body ABI.
+use std.net.{Net, ScriptedNet, ScriptedStream}
+
+pub fn main!() -> void $ Console:
+    peer := ScriptedStream::new(["hello".to_utf8()])
+    net := ScriptedNet::new()
+    net.add_connection("feed.local:9000", peer)
+    $.with(Net=net):
+        match $.use(Net).connect!("feed.local", 9000):
+            .Ok(stream) =>
+                using! socket = stream
+                _ := socket.write!("get".to_utf8())
+                match socket.read!(16):
+                    .Ok(bytes) => println("${bytes.len()}")
+                    .Err(_) => panic("scripted read")
+            .Err(_) => panic("scripted connect")
+    println("${peer.written().len()} ${peer.is_closed()}")

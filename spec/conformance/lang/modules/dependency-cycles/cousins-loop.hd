@@ -1,0 +1,10 @@
+# test: a top-level module and a child of another module are no siblings, so a use in each direction is a loop
+# Spec 10 Module Graph: module.cycle.sibling-group.siblings, module.cycle.siblings.
+# fixture-package-tree: cousins/src/shop/cart.hd
+use pkg.billing.{bill} # diagnostic: module-cycle
+
+pub fn total() -> i32:
+    3
+
+pub fn twice() -> i32:
+    bill() * 2

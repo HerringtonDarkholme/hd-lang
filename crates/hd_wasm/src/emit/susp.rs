@@ -18,6 +18,7 @@ use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
 use super::{Ctl, Em};
+use crate::Input;
 use crate::layout::IsOps as _;
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
@@ -27,12 +28,44 @@ use crate::task::{
     F_STATE, UNWINDING,
 };
 
-/// Whether instruction tag `t` is a suspension point.
-pub(super) fn is_point(t: Tag) -> bool {
-    matches!(
-        t,
-        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
-    )
+/// Whether instruction `i` of body `b`, whose call targets are `calls`,
+/// may wait: a suspension point other than a bang call of an instance that
+/// completes at once ([`ready_callee`]).
+pub(super) fn waits(input: &Input<'_>, calls: &HashMap<u32, Target>, b: &Body, i: u32) -> bool {
+    hd_opt::whole::is_point(b.tags[i as usize])
+        && ready_callee(input, calls, b, i).is_none()
+        && !ready_slot(input, calls, b, i)
+}
+
+/// The callee of bang call `i` when it completes at once (`Input::ready`,
+/// #2419): the call is a plain call of its body, not a suspension point.
+pub(super) fn ready_callee<'c>(
+    input: &Input<'_>,
+    calls: &'c HashMap<u32, Target>,
+    b: &Body,
+    i: u32,
+) -> Option<&'c hd_mono::CallTarget> {
+    match (b.tags[i as usize], calls.get(&i)) {
+        (Tag::Await, Some(Target::Call(t)))
+            if t.kind == TargetKind::Instance && input.ready.contains(&t.key) =>
+        {
+            Some(t)
+        }
+        _ => None,
+    }
+}
+
+/// A dynamic await whose entire closed-world drive slot completes at once.
+pub(super) fn ready_slot(
+    input: &Input<'_>,
+    calls: &HashMap<u32, Target>,
+    b: &Body,
+    i: u32,
+) -> bool {
+    b.tags[i as usize] == Tag::Await
+        && matches!(calls.get(&i), Some(Target::Dyn))
+        && crate::drive::callee(b, b.data[i as usize][0])
+            .is_some_and(|(_, method)| input.ready_slots.contains(&method))
 }
 
 /// The blocks instruction `i` runs, in the order emission enters them.
@@ -64,21 +97,30 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
     out
 }
 
-/// Each suspension point's state, and each block's and instruction's
-/// range of states, when it holds one.
-pub(super) type Plan = (HashMap<u32, u32>, HashMap<u32, (u32, u32)>);
+/// Each suspension point's state, each block's and instruction's range
+/// of states, when it holds one, and those that hold a bang call, one that
+/// completes at once too.
+pub(super) type Plan = (
+    HashMap<u32, u32>,
+    HashMap<u32, (u32, u32)>,
+    hd_base::HashSet<u32>,
+);
 
-/// Numbers the suspension points of the body under `root` in structural
-/// order, from 1, and records the range of states each block and
-/// instruction holds: a subtree's states are contiguous (§14.2).
-pub(super) fn plan(b: &Body, root: u32) -> Plan {
+/// Numbers the suspension points of the body under `root` that `waits`
+/// in structural order, from 1, and records the range of states each block
+/// and instruction holds: a subtree's states are contiguous (§14.2).
+pub(super) fn plan(b: &Body, root: u32, waits: &dyn Fn(u32) -> bool) -> Plan {
     fn join(r: Option<(u32, u32)>, x: Option<(u32, u32)>) -> Option<(u32, u32)> {
         match (r, x) {
             (Some(a), Some(c)) => Some((a.0.min(c.0), a.1.max(c.1))),
             (a, c) => a.or(c),
         }
     }
-    let mut p = (HashMap::default(), HashMap::default());
+    let mut p = (
+        HashMap::default(),
+        HashMap::default(),
+        hd_base::HashSet::default(),
+    );
     let mut next = 0;
     let mut stack = vec![(root, false)];
     while let Some((i, ready)) = stack.pop() {
@@ -100,17 +142,21 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
         }
         crate::suspension_work::add(1, 0, 0, 0, 0);
         let mut range = None;
+        let mut bang = false;
         if is_block {
             for child in b.record(b.data[i as usize][0]) {
                 if b.tags[*child as usize] != Tag::Block {
                     range = join(range, p.1.get(child).copied());
+                    bang |= p.2.contains(child);
                 }
             }
         } else {
             for child in operand_blocks(b, i) {
                 range = join(range, p.1.get(&child).copied());
+                bang |= p.2.contains(&child);
             }
-            if is_point(b.tags[i as usize]) {
+            bang |= hd_opt::whole::is_point(b.tags[i as usize]);
+            if waits(i) {
                 // Each point has a distinct u32 instruction identity.
                 next += 1;
                 p.0.insert(i, next);
@@ -120,6 +166,9 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
         }
         if let Some(range) = range {
             p.1.insert(i, range);
+        }
+        if bang {
+            p.2.insert(i);
         }
     }
     p
@@ -217,7 +266,7 @@ pub(super) struct AllPoint {
 }
 
 /// The frame: the body's parameter 0.
-pub(super) const FRAME: u32 = 0;
+pub const FRAME: u32 = 0;
 
 impl Em<'_, '_, '_> {
     /// The homogeneous list frame, unlike the fixed-arity tuple point.
@@ -805,7 +854,7 @@ impl Em<'_, '_, '_> {
                         matches!(target, Some(Target::Dyn)),
                         "mono::scan must resolve Await"
                     );
-                    if self.shield == 0 && self.drives(a) {
+                    if self.drives(a) {
                         return self.await_driven(i, k, a, &args);
                     }
                     self.await_stored(i, k, true, &|em| em.push_dyn(i, a, &args, None, None))
@@ -862,7 +911,7 @@ impl Em<'_, '_, '_> {
         self.settle(i);
         self.release_call_ctx(i, c);
         if shielded {
-            self.shield_leave(i, nc, Some(ch));
+            self.shield_leave(i, nc, ch);
         }
         self.f.get(nc);
         self.f.op(I::If(BlockType::Empty));
@@ -884,6 +933,53 @@ impl Em<'_, '_, '_> {
         self.f.set(pc);
         for l in &tmp {
             self.f.get(*l);
+        }
+        self.store_awaited(i)
+    }
+
+    /// `g!(x)` of an instance that completes at once (#2419): its body's
+    /// fresh path called with its plain ABI: no frame argument or result,
+    /// no suspension point, and no child kept by the caller.
+    pub(super) fn await_ready(
+        &mut self,
+        i: u32,
+        key: Hash128,
+        item: hd_base::DefId,
+        targs: hd_types::TyList,
+    ) -> StageResult<()> {
+        ledger!("susp/await-ready-body-call");
+        let args = self.b.call_args(i as usize).to_vec();
+        let res = self.vals(self.ty(i))?;
+        let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
+        self.push_cold_args(i, &args, item, targs, None)?;
+        let c = self.push_call_providers(i, item, targs)?;
+        self.f.call(Sym::Part(key, Part::Body));
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.settle(i);
+        self.release_call_ctx(i, c);
+        for l in &tmp {
+            self.f.get(*l);
+        }
+        self.store_awaited(i)
+    }
+
+    /// The existing drive ABI returns frame zero before the ordinary results.
+    /// The slot proof makes that frame dead; retain the normal adapter and
+    /// receiver/context ownership, without a suspension point or child.
+    pub(super) fn await_ready_slot(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let args = self.b.call_args(i as usize).to_vec();
+        let res = self.vals(self.ty(i))?;
+        let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
+        self.push_dyn(i, a, &args, None, Some((self.ty(i), None)))?;
+        for l in tmp.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.op(I::Drop);
+        self.settle(i);
+        for l in tmp {
+            self.f.get(l);
         }
         self.store_awaited(i)
     }
@@ -969,12 +1065,10 @@ impl Em<'_, '_, '_> {
         let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
         let ready = self.f.local(Val::I32);
-        // `gone` is the child a shielded point is left to wait on.
-        let shielded = self.shield > 0;
-        let gone = self.f.local(Val::I32);
-        if shielded {
-            self.shield_enter(k, s, &tmp, gone);
-        }
+        // ruled out: a shielded suite's only point is its `dispose!`, a
+        // direct call or a trait-value call of `AsyncDisposable`, whose
+        // rows-only trait drives every such call (`drive::drivable`).
+        debug_assert_eq!(self.shield, 0, "a shielded stored suspension");
         self.f.get(s);
         self.f.get(s);
         self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
@@ -984,20 +1078,6 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         self.f.set(ready);
-        if shielded {
-            self.f.i32(0);
-            self.f.set(gone);
-            self.f.get(ready);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.get(s);
-            self.f.set(gone);
-            self.f.op(I::End);
-            self.shield_leave(i, gone, None);
-            self.f.get(gone);
-            self.f.op(I::I32Eqz);
-            self.f.set(ready);
-        }
         self.f.get(ready);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -1048,7 +1128,9 @@ impl Em<'_, '_, '_> {
     /// [`Em::await_stored`] awaits the cold call's frame: a fresh start
     /// calls the drive slot, whose frame is 0 when the call is done and
     /// was then released by the slot; a Pending frame becomes the child,
-    /// and a resume polls it as before.
+    /// and a resume polls it as before. A shielded point steps as
+    /// [`Em::await_direct`] does, a fresh child losing its count when it
+    /// is abandoned.
     fn await_driven(&mut self, i: u32, k: u32, a: u32, args: &[u32]) -> StageResult<()> {
         ledger!("susp/await-driven-vtable-slot");
         let pc = self.pc();
@@ -1056,16 +1138,28 @@ impl Em<'_, '_, '_> {
         let res = self.vals(self.ty(i))?;
         let tmp: Vec<u32> = res.iter().map(|v| self.f.local(*v)).collect();
         let ready = self.f.local(Val::I32);
+        let shielded = self.shield > 0;
+        let gone = self.f.local(Val::I32);
         self.f.get(pc);
         self.f.u32(k);
         self.f.op(I::I32Eq);
+        if shielded {
+            // The child is read before the shield's abandon check.
+            self.f.set(held);
+            self.f.get(held);
+            self.f.op(I::If(BlockType::Empty));
+            self.load_child(s);
+            self.f.op(I::End);
+            self.shield_enter(k, s, &tmp, gone);
+            self.f.get(held);
+        }
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
-        self.f.get(FRAME);
-        self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
-        self.f.set(s);
-        self.f.i32(1);
-        self.f.set(held);
+        if !shielded {
+            self.load_child(s);
+            self.f.i32(1);
+            self.f.set(held);
+        }
         self.f.get(s);
         self.f.get(s);
         self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
@@ -1082,12 +1176,25 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(s);
         self.settle(i);
-        self.f.i32(0);
-        self.f.set(held);
+        if !shielded {
+            self.f.i32(0);
+            self.f.set(held);
+        }
         self.f.get(s);
         self.f.op(I::I32Eqz);
         self.f.set(ready);
         self.close();
+        if shielded {
+            self.f.i32(0);
+            self.f.get(s);
+            self.f.get(ready);
+            self.f.op(I::Select);
+            self.f.set(gone);
+            self.shield_leave(i, gone, held);
+            self.f.get(gone);
+            self.f.op(I::I32Eqz);
+            self.f.set(ready);
+        }
         self.f.get(ready);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -1111,6 +1218,13 @@ impl Em<'_, '_, '_> {
             self.f.get(*l);
         }
         self.store_awaited(i)
+    }
+
+    /// Loads this frame's child into local `s`.
+    fn load_child(&mut self, s: u32) {
+        self.f.get(FRAME);
+        self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
+        self.f.set(s);
     }
 
     /// Ends one completed child result where its point's cleanup packet
@@ -1296,9 +1410,9 @@ impl Em<'_, '_, '_> {
     /// `abandon()`, or one cancelled because it awaited a suspension
     /// cancelled elsewhere (`req.abandon.dependency`), is abandoned and
     /// `out` cleared, so the suite goes on; this frame's cleanup is then
-    /// `ABANDONED`. A child that a fresh step made (`fresh` 0) loses the
-    /// count it came with.
-    fn shield_leave(&mut self, i: u32, out: u32, fresh: Option<u32>) {
+    /// `ABANDONED`. A child that a fresh step made (local `fresh` 0)
+    /// loses the count it came with.
+    fn shield_leave(&mut self, i: u32, out: u32, fresh: u32) {
         let wait = self.f.local(Val::I32);
         self.f.get(out);
         self.f.op(I::If(BlockType::Empty));
@@ -1313,13 +1427,11 @@ impl Em<'_, '_, '_> {
         crate::task::abandon_by(&mut self.f, 1);
         self.cancel_task(out, wait);
         crate::task::abandon_by(&mut self.f, -1);
-        if let Some(h) = fresh {
-            self.f.get(h);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.count_child(i, out, false);
-            self.f.op(I::End);
-        }
+        self.f.get(fresh);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        self.count_child(i, out, false);
+        self.f.op(I::End);
         self.f.zero(out);
         self.f.op(I::End);
         self.f.op(I::End);
@@ -1350,7 +1462,8 @@ pub(super) fn push_zero(f: &mut crate::module::Func, v: Val) {
 /// The save area of a body whose locals `0..n` are `vals`, from offset
 /// `start` on, past the frame's slots (#1707): each local's offset in the
 /// frame, excluding `skip`, and the frame's payload size.
-pub(super) fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
+#[must_use]
+pub fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
     let mut at = start;
     let mut out = Vec::new();
     let skip: hd_base::HashSet<u32> = skip.iter().copied().collect();
@@ -1497,6 +1610,7 @@ pub(super) fn finish(
     let cancelled = suspension.cancelled;
     let spill_base = suspension.spill_base;
     let has_points = !suspension.states.is_empty();
+    let ready = em.input.ready.contains(&key);
     let row = suspension.provs.clone();
     // Cleanup helpers still query suspension ranges and ownership facts.
     // Suspension tables remain in place for cleanup and cancellation while
@@ -1584,7 +1698,7 @@ pub(super) fn finish(
         }
     }
     let (area, size) = save_area(&vals_all, &skipped, start);
-    em.m.frames.insert(key, size);
+    em.m.edit(crate::module::Edit::Frame(key, size));
     // One dense lookup table for all saved virtual locals. A wide
     // reference parameter must not search the whole frame per owner.
     let mut positions = vec![None; vals_all.len()];
@@ -1690,6 +1804,15 @@ pub(super) fn finish(
     em.f.op(I::End);
     // A parameter a body with no suspension point borrows from its
     // frame (`Em::borrowed`): the frame's count outlives the body.
+    if ready {
+        // A completed plain call consumed the cold arguments below in ready_poll.
+        em.f.get(FRAME);
+        em.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
+        em.f.i32(EXITED);
+        em.f.op(I::I32And);
+        em.f.op(I::I32Eqz);
+        em.f.op(I::If(BlockType::Empty));
+    }
     for &l in plocals {
         if em.borrowed.contains(&l)
             && let Some(ls) = em.locals.get(&l).cloned()
@@ -1706,6 +1829,9 @@ pub(super) fn finish(
             let t = em.b.local_ty[l];
             em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
         }
+    }
+    if ready {
+        em.f.op(I::End);
     }
     if !row.is_empty() {
         // ruled out: counts::expected pairs cold_row::roots' copies with
@@ -1968,7 +2094,7 @@ pub(super) fn finish(
                 })?,
         )
     };
-    em.m.frame_spills.insert(
+    em.m.edit(crate::module::Edit::FrameSpill(
         key,
         crate::task::FrameSpill {
             start,
@@ -1982,7 +2108,7 @@ pub(super) fn finish(
                 .map(|(item, root)| (item, root, em.b.anchor_len())),
             names_counts: body.names_counts,
         },
-    );
+    ));
     if has_points {
         // Scalar storage is disjoint from stable addressable slots and any
         // synchronous host-drive buffer in this invocation's existing frame.
@@ -2020,10 +2146,16 @@ pub(super) fn finish(
         // No yield, no resident-access overhead: only a cold entry needs
         // to restore its constructor arguments/captures once.
         super::susp_spill::initial(&mut body, &area, &selected);
-        crate::task::guard_frame(&mut body);
+        if !ready {
+            crate::task::guard_frame(&mut body);
+        }
         if let Some((base, size)) = local_frame {
             crate::wide::locals_frame(&mut body, base, size);
         }
+    }
+
+    if ready {
+        direct_body(&mut body);
     }
 
     // The poll: the runtime checks, then the body over the frame.
@@ -2067,7 +2199,11 @@ pub(super) fn finish(
     f.op(I::Return);
     f.op(I::End);
     pending(&mut f);
-    let poll = f;
+    let poll = if ready {
+        ready_poll(&mut em, key, &name, plocals, params, &positions)?
+    } else {
+        f
+    };
 
     // The cancel (§14.6): a frame that never started is only marked; a
     // started one unwinds until its body leaves by its cancellation.
@@ -2155,12 +2291,200 @@ pub(super) fn finish(
     };
     em.m.define(Sym::Part(key, Part::Body), body);
     em.m.define(Sym::Part(key, Part::Poll), poll);
-    em.m.define(Sym::Part(key, Part::Cancel), cancel);
+    if !ready {
+        em.m.define(Sym::Part(key, Part::Cancel), cancel);
+    }
     em.m.define(Sym::Part(key, Part::Drop), drop);
     if let Some(lent) = lent {
         em.m.define(Sym::Part(key, Part::Lent), lent);
     }
     Ok(cold)
+}
+
+/// Specialize the fresh path at frame zero, then remove its frame parameter
+/// and result. The existing constant folds delete the cold-entry branches.
+/// Cost O(instructions + locals); there is no retry or recursive traversal.
+fn direct_body(f: &mut crate::module::Func) {
+    let np = super::shape::u32_of(f.params.len());
+    f.params.remove(0);
+    f.locals.insert(0, Val::I32);
+    let _ = f.results.pop();
+    let local = |l: u32| {
+        if l == FRAME {
+            np - 1
+        } else if l < np {
+            l - 1
+        } else {
+            l
+        }
+    };
+    if let Some(names) = &mut f.local_names {
+        *names = std::mem::take(names)
+            .into_iter()
+            .map(|(l, name)| (local(l), name))
+            .collect();
+    }
+    let body = std::mem::take(&mut f.body);
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
+    for (at, mut ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[at]);
+        if let Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) = &mut ins {
+            *l = local(*l);
+        }
+        if matches!(ins, Ins::Op(I::Return)) {
+            f.op(I::Drop);
+        }
+        f.push(ins);
+    }
+    f.origin_at = outer;
+    f.op(I::Drop);
+    crate::opt::fold_local_constants(f);
+    crate::opt::fold_constant_branches(f);
+    crate::opt::drops(f);
+    f.rebuild_callees();
+}
+
+/// Poll an unstarted ready call: load its saved arguments and invoke the
+/// ordinary fresh-entry ABI. The cold frame's copies outlive that call;
+/// transferred arguments move to it, while borrowed copies end afterwards.
+fn ready_poll(
+    em: &mut Em<'_, '_, '_>,
+    key: Hash128,
+    name: &str,
+    plocals: &[usize],
+    params: &[Val],
+    positions: &[Option<(u32, Val)>],
+) -> StageResult<crate::module::Func> {
+    let results = em.results.clone();
+    let mut pres = vec![Val::I32];
+    pres.extend(&results);
+    em.f = em.m.func(format!("{name}.poll"), vec![Val::I32], pres);
+    em.inherit_origin_source(Reason::Conservative("ready poll"));
+    let out: Vec<u32> = results.iter().map(|v| em.f.local(*v)).collect();
+    em.f.get(FRAME);
+    em.f.helper(Helper::PollCheck);
+    em.f.op(I::If(BlockType::Empty));
+    em.f.i32(0);
+    for &value in &results {
+        push_zero(&mut em.f, value);
+    }
+    em.f.op(I::Return);
+    em.f.op(I::End);
+    set_flags(&mut em.f, ACTIVE, true);
+    let mut args = vec![None; params.len()];
+    let mut cells = hd_base::HashMap::default();
+    // A cold constructor already materialized an addressed parameter's cell.
+    // Its ordinary argument is the value (or its address), not that cell's slot.
+    for &l in plocals {
+        let Some(arrival) = em.param_vals.get(&l).cloned() else {
+            continue;
+        };
+        let source = em.locals[&l][0];
+        let (offset, value) = super::required(
+            positions[source as usize],
+            "cold parameter cells have saved positions",
+        );
+        let cell = em.f.local(value);
+        em.f.get(FRAME);
+        em.f.op(load_op(value, offset));
+        em.f.set(cell);
+        let values = if arrival.len() == 1
+            && crate::layout::by_address(em.pool(), em.env(), em.b.local_ty[l])?
+        {
+            vec![cell]
+        } else {
+            let mem = em.cell_mem(l)?;
+            em.f.load_locals(cell, &mem.leaves)
+        };
+        for (param, value) in arrival.into_iter().zip(values) {
+            args[param as usize] = Some(value);
+        }
+        cells.insert(l, cell);
+    }
+    for (j, &value) in params.iter().enumerate().skip(1) {
+        if args[j].is_none() {
+            let (offset, _) = super::required(
+                positions[j],
+                "every cold argument or provider has a saved position",
+            );
+            let v = em.f.local(value);
+            em.f.get(FRAME);
+            em.f.op(load_op(value, offset));
+            em.f.set(v);
+            args[j] = Some(v);
+        }
+        em.f.get(super::required(args[j], "the cold argument was loaded"));
+    }
+    em.f.call(Sym::Part(key, Part::Body));
+    for &v in out.iter().rev() {
+        em.f.set(v);
+    }
+    set_flags(&mut em.f, ACTIVE, false);
+    set_flags(&mut em.f, DONE | EXITED, true);
+    let transferred = |em: &Em<'_, '_, '_>, l: usize| {
+        em.cx().cold_parameter_transfers(em.item, em.b.local_ty[l])
+            || crate::layout::holds_drop(em.pool(), em.env(), em.b.local_ty[l])
+    };
+    for &l in plocals {
+        let ty = em.b.local_ty[l];
+        if let Some(&cell) = cells.get(&l) {
+            let old = em.locals.insert(l, vec![cell]);
+            if transferred(em, l) {
+                // The fresh body took the value; its old cell keeps no count.
+                em.empty_place(hd_tir::ir::place::BARE_LOCAL | super::shape::u32_of(l))?;
+                em.init_cell_drop(cell, ty, Some(false));
+            }
+            em.because(Reason::ByDesign, |em| em.release_cell_of(l, cell))?;
+            if let Some(old) = old {
+                em.locals.insert(l, old);
+            }
+        } else if !transferred(em, l)
+            && em
+                .stated_count(
+                    Tag::Retain,
+                    CountAt::Cold,
+                    CountPart::Local(super::shape::u32_of(l)),
+                )
+                .is_some()
+        {
+            let values: Vec<u32> = em.locals[&l]
+                .iter()
+                .map(|&v| {
+                    super::required(args[v as usize], "the parameter's arrival value was loaded")
+                })
+                .collect();
+            em.because(Reason::ByDesign, |em| em.release_locals(&values, ty))?;
+        }
+    }
+    // The cold constructor holds reference owners separately from argument
+    // values. The fresh body has zero-initialized owner temporaries, so its
+    // ordinary exit cannot release these saved cold counts.
+    for saved in em.frame_refs.clone() {
+        let reason = em.required_stated_count(
+            Tag::Release,
+            CountAt::Exit,
+            CountPart::Referent(super::shape::u32_of(saved.local)),
+        );
+        for (conditional, held) in saved.conditional.iter().copied().zip(saved.held) {
+            let (offset, value) = super::required(
+                positions[held as usize],
+                "saved cold referents have frame positions",
+            );
+            let owner = em.f.local(value);
+            em.f.get(FRAME);
+            em.f.op(load_op(value, offset));
+            em.f.set(owner);
+            em.because(reason, |em| em.release_frame_referent(owner, conditional));
+        }
+    }
+    em.f.i32(1);
+    for v in out {
+        em.f.get(v);
+    }
+    let mut f = std::mem::take(&mut em.f);
+    crate::task::guard_frame(&mut f);
+    Ok(f)
 }
 
 /// Sets (`on`) or clears flag bits `bits` of the frame in local 0.
@@ -2176,59 +2500,4 @@ fn set_flags(f: &mut crate::module::Func, bits: i32, on: bool) {
         f.op(I::I32And);
     }
     f.op(I::I32Store(mem(HEAP, F_FLAGS, 2)));
-}
-
-#[cfg(test)]
-mod origin_tests {
-    use super::*;
-
-    #[test]
-    fn resident_save_area_has_no_ephemeral_local_holes() {
-        for count in [100_u32, 1_000] {
-            let values = vec![Val::I64; count as usize];
-            let skip: Vec<u32> = (0..count - 2).collect();
-            let (area, size) = super::save_area(&values, &skip, 32);
-            assert_eq!(area, [(count - 2, 32, Val::I64), (count - 1, 40, Val::I64)]);
-            assert_eq!(size, 48);
-        }
-    }
-
-    #[test]
-    fn resident_spill_rewrites_get_set_tee_and_preserves_origins() {
-        let m = crate::module::Module::default();
-        let mut f = m.func("resident", vec![Val::I32], vec![]);
-        let value = f.local(Val::I32);
-        let base = f.local(Val::I32);
-        let stack = f.local(Val::I32);
-        f.body = vec![
-            Ins::LoadAll,
-            Ins::Op(I::LocalGet(value)),
-            Ins::Op(I::LocalTee(value)),
-            Ins::Op(I::LocalSet(value)),
-            Ins::Op(I::LocalGet(super::FRAME)),
-            Ins::SpillBase,
-            Ins::Op(I::Drop),
-        ];
-        f.origins = Some(vec![Some(10); 7]);
-        super::super::susp_spill::resident(
-            &mut f,
-            super::super::susp_spill::Plan {
-                area: &[(value, 32, Val::I32)],
-                selected: &[false, true, false, false],
-                start: 32,
-                size: 40,
-            },
-            base,
-            stack,
-            0,
-        );
-        assert!(
-            !f.body
-                .iter()
-                .any(|i| matches!(i, Ins::LoadAll | Ins::SpillBase))
-        );
-        assert!(!f.body.iter().any(|i| matches!(i,
-            Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) if *l == value)));
-        assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
-    }
 }

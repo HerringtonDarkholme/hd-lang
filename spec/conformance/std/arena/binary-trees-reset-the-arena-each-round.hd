@@ -1,0 +1,31 @@
+# test: binary trees allocate their nodes in a scratch arena that each round resets
+# Spec std Arena: std-arena.alloc, std-arena.reset.
+# expect-stdout: 93
+use std.arena.Arena
+
+struct Node['a]:
+    left: (&'a Node['a])?
+    right: (&'a Node['a])?
+
+fn make['a](arena: &'a Arena, depth: i32) -> &'a Node['a]:
+    if depth == 0:
+        return arena.alloc(Node { left: .None, right: .None })
+    l := make(arena, depth - 1)
+    r := make(arena, depth - 1)
+    arena.alloc(Node { left: .Some(l), right: .Some(r) })
+
+fn check(node: &Node) -> i64:
+    match (node.left, node.right):
+        (.Some(l), .Some(r)) => 1 + check(l) + check(r)
+        _ => 1
+
+pub fn rounds(depth: i32, n: usize) -> i64:
+    let mut scratch = Arena::new()
+    let mut total: i64 = 0
+    for _ in 0..n:
+        total += check(make(&scratch, depth))
+        scratch.reset()
+    total
+
+pub fn main() -> void $ Console:
+    println(rounds(4, 3))

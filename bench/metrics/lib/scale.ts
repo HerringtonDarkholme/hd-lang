@@ -90,6 +90,7 @@ interface Entry {
 const ENTRIES: Readonly<Record<string, Entry>> = {
   // Items.
   "fn-items": { construct: "functions" },
+  "bang-chain": { construct: "bang functions, each awaiting the next, all completing at once" },
   "struct-items": { construct: "structs and struct literals" },
   "enum-items": { construct: "enums and payload patterns" },
   "trait-items": { construct: "traits, impls and method calls" },
@@ -185,6 +186,10 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "bool-nest": { construct: "nested comparisons and logic", form: "nest", n: 8 },
   "bit-nest": { construct: "nested bitwise operators and shifts", form: "nest" },
   "tuple-nest": { construct: "nested tuple types, values and patterns", form: "nest" },
+  "tuple-nest-string": {
+    construct: "nested tuple types, values and patterns of `string` leaves",
+    form: "nest",
+  },
   "if-expr-nest": { construct: "nested inline `if` expressions", form: "nest", n: 8 },
   "call-nest": { construct: "nested calls", form: "nest" },
   "index-nest": { construct: "nested index expressions", form: "nest" },
@@ -192,16 +197,22 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "module-path-nest": {
     construct: "a module path one folder deeper per level",
     form: "nest",
-    files: (k) =>
-      new Map([
+    files: (k) => {
+      const dirs = range(k).map((index) => `d${number(index)}`);
+      // Each folder's mod.hd re-exports its child, since a module is private to its parent.
+      const facades = dirs.map((_, index): [string, string] => [
+        `src/${dirs.slice(0, index + 1).join("/")}/mod.hd`,
+        renderFixture("scale/module-path-nest-facade.hd.tmpl", {
+          module: ["pkg", ...dirs.slice(0, index + 1)].join("."),
+          child: dirs[index + 1] ?? "leaf",
+        }),
+      ]);
+      return new Map([
         ...single("module-path-nest")(k),
-        [
-          `src/${range(k)
-            .map((index) => `d${number(index)}/`)
-            .join("")}leaf.hd`,
-          renderFixture("scale/module-path-nest-leaf.hd.tmpl", {}),
-        ],
-      ]),
+        ...facades,
+        [`src/${dirs.join("/")}/leaf.hd`, renderFixture("scale/module-path-nest-leaf.hd.tmpl", {})],
+      ]);
+    },
   },
 };
 
@@ -223,6 +234,7 @@ export const TEMPLATES: readonly string[] = [
   "scale/modules-module.hd.tmpl",
   "scale/use-names-items.hd.tmpl",
   "scale/module-path-nest-leaf.hd.tmpl",
+  "scale/module-path-nest-facade.hd.tmpl",
 ];
 
 if (import.meta.main) {

@@ -1,0 +1,18 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# expected: 2 then 3; distinct generic instances keep their full lifted code identities.
+use std.meta.inline
+use std.meta.Wire
+
+@inline(.Never)
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+@inline(.Never)
+fn apply[T](_ignored: T, n: i32) -> i32:
+    # subject
+    run(fn() -> i32: n + 1)
+
+pub fn main() -> void $ Console:
+    println(apply(+0, +1))
+    println(apply(0u64, +2))

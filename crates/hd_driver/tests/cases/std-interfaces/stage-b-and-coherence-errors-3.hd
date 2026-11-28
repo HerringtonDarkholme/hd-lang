@@ -13,3 +13,5 @@ impl[T] Shape for Box[T]:
 impl Shape for Box[i32]:
     fn area(self) -> i32:
         2
+# @file: a/mod.hd
+pub use pkg.a.{x}

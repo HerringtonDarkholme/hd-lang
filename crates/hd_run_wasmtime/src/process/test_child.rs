@@ -15,7 +15,7 @@ use crate::test_engine::TestEnvironment;
 use hd_run::{Grants, Instance, Outcome};
 
 /// `Process.run!` of a named test child: refused at once, or running.
-pub(crate) enum Start {
+pub enum Start {
     /// The grant, the name or the thread refused: the encoded result.
     Ready(Enc),
     /// The child runs on its own thread.
@@ -27,7 +27,7 @@ pub(crate) enum Start {
 /// A child instance running on its own big-stack thread. A child needs the
 /// stack of a test engine's thread, which a tokio task does not have, so
 /// the thread delivers its result to a task that waits for it.
-pub(crate) struct ChildRun {
+pub struct ChildRun {
     /// Set to interrupt the child: its host checks it at every host call,
     /// in its waits and at epoch ticks, so the thread ends promptly.
     stop: Arc<AtomicBool>,
@@ -46,7 +46,7 @@ impl Drop for StopOnDrop {
 impl ChildRun {
     /// The task: waits for the child's result. Aborting it drops the wait,
     /// which interrupts the child, and its late result goes nowhere.
-    pub(crate) async fn wait(self) -> Done {
+    pub async fn wait(self) -> Done {
         let _stop = StopOnDrop(self.stop);
         match self.result.await {
             Ok(done) => done,
@@ -56,8 +56,9 @@ impl ChildRun {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn stop_flag(&self) -> Arc<AtomicBool> {
+    #[cfg(feature = "testing")]
+    #[must_use]
+    pub fn stop_flag(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.stop)
     }
 }
@@ -71,12 +72,13 @@ pub(crate) fn not_run(error: &str) -> Enc {
 
 /// `run.start` of a test case's child: the grant and the name are checked
 /// here, and an accepted child starts on its thread.
-pub(crate) fn start(
+pub fn start(
     bytes: &[u8],
     grants: &Grants,
     environment: &TestEnvironment,
     env_overlay: &[(String, String)],
     deadline: Option<Instant>,
+    inherit: bool,
 ) -> wasmtime::Result<Start> {
     let call = Command::dec(&mut Dec::new(bytes))?;
     if !grants.covers_name("Process", &call.program) {
@@ -101,12 +103,18 @@ pub(crate) fn start(
     let mut overlay = env_overlay.to_vec();
     overlay.extend(call.env);
     let (name, args, input) = (call.program, call.args, call.stdin.into_bytes());
-    let (engine, module, child_grants) = match &child.code {
+    let (engine, module, child_grants, c) = match &child.code {
         crate::test_engine::engine::NamedCode::Native {
             engine,
             module,
             grants,
-        } => (Arc::clone(engine), Arc::clone(module), grants.clone()),
+            c,
+        } => (
+            Arc::clone(engine),
+            Arc::clone(module),
+            grants.clone(),
+            Arc::clone(c),
+        ),
         crate::test_engine::engine::NamedCode::Command {
             program,
             args: prefix,
@@ -114,6 +122,7 @@ pub(crate) fn start(
             let mut arguments = prefix.clone();
             arguments.extend(args);
             return Ok(Start::Process(super::native::Request {
+                inherit,
                 name,
                 program: program.clone(),
                 argv: arguments,
@@ -134,12 +143,14 @@ pub(crate) fn start(
                 &engine,
                 &module,
                 ChildInput {
+                    inherit,
                     name,
                     args,
                     input,
                     cwd,
                     env: overlay,
                     grants: child_grants,
+                    c,
                 },
                 deadline,
                 interrupt,
@@ -154,6 +165,7 @@ pub(crate) fn start(
 }
 
 struct ChildInput {
+    inherit: bool,
     name: String,
     args: Vec<String>,
     input: Vec<u8>,
@@ -161,6 +173,8 @@ struct ChildInput {
     /// The pairs the command added to the environment, after the parent's.
     env: Vec<(String, String)>,
     grants: Grants,
+    /// The libraries of the child's C-bound root traits.
+    c: Arc<[crate::native::c::Library]>,
 }
 
 /// Runs the child to its end on the current thread: its encoded result, or
@@ -180,9 +194,21 @@ fn run(
     let result = {
         let mut host = Host::new(
             HostIo {
-                out: Box::new(out.clone()),
-                err: Box::new(err.clone()),
-                input: Some(Box::new(Cursor::new(child.input))),
+                out: if child.inherit {
+                    Box::new(std::io::stdout())
+                } else {
+                    Box::new(out.clone())
+                },
+                err: if child.inherit {
+                    Box::new(std::io::stderr())
+                } else {
+                    Box::new(err.clone())
+                },
+                input: if child.inherit {
+                    Some(Box::new(std::io::BufReader::new(std::io::stdin())))
+                } else {
+                    Some(Box::new(Cursor::new(child.input)))
+                },
             },
             child.args,
             name.clone(),
@@ -190,6 +216,7 @@ fn run(
             None,
         );
         host.env_overlay = child.env;
+        host.c_libraries = child.c;
         host.environment = Some(TestEnvironment {
             cwd: child.cwd,
             program: name.clone(),

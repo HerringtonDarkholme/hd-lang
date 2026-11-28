@@ -1,0 +1,19 @@
+use std.crypto.aes.Aes
+use std.crypto.cipher.Gcm
+use std.crypto.rand.fill
+use std.random.Random
+use std.testing.{assert, assert_equal}
+
+pub fn main() -> void $ Console + Random:
+    key := Aes::new([for index in 0..32 => u8(index)]).unwrap()
+    mode := Gcm::[Aes].new(key).unwrap()
+    nonce := fill(12)
+    plain := [u8(104), 100, 32, 71, 67, 77]
+    associated := [u8(1), 2, 3]
+    sealed := mode.seal(nonce, plain, associated)
+    opened := mode.open(nonce, sealed, associated).unwrap()
+    assert_equal(opened, plain, reason="AES-GCM round trip")
+    let mut corrupted = sealed
+    corrupted[0] = corrupted[0] ^ 1
+    assert(mode.open(nonce, corrupted, associated).is_err(), reason="tamper rejected")
+    println("AES-GCM round trip: 6 bytes; tamper rejected")

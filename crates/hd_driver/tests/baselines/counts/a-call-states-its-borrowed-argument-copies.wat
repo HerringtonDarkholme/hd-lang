@@ -7,7 +7,7 @@
   (import "fixture" "rt:list_unique'3" (func $rt:list_unique'3 (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 15 funcref))
   (func $"store[i32]" (param $value i32) (param $into i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 8 |     into.push(value)

@@ -1,0 +1,22 @@
+# @dump: functions
+# @build: dev | release
+# `close!` through `&mut dyn Closer`: the drive slot of an
+# implementation that completes at once calls its body, so no frame is
+# made and no `.poll`, `.cancel` or `.drop` is linked (#2419).
+trait Closer:
+    fn close!(&mut self) -> i32
+
+struct Mem:
+    n: i32
+
+impl Closer for Mem:
+    fn close!(&mut self) -> i32:
+        self.n = self.n + 1
+        self.n
+
+fn close_it!(c: &mut dyn Closer) -> i32:
+    c.close!()
+
+pub fn main!() -> void $ Console:
+    let mut m = Mem { n: 1 }
+    println("${close_it!(&mut m)}")

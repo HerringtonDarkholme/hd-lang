@@ -1,6 +1,6 @@
 # test: member lines in a derivation block edit the Structure that the derivation sees
 # Spec 14 Derivation Blocks: annot.block.lines.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

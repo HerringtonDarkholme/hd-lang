@@ -1,0 +1,9 @@
+# @dump: diagnostics
+trait Left:
+    fn left(&self) -> i32
+
+trait Right:
+    fn right(&self) -> i32
+
+fn mismatch() -> i32 $ Left + Right:
+    $.use(Left, Right)

@@ -2,7 +2,7 @@
 # Spec 14 Templates: annot.template.module.
 # fixture-package-tree: template-reexport/src/counting.hd
 pub use pkg.size.{Size}
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 struct Count:
     n: i32

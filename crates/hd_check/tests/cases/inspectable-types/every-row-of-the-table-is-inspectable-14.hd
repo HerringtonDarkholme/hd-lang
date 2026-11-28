@@ -2,7 +2,7 @@
 # The primitives and `string`, the declared types applied to inspectable
 # arguments, the collections, tuples, dynamic values of `Inspectable` or
 # a subtrait, and the trait values and `Any` as type arguments.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

@@ -1,0 +1,14 @@
+# @dump: wat
+# A `using!` binding of `*mut dyn Pool[i32]`: `dispose!` is
+# `AsyncDisposable`'s, whose rows-only trait has a drive slot in the
+# parent vtable. The shielded point steps it, keeps a Pending frame as
+# its child, and polls that on a resume; under `abandon()` it cancels the
+# child and a fresh one loses its count (#2419).
+use std.ops.AsyncDisposable
+
+trait Pool[T] < AsyncDisposable:
+    fn size(&self) -> T
+
+fn hold!(pool: *mut dyn Pool[i32]) -> i32:
+    using! held = pool
+    held.size()

@@ -1,0 +1,15 @@
+use std.console.{ConsoleInput, stdin}
+use std.encoding.json.{Json, StreamError, decode_stream}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    let mut values = decode_stream(stdin())
+    while true:
+        let next: Result[Json, StreamError]? = values.next!()
+        match next:
+            .Some(.Ok(value)) => println("value $value")
+            .Some(.Err(error)) =>
+                println("error: $error")
+                break
+            .None =>
+                println("end")
+                break

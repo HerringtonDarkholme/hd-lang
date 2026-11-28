@@ -22,13 +22,8 @@ pub use walk::{BindingEvent, Cx, Event, Events, binding_name, walk};
 
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
 pub const UNSELECTED_MAIN: &str = Code::UnselectedMain.as_str();
-pub const UNREACHABLE: &str = Code::UnreachableCode.as_str();
-pub const UNUSED_DEBUG: &str = Code::UnusedDebugText.as_str();
-pub const REDUNDANT_MUT: &str = Code::RedundantLetMut.as_str();
-pub const VARIANT_BINDING: &str = Code::VariantBindingNameMismatch.as_str();
 pub const UNUSED_BINDING: &str = Code::UnusedLocalBinding.as_str();
 pub const UNSIGNED_COMPARISON: &str = Code::UnsignedComparisonAlways.as_str();
-pub const UNBOUND_DISPOSABLE: &str = Code::UnboundDisposable.as_str();
 
 /// One stable lint entry: identity, default policy, requested events and check.
 #[derive(Clone, Copy, Debug)]

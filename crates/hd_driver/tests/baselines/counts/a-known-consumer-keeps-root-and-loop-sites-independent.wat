@@ -12,7 +12,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     println(mixed(["a", "bb"])) # prints: 12
     i32.const 2
@@ -68,7 +68,7 @@
     i32.add
     i32.store $heap
   )
-  (func $mixed (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
+  (func $mixed (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $t2 i32)
     ;; 12 |     let total: usize = 0
     global.get $stack
     global.get $stack_limit
@@ -94,43 +94,41 @@
     i32.const 0
     i32.store $heap
     ;; 13 |     for _ in 0..3:
-    i32.const 3
-    local.set $t1
     block
       loop
-        local.get $t2
         local.get $t1
+        i32.const 3
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
         local.get $xs
         i32.const 3
         i32.const 4
         i32.const -2147483647
         call $rt:new/class-1
-        local.tee $t3
+        local.tee $x.1
         local.get $total
         i32.store $heap
-        local.get $t3
+        local.get $x.1
         call $rt:retain_fields
-        local.get $t3
+        local.get $x.1
         call $"each[fn(string) -> ()]"
-        local.get $t3
+        local.get $x.1
     ;; 13 |     for _ in 0..3:
         if
-          local.get $t3
+          local.get $x.1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t3
+            local.get $x.1
             call $rt:release_ref'1
           end
         end
@@ -140,15 +138,15 @@
     ;; 15 |     each(xs, fn(x: string) -> void: total += x.len())
     local.get $xs
     i32.load $heap offset=4
-    local.set $t2
+    local.set $t1
     block
       loop
-        local.get $t4
         local.get $t2
+        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t4
+        local.get $t2
         local.get $xs
         i32.load $heap offset=4
         i32.ge_u
@@ -157,20 +155,20 @@
           unreachable
         end
         local.get $xs
-        local.get $t4
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t1
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $t1
+        local.get $x.1
         i32.load $heap offset=20
-        local.set $t1
+        local.set $x.1
         drop
-        local.get $t4
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t4
+        local.set $t2
         block
           br 0
           unreachable
@@ -178,7 +176,7 @@
         local.get $total
         local.get $total
         i32.load $heap
-        local.get $t1
+        local.get $x.1
         i32.add
         i32.store $heap
         br 0

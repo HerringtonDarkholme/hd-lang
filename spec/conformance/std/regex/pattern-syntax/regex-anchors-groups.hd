@@ -1,5 +1,5 @@
 # test: the anchors ^ and $, capture and plain groups, alternation, the empty pattern, and precedence
-# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin, std-regex.syntax.end, std-regex.syntax.anchor.text, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.number, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.pattern (tasks #243, #244).
+# Spec std/regex Anchors, Groups, And Alternation: std-regex.syntax.begin-context, std-regex.syntax.end-context, std-regex.syntax.anchor.modes, std-regex.syntax.group, std-regex.syntax.group.plain, std-regex.syntax.group.capture-numbering, std-regex.syntax.alternation, std-regex.syntax.empty, std-regex.syntax.precedence, std-regex.regex.pattern (tasks #243, #244).
 use std.regex.{Regex, Match}
 use std.text.r
 

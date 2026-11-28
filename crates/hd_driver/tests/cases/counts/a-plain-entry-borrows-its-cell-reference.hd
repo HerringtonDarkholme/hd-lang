@@ -11,6 +11,7 @@ impl Update[string] for Sink:
         self.text = value
 
 fn helper!() -> string:
+    pause!()
     let mut sink = Sink { text: "" }
     sink() = "helper"
     sink.text
@@ -20,3 +21,8 @@ pub fn main!() -> void $ Console:
     sink() = "kept"
     println(sink.text)
     _ := helper()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

@@ -1,0 +1,10 @@
+use std.meta.inline
+
+@inline(.Always)
+fn depth(n: i32) -> i32:
+    if n == 0:
+        return +0
+    depth(n - 1) + 1
+
+pub fn deep() -> i32:
+    depth(2)

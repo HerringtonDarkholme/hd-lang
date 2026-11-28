@@ -19,7 +19,10 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 ### Application and host
 
-- [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
+- [Native FFI](FFI.md): accepted 2026-11-27, not yet implemented (#2388): C as a provider kind for package `@host` traits; its first user is a terminal package (raw mode, size, keys), not std.
+- [Streaming Design](STREAMING_DESIGN.md): historical proposal for HTTP bodies,
+  process pipes and shared reader/writer helpers. Implemented file and stdin
+  reads use [`std.io.Read`](../../spec/std/io.md); the proposal's names are placeholders.
 
 ### Language and library
 

@@ -1,0 +1,18 @@
+# test: std.meta declares the Structure trait and its handle and helper types
+# Spec 14 The Structure Trait: annot.structure.decl.
+use std.meta.{
+    Structure,
+    Facts,
+    Member,
+    VariantInfo,
+    Field,
+    Variant,
+    Members,
+    Key,
+    Walker,
+    Describer,
+    Source,
+}
+
+fn kinds(facts: Facts, info: VariantInfo) -> (Facts, VariantInfo):
+    (facts, info)

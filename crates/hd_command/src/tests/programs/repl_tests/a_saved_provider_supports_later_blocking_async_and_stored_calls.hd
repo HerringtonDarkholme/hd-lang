@@ -1,0 +1,7 @@
+let clock: *mut dyn Clock = if true:
+    let provider: *mut dyn Clock = $.use(Clock)
+    _ := block_on(provider.sleep(ms(1)))
+    println("first")
+    provider
+else:
+    $.use(Clock)

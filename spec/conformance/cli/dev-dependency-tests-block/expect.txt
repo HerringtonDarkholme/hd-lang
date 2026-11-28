@@ -1,3 +1,6 @@
 # A tests block in a plain source module uses a dev dependency.
 run: hd test --format json
 stdout-json: [{"kind":"test","name":"counts the sample orders","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]
+# The test module src/lib_test.hd uses the dev dependency too.
+run: hd check --tests
+stderr: check result: ok.

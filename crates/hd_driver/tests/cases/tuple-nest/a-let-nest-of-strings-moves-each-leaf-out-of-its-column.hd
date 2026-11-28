@@ -1,0 +1,10 @@
+# @dump: own wat
+# #2402: each nested column of a moved tuple is read only by fields, so
+# its part moves name the column's words: no suffix copy, no `Empty`.
+# Rust's MIR moves each leaf out of `x` by one projection
+# (`_4 = move (((_1.1).1).0)`).
+fn moved(s: string) -> List[string]:
+    let x = (s, (s, (s, s)))
+    let (a0, (a1, (a2, z))) = x
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^
+    [a0, a1, a2, z]

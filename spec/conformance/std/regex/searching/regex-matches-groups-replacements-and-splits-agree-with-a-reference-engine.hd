@@ -355,7 +355,8 @@ fn item_matches(item: ClassItem, c: char) -> bool:
         .Range(low, high) => c >= low && c <= high
         .Digit(negated) => (c >= '0' && c <= '9') != negated
         .Word(negated) => word_char(c) != negated
-        .Space(negated) => c.is_whitespace() != negated
+        .Space(negated) =>
+            (c == '\t' || c == '\n' || c == '\u{c}' || c == '\r' || c == ' ') != negated
 
 fn word_char(c: char) -> bool:
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
@@ -646,15 +647,11 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
             start := hay.offsets[matched(slots, 0)]
             end := hay.offsets[matched(slots, 1)]
             lines.push(
-                (
-                    "replace "
-                    + debug(
-                        (
-                            text.slice(0, start)
-                            + old_expand(hay, slots, names, pieces)
-                            + text.slice(end, text.len())
-                        ),
-                    )
+                "replace "
+                + debug(
+                    text.slice(0, start)
+                    + old_expand(hay, slots, names, pieces)
+                    + text.slice(end, text.len()),
                 ),
             )
         .None =>

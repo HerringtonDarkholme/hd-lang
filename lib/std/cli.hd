@@ -1,15 +1,16 @@
-# std.cli: a mutable declaration builder and private parsed results.
+# std.cli: the command line: the host capability `Args` with its helper and
+# deterministic provider (spec/std/cli.md#program-arguments), and a mutable
+# declaration builder with private parsed results.
 use std.cmp.max
 use std.format.DebugWriter
 use std.error.Error
-use std.host.Args
 use std.text.{Parse, StringBuilder}
 use std.process.ExitCode
 use std.console.eprintln
-use std.structure.{Structure, Describer, Source, Variant, Field, Members, Key}
+use std.meta.{Structure, Describer, Source, Variant, Field, Members, Key}
 use std.path.Path
 use std.time.Duration
-use std.annotation.annotate
+use std.meta.annotate
 
 @derive(Eq)
 pub enum ArgKind:
@@ -145,32 +146,52 @@ impl ArgParser:
             if argument == "--":
                 only_positionals = true
                 continue
-            let written = argument
-            let attached: string? = .None
-            if argument.starts_with("--"):
-                match argument.split_once("="):
-                    .Some((before, after)) =>
-                        written = before
-                        attached = .Some(after)
-                    .None => pass
-            slot := match self.options.get(written):
-                .None => return .Err(CliError.UnknownOption(written))
-                .Some(found) => found
-            option := self.declarations[slot]
-            if option.kind == .Flag:
-                if attached.is_some():
-                    return .Err(CliError.UnexpectedValue(option.name))
-                flags[option.name] = true
-                if option.repeated:
-                    flag_counts[option.name] = flag_counts.get(option.name).unwrap_or(0) + 1
-            else:
-                match attached:
-                    .Some(value) => store_value(option, value, &mut values, &mut histories)?
-                    .None =>
-                        if index >= arguments.len():
-                            return .Err(CliError.MissingValue(option.name))
-                        store_value(option, arguments[index], &mut values, &mut histories)?
-                        index = index + 1
+            short_group := !argument.starts_with("--")
+            let mut shorts = argument.chars()
+            _ := shorts.next() # The first dash, shared by both forms.
+            let short_end = 1
+            while true:
+                let written = argument
+                let attached: string? = .None
+                if short_group:
+                    letter := match shorts.next():
+                        .Some(letter) => letter
+                        .None => break
+                    written = "-$letter"
+                    short_end += written.len() - 1
+                    if written == "-h":
+                        return .Err(CliError.Help(self.usage()))
+                else:
+                    match argument.split_once("="):
+                        .Some((before, after)) =>
+                            written = before
+                            attached = .Some(after)
+                        .None => pass
+                slot := match self.options.get(written):
+                    .None => return .Err(CliError.UnknownOption(written))
+                    .Some(found) => found
+                option := self.declarations[slot]
+                if short_group && option.kind == .Option && short_end < argument.len():
+                    rest := argument.slice(short_end, argument.len())
+                    attached = .Some(rest.strip_prefix("=").unwrap_or(rest))
+                if option.kind == .Flag:
+                    if attached.is_some():
+                        return .Err(CliError.UnexpectedValue(option.name))
+                    flags[option.name] = true
+                    if option.repeated:
+                        flag_counts[option.name] = flag_counts.get(option.name).unwrap_or(0) + 1
+                else:
+                    match attached:
+                        .Some(value) => store_value(option, value, &mut values, &mut histories)?
+                        .None =>
+                            if index >= arguments.len():
+                                return .Err(CliError.MissingValue(option.name))
+                            store_value(option, arguments[index], &mut values, &mut histories)?
+                            index = index + 1
+                # Like clap, the first value-taking short owns the remainder;
+                # only value-free shorts continue through the same iterator.
+                if !short_group || option.kind != .Flag:
+                    break
         if self.commands.len() > 0 && self.command_required && selected.is_empty():
             return .Err(CliError.MissingCommand)
         for arg in self.declarations:
@@ -883,3 +904,38 @@ impl Cli for Duration:
 
     fn read(parsed: Parsed, arg: Arg) -> Result[Duration, CliError]:
         read_scalar::[Duration](parsed, arg)
+
+# The program's own arguments, which `parse_args` reads. These stay last so
+# they change no existing item ID.
+## The host capability to read the process's arguments.
+## See [std-cli.args.decl](../../spec/std/cli.md#r-std-cli.args.decl).
+pub trait Args:
+    fn program(self) -> string
+    fn list(self) -> List[string]
+
+## The process's arguments after the program name.
+## See [std-cli.args.helper](../../spec/std/cli.md#r-std-cli.args.helper).
+pub fn args() -> List[string] $ Args:
+    $.use(Args).list()
+
+# The deterministic `Args` (spec/std/cli.md#program-arguments):
+# it returns the program name and the arguments it was made with.
+## The deterministic `Args` provider: a fixed list of arguments, with no host access.
+## See [std-cli.scripted-args.decl](../../spec/std/cli.md#r-std-cli.scripted-args.decl).
+@derive(Debug)
+pub struct ScriptedArgs:
+    program: string
+    values: List[string]
+
+impl ScriptedArgs:
+    ## Returns the provider whose arguments are `program` then `values`.
+    ## See [std-cli.scripted-args.new](../../spec/std/cli.md#r-std-cli.scripted-args.new).
+    pub fn new(program: string, values: List[string]) -> ScriptedArgs:
+        ScriptedArgs { program: program, values: values }
+
+impl Args for ScriptedArgs:
+    fn program(self) -> string:
+        self.program
+
+    fn list(self) -> List[string]:
+        self.values

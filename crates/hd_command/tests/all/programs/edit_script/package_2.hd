@@ -1,0 +1,4 @@
+use pkg.shop.labels.{label}
+
+it("labels"):
+    println(label(1))

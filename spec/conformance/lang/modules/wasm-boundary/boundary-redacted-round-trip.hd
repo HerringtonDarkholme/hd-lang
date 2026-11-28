@@ -2,7 +2,7 @@
 # Spec Modules, Private Fields At A Boundary: module.boundary.serialize.exact, module.boundary.deserialize.exact.
 # Spec 14 Serialization: annot.serde.by-hand, annot.serde.definition.
 # fixture-runtime-profile: serde-vault
-use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
+use std.encoding.{Serialize, Serializer, Deserialize, Deserializer}
 use std.testing.assert_equal
 
 pub struct Token:

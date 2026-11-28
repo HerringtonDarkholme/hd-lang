@@ -2,9 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "append" (func $append (param i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
+  (import "fixture" "append" (func $append (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $drive (param $log i32) (param $alias i32) (result i32) (local $t0 i32)
     ;; 13 |     match block_on(append(log, alias)):
@@ -37,12 +35,10 @@
       local.set $t0
     end
     call $rt:forbid_check
-    i32.const 0
     local.get $log
     local.get $alias
     call $append
     local.set $log
-    local.set $alias
     local.get $t0
     if
       local.get $t0
@@ -53,31 +49,18 @@
       i32.store $heap
     end
     i32.const 0
-    local.set $t0
-    local.get $log
-    if
-      local.get $log
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $log
-        call $rt:release_ref
-      end
-    end
+    local.set $alias
     block
       block
     ;; 14 |         .Completed(value) => value
-        local.get $t0
+        local.get $alias
         br_if 1
         br 0
     ;; 13 |     match block_on(append(log, alias)):
         unreachable
       end
     ;; 14 |         .Completed(value) => value
-      local.get $alias
+      local.get $log
     ;; 13 |     match block_on(append(log, alias)):
       return
     end

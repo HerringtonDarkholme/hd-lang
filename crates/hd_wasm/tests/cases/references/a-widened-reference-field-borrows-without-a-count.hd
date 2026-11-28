@@ -2,7 +2,7 @@
 # @build: v8 release
 # Loading either a local or counted trait reference for a local result
 # borrows its payload. Only an explicit ownership retain acquires a count.
-use std.annotation.cold
+use std.meta.cold
 
 trait Base:
     fn read(&self) -> i32

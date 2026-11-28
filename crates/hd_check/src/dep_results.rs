@@ -78,8 +78,7 @@ const PATH: u32 = 1 << 30;
 /// layout slot, and its text as written.
 pub(super) struct OwnPath {
     param: u32,
-    /// The place steps from the parameter's referent: each field, and a
-    /// dereference after a `*T` or `*mut T` field (`ref.result.path.counted`).
+    /// The place steps from the parameter's referent: each field.
     steps: Vec<Proj>,
     slot: usize,
     text: String,
@@ -750,7 +749,7 @@ fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
 
 /// Which slot of a declared type a slot of its instance is ([`line_up`]).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Key {
+pub enum Key {
     /// The declared type's slot `k`.
     Decl(usize),
     /// Slot `s` of what type parameter `p` stands for, a function type's
@@ -768,7 +767,7 @@ enum Key {
 
 /// Lines the instantiated type `t` up with the declared `d`: the [`Key`]
 /// of each slot of `t`, in [`Layout`] order. `None` where the shapes differ.
-fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
+pub fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
     line_up_in(ls, d, t, false)
 }
 
@@ -787,7 +786,7 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
     line_up_with(ls, d, t, call, || {})
 }
 
-fn line_up_with(
+pub fn line_up_with(
     ls: &Layouts<'_>,
     d: Ty,
     t: Ty,
@@ -1254,7 +1253,7 @@ struct FieldMap {
 
 /// The slot layouts of the types one check meets, and the slot maps of
 /// the fields it projects, each made once.
-pub(crate) struct Layouts<'a> {
+pub struct Layouts<'a> {
     pool: Types<'a>,
     /// `Suspend`'s definition.
     suspend: DefId,
@@ -1270,7 +1269,7 @@ pub(crate) struct Layouts<'a> {
 }
 
 impl<'a> Layouts<'a> {
-    pub(crate) fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
+    pub fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
         Layouts {
             pool,
             suspend,
@@ -1635,7 +1634,7 @@ const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the c
 /// suspension holds: every argument but a counted reference the call
 /// lends (`ref.dep.suspension`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Var {
+pub enum Var {
     Life(u32),
     Param(ParamRef, usize),
     Held,
@@ -1654,13 +1653,13 @@ type ArgSlot = (Var, Option<Category>);
 
 /// Equivalence classes of the existing call-slot variables, indexed once.
 /// Polonius-style origin sets remain distinct unless the checker links them.
-struct CallOrigins {
+pub(crate) struct CallOrigins {
     classes: HashMap<Var, u32>,
-    returned: HashSet<Var>,
+    pub(crate) returned: HashSet<Var>,
 }
 
 /// O(input/output slots + links), with an iterative component worklist.
-fn call_origins(
+pub(crate) fn call_origins(
     inputs: &[Var],
     outs: &[Vec<Var>],
     bare: &[Var],
@@ -1723,280 +1722,6 @@ fn call_origins(
         }
     }
     CallOrigins { classes, returned }
-}
-
-#[cfg(test)]
-mod returned_variable_tests {
-    use super::*;
-
-    #[test]
-    fn linked_origins_are_indexed_in_linear_width_and_depth() {
-        for depth in [1u32, 20] {
-            let mut small = 0;
-            for width in [1_000u32, 10_000] {
-                let mut links = Vec::new();
-                for branch in 0..width {
-                    let mut previous = Var::Life(0);
-                    for level in 0..depth {
-                        let next = Var::Life(1 + branch * depth + level);
-                        links.push((previous, next));
-                        previous = next;
-                    }
-                }
-                let mut work = 0;
-                let result =
-                    call_origins(&[], &[vec![Var::Life(0)]], &[], &links, || work += 1).returned;
-                assert_eq!(result.len(), (width * depth + 1) as usize);
-                assert!(!result.contains(&Var::Held));
-                if width == 1_000 {
-                    small = work;
-                } else {
-                    assert!(work <= 10 * small);
-                }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod line_up_tests {
-    use super::*;
-    use hd_types::{InternPool, ParamRef};
-
-    fn tuple(pool: &InternPool, elems: &[Ty]) -> Ty {
-        pool.product(pool.list(elems), None)
-    }
-
-    #[test]
-    fn doubling_pairs_are_checked_once() {
-        let pool = InternPool::new();
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        for depth in [13, 26] {
-            let mut pair = [Ty::I32, Ty::BOOL];
-            for _ in 0..depth {
-                pair = pair.map(|t| tuple(&pool, &[t, t]));
-            }
-            for call in [false, true] {
-                let mut work = 0;
-                let keys = line_up_with(&ls, pair[0], pair[1], call, || work += 1);
-                assert_eq!(keys, Some(Vec::new()));
-                assert_eq!(work, depth + 1);
-            }
-            let mismatch = tuple(&pool, &[pair[1], pair[1], Ty::I32]);
-            assert!(line_up(&ls, pair[0], mismatch).is_none());
-        }
-    }
-
-    #[test]
-    fn repeated_pairs_rebase_declared_slots_but_keep_parameter_keys() {
-        let pool = InternPool::new();
-        let p = ParamRef {
-            owner: DefId::from_raw(1),
-            index: 0,
-        };
-        let param = pool.intern_ty(&TyData::Param(p));
-        let r = pool.intern_ty(&TyData::Ref {
-            inner: Ty::I32,
-            mutable: false,
-            counted: false,
-        });
-        let d = tuple(&pool, &[r, param]);
-        let t = tuple(&pool, &[r, r]);
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        assert_eq!(
-            line_up(&ls, tuple(&pool, &[d, d]), tuple(&pool, &[t, t])),
-            Some(vec![
-                Key::Decl(0),
-                Key::Param(p, 0),
-                Key::Decl(1),
-                Key::Param(p, 0)
-            ])
-        );
-        let wide = tuple(&pool, &vec![r; 1_000]);
-        assert_eq!(
-            line_up(&ls, wide, wide),
-            Some((0..1_000).map(Key::Decl).collect())
-        );
-    }
-
-    #[test]
-    fn a_cached_pair_still_obeys_the_type_depth_limit() {
-        let pool = InternPool::new();
-        let shallow = tuple(&pool, &[Ty::I32]);
-        let mut deep = shallow;
-        for _ in 0..hd_base::limits::TYPE_DEPTH {
-            deep = tuple(&pool, &[deep]);
-        }
-        let root = tuple(&pool, &[shallow, deep]);
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        assert!(line_up(&ls, root, root).is_none());
-    }
-
-    /// [`line_up`] keys a type on its own stack: a declared type 1,000
-    /// levels deep, a local reference beside the next level at each, with
-    /// a type parameter at the bottom, lines up with its instance on a
-    /// 96 KiB thread.
-    #[test]
-    fn a_line_up_at_the_type_depth_fits_a_small_stack() {
-        std::thread::Builder::new()
-            // cost: one 96 KiB thread for this test.
-            .stack_size(96 << 10)
-            .spawn(|| {
-                let pool = InternPool::new();
-                let r = pool.intern_ty(&TyData::Ref {
-                    inner: Ty::I32,
-                    mutable: false,
-                    counted: false,
-                });
-                let p = ParamRef {
-                    owner: DefId::from_raw(1),
-                    index: 0,
-                };
-                let mut deep = (pool.intern_ty(&TyData::Param(p)), r);
-                for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    let pair = |x| pool.product(pool.list(&[r, x]), None);
-                    deep = (pair(deep.0), pair(deep.1));
-                }
-                let lifetimed = |_: DefId| false;
-                let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-                let keys = line_up(&ls, deep.0, deep.1).expect("the two line up");
-                let n = hd_base::limits::TYPE_DEPTH as usize;
-                assert_eq!(keys.len(), n);
-                assert_eq!(keys[n - 2], Key::Decl(n - 2));
-                assert_eq!(keys[n - 1], Key::Param(p, 0));
-            })
-            .expect("thread")
-            .join()
-            .expect("no stack overflow");
-    }
-}
-
-#[cfg(test)]
-mod projection_lifetime_tests {
-    use super::*;
-    use hd_resolve::{Generic, Item, TraitData};
-    use hd_types::{ParamRef, TyList};
-
-    #[test]
-    fn a_thousand_projection_lifetimes_share_bound_queries_on_a_small_stack() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated projection-chain test.
-            .spawn(|| {
-                for lifetime in [0, 7] {
-                    crate::body::with_checker_items(
-                        |names| {
-                            let p = names.pool.types();
-                            let shelf = names.item("app.main", "Shelf");
-                            let out = names.member(shelf, hd_intern::PathKind::Member, "Out");
-                            let holder = names.item("app.main", "Holder");
-                            let bound = p.intern_ty(&TyData::TraitValue {
-                                def: shelf,
-                                args: p.list(&[hd_resolve::lifetime_arg(p)]),
-                                bindings: Vec::new(),
-                            });
-                            let mut life = Generic::plain(names.syms.intern("a"));
-                            life.lifetime = true;
-                            let mut tr = Item::new(
-                                shelf,
-                                names.syms.intern("Shelf"),
-                                true,
-                                ItemData::Trait(TraitData::default()),
-                            );
-                            tr.generics.push(life);
-                            let associated = Item::new(
-                                out,
-                                names.syms.intern("Out"),
-                                true,
-                                ItemData::AssocType {
-                                    owner: shelf,
-                                    bounds: vec![bound],
-                                    bound_lifetimes: vec![vec![1]],
-                                },
-                            );
-                            let mut t = Generic::plain(names.syms.intern("T"));
-                            t.bounds.push(bound);
-                            t.bound_lifetimes.push(vec![lifetime]);
-                            let mut root = Item::new(
-                                holder,
-                                names.syms.intern("Holder"),
-                                true,
-                                ItemData::Builtin,
-                            );
-                            root.generics.push(t);
-                            vec![tr, associated, root]
-                        },
-                        |ck| {
-                            let p = ck.pool();
-                            let shelf = ck.cx.names.item("app.main", "Shelf");
-                            let assoc =
-                                ck.cx
-                                    .names
-                                    .member(shelf, hd_intern::PathKind::Member, "Out");
-                            let owner = ck.cx.names.item("app.main", "Holder");
-                            let other = ck.cx.names.item("app.main", "Other");
-                            let lifetimed = |_: DefId| false;
-                            let ls = Layouts::new(p, ck.cx.names.known.suspend, &lifetimed);
-                            for depth in [100, 1000] {
-                                let mut root =
-                                    p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-                                for _ in 0..depth {
-                                    root = p.intern_ty(&TyData::Assoc {
-                                        assoc,
-                                        trait_: shelf,
-                                        self_ty: root,
-                                        args: p.list(&[hd_resolve::lifetime_arg(p)]),
-                                    });
-                                }
-                                let wanted = if lifetime == 0 {
-                                    Vec::new()
-                                } else {
-                                    vec![u32::from(lifetime)]
-                                };
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.proj_lifetimes(&ls, root)
-                                    ),
-                                    (wanted, 2 * depth + 1)
-                                );
-                                let mut memo = HashMap::default();
-                                let ids = if lifetime == 0 {
-                                    Vec::new()
-                                } else {
-                                    vec![vec![u32::from(lifetime)]]
-                                };
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
-                                    ),
-                                    (ids.clone(), depth + 1)
-                                );
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
-                                    ),
-                                    (ids, 0)
-                                );
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, other, &mut memo)
-                                    ),
-                                    (Vec::<Vec<u32>>::new(), 1)
-                                );
-                                let scalar = p.product(TyList::EMPTY, None);
-                                assert!(ck.proj_lifetimes(&ls, scalar).is_empty());
-                            }
-                        },
-                    );
-                }
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
 }
 
 /// A call's map over the types it instantiates (`ref.generic.call`).
@@ -2685,6 +2410,10 @@ enum Origin {
     /// it lives while a value holding it does (`ref.excl.alias.loan`).
     /// Never a diagnostic.
     Lent(u32),
+    /// A reference made through the counted reference that instruction
+    /// `h` reads: a guard loan local to the function, which never leaves
+    /// it, however long the function's own uses last (`ref.local.pointer`).
+    Through(u32),
 }
 
 /// The definition word of [`Origin::Static`] for a constant literal, which
@@ -3295,7 +3024,7 @@ impl Ck<'_, '_> {
                         (ChoiceKind::Impl, imp) => {
                             let targs = pool.list_items(targs);
                             let imp = DefId::from_raw(imp);
-                            self.impl_trait_slots(ls, imp, targs, &mut impl_links)
+                            self.impl_trait_slots(ls, imp, (self_ty, targs), &mut impl_links)
                         }
                         (ChoiceKind::TraitValue, _) => {
                             vec![self.trait_value_self_slots(ls, trait_, self_ty)]
@@ -4284,7 +4013,7 @@ impl Ck<'_, '_> {
     /// trait's arguments, and its base's own when the base is a projection
     /// too. Each slot of what it stands for takes them all, as a type
     /// parameter's slots take its bounds' (`ref.lifetime.trait.bound-argument`).
-    fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
+    pub(crate) fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
         let mut out = Vec::new();
         self.proj_lifetimes_into(ls, proj, &mut out);
         out.retain(|&l| l != 0);
@@ -4404,7 +4133,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn bound_ids_in(
+    pub(crate) fn bound_ids_in(
         &self,
         ls: &Layouts<'_>,
         self_ty: Ty,
@@ -4849,19 +4578,29 @@ impl Ck<'_, '_> {
     }
 
     /// For the trait's abstract `Self` and then each trait argument, as a
-    /// call through implementation `imp` instantiates them with `targs`,
-    /// the trait lifetime each slot's implementation lifetime is
-    /// (`ref.lifetime.trait`). The slots of one implementation lifetime
+    /// call through implementation `imp` instantiates them with `self_ty`
+    /// and `targs`, the trait lifetime each slot's implementation lifetime
+    /// is (`ref.lifetime.trait`). The slots of one implementation lifetime
     /// that is no trait lifetime are one variable, pushed to `links`: with
     /// `impl['b] Put[&'b Point] for Cell['b]`, `put(&mut self, v: V)`
     /// stores `v` in the target's `'b` slot (`ref.lifetime.trait.impl-argument`).
-    fn impl_trait_slots(
+    /// So are the slots of one slot of an implementation's type parameter:
+    /// with `impl[T] IndexSet[usize, T] for Holder[T]`, `r[k] = v` stores
+    /// `v` in `r`'s `T` (`ref.generic.store`, `expr.index.trait.write-ref`).
+    pub(crate) fn impl_trait_slots(
         &self,
         ls: &Layouts<'_>,
         imp: DefId,
-        targs: &[Ty],
+        (inst_self, targs): (Ty, &[Ty]),
         links: &mut Vec<(Var, Var)>,
     ) -> Vec<Vec<Option<u32>>> {
+        /// What an instance slot lies in: an implementation lifetime, or
+        /// slot `s` of what an implementation's type parameter stands for.
+        #[derive(Clone, Copy, PartialEq)]
+        enum Of {
+            Life(u32),
+            Param(ParamRef, usize),
+        }
         let Some(ItemData::Impl {
             trait_,
             trait_args,
@@ -4875,27 +4614,30 @@ impl Ck<'_, '_> {
             return Vec::new();
         };
         let pool = ls.pool;
-        let mut lts: Vec<Vec<u32>> = vec![
-            ls.slot_lifetimes(*self_ty, self_lifetimes)
-                .into_iter()
-                .map(u32::from)
-                .collect(),
+        let life = |l: u16| (l != 0).then_some(Of::Life(u32::from(l)));
+        let of = |decl: Ty, inst: Ty, ids: &[u16]| -> Option<Vec<Option<Of>>> {
+            let keys = line_up(ls, decl, inst)?;
+            Some(
+                (keys.into_iter())
+                    .map(|k| match k {
+                        Key::Decl(j) => ids.get(j).copied().and_then(life),
+                        Key::Param(q, s) => Some(Of::Param(q, s)),
+                        _ => None,
+                    })
+                    .collect(),
+            )
+        };
+        let ids = ls.slot_lifetimes(*self_ty, self_lifetimes);
+        let mut lts: Vec<Vec<Option<Of>>> = vec![
+            of(*self_ty, inst_self, &ids).unwrap_or_else(|| ids.iter().map(|&l| life(l)).collect()),
         ];
-        if !trait_slots.is_empty() {
-            let args = pool.list_items(*trait_args);
-            let mut at = 0;
-            for &a in args {
-                let end = at + pool.ref_slots(a);
-                let ids = ls.slot_lifetimes(a, trait_slots.get(at..end).unwrap_or(&[]));
-                at = end;
-                let inst = targs.get(lts.len() - 1).copied().unwrap_or(a);
-                let keys = line_up(ls, a, inst).unwrap_or_default();
-                let mine = keys.into_iter().map(|k| match k {
-                    Key::Decl(j) => ids.get(j).copied().map_or(0, u32::from),
-                    _ => 0,
-                });
-                lts.push(mine.collect());
-            }
+        let mut at = 0;
+        for &a in pool.list_items(*trait_args) {
+            let end = at + pool.ref_slots(a);
+            let ids = ls.slot_lifetimes(a, trait_slots.get(at..end).unwrap_or(&[]));
+            at = end;
+            let inst = targs.get(lts.len() - 1).copied().unwrap_or(a);
+            lts.push(of(a, inst, &ids).unwrap_or_default());
         }
         let at = |l: u32| {
             if l == STATIC {
@@ -4905,13 +4647,13 @@ impl Ck<'_, '_> {
                 .position(|&x| u32::from(x) == l && l != 0)
                 .map(|k| w(k + 1))
         };
-        let mut first: Vec<(u32, Var)> = Vec::new();
+        let mut first: Vec<(Of, Var)> = Vec::new();
         for (g, slots) in lts.iter().enumerate() {
             let index = u16::try_from(g).unwrap_or(u16::MAX);
-            for (s, &l) in slots.iter().enumerate() {
-                if l == 0 || at(l).is_some() {
+            for (s, &o) in slots.iter().enumerate() {
+                let Some(o) = o.filter(|&o| !matches!(o, Of::Life(l) if at(l).is_some())) else {
                     continue;
-                }
+                };
                 let v = Var::Param(
                     ParamRef {
                         owner: *trait_,
@@ -4919,14 +4661,21 @@ impl Ck<'_, '_> {
                     },
                     s,
                 );
-                match first.iter().find(|x| x.0 == l) {
+                match first.iter().find(|x| x.0 == o) {
                     Some(&(_, f)) => links.push((f, v)),
-                    None => first.push((l, v)),
+                    None => first.push((o, v)),
                 }
             }
         }
         (lts.iter())
-            .map(|slots| slots.iter().map(|&l| at(l)).collect())
+            .map(|slots| {
+                (slots.iter())
+                    .map(|o| match o {
+                        Some(Of::Life(l)) => at(*l),
+                        _ => None,
+                    })
+                    .collect()
+            })
             .collect()
     }
 
@@ -5310,6 +5059,9 @@ impl Ck<'_, '_> {
         {
             self.capture_source_error(self.b.body().item, f);
         }
+        // A result path that crosses a pointer is the one report for what
+        // the body returns through it (`ref.result.path.counted`).
+        let crossed = errs.iter().any(|e| e.1 == Code::LocalReferenceEscapes);
         // A function value in the result may carry captures with no source
         // (`ref.generic.outlives.read`) when no `fn(...)` parameter gives one.
         for (at, code, msg) in errs {
@@ -5382,14 +5134,69 @@ impl Ck<'_, '_> {
         let mut verdicts = constraints::solve(&s, &returns);
         let run_loans = std::mem::take(&mut verdicts.run_loans);
         let sigs = (own.as_ref(), mine.as_ref());
+        let fixes = self.pointer_result_fixes(&verdicts, fun);
         for (at, code, msg) in self.verdict_list(verdicts, sigs, fun, &paths) {
+            if crossed && fixes.contains_key(&at) {
+                continue;
+            }
             let node = self.cx.src.parse.tree.node(at);
             self.err(code, node, &msg);
+            if let Some((true, edits)) = fixes.get(&at) {
+                let edits: Vec<_> = edits.iter().map(|(s, t)| (*s, t.as_str())).collect();
+                (self.diags).add_fix(
+                    "return the pointer itself",
+                    hd_diag::FixSafety::Exact,
+                    &edits,
+                );
+            }
         }
         if !run_loans.0.is_empty() {
             self.run_loans = Some(run_loans);
         }
         Ok(())
+    }
+
+    /// For each returned value a reference made through a pointer, the
+    /// fix that returns the pointer: the result type `&mut T` (`&T`) as
+    /// `*mut T` (`*T`), and the value `&mut *p` (`&*p`) as `p`. Exact only
+    /// where the value is that form and the result type a direct one.
+    fn pointer_result_fixes(
+        &self,
+        v: &Verdicts,
+        fun: Option<NodeRef<'_>>,
+    ) -> HashMap<NodeIdx, (bool, Vec<(hd_base::Span, String)>)> {
+        let mut out = HashMap::default();
+        let Some(ret) = fun.and_then(Src::type_child) else {
+            return out;
+        };
+        let src = self.cx.src;
+        if ret.kind() != SyntaxKind::RefType {
+            return out;
+        }
+        let text = src.node_text(ret);
+        let inner = text.trim_start_matches('&').trim_start();
+        let inner = match inner.strip_prefix('\'') {
+            Some(named) => named.split_once(' ').map_or(named, |x| x.1).trim_start(),
+            None => inner,
+        };
+        let pointer = format!("*{inner}");
+        for &(at, o, _) in &v.results {
+            if at == NodeIdx::NONE || !matches!(o, Origin::Through(_)) {
+                continue;
+            }
+            let node = src.parse.tree.node(at);
+            let deref = (node.kind() == SyntaxKind::RefExpr)
+                .then(|| node.children().last())
+                .flatten()
+                .filter(|d| d.kind() == SyntaxKind::DerefExpr)
+                .and_then(|d| d.children().last());
+            let mut edits = vec![(src.span(ret), pointer.clone())];
+            if let Some(place) = deref {
+                edits.push((src.span(node), src.node_text(place).to_owned()));
+            }
+            out.insert(at, (deref.is_some(), edits));
+        }
+        out
     }
 
     /// Each argument a call lends to a local-reference parameter of its
@@ -5520,9 +5327,9 @@ impl Ck<'_, '_> {
     }
 
     /// The place steps of result path `fields` from parameter type `pty`:
-    /// each field, and a dereference where the next field is reached
-    /// through a `*T` or `*mut T` (`ref.result.path.fields`,
-    /// `ref.result.path.counted`).
+    /// each field (`ref.result.path.fields`). A step never crosses a `*T`
+    /// or `*mut T`, since a reference through it is local to the function
+    /// (`ref.result.path.counted`, `ref.local.pointer`).
     fn path_steps(
         &self,
         pty: Ty,
@@ -5532,14 +5339,12 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let (mut t, mut steps) = (referent(pool, pty), Vec::new());
         for &name in fields {
-            if let TyData::Ref {
-                inner,
-                counted: true,
-                ..
-            } = pool.get(self.resolved(t))
-            {
-                steps.push(Proj::Deref);
-                t = inner;
+            if let TyData::Ref { counted: true, .. } = pool.get(self.resolved(t)) {
+                let msg = format!(
+                    "a result path never crosses the pointer `{}`: a reference made through it is local to the function; return the pointer instead",
+                    self.show(t)
+                );
+                return Err((Code::LocalReferenceEscapes, msg));
             }
             let (j, next) = self.path_step(t, name, public)?;
             steps.push(Proj::Field(j));
@@ -5904,6 +5709,12 @@ impl Ck<'_, '_> {
                     None => format!("`{}` is another parameter", name(p)),
                 }
             }
+            Origin::Hidden(h) if body.provider_ref(h as usize) => {
+                format!("the value refers to a provider from `$.use`, a local of {f}")
+            }
+            Origin::Through(_) => format!(
+                "the value is a reference made through a pointer, a local loan of {f}; return the pointer itself"
+            ),
             Origin::Hidden(_) | Origin::Site(_) | Origin::Lent(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }

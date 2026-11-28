@@ -46,8 +46,6 @@ tests:
         lo32 := negative32.min(f32(0)).to_bits()
         hi32 := f32(0).max(negative32).to_bits()
         assert(
-            (
-                (lo32 == 0 || lo32 == negative32.to_bits())
-                && (hi32 == 0 || hi32 == negative32.to_bits())
-            ),
+            (lo32 == 0 || lo32 == negative32.to_bits())
+            && (hi32 == 0 || hi32 == negative32.to_bits()),
         )

@@ -1,5 +1,5 @@
 # test: the inputs argument of Fn must be a tuple type
-use std.function.Fn
+use std.ops.Fn
 
 fn invalid(callback: Fn[i32, i32, $()]) -> void: # diagnostic: generic-kind-mismatch
     pass

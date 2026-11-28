@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release program
 # expected: a map probe states its deferred table-uniqueness action; hit/miss timing is unchanged, and a local indexed borrow keeps its separate place-based IsUnique and LoanEnd.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn bump(items: &mut Map[string, i32], key: string) -> void:
@@ -14,7 +14,7 @@ fn bump(items: &mut Map[string, i32], key: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   %0 = Read borrow [$0] : &mut Map[string, i32]
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%0, %1, 0:i32) : &mut i32
+>   %2 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%0, %1, 0:i32) : &mut i32
 >   %3 = MakeUnique %2 Operation operand 0 #5 : ()
 >   %4 = Retain %2 Operation operand 1 #0 : ()
 >   %5 = Read copy [*%2] : i32
@@ -39,7 +39,7 @@ fn scalar(items: &mut Map[usize, i32], key: usize) -> void:
 >     uses $1: entry -> %1 lend last
 >   %0 = Read borrow [$0] : &mut Map[usize, i32]
 >   %1 = Read copy [$1] : usize
->   %2 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[usize, i32] (%0, %1, 0:i32) : &mut i32
+>   %2 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[usize, i32] (%0, %1, 0:i32) : &mut i32
 >   %3 = MakeUnique %2 Operation operand 0 #5 : ()
 >   %4 = Read copy [*%2] : i32
 >   %5 = Prim Add [%4 1:i32] : i32

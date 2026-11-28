@@ -1,6 +1,6 @@
 # test: a derivation block with no trait attaches member metadata of any type
-use std.structure.Structure
-use std.inspect.Inspectable
+use std.meta.Structure
+use std.meta.Inspectable
 
 struct MinLen:
     value: i32

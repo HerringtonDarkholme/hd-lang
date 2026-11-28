@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# Ordinary method selection owns inference and arity failures too.
+fn inferred_error() -> i32:
+    Result.Ok(+1).unwrap()
+
+fn argument(value: i32?) -> i32:
+    value.unwrap(+1)

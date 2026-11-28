@@ -1,4 +1,0 @@
-use pkg.cart.{cart}
-
-pub fn shop() -> i32:
-    cart()

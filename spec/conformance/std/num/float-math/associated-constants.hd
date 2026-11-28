@@ -1,0 +1,18 @@
+# test: float constants are associated functions of each width, with no associated-constant mechanism
+fn wave(turns: f64) -> f64:
+    (turns * 2.0 * f64::pi()).sin()
+
+fn growth(time: f64) -> f64:
+    time.exp() / f64::e()
+
+tests:
+    it("constant functions return correctly rounded values at each width"):
+        assert_equal(f64::pi().to_bits(), 0x400921fb54442d18)
+        assert_equal(f64::e().to_bits(), 0x4005bf0a8b145769)
+        assert_equal(f32::pi().to_bits(), 0x40490fdb)
+        assert_equal(f32::e().to_bits(), 0x402df854)
+
+    it("the printed wave and growth examples use the associated functions"):
+        assert_equal(wave(0.0), 0.0)
+        assert((growth(1.0) - 1.0).abs() < 5.0e-16)
+        assert((growth(0.0) - 0.36787944117144233).abs() < 1.0e-16)

@@ -1,0 +1,18 @@
+# test: requirements / provider access / a provider's insides never outlive its scope
+
+trait Holder:
+    fn slot(&self) -> &i64
+
+struct Boxed:
+    value: i64
+
+impl Holder for Boxed:
+    fn slot(&self) -> &i64:
+        &self.value
+
+fn leak['a]() -> &'a i64 $ Holder:
+    $.use(Holder).slot() # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    $.with(Holder=box(Boxed { value: 41 })):
+        println(leak())

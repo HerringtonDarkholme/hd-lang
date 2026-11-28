@@ -1,6 +1,6 @@
 # test: a function with a requirement row does not match the pattern fn(T) -> R, whose row is empty
 # Spec 14 Member-Typed Facts: annot.typed-fact.infer.row.
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn)

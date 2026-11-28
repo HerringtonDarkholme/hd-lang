@@ -1,6 +1,6 @@
-# test: the function type sugar fn(...) -> T needs no import, while Fn is imported from std.function
+# test: the function type sugar fn(...) -> T needs no import, while Fn is imported from std.ops
 # Spec 10 Standard Names Outside The Prelude: module.prelude.function-items, module.prelude.function-sugar.
-use std.function.Fn
+use std.ops.Fn
 fn apply_discount(prices: List[i32], rule: fn(i32) -> i32) -> List[i32]:
     [for price in prices => rule(price)]
 

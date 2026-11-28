@@ -1,0 +1,31 @@
+# @dump: stdout
+# @build: release std | release checked std
+# `load_u32` of a slot's address, the `address` field of the `Ptr` that
+# the owner's inlined method returns, as the owner's last use. Once sroa
+# forwards the inlined `self` to `room`, the address is read out of
+# `room`'s own storage, so `room`'s `Drop` (its `Buffer`'s) must follow
+# the load. A checked build fills a freed room with 0xDE bytes, so an
+# early drop prints 3739147998.
+use std.meta.inline
+use std.rt.memory.{Buffer, load_u32}
+
+struct Room:
+    buf: Buffer[u32]
+    len: usize
+
+impl Room:
+    fn new() -> Room:
+        r := Room { buf: Buffer::[u32].new(2), len: 2 }
+        r.buf.at(1).write(17)
+        r
+
+    fn slot(&self, i: usize) -> usize:
+        self.buf.at(i).address
+
+@inline(.Never)
+fn loaded() -> u32:
+    room := Room::new()
+    load_u32(room.slot(1))
+
+pub fn main() -> void $ Console:
+    println("load ${loaded()}")

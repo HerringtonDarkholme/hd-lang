@@ -11,14 +11,13 @@ use hd_intern::{PathKind, PathTable};
 
 /// Shared module spellings for source seeding, runtime roots and textual import hints.
 pub const CORE_MODULE: &str = "std.core";
-/// `Marker`, `Send` and `Wire` (`module.marker.std`).
-pub const MARKER_MODULE: &str = "std.marker";
+/// `Marker`, `Send` and `Wire` (`module.marker.std`), `Inspectable`,
+/// `Structure` and its records, `annotate`, and the call-site decoders.
+pub const META_MODULE: &str = "std.meta";
 /// `std.remote`, whose language items stubs and dispatchers name.
 pub const REMOTE_MODULE: &str = "std.remote";
 pub const TASK_MODULE: &str = "std.task";
-pub const FUNCTION_MODULE: &str = "std.function";
-pub const INSPECT_MODULE: &str = "std.inspect";
-pub const STRUCTURE_MODULE: &str = "std.structure";
+pub const OPS_MODULE: &str = "std.ops";
 pub const TESTING_MODULE: &str = "std.testing";
 pub const ENTRY_MODULE: &str = "std.rt.entry";
 pub const CHECKED_MODULE: &str = "std.rt.checked";
@@ -26,18 +25,79 @@ pub const RUNTIME_MODULE: &str = "std.rt";
 pub const FORMAT_MODULE: &str = "std.format";
 pub const BYTES_MODULE: &str = "std.rt.bytes";
 pub const HASH_RUNTIME_MODULE: &str = "std.rt.hash";
-/// The walks a `Send` crossing's `std.rt.unique` calls, and the
-/// collections whose raw buffers std walks (`fn.crossing.mode.unique`).
+/// The walks a `Send` crossing's `std.rt.unique` calls
+/// (`fn.crossing.mode.unique`).
 pub const CROSSING_MODULE: &str = "std.rt.crossing";
-pub const COLLECTIONS_MODULE: &str = "std.collections";
+/// The modules of the collections whose raw buffers std walks, each with
+/// its walk; `std.collections` re-exports the types.
+pub const UNIQ_LIST_MODULE: &str = "std.collections.uniq_list";
+pub const UNIQ_MAP_MODULE: &str = "std.collections.uniq_map";
+/// The module of std's inherent `List` methods.
+pub const LIST_MODULE: &str = "std.collections.list";
+pub const MAP_MODULE: &str = "std.collections.map";
+pub const OPTION_MODULE: &str = "std.option";
+pub const RESULT_MODULE: &str = "std.result";
+pub const TEXT_MODULE: &str = "std.text";
+pub const NUM_MODULE: &str = "std.num";
+
+/// A built-in constructor whose inherent implementations have one home.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltinHome {
+    Primitive(hd_types::Prim),
+    List,
+    Map,
+    Option,
+    Result,
+}
+
+/// The fixed homes of the built-in constructors. Ordinary nominal types
+/// keep their declaring module as their home. Numeric-family targets all
+/// expand to primitives with the same home, `NUM_MODULE`.
+pub const BUILTIN_HOMES: &[(BuiltinHome, &str)] = &[
+    (BuiltinHome::Primitive(hd_types::Prim::I8), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I16), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U8), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U16), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Usize), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::F32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::F64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Bool), CORE_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Char), TEXT_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::String), TEXT_MODULE),
+    (BuiltinHome::List, LIST_MODULE),
+    (BuiltinHome::Map, MAP_MODULE),
+    (BuiltinHome::Option, OPTION_MODULE),
+    (BuiltinHome::Result, RESULT_MODULE),
+];
+
+/// Declaring modules of every compiler-known item, including ancestors.
+/// This process-wide constant is derived from the known-item constructor,
+/// never from an accumulating run's path table. Cost: O(K * D) once, for
+/// the fixed K known paths of fixed depth D; no scan of program state.
+#[must_use]
+pub fn item_modules() -> &'static [String] {
+    static MODULES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+        let paths = PathTable::new();
+        let _ = KnownItems::new(&paths);
+        (0..paths.len())
+            .map(PathId::from_raw)
+            .filter(|&id| paths.kind(id) == PathKind::Module)
+            .map(|id| paths.display(id).to_string().replace('/', "."))
+            .collect()
+    });
+    &MODULES
+}
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[
     CORE_MODULE,
     TASK_MODULE,
-    FUNCTION_MODULE,
-    INSPECT_MODULE,
-    STRUCTURE_MODULE,
+    OPS_MODULE,
+    META_MODULE,
     TESTING_MODULE,
 ];
 
@@ -55,9 +115,9 @@ pub struct KnownItems {
     /// `List.is_empty`, whose result is known for a generated empty facts list.
     pub list_is_empty: DefId,
     pub map: DefId,
-    // std.function
-    pub function_module: PathId,
-    /// The `std.core` module, which owns every built-in type's methods.
+    // std.ops
+    pub ops_module: PathId,
+    /// The `std.core` module, which declares the built-in type identities.
     pub core_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
     /// remains the compiler's `Fn[I, O, $R]` function type constructor.
@@ -69,7 +129,7 @@ pub struct KnownItems {
     /// `FnMut.call_mut`, lowered as `Fn.call` is.
     pub fn_mut_call: DefId,
     pub tuple: DefId,
-    // std.structure
+    // std.meta
     pub structure: DefId,
     pub union_type: DefId,
     /// The `'static` bound (`ref.generic.static`), a sealed trait no
@@ -108,7 +168,7 @@ pub struct KnownItems {
     /// implementation omits the members that carry a fact type
     /// (`annot.impl-fact.skips.decl`).
     pub skips: DefId,
-    // std.inspect
+    // std.meta
     pub inspectable: DefId,
     // std.num
     pub num: DefId,
@@ -162,12 +222,12 @@ pub struct KnownItems {
     pub map_integer_hash: DefId,
     pub display: DefId,
     pub debug: DefId,
-    /// `std.debug`'s private decoders of a call-site record
+    /// `std.meta`'s private decoders of a call-site record
     /// (spec/lang/07-functions.md "Call-Site Locations"): the checker lowers
     /// `Location::caller()` and `Location::caller_args()` to calls of them.
     pub site_location: DefId,
     pub site_args: DefId,
-    /// `std.debug.site_function_text`: `dbg`'s `<fn name(..)>` from a
+    /// `std.meta.site_function_text`: `dbg`'s `<fn name(..)>` from a
     /// call-site record (`module.dbg.value.function`).
     pub site_function_text: DefId,
     /// `std.format.dbg`, each reference to which the checker notes for the
@@ -189,7 +249,7 @@ pub struct KnownItems {
     pub repl_value: DefId,
     /// `std.text.StringBuilder`, which a template literal builds into.
     pub string_builder: DefId,
-    // std.serde
+    // std.encoding
     pub serialize: DefId,
     pub deserialize: DefId,
     /// The serde facts the checker reads from declarations: `SkipNone`,
@@ -281,7 +341,7 @@ pub struct KnownItems {
     /// `std.task.all_list`, the engine of `join!`'s list form
     /// (`req.combinator.join-list`).
     pub all_list: DefId,
-    // std.annotation, std.testing
+    // std.meta, std.testing
     pub annotate: DefId,
     /// `inline` and `cold`, the decorators that choose how calls of a
     /// function are compiled (`annot.inline.recognized`).
@@ -313,6 +373,35 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// The std home of a built-in target's inherent implementations.
+    /// Alias expansion has already supplied its semantic constructor.
+    #[must_use]
+    pub fn inherent_home(
+        &self,
+        pool: &hd_types::InternPool,
+        ty: hd_types::Ty,
+    ) -> Option<&'static str> {
+        let target = match pool.get(ty) {
+            hd_types::TyData::Prim(p) => BuiltinHome::Primitive(p),
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.list => {
+                BuiltinHome::List
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.map => {
+                BuiltinHome::Map
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.option => {
+                BuiltinHome::Option
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.result => {
+                BuiltinHome::Result
+            }
+            _ => return None,
+        };
+        BUILTIN_HOMES
+            .iter()
+            .find_map(|&(key, module)| (key == target).then_some(module))
+    }
+
     /// A `Wire` crossing parameter of type `fn(..) -> T` as its callee holds
     /// it (`fn.crossing.lift`): `fn(bool, ..) -> Result[C, List[u8]]`, where
     /// `C` is the call's value, `T` or its cold `Suspend[T]`. For `false` it
@@ -369,6 +458,7 @@ impl KnownItems {
             sync: self.sync,
             wire: self.wire,
             remote: self.remote,
+            ptr: self.ptr,
         }
     }
 
@@ -400,23 +490,23 @@ impl KnownItems {
         let any = item(CORE_MODULE, "Any");
         let any_val = item(CORE_MODULE, "AnyVal");
         let any_ref = item(CORE_MODULE, "AnyRef");
-        let structure = item(STRUCTURE_MODULE, "Structure");
-        let union_type = item(STRUCTURE_MODULE, "UnionType");
+        let structure = item(META_MODULE, "Structure");
+        let union_type = item(META_MODULE, "UnionType");
         let static_bound = item(CORE_MODULE, "'static");
-        let walker = item(STRUCTURE_MODULE, "Walker");
-        let tuple = item(FUNCTION_MODULE, "Tuple");
-        let fn_trait = item(FUNCTION_MODULE, "Fn");
-        let fn_mut_trait = item(FUNCTION_MODULE, "FnMut");
+        let walker = item(META_MODULE, "Walker");
+        let tuple = item(OPS_MODULE, "Tuple");
+        let fn_trait = item(OPS_MODULE, "Fn");
+        let fn_mut_trait = item(OPS_MODULE, "FnMut");
         let suspend = item(TASK_MODULE, "Suspend");
-        let inspectable = item(INSPECT_MODULE, "Inspectable");
+        let inspectable = item(META_MODULE, "Inspectable");
         let num = item("std.num", "Num");
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
         let copy = item(CORE_MODULE, "Copy");
-        let marker = item(MARKER_MODULE, "Marker");
-        let send = item(MARKER_MODULE, "Send");
-        let sync = item(MARKER_MODULE, "Sync");
-        let wire = item(MARKER_MODULE, "Wire");
+        let marker = item(META_MODULE, "Marker");
+        let send = item(META_MODULE, "Send");
+        let sync = item(META_MODULE, "Sync");
+        let wire = item(META_MODULE, "Wire");
         let remote = item(REMOTE_MODULE, "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
@@ -426,7 +516,7 @@ impl KnownItems {
             option: item(CORE_MODULE, "Option"),
             result: item(CORE_MODULE, "Result"),
             list: item(CORE_MODULE, "List"),
-            list_is_empty: inherent_method("std.collections", "impl[T] List[T]", "is_empty"),
+            list_is_empty: inherent_method(LIST_MODULE, "impl[T] List[T]", "is_empty"),
             map: item(CORE_MODULE, "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
@@ -445,7 +535,7 @@ impl KnownItems {
             host_decode: item("std.host", "host_decode"),
             package_encode: item("std.host", "package_encode"),
             package_decode: item("std.host", "package_decode"),
-            function_module: module(FUNCTION_MODULE),
+            ops_module: module(OPS_MODULE),
             core_module: module(CORE_MODULE),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),
@@ -456,25 +546,25 @@ impl KnownItems {
             union_type,
             static_bound,
             alias_params: item(CORE_MODULE, "'alias"),
-            facts: item(STRUCTURE_MODULE, "Facts"),
-            field: item(STRUCTURE_MODULE, "FieldRecord"),
+            facts: item(META_MODULE, "Facts"),
+            field: item(META_MODULE, "FieldRecord"),
             field_get: inherent_method(
-                STRUCTURE_MODULE,
+                META_MODULE,
                 "impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]",
                 "get",
             ),
             variant_holds: inherent_method(
-                STRUCTURE_MODULE,
+                META_MODULE,
                 "impl[HdS < ?Copy] VariantRecord[HdS]",
                 "holds",
             ),
             walker,
             walker_data_variant: trait_method(walker, "data_variant"),
             walker_data_member: trait_method(walker, "data_member"),
-            describer: item(STRUCTURE_MODULE, "Describer"),
-            source: item(STRUCTURE_MODULE, "Source"),
-            fills_defaults: item(STRUCTURE_MODULE, "fills_defaults"),
-            skips: item(STRUCTURE_MODULE, "skips"),
+            describer: item(META_MODULE, "Describer"),
+            source: item(META_MODULE, "Source"),
+            fills_defaults: item(META_MODULE, "fills_defaults"),
+            skips: item(META_MODULE, "skips"),
             inspectable,
             num,
             integer,
@@ -521,9 +611,9 @@ impl KnownItems {
             map_integer_hash: item(HASH_RUNTIME_MODULE, "hash_integer"),
             display: item(FORMAT_MODULE, "Display"),
             debug: item(FORMAT_MODULE, "Debug"),
-            site_location: item("std.debug", "site_location"),
-            site_args: item("std.debug", "site_args"),
-            site_function_text: item("std.debug", "site_function_text"),
+            site_location: item(META_MODULE, "site_location"),
+            site_args: item(META_MODULE, "site_args"),
+            site_function_text: item(META_MODULE, "site_function_text"),
             dbg: item(FORMAT_MODULE, "dbg"),
             default_marker: item("std.ops", "default"),
             debug_fn: item(FORMAT_MODULE, "debug"),
@@ -532,17 +622,17 @@ impl KnownItems {
             repl_text: item(FORMAT_MODULE, "repl_text"),
             repl_value: item(FORMAT_MODULE, "repl_value"),
             string_builder: item("std.text", "StringBuilder"),
-            serialize: item("std.serde", "Serialize"),
-            deserialize: item("std.serde", "Deserialize"),
-            skip_none: item("std.serde", "SkipNone"),
-            enum_tagging: item("std.serde", "EnumTagging"),
-            tag: item("std.serde", "tag"),
-            untagged: item("std.serde", "untagged"),
-            rename_type: item("std.serde", "Rename"),
-            rename: item("std.serde", "rename"),
-            rename_all_type: item("std.serde", "RenameAll"),
-            rename_all: item("std.serde", "rename_all"),
-            rename_case: item("std.serde", "RenameCase"),
+            serialize: item("std.encoding.serde", "Serialize"),
+            deserialize: item("std.encoding.serde", "Deserialize"),
+            skip_none: item("std.encoding.serde", "SkipNone"),
+            enum_tagging: item("std.encoding.serde", "EnumTagging"),
+            tag: item("std.encoding.serde", "tag"),
+            untagged: item("std.encoding.serde", "untagged"),
+            rename_type: item("std.encoding.serde", "Rename"),
+            rename: item("std.encoding.serde", "rename"),
+            rename_all_type: item("std.encoding.serde", "RenameAll"),
+            rename_all: item("std.encoding.serde", "rename_all"),
+            rename_case: item("std.encoding.serde", "RenameCase"),
             termination: item("std.process", "Termination"),
             host_provider: item(ENTRY_MODULE, "host_provider"),
             duration_suffix: [
@@ -559,9 +649,9 @@ impl KnownItems {
             block_on: item(TASK_MODULE, "block_on"),
             race: item(TASK_MODULE, "race"),
             all_list: item(TASK_MODULE, "all_list"),
-            annotate: item("std.annotation", "annotate"),
-            inline: item("std.core", "inline"),
-            cold: item("std.core", "cold"),
+            annotate: item(META_MODULE, "annotate"),
+            inline: item("std.rt.hint", "inline"),
+            cold: item("std.rt.hint", "cold"),
             testing_module: module(TESTING_MODULE),
             hd_run: item(TESTING_MODULE, "hd_run"),
             case_timeout: item(TESTING_MODULE, "case_timeout"),
@@ -610,9 +700,9 @@ impl KnownItems {
     /// `Fn` or `FnMut` when `d` is that function trait.
     #[must_use]
     pub fn fn_trait_name(&self, d: DefId) -> Option<&'static str> {
-        if d == DefId::NONE {
-            None
-        } else if d == self.fn_trait {
+        // Both known trait IDs are interned and nonzero; NONE takes the
+        // same fallback as every other declaration that is neither trait.
+        if d == self.fn_trait {
             Some("Fn")
         } else if d == self.fn_mut_trait {
             Some("FnMut")
@@ -664,8 +754,8 @@ pub fn runtime_module(module: &str) -> bool {
         .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
 }
 
-/// The prelude rows `module` sees: `std.core` and a runtime module, std's
-/// leaf layer, see only `std.core`'s names (`module.core.prelude`,
+/// The prelude rows `module` sees: `std.core` and runtime modules see
+/// only `std.core`'s names (`module.core.prelude`,
 /// `module.rt.core-prelude`); every other module sees them all.
 #[must_use]
 pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {

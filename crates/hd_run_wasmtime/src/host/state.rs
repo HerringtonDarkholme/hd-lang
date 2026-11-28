@@ -37,7 +37,7 @@ pub(crate) const HELD_OUTPUT_BOUND: usize = 64 * 1024;
 /// The per-instance host state of the store.
 pub struct Host {
     // Drop the reactor first: it cancels pending output before the writer joins.
-    pub(crate) reactor: Reactor,
+    pub reactor: Reactor,
     output: super::output::Output,
     /// Standard output not yet written.
     pub(crate) out: Vec<u8>,
@@ -65,6 +65,19 @@ pub struct Host {
     /// The embedder's native package providers, by contract interface
     /// (`host/package.rs`); empty for every other run.
     pub(crate) natives: Vec<Option<super::package::Native>>,
+    /// The libraries the invoker selected for the module's C-bound root
+    /// traits (`crate::native::c`); empty for every other run.
+    pub(crate) c_libraries: std::sync::Arc<[crate::native::c::Library]>,
+    /// The created C providers, by contract interface, which drop, and so
+    /// `destroy`, with the instance, trap or not (`cli.host.c.create`).
+    pub(crate) c_providers: Vec<Option<crate::native::c::Provider>>,
+    /// The checked tables of the C-bound handle interfaces, by contract
+    /// interface, which each returned C handle holds
+    /// (`module.host.package.c-handles`).
+    pub(crate) c_handles: Vec<Option<std::sync::Arc<crate::native::c::CTable>>>,
+    /// The guest heap a C call's pointer arguments address
+    /// (`module.host.package.c-references`), once the instance exists.
+    pub(crate) c_heap: Option<wasmtime::Extern>,
     /// The returned native handles this instance issued
     /// (`module.host.package.native-handles`).
     pub(crate) handles: crate::native::Handles,
@@ -81,7 +94,7 @@ pub struct Host {
     timeout_millis: Option<i64>,
     /// A REPL session's journal (`docs/compiler/live-execution.md` §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
-    pub(crate) journal: Option<hd_run::journal::Recorder>,
+    pub journal: Option<hd_run::journal::Recorder>,
     /// While a session's rebuild replays an input: the record its host
     /// calls and wakes are served from, instead of being made again
     /// (`cli.repl.host.once`).
@@ -94,6 +107,7 @@ pub struct Host {
     pub(crate) calls: u64,
     /// `Workers` and `WorkerPort` (`std-remote.workers.host`).
     pub(crate) workers: crate::workers::State,
+    pub(crate) sampling: Option<crate::sampling::Collector>,
 }
 
 impl Host {
@@ -123,6 +137,10 @@ impl Host {
             deadline,
             fixture: crate::profiles::State::default(),
             natives: Vec::new(),
+            c_libraries: std::sync::Arc::from(Vec::new()),
+            c_providers: Vec::new(),
+            c_handles: Vec::new(),
+            c_heap: None,
             handles: crate::native::Handles::default(),
             testing: None,
             environment: None,
@@ -135,12 +153,14 @@ impl Host {
             muted: false,
             calls: 0,
             workers: crate::workers::State::default(),
+            sampling: None,
         }
     }
 
     /// A host with no streams, arguments or grant, which holds a store's
     /// place while its host moves to another store.
-    pub(crate) fn placeholder() -> Host {
+    #[must_use]
+    pub fn placeholder() -> Host {
         let io = HostIo {
             out: Box::new(std::io::sink()),
             err: Box::new(std::io::sink()),
@@ -265,7 +285,7 @@ impl Host {
 
     /// The one boundary for operation abort and completed-run cleanup.
     /// Reusable test instances retain providers only when close is false.
-    pub(crate) fn control(&mut self, event: Control) -> Option<Outcome> {
+    pub fn control(&mut self, event: Control) -> Option<Outcome> {
         let (status, close) = match event {
             Control::Abort(handle) => {
                 if let Some(Work::Offloaded(Some(Done::Net(done)))) =
@@ -286,7 +306,7 @@ impl Host {
                 (3, close)
             }
             // A stopped run's are ended the same way; its status is a
-            // cancelled run's (`cli.cancel.computing`).
+            // cancelled run's (`cli.cancel.unhandled-computing`).
             Control::Stop { close } => {
                 self.drop_pending();
                 (crate::instance::CANCEL_STATUS, close)

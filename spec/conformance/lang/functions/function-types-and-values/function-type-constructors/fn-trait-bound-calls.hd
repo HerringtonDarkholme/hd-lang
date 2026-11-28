@@ -1,6 +1,6 @@
 # test: functions and closures call through Fn bounds
 # expect: test
-use std.function.Fn
+use std.ops.Fn
 
 trait Scale:
     fn factor(self) -> i32

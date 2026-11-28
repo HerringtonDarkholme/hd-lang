@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: the loop only reads through `xs`, so the list's buffer pointer
+# loads once before it, and the test `i < xs.len()` decides the index's
+# bounds check, whose length is a load of the same unchanged field.
+use std.collections.UniqList
+
+pub fn sum_index(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s += xs[i]
+    s

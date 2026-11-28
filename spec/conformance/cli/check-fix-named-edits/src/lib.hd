@@ -1,0 +1,32 @@
+use std.time.Duration
+
+enum Shape:
+    Dot
+    Line(len: i32)
+
+struct Point:
+    x: i32
+
+fn bare(s: Shape) -> i32:
+    match s:
+        Dot => 0
+        Line(n) => n
+
+fn reassigned(n: i32) -> i32:
+    n = n + 1
+    n
+
+fn double(x: i32) -> i32: x * 2
+
+fn piped(x: i32) -> i32:
+    x |> double()
+
+fn fetch!(id: i32) -> i32: id
+
+fn loaded!(n: i32) -> i32:
+    n |> fetch
+
+fn pause() -> Duration: 1.5s
+
+fn greet() -> void $ Console:
+    print("hi")

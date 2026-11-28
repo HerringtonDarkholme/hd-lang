@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: a writable reference is constructed with &mut
+fn change(mut value: i32) -> void:
+    let x = *mut value

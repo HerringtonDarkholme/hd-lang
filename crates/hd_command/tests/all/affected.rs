@@ -17,11 +17,9 @@ use std::process::Output;
 
 use hd_testkit::Scratch;
 
-const BILLING: &str = "use std.testing.assert_equal\n\npub fn price() -> i32:\n    3\n\n\
-                       tests:\n    it(\"prices\"):\n        assert_equal(price(), 3, reason=\"p\")\n";
+const BILLING: &str = include_str!("programs/affected/billing.hd");
 
-const STOCK: &str = "use std.testing.assert_equal\n\npub fn stock() -> i32:\n    5\n\n\
-                     tests:\n    it(\"stocks\"):\n        assert_equal(stock(), 5, reason=\"s\")\n";
+const STOCK: &str = include_str!("programs/affected/stock.hd");
 
 /// A fresh package with the five test programs.
 fn package(name: &str) -> Scratch {
@@ -33,20 +31,17 @@ fn package(name: &str) -> Scratch {
     std::fs::write(root.join("src/stock.hd"), STOCK).expect("stock");
     std::fs::write(
         root.join("src/invoice.hd"),
-        "use pkg.billing.price\nuse std.testing.assert_equal\n\n\
-         tests:\n    it(\"invoices\"):\n        assert_equal(price() * 2, 6, reason=\"i\")\n",
+        include_str!("programs/affected/package.hd"),
     )
     .expect("invoice");
     std::fs::write(
         root.join("tests/bill.hd"),
-        "use pkg.billing.price\nuse std.testing.assert_equal\n\n\
-         it(\"bills\"):\n    assert_equal(price(), 3, reason=\"b\")\n",
+        include_str!("programs/affected/package_2.hd"),
     )
     .expect("bill");
     std::fs::write(
         root.join("tests/count.hd"),
-        "use pkg.stock.stock\nuse std.testing.assert_equal\n\n\
-         it(\"counts\"):\n    assert_equal(stock(), 5, reason=\"c\")\n",
+        include_str!("programs/affected/package_3.hd"),
     )
     .expect("count");
     root
@@ -269,42 +264,54 @@ fn affected_works_on_wasmtime_and_the_engine_reruns() {
 fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
     let world = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-affected-test-only");
     let root = world.join("shop");
-    let files: [(&str, &str); 9] = [
+    let files: [(&str, &str); 10] = [
         (
             "shop/hd.toml",
             "[package]\nname = \"shop\"\n\n[dev-dependencies]\nfixtures = { path = \"../fixtures\" }\n",
         ),
         (
             "shop/src/money/coins.hd",
-            "pub fn cents() -> i32:\n    100\n",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it.hd"
+            ),
+        ),
+        // A folder's modules are private to it (`module.vis.parent`).
+        (
+            "shop/src/money/mod.hd",
+            include_str!("programs/facades/money_coins.hd"),
         ),
         ("shop/src/stock.hd", STOCK),
         (
             "shop/src/ledger.hd",
-            "## The total.\n##\n## ```hd\n## use pkg.money.coins.{cents}\n## use pkg.ledger.{total}\n\
-             ## use std.testing.assert_equal\n##\n\
-             ## assert_equal(total() + cents(), 103, reason=\"doc\")\n## ```\n\
-             pub fn total() -> i32:\n    3\n\n\
-             tests:\n    use pkg.money.coins.cents\n    use std.testing.assert_equal\n\n    \
-             it(\"adds cents\"):\n        assert_equal(total() + cents(), 103, reason=\"block\")\n",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_2.hd"
+            ),
         ),
         (
             "shop/src/ledger_test.hd",
-            "use pkg.money.coins.cents\nuse std.testing.assert_equal\n\n\
-             it(\"checks cents\"):\n    assert_equal(cents(), 100, reason=\"module\")\n",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_3.hd"
+            ),
         ),
         (
             "shop/tests/bill.hd",
-            "use pkg.money.coins.cents\nuse std.testing.assert_equal\n\n\
-             it(\"bills\"):\n    assert_equal(cents(), 100, reason=\"file\")\n",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_4.hd"
+            ),
         ),
         (
             "shop/tests/sample.hd",
-            "use dep.fixtures.sample\nuse std.testing.assert_equal\n\n\
-             it(\"samples\"):\n    assert_equal(sample(), 10, reason=\"dev\")\n",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_5.hd"
+            ),
         ),
         ("fixtures/hd.toml", "[package]\nname = \"fixtures\"\n"),
-        ("fixtures/src/lib.hd", "pub fn sample() -> i32:\n    10\n"),
+        (
+            "fixtures/src/lib.hd",
+            include_str!(
+                "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_6.hd"
+            ),
+        ),
     ];
     for (path, text) in files {
         let path = world.join(path);
@@ -317,7 +324,9 @@ fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
     );
     std::fs::write(
         root.join("src/money/coins.hd"),
-        "pub fn cents() -> i32:\n    50 + 50\n",
+        include_str!(
+            "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_7.hd"
+        ),
     )
     .expect("edit");
     assert_eq!(
@@ -326,7 +335,9 @@ fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
     );
     std::fs::write(
         world.join("fixtures/src/lib.hd"),
-        "pub fn sample() -> i32:\n    5 + 5\n",
+        include_str!(
+            "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it_8.hd"
+        ),
     )
     .expect("edit");
     assert!(ran(&root, &["--affected"]).contains(&"samples".to_owned()));

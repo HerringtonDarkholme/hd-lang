@@ -1,0 +1,22 @@
+# @dump: own
+# #2432 with the box holding a struct whose list field the loop copies:
+# `p` copies at the early return.
+struct Node:
+    name: string
+    kids: List[Value]
+
+enum Value:
+    Null
+    Obj(o: *mut Node)
+
+fn update(kids: List[Value]) -> void:
+    pass
+
+fn choose(p: Value) -> (Value, Value)?:
+    let .Obj(po) = p else:
+        return .None
+    for q in po.kids:
+        let .Obj(_) = q else:
+            return .Some((p, q))
+        update(po.kids)
+    .None

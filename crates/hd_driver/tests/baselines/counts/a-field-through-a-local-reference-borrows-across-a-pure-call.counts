@@ -7,8 +7,8 @@
 # whose raw-address copy writes only its own new string, so `name` borrows
 # the facts. `tally` writes through `self`, which may reach the same frame,
 # so `count` still copies them (#1285).
-use std.structure.{Facts, Member}
-use std.serde.member_name
+use std.meta.{Facts, Member}
+use std.encoding.member_name
 
 struct Frame:
     next: usize
@@ -44,6 +44,6 @@ impl Reader:
 > app/main/impl Reader.count
 >   release *mut app.main.Frame (last use)
         self.tally(frame.facts)
->   retain std.structure.Facts (second owner)
->   release std.structure.Facts (last use)
+>   retain std.meta.Facts (second owner)
+>   release std.meta.Facts (last use)
         frame.next

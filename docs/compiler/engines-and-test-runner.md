@@ -29,27 +29,45 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 | memory | linear memory, reference counts and the cycle collector of crates/hd_wasm/DESIGN.md §23 | same |
 | `epoch_interruption` | on | on |
 | `consume_fuel` | off (fuel is for simulation, Later) | off |
-| `max_wasm_stack` | 4 MiB, on a thread with 8 MiB more native stack | same |
+| `max_wasm_stack` | 16 MiB, on a thread with 8 MiB more native stack | same |
 | allocation strategy | pooling for `hd test` (§18.3); on-demand otherwise | same |
-| parallel compilation | off | off |
+| parallel compilation | caller-selected, within `--jobs` | caller-selected, within `--jobs` |
 
 - **Test heaps start empty.** A pooled slot reserves no fixed initial
   heap before its case allocates anything. This is better than the
   design's small fixed per-slot heaps.
-- **Parallel compilation.** The design compiled a module's functions in
-  parallel, capped at the `--jobs` budget. Implementation differs:
-  wasmtime's `parallel-compilation` feature is off, so every module
-  compiles on one thread; test modules are kilobytes and the runner
-  already parallelizes across programs. Not judged: no large program has
-  been measured.
+- **Parallel compilation.** Single-program CLI runs and a package's
+  single test-module compile use the `--jobs` budget. Conformance and
+  fixture pools compile serially within each module, since their callers
+  already parallelize across small programs. The caller chooses; module
+  size does not. Scoped compiler workers start only on an in-process
+  module-cache miss, and inherit that compile's function-cache session.
+  A disk function-pack hit still translates the module and uses those
+  workers; it is not an in-process module-cache hit.
 - Winch cannot be the dev tier: it supports no GC.
 
 ### 18.2 Compile Caches
 
 - **Modules, in process only.** `hd_run_wasmtime::cache` keeps compiled
   modules for the life of the process: a 128-entry LRU per engine, keyed
-  by the module bytes. Loading a serialized module needs `unsafe`, which
-  the crate denies, so no module is written to disk.
+  by the module bytes, for dev and test execution.
+- **Native release artifacts.** Wasmtime builds and installs emit `.cwasm`
+  through `Engine::precompile_module`, with speed optimization and inlining.
+  Dev, Node, and explicit `--format wasm` builds retain portable Wasm.
+  Native execution maps the open image through `Module::deserialize_open_file`,
+  the open-handle form of `deserialize_file`, without translating Wasm.
+  A fixed tail locates hd's import/export and custom-section metadata,
+  including original function-body offsets for source-position lookup;
+  code and data are not copied into that projection. Source frames and
+  host registration use their existing readers. Writers publish a new file
+  atomically, preserving already mapped images. The Rust loader's unsafe
+  contract is confined to the explicit native-artifact boundary.
+  As recorded in #2385, Cranelift inlining can omit inlined frames from
+  backtraces. Source positions retained in the artifact symbolize the
+  frames Wasmtime supplies, including non-inlined recursive bodies.
+  Source/manifest/toolchain and Wasmtime compatibility keys determine reuse;
+  no accumulated cache-directory scan or native-image hash is needed for a
+  direct run. Installed commands retain their existing artifact hash check.
 - **Per-function machine code** (`hd_run_wasmtime::code_cache`): Cranelift's
   incremental compilation cache, kept as `clpack` entries of the compiled
   cache. The key is the function's CLIF, which abstracts direct call

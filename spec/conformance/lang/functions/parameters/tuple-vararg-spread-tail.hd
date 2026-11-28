@@ -1,7 +1,7 @@
 # test: a tuple vararg's arguments may end in a list spread, collected as the tuple expression of them would be
 # expect: test
 # Spec 07 Varargs: fn.vararg.collect.tuple-expr (owner decision Q4, batch 34, 2026-10-01).
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 fn g(a: usize, b: usize, xs...: List[i32]) -> usize:
     a + b + xs.len()
 

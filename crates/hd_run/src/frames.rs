@@ -4,9 +4,9 @@
 //! the item the function compiles. The caller resolves anchors to
 //! `FILE:LINE` against the current sources (`cli.test.report.frame`).
 //!
-//! The table is read only on a trap, never on a clean run. A function's
-//! name comes from the `name` section, or from `hd.names` in a release
-//! build, which omits `name`.
+//! Trap reporting reads the table on demand. Explicitly requested profiling also
+//! reads existing metadata to symbolize the resulting samples.
+//! Names come from `name`, compact `hd.names`, or resolved `hd.positions`.
 //!
 //! A module that `hd build` wrote stands alone (`crates/hd_mono/DESIGN.md`
 //! "Positions"): its `hd.positions` section gives each anchor's file, line
@@ -17,6 +17,9 @@ use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
 use crate::imports::{Bytes, all_sections, import_kinds};
+
+/// Original body offsets in metadata projections that omit the code section.
+pub(crate) const CODE_STARTS: &str = "hd.code.starts";
 
 /// A frame of an engine's backtrace: function index, module byte offset.
 pub type RawFrame = (u32, u32);
@@ -46,7 +49,7 @@ pub struct LineTable {
     /// with a body.
     imports: u32,
     /// The module offset of each function body, by defined function.
-    starts: Vec<u32>,
+    starts: Vec<u64>,
     names: HashMap<u32, String>,
     /// Per function index, its rows: offset in its body, anchor; sorted.
     rows: HashMap<u32, Vec<(u32, u32)>>,
@@ -80,18 +83,22 @@ impl LineTable {
         };
         for (id, start, body) in sections {
             match id {
-                10 => {
-                    let mut r = Bytes { b: body, at: 0 };
-                    for _ in 0..r.len()? {
-                        let size = r.len()?;
-                        t.starts
-                            .push(u32::try_from(start + r.at).map_err(|e| e.to_string())?);
-                        r.at = r.at.checked_add(size).ok_or("a body is too long")?;
-                    }
-                }
+                10 => t.starts = crate::imports::code_starts(start, body)?,
                 0 => {
                     let mut r = Bytes { b: body, at: 0 };
                     match r.name()?.as_str() {
+                        CODE_STARTS => {
+                            t.starts.clear();
+                            let mut offset = 0u64;
+                            for _ in 0..r.len()? {
+                                let delta = hd_base::leb::get(r.b, &mut r.at, 64)
+                                    .ok_or("invalid code-body offset")?;
+                                offset = offset
+                                    .checked_add(delta)
+                                    .ok_or("code-body offset overflow")?;
+                                t.starts.push(offset);
+                            }
+                        }
                         "name" => t.names_section(&mut r)?,
                         "hd.names" => {
                             for _ in 0..r.len()? {
@@ -172,6 +179,17 @@ impl LineTable {
         Ok(t)
     }
 
+    /// A profiler's defined-function index, excluding imported functions.
+    /// Written release metadata resolves names through `hd.positions`.
+    #[must_use]
+    pub fn defined_function_name(&self, defined: u32) -> Option<&str> {
+        let index = self.imports.checked_add(defined)?;
+        self.resolved
+            .get(&index)
+            .map(|(_, name, _)| name.as_str())
+            .or_else(|| self.names.get(&index).map(String::as_str))
+    }
+
     /// Each function with rows, in index order: its index, the stable
     /// path of its item, and per row in `hd.lines` order the frames it
     /// stands for ([`LineTable::frames`]), which `hd build` resolves into
@@ -224,8 +242,10 @@ impl LineTable {
             .filter_map(|&(f, addr)| {
                 let rows = self.rows.get(&f)?;
                 let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
-                let at = addr.checked_sub(start)?;
-                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                let at = u64::from(addr).checked_sub(start)?;
+                let k = rows
+                    .partition_point(|&(off, _)| u64::from(off) <= at)
+                    .checked_sub(1)?;
                 Some((f, k))
             })
             .collect()
@@ -282,8 +302,10 @@ impl LineTable {
             .filter_map(|&(f, addr)| {
                 let rows = self.rows.get(&f)?;
                 let start = *self.starts.get(f.checked_sub(self.imports)? as usize)?;
-                let at = addr.checked_sub(start)?;
-                let k = rows.partition_point(|&(off, _)| off <= at).checked_sub(1)?;
+                let at = u64::from(addr).checked_sub(start)?;
+                let k = rows
+                    .partition_point(|&(off, _)| u64::from(off) <= at)
+                    .checked_sub(1)?;
                 let name = self.names.get(&f)?;
                 let item = name
                     .rsplit_once('#')
@@ -478,12 +500,64 @@ mod tests {
     }
 
     #[test]
+    fn profiling_names_account_for_imports_without_changing_the_module()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let wasm = module("hd.names");
+        let table = LineTable::parse(&wasm)?;
+        assert_eq!(table.defined_function_name(0), Some("g"));
+        assert_eq!(table.defined_function_name(1), Some("app/main/f#0"));
+        assert_eq!(table.defined_function_name(2), None);
+        assert_eq!(table.defined_function_name(u32::MAX), None);
+        Ok(())
+    }
+
+    #[test]
+    fn profiling_names_use_written_positions_without_standard_names()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut wasm = module("hd.names");
+        super::cut_names(&mut wasm);
+        wasm.extend(super::positions_section(
+            &[(2, "main.hd".into(), "hot_vm_loop".into(), vec![1, 2])],
+            &[],
+        ));
+        let metadata = crate::metadata_projection(&wasm)?;
+        let table = LineTable::parse(&metadata)?;
+        assert_eq!(table.defined_function_name(1), Some("hot_vm_loop"));
+        assert_eq!(table.defined_function_name(0), None);
+        Ok(())
+    }
+
+    #[test]
+    fn metadata_projection_keeps_original_function_offsets() {
+        let wasm = module("hd.names");
+        let original = LineTable::parse(&wasm).expect("original table");
+        let metadata = crate::metadata_projection(&wasm).expect("metadata");
+        let projected = LineTable::parse(&metadata).expect("projected table");
+        assert_eq!(projected.starts, original.starts);
+        assert!(
+            crate::imports::all_sections(&metadata)
+                .expect("sections")
+                .iter()
+                .all(|&(id, _, _)| id != 10 && id != 11)
+        );
+        for (index, &start) in original.starts.iter().enumerate() {
+            for offset in 0..10 {
+                let frame = [(
+                    original.imports + u32::try_from(index).expect("index"),
+                    u32::try_from(start).expect("fixture offset") + offset,
+                )];
+                assert_eq!(projected.anchor(&frame), original.anchor(&frame));
+            }
+        }
+    }
+
+    #[test]
     fn frames_map_to_the_greatest_row_at_or_below_them() {
         for names in ["name", "hd.names"] {
             let m = module(names);
             let t = LineTable::parse(&m).expect("parses");
             // Function 2's body starts after function 1's ten bytes.
-            let start = t.starts[1];
+            let start = u32::try_from(t.starts[1]).expect("small fixture");
             let at = |inst| Anchored {
                 item: "app/main/f".into(),
                 inst,
@@ -491,7 +565,7 @@ mod tests {
             assert_eq!(
                 t.anchor(&[
                     (0, 0),
-                    (1, t.starts[0] + 4),
+                    (1, u32::try_from(t.starts[0]).expect("small fixture") + 4),
                     (2, start + 2),
                     (2, start + 3),
                     (2, start + 6),
@@ -516,7 +590,7 @@ mod tests {
             t.functions(),
             [(2, "app/main/f".to_owned(), vec![vec![f(5)], vec![f(9)]])]
         );
-        let start = t.starts[1];
+        let start = u32::try_from(t.starts[1]).expect("small fixture");
         assert!(t.resolved_lines(&[(2, start + 3)]).is_empty());
         m.extend(super::positions_section(
             &[(2, "src/main.hd".into(), "app.main.f".into(), vec![4, 7])],
@@ -551,7 +625,7 @@ mod tests {
                 inst: 6,
             },
         );
-        let start = t.starts[1];
+        let start = u32::try_from(t.starts[1]).expect("small fixture");
         assert_eq!(t.anchor(&[(2, start + 8)]), [g.clone(), f(5)]);
         assert_eq!(
             t.functions(),

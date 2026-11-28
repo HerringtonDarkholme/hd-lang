@@ -1,0 +1,4 @@
+impl User by Structure:
+    name = if flag:
+        "x"
+    other = "y"

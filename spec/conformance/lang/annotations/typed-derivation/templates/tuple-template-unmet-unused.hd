@@ -1,7 +1,7 @@
 # test: a tuple type that fails the walker's bound is no error until a use needs the implementation
 # Spec 14 Tuple Templates: annot.template.tuple.unmet.
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

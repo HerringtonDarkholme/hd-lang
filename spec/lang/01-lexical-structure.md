@@ -577,11 +577,11 @@ See also: [Lifetime Parameters](04-type-system.md#lifetime-parameters),
 r[lex.keyword.reserved-words.v2] The grammar uses these reserved words:
 
 ```text
-Self      break     continue  data      dyn       else
-enum      false     fn        for       if        impl
-in        is        let       match     mut       pass
-pub       return    self      struct    tests     trait
-true      type      while
+Self      break     continue  dyn       else      enum
+false     fn        for       if        impl      in
+is        let       match     mut       pass      pub
+return    self      struct    tests     trait     true
+type      while
 ```
 
 1. r[lex.keyword.tests] `tests` begins a module's `tests:` block ([Test Blocks](02-grammar.md#test-blocks)).
@@ -606,8 +606,7 @@ only in fixed positions:
 | r[lex.contextual.const-generic] Const generic parameter | `const` | after `<` in a generic parameter, before its declared scalar type |
 
 1. r[lex.contextual.elsewhere] These contextual words remain ordinary identifiers elsewhere. Declarations such as `fn with() -> void`, `fn derive() -> void`, and `fn use() -> void` are lexically valid. So are expressions such as `resource.use(f)` and `super := parent`.
-2. r[lex.defer.identifier] `defer` is an ordinary identifier, as in `defer(action)`.
-3. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
+2. r[lex.contextual.shadowing] The separate prelude shadowing rule still applies.
 
 ```text
 fn use(value: i32) -> i32:

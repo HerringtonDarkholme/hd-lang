@@ -1,7 +1,7 @@
 # @dump: own counts wat
 # @build: release
 # expected: inlined nonescaping field borrows take no count; returning a reference still retains
-use std.annotation.inline
+use std.meta.inline
 
 struct Point:
     x: i32

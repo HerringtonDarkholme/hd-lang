@@ -26,13 +26,13 @@ pub trait StructureEnv: InlineEnv {
     /// Whether `def` is the hidden `describe` body emitted by `hd_structure`.
     fn generated_structure_describe(&self, def: DefId) -> bool;
 
-    /// The compiler-known `std.structure.Describer` trait.
+    /// The compiler-known `std.meta.Describer` trait.
     fn describer_trait(&self) -> DefId;
 
-    /// The compiler-known `std.structure.Walker` trait.
+    /// The compiler-known `std.meta.Walker` trait.
     fn walker_trait(&self) -> DefId;
 
-    /// The compiler-known `std.structure.Source` trait.
+    /// The compiler-known `std.meta.Source` trait.
     fn source_trait(&self) -> DefId;
 
     /// The data-only `Walker` hooks whose defaults bridge to the ordinary
@@ -43,10 +43,10 @@ pub trait StructureEnv: InlineEnv {
     /// A generated immutable handle factory, if `def` is one.
     fn generated_structure_handle(&self, def: DefId) -> Option<GeneratedHandle>;
 
-    /// The known `std.structure.FieldRecord.get` method.
+    /// The known `std.meta.FieldRecord.get` method.
     fn field_get(&self) -> DefId;
 
-    /// The known `std.structure.VariantRecord.holds` method.
+    /// The known `std.meta.VariantRecord.holds` method.
     fn variant_holds(&self) -> DefId;
 }
 

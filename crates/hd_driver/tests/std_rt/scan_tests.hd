@@ -36,7 +36,7 @@ fn reference_set(text: string, from: usize, w0: u64, w1: u64, w2: u64, w3: u64) 
         index = index + 1
     size
 
-# std.json's escape set as constants: below 0x20, `"` and `\`, which a
+# std.encoding.json's escape set as constants: below 0x20, `"` and `\`, which a
 # few compares cover.
 fn json_set(text: string, from: usize) -> usize:
     bytes_index_set(text, from, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)

@@ -225,12 +225,16 @@
     i32.add
     local.set $seen
     local.get $label.0
+    local.get $label.1
+    local.get $offset
+    local.get $seen
+    i32.add
     local.get $tag.0
     if
       local.get $tag.0
       call $retain
     end
-    local.get $label.1
+    drop
     local.set $xs
     local.set $offset
     local.get $tag.0

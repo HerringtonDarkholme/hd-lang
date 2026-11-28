@@ -1,0 +1,29 @@
+# @dump: stdout
+# @build: dev | checked | checked release
+# expected: integer conversions check bounds before casting and return Result errors in every profile.
+use std.convert.TryFrom
+use std.num.TryFromIntError
+
+fn narrow(value: i64) -> Result[i8, TryFromIntError]:
+    i8::try_from(value)
+
+fn unsigned_to_signed(value: u64) -> Result[i64, TryFromIntError]:
+    i64::try_from(value)
+
+fn signed_to_unsigned(value: i64) -> Result[u64, TryFromIntError]:
+    u64::try_from(value)
+
+fn target_width(value: u64) -> Result[usize, TryFromIntError]:
+    usize::try_from(value)
+
+fn generic[T, U < TryFrom[T]](value: T) -> Result[U, U::Error]:
+    U::try_from(value)
+
+pub fn main() -> void $ Console:
+    println("${narrow(-128).is_ok()} ${narrow(-129).is_err()} ${narrow(128).is_err()}")
+    println(
+        "${unsigned_to_signed(9223372036854775807).is_ok()} ${unsigned_to_signed(9223372036854775808).is_err()}",
+    )
+    println("${signed_to_unsigned(-1).is_err()} ${signed_to_unsigned(0).is_ok()}")
+    println("${target_width(4294967295).is_ok()} ${target_width(4294967296).is_err()}")
+    println("${generic::[i64, i32](42).is_ok()} ${generic::[i64, i32](2147483648).is_err()}")

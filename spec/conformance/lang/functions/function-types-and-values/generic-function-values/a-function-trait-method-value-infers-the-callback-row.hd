@@ -2,7 +2,7 @@
 # Spec lang/07-functions.md: fn.type.generic.argument.sources.
 # expect-stdout: called
 # expect-stdout: 16
-use std.function.Fn
+use std.ops.Fn
 
 fn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:
     call(&f, (value,))

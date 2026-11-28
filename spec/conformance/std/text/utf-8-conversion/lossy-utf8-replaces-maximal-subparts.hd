@@ -1,0 +1,44 @@
+# test: lossy UTF-8 uses Rust maximal-subpart replacement without changing valid bytes
+# expect-stdout: ok
+# std-text.utf8.from-utf8-lossy and std-text.utf8.lossy-subpart.
+use std.testing.assert_equal
+
+pub fn main() -> void $ Console:
+    assert_equal(string::from_utf8_lossy([]), "", reason="empty")
+    valid := "a\r\né中🙂\u{0000}"
+    assert_equal(
+        string::from_utf8_lossy(valid.to_utf8()),
+        valid,
+        reason="valid bytes remain unchanged",
+    )
+    for (bytes, expected) in [
+        ([0x80], "�"),
+        ([0xBF], "�"),
+        ([0xC0, 0xAF], "��"),
+        ([0xC1, 0xBF], "��"),
+        ([0xC2], "�"),
+        ([0xC2, 0x41], "�A"),
+        ([0xC2, 0x80], "\u{0080}"),
+        ([0xDF, 0xBF], "\u{07FF}"),
+        ([0xE0, 0x80, 0x80], "���"),
+        ([0xE0, 0xA0, 0x80], "\u{0800}"),
+        ([0xE2, 0x82], "�"),
+        ([0xE2, 0x82, 0x41], "�A"),
+        ([0xED, 0x9F, 0xBF], "\u{D7FF}"),
+        ([0xED, 0xA0, 0x80], "���"),
+        ([0xF0, 0x80, 0x80, 0x80], "����"),
+        ([0xF0, 0x90, 0x80, 0x80], "\u{10000}"),
+        ([0xF1, 0x80, 0x80], "�"),
+        ([0xF1, 0x80, 0x80, 0x41], "�A"),
+        ([0xF4, 0x8F, 0xBF, 0xBF], "\u{10FFFF}"),
+        ([0xF4, 0x90, 0x80, 0x80], "����"),
+        ([0xF5, 0x80, 0x80, 0x80], "����"),
+        ([0xFF, 0x61, 0xE2, 0x82, 0xC3, 0xA9], "�a�é"),
+        ([0x61, 0xC3, 0xA9, 0xFF, 0x62], "aé�b"),
+    ]:
+        assert_equal(
+            string::from_utf8_lossy(bytes),
+            expected,
+            reason="Rust maximal-subpart replacement",
+        )
+    println("ok")

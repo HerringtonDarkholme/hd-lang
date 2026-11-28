@@ -2,17 +2,14 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[i32]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
-  (import "fixture" "stack" (global $stack (mut i32)))
-  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32 i32)))
+  (import "fixture" "heap" (memory $heap 129))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
     local.get $s.1
@@ -71,7 +68,7 @@
     i32.load $heap offset=4
     i32.ge_u
     if
-      call $rt:panic'1
+      call $rt:panic
       unreachable
     end
     local.get $t1
@@ -116,12 +113,9 @@
   (func $fresh (result i32 i32 i32)
     ;; 36 |     UniqList::[i32].new()
     i32.const 0
-    i32.const 4
-    call $room
-    i32.const 0
-    i32.const 0
+    call $"impl[T < ?Copy] UniqList[T].with_capacity[i32]"
   )
-  (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32)
     ;; 16 |     "s$n"
     local.get $n
     i64.extend_i32_s
@@ -142,108 +136,51 @@
     i32.add
     local.set $n
     i32.const 1
-    local.tee $t1
     local.get $n
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 115
     i32.store8 $heap
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 1
     i32.add
     local.get $n
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
-  (func $declared (param $c i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $u i32) (local $t0 i32)
+  (func $declared (param $c i32) (result i32) (local $u.buffer.ptr i32) (local $u.buffer.capacity i32) (local $u.len i32)
     ;; 39 |     u := fresh()
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 40
-    i32.lt_u
+    call $fresh
+    local.set $u.len
+    local.set $u.buffer.capacity
+    local.set $u.buffer.ptr
+    ;; 40 |     if c:
+    local.get $c
     if
-      call $rt:panic'2
-      unreachable
+      local.get $u.buffer.ptr
+      local.get $u.buffer.capacity
+      local.get $u.len
+      call $rt:release_spilled
+    ;; 41 |         return u.len()
+      local.get $u.len
+      return
+    ;; 40 |     if c:
     end
-    global.get $stack
-    i32.const 40
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    block
-      call $fresh
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $u
-      local.get $t3
-      i32.store $heap
-      local.get $u
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $u
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $u
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $u
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $u
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $u
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $u
-      i32.const 1
-      i32.store $heap offset=28
-    ;; 40 |     if c:
-      local.get $c
-      if
-    ;; 41 |         return u.len()
-        local.get $u
-        i32.load $heap offset=8
-        local.set $t4
-    ;; 40 |     if c:
-        local.get $u
-        if
-          local.get $u
-          call $"release_value[std.collections.UniqList[i32]]"
-        end
-    ;; 41 |         return u.len()
-        br 1
-    ;; 40 |     if c:
-      end
     ;; 39 |     u := fresh()
-      local.get $u
-      if
-        local.get $u
-        call $"release_value[std.collections.UniqList[i32]]"
-      end
-    end
-    local.get $t4
-    local.get $t0
-    i32.const 40
-    i32.add
-    global.set $stack
+    local.get $u.buffer.ptr
+    local.get $u.buffer.capacity
+    local.get $u.len
+    call $rt:release_spilled
+    i32.const 0
   )
 )

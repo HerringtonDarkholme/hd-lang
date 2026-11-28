@@ -22,7 +22,7 @@ pub fn io_started() -> bool {
 }
 
 /// The runtime's handle, starting its thread on the first call.
-pub(crate) fn handle() -> Result<&'static Handle, String> {
+pub fn handle() -> Result<&'static Handle, String> {
     RUNTIME
         .get_or_init(|| {
             let runtime = tokio::runtime::Builder::new_current_thread()

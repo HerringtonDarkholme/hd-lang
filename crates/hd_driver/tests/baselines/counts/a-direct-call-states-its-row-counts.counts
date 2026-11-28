@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: a direct row-polymorphic call or await states its temporary context's copy and release; an empty row forwards nothing.
-use std.annotation.inline
+use std.meta.inline
 
 trait Tag:
     fn value(self) -> i32
@@ -12,14 +12,22 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
-    callback()
+    pause!()
 > app/main/later
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn() -> i32 $ {open row} (last use)
+>   release fn() -> i32 $ {open row} (last use)
 >   release fn() -> i32 $ {open row} (last use)
 > app/main/later
 >   release fn() -> i32 $ {open row} (cancelled)
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/later
 >   retain counted reference (stored)
+> app/main/later
+>   retain counted reference (stored)
+    callback()
 
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
     forward(callback)
@@ -53,3 +61,23 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 
 fn empty(callback: fn() -> i32) -> i32:
     forward(callback)
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

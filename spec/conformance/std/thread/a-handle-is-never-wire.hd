@@ -1,6 +1,6 @@
 # test: a handle names a block of the shared heap, so it is Send but never Wire
 # Spec std/thread: std-thread.handle.send.
-use std.marker.Wire
+use std.meta.Wire
 use std.thread.{Handle, Scope, scope}
 
 fn post[T < ?Copy & Wire](value: T) -> void:

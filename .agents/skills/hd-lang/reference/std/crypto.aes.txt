@@ -1,0 +1,10 @@
+# std.crypto.aes: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.crypto.aes` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.crypto.aes.NAME` inside any package.
+std.crypto.aes.AesError  pub enum AesError  -- Why an AES key was rejected.
+std.crypto.aes.Aes  pub struct Aes  -- An immutable expanded AES key for encryption and decryption.
+std.crypto.aes.Aes.new  pub fn new(key: List[u8]) -> Result[Aes, AesError]  -- Expands a 16-, 24-, or 32-byte AES key.
+std.crypto.aes.Aes.block_size  pub fn block_size(&self) -> usize  -- AES always processes 16-byte blocks.
+std.crypto.aes.Aes.encrypt_block  pub fn encrypt_block(&self, block: List[u8]) -> List[u8]  -- Encrypts one block, returning a new 16-byte list.
+std.crypto.aes.Aes.encrypt_block_into  pub fn encrypt_block_into(&self, block: &mut List[u8], offset: usize) -> void  -- Encrypts sixteen bytes in a caller buffer, starting at offset.
+std.crypto.aes.Aes.decrypt_block  pub fn decrypt_block(&self, block: List[u8]) -> List[u8]  -- Decrypts one block, returning a new 16-byte list.

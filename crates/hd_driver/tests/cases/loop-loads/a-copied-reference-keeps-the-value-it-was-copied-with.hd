@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: wasmtime release
+# #2374: `k` copies `r` before `r` is reassigned to `ys`, so the loop
+# reads `xs`: its buffer pointer and length load through `xs` in the
+# loop, never through `r`'s later value, and the check stays.
+use std.collections.UniqList
+
+pub fn stale(xs: &UniqList[i64], ys: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    let mut r = xs
+    let k = r
+    r = ys
+    for i in 0..k.len():
+        s += k[i]
+    s + r[0]

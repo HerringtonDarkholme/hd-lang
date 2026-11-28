@@ -127,7 +127,7 @@ impl Env<'_> {
 }
 
 mod effects;
-mod place_types;
+pub(crate) mod place_types;
 mod program;
 
 thread_local! {
@@ -177,11 +177,6 @@ pub(super) struct Summaries {
     /// ([`Env::summary_lends`]), which stays: a body and its emission read
     /// the same one, and a bit read as kept before the record stays kept.
     read: std::sync::Mutex<HashMap<(Node, u32), bool>>,
-    /// While a recursive component is owned, each member's borrows, which
-    /// [`Env::summary_lends`] answers without recording: assumed while
-    /// its fixed point runs ([`Env::component_borrows`]), then the fixed
-    /// point while the passes run over the members.
-    assume: std::sync::Mutex<HashMap<Node, u64>>,
     /// The inliner's copies and the functions it found recursive.
     inline: hd_opt::inline::Memo,
     /// Per instance whose passes would borrow through a `&T` or `&mut T`
@@ -299,6 +294,8 @@ const PURE_INTRINSICS: &[&str] = &[
     "mem_string_bytes",
     "mem_ref_address",
     "ptr_size_of",
+    "ptr_align_of",
+    "ptr_needs_drop",
     "ptr_ref",
     "ptr_mut",
     "downcast_ref",
@@ -471,6 +468,9 @@ impl hd_opt::prove::Cx for Env<'_> {
     fn length_name(&self) -> hd_base::Symbol {
         self.run.syms.intern("$len")
     }
+    fn load_name(&self) -> hd_base::Symbol {
+        self.run.syms.intern("$load")
+    }
     fn tuple(&self, t: Ty) -> bool {
         let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
         matches!(self.run.pool.get(t), TyData::Adt(AdtId::Product { .. }, _))
@@ -490,9 +490,26 @@ impl hd_opt::prove::Cx for Env<'_> {
             Callee::TraitMethod { .. } => None,
         }
     }
+    fn shared_ref(&self, t: Ty) -> bool {
+        matches!(
+            self.run.pool.get(t),
+            TyData::Ref {
+                mutable: false,
+                counted: false,
+                ..
+            }
+        )
+    }
+    fn call_writes(&self, callee: &Callee) -> bool {
+        OwnCx::call_writes(self, callee).any()
+    }
 }
 
 impl OwnCx for Env<'_> {
+    fn declares_binding(&self, init: DefId, global: DefId) -> bool {
+        let names = self.run.names();
+        names.module_node(init) == names.module_node(global)
+    }
     fn copies_collection(&self, ty: Ty) -> bool {
         if let Some(hit) = lock(&self.run.own_types).get(ty).and_then(|f| f.collection) {
             return hit;
@@ -691,7 +708,7 @@ impl OwnCx for Env<'_> {
 
     fn call_reads_storage_only(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if matches!(self.intrinsic(*def).as_deref(),
-            Some("sqrt" | "ptr_offset" | "mem_string_bytes" | "mem_ref_address" | "ptr_size_of" | "ptr_ref" | "ptr_mut"
+            Some("sqrt" | "ptr_offset" | "mem_string_bytes" | "mem_ref_address" | "ptr_size_of" | "ptr_align_of" | "ptr_needs_drop" | "ptr_ref" | "ptr_mut"
                 | "type_id_of" | "bytes_len" | "bytes_at" | "bytes_index"
                 | "bytes_index_pair" | "bytes_mismatch" | "utf8_valid_len" | "char_scalar" | "char_from_scalar")))
     }
@@ -795,10 +812,10 @@ impl OwnCx for Env<'_> {
             .flatten()
     }
 
-    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+    fn trait_value_widens(&self, from: Ty, to: Ty) -> bool {
         !self.is_open(from)
             && !self.is_open(to)
-            && hd_mono::trait_reference_widens(&self.run.pool, self, from, to)
+            && hd_mono::trait_value_widens(&self.run.pool, self, from, to)
     }
 
     fn plain_reference(&self, ty: Ty) -> bool {
@@ -818,6 +835,15 @@ impl OwnCx for Env<'_> {
 
     fn pointer_ref(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("ptr_ref"))
+    }
+
+    fn raw_addresses(&self, callee: &Callee) -> u32 {
+        let Callee::Item { def, .. } = callee else {
+            return 0;
+        };
+        self.intrinsic(*def).map_or(0, |key| {
+            u32::from(hd_resolve::intrinsics::raw_addresses(&key))
+        })
     }
 
     fn tracked(&self, ty: Ty) -> bool {
@@ -1235,6 +1261,36 @@ impl OwnCx for Env<'_> {
     }
 
     fn copies(&self, ty: Ty) -> Tri {
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.copies.get(&ty).copied()) {
+            return known;
+        }
+        let answer = self.copies_in_run(ty);
+        thread_facts(run, |f| f.copies.insert(ty, answer));
+        answer
+    }
+}
+
+impl Env<'_> {
+    /// Whether a value of `t` holds a `std.rt.Drop` value
+    /// ([`hd_layout::holds_drop_in`]), over the run's memo: the growing
+    /// types of many bodies (`W^i` in the instance for level `i` of a
+    /// generic nest) cost each new type once, not its depth (#1912).
+    pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.drops.get(&t).copied()) {
+            return known;
+        }
+        let answer = {
+            let mut memo = lock(&self.run.drop_types);
+            hd_layout::holds_drop_in(&self.run.pool, self, t, &mut memo)
+        };
+        thread_facts(run, |f| f.drops.insert(t, answer));
+        answer
+    }
+
+    /// [`OwnCx::copies`] from the run's memo, under its lock.
+    fn copies_in_run(&self, ty: Ty) -> Tri {
         let mut query = lock(&self.run.copy_types);
         let CopyFacts { memo, normal } = &mut *query;
         let mut answered = Vec::new();
@@ -1282,21 +1338,10 @@ impl OwnCx for Env<'_> {
     }
 }
 
-impl Env<'_> {
-    /// Whether a value of `t` holds a `std.rt.Drop` value
-    /// ([`hd_layout::holds_drop_in`]), over the run's memo: the growing
-    /// types of many bodies (`W^i` in the instance for level `i` of a
-    /// generic nest) cost each new type once, not its depth (#1912).
-    pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
-        let mut memo = lock(&self.run.drop_types);
-        hd_layout::holds_drop_in(&self.run.pool, self, t, &mut memo)
-    }
-}
-
 /// Internal calls compose as read-only only when every generated factory
 /// has no external write. Each helper's TIR is inspected once; no recursive
 /// query or fixpoint is needed for this conservative group proof.
-fn read_only_factories(
+pub fn read_only_factories(
     pool: &hd_types::InternPool,
     target: Ty,
     bodies: &[Body],
@@ -1320,67 +1365,6 @@ fn read_only_factories(
         })
 }
 
-#[test]
-fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
--> Result<(), String> {
-    use hd_tir::ir::{BodyKind, Providers, TirBuilder, TirSink};
-    let pool = hd_types::InternPool::new();
-    let target = Ty::I32;
-    let helper = |def: u32, callee: Option<(u32, Ty)>| {
-        let mut b = TirBuilder::new(DefId::from_raw(def), BodyKind::Handle);
-        let root = b.open_block();
-        if let Some((called, target)) = callee {
-            b.call(
-                &Callee::Item {
-                    def: DefId::from_raw(called),
-                    targs: pool.list(&[target]),
-                },
-                &[],
-                Providers::None,
-                Ty::VOID,
-                hd_base::NodeIdx::NONE,
-            );
-        }
-        let root = b.close_block(root, None, Ty::VOID, hd_base::NodeIdx::NONE);
-        b.finish(root, &[]).map_err(|errors| format!("{errors:?}"))
-    };
-    let index = [(DefId::from_raw(1), 0), (DefId::from_raw(2), 1)]
-        .into_iter()
-        .collect();
-    let static_family = [helper(1, Some((2, target)))?, helper(2, None)?];
-    assert!(read_only_factories(
-        &pool,
-        target,
-        &static_family,
-        &index,
-        &|_| true
-    ));
-    let effectful = [helper(1, Some((2, target)))?, helper(2, Some((3, target)))?];
-    assert!(!read_only_factories(
-        &pool,
-        target,
-        &effectful,
-        &index,
-        &|_| true
-    ));
-    assert!(read_only_factories(
-        &pool,
-        target,
-        &effectful,
-        &index,
-        &|_| false
-    ));
-    let other_target = [helper(1, Some((2, Ty::BOOL)))?, helper(2, None)?];
-    assert!(!read_only_factories(
-        &pool,
-        target,
-        &other_target,
-        &index,
-        &|_| true
-    ));
-    Ok(())
-}
-
 /// The run's layout memo (`Run::own_types`): one [`TypeFacts`] per type,
 /// in a table indexed by the type's id, as Cranelift's `SecondaryMap`
 /// keeps a fact per entity. The ownership passes ask a fact of a value's
@@ -1388,13 +1372,14 @@ fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
 /// hash. A body-local type (`Ty::is_local`), which no pool index names,
 /// keeps its entry in a map.
 #[derive(Debug, Default)]
-pub(super) struct TypeTable {
-    global: Vec<Option<TypeFacts>>,
-    local: HashMap<Ty, TypeFacts>,
+pub struct TypeTable {
+    pub global: Vec<Option<TypeFacts>>,
+    pub local: HashMap<Ty, TypeFacts>,
 }
 
 impl TypeTable {
-    fn get(&self, t: Ty) -> Option<&TypeFacts> {
+    #[must_use]
+    pub fn get(&self, t: Ty) -> Option<&TypeFacts> {
         if t.is_local() {
             self.local.get(&t)
         } else {
@@ -1402,7 +1387,7 @@ impl TypeTable {
         }
     }
 
-    fn get_mut(&mut self, t: Ty) -> Option<&mut TypeFacts> {
+    pub fn get_mut(&mut self, t: Ty) -> Option<&mut TypeFacts> {
         if t.is_local() {
             self.local.get_mut(&t)
         } else {
@@ -1425,11 +1410,12 @@ impl TypeTable {
         )
     }
 
-    fn contains(&self, t: Ty) -> bool {
+    #[must_use]
+    pub fn contains(&self, t: Ty) -> bool {
         self.get(t).is_some()
     }
 
-    fn insert(&mut self, t: Ty, facts: TypeFacts) {
+    pub fn insert(&mut self, t: Ty, facts: TypeFacts) {
         if t.is_local() {
             self.local.insert(t, facts);
             return;
@@ -1456,19 +1442,19 @@ fn index(t: Ty) -> usize {
 /// entries; the counted facts the first time a pass asks them of a type
 /// that names no parameter ([`Env::layout_facts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct TypeFacts {
-    refs: RefFacts,
+pub struct TypeFacts {
+    pub refs: RefFacts,
     /// Whether it holds a counted leaf, and its reference ownership.
-    layout: Option<(bool, Option<bool>)>,
-    mode: Option<hd_tir::own::ParameterMode>,
-    function_input: Option<hd_tir::own::FunctionInput>,
-    collection: Option<bool>,
+    pub layout: Option<(bool, Option<bool>)>,
+    pub mode: Option<hd_tir::own::ParameterMode>,
+    pub function_input: Option<hd_tir::own::FunctionInput>,
+    pub collection: Option<bool>,
 }
 
 /// The references a value of a type may hold, from its own kind and its
 /// parts' facts ([`ref_facts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct RefFacts {
+pub struct RefFacts {
     /// It may hold a reference ([`OwnCx::holds_ref`]): a reference type, a
     /// trait value, a function value, which may hold the references its
     /// closure captured, a `Ptr[T]`, whose address `as_ref` makes a
@@ -1478,18 +1464,18 @@ struct RefFacts {
     /// (`ref.generic.local`), but never one into a local of the body that
     /// holds it: no expression makes a `T` from that body's storage
     /// (`ref.generic.body`), so for frame locals it holds none.
-    holds: bool,
+    pub holds: bool,
     /// Every reference it may hold is a counted `Ref`: no local `Ref`,
     /// trait value, function value, `Ptr` or type parameter.
-    only_counted: bool,
+    pub only_counted: bool,
     /// It holds a counted `Ref` ([`OwnCx::counted_refs_only`] with
     /// `only_counted`).
-    counted: bool,
+    pub counted: bool,
 }
 
 impl RefFacts {
     /// A type that holds no reference and nothing open.
-    const NONE: Self = Self {
+    pub const NONE: Self = Self {
         holds: false,
         only_counted: true,
         counted: false,
@@ -1556,7 +1542,7 @@ fn ref_facts_of(
 /// its direct parts, with no native recursion. A type that doubles at each
 /// level, `(D, D)` over `n` aliases, costs `n` entries, not its `2^n`
 /// leaves.
-fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTable) -> RefFacts {
+pub fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTable) -> RefFacts {
     crate::work::layout_probe();
     if let Some(f) = memo.get(t) {
         return f.refs;
@@ -1597,67 +1583,6 @@ fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTabl
         );
     }
     refs
-}
-
-#[test]
-fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
-    let pool = hd_types::InternPool::new();
-    let ptr = DefId::from_raw(1);
-    let boxed = pool.intern_ty(&TyData::Ref {
-        inner: Ty::I32,
-        counted: true,
-        mutable: false,
-    });
-    let callback = pool.intern_ty(&TyData::Fn {
-        params: TyList::EMPTY,
-        result: Ty::I32,
-        row: hd_types::RowId::EMPTY,
-        suspends: false,
-        inputs: hd_types::Inputs::Fixed,
-        deps: hd_types::FnDeps::NONE,
-    });
-    let pair = |right| pool.product(pool.list(&[boxed, right]), None);
-    let mut memo = TypeTable::default();
-    let mut only = |t| {
-        let f = ref_facts(&pool, ptr, t, &mut memo);
-        f.only_counted && f.counted
-    };
-    assert!(only(pair(Ty::STRING)));
-    assert!(!only(pair(callback)));
-}
-
-#[test]
-fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
-    let facts = |holds| TypeFacts {
-        refs: RefFacts {
-            holds,
-            ..RefFacts::NONE
-        },
-        layout: None,
-        mode: None,
-        function_input: None,
-        collection: None,
-    };
-    let mut table = TypeTable::default();
-    let (far, near, local) = (Ty(1_000), Ty(3), Ty(Ty::I32.0 | 0x8000_0000));
-    assert!(local.is_local() && !far.is_local());
-    table.insert(far, facts(true));
-    table.insert(near, facts(false));
-    table.insert(local, facts(true));
-    assert!(table.contains(far) && table.contains(near) && table.contains(local));
-    assert!(!table.contains(Ty(999)) && !table.contains(Ty(5_000)));
-    assert_eq!(table.global.len(), 1_001);
-    assert_eq!(table.local.len(), 1);
-    // ruled out: a missing entry; both were inserted above.
-    table.get_mut(near).expect("an entry").layout = Some((true, None));
-    // ruled out: a missing entry; both were inserted above.
-    table.get_mut(local).expect("an entry").layout = Some((false, Some(true)));
-    assert_eq!(table.get(near).and_then(|f| f.layout), Some((true, None)));
-    assert_eq!(
-        table.get(local).and_then(|f| f.layout),
-        Some((false, Some(true)))
-    );
-    assert!(table.get_mut(Ty(7)).is_none());
 }
 
 impl Env<'_> {
@@ -2002,7 +1927,14 @@ impl Env<'_> {
     /// query per distinct type, with constant-time warm lookup.
     fn layout_facts(&self, t: Ty) -> (bool, Option<bool>) {
         crate::work::layout_probe();
-        if let Some(facts) = lock(&self.run.own_types).get(t).and_then(|f| f.layout) {
+        if let Some(facts) = known_facts(self.run.layout_key, t).and_then(|f| f.layout) {
+            return facts;
+        }
+        let entry = lock(&self.run.own_types).get(t).copied();
+        if let Some(facts) = entry.and_then(|f| {
+            keep_facts(self.run.layout_key, t, f);
+            f.layout
+        }) {
             return facts;
         }
         // The backend's queries may ask this run's other facts: no lock
@@ -2016,18 +1948,23 @@ impl Env<'_> {
         ref_facts(pool, self.run.known.ptr, t, &mut memo);
         if let Some(entry) = memo.get_mut(t) {
             entry.layout = Some(facts);
+            keep_facts(self.run.layout_key, t, *entry);
         }
         facts
     }
 
     /// `t`'s reference facts from the run's layout memo ([`ref_facts`]).
-    fn ref_facts(&self, t: Ty) -> RefFacts {
-        ref_facts(
-            &self.run.pool,
-            self.run.known.ptr,
-            t,
-            &mut lock(&self.run.own_types),
-        )
+    pub fn ref_facts(&self, t: Ty) -> RefFacts {
+        if let Some(f) = known_facts(self.run.layout_key, t) {
+            crate::work::layout_probe();
+            return f.refs;
+        }
+        let mut memo = lock(&self.run.own_types);
+        let refs = ref_facts(&self.run.pool, self.run.known.ptr, t, &mut memo);
+        if let Some(&entry) = memo.get(t) {
+            keep_facts(self.run.layout_key, t, entry);
+        }
+        refs
     }
 
     /// Runs the ownership passes over `body`, then, in checked and debug
@@ -2048,8 +1985,8 @@ impl Env<'_> {
             body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
-        #[cfg(all(test, not(target_arch = "wasm32")))]
-        metadata_tests::verify_checked_variants(self, &body);
+        #[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+        test_hooks::metadata::verify_checked_variants(self, &body);
         let returns = summarize
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
@@ -2093,8 +2030,8 @@ impl Env<'_> {
                 ));
             }
         }
-        #[cfg(all(test, not(target_arch = "wasm32")))]
-        metadata_tests::verify_fresh(self, &body);
+        #[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+        test_hooks::metadata::verify_fresh(self, &body);
         // The exit set as statements, after the verifier
         // (`hd_tir::own::elaborate`).
         hd_tir::own::elaborate(&mut body, self)
@@ -2407,6 +2344,15 @@ impl InlineEnv for Env<'_> {
     }
 
     fn inline_hint(&self, def: DefId) -> InlineHint {
+        // A scenario-held body is replaced by a pending poll at emission.
+        // Its written body cannot prove readiness or replace that boundary.
+        if self
+            .run
+            .scenario_hold_target()
+            .is_some_and(|(held, _)| held == def)
+        {
+            return InlineHint::Never;
+        }
         self.p
             .items
             .get(def)
@@ -2846,7 +2792,15 @@ impl Env<'_> {
     /// inlined trait method's constant among them, #1518). The result's
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
-    pub(super) fn fold_and_inline(&self, body: &mut Body, args: TyList, hash: Hash128) -> Hash128 {
+    ///
+    /// # Errors
+    /// A compiler bug: scalar replacement's splice refused the body.
+    pub(super) fn fold_and_inline(
+        &self,
+        body: &mut Body,
+        args: TyList,
+        hash: Hash128,
+    ) -> StageResult<Hash128> {
         // A body with no type arguments gets no `hd_mono::instantiate`,
         // so its bound calls at a closed receiver are chosen here, as
         // collection selects them: at an opaque result's hidden type, or
@@ -2863,12 +2817,24 @@ impl Env<'_> {
         // expose constant decisions before the general folding pipeline.
         let decided = facts != hash;
         let hash = hd_opt::inline::inline_calls(self, body, args, facts);
+        // Scalar replacement needs copies to work on (`hd_opt::sroa`).
+        if self.run.sroa && hash != facts {
+            let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
+            hd_opt::sroa::run(body, &self.run.pool, &copies, self.run.sroa_spill)
+                .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
+        }
+        // A match on an inlined body's constructors jumps to its arms.
+        if self.run.known_ctor && hash != facts {
+            let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
+            hd_opt::known_ctor::run(body, &copies)
+                .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
+        }
         if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {
             *body = specialized;
         }
-        hash
+        Ok(hash)
     }
 
     /// Instance `(def, args)` as collection keys it ([`Node`]).
@@ -3052,23 +3018,36 @@ impl Env<'_> {
     /// calls); then folded and inlined
     /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
     /// one instance's. Dev and release run these stages in one order.
-    pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
+    ///
+    /// # Errors
+    /// [`Env::fold_and_inline`]'s.
+    pub(super) fn inlined_instance(&self, node: Node) -> StageResult<Option<(Body, Hash128)>> {
+        let _span = super::phase("collect: inline");
+        // The inliner asks a referent's layout per call site: once per run instead.
+        hd_layout::cached_for_run(self.run.layout_key, || self.instance_uncached(node))
+    }
+
+    /// [`Env::inlined_instance`] without the run's layout cache in place.
+    fn instance_uncached(&self, (def, args): Node) -> StageResult<Option<(Body, Hash128)>> {
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with
         // none has no instance body here (its source body is a
         // placeholder, and collection supplies a `dbg` body itself).
         let supplied = self.supplied_member((def, args));
         if supplied.is_none() && ProgramEnv::intrinsic(self, def).is_some() {
-            return None;
+            return Ok(None);
         }
         let walk = supplied.is_some() && self.supplied_walk_family((def, args)).is_some();
         let (generic, hash) = if let Some((family, at)) = &supplied {
             (&family.bodies[*at], family.hash)
         } else {
-            let (raw, hash) = self
+            let Some((raw, hash)) = self
                 .run
                 .lazy_body(self.p, def)
-                .and_then(|b| self.run.decode(b))?;
+                .and_then(|b| self.run.decode(b))
+            else {
+                return Ok(None);
+            };
             (raw, *hash)
         };
         // A lifted generic local function's instance starts from its own
@@ -3107,61 +3086,28 @@ impl Env<'_> {
         } else {
             hash
         };
-        let hash = self.fold_and_inline(&mut body, args, hash);
-        Some((body, hash))
+        let hash = self.fold_and_inline(&mut body, args, hash)?;
+        Ok(Some((body, hash)))
     }
 
     /// Generic instance `node`'s body after the passes
-    /// (`ProgramEnv::instance_body`), owned once: in release with its
-    /// callees first ([`Run::owned_bottom_up`]), in dev alone, since no
-    /// summary is read; `None` when it has no body. A dev build takes it
-    /// from the store while its key ([`Run::instance_owned_key`]) and the
-    /// bodies it read are unchanged, and stores it with those reads
-    /// otherwise (#2106): one key probe per instance, and no instance
-    /// body built or owned on a hit.
+    /// (`ProgramEnv::instance_body`), owned once by the bottom-up walk
+    /// ([`Run::owned_bottom_up`]), or taken from the store there in dev;
+    /// `None` when it has no body. One the walk left unowned is built
+    /// here again, to report the passes' refusal.
     pub(super) fn owned_instance(&self, node: Node) -> StageResult<Option<std::sync::Arc<Body>>> {
         let instances = &self.run.instances;
-        if self.run.summaries.is_some() && !lock(instances).contains_key(&node) {
+        if !lock(instances).contains_key(&node) {
             self.run.owned_bottom_up(self.p, node);
         }
         if let Some(owned) = lock(instances).get(&node).cloned().flatten() {
             self.render_lifted(node, &owned);
             return Ok(Some(owned));
         }
-        let supplied = self
-            .supplied_member(node)
-            .map(|(family, at)| (family.hash, at));
-        let key = self.run.instance_owned_key(self.p, node, supplied);
-        if let Some(key) = key
-            && let Some((body, _)) = self.run.stored_package_owned(self.p, key)
-        {
-            #[cfg(test)]
-            owned_cache_tests::verify_stored(self.run, self.p, &body);
-            let owned = std::sync::Arc::new(body);
-            lock(instances).insert(node, Some(owned.clone()));
-            return Ok(Some(owned));
-        }
-        let (owned, reads) = reading(|| {
-            // The walk keeps no error: the passes' refusal is reported here.
-            let Some((body, hash)) = self.inlined_instance(node) else {
-                return Ok(None);
-            };
-            lock(&self.run.counters)
-                .instances_owned
-                .push(self.run.names().path(node.0));
-            self.own_inlined(body, hash, node.1).map(Some)
-        });
-        let Some(owned) = owned? else {
+        let Some((body, hash)) = self.inlined_instance(node)? else {
             return Ok(None);
         };
-        if let Some(key) = key {
-            self.run
-                .store_package_owned(self.p, node.0, key, &owned, reads);
-        }
-        let owned = std::sync::Arc::new(owned.0);
-        if self.run.summaries.is_none() {
-            lock(instances).insert(node, Some(owned.clone()));
-        }
+        let owned = std::sync::Arc::new(self.own_inlined(body, hash, node.1)?.0);
         self.render_lifted(node, &owned);
         Ok(Some(owned))
     }
@@ -3274,7 +3220,17 @@ impl Env<'_> {
         hash: Hash128,
         args: TyList,
     ) -> StageResult<(Body, Hash128)> {
+        let _span = super::phase("collect: own passes");
         let node = (body.item, args);
+        let path = self.run.names().path(body.item);
+        let mut counters = lock(&self.run.counters);
+        let owned = if args == TyList::EMPTY {
+            &mut counters.bodies_owned
+        } else {
+            &mut counters.instances_owned
+        };
+        owned.push(path);
+        drop(counters);
         self.mark_instance(&mut body, args);
         if self.return_loan_layout(body.item, args).is_some() {
             hd_tir::own::return_loan::prepare(&mut body);
@@ -3329,7 +3285,7 @@ impl Env<'_> {
             if glue {
                 lent = 0;
             }
-            if let Some(&fixed) = lock(&all.assume).get(&node) {
+            if let Some(fixed) = assumed(node) {
                 // The fixed point holds of the passes' last run.
                 assert!(
                     fixed & s.kept == 0,
@@ -3364,7 +3320,7 @@ impl Env<'_> {
         let lends = |m| {
             hd_tir::own::ParameterMode::Owned.with_lends(m, k) == hd_tir::own::ParameterMode::Lent
         };
-        if let Some(&m) = lock(&all.assume).get(&node) {
+        if let Some(m) = assumed(node) {
             return lends(m);
         }
         let key = (node, hd_tir::ir::u32_of(k));
@@ -3395,7 +3351,7 @@ impl Env<'_> {
     pub(super) fn component_borrows(
         &self,
         members: &[Node],
-        bodies: &HashMap<Node, (Body, Hash128)>,
+        bodies: &Inlined,
     ) -> HashMap<Node, u64> {
         let mut assume: HashMap<Node, u64> = HashMap::default();
         let Some(all) = &self.run.summaries else {
@@ -3403,7 +3359,7 @@ impl Env<'_> {
         };
         for &m in members {
             let mut mask = 0;
-            if let Some((b, _)) = bodies.get(&m)
+            if let Some((b, ..)) = bodies.get(&m)
                 && !self.called_by_glue(m.0)
                 && !ProgramEnv::suspends(self, m.0)
             {
@@ -3421,7 +3377,7 @@ impl Env<'_> {
             }
             assume.insert(m, mask);
         }
-        lock(&all.assume).clone_from(&assume);
+        ASSUME.with_borrow_mut(|a| a.clone_from(&assume));
         let mut fell = true;
         while fell {
             fell = false;
@@ -3432,16 +3388,16 @@ impl Env<'_> {
                 }
                 let kept = bodies
                     .get(&m)
-                    .and_then(|(b, _)| self.trial_kept(b.clone()))
+                    .and_then(|(b, ..)| self.trial_kept(b.clone()))
                     .unwrap_or(u64::MAX);
                 if a & kept != 0 {
                     assume.insert(m, a & !kept);
-                    lock(&all.assume).insert(m, a & !kept);
+                    ASSUME.with_borrow_mut(|assumed| assumed.insert(m, a & !kept));
                     fell = true;
                 }
             }
         }
-        lock(&all.assume).clear();
+        ASSUME.with_borrow_mut(HashMap::clear);
         assume
     }
 
@@ -3488,11 +3444,15 @@ impl Env<'_> {
     /// signature, decides Copy/Drop eligibility.
     pub(super) fn return_loan_layout(&self, item: DefId, args: TyList) -> Option<u8> {
         let node = self.node(item, args);
+        let run = self.run.layout_key;
+        if let Some(known) = thread_facts(run, |f| f.return_layouts.get(&node).copied()) {
+            return known;
+        }
         let cell = lock(&self.run.own_return_layouts)
             .entry(node)
             .or_default()
             .clone();
-        *cell.get_or_init(|| {
+        let answer = *cell.get_or_init(|| {
             let parameter = self.return_loan_shape(item)?;
             if parameter >= 64 {
                 return None;
@@ -3508,7 +3468,9 @@ impl Env<'_> {
                 && self.copies(ty) == Tri::Yes
                 && self.holds_drop(ty) == Tri::No)
                 .then_some(parameter)
-        })
+        });
+        thread_facts(run, |f| f.return_layouts.insert(node, answer));
+        answer
     }
 
     pub(super) fn lent_mask(&self, node: Node) -> u64 {
@@ -3649,6 +3611,78 @@ impl Env<'_> {
 thread_local! {
     /// The bodies each running [`reading`] call has read, innermost last.
     static READS: RefCell<Vec<Vec<DefId>>> = const { RefCell::new(Vec::new()) };
+    /// While this thread owns a recursive component, each member's borrows,
+    /// which [`Env::summary_lends`] answers without recording: assumed
+    /// while its fixed point runs ([`Env::component_borrows`]), then the
+    /// fixed point while the passes run over the members. A component is
+    /// owned on one thread, so each thread holds its own.
+    static ASSUME: RefCell<HashMap<Node, u64>> = RefCell::new(HashMap::default());
+    /// Whether this thread is owning a component: a nested
+    /// [`Run::owned_bottom_up`] then stays on it, so no other component's
+    /// job runs inside this one.
+    static OWNING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// This thread's copies of the run's read-mostly answers it has read
+    /// ([`ThreadFacts`]).
+    static THREAD_FACTS: RefCell<ThreadFacts> = RefCell::new(ThreadFacts::default());
+}
+
+/// One thread's copies of answers the run memoizes behind a mutex, and
+/// the run they are of (`Run::layout_key`): a warm read takes no lock, so
+/// the threads that own components do not queue on the run's tables
+/// (#2383). Each answer is fixed for the run once made, so a copy reads
+/// what the table would. Cost: one entry per type or instance a thread
+/// reads, in each map.
+#[derive(Default)]
+struct ThreadFacts {
+    run: u64,
+    /// `Run::own_types`. A type's facts never change once made, but its
+    /// layout facts are added later, so a copy without them asks the
+    /// table again.
+    types: HashMap<Ty, TypeFacts>,
+    /// `Run::drop_types` ([`Env::holds_drop_value`]).
+    drops: HashMap<Ty, bool>,
+    /// `Run::copy_types` (`OwnCx::copies`).
+    copies: HashMap<Ty, Tri>,
+    /// `Run::own_return_layouts` ([`Env::return_loan_layout`]).
+    return_layouts: HashMap<Node, Option<u8>>,
+}
+
+/// Runs `f` over this thread's copies of run `run`'s facts, emptied
+/// first when they are another run's.
+fn thread_facts<R>(run: u64, f: impl FnOnce(&mut ThreadFacts) -> R) -> R {
+    THREAD_FACTS.with_borrow_mut(|facts| {
+        if facts.run != run {
+            *facts = ThreadFacts {
+                run,
+                ..ThreadFacts::default()
+            };
+        }
+        f(facts)
+    })
+}
+
+/// One strongly connected component [`Run::owned_bottom_up`] owns: its
+/// members in path order, whether it is recursive, and their inlined
+/// bodies, taken by the thread that owns it.
+type Component = std::sync::Mutex<Option<(Vec<Node>, bool, Inlined)>>;
+
+/// Each walked node's inlined body and its hash, and in dev its store key
+/// and the bodies its inlining read ([`Run::owned_bottom_up`]).
+type Inlined = HashMap<Node, (Body, Hash128, Option<(Hash128, Vec<DefId>)>)>;
+
+/// Type `t`'s facts, when this thread has read them in run `run`.
+fn known_facts(run: u64, t: Ty) -> Option<TypeFacts> {
+    thread_facts(run, |f| f.types.get(&t).copied())
+}
+
+/// Keeps a copy of type `t`'s facts in run `run` for this thread.
+fn keep_facts(run: u64, t: Ty, entry: TypeFacts) {
+    thread_facts(run, |f| f.types.insert(t, entry));
+}
+
+/// Member `node`'s borrows while its recursive component is owned here.
+fn assumed(node: Node) -> Option<u64> {
+    ASSUME.with_borrow(|a| a.get(&node).copied())
 }
 
 /// Records reads of `defs` for the innermost [`reading`] call running.
@@ -3671,6 +3705,32 @@ pub(super) fn reading<T>(f: impl FnOnce() -> T) -> (T, Vec<DefId>) {
     (out, reads)
 }
 
+impl hd_types::lookup::UnitContext for Run<'_> {
+    fn get(&self, unit: usize) -> Option<&hd_types::lookup::UnitImpls> {
+        self.unit_impls.get(unit)?;
+        self.unit_impls(hd_base::UnitId::from_raw(u32::try_from(unit).ok()?))
+    }
+    fn units_at(
+        &self,
+        codes: [Option<u64>; 3],
+    ) -> Box<dyn Iterator<Item = (usize, &hd_types::lookup::UnitImpls)> + '_> {
+        let built = self.built_units.get_or_init(|| {
+            (0..self.table.units.len())
+                .map(super::u32_of)
+                .filter(|&u| self.unit_impls(hd_base::UnitId::from_raw(u)).is_some())
+                .collect()
+        });
+        Box::new(built.iter().filter_map(move |&u| {
+            hd_types::work::view_slots(1);
+            let table = self.unit_impls(hd_base::UnitId::from_raw(u))?;
+            table
+                .table
+                .has_rows_at(codes)
+                .then_some((u as usize, table))
+        }))
+    }
+}
+
 impl Run<'_> {
     /// The body table's entry for `def`.
     pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
@@ -3680,24 +3740,17 @@ impl Run<'_> {
 
     /// Runs `f` with the passes' view of the program: every `Env` is built
     /// here. Its impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2)
-    /// are owner lookup over every folder, read from the run's own table,
-    /// so no body pays for them: the built folders' ids are listed once
+    /// are owner lookup over every unit, read from the run's own table,
+    /// so no body pays for them: the built units' ids are listed once
     /// per run. A test program's `tests:` impls are its own table
     /// ([`ProgramTables::test_impls`]); a layout normalizes associated
     /// types through them.
     pub(super) fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
-        let built = self.built_folders.get_or_init(|| {
-            lock(&self.counters).view_folders += self.table.folders.len();
-            (0..self.table.folders.len())
-                .map(super::u32_of)
-                .filter(|&f| self.folder_impls(hd_base::FolderId::from_raw(f)).is_some())
-                .collect()
-        });
         let view = hd_types::lookup::ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
-            folders: hd_types::lookup::FolderSlots::Program(&self.folder_impls, built),
+            units: self,
             universe: p.universe,
             extra: &p.extra,
             arity: &p.arity(),
@@ -3722,11 +3775,13 @@ impl Run<'_> {
         body: Body,
         hash: Hash128,
     ) -> Option<(Body, Hash128)> {
-        let path = self.names().path(body.item);
-        lock(&self.counters).bodies_owned.push(path);
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = env.fold_and_inline(&mut body, TyList::EMPTY, hash);
+            // As in `Env::inlined_instance`: each layout once per run.
+            let hash = hd_layout::cached_for_run(self.layout_key, || {
+                let _span = super::phase("collect: inline");
+                env.fold_and_inline(&mut body, TyList::EMPTY, hash)
+            })?;
             env.own_inlined(body, hash, TyList::EMPTY)
         });
         match owned {
@@ -3736,6 +3791,20 @@ impl Run<'_> {
                 None
             }
         }
+    }
+
+    /// The store key of instance `n`'s owned form in a dev build, or
+    /// `None` where a build may not share it: an item's own body's
+    /// ([`Run::owned_std_key`], [`Run::package_owned_key`]), or a generic
+    /// instance's ([`Run::instance_owned_key`]).
+    fn owned_key(&self, env: &Env<'_>, n: Node) -> Option<Hash128> {
+        if n.1 != TyList::EMPTY {
+            let supplied = env.supplied_member(n).map(|(family, at)| (family.hash, at));
+            return self.instance_owned_key(env.p, n, supplied);
+        }
+        let b = self.lazy_body(env.p, n.0)?;
+        self.owned_std_key(n.0, b)
+            .or_else(|| self.package_owned_key(n.0, b))
     }
 
     /// The store key of std body `b`'s owned form (#1423), item `def`'s,
@@ -3778,7 +3847,7 @@ impl Run<'_> {
         {
             return None;
         }
-        let mut k = StableHasher::new("owned-std-body-v1");
+        let mut k = StableHasher::new("owned-std-body-v2");
         k.hash(self.toolchain);
         k.hash(self.pipeline);
         k.u8(self.build_profile as u8);
@@ -3788,38 +3857,12 @@ impl Run<'_> {
         Some(k.finish())
     }
 
-    /// The owned body and its hash stored under `key`
-    /// ([`Run::owned_std_key`]), decoded into this run's tables.
-    pub(super) fn stored_owned(&self, key: Hash128) -> Option<(Body, Hash128)> {
-        let sections = self.lookup(hd_cache::EntryKind::Owned, key)?;
-        let [hash, wire] = &sections[..] else {
-            return None;
-        };
-        let hash = Hash128(u128::from_le_bytes((**hash).try_into().ok()?));
-        let body = hd_tir::wire::read_body(wire, &self.pool, &self.paths, &self.syms)?;
-        Some((body, hash))
-    }
-
-    /// Stores owned body `owned` and its hash under `key`.
-    pub(super) fn store_owned(&self, key: Hash128, (body, hash): &(Body, Hash128)) {
-        // Ruled out: a refusal. The wire form maps every tag the passes
-        // write, and `every_std_body_owned_form_round_trips` encodes each
-        // std body's owned form.
-        if let Ok(wire) = hd_tir::wire::write_body(body, &self.pool, &self.paths, &self.syms) {
-            self.put(
-                hd_cache::EntryKind::Owned,
-                key,
-                &[&hash.0.to_le_bytes(), &wire],
-            );
-        }
-    }
-
     /// The store key of package body `b`'s owned form, item `def`'s, or
     /// `None` where a build may not share it (#2028). The passes read the
     /// body, the program's declarations and impls, and the bodies the
     /// folds and the inliner copy in. The key holds the first two; the
     /// entry holds the bodies read, each by path and TIR hash, and
-    /// [`Run::stored_package_owned`] takes it only while each still
+    /// [`Run::stored_owned`] takes it only while each still
     /// hashes the same (rustc's red-green check of a query's recorded
     /// reads). Keyed:
     /// - the settings in [`Run::owned_std_key`]'s key, and the root
@@ -3858,7 +3901,15 @@ impl Run<'_> {
     /// the unit itself: the settings in [`Run::owned_std_key`]'s key, the
     /// root package's key and settings, and the program's declarations
     /// ([`Run::program_api_hash`]).
-    fn hash_owned_settings(&self, k: &mut StableHasher) {
+    pub(super) fn hash_owned_settings(&self, k: &mut StableHasher) {
+        self.hash_run_settings(k);
+        k.hash(self.program_api_hash());
+    }
+
+    /// [`Run::hash_owned_settings`] without the program's declarations:
+    /// a stored unit's key holds only the declarations its emission
+    /// reaches (`unit_decls`).
+    pub(super) fn hash_run_settings(&self, k: &mut StableHasher) {
         k.hash(self.toolchain);
         k.hash(self.pipeline);
         k.u8(self.build_profile as u8);
@@ -3866,7 +3917,6 @@ impl Run<'_> {
         k.u8(u8::from(self.verifies_own()));
         k.hash(self.package_key);
         k.hash(self.root_settings);
-        k.hash(self.program_api_hash());
     }
 
     /// The store key of generic instance `(def, args)`'s owned form in a
@@ -3878,7 +3928,7 @@ impl Run<'_> {
     /// passes read the instance body, built from the generic body and the
     /// impls the arguments choose (the declarations), and the bodies the
     /// folds and the inliner copied into it: the entry holds those, as a package body's does
-    /// ([`Run::store_package_owned`]), and a later build takes it only
+    /// ([`Run::store_owned`]), and a later build takes it only
     /// while each still hashes the same.
     ///
     /// The root package's key is in it, so a dependency's instance lives
@@ -3939,7 +3989,7 @@ impl Run<'_> {
     }
 
     /// One hash of every non-std module's checked declarations, private
-    /// ones included, and every non-std folder's interface with its impl
+    /// ones included, and every non-std unit's interface with its impl
     /// heads; once per run, linear in the modules. A module's part is the
     /// hash of its `check` entry's items section (`CheckOut::items`):
     /// signatures with each omitted result and row the checker inferred
@@ -3964,28 +4014,23 @@ impl Run<'_> {
                     k.hash(items);
                 }
             }
-            for (f, folder) in self.table.folders.iter().enumerate() {
-                if usize::from(folder.package) == std {
+            for (f, unit) in self.table.units.iter().enumerate() {
+                if usize::from(unit.package) == std {
                     continue;
                 }
-                k.str(&folder.path);
+                k.str(&unit.path);
                 let heads = u32::try_from(f)
                     .ok()
-                    .and_then(|f| self.iface_of(hd_base::FolderId::from_raw(f)));
+                    .and_then(|f| self.iface_of(hd_base::UnitId::from_raw(f)));
                 k.hash(heads.map_or(Hash128::default(), |i| i.heads_hash));
             }
             k.finish()
         })
     }
 
-    /// Package body `def`'s owned form stored under `key`
-    /// ([`Run::package_owned_key`]), when every body its passes read
-    /// still has the TIR hash they read.
-    pub(super) fn stored_package_owned(
-        &self,
-        p: &ProgramTables,
-        key: Hash128,
-    ) -> Option<(Body, Hash128)> {
+    /// The owned form stored under `key` ([`Run::owned_key`]), when every
+    /// body its passes read still has the TIR hash they read.
+    pub(super) fn stored_owned(&self, p: &ProgramTables, key: Hash128) -> Option<(Body, Hash128)> {
         let sections = self.lookup(hd_cache::EntryKind::Owned, key)?;
         let [hash, wire, reads] = &sections[..] else {
             return None;
@@ -4002,10 +4047,10 @@ impl Run<'_> {
         Some((body, hash))
     }
 
-    /// Stores package body `def`'s owned form under `key`, with the
-    /// bodies its passes read (`reads`) other than std's, which the
-    /// toolchain hash covers, and its own, which the key holds.
-    pub(super) fn store_package_owned(
+    /// Stores item `def`'s owned form under `key`, with the bodies its
+    /// passes read (`reads`) other than std's, which the toolchain hash
+    /// covers, and its own, which the key holds: none for a std body.
+    pub(super) fn store_owned(
         &self,
         p: &ProgramTables,
         def: DefId,
@@ -4040,7 +4085,9 @@ impl Run<'_> {
             rows.extend_from_slice(&path.0.to_le_bytes());
             rows.extend_from_slice(&then.0.to_le_bytes());
         }
-        // Ruled out: a refusal, as in `Run::store_owned`.
+        // Ruled out: a refusal. The wire form maps every tag the passes
+        // write, and `every_std_body_owned_form_round_trips` encodes each
+        // std body's owned form.
         if let Ok(wire) = hd_tir::wire::write_body(body, &self.pool, &self.paths, &self.syms) {
             self.put(
                 hd_cache::EntryKind::Owned,
@@ -4050,22 +4097,28 @@ impl Run<'_> {
         }
     }
 
-    /// Release (`crates/hd_opt/DESIGN.md` §9, "Where they are computed"): owns
-    /// the instances `root` reaches through the callee scan, the callees'
-    /// strongly connected components first, so every summary a body's
-    /// passes may read is recorded before they run. Each instance's body
-    /// is its item's own, or a generic item's at its type arguments
-    /// ([`Env::inlined_instance`]), and the passes run over it once: an
-    /// item's own body is its lazy body's owned entry, a generic
-    /// instance's is kept for collection (`Run::instances`). Each
+    /// Owns the instances `root` reaches through the callee scan, the
+    /// callees' strongly connected components first, one level of
+    /// components at a time on the task's threads; dev and release alike,
+    /// though dev's components make one level.
+    /// Release records each body's summary (`crates/hd_opt/DESIGN.md` §9,
+    /// "Where they are computed"), which its callers' passes read. Dev
+    /// records none, and takes a body from the store while its key
+    /// ([`Run::owned_key`]) and the bodies it read are unchanged, neither
+    /// inlined nor owned nor walked through; it stores each body it owns,
+    /// with those reads (#2106).
+    ///
+    /// Each instance's body is its item's own, or a generic item's at its
+    /// type arguments ([`Env::inlined_instance`]), and the passes run over
+    /// it once: an item's own body is its lazy body's owned entry, a
+    /// generic instance's is kept for collection (`Run::instances`). Each
     /// component's members are owned in path order and marked when it is
-    /// recursive. A body the passes refuse stays unowned, for
-    /// `Run::body_of` or `Env::owned_instance` to report.
+    /// recursive. A body the walk leaves unowned is owned again by
+    /// `Run::body_of` or `Env::owned_instance`, which report a refusal.
+    /// Cost: one store probe per dev node, and one lock per level's
+    /// component.
     pub(super) fn owned_bottom_up(&self, p: &ProgramTables, root: Node) {
-        let Some(all) = &self.summaries else {
-            return;
-        };
-        let done = |n: Node| {
+        let owned = |n: Node| {
             if n.1 == TyList::EMPTY {
                 self.lazy_body(p, n.0)
                     .is_none_or(|b| b.owned.get().is_some())
@@ -4073,16 +4126,68 @@ impl Run<'_> {
                 lock(&self.instances).contains_key(&n)
             }
         };
+        if owned(root) {
+            return;
+        }
+        let _span = super::phase("collect: own bottom-up");
         self.with_env(p, |env| {
-            let inlined = RefCell::new(HashMap::default());
-            let mut callees = |n: Node| {
-                let Some((body, hash)) = env.inlined_instance(n) else {
-                    return env.borrowed_effect_callees(n);
+            let keys = RefCell::new(HashMap::<Node, Hash128>::default());
+            let depths = RefCell::new(HashMap::default());
+            let done = |n: Node| {
+                // Collection stops at an instance past the depth limit
+                // before it asks for its body, so the walk does not enter
+                // one: polymorphic recursion would grow without end.
+                let deep = |&t: &Ty| {
+                    let depth =
+                        hd_mono::type_argument_depth(&self.pool, &mut depths.borrow_mut(), t);
+                    depth > u32::from(hd_mono::layout::MAX_DEPTH)
                 };
-                let out = env.summarized_callees(&body);
-                inlined.borrow_mut().insert(n, (body, hash));
+                if owned(n) || self.pool.list_items(n.1).iter().any(deep) {
+                    return true;
+                }
+                let Some(key) = self.owned_key(env, n) else {
+                    return false;
+                };
+                let Some((body, hash)) = self.stored_owned(p, key) else {
+                    keys.borrow_mut().insert(n, key);
+                    return false;
+                };
+                #[cfg(feature = "testing")]
+                test_hooks::verify_stored(self, p, &body);
+                if n.1 != TyList::EMPTY {
+                    let body = Some(std::sync::Arc::new(body));
+                    lock(&self.instances).insert(n, body);
+                } else if let Some(lazy) = self.lazy_body(p, n.0) {
+                    let _ = lazy.owned.set(Some((body, hash)));
+                }
+                true
+            };
+            let inlined = RefCell::new(Inlined::default());
+            // Each entered node's callees, for its component's level.
+            let edges = RefCell::new(HashMap::<Node, Vec<Node>>::default());
+            let mut callees = |n: Node| {
+                let key = keys.borrow().get(&n).copied();
+                // A refused body stays unowned: `owned_instance` reports it.
+                let (inlined_instance, read) = match key {
+                    Some(_) => reading(|| env.inlined_instance(n)),
+                    None => (env.inlined_instance(n), Vec::new()),
+                };
+                let out = if let Ok(Some((body, hash))) = inlined_instance {
+                    let out = env.summarized_callees(&body);
+                    let store = key.map(|key| (key, read));
+                    inlined.borrow_mut().insert(n, (body, hash, store));
+                    out
+                } else {
+                    env.borrowed_effect_callees(n)
+                };
+                edges.borrow_mut().insert(n, out.clone());
                 out
             };
+            // The components to own, by level: a component's level is one
+            // above its highest callee component's in this walk, so the
+            // components of one level call none of each other's members.
+            let mut levels: Vec<Vec<Component>> = Vec::new();
+            let mut level_of: HashMap<Node, usize> = HashMap::default();
             let names = self.names();
             let mut canons = hd_mono::layout::CanonMemo::default();
             // A member's path, then one digest of its type arguments.
@@ -4099,231 +4204,157 @@ impl Run<'_> {
                 (names.path(n.0), args.finish())
             };
             let mut own = |members: &mut Vec<Node>, recursive: bool| {
-                use hd_tir::own::memory_effects::{Call, Equation, Writes};
                 members.sort_stable_by_cached_key(&mut order);
-                // Complete write effects are monotone. A reverse-edge worklist
-                // transfers each of 64 parameter bits/external once per call,
-                // rather than rechecking every body after every callee change.
-                let bodies = inlined.borrow();
                 let indices: HashMap<_, _> = members
                     .iter()
                     .copied()
                     .enumerate()
                     .map(|(i, n)| (n, i))
                     .collect();
-                let equations: Vec<_> = members
-                    .iter()
-                    .map(|member| {
-                        let effects = if let Some((body, _)) = bodies.get(member) {
-                            env.conditional_equation(body)
-                        } else {
-                            env.borrowed_equation(*member).unwrap_or_else(|| {
-                                hd_tir::own::memory_effects::BodyEffects {
-                                    direct: Writes::EXTERNAL,
-                                    calls: Vec::new(),
-                                }
-                            })
-                        };
-                        let mut equation = Equation {
-                            direct: effects.direct,
-                            calls: Vec::new(),
-                        };
-                        for call in effects.calls {
-                            let target = env.callee_node(&call.callee);
-                            if target.is_some_and(|node| ProgramEnv::suspends(env, node.0)) {
-                                equation.direct.join(call.transfer.apply(Writes::EXTERNAL));
-                            } else if let Some(callee) =
-                                target.and_then(|n| indices.get(&n).copied())
-                            {
-                                equation.calls.push(Call {
-                                    callee,
-                                    transfer: call.transfer,
-                                });
+                if let Some(all) = &self.summaries {
+                    // Complete write effects are monotone. A reverse-edge
+                    // worklist transfers each of 64 parameter
+                    // bits/external once per call, rather than rechecking
+                    // every body after every callee change.
+                    use hd_tir::own::memory_effects::{Call, Equation, Writes};
+                    let bodies = inlined.borrow();
+                    let equations: Vec<_> = members
+                        .iter()
+                        .map(|member| {
+                            let effects = if let Some((body, ..)) = bodies.get(member) {
+                                env.conditional_equation(body)
                             } else {
-                                equation
-                                    .direct
-                                    .join(call.transfer.apply(env.call_writes(&call.callee)));
+                                env.borrowed_equation(*member).unwrap_or_else(|| {
+                                    hd_tir::own::memory_effects::BodyEffects {
+                                        direct: Writes::EXTERNAL,
+                                        calls: Vec::new(),
+                                    }
+                                })
+                            };
+                            let mut equation = Equation {
+                                direct: effects.direct,
+                                calls: Vec::new(),
+                            };
+                            for call in effects.calls {
+                                let target = env.callee_node(&call.callee);
+                                if target.is_some_and(|node| ProgramEnv::suspends(env, node.0)) {
+                                    equation.direct.join(call.transfer.apply(Writes::EXTERNAL));
+                                } else if let Some(callee) =
+                                    target.and_then(|n| indices.get(&n).copied())
+                                {
+                                    equation.calls.push(Call {
+                                        callee,
+                                        transfer: call.transfer,
+                                    });
+                                } else {
+                                    equation
+                                        .direct
+                                        .join(call.transfer.apply(env.call_writes(&call.callee)));
+                                }
                             }
+                            equation
+                        })
+                        .collect();
+                    let effects = hd_tir::own::memory_effects::solve(&equations);
+                    for (&member, effects) in members.iter().zip(effects) {
+                        lock(&all.memory).insert(member, effects);
+                    }
+                    if recursive {
+                        for &m in members.iter() {
+                            lock(&all.cycle).insert(m, members[0]);
                         }
-                        equation
-                    })
+                    }
+                }
+                let edges = edges.borrow();
+                let level = members
+                    .iter()
+                    .flat_map(|m| edges.get(m).into_iter().flatten())
+                    .filter(|c| !indices.contains_key(*c))
+                    .filter_map(|c| level_of.get(c))
+                    .map(|&l| l + 1)
+                    .max()
+                    .unwrap_or(0);
+                let mut inlined = inlined.borrow_mut();
+                let bodies = members
+                    .iter()
+                    .filter_map(|m| Some((*m, inlined.remove(m)?)))
                     .collect();
-                let effects = hd_tir::own::memory_effects::solve(&equations);
-                for (&member, effects) in members.iter().zip(effects) {
-                    lock(&all.memory).insert(member, effects);
-                }
-                drop(bodies);
-                if recursive {
-                    for &m in members.iter() {
-                        lock(&all.cycle).insert(m, members[0]);
-                    }
-                    let borrows = env.component_borrows(members, &inlined.borrow());
-                    *lock(&all.assume) = borrows;
-                }
                 for &m in members.iter() {
-                    let body = inlined.borrow_mut().remove(&m);
-                    let owned = body.and_then(|(body, hash)| env.own_inlined(body, hash, m.1).ok());
-                    if m.1 != TyList::EMPTY {
-                        let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
-                        lock(&self.instances).insert(m, owned);
-                    } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
-                        let _ = lazy.owned.set(Some(owned));
-                    }
+                    level_of.insert(m, level);
                 }
-                lock(&all.assume).clear();
+                if levels.len() <= level {
+                    levels.resize_with(level + 1, Vec::new);
+                }
+                levels[level].push(std::sync::Mutex::new(Some((
+                    std::mem::take(members),
+                    recursive,
+                    bodies,
+                ))));
             };
             hd_opt::inline::bottom_up(root, &done, &mut callees, &mut own);
+            // The passes over a component read only its callees' summaries
+            // and its own members' assumptions, so one level's components
+            // run on the task's threads (LLVM's CGSCC order, a level at a
+            // time). Each writes only its members' entries, so the result
+            // is the same at any thread count. A nested walk stays on its
+            // thread ([`OWNING`]). Dev passes read neither summaries nor,
+            // without argument promotion, a callee's owned body: all its
+            // components are one level.
+            if self.summaries.is_none() && !self.promote_args {
+                levels = vec![levels.into_iter().flatten().collect()];
+            }
+            let nested = OWNING.get() || READS.with_borrow(|r| !r.is_empty());
+            for level in &levels {
+                if nested || level.len() == 1 {
+                    for c in level {
+                        self.own_component(p, env, c);
+                    }
+                } else {
+                    hd_sched::par_map(level, |c| {
+                        self.with_env(p, |env| self.own_component(p, env, c));
+                    });
+                }
+            }
         });
     }
-}
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod metadata_tests;
-
-#[cfg(test)]
-pub(super) mod owned_cache_tests {
-    use std::cell::Cell;
-
-    use hd_base::{BuildProfile, Hash128};
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_intern::{PathTable, ShardedInterner};
-    use hd_project::MemorySources;
-    use hd_tir::ir::Body;
-    use hd_types::InternPool;
-
-    use super::{ProgramTables, Run};
-    use crate::{Executor, Goal, Host, NoClock, Packages, build_packages};
-
-    thread_local! {
-        /// While set, how many stored bodies a build verified.
-        pub(super) static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
-    }
-
-    /// Verifies a std body a build took from the store
-    /// (`Run::own_lazy`), while [`every_std_body_owned_form_round_trips`]
-    /// asks.
-    pub(crate) fn verify_stored(run: &Run<'_>, p: &ProgramTables, body: &Body) {
-        let Some(n) = VERIFIED.get() else {
+    /// Owns component `c` of [`Run::owned_bottom_up`] on this thread: a
+    /// recursive one's borrows first ([`Env::component_borrows`]), then the
+    /// passes over each member in path order; in dev each owned member is
+    /// stored with the bodies its inlining and its passes read.
+    fn own_component(&self, p: &ProgramTables, env: &Env<'_>, c: &Component) {
+        let Some((members, recursive, mut bodies)) = lock(c).take() else {
             return;
         };
-        // The phase rides in the stored wire form: a std body is owned as
-        // its one instance (`Env::mark_instance`).
-        assert_eq!(
-            body.phase,
-            hd_tir::ir::Phase::Elaborated,
-            "stored `{}`",
-            run.names().path(body.item)
-        );
-        let errs = run.with_env(p, |env| hd_tir::ir::verify_owned(body, env));
-        if let Some(e) = errs.first() {
-            panic!(
-                "stored `{}` fails invariant {} at %{}: {}",
-                run.names().path(body.item),
-                e.invariant,
-                e.inst,
-                e.what
-            );
+        let outer = OWNING.replace(true);
+        if recursive {
+            let borrows = env.component_borrows(&members, &bodies);
+            ASSUME.set(borrows);
         }
-        VERIFIED.set(Some(n + 1));
-        #[cfg(not(target_arch = "wasm32"))]
-        if super::metadata_tests::active() {
-            run.with_env(p, |env| super::metadata_tests::verify_fresh(env, body));
-        }
-    }
-
-    /// Programs over much of std: JSON and serde, maps, sorting, strings,
-    /// closures, tasks and trait values.
-    const PROGRAMS: [&str; 5] = [
-        include_str!("../../../bench/study/json.hd"),
-        include_str!("../../../bench/runtime/progs/map-count.hd"),
-        include_str!("../../../bench/runtime/progs/task-pipeline.hd"),
-        include_str!("../../../bench/runtime/progs/string-builder.hd"),
-        include_str!("../../../bench/runtime/progs/plugins.hd"),
-    ];
-
-    fn build(store: &MemoryStore, text: &str, profile: BuildProfile) -> crate::Output {
-        build_at(store, text, profile, hd_base::OptLevel::Dev)
-    }
-
-    pub(super) fn build_at(
-        store: &MemoryStore,
-        text: &str,
-        profile: BuildProfile,
-        level: hd_base::OptLevel,
-    ) -> crate::Output {
-        let mut sources = MemorySources::default();
-        sources.insert("main.hd", text);
-        let host = Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
-        };
-        let packages = Packages {
-            build_profile: profile,
-            level,
-            ..Packages::default()
-        };
-        let out = build_packages(
-            &host,
-            "app",
-            &packages,
-            &Goal::Program {
-                entry: "main".into(),
-            },
-        );
-        assert!(!out.diags.has_errors(), "{}", out.render());
-        out
-    }
-
-    /// Every std body these programs own is stored once per profile, its
-    /// wire form decodes into another run's tables and encodes back to the
-    /// same bytes, and a later build takes each from the store, whose
-    /// owned verifier accepts it.
-    #[test]
-    fn every_std_body_owned_form_round_trips() {
-        let store = MemoryStore::default();
-        for profile in [BuildProfile::Checked, BuildProfile::Release] {
-            for text in PROGRAMS {
-                build(&store, text, profile);
+        for &m in &members {
+            let owned = match bodies.remove(&m) {
+                Some((body, hash, Some((key, mut read)))) => {
+                    let (owned, passes) = reading(|| env.own_inlined(body, hash, m.1).ok());
+                    if let Some(owned) = &owned {
+                        read.extend(passes);
+                        self.store_owned(p, m.0, key, owned, read);
+                    }
+                    owned
+                }
+                Some((body, hash, None)) => env.own_inlined(body, hash, m.1).ok(),
+                None => None,
+            };
+            if m.1 != TyList::EMPTY {
+                let owned = owned.map(|(body, _)| std::sync::Arc::new(body));
+                lock(&self.instances).insert(m, owned);
+            } else if let (Some(lazy), Some(owned)) = (self.lazy_body(p, m.0), owned) {
+                let _ = lazy.owned.set(Some(owned));
             }
         }
-        let owned: Vec<Hash128> = store
-            .drain_new()
-            .into_iter()
-            .filter_map(|(kind, key)| (kind == EntryKind::Owned).then_some(key))
-            .collect();
-        assert!(owned.len() > 380, "{} owned std bodies", owned.len());
-        // A store with only the owned bodies: the builds below check, collect
-        // and link again, and take every std body from it.
-        let warm = MemoryStore::default();
-        for key in &owned {
-            let entry = store.get(EntryKind::Owned, key).expect("stored");
-            let (_, sections) = hd_cache::decode_entry(&entry).expect("an entry");
-            let wire = sections[1].1;
-            let (pool, paths, syms) = (
-                InternPool::new(),
-                PathTable::new(),
-                ShardedInterner::default(),
-            );
-            // Other IDs than the writer's run.
-            paths.item("zzz", "a", "b");
-            let body = hd_tir::wire::read_body(wire, &pool, &paths, &syms).expect("decodes");
-            let again = hd_tir::wire::write_body(&body, &pool, &paths, &syms).expect("encodes");
-            assert_eq!(wire, &again[..], "{key:?}");
-            warm.put(EntryKind::Owned, key, &entry);
-        }
-        VERIFIED.set(Some(0));
-        let mut hits = 0;
-        for profile in [BuildProfile::Checked, BuildProfile::Release] {
-            for text in PROGRAMS {
-                let out = build(&warm, text, profile);
-                assert_eq!(out.counters.misses.get("owned"), None);
-                hits += out.counters.hits.get("owned").copied().unwrap_or(0);
-            }
-        }
-        assert_eq!(VERIFIED.take(), Some(hits));
-        assert!(hits >= owned.len());
+        ASSUME.with_borrow_mut(HashMap::clear);
+        OWNING.set(outer);
     }
 }
+
+#[cfg(feature = "testing")]
+pub(crate) mod test_hooks;

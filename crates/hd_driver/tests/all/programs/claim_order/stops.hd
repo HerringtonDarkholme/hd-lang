@@ -1,0 +1,6 @@
+use util
+struct P:
+    x: i32
+impl P: Eq
+pub fn main():
+    let x = util.one()

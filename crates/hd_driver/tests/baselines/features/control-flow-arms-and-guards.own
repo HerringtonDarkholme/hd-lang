@@ -33,7 +33,7 @@ fn pick(t: Tag) -> string:
 >   %58 = Block %52 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L2 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -48,12 +48,12 @@ fn pick(t: Tag) -> string:
 >   %50 = SwitchTag %0 [#0 %37 %49] : never
         .Pair(right=r, left=l) if l.len() > r.len() => l
 >   %11 = Read borrow [$2] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L1 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
 >   %16 = Read borrow [$3] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
@@ -97,14 +97,14 @@ fn whole(o: string?) -> usize:
 >   %58 = Block %55 : usize
         .Some(s) if s.len() > 0 => s.len()
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L2 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
 >   %8 = Prim Gt [%7 0:usize] : bool
 >   %9 = Block %8 : bool
 >   %10 = Read borrow [$1] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %11 = Call std/core/bytes_len[] (%10) : usize
 >   %12 = Break L1 %11 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize

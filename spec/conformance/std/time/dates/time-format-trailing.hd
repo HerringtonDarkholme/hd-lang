@@ -1,0 +1,7 @@
+# test: an invalid time layout names its directive and byte position
+# Spec std/time Layouts: std-time.format.invalid-directive.
+use std.time.Timestamp
+
+tests:
+    it("rejects the invalid layout"):
+        _ := Timestamp::from_unix_milliseconds(0).format("é %") # panic: explicit-panic

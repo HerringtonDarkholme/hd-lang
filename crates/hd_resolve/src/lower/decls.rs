@@ -3,8 +3,8 @@
 //! (`trait.super.no-redeclare`, `trait.sealed.member-names`), inherent member names
 //! (`trait.inherent.unique-unifying`) and embedded types
 //! (`data.struct.embed.struct-only`, `data.embed.depth`, `data.embed.depth.self`). They run once the
-//! folder's items are lowered, over every module of the folder; a type
-//! or trait from another folder is read from its frozen interface.
+//! unit's items are lowered, over every module of the unit; a type
+//! or trait from another unit is read from its frozen interface.
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
@@ -24,17 +24,17 @@ use crate::view::Src;
 /// The embedding chain limit of `data.embed.depth`.
 const MAX_EMBED_DEPTH: usize = 3;
 
-/// The folder's modules with their heads and lowered items.
-struct Folder<'a, 't> {
+/// The unit's modules with their heads and lowered items.
+struct Unit<'a, 't> {
     names: Names<'a>,
     mods: &'a [ModIn<'t>],
     heads: &'a [Vec<Head<'t>>],
-    /// Every lowered item of the folder, by definition; the first of a
+    /// Every lowered item of the unit, by definition; the first of a
     /// repeated declaration wins.
     own: HashMap<DefId, &'a Item>,
 }
 
-/// Reports the cross-declaration rules of one folder.
+/// Reports the cross-declaration rules of one unit.
 pub(super) fn check(
     r: &Resolver<'_, '_>,
     mods: &[ModIn<'_>],
@@ -46,7 +46,7 @@ pub(super) fn check(
     for it in out.iter().flat_map(|m| &m.items) {
         own.entry(it.def).or_insert(it);
     }
-    let f = Folder {
+    let f = Unit {
         names: r.cx.names,
         mods,
         heads,
@@ -65,7 +65,7 @@ pub(super) fn check(
     f.embedding(&item, diags);
 }
 
-impl Folder<'_, '_> {
+impl Unit<'_, '_> {
     /// A module declares each name once, whatever the kind
     /// (`names.module.unique`, `fn.name.no-overloading`), reported on the
     /// later declaration. The items of a `tests:` block are the scope
@@ -300,6 +300,9 @@ impl Folder<'_, '_> {
                 if *trait_ != DefId::NONE {
                     continue;
                 }
+                // The bound list belongs to the implementation, not to each
+                // member. Expand it once; primitive family size is fixed.
+                let targets = self.targets(h.def, *self_ty);
                 for f in Src::child(h.node, SyntaxKind::Block)
                     .into_iter()
                     .flat_map(NodeRef::children)
@@ -314,7 +317,7 @@ impl Folder<'_, '_> {
                     }
                     by_name.entry(name).or_default().push((
                         h.def,
-                        self.targets(h.def, *self_ty),
+                        targets.clone(),
                         m.src.span(f),
                         super::has_cfg(&m.src, f),
                     ));
@@ -393,7 +396,7 @@ impl Folder<'_, '_> {
     /// other target stands for itself.
     ///
     /// The sealed primitive families have a language-defined member set,
-    /// independent of which folder declares their trait implementations.
+    /// independent of which unit declares their trait implementations.
     fn targets(&self, def: DefId, self_ty: hd_types::Ty) -> Vec<hd_types::Ty> {
         let pool = self.names.pool;
         let TyData::Param(p) = pool.get(self_ty) else {
@@ -404,7 +407,7 @@ impl Folder<'_, '_> {
             .get(&def)
             .filter(|_| p.owner == def)
             .and_then(|imp| imp.generics.get(usize::from(p.index)))
-            .and_then(|g| g.bound);
+            .and_then(|g| g.numeric_family(&self.names));
         let Some(bound) = bound else {
             return vec![self_ty];
         };
@@ -512,7 +515,7 @@ impl Folder<'_, '_> {
             None
         };
         self.embedded_data_only(item, diags);
-        // The declaration order of every struct of the folder.
+        // The declaration order of every struct of the unit.
         let order: Vec<DefId> = self
             .heads
             .iter()

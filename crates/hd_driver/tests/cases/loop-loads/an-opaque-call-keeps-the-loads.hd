@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: `observe` may run any code, so the loop is not read-only: its
+# loads stay in it and the index keeps its bounds check.
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Never)
+fn observe(k: i64) -> void $ Console:
+    println("${k}")
+
+pub fn sum_index(xs: &UniqList[i64]) -> i64 $ Console:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s += xs[i]
+        observe(s)
+    s

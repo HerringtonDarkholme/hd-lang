@@ -2,3 +2,4 @@
 app/main/replace
   unique List[string] (may be shared)
   release string (overwritten)
+  release string (last use)

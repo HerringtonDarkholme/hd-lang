@@ -1,0 +1,54 @@
+# test: AES-128, AES-192, AES-256 follow FIPS 197 and invalid keys return their length
+use std.crypto.aes.{Aes, AesError}
+use std.encoding.hex.hex_decode
+
+fn round_trip(key: List[u8], block: List[u8]) -> Result[List[u8], AesError]:
+    cipher := Aes::new(key)?
+    .Ok(cipher.decrypt_block(cipher.encrypt_block(block)))
+
+fn vector(text: string) -> List[u8]:
+    match hex_decode(text):
+        .Ok(bytes) => bytes
+        .Err(error) => panic("invalid published vector: $error")
+
+tests:
+    it("FIPS 197 encrypt and decrypt with every key size"):
+        plain := vector("00112233445566778899aabbccddeeff")
+        for (key, ciphertext) in [
+            ("000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a"),
+            (
+                "000102030405060708090a0b0c0d0e0f1011121314151617",
+                "dda97ca4864cdfe06eaf70a0ec0d7191",
+            ),
+            (
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+                "8ea2b7ca516745bfeafc49904b496089",
+            ),
+        ]:
+            match Aes::new(vector(key)):
+                .Err(error) => panic("valid vector key rejected: $error")
+                .Ok(cipher) =>
+                    assert_equal(cipher.block_size(), 16, reason="block size")
+                    assert_equal(
+                        cipher.encrypt_block(plain),
+                        vector(ciphertext),
+                        reason="FIPS encryption",
+                    )
+                    assert_equal(
+                        cipher.decrypt_block(vector(ciphertext)),
+                        plain,
+                        reason="FIPS decryption",
+                    )
+                    assert_equal(
+                        cipher.encrypt_block(plain),
+                        vector(ciphertext),
+                        reason="key reused",
+                    )
+            assert(round_trip(vector(key), plain) == .Ok(plain), reason="immutable block")
+
+    it("invalid key sizes carry the rejected length"):
+        for length in [0, 1, 15, 17, 23, 25, 31, 33]:
+            match Aes::new([for _ in 0..length => u8(0)]):
+                .Err(error) =>
+                    assert_equal(error, AesError::InvalidKeyLength(length), reason="length")
+                .Ok(_) => panic("accepted invalid key length")

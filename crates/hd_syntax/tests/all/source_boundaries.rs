@@ -23,7 +23,7 @@ fn absent_declaration_tokens_have_no_documentation() {
     for source in [
         "",
         "## Module only.\n\n",
-        "## Item.\nfn item() -> void: pass\n",
+        include_str!("documented_item.hd"),
     ] {
         let lexed = lex(source.as_bytes());
         assert_eq!(

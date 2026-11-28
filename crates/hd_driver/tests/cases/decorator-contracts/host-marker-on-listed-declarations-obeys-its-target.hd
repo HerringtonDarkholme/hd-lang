@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# @host: main.Hidden main.Called main.Typed
+# module.host.package.target, module.host.package.bare: `@host` marks only
+# a public trait and takes no arguments. Each bad marker is one
+# `decorator-target-kind`, and a trait the manifest lists gets no second
+# error for the marker it lacks.
+@host
+trait Hidden:
+    fn read(&self) -> string
+
+@host()
+pub trait Called:
+    fn read(&self) -> string
+
+@host::[i32]
+pub trait Typed:
+    fn read(&self) -> string
+
+@host
+pub fn read() -> void:
+    pass

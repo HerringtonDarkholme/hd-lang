@@ -1,0 +1,2 @@
+log.push("a")
+line := log[5]

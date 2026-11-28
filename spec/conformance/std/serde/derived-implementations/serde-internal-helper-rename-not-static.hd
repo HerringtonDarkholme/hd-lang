@@ -1,6 +1,6 @@
 # test: a helper-produced Rename cannot hide an internal member wire name
 # Rule: std-serde.enum-tagging.static-names.
-use std.serde.{Rename, Serialize, tag}
+use std.encoding.{Rename, Serialize, tag}
 
 fn wire_name() -> Rename:
     Rename { name: "kind" }

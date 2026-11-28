@@ -1,6 +1,6 @@
 # test: a capture that is not Copy moves into the crossing closure, so a later use of its source is rejected
 # Spec 07 Crossing Closures: fn.crossing.mode.move.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32

@@ -285,7 +285,7 @@ lang/traits/sealed-traits/fn-trait-user-impl.hd	A9	reject:sealed-trait-implement
 lang/functions/function-types-and-values/function-type-constructors/fn-closure-changes-collection.hd	A9	reject:not-writable not mentioned in cited lang/07-functions.md#r-fn.trait.read-only.changes
 lang/functions/function-types-and-values/function-type-constructors/fn-closure-struct-field.hd	A9	reject:not-writable not mentioned in cited lang/07-functions.md#r-fn.trait.read-only.positions
 lang/functions/trailing-callback-blocks/fn-trailing-bound-changes-capture.hd	A9	reject:not-writable not mentioned in cited lang/07-functions.md#r-fn.trailing.fn-bound
-lang/traits/trait-implementations/implementation-ownership/function-type-orphan-impl.hd	A9	reject:orphan-impl not mentioned in cited lang/09-traits.md#r-trait.own.std.function
+lang/traits/trait-implementations/implementation-ownership/function-type-orphan-impl.hd	A9	reject:orphan-impl not mentioned in cited lang/09-traits.md#r-trait.own.std.ops
 lang/traits/runtime-type-identity/spelled-function-type-not-inspectable.hd	A9	reject:type-mismatch not mentioned in cited lang/09-traits.md#r-trait.inspectable.not.function
 lang/modules/prelude/console-write-line-value-receiver.hd	A9	reject:trait-method-signature not mentioned in cited lang/10-modules.md#r-module.console.write-sync-ref.mutable
 lang/traits/trait-implementations/implementation-ownership/root-orphan-impl.hd	A9	reject:orphan-impl not mentioned in cited lang/09-traits.md#r-trait.own.no-orphan-exception

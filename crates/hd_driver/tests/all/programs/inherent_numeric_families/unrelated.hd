@@ -1,0 +1,4 @@
+struct LocalReceiver: pass
+impl LocalReceiver:
+    fn family_probe(self) -> usize:
+        0

@@ -5,9 +5,9 @@
 # expect-stdout: scalar keys: Point(3, 4)
 # expect-stdout: script: 33 calls, then left
 # expect-stdout: fails: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33
-use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Facts, VariantInfo, Member}
-use std.json.{decode, from_json, parse}
+use std.encoding.{Deserialize, Deserializer, ValueKind}
+use std.meta.{Facts, VariantInfo, Member}
+use std.encoding.json.{decode, from_json, parse}
 
 struct Point:
     x: i64

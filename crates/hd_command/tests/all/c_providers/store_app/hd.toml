@@ -1,0 +1,12 @@
+[package]
+name = "store_app"
+
+[host]
+"store.Store" = { c = "hd_store" }
+
+[capabilities]
+Console = true
+"pkg.store.Store" = true
+
+[dev-capabilities]
+Process = true

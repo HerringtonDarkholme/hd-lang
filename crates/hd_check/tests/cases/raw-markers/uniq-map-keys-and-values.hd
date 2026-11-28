@@ -1,0 +1,32 @@
+# @dump: diagnostics
+# A `UniqMap` holds its keys and values in a `Buffer`, so it is `Send` or
+# `Sync` only when they are (`module.marker.structural`).
+use std.collections.UniqMap
+use std.hash.Hasher
+use std.meta.{Send, Sync}
+
+# A key that holds a counted reference, so it is not `Send`.
+struct Key:
+    cell: *mut i32
+
+impl Eq for Key:
+    fn eq(&self, other: &Key) -> bool:
+        *self.cell == *other.cell
+
+impl Hash for Key:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*self.cell).hash(state)
+
+fn need_send[T < ?Copy & Send]() -> void:
+    pass
+
+fn need_sync[T < ?Copy & Sync]() -> void:
+    pass
+
+fn keys() -> void:
+    need_send::[UniqMap[Key, i32]]()
+    need_sync::[UniqMap[string, i32]]()
+
+fn values() -> void:
+    need_send::[UniqMap[i32, *mut i32]]()
+    need_sync::[UniqMap[i32, string]]()

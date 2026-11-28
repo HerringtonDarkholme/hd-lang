@@ -1,0 +1,12 @@
+use std.console.{ConsoleInput, read_all}
+use std.cli.{Args, args}
+use std.process.ExitCode
+
+pub fn main!() -> ExitCode $ Args + ConsoleInput + Console:
+    println("VERSION")
+    println("name=${$.use(Args).program()}")
+    for word in args():
+        println("arg=$word")
+    text := read_all!().expect("stdin")
+    println("stdin=$text")
+    ExitCode(7)

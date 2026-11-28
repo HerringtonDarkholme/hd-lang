@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# Different suites may reuse a name even when method-body heads interleave.
+fn nested() -> i32:
+    struct Holder: pass
+    impl Holder:
+        fn value(self) -> i32:
+            struct Item: pass
+            +1
+    struct Item: pass
+    if true:
+        struct Item: pass
+        +42
+    else:
+        +0

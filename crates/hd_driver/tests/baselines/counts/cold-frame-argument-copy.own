@@ -4,29 +4,55 @@
 # expected: the cold frame stores the incoming count and releases it if abandoned.
 fn length!(text: string) -> usize:
 > app/main/length
->   local $0 text: string [param read] value
->     uses $0: entry -> %2 consume last
->   local $1 self: string [read] value
->     uses $1: %4 -> %5 lend last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
-    text.len()
->   %2 = Read move [$0] : string
->   %3 = Intrinsic Empty [] : ()
->   %4 = Store [$1] %2 : ()
->   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Drop [$1] : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %9 : usize
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
+>   local $0 text: string [param read captured] place
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
+    pause!()
+>   %2 = Release %11 FrameDrop child #2 : ()
+>   %3 = Box #0 #1 : ()
+>   %4 = Await app/main/pause[] () : ()
+>   %5 = Release %4 Operation child #2 : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %7 : usize
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
 >   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Block - : ()
+    text.len()
+>   %6 = Ref local [$0] : &string
+>   %7 = Call std/text/impl string.len[] (%6) : usize
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
+>   storage sub 0: $0 cell
 >   summary none
->   cancel %12 releases [%16 %13]
+>   cancel %4 releases [%2147483648 %4294967295]
+>   cancel %11 releases [%16 %15]
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

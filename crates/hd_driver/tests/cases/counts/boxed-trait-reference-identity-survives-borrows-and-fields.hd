@@ -1,0 +1,69 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Direct, borrowed, stored and mutable reference values keep their static identity.
+use std.meta.{Inspectable, TypeId}
+
+trait Score:
+    fn value(&self) -> i32
+
+struct Item:
+    n: i32
+
+impl Score for Item:
+    fn value(&self) -> i32:
+        self.n
+
+struct Held:
+    value: *dyn Inspectable
+
+struct StoredBox[T]:
+    value: *T
+
+fn direct(value: *dyn Score) -> bool:
+    let erased: *dyn Inspectable = box(value)
+    erased.runtime_type() == TypeId::of::[*dyn Score]()
+
+fn borrowed_direct(value: *dyn Score) -> bool:
+    let erased: &dyn Inspectable = &value
+    erased.runtime_type() == TypeId::of::[*dyn Score]()
+
+fn mutable(value: *mut dyn Score) -> bool:
+    let erased: *dyn Inspectable = box(value)
+    erased.runtime_type() == TypeId::of::[*mut dyn Score]()
+
+fn borrowed[T < Inspectable](value: &T) -> bool:
+    let erased: &dyn Inspectable = value
+    erased.runtime_type() == TypeId::of::[T]()
+
+fn borrowed_box[T < Inspectable & 'static](value: T) -> bool:
+    outer := box(value)
+    let erased: &dyn Inspectable = outer
+    erased.runtime_type() == TypeId::of::[T]()
+
+fn stored[T < Inspectable & 'static](value: T) -> Held:
+    Held { value: box(value) }
+
+pub fn main() -> void $ Console:
+    let concrete: *Item = box(Item { n: 5 })
+    let value: *dyn Score = box(Item { n: 7 })
+    let changing: *mut dyn Score = box(Item { n: 9 })
+    println(direct(value))
+    println(borrowed(&value))
+    println(borrowed_direct(value))
+    concrete_saved := stored(concrete)
+    println(concrete_saved.value.runtime_type() == TypeId::of::[*Item]())
+    println(concrete.n)
+    saved := stored(value)
+    println(saved.value.runtime_type() == TypeId::of::[*dyn Score]())
+    println(mutable(changing))
+    println(borrowed(&changing))
+    changed := stored(changing)
+    println(changed.value.runtime_type() == TypeId::of::[*mut dyn Score]())
+    println(borrowed_box(concrete))
+    println(borrowed_box(value))
+    println(borrowed_box(changing))
+    stored_box := StoredBox { value: box(value) }
+    let from_field: &dyn Inspectable = stored_box.value
+    println(from_field.runtime_type() == TypeId::of::[*dyn Score]())
+    println(value.value())
+    println(changing.value())

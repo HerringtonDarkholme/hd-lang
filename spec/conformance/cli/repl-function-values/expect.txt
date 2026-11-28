@@ -1,0 +1,3 @@
+# Named function values follow cli.repl.value and module.dbg.value.function.
+run: hd --repl session.in
+transcript: transcript.txt

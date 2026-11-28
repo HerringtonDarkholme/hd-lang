@@ -72,7 +72,7 @@ std's prelude. No name appears twice, so order matters only for uses.
 
 - **Input interface.** After an input checks, its new names (items and
   top-level bindings with their types) are frozen into a small interface,
-  as a folder interface is. Later inputs read it and never re-check it;
+  as a unit interface is. Later inputs read it and never re-check it;
   types are fixed per input
   ([`cli.repl.input-types`](../../spec/cli/command-line.md#r-cli.repl.input-types)).
 - **Declarations see earlier bindings**

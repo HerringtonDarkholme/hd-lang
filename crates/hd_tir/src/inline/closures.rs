@@ -33,7 +33,7 @@ impl Index {
             work!(1);
             rows[sub as usize].push(i);
         }
-        work!(body.fallback.len() + body.held_args.len() + body.susp.len());
+        work!(body.fallback.len() + body.held_args.len());
         work!(
             body.loan_slots
                 .iter()
@@ -864,7 +864,7 @@ pub fn inline_local_closures(
         }
     }
     sites.sort_stable_by_key(|(site, _)| std::cmp::Reverse(site.call));
-    let copied = inline_bound_calls(body, sites)?;
+    let copied = inline_bound_calls(body, None, sites)?;
     if !copied.contains(&true) {
         return Ok(false);
     }
@@ -875,7 +875,7 @@ pub fn inline_local_closures(
     // With no live function constructor, dead sub IDs have no code identity
     // left to preserve. A bounded root projection lets ordinary callers copy
     // the resulting small body, including its logical shared-cell facts.
-    if !body.tags.contains(&Tag::Closure) && body.label.is_empty() && body.susp.is_empty() {
+    if !body.tags.contains(&Tag::Closure) && body.label.is_empty() {
         let index = Index::new(body);
         if let Some((mut root, _)) = index.extract(body, 0, &[], false, limit.saturating_mul(16)) {
             root.kind = body.kind;
@@ -1103,8 +1103,8 @@ fn erase_definitions(
 mod tests {
     use super::inline_local_closures;
     use crate::ir::{
-        Body, BodyKind, CaptureMode, INLINED, NONE, Tag, TirBuilder, TirSink, Topology,
-        local_flags, u32_of, verify_structure,
+        Body, BodyKind, CaptureMode, INLINED, NONE, Tag, TirBuilder, TirSink, local_flags, u32_of,
+        verify_structure,
     };
     use crate::measurements;
     use hd_base::{DefId, NodeIdx, Symbol};
@@ -1157,7 +1157,7 @@ mod tests {
                 }
             }
         }
-        let errors = verify_structure(&body, &Topology::new(&body));
+        let errors = verify_structure(&body);
         assert!(errors.is_empty(), "{errors:?}");
         body
     }
@@ -1194,7 +1194,7 @@ mod tests {
         );
         let work = measurements::total();
         let output = size(&body);
-        let errors = verify_structure(&body, &Topology::new(&body));
+        let errors = verify_structure(&body);
         assert!(errors.is_empty(), "{errors:?}");
         assert_eq!(body.tags.contains(&Tag::CallValue), !expected);
         assert!(
@@ -1306,7 +1306,7 @@ mod tests {
         assert_eq!(sub.raw(), 0);
         assert_eq!(body.cap_local[capture as usize].raw(), original + 1);
         assert_eq!(body.cap_mode[capture as usize], CaptureMode::Shared);
-        let errors = verify_structure(&body, &Topology::new(&body));
+        let errors = verify_structure(&body);
         assert!(errors.is_empty(), "{errors:?}");
     }
     #[test]
@@ -1355,7 +1355,7 @@ mod tests {
         assert_eq!(scope.raw(), 0);
         assert_eq!(moved_snapshot.raw(), snapshot.raw() + 1);
         assert_eq!(moved_creator.raw(), creator.raw() + 1);
-        let errors = verify_structure(&body, &Topology::new(&body));
+        let errors = verify_structure(&body);
         assert!(errors.is_empty(), "{errors:?}");
     }
     fn consumer(aliases: usize, control: usize) -> Body {

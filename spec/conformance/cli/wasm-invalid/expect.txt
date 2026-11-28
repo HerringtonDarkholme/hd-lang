@@ -3,7 +3,9 @@
 # hd itself, so nothing runs and each exits 101.
 run: hd notes.wasm
 exit: 101
+stderr: error: `notes.wasm` is not a valid Wasm module: not a Wasm module
 stdout-json: []
 run: hd empty.wasm
 exit: 101
+stderr: error: `empty.wasm` has no entry export `hd.init`: it was not written by this `hd build`; rebuild it with `hd build`
 stdout-json: []

@@ -172,8 +172,8 @@ impl Run<'_> {
                 path: &self.table.modules[m].path,
                 facts: facts.as_deref(),
                 decls: derives.then(|| {
-                    let folder = self.table.modules[m].folder;
-                    DeclView::new(cx.names, folder, cx.scope, cx.lookup, blocks)
+                    let unit = self.table.modules[m].unit;
+                    DeclView::new(cx.names, unit, cx.scope, cx.lookup, blocks)
                 }),
                 main_site: self.main_site(m),
             },
@@ -307,6 +307,15 @@ fn encode_cache(findings: &DiagBuf, lines: &Lines<'_>, file: FileId) -> Option<V
                 w.str(findings.get_text(edit.text));
             }
         }
+        w.len_of(findings.labels(i));
+        for (span, message) in findings.labels(i) {
+            if span.file != file {
+                return None;
+            }
+            lines.write(&mut w, span.lo);
+            lines.write(&mut w, span.hi);
+            w.str(message);
+        }
     }
     Some(w.bytes)
 }
@@ -356,6 +365,14 @@ fn decode_cache(
                 .map(|(span, text)| (*span, text.as_str()))
                 .collect();
             findings.add_fix(&title, safety, &edits);
+        }
+        for _ in 0..r.count() {
+            let span = Span {
+                file,
+                lo: lines.read(&mut r),
+                hi: lines.read(&mut r),
+            };
+            findings.add_label(span, r.str());
         }
     }
     r.ok().then_some(findings)

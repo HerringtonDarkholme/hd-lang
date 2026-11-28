@@ -203,30 +203,6 @@ mod tests {
         let mut b = body(1);
         state(&mut b);
         let i = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
-        for mode in 0..3 {
-            let mut wrong = b.clone();
-            let topo = Topology::new(&wrong);
-            let mut edits = splice::Tables::default();
-            if mode != 1 {
-                edits.remove(u32_of(i));
-            }
-            if mode != 0 {
-                let target = wrong.data[i][0] as usize;
-                edits.insert(
-                    topo.blk[target],
-                    if mode == 1 {
-                        topo.pos[i] + 1
-                    } else {
-                        topo.pos[target]
-                    },
-                    Tag::Retain,
-                    wrong.data[i],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            }
-            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
-            assert!(!verify_owned(&wrong, &Cx).is_empty());
-        }
+        crate::own::tests::assert_placement_enforced(&b, i, &Cx);
     }
 }

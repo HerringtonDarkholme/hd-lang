@@ -8,7 +8,7 @@ use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, NotImplemented, PathId, Stage, StageResult, Symbol};
+use hd_base::{DefId, Hash128, NotImplemented, PathId, Stage, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 
 use crate::pool::{
@@ -34,6 +34,11 @@ pub struct TableWriter<'a> {
     sym_index: HashMap<Symbol, u32>,
     /// How many [`TableWriter::ty`] calls are open.
     depth: u32,
+    /// The content hash of a type whose row a fingerprint writes as that
+    /// hash ([`TableWriter::hashing`]); `None` writes its rows.
+    hashed: Option<&'a dyn Fn(Ty) -> Option<Hash128>>,
+    /// The types written as their hash, each once, in first-use order.
+    hashed_tys: Vec<Ty>,
 }
 
 /// The nesting of [`TableWriter::ty`] calls past which a type's parts are
@@ -67,6 +72,9 @@ mod tag {
     pub const CREF_MUT: u8 = 25;
     pub const CONST: u8 = 26;
     // 27 was a union; anonymous sums now use ADT with no declaration.
+    /// A type by its content hash, in a fingerprint only
+    /// ([`super::TableWriter::hashing`]); a cache entry never holds one.
+    pub const HASHED: u8 = 29;
 }
 
 impl<'a> TableWriter<'a> {
@@ -86,7 +94,38 @@ impl<'a> TableWriter<'a> {
             sym_rows: Vec::new(),
             sym_index: HashMap::default(),
             depth: 0,
+            hashed: None,
+            hashed_tys: Vec::new(),
         }
+    }
+
+    /// A writer for a fingerprint, never a cache entry: each type
+    /// `hashed` gives a hash for is one row of that hash, not its rows,
+    /// so a fingerprint over a memo of type hashes costs the record's own
+    /// size, not its types' (#2423).
+    #[must_use]
+    pub fn hashing(
+        pool: &'a InternPool,
+        paths: &'a PathTable,
+        syms: &'a ShardedInterner,
+        hashed: &'a dyn Fn(Ty) -> Option<Hash128>,
+    ) -> Self {
+        Self {
+            hashed: Some(hashed),
+            ..Self::new(pool, paths, syms)
+        }
+    }
+
+    /// The types written as their hash, each once, in first-use order.
+    #[must_use]
+    pub fn hashed_tys(&self) -> &[Ty] {
+        &self.hashed_tys
+    }
+
+    /// How many type rows the tables hold.
+    #[must_use]
+    pub fn ty_rows(&self) -> usize {
+        self.ty_rows.len()
     }
 
     pub fn path(&mut self, p: PathId) -> u32 {
@@ -105,6 +144,12 @@ impl<'a> TableWriter<'a> {
 
     pub fn def(&mut self, d: DefId) -> u32 {
         self.path(PathId::from_raw(d.raw()))
+    }
+
+    /// Every path the blob names so far, each once, with its ancestors:
+    /// the declarations its items and types name.
+    pub fn paths(&self) -> impl Iterator<Item = PathId> + '_ {
+        self.path_rows.iter().map(|&(_, p)| p)
     }
 
     pub fn sym(&mut self, s: Symbol) -> u32 {
@@ -164,7 +209,10 @@ impl<'a> TableWriter<'a> {
         // stable paths and content.
         let mut keyed: Vec<(Vec<u8>, Ty)> = Vec::with_capacity(d.keys.len());
         for k in &d.keys {
-            let mut tmp = TableWriter::new(self.pool, self.paths, self.syms);
+            let mut tmp = TableWriter {
+                hashed: self.hashed,
+                ..TableWriter::new(self.pool, self.paths, self.syms)
+            };
             let at = tmp.ty(*k)?;
             let mut w = Writer::default();
             tmp.write(&mut w);
@@ -202,6 +250,14 @@ impl<'a> TableWriter<'a> {
     pub fn ty(&mut self, t: Ty) -> StageResult<u32> {
         if let Some(&r) = self.ty_index.get(&t.0) {
             return Ok(r);
+        }
+        if let Some(h) = self.hashed.and_then(|f| f(t)) {
+            let b = h.0.to_le_bytes();
+            let word = |i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+            let row = self.row(tag::HASHED, &[word(0), word(4), word(8), word(12)]);
+            self.ty_index.insert(t.0, row);
+            self.hashed_tys.push(t);
+            return Ok(row);
         }
         if self.depth >= NATIVE_DEPTH {
             self.parts_first(t)?;

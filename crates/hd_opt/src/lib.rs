@@ -10,9 +10,11 @@
 
 pub mod fact_specialize;
 pub mod inline;
+pub mod known_ctor;
 pub mod passes;
 pub mod planner;
 pub mod prove;
+pub mod sroa;
 pub mod structure_specialize;
 pub mod value_flow;
 pub mod whole;

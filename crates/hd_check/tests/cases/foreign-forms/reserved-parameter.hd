@@ -1,0 +1,3 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+fn read(type: i32) -> i32: +1

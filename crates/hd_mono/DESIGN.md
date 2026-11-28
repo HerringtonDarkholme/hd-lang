@@ -15,7 +15,7 @@ interfaces and does not reach around them:
 | --- | --- | --- |
 | TIR per body (crates/hd_tir/DESIGN.md §4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `check` entry |
 | the module's check result | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
-| folder interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
+| unit interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
 | types and rows | `hd_types` | the intern pool, stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per module cycle |
 | test plan | `hd_driver` | test programs and their statically registered cases |
@@ -57,20 +57,20 @@ compiles and runs outside the task graph.
 Implementation differs: there is no `Emit` task and no `code` entry.
 `Link` emits every instance of the program in one task, on one thread
 (`hd_wasm::build`), so every miss of the `link` entry emits the whole
-program again. The per-folder-group `Emit` and its code packs described
+program again. The per-unit-group `Emit` and its code packs described
 below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
 
 ### 11.2 Stages
 
 | Stage | Input | Output | Unit | Parallel | Cached | Key |
 | --- | --- | --- | --- | --- | --- | --- |
-| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program | inside `link` | none |
-| Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | serial | `link` | §13.10 |
+| Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | one task; in release the ownership passes run one call-graph level of components at a time on the task's threads (#2383) | inside `link` | none |
+| Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | one task: emission serial; the per-function cleanups of `Module::finish` on the task's threads (#2383) | `link` | §13.10 |
 | Compile (outside the task graph) | Wasm bytes, engine config | wasmtime's module | program and pipeline | no: one thread per module | Cranelift's code per function, in `clpack` entries (docs/compiler/engines-and-test-runner.md §18.2) | the module bytes and wasmtime's compatibility hash |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
-Planned, not built (#49, point 4): an `Emit` stage per folder group (the
-folder of an instance's item) that writes each missed instance's Wasm
+Planned, not built (#49, point 4): an `Emit` stage per unit group (the
+unit of an instance's item) that writes each missed instance's Wasm
 body, relocations and line records into one `codepack` entry
 (crates/hd_cache/DESIGN.md §5.4), groups in parallel, and a `Link` that
 reads code entries.
@@ -93,12 +93,12 @@ pub enum ExtTask {   // hd_sched
 
 - `Collect` starts only after the `tir` entries of every module that the
   program's roots reach in the module use graph exist, and after the
-  `HeaderCheck` task of every folder they reach (crates/hd_sched/DESIGN.md §6.1). That set comes
+  `HeaderCheck` task of every unit they reach (crates/hd_sched/DESIGN.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
 - `Collect` looks up the program's `link` entry by the program fast key
   below. On a miss it collects the instance set and creates one `Link`.
   Planned, not built (#49, point 4): code-entry lookups in `Collect` and
-  one `Emit` per folder group with a miss.
+  one `Emit` per unit group with a miss.
 - **The program fast key.** Before `Collect`, the driver computes
 
   ```text
@@ -592,13 +592,19 @@ A worklist walk, as rustc's collector does:
    pushes nothing; a `Builtin` choice pushes its generated body (§13.6).
 5. For each coercion to a trait value, select the impl as in step 4,
    record the vtable `(type, trait)` and push every method of the trait
-   at that type, supertraits' vtables included. A method with its own type or row parameters has no slot.
+   at that type that some call through a trait value names,
+   supertraits' vtables included. A method with its own type or row
+   parameters has no slot. A method no such call names has no slot
+   either (§13.5, "Only called methods keep a slot"): its slot waits,
+   and the first call that names it pushes its implementation in every
+   table built before.
 6. For each `DefaultCall`, push the default body with the call's type
    arguments.
 7. For each `Closure`, push the closure body with the parent's
    arguments.
-8. Record every `CallHost` as an import, every type whose layout an
-   operation needs, and every fact getter the instance calls (§12.3).
+8. Record every type whose layout an operation needs, and every fact
+   getter the instance calls (§12.3). Checked TIR rejects `CallHost`;
+   host calls are emitted through their collected call targets.
 9. Repeat until the worklist is empty.
 
 **Body-less intrinsic impls.** A body-less impl method in a
@@ -724,9 +730,10 @@ growing type) has no finite instance set.
   hand-written types stay far below it.
 - **Chain length** counts requests with type arguments after a root.
   Its default limit is **256**; ordinary non-generic calls consume none.
-  Each instance caches this count and its nearest generic ancestor, so
-  plain request chains cost constant work per instance. The polymorphic
-  recursion check visits only generic ancestors, at most 256 plus the root.
+  Each instance caches this count, so plain request chains cost constant
+  work per instance. A complete normalized specialization key already in
+  the instance table reuses that instance, including ordinary recursion.
+  A raw reference permission erased by classification does not grow the key.
 - The walk is breadth-first in content order, so the first instance over
   either limit is the same on every run.
 - The diagnostic `instantiation-too-deep` points at the generic call that grows the type, and shows the first
@@ -738,20 +745,56 @@ growing type) has no finite instance set.
   ([crates/hd_check/DESIGN.md (type checking) §5.5](../hd_check/DESIGN.md#55-private-rows-and-the-m3-fixpoint)),
   and a generic call cycle of one module whose type arguments grow
   (`types.generic.polymorphic-recursion`, `hd_check::inst_cycles`). So the
-  limit, and the stop when an instance re-enters an ancestor through
-  reference layouts, are left with growth through a bound or a trait
-  value, and with cycles that span files.
+  limit catches growing normalized instances reached through a bound or
+  a trait value, and cycles that span files.
 
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 
 - **Vtables follow the trait record's shape** (crates/hd_check/DESIGN.md (trait solver) §9.2).
   A vtable is static data: one function-table slot per method of the
-  trait itself, in declaration order, then the address of each direct
-  supertrait's own vtable at the same type, in declared order
+  trait itself that keeps one (below), in declaration order, then the
+  address of each direct supertrait's own vtable at the same type, in
+  declared order
   (`hd_wasm/src/emit/dyn_value.rs`; crates/hd_wasm/DESIGN.md §23.8).
   Supertrait slots are never copied, so a diamond such as
   `Error < Display & Inspectable` shares one `Display` vtable. A
   coercion to a trait value never allocates a vtable.
+- **Only called methods keep a slot** (#2415, #2420). A slot is read
+  only by a call through a trait value (`Target::Dyn`, a function
+  reference's adapter included), so a method that no such call in the
+  program names gets no slot in any table of its trait, and no
+  implementation or default body of it is collected for one.
+  `Collected::slots` is the one list every table and every call numbers
+  slots by; parent pointers and drive slots follow it
+  (`dyn_graph::DynPaths`, `hd_wasm/src/drive.rs`). Collection is rapid
+  type analysis (Bacon and Sweeney, OOPSLA 1996), as Go's linker
+  `deadcode` pass keeps a converted type's method only once an
+  interface call names it: a table built before the first call of `m`
+  leaves `m`'s slot pending, and that call (`Cx::note_dyn`) resolves
+  every pending slot of `m` once. Cost: one visit per slot of a built
+  table, plus its target. Which slots a trait keeps depends on calls in
+  other instances, so a code key cannot read it from the instance's own
+  scan (`docs/compiler/tiering.md` §6.4). After the worklist drains,
+  `Cx::fold_slot_facts` folds into each instance's `callee_reps` the
+  kept slots of every trait whose table layout its code may read (a
+  trait value type among its values, through references; its row keys;
+  a function value's row keys), with their supertraits, and the final
+  digest of every table it built. Cost: one visit per table, per trait
+  (memoized), and per record. Kept anyway: every slot of a REPL input's
+  tables, which later inputs call (`Collected::all_slots`), and every
+  slot of a compiler-supplied trait, whose `runtime_type` slot the
+  `runtime_type` and downcast intrinsics read with no call site. The
+  method decides use, not the receiver's type: a call of `m` keeps `m`'s
+  slot in every table of its trait, as LLVM's virtual function
+  elimination (GlobalDCE over `llvm.type.checked.load` and
+  `!vcall_visibility`; clang's `-fvirtual-function-elimination`,
+  rustc's `-Zvirtual-function-elimination`) keeps the entry at a
+  loaded offset in every vtable compatible with the call's static type.
+  Unlike LLVM, which only drops the dead entry's function and keeps the
+  layout, hd drops the slot and renumbers, since every table and every
+  call is in one link.
+  wasm-opt's `--remove-unused-module-elements` keeps every function a
+  table segment names, so it cannot drop these bodies after the fact.
 - **Trait values** are `(data, vtable)` pairs (crates/hd_wasm/DESIGN.md
   §23.19). A call through a trait value loads the slot from the vtable
   and makes one `call_indirect`.
@@ -781,7 +824,7 @@ growing type) has no finite instance set.
   bindings its supertrait lists fix, so `dyn Count` under `Count <
   Supplier[Item = i32]` is `dyn Count[Item = i32]`.
 - **Delegated implementations are ordinary ones.**
-  Once a folder's items are lowered, `impl Tr for C by E` gets, for each
+  Once a unit's items are lowered, `impl Tr for C by E` gets, for each
   associated type of `Tr`, the binding `<F as Tr[A]>::Name`, where `F` is
   the embedded field `E`'s type at `C`'s arguments (crates/hd_check/DESIGN.md (trait solver)
   §3.10), and, for each method of `Tr` with a receiver that its body does
@@ -930,7 +973,7 @@ lines), so a dev build without it would compile slower.
 ### 13.8 Code Entries
 
 `Emit(inst)` lowers one instance to Wasm with `wasm-encoder` into a
-code entry, `hd_wasm::Code`, which its folder group's `codepack` stores
+code entry, `hd_wasm::Code`, which its unit group's `codepack` stores
 (docs/compiler/data-structures.md §3.22):
 
 ```rust
@@ -1374,11 +1417,15 @@ As built: `PrimOp::Pow` is one `Prim`. An integer base runs
 square-and-multiply over the exponent widened to 64 bits, with each
 product the checked multiply above; a square is made only while exponent
 bits remain, so no product exceeds the final magnitude and a result in
-range never panics. A float base calls std's `float_pow_f64`
-(`lib/std/num.hd`, `(f64, f64) -> f64`); an `f32` operand is widened
-first and the result rounded back. It follows IEEE 754 clause 9.2 for
-the special cases and is a port of fdlibm's `pow` otherwise, within
-1 ULP. No host import is involved, so every host gives the same bits.
+range never panics. A float base calls std's implementation of its own
+width: `libm_powf(f32, f32) -> f32` or `float_pow_f64(f64, f64) -> f64`
+in `lib/std/num.hd`, the same functions the inherent `powf` methods call.
+Collection follows a reachable f32 power's implicit call to `libm_powf`,
+so programs without one allocate none of its static table data. The Wasm
+emitter selects the matching `FloatOps` key; f32 power does not widen to
+f64 power and narrow. Both are the musl libm 1.2.5 ports, with
+IEEE 754 clause 9.2 special cases and results within 1 ULP. No host import
+is involved, so every host gives the same bits apart from NaN sign/payload.
 
 As built: floats use the instructions of their own width, so
 `f32` `+ - * /`, negation and the comparisons round once to `f32` and

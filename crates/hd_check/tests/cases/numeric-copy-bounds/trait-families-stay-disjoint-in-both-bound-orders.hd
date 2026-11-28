@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# @build: std
+use std.num.{Integer, Float}
+
+trait LeadingFamily:
+    fn value(self) -> bool
+
+impl[N < Copy & Integer] LeadingFamily for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Copy & Float] LeadingFamily for N:
+    fn value(self) -> bool:
+        false
+
+trait TrailingFamily:
+    fn value(self) -> bool
+
+impl[N < Integer & Copy] TrailingFamily for N:
+    fn value(self) -> bool:
+        true
+
+impl[N < Float & Copy] TrailingFamily for N:
+    fn value(self) -> bool:
+        false

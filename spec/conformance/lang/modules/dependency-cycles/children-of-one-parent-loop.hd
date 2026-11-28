@@ -1,0 +1,10 @@
+# test: two children of one parent, with no parent file, are siblings and may use each other
+# Spec 10 Module Graph: module.cycle.sibling-group.siblings, module.cycle.siblings.
+# fixture-package-tree: child-pair/src/collections/list.hd
+use pkg.collections.sort.{sorted}
+
+pub struct Items:
+    pub size: i32
+
+pub fn tidy(list: Items) -> Items:
+    sorted(list)

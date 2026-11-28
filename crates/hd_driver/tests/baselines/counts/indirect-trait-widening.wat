@@ -30,7 +30,7 @@
     end
     local.get $dog.0
     local.get $dog.1
-    i32.load $heap offset=4
+    i32.load $heap
     local.get $t0
     if
       local.get $t0

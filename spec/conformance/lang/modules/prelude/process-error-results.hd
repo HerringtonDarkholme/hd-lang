@@ -5,6 +5,10 @@ use std.process.{Command, Process, ProcessError, ProcessOutput}
 struct RefusingProcess: pass
 
 impl Process for RefusingProcess:
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]:
+        output := self.run!(command)?
+        .Ok(output.status)
+
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         program := command.program
         match program:

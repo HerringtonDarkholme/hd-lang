@@ -4,7 +4,7 @@
 //! (`crates/hd_wasm/DESIGN.md` §23.28). The scan reads the
 //! backend's layout through [`ObjectLayout`].
 
-use hd_base::{DefId, HashSet, InstId};
+use hd_base::{DefId, HashSet, InstId, SliceSort as _};
 use hd_mono::{InstanceTable, ProgramEnv, Sub, subst};
 use hd_tir::ir::{Body, PlaceRoot, Tag, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -57,7 +57,7 @@ pub fn mutation_targets(
 pub struct Instances<'a> {
     pub table: &'a InstanceTable,
     pub order: &'a [InstId],
-    pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
+    pub body: &'a (dyn Fn(InstId) -> Option<&'a Body> + Sync),
 }
 
 struct Scan<'a> {
@@ -223,6 +223,7 @@ pub fn coinductive_flags(
             };
             match target {
                 hd_mono::Target::Call(t)
+                | hd_mono::Target::CrossingNumber { call: t, .. }
                 | hd_mono::Target::Default { call: t, .. }
                 | hd_mono::Target::MapInline(t) => call(t),
                 hd_mono::Target::MapKey { hash, eq } => {
@@ -485,10 +486,232 @@ pub fn solve_flags(
     value
 }
 
+/// Ready bodies and drive slots proved by one whole-program graph.
+#[derive(Default)]
+pub struct Ready {
+    pub instances: HashSet<hd_base::Hash128>,
+    pub slots: HashSet<DefId>,
+}
+
+/// A drive slot has the method's own ABI: no method type arguments and
+/// only row arguments on its trait. Shared by proof and emission.
+pub fn drivable(env: &dyn ProgramEnv, trait_: DefId, method: DefId) -> bool {
+    drive_trait(env, trait_) && drive_method(env, method)
+}
+
+fn drive_trait(env: &dyn ProgramEnv, trait_: DefId) -> bool {
+    env.generic_rows(trait_).iter().all(|&row| row)
+}
+
+fn drive_method(env: &dyn ProgramEnv, method: DefId) -> bool {
+    env.suspends(method) && env.bounded(method).is_none_or(|b| b.is_empty())
+}
+
+/// The bang instances that complete at once (#2419): each is an item's
+/// own body (`Sub::Body(0)`) of a suspending function, other than a
+/// `held` one (a runtime scenario's held call), whose suspension points
+/// are all bang calls of instances that complete at once. So no await of
+/// a stored suspension, `join!` or `race!`. A closed-world drive slot is
+/// ready only if every collected implementation is ready and no host table
+/// can supply that trait. A caller lowers a bang call of one as a plain call of its
+/// body, which is then no suspension point. A cycle of such calls
+/// completes at once: this is the greatest fixed point, found by marking
+/// the callers of each instance that may wait over the reversed call
+/// edges. Cost: one `Topology` per distinct body with a point, then
+/// O(instances + slots + e log e) for the e call/slot edges.
+#[must_use]
+pub fn completes_at_once(
+    env: &dyn ProgramEnv,
+    instances: &Instances<'_>,
+    collected: &hd_mono::Collected,
+    held: &dyn Fn(DefId) -> bool,
+) -> Ready {
+    let table = instances.table;
+    let n = table.item.len();
+    let by_key: hd_base::HashMap<hd_base::Hash128, u32> = (table.key.iter().enumerate())
+        .filter(|&(i, _)| table.sub[i] == Sub::Body(0))
+        .map(|(i, &k)| (k, word(i)))
+        .collect();
+    // Each distinct body's points in its own sub-body: closures are
+    // instances of their own.
+    let mut points: hd_base::HashMap<*const Body, Vec<u32>> = hd_base::HashMap::default();
+    let mut waits = vec![true; n];
+    let mut edges: Vec<(u32, u32)> = Vec::new();
+    let mut slots = hd_base::HashMap::<DefId, u32>::default();
+    let mut methods = hd_base::HashMap::default();
+    if !collected.all_slots {
+        // LLVM WholeProgramDevirt likewise needs a closed target set. Retain
+        // dynamic dispatch, but prove the uniform no-Pending property here.
+        for vt in &collected.vtables {
+            // VTable stores all declared slots; kept slots alone would shift indices.
+            let methods = methods.entry(vt.trait_).or_insert_with(|| {
+                let compatible = drive_trait(env, vt.trait_);
+                hd_mono::slot_methods(env, vt.trait_)
+                    .into_iter()
+                    .map(|method| {
+                        (
+                            method,
+                            compatible
+                                && drive_method(env, method)
+                                && hd_mono::slot_kept(
+                                    env,
+                                    false,
+                                    &collected.dyn_methods,
+                                    vt.trait_,
+                                    method,
+                                ),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            });
+            for (&(method, compatible), target) in methods.iter().zip(&vt.slots) {
+                if !compatible {
+                    continue;
+                }
+                let slot = *slots.entry(method).or_insert_with(|| {
+                    let at = word(waits.len());
+                    waits.push(false);
+                    at
+                });
+                if collected.host_traits.contains(&vt.trait_) {
+                    waits[slot as usize] = true;
+                }
+                if let Some(target) = target
+                    && target.kind == hd_mono::TargetKind::Instance
+                    && let Some(&callee) = by_key.get(&target.key)
+                {
+                    edges.push((callee, slot));
+                } else {
+                    waits[slot as usize] = true;
+                }
+            }
+        }
+    }
+    for &id in instances.order {
+        let i = id.idx();
+        let item = table.item[i];
+        if table.sub[i] != Sub::Body(0) || !env.suspends(item) || held(item) {
+            continue;
+        }
+        let Some(b) = (instances.body)(id) else {
+            continue;
+        };
+        let own = points.entry(std::ptr::from_ref(b)).or_insert_with(|| {
+            if !b.tags.iter().any(|&t| is_point(t)) {
+                return Vec::new();
+            }
+            let topo = hd_tir::ir::Topology::new(b);
+            (0..b.len())
+                .filter(|&at| topo.sub[at] == 0 && is_point(b.tags[at]))
+                .map(word)
+                .collect()
+        });
+        let from = edges.len();
+        let ready = own.iter().all(|&at| {
+            let callee = match (
+                b.tags[at as usize],
+                collected.calls.get(i).and_then(|c| c.get(&at)),
+            ) {
+                (Tag::Await, Some(hd_mono::Target::Call(t)))
+                    if t.kind == hd_mono::TargetKind::Instance =>
+                {
+                    by_key.get(&t.key)
+                }
+                (Tag::Await, Some(hd_mono::Target::Dyn)) => {
+                    match hd_tir::ir::Callee::from_words(b.record(b.data[at as usize][0])) {
+                        Some(hd_tir::ir::Callee::TraitMethod { method, .. }) => slots.get(&method),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            callee.inspect(|&&j| edges.push((j, word(i)))).is_some()
+        });
+        if ready {
+            waits[i] = false;
+        } else {
+            edges.truncate(from);
+        }
+    }
+    // Instance and slot nodes share one reverse-edge worklist. Each node is
+    // marked once, and each edge is visited at most once after sorting.
+    let mut work = 0;
+    propagate_waits(&mut waits, &mut edges, &mut work);
+    Ready {
+        instances: (0..n)
+            .filter(|&i| !waits[i])
+            .map(|i| table.key[i])
+            .collect(),
+        slots: slots
+            .into_iter()
+            .filter(|&(_, i)| !waits[i as usize])
+            .map(|(m, _)| m)
+            .collect(),
+    }
+}
+
+fn propagate_waits(waits: &mut [bool], edges: &mut [(u32, u32)], work: &mut u64) {
+    edges.sort_stable();
+    let mut start = vec![0; waits.len() + 1];
+    for &(callee, _) in edges.iter() {
+        start[callee as usize + 1] += 1;
+    }
+    for i in 1..start.len() {
+        start[i] += start[i - 1];
+    }
+    *work += (waits.len() + edges.len()) as u64;
+    let mut stack: Vec<u32> = (0..word(waits.len()))
+        .filter(|&i| waits[i as usize])
+        .collect();
+    while let Some(j) = stack.pop() {
+        for &(_, caller) in &edges[start[j as usize]..start[j as usize + 1]] {
+            *work += 1;
+            if !std::mem::replace(&mut waits[caller as usize], true) {
+                stack.push(caller);
+            }
+        }
+    }
+}
+
+/// Whether tag `t` is a suspension point.
+#[must_use]
+pub fn is_point(t: Tag) -> bool {
+    matches!(
+        t,
+        Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{coinductive_cycles, solve_flags};
     use hd_base::SliceSort;
+
+    #[test]
+    fn ready_slot_propagation_visits_each_node_and_edge_once_at_width_and_depth() {
+        // Each layer alternates instance and slot nodes. One waiting leaf
+        // invalidates the whole ring; a completely ready cycle stays ready.
+        for width in [1, 1000] {
+            let depth = 20;
+            let n = width * depth;
+            let mut edges: Vec<_> = (0..n)
+                .map(|i| (super::word(i), super::word((i + width) % n)))
+                .collect();
+            for i in 0..width {
+                edges.push((super::word(i), super::word((i + 1) % width)));
+            }
+            let mut waits = vec![false; n];
+            let mut work = 0;
+            super::propagate_waits(&mut waits, &mut edges, &mut work);
+            assert!(waits.iter().all(|v| !v));
+            assert_eq!(work, (n + edges.len()) as u64);
+            waits[0] = true;
+            work = 0;
+            super::propagate_waits(&mut waits, &mut edges, &mut work);
+            assert!(waits.iter().all(|v| *v));
+            assert_eq!(work, (n + 2 * edges.len()) as u64);
+        }
+    }
 
     fn cycles(n: usize, flag: &[bool], edges: &[(u32, u32)], dynamic: &[u32]) -> (Vec<bool>, u64) {
         let mut work = 0;

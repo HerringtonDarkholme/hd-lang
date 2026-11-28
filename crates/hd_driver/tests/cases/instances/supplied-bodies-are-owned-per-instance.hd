@@ -7,8 +7,8 @@
 # with an owned value, so the two `describe` instances at one tuple type
 # count differently; checked mode audits every block.
 # expected: both builds print the four lines, and no block leaks.
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Members, Key, Describer, Source}
 
 trait Sample:
     fn seed(start: usize) -> Self

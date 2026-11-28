@@ -1,0 +1,16 @@
+# test: a generic TryFrom bound exposes its result and associated error
+# Spec std/convert Fallible Conversions: std-convert.try-from.decl, std-convert.try-from.generic, std-convert.try-from.import.
+use std.convert.TryFrom
+use std.num.TryFromIntError
+
+fn convert[T, U < TryFrom[T]](value: T) -> Result[U, U::Error]:
+    U::try_from(value)
+
+tests:
+    use std.testing.assert_equal
+
+    it("generic successes and errors"):
+        let success: Result[i32, TryFromIntError] = convert::[i64, i32](42)
+        let failure: Result[u8, TryFromIntError] = convert::[i64, u8](-1)
+        assert_equal(success, .Ok(42), reason="associated result")
+        assert_equal(failure, .Err(TryFromIntError {}), reason="associated error")

@@ -1,122 +1,21 @@
-//! A std intrinsic declaration must have its intrinsic's shape
-//! (`trait.impl.intrinsic.shape`); valid homogeneous frames preserve owned
-//! results.
+//! Valid homogeneous frames of the `task_all_frame` intrinsic preserve owned
+//! results, in dev and checked builds. A declaration without the
+//! intrinsic's shape (`trait.impl.intrinsic.shape`) is the stage case
+//! `tests/cases/diagnostics/a-frame-intrinsic-without-its-task-list-is-an-invalid-intrinsic`.
 
-use hd_diag::Code;
-use hd_driver::{Executor, Goal, Host, NoClock, build, std_sources};
+use hd_driver::{Executor, Goal, Host, NoClock, std_sources};
 use hd_sched::SerialOrder;
-
-#[test]
-fn a_frame_intrinsic_without_its_task_list_is_an_invalid_intrinsic() {
-    let mut sources = std_sources();
-    sources.insert(
-        "bad.hd",
-        r#"@intrinsic("task_all_frame")
-pub fn unlowered() -> void:
-    panic("intrinsic")
-"#,
-    );
-    sources.insert(
-        "main.hd",
-        r"use std.bad.unlowered
-
-pub fn main() -> void:
-    unlowered()
-",
-    );
-    let store = crate::warm_store();
-    let host = Host {
-        render_tir: &[],
-        sources: &sources,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let out = build(
-        &host,
-        "std",
-        &Goal::Program {
-            entry: "main".into(),
-        },
-    );
-    let rendered = out.render();
-    assert!(out.wasm.is_none(), "the program compiled to Wasm");
-    assert_eq!(out.diags.code, [Code::InvalidIntrinsic], "{rendered}");
-    // On the declaration's decorator, `@intrinsic("task_all_frame")`.
-    let at = out.diags.primary[0];
-    assert_eq!((at.lo, at.hi), (0, 28), "{rendered}");
-    assert!(rendered.contains("bad.hd"), "{rendered}");
-    assert!(rendered.contains("`fn[1](List) -> Suspend`"), "{rendered}");
-}
 
 #[test]
 fn homogeneous_all_frame_keeps_typed_and_counted_results() {
     let mut sources = std_sources();
     sources.insert(
         "flat.hd",
-        r#"@intrinsic("task_all_frame")
-pub fn frame[T](tasks: List[Suspend[T]]) -> Suspend[List[T]]:
-    panic("intrinsic")
-
-@intrinsic("task_pending_frame")
-pub fn pending[T]() -> Suspend[T]:
-    panic("intrinsic")
-"#,
+        include_str!("programs/unlowered_intrinsic/flat.hd"),
     );
     sources.insert(
         "main.hd",
-        r#"use std.flat.{frame, pending}
-use std.task.race
-enum Item:
-    Text(string)
-    Count(i64)
-
-struct Cell:
-    value: string
-
-fn ready![T](value: T) -> T:
-    value
-
-fn check(ok: bool) -> void:
-    if !ok:
-        panic("typed all-frame result differs")
-
-fn discard![T](task: Suspend[List[T]]) -> usize:
-    values := task!()
-    values.len()
-
-pub fn main!() -> void $ Console:
-    let strings: List[Suspend[List[string]]] = [ready(["one", "two"]), ready(["three"])]
-    let strings_frame: Suspend[List[List[string]]] = frame(strings)
-    values := strings_frame!()
-    check(values.len() == 2 && values[0][0] == "one" && values[0][1] == "two" && values[1][0] == "three")
-    let variants: List[Suspend[Item]] = [ready(Item.Text("text")), ready(Item.Count(-7i64))]
-    let variants_frame: Suspend[List[Item]] = frame(variants)
-    variants_out := variants_frame!()
-    match variants_out[0]:
-        .Text(text) => check(text == "text")
-        .Count(_) => panic("expected text")
-    match variants_out[1]:
-        .Count(count) => check(count == -7i64)
-        .Text(_) => panic("expected count")
-    left := box(Cell { value: "left" })
-    right := box(Cell { value: "right" })
-    let references: List[Suspend[*mut Cell]] = [ready(left), ready(right)]
-    let reference_frame: Suspend[List[*mut Cell]] = frame(references)
-    shared := reference_frame!()
-    check(shared[0] is left)
-    check(shared[1] is right)
-    shared[0].value = "changed"
-    check(left.value == "changed")
-    let partial_values: List[Suspend[List[string]]] = [ready(["owned", "result"]), pending()]
-    let partial_frame: Suspend[List[List[string]]] = frame(partial_values)
-    _ := race!(discard(partial_frame), ready(0usize))
-    let partial_refs: List[Suspend[*mut Cell]] = [ready(left), pending()]
-    let partial_reference_frame: Suspend[List[*mut Cell]] = frame(partial_refs)
-    _ := race!(discard(partial_reference_frame), ready(0usize))
-    check(left.value == "changed")
-    println("typed flat results")
-"#,
+        include_str!("programs/unlowered_intrinsic/main.hd"),
     );
     let store = crate::warm_store();
     let host = Host {

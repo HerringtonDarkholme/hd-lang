@@ -1,3 +1,7 @@
+use std.num.{Integer, TryFromIntError}
+use std.meta.inline
+use std.rt.{char_from_scalar}
+
 # std.convert: the conversion trait `From`
 # (spec/lang/09-traits.md#conversion-trait). It is not a prelude name
 # (module.prelude.from-error); the prelude uses it, so postfix `?` finds it
@@ -7,3 +11,48 @@
 ## See [trait.from.module](../../spec/lang/09-traits.md#r-trait.from.module).
 pub trait From[T]:
     fn from(value: T) -> Self
+
+## An explicit conversion that returns an error when the source cannot be represented.
+## See [std-convert.try-from.decl](../../spec/std/convert.md#r-std-convert.try-from.decl).
+pub trait TryFrom[T]:
+    type Error
+    fn try_from(value: T) -> Result[Self, Self::Error]
+
+## A scalar conversion failed because the number is not a Unicode scalar value.
+## See [std-text.char.try-from-u32](../../spec/std/text.md#r-std-text.char.try-from-u32).
+@derive(Debug, Eq)
+@error("converted integer out of range for char")
+pub struct CharTryFromError: pass
+
+impl TryFrom[u32] for char:
+    type Error = CharTryFromError
+
+    @inline(.Always)
+    fn try_from(value: u32) -> Result[char, CharTryFromError]:
+        match char_from_scalar(value):
+            .Some(character) => .Ok(character)
+            .None => .Err(CharTryFromError {})
+
+# Numeric families specialize these ordinary range guards for each integer pair.
+impl[S < Integer, T < Integer] TryFrom[S] for T:
+    type Error = TryFromIntError
+
+    @inline(.Always)
+    fn try_from(value: S) -> Result[T, TryFromIntError]:
+        lower := (
+            S::min_value() < S(0)
+            && (T::min_value() == T(0) || i64(S::min_value()) < i64(T::min_value()))
+        )
+        upper := u64(S::max_value()) > u64(T::max_value())
+        if lower:
+            if upper:
+                if value < S(T::min_value()) || value > S(T::max_value()):
+                    return .Err(TryFromIntError {})
+            else:
+                if value < S(T::min_value()):
+                    return .Err(TryFromIntError {})
+        else:
+            if upper:
+                if value > S(T::max_value()):
+                    return .Err(TryFromIntError {})
+        .Ok(T(value))

@@ -13,14 +13,14 @@
 use hd_base::SliceSort as _;
 use hd_base::wire::{Reader, Writer};
 use hd_base::{
-    DefId, Hash128, LocalId, NodeIdx, NotImplemented, Range32, Stage, StageResult, SubId, Symbol,
-    hash128,
+    DefId, Hash128, LocalId, NodeIdx, NotImplemented, PathId, Range32, Stage, StageResult, SubId,
+    Symbol, hash128,
 };
 use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Phase, Storage, SuspRow, Tag, place};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Phase, Storage, Tag, place};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -57,8 +57,6 @@ enum Holder {
     Extra(u32),
     /// A sub-body's parameter record (`Body::sub_params`).
     SubParams(usize),
-    /// A suspension row's scope list (`SuspRow::scopes`).
-    Susp(usize),
     /// A stable list's place word (`Body::stable_lists`).
     StableList(usize),
 }
@@ -104,16 +102,6 @@ fn references(b: &Body, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
                 at: Holder::SubParams(s),
                 start: r.start,
                 end: bounded(b, payload, r.len)?,
-            });
-        }
-    }
-    for (s, row) in b.susp.iter().enumerate() {
-        // A range of scope instructions, with no length word.
-        if row.scopes.len > 0 {
-            f(Reach::Span {
-                at: Holder::Susp(s),
-                start: row.scopes.start,
-                end: bounded(b, row.scopes.start, row.scopes.len)?,
             });
         }
     }
@@ -394,7 +382,6 @@ fn compact(b: &Body) -> StageResult<std::borrow::Cow<'_, Body>> {
             Holder::Data(i, k) => out.data[i][k] = to,
             Holder::Extra(at) => out.extra[moved(at) as usize] = to,
             Holder::SubParams(s) => out.sub_params[s].start = to,
-            Holder::Susp(s) => out.susp[s].scopes.start = to,
             Holder::StableList(r) => out.stable_lists[r][1] = to,
         }
     }
@@ -417,11 +404,23 @@ pub fn write_body(
     paths: &PathTable,
     syms: &ShardedInterner,
 ) -> StageResult<Vec<u8>> {
+    Ok(write_body_named(b, pool, paths, syms)?.0)
+}
+
+/// [`write_body`], with every path the body names (its tables' path
+/// rows, each declaration with its ancestors): what a key on the
+/// declarations the body reads starts from.
+pub fn write_body_named(
+    b: &Body,
+    pool: &InternPool,
+    paths: &PathTable,
+    syms: &ShardedInterner,
+) -> StageResult<(Vec<u8>, Vec<PathId>)> {
     let out = encode(compact(b)?.as_ref(), pool, paths, syms)?;
     debug_assert!(
         matches!(
-            read_body(&out, pool, paths, syms).map(|back| encode(&back, pool, paths, syms)),
-            Some(Ok(again)) if again == out
+            read_body(&out.0, pool, paths, syms).map(|back| encode(&back, pool, paths, syms)),
+            Some(Ok(again)) if again.0 == out.0
         ),
         "item {}: a decoded body encodes differently",
         b.item.raw()
@@ -429,13 +428,13 @@ pub fn write_body(
     Ok(out)
 }
 
-/// [`write_body`] of a compacted body.
+/// [`write_body_named`] of a compacted body.
 fn encode(
     b: &Body,
     pool: &InternPool,
     paths: &PathTable,
     syms: &ShardedInterner,
-) -> StageResult<Vec<u8>> {
+) -> StageResult<(Vec<u8>, Vec<PathId>)> {
     let mut t = TableWriter::new(pool, paths, syms);
     let mut extra = b.extra.clone();
     for i in 0..b.len() {
@@ -545,14 +544,13 @@ fn encode(
     }
     let mut out = hashed.to_le_bytes().to_vec();
     out.extend_from_slice(&w.bytes);
-    Ok(out)
+    Ok((out, t.paths().collect()))
 }
 
 /// Whether `b` holds the ownership passes' output, which only an owned
 /// body's wire form carries: a checker's body encodes as it always has.
 fn owned(b: &Body) -> bool {
-    !(b.susp.is_empty()
-        && b.exit_drops.is_empty()
+    !(b.exit_drops.is_empty()
         && b.storage.is_empty()
         && b.cancel.is_empty()
         && b.suites.is_empty()
@@ -566,7 +564,7 @@ fn owned(b: &Body) -> bool {
 }
 
 /// The owned section, after the locations: the passes' columns
-/// (`Body::susp` to `Body::inlined_capture_origins`), each a flat `u32`
+/// (`Body::exit_drops` to `Body::inlined_capture_origins`), each a flat `u32`
 /// column of its rows; `inlined` has its callees as table rows. Outside
 /// the hashed prefix: a cache of owned bodies keys one by its checked
 /// body, never by this encoding's hash.
@@ -580,14 +578,6 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
                 .into_iter(),
         );
     };
-    u32s(
-        w,
-        b.susp
-            .iter()
-            .flat_map(|s| [s.inst, s.scopes.start, s.scopes.len, s.hook_site])
-            .collect::<Vec<_>>()
-            .into_iter(),
-    );
     u32s(
         w,
         b.exit_drops
@@ -659,14 +649,6 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
 /// malformed row.
 fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
     let pairs = |v: Vec<u32>| v.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-    b.susp = col(r)
-        .chunks_exact(4)
-        .map(|c| SuspRow {
-            inst: c[0],
-            scopes: Range32::new(c[1], c[2]),
-            hook_site: c[3],
-        })
-        .collect();
     b.exit_drops = col(r)
         .chunks_exact(2)
         .map(|c| (SubId::from_raw(c[0]), LocalId::from_raw(c[1])))
@@ -710,6 +692,82 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         b.forwarded_reads = pairs(col(r));
     }
     Some(())
+}
+
+/// The source locations of a body's wire form ([`write_body`]): what a
+/// panic frame's line reads of it.
+pub struct Locations {
+    /// The body's kind, when asked for or read anyway.
+    pub kind: Option<BodyKind>,
+    /// Each instruction's syntax node.
+    pub syn: Vec<NodeIdx>,
+    /// Each operation whose `usize` type is a literal's default, with the
+    /// name of the local it reads, if any (`Body::fallback`).
+    pub fallback: Vec<(u32, Option<String>)>,
+}
+
+/// [`Locations`] of the body `bytes` encode, read without interning its
+/// tables or decoding its columns: the locations sit past the hashed
+/// prefix, whose length the first word gives. The tables are stepped over
+/// only for the kind (`kind`) or for a body with fallback rows, whose
+/// local names come from the symbol table and the `local_name` column.
+/// Cost: the locations' words, and with the tables one step per table row
+/// and per column.
+#[must_use]
+pub fn read_locations(bytes: &[u8], kind: bool) -> Option<Locations> {
+    let hashed = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
+    let mut at = Reader::new(bytes.get(4usize.checked_add(hashed)?..)?);
+    let syn = col(&mut at).into_iter().map(NodeIdx::from_raw).collect();
+    let n = at.count();
+    at.skip(n.checked_mul(4)?);
+    let rows = col(&mut at);
+    if !at.ok() {
+        return None;
+    }
+    if !kind && rows.is_empty() {
+        return Some(Locations {
+            kind: None,
+            syn,
+            fallback: Vec::new(),
+        });
+    }
+    let mut r = Reader::new(bytes.get(4..)?);
+    for _ in 0..r.count() {
+        r.u32();
+        r.u8();
+        r.blob();
+    }
+    let syms: Vec<&str> = (0..r.count()).map(|_| r.str()).collect();
+    for _ in 0..r.count() {
+        r.u8();
+        let n = r.count();
+        r.skip(n.checked_mul(4)?);
+    }
+    r.u32();
+    let kind = *KINDS.get(r.u8() as usize)?;
+    // phase, then tags, data, ty, extra and local_ty before local_name.
+    r.u8();
+    for _ in 0..5 {
+        let n = r.count();
+        r.skip(n.checked_mul(4)?);
+    }
+    let local_name = col(&mut r);
+    let fallback = rows
+        .chunks_exact(2)
+        .map(|c| {
+            let name = c[1]
+                .checked_sub(1)
+                .and_then(|l| local_name.get(l as usize))
+                .and_then(|&s| syms.get(s as usize))
+                .map(|s| (*s).to_owned());
+            (c[0], name)
+        })
+        .collect();
+    r.ok().then_some(Locations {
+        kind: Some(kind),
+        syn,
+        fallback,
+    })
 }
 
 fn col(r: &mut Reader<'_>) -> Vec<u32> {
@@ -906,6 +964,32 @@ pub fn tir_hash(bytes: &[u8]) -> Hash128 {
     hash128(bytes.get(4..4 + n).unwrap_or(bytes))
 }
 
+/// The hash of everything a body's wire bytes hold but its node indices
+/// (`syn`, `local_syn`): what emission reads of the body, the owned
+/// section included, so the key of an emitted unit (`hd_wasm`'s unit
+/// store, #2423). A body moved in its file keeps it; emission reads no
+/// node index. Cost: one pass over the bytes.
+#[must_use]
+pub fn content_hash(bytes: &[u8]) -> Hash128 {
+    let mut r = Reader::new(bytes);
+    let n = r.u32() as usize;
+    let prefix = bytes.get(4..4 + n).unwrap_or(&[]);
+    // The two node-index columns, each a length and its words.
+    let mut at = 4 + n;
+    for _ in 0..2 {
+        let len = bytes
+            .get(at..at + 4)
+            .and_then(|b| b.try_into().ok())
+            .map_or(0, u32::from_le_bytes) as usize;
+        at = at.saturating_add(4 + 4 * len);
+    }
+    let mut h = hd_base::StableHasher::new("tir-content");
+    h.len(prefix.len());
+    h.bytes(prefix);
+    h.bytes(bytes.get(at..).unwrap_or(&[]));
+    h.finish()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{map_ids, read_body, tir_hash, write_body};
@@ -1015,8 +1099,8 @@ mod tests {
     /// such section, so its bytes and hash do not change.
     #[test]
     fn an_owned_body_round_trips_its_pass_columns_into_a_fresh_run() {
-        use crate::ir::{Storage, SuspRow};
-        use hd_base::{LocalId, Range32, SubId};
+        use crate::ir::Storage;
+        use hd_base::{LocalId, SubId};
         let (pool, paths, syms) = (
             InternPool::new(),
             PathTable::new(),
@@ -1033,11 +1117,6 @@ mod tests {
         let root = b.close_block(blk, None, Ty::NEVER, n);
         let mut body = b.finish(root, &[]).expect("verifies");
         let checked = write_body(&body, &pool, &paths, &syms).expect("wire");
-        body.susp = vec![SuspRow {
-            inst: 1,
-            scopes: Range32::new(0, 0),
-            hook_site: crate::ir::NONE,
-        }];
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Static)];
         body.cancel = vec![(1, 2)];
@@ -1133,25 +1212,18 @@ mod tests {
                     }
                 }
             }
-            // A suspension row's scope range and a root with a parameter
-            // record point into `extra` too.
+            // A root with a parameter record points into `extra` too.
             let list = u32::try_from(body.extra.len()).expect("extra");
-            body.extra.extend([5, 1, 0]);
-            body.susp = vec![crate::ir::SuspRow {
-                inst: 0,
-                scopes: hd_base::Range32::new(list, 1),
-                hook_site: crate::ir::NONE,
-            }];
-            body.sub_params[0] = hd_base::Range32::new(list + 1, 1);
+            body.extra.extend([1, 0]);
+            body.sub_params[0] = hd_base::Range32::new(list, 1);
             body.extra.splice(0..0, [3, 0, dead, 0]);
             for r in &mut body.sub_params {
                 r.start += shift;
             }
-            body.susp[0].scopes.start += shift;
             // A nested range is authoritative even when its prefix names
             // more words. Empty nested ranges may have unrelated or stale
             // offsets, just like a copied body's default root.
-            let child = list + 3 + shift;
+            let child = list + 2 + shift;
             body.extra.extend([7, 0]);
             for range in [
                 hd_base::Range32::new(child, 1),
@@ -1169,7 +1241,6 @@ mod tests {
             let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
             let back = read_body(&bytes, &pool, &paths, &syms).expect("read");
             assert_eq!(back.extra.len() + 4, body.extra.len());
-            assert_eq!(back.extra[back.susp[0].scopes.start as usize], 5);
             assert_eq!(back.sub_param_locals(0), &[0]);
             assert_eq!(back.sub_param_locals(1), &[0]);
             for sub in [2, 3] {

@@ -10,7 +10,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 15 |         self.log.push(self.name)
@@ -90,39 +90,38 @@
     if
     ;; 20 |         panic("negative: $t")
       i32.const 10
-      local.tee $s.0
       local.get $t.1
       i32.add
-      local.tee $s.1
+      local.tee $s.0
       i32.const 16
-      local.set $n
+      local.set $s.1
       if
-        local.get $s.1
+        local.get $s.0
         call $rt:str
-        local.set $n
+        local.set $s.1
       end
-      local.get $n
+      local.get $s.1
       local.tee $t1
       i32.const 8250
       i32.store16 $heap offset=8 align=1
       local.get $t1
       i64.const 7311146993653867886
       i64.store $heap align=1
-      local.get $n
-      local.get $s.0
+      local.get $s.1
+      i32.const 10
       i32.add
       local.get $t.0
       local.get $t.1
       call $rt:memory_copy/0/0
-      local.get $n
       local.get $s.1
+      local.get $s.0
       i32.const 3
       call_indirect $table0 (param i32 i32)
       unreachable
     ;; 19 |     if n < 0:
-      local.get $n
+      local.get $s.1
       if
-        local.get $n
+        local.get $s.1
         call $rt:release_ref
       end
     end

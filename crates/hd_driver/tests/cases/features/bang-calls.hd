@@ -6,6 +6,7 @@
 use std.task.{join, race}
 
 fn label!(s: string) -> string:
+    pause!()
     s + "!"
 
 fn one!(s: string) -> usize:
@@ -17,3 +18,9 @@ fn both!(a: string, b: string) -> usize:
 
 fn either!(a: string, b: string) -> usize:
     race!(label(a), label(b)).len()
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

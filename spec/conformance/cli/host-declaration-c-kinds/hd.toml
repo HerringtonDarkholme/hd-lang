@@ -1,0 +1,9 @@
+[package]
+name = "host_c_kinds"
+
+[host]
+"main.Both" = { c = "hd_both", js = "provider.mjs" }
+"main.Empty" = {}
+"main.Rust" = { c = "hd_rust", rust = "provider.rs" }
+"main.Path" = { c = "lib/hd_path" }
+"main.Digit" = { c = "9lives" }

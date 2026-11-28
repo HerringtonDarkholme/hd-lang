@@ -1,0 +1,21 @@
+# @dump: stdout tir wat
+# @build: dev | checked
+# A fresh owned trait value widens through its materialized data and vtable.
+use std.error.Error
+use std.meta.{Inspectable, TypeId}
+
+@error("inner")
+struct UserError:
+    count: i32
+
+# subject
+fn make() -> *dyn Inspectable:
+    let original: *dyn Error = box(UserError { count: 3 })
+    original
+
+pub fn main() -> void $ Console:
+    let erased = make()
+    println(erased.runtime_type() == TypeId::of::[UserError]())
+    match erased.downcast_ref::[UserError]():
+        .Some(found) => println(found.count)
+        .None => println("none")

@@ -1,6 +1,6 @@
 # test: an object keeps its members in insertion order, a duplicate key keeps its first place with the last value, and parse then print keeps the text's key order
 # Spec std/json Values, Json Objects, Parsing, Writing: std-json.value.object-type, std-json.object.order, std-json.object.set-ref, std-json.parse.object.source-order, std-json.parse.object.duplicate-last, std-json.display.object-order (JSON-SURFACE; task #226).
-use std.json.{parse, Json, JsonObject}
+use std.encoding.json.{parse, Json, JsonObject}
 fn read(text: string) -> Json:
     match parse(text):
         .Ok(value) => value

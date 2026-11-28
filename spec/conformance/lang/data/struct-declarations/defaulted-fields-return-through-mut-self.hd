@@ -1,0 +1,31 @@
+# expect-stdout: 1
+struct File:
+    old_path: string
+    new_path: string
+    header_lines: List[string] = []
+    hunks: List[string] = []
+    old_sha: string? = .None
+    new_sha: string? = .None
+    binary: bool = false
+
+impl File:
+    fn new(old_path: string, new_path: string, header_line: string) -> File:
+        File { old_path: old_path, new_path: new_path, header_lines: [header_line] }
+
+struct Parser:
+    current: File = File::new("", "", "")
+    count: u32 = 0
+    prefix: string = ""
+    buf: List[string] = []
+    pending: string? = .None
+
+impl Parser:
+    fn finish(&mut self) -> List[File]:
+        [self.current]
+
+fn parse() -> List[File]:
+    let mut parser = Parser {}
+    parser.finish()
+
+pub fn main() -> void $ Console:
+    println(parse().len())

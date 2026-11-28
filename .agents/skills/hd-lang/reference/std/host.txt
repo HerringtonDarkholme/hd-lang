@@ -1,0 +1,17 @@
+# std.host: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.host` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.host.NAME` inside any package.
+std.host.Signal  pub enum Signal  -- A portable operating-system notification.
+std.host.Signals  pub trait Signals  -- The host capability to await the next notification of one kind.
+std.host.ScriptedSignals  pub struct ScriptedSignals  -- The deterministic Signals provider: each kind has its own scripted supply.
+std.host.ScriptedSignals.new  pub fn new(script: List[Signal]) -> *mut ScriptedSignals  -- Returns a provider that consumes the supplied signals by requested kind.
+std.host.Env  pub trait Env  -- The host capability to read the process's environment variables.
+std.host.env  pub fn env(name: string) -> string? $ Env  -- The value of the environment variable `name`, in `.Some`, or `.None` when it is not set.
+std.host.env_as  pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, HostError] $ Env  -- The value of the environment variable `name` read as a `T`: `.None` when unset, an error naming the variable when unreadable.
+std.host.env_decode  pub fn env_decode[T < Deserialize](prefix: string = "") -> Result[T, HostError] $ Env  -- Reads a record from its declared environment variables through Deserialize.
+std.host.HostError  pub enum HostError  -- Why a host read failed, including a variable that could not be parsed.
+std.host.ScriptedEnv  pub struct ScriptedEnv  -- The deterministic `Env` provider: a fixed map of variables, with no host access.
+std.host.ScriptedEnv.new  pub fn new(values: Map[string, string]) -> ScriptedEnv  -- Returns the provider that answers from `values`.
+std.host.Sys  pub trait Sys  -- The host capability to read four facts about the host system.
+std.host.ScriptedSys  pub struct ScriptedSys  -- The deterministic Sys provider: every read answers from a map.
+std.host.ScriptedSys.new  pub fn new(values: Map[string, string]) -> ScriptedSys  -- Returns the provider whose methods read the value of the key that is the method's name.

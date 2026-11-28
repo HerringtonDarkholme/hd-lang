@@ -83,9 +83,6 @@ fn an_integration_file_runs_alone() {
 #[test]
 fn check_tests_leaves_out_the_compile_fail_doc_test() {
     let out = hd("hd-cache-doc-check", &["check", "--tests"]);
-    assert_eq!(
-        text(&out.stderr),
-        "check result: ok. errors: 0; warnings: 0\n"
-    );
+    assert_eq!(text(&out.stderr), "check result: ok.\n");
     assert_eq!(out.status.code(), Some(0));
 }

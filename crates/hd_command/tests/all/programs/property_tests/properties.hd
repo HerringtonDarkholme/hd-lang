@@ -1,0 +1,37 @@
+use std.testing.{Arbitrary, Choices}
+
+@derive(Debug)
+pub struct Point:
+    x: i64
+    y: i64
+
+impl Arbitrary for Point:
+    fn arbitrary(c: &mut Choices) -> Point:
+        Point { x: c.int(0..=1000), y: c.int(0..=1000) }
+
+fn even(c: &mut Choices) -> i64:
+    let value: i64 = c.int(0..=100)
+    c.assume(value % 2 == 0)
+    value
+
+fn small(c: &mut Choices) -> i64:
+    c.int(0..=9)
+
+tests:
+    use std.testing.{assert, assert_equal, it_prop, it_prop_with}
+
+    it_prop("adding zero keeps a value", prop=fn!(value: i32):
+        assert_equal(value + 0, value, reason="zero")
+    )
+
+    it_prop("points stay near", prop=fn!(p: Point):
+        assert(p.x < 50 || p.y < 30, reason="a far point")
+    )
+
+    it_prop_with("only even values are checked", gen=even, prop=fn!(n: i64):
+        assert(n % 2 == 0, reason="assume discards odd values")
+    )
+
+    it_prop_with("eight small values", gen=small, cases=8, prop=fn!(n: i64):
+        assert(n >= 0 && n <= 9, reason="from 0 to 9")
+    )

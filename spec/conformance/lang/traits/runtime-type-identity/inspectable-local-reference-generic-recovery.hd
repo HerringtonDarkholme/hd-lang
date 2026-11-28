@@ -1,7 +1,7 @@
 # test: a generic recovery cannot target a local reference type
 # Spec 09 Inspectable Types: trait.inspectable.not.local-reference. A recovered `&string` would carry no origin and outlive its place.
 # Spec 09 Recovering A Concrete Type: trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn recover[T < Inspectable](value: &dyn Inspectable) -> T?:
     match value.downcast_ref::[T]():

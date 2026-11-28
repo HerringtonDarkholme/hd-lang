@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: wasmtime release
+# #2374: `bump` writes through its `&mut` parameter, which is the list
+# the loop reads, so its write summary makes the call a write: the buffer
+# pointer and the length load on every iteration, and the check stays.
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Never)
+fn bump(ys: &mut UniqList[i64]) -> void:
+    ys[0] = ys[0] + 1
+
+pub fn fold(xs: &mut UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    for i in 0..xs.len():
+        s += xs[i]
+        bump(xs)
+    s

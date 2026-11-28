@@ -4,1090 +4,1660 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $invoke (param $callback.0 i32) (param $callback.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $t2 i32)
+  (func $invoke (param $callback.0 i32) (param $callback.1 i32) (param $result.0.1.1.1.1.1.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     result := callback(value)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 552
+    i32.const 1064
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 552
+    i32.const 1064
     i32.sub
     local.tee $t0
     global.set $stack
     local.get $t0
     i32.const 0
-    i32.const 552
+    i32.const 1064
     memory.fill $heap
-    local.get $callback.1
-    local.get $t1
-    i32.load $heap
-    local.get $t1
-    i32.load $heap offset=4
-    local.get $t1
-    i32.load $heap offset=8
-    local.get $t1
-    i32.load $heap offset=12
-    local.get $t1
-    i32.load $heap offset=16
-    local.get $t1
-    i32.load $heap offset=20
-    local.get $t1
-    i32.load $heap offset=24
-    local.get $t1
-    i32.load $heap offset=28
-    local.get $t1
-    i32.load $heap offset=32
-    local.get $t1
-    i32.load $heap offset=36
-    local.get $t1
-    i32.load $heap offset=40
-    local.get $t1
-    i32.load $heap offset=44
-    local.get $t1
-    i32.load $heap offset=48
-    local.get $t1
-    i32.load $heap offset=52
-    local.get $t1
-    i32.load $heap offset=56
-    local.get $t1
-    i32.load $heap offset=60
-    local.get $t1
-    i32.load $heap offset=64
-    local.get $t1
-    i32.load $heap offset=68
-    local.get $t1
-    i32.load $heap offset=72
-    local.get $t1
-    i32.load $heap offset=76
-    local.get $t1
-    i32.load $heap offset=80
-    local.get $t1
-    i32.load $heap offset=84
-    local.get $t1
-    i32.load $heap offset=88
-    local.get $t1
-    i32.load $heap offset=92
-    local.get $t1
-    i32.load $heap offset=96
-    local.get $t1
-    i32.load $heap offset=100
-    local.get $t1
-    i32.load $heap offset=104
-    local.get $t1
-    i32.load $heap offset=108
-    local.get $t1
-    i32.load $heap offset=112
-    local.get $t1
-    i32.load $heap offset=116
-    local.get $t1
-    i32.load $heap offset=120
-    local.get $t1
-    i32.load $heap offset=124
-    local.get $t1
-    i32.load $heap offset=128
-    local.get $t1
-    i32.load $heap offset=132
-    local.get $t1
-    i32.load $heap offset=136
-    local.get $t1
-    i32.load $heap offset=140
-    local.get $t1
-    i32.load $heap offset=144
-    local.get $t1
-    i32.load $heap offset=148
-    local.get $t1
-    i32.load $heap offset=152
-    local.get $t1
-    i32.load $heap offset=156
-    local.get $t1
-    i32.load $heap offset=160
-    local.get $t1
-    i32.load $heap offset=164
-    local.get $t1
-    i32.load $heap offset=168
-    local.get $t1
-    i32.load $heap offset=172
-    local.get $t1
-    i32.load $heap offset=176
-    local.get $t1
-    i32.load $heap offset=180
-    local.get $t1
-    i32.load $heap offset=184
-    local.get $t1
-    i32.load $heap offset=188
-    local.get $t1
-    i32.load $heap offset=192
-    local.get $t1
-    i32.load $heap offset=196
-    local.get $t1
-    i32.load $heap offset=200
-    local.get $t1
-    i32.load $heap offset=204
-    local.get $t1
-    i32.load $heap offset=208
-    local.get $t1
-    i32.load $heap offset=212
-    local.get $t1
-    i32.load $heap offset=216
-    local.get $t1
-    i32.load $heap offset=220
-    local.get $t1
-    i32.load $heap offset=224
-    local.get $t1
-    i32.load $heap offset=228
-    local.get $t1
-    i32.load $heap offset=232
-    local.get $t1
-    i32.load $heap offset=236
-    local.get $t1
-    i32.load $heap offset=240
-    local.get $t1
-    i32.load $heap offset=244
-    local.get $t1
-    i32.load $heap offset=248
-    local.get $t1
-    i32.load $heap offset=252
-    local.get $t1
-    i32.load $heap offset=256
-    i32.const 0
-    local.get $callback.0
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 536
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 536
-    i32.sub
-    local.tee $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=8
-    global.set $stack
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=544
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=536
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=528
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=520
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=512
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=504
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=496
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=488
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=480
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=472
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=464
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=456
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=448
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=440
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=432
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=424
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=416
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=408
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=400
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=392
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=384
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=376
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=368
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=360
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=352
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=344
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=336
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=328
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=320
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=312
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=304
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=296
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=288
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=280
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=272
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=264
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=256
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=248
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=240
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=232
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=224
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=216
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=208
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=200
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=192
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=184
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=176
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=168
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=160
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=152
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=144
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=136
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=128
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=120
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=112
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=104
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=96
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=88
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=80
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=72
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=64
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=56
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=48
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=40
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=32
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=24
-    local.set $t2
-    local.get $t0
-    local.get $t2
-    i32.store $heap offset=16
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=16
-    i32.store $heap
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=24
-    i32.store $heap offset=8
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=32
-    i32.store $heap offset=16
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=40
-    i32.store $heap offset=24
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=48
-    i32.store $heap offset=32
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=56
-    i32.store $heap offset=40
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=64
-    i32.store $heap offset=48
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=72
-    i32.store $heap offset=56
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=80
-    i32.store $heap offset=64
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=88
-    i32.store $heap offset=72
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=96
-    i32.store $heap offset=80
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=104
-    i32.store $heap offset=88
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=112
-    i32.store $heap offset=96
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=120
-    i32.store $heap offset=104
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=128
-    i32.store $heap offset=112
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=136
-    i32.store $heap offset=120
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=144
-    i32.store $heap offset=128
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=152
-    i32.store $heap offset=136
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=160
-    i32.store $heap offset=144
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=168
-    i32.store $heap offset=152
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=176
-    i32.store $heap offset=160
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=184
-    i32.store $heap offset=168
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=192
-    i32.store $heap offset=176
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=200
-    i32.store $heap offset=184
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=208
-    i32.store $heap offset=192
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=216
-    i32.store $heap offset=200
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=224
-    i32.store $heap offset=208
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=232
-    i32.store $heap offset=216
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=240
-    i32.store $heap offset=224
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=248
-    i32.store $heap offset=232
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=256
-    i32.store $heap offset=240
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=264
-    i32.store $heap offset=248
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=272
-    i32.store $heap offset=256
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=280
-    i32.store $heap offset=264
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=288
-    i32.store $heap offset=272
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=296
-    i32.store $heap offset=280
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=304
-    i32.store $heap offset=288
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=312
-    i32.store $heap offset=296
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=320
-    i32.store $heap offset=304
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=328
-    i32.store $heap offset=312
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=336
-    i32.store $heap offset=320
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=344
-    i32.store $heap offset=328
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=352
-    i32.store $heap offset=336
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=360
-    i32.store $heap offset=344
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=368
-    i32.store $heap offset=352
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=376
-    i32.store $heap offset=360
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=384
-    i32.store $heap offset=368
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=392
-    i32.store $heap offset=376
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=400
-    i32.store $heap offset=384
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=408
-    i32.store $heap offset=392
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=416
-    i32.store $heap offset=400
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=424
-    i32.store $heap offset=408
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=432
-    i32.store $heap offset=416
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=440
-    i32.store $heap offset=424
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=448
-    i32.store $heap offset=432
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=456
-    i32.store $heap offset=440
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=464
-    i32.store $heap offset=448
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=472
-    i32.store $heap offset=456
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=480
-    i32.store $heap offset=464
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=488
-    i32.store $heap offset=472
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=496
-    i32.store $heap offset=480
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=504
-    i32.store $heap offset=488
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=512
-    i32.store $heap offset=496
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=520
-    i32.store $heap offset=504
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=528
-    i32.store $heap offset=512
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=536
-    i32.store $heap offset=520
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=544
-    i32.store $heap offset=528
-    local.get $t0
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap
-    call_indirect $table0 (param i32)
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=8
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=16
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=24
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=32
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=40
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=48
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=56
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=64
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=72
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=80
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=88
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=96
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=104
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=112
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=120
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=128
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=136
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=144
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=152
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=160
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=168
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=176
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=184
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=192
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=200
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=208
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=216
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=224
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=232
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=240
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=248
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=256
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=264
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=272
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=280
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=288
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=296
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=304
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=312
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=320
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=328
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=336
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=344
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=352
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=360
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=368
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=376
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=384
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=392
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=400
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=408
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=416
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=424
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=432
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=440
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=448
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=456
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=464
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=472
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=480
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=488
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=496
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=504
-    local.get $t0
-    i32.load $heap offset=8
-    i32.load $heap offset=512
-    local.get $t0
-    i32.load $heap offset=8
-    i32.const 536
-    i32.add
-    global.set $stack
-    local.set $callback.0
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    local.get $callback.1
-    if
-      local.get $callback.1
-      i32.const 8
-      i32.sub
+    block
+      local.get $result.0.1.1.1.1.1.1
       i32.load $heap
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=4
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=8
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=12
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=16
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=20
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=24
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=28
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=32
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=36
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=40
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=44
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=48
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=52
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=56
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=60
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=64
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=68
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=72
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=76
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=80
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=84
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=88
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=92
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=96
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=100
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=104
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=108
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=112
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=116
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=120
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=124
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=128
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=132
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=136
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=140
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=144
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=148
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=152
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=156
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=160
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=164
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=168
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=172
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=176
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=180
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=184
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=188
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=192
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=196
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=200
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=204
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=208
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=212
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=216
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=220
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=224
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=228
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=232
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=236
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=240
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=244
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=248
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=252
+      local.get $result.0.1.1.1.1.1.1
+      i32.load $heap offset=256
+      local.set $result.0.1.1.1.1.1.1
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=504
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=496
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=488
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=480
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=472
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=464
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=456
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=448
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=440
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=432
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=424
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=416
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=408
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=400
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=392
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=384
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=376
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=368
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=360
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=352
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=344
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=336
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=328
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=320
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=312
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=304
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=296
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=288
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=280
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=272
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=264
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=256
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=248
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=240
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=232
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=224
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=216
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=208
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=200
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=192
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=184
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=176
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=168
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=160
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=152
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=144
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=136
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=128
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=120
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=112
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=104
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=96
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=88
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=80
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=72
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=64
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=56
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=48
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=40
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=32
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=24
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=16
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=8
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap
+      local.get $callback.1
+      local.get $t0
+      i32.load $heap
+      local.get $t0
+      i32.load $heap offset=8
+      local.get $t0
+      i32.load $heap offset=16
+      local.get $t0
+      i32.load $heap offset=24
+      local.get $t0
+      i32.load $heap offset=32
+      local.get $t0
+      i32.load $heap offset=40
+      local.get $t0
+      i32.load $heap offset=48
+      local.get $t0
+      i32.load $heap offset=56
+      local.get $t0
+      i32.load $heap offset=64
+      local.get $t0
+      i32.load $heap offset=72
+      local.get $t0
+      i32.load $heap offset=80
+      local.get $t0
+      i32.load $heap offset=88
+      local.get $t0
+      i32.load $heap offset=96
+      local.get $t0
+      i32.load $heap offset=104
+      local.get $t0
+      i32.load $heap offset=112
+      local.get $t0
+      i32.load $heap offset=120
+      local.get $t0
+      i32.load $heap offset=128
+      local.get $t0
+      i32.load $heap offset=136
+      local.get $t0
+      i32.load $heap offset=144
+      local.get $t0
+      i32.load $heap offset=152
+      local.get $t0
+      i32.load $heap offset=160
+      local.get $t0
+      i32.load $heap offset=168
+      local.get $t0
+      i32.load $heap offset=176
+      local.get $t0
+      i32.load $heap offset=184
+      local.get $t0
+      i32.load $heap offset=192
+      local.get $t0
+      i32.load $heap offset=200
+      local.get $t0
+      i32.load $heap offset=208
+      local.get $t0
+      i32.load $heap offset=216
+      local.get $t0
+      i32.load $heap offset=224
+      local.get $t0
+      i32.load $heap offset=232
+      local.get $t0
+      i32.load $heap offset=240
+      local.get $t0
+      i32.load $heap offset=248
+      local.get $t0
+      i32.load $heap offset=256
+      local.get $t0
+      i32.load $heap offset=264
+      local.get $t0
+      i32.load $heap offset=272
+      local.get $t0
+      i32.load $heap offset=280
+      local.get $t0
+      i32.load $heap offset=288
+      local.get $t0
+      i32.load $heap offset=296
+      local.get $t0
+      i32.load $heap offset=304
+      local.get $t0
+      i32.load $heap offset=312
+      local.get $t0
+      i32.load $heap offset=320
+      local.get $t0
+      i32.load $heap offset=328
+      local.get $t0
+      i32.load $heap offset=336
+      local.get $t0
+      i32.load $heap offset=344
+      local.get $t0
+      i32.load $heap offset=352
+      local.get $t0
+      i32.load $heap offset=360
+      local.get $t0
+      i32.load $heap offset=368
+      local.get $t0
+      i32.load $heap offset=376
+      local.get $t0
+      i32.load $heap offset=384
+      local.get $t0
+      i32.load $heap offset=392
+      local.get $t0
+      i32.load $heap offset=400
+      local.get $t0
+      i32.load $heap offset=408
+      local.get $t0
+      i32.load $heap offset=416
+      local.get $t0
+      i32.load $heap offset=424
+      local.get $t0
+      i32.load $heap offset=432
+      local.get $t0
+      i32.load $heap offset=440
+      local.get $t0
+      i32.load $heap offset=448
+      local.get $t0
+      i32.load $heap offset=456
+      local.get $t0
+      i32.load $heap offset=464
+      local.get $t0
+      i32.load $heap offset=472
+      local.get $t0
+      i32.load $heap offset=480
+      local.get $t0
+      i32.load $heap offset=488
+      local.get $t0
+      i32.load $heap offset=496
+      local.get $t0
+      i32.load $heap offset=504
+      local.get $result.0.1.1.1.1.1.1
+      i32.const 0
+      local.get $callback.0
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=512
+      global.get $stack
+      global.get $stack_limit
+      i32.sub
+      i32.const 536
+      i32.lt_u
       if
-        local.get $callback.1
-        call $rt:release_ref
+        call $rt:panic
+        unreachable
       end
+      global.get $stack
+      i32.const 536
+      i32.sub
+      local.tee $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=520
+      global.set $stack
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1056
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1048
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1040
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1032
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1024
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1016
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1008
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=1000
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=992
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=984
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=976
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=968
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=960
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=952
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=944
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=936
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=928
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=920
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=912
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=904
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=896
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=888
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=880
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=872
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=864
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=856
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=848
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=840
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=832
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=824
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=816
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=808
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=800
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=792
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=784
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=776
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=768
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=760
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=752
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=744
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=736
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=728
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=720
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=712
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=704
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=696
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=688
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=680
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=672
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=664
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=656
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=648
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=640
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=632
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=624
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=616
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=608
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=600
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=592
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=584
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=576
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=568
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=560
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=552
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=544
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=536
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=528
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=528
+      i32.store $heap
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=536
+      i32.store $heap offset=8
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=544
+      i32.store $heap offset=16
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=552
+      i32.store $heap offset=24
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=560
+      i32.store $heap offset=32
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=568
+      i32.store $heap offset=40
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=576
+      i32.store $heap offset=48
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=584
+      i32.store $heap offset=56
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=592
+      i32.store $heap offset=64
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=600
+      i32.store $heap offset=72
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=608
+      i32.store $heap offset=80
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=616
+      i32.store $heap offset=88
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=624
+      i32.store $heap offset=96
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=632
+      i32.store $heap offset=104
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=640
+      i32.store $heap offset=112
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=648
+      i32.store $heap offset=120
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=656
+      i32.store $heap offset=128
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=664
+      i32.store $heap offset=136
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=672
+      i32.store $heap offset=144
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=680
+      i32.store $heap offset=152
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=688
+      i32.store $heap offset=160
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=696
+      i32.store $heap offset=168
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=704
+      i32.store $heap offset=176
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=712
+      i32.store $heap offset=184
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=720
+      i32.store $heap offset=192
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=728
+      i32.store $heap offset=200
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=736
+      i32.store $heap offset=208
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=744
+      i32.store $heap offset=216
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=752
+      i32.store $heap offset=224
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=760
+      i32.store $heap offset=232
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=768
+      i32.store $heap offset=240
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=776
+      i32.store $heap offset=248
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=784
+      i32.store $heap offset=256
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=792
+      i32.store $heap offset=264
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=800
+      i32.store $heap offset=272
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=808
+      i32.store $heap offset=280
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=816
+      i32.store $heap offset=288
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=824
+      i32.store $heap offset=296
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=832
+      i32.store $heap offset=304
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=840
+      i32.store $heap offset=312
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=848
+      i32.store $heap offset=320
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=856
+      i32.store $heap offset=328
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=864
+      i32.store $heap offset=336
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=872
+      i32.store $heap offset=344
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=880
+      i32.store $heap offset=352
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=888
+      i32.store $heap offset=360
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=896
+      i32.store $heap offset=368
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=904
+      i32.store $heap offset=376
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=912
+      i32.store $heap offset=384
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=920
+      i32.store $heap offset=392
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=928
+      i32.store $heap offset=400
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=936
+      i32.store $heap offset=408
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=944
+      i32.store $heap offset=416
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=952
+      i32.store $heap offset=424
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=960
+      i32.store $heap offset=432
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=968
+      i32.store $heap offset=440
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=976
+      i32.store $heap offset=448
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=984
+      i32.store $heap offset=456
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=992
+      i32.store $heap offset=464
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1000
+      i32.store $heap offset=472
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1008
+      i32.store $heap offset=480
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1016
+      i32.store $heap offset=488
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1024
+      i32.store $heap offset=496
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1032
+      i32.store $heap offset=504
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1040
+      i32.store $heap offset=512
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1048
+      i32.store $heap offset=520
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=1056
+      i32.store $heap offset=528
+      local.get $t0
+      i32.load $heap offset=520
+      local.get $t0
+      i32.load $heap offset=512
+      call_indirect $table0 (param i32)
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=8
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=16
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=24
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=32
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=40
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=48
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=56
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=64
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=72
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=80
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=88
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=96
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=104
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=112
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=120
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=128
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=136
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=144
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=152
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=160
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=168
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=176
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=184
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=192
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=200
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=208
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=216
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=224
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=232
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=240
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=248
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=256
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=264
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=272
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=280
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=288
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=296
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=304
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=312
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=320
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=328
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=336
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=344
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=352
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=360
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=368
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=376
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=384
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=392
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=400
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=408
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=416
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=424
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=432
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=440
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=448
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=456
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=464
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=472
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=480
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=488
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=496
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=504
+      local.get $t0
+      i32.load $heap offset=520
+      i32.load $heap offset=512
+      local.get $t0
+      i32.load $heap offset=520
+      i32.const 536
+      i32.add
+      global.set $stack
+      local.set $callback.0
+      local.set $result.0.1.1.1.1.1.1
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=504
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=496
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=488
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=480
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=472
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=464
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=456
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=448
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=440
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=432
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=424
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=416
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=408
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=400
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=392
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=384
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=376
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=368
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=360
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=352
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=344
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=336
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=328
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=320
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=312
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=304
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=296
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=288
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=280
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=272
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=264
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=256
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=248
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=240
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=232
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=224
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=216
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=208
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=200
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=192
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=184
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=176
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=168
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=160
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=152
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=144
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=136
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=128
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=120
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=112
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=104
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=96
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=88
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=80
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=72
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=64
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=56
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=48
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=40
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=32
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=24
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=16
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $callback.1
+      call $rt:release_ref
     end
-    ;; 18 |     result._1
     local.get $callback.0
-    ;; 17 |     result := callback(value)
     local.get $t0
-    i32.const 552
+    i32.const 1064
     i32.add
     global.set $stack
   )
-  (func $choose (param $t0 i32) (param $t1 i32)
+  (func $choose (param $t0 i32) (param $t2 i32) (local $t1 i32)
     ;; 12 |     if value._1 > 0:
     local.get $t0
     i32.load $heap offset=256
+    local.set $t1
+    local.get $t1
     i32.const 0
     i32.gt_s
+    local.set $t1
+    local.get $t1
     if
     ;; 13 |         return value
-      local.get $t1
+      local.get $t2
       local.get $t0
       i32.const 260
       memory.copy $heap $heap
       return
     ;; 12 |     if value._1 > 0:
     end
-    local.get $t1
+    local.get $t2
     local.get $t0
     i32.const 260
     memory.copy $heap $heap

@@ -1,0 +1,2 @@
+fn price(item: string) -> u32:
+    prices.get(item).unwrap_or(+0)

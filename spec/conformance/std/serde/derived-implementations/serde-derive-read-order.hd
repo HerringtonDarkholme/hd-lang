@@ -1,8 +1,8 @@
 # test: a derived Deserialize uses the data hooks for a struct and the variant hooks for an enum, then reads each built member with member and its own deserialize; a hand-written one may peek
 # Spec std/serde Reading, Derived Implementations: std-serde.read.data-record, std-serde.read.enum-record, std-serde.read.choice-metadata, std-serde.read.member.local-ref, std-serde.read.peek, std-serde.derive.deserialize.template, std-serde.derive.deserialize.data-and-enum-forms, std-serde.derive.omitted, std-serde.derive.shared.
 # Spec 14 Serialization: annot.serde.by-hand.
-use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Structure, Facts, VariantInfo, Member}
+use std.encoding.{Deserialize, Deserializer, ValueKind}
+use std.meta.{Structure, Facts, VariantInfo, Member}
 
 # One scripted value or step of a sensor feed.
 enum Tok:

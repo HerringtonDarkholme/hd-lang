@@ -8,17 +8,21 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $inherited (param $value.0 i32) (param $value.1 i32) (result i32)
     ;; 20 |     value.parent()
+    block
+      local.get $value.0
+      local.get $value.1
+      i32.load $heap offset=4
+      i32.load $heap
+      call_indirect $table0 (param i32) (result i32)
+      local.set $value.0
+    end
     local.get $value.0
-    local.get $value.1
-    i32.load $heap offset=4
-    i32.load $heap
-    call_indirect $table0 (param i32) (result i32)
   )
-  (func $blocking (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $n i32)
+  (func $blocking (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32)
     ;; 15 |     match block_on(value.child()):
     global.get $stack
     global.get $stack_limit
@@ -34,95 +38,133 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    call $rt:forbid_check
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.set $t1
-    local.get $value.0
-    local.get $t1
-    local.get $value.1
-    i32.load $heap offset=8
-    call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $value.0
-    local.tee $value.1
-    local.tee $t2
-    i32.eqz
-    local.set $t3
     block
-      loop
+      call $rt:forbid_check
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $t1
+      local.get $value.0
+      local.get $t1
+      local.get $value.1
+      i32.load $heap offset=8
+      call_indirect $table0 (param i32 i32) (result i32 i32)
+      local.set $value.0
+      local.set $value.1
+      i32.const 0
+      local.set $t2
+      local.get $value.1
+      i32.eqz
+      local.set $t3
+      block
+        loop
+          local.get $t3
+          br_if 1
+          i32.const 0
+          if
+            local.get $value.1
+            i32.load $heap offset=12
+            local.set $t4
+            local.get $t4
+            i32.const 24
+            i32.and
+            i32.const 8
+            i32.eq
+            br_if 2
+          end
+          global.get $rewake
+          if
+            i32.const 0
+            global.set $rewake
+          else
+            call $rt:idle_block
+            call $rt:wake_mark
+          end
+          i32.const 1
+          local.set $t2
+          local.get $value.1
+          local.get $value.1
+          i32.load $heap
+          call_indirect $table0 (param i32) (result i32 i32)
+          local.set $value.0
+          local.set $t3
+          br 0
+        end
+      end
+      local.get $t2
+      global.get $rewake
+      i32.or
+      global.set $rewake
+      i32.const 0
+      if
         local.get $t3
-        br_if 1
-        global.get $rewake
         if
           i32.const 0
-          global.set $rewake
+          local.set $t2
         else
-          call $rt:idle_block
-          call $rt:wake_mark
+          local.get $t4
+          i32.const 32
+          i32.and
+          if
+            i32.const 2
+            i32.const 0
+            local.set $value.0
+            local.set $t2
+          else
+            i32.const 1
+            i32.const 0
+            local.set $value.0
+            local.set $t2
+          end
         end
-        i32.const 1
-        local.set $t4
-        local.get $t2
-        local.get $t2
-        i32.load $heap
-        call_indirect $table0 (param i32) (result i32 i32)
+      else
+        i32.const 0
+        local.set $t2
+      end
+      local.get $value.1
+      local.get $t1
+      i32.eq
+      if
+        local.get $value.1
+        i32.load $heap offset=20
+        local.tee $t4
+        i32.const 0
+        i32.ge_s
+        if
+          local.get $value.1
+          i32.const -1
+          i32.store $heap offset=20
+          local.get $value.1
+          local.get $t4
+          call_indirect $table0 (param i32)
+        end
+      end
+      local.get $value.1
+      call $rt:release_ref
+      i32.const 0
+      local.set $value.1
+      block
+        block
+          block
+    ;; 16 |         .Completed(n) => n
+            local.get $t2
+            i32.eqz
+            if
+              br 1
+            else
+              br 2
+            end
+    ;; 15 |     match block_on(value.child()):
+            unreachable
+          end
+          br 1
+        end
+        i32.const 0
         local.set $value.0
-        local.set $t3
         br 0
       end
     end
-    local.get $t4
-    global.get $rewake
-    i32.or
-    global.set $rewake
-    i32.const 0
-    local.set $t4
-    local.get $t2
-    local.get $t1
-    i32.eq
-    if
-      local.get $t2
-      i32.load $heap offset=20
-      local.tee $t1
-      i32.const 0
-      i32.ge_s
-      if
-        local.get $t2
-        i32.const -1
-        i32.store $heap offset=20
-        local.get $t2
-        local.get $t1
-        call_indirect $table0 (param i32)
-      end
-    end
-    local.get $value.1
-    if
-      local.get $value.1
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $value.1
-        call $rt:release_ref
-      end
-    end
-    block
-      block
-        block
-    ;; 16 |         .Completed(n) => n
-          local.get $t4
-          br_if 1
-          local.get $value.0
-          local.set $n
-          br 0
-    ;; 15 |     match block_on(value.child()):
-          unreachable
-        end
-        br 1
-      end
-    end
-    local.get $n
+    local.get $value.0
     local.get $t0
     i32.const 40
     i32.add

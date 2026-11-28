@@ -1,0 +1,20 @@
+# @dump: diagnostics
+# @c-host: main.Disk
+# Each method has one type outside the C value table.
+pub struct Row:
+    pub id: i32
+
+@host
+pub trait Disk:
+    fn put(&mut self, row: Row) -> i32
+    fn letter(&self, c: char) -> i32
+    fn name(&self, text: &string) -> i32
+    fn names(&self, list: &List[string]) -> i32
+    fn label(&self) -> string
+    fn all(&self) -> List[u8]
+    fn send!(&mut self, text: string) -> i32
+    fn read_into!(&mut self, into: &mut List[u8]) -> i64
+    fn text!(&mut self) -> string
+    fn fail!(&mut self) -> Result[i32, string]
+    fn flush!(&mut self) -> void
+    fn ready!(&mut self) -> bool

@@ -1,6 +1,6 @@
 # test: a converted local payload cannot return a cold frame borrowing a by-value parameter
 # Rule: ref.dep.return.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read!(value: (&i32)?) -> i32:

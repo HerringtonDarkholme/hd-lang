@@ -242,7 +242,9 @@ fn header_kind(kind: TokenKind) -> HeaderKind {
 
 /// The byte range of each `use` line, from its `use` to its last token: a
 /// line whose first token, past a leading `pub`, is the word `use` followed
-/// by a path's first segment. One pass over the lines.
+/// by a path's first segment. A group that the line opens and does not
+/// close continues to its `}` on a later line. One pass over the lines,
+/// and one over the tokens of each continued group.
 fn use_ranges(source: &str, tokens: &TokenBuf) -> Vec<(u32, u32)> {
     let mut result = Vec::new();
     let line_end = tokens.line_token_ends();
@@ -262,7 +264,16 @@ fn use_ranges(source: &str, tokens: &TokenBuf) -> Vec<(u32, u32)> {
                 TokenKind::Ident | TokenKind::KwSelfValue
             );
         if is_use {
-            result.push((tokens.start[at], tokens.end[next - 1]));
+            let open = (at..next).any(|i| tokens.kind[i] == TokenKind::LBrace);
+            let closed = (at..next).any(|i| tokens.kind[i] == TokenKind::RBrace);
+            let last = if open && !closed {
+                (next..tokens.kind.len())
+                    .find(|&i| tokens.kind[i] == TokenKind::RBrace)
+                    .unwrap_or(tokens.kind.len() - 1)
+            } else {
+                next - 1
+            };
+            result.push((tokens.start[at], tokens.end[last]));
         }
     }
     result
@@ -383,7 +394,7 @@ fn api_hash(
 ) -> Hash128 {
     // A function body that declares a local type, trait or impl stays in
     // the API text: those lift to module items, and a local impl is in
-    // the folder interface (`crates/hd_tir/DESIGN.md` "Local items lift to
+    // the unit interface (`crates/hd_tir/DESIGN.md` "Local items lift to
     // hidden module items").
     let decls = decl_line_starts(tokens);
     let declares = |start: u32, end: u32| declares_item(&decls, start, end);
@@ -605,7 +616,7 @@ mod tests {
 
     #[test]
     fn skim_and_layout_reference_agree() {
-        let source = "fn first() -> i32:\n    +1\nfn second() -> i32: +2\n";
+        let source = include_str!("skim/two_functions.hd");
         let tokens = lex(source.as_bytes()).tokens;
         assert_eq!(
             skim(source.as_bytes()).bodies,
@@ -617,7 +628,7 @@ mod tests {
     /// (#1862): a fix-it holds the file's ending and byte offsets.
     #[test]
     fn keyed_hashes_follow_the_line_endings() {
-        let lf = "use std.a # x\n\nfn f() -> i32:\n    +1\n";
+        let lf = include_str!("skim/use_and_function.hd");
         let crlf = lf.replace('\n', "\r\n");
         let one = lf.replacen('\n', "\r\n", 1);
         let (a, b, c) = (
@@ -638,49 +649,61 @@ mod tests {
 
     #[test]
     fn token_hash_ignores_plain_comments_only() {
-        let base = "fn f() -> i32:\n    x := 1\n    return x\n";
+        let base = include_str!("skim/body.hd");
         let hash = |s: &str| skim(s.as_bytes()).token_hash;
-        let commented =
-            "# lead\n\nfn f() -> i32:  # trailing\n    # own line\n    x := 1\n\n    return x\n";
+        // The same body with a leading, a trailing and an own-line comment
+        // and a blank line.
+        let commented = include_str!("skim/body_commented.hd");
         assert_eq!(hash(base), hash(commented));
-        assert_eq!(skim(commented.as_bytes()).code_lines, vec![8, 50, 62]);
+        // Its code lines are the lines of `base`, by their starts.
+        let starts: Vec<u32> = base
+            .lines()
+            .map(|line| {
+                let at = commented.find(line).expect("a line of the body");
+                u32::try_from(at).expect("a small file")
+            })
+            .collect();
+        assert_eq!(skim(commented.as_bytes()).code_lines, starts);
         for changed in [
-            "fn f() -> i32:\n    x := 2\n    return x\n",
-            "fn f() -> i32:\n    x :=  1\n    return x\n",
-            "fn f() -> i32:\n    x := 1\n\treturn x\n",
-            "## doc\nfn f() -> i32:\n    x := 1\n    return x\n",
+            base.replace("x := 1", "x := 2"),
+            base.replace("x := 1", "x :=  1"),
+            base.replace("    return", "\treturn"),
+            format!("## doc\n{base}"),
         ] {
-            assert_ne!(hash(base), hash(changed), "{changed:?}");
+            assert_ne!(hash(base), hash(&changed), "{changed:?}");
         }
     }
 
     #[test]
     fn api_hash_leaves_out_top_level_statements_and_bracketed_breaks() {
         let hash = |s: &str| skim(s.as_bytes()).api_text_hash;
-        let base = "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n";
+        let base = include_str!("skim/api.hd");
         for same in [
-            // A top-level statement edited, added or removed.
-            "use std.io\n\nlimit := 11\nif limit > 4:\n    println(\"bigger\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n",
-            "use std.io\n\nfn f(a: i32, b: i32) -> i32: a + b\nprintln(\"after\")\n",
+            // A top-level statement edited, or removed and one added.
+            base.replace("limit := 10", "limit := 11")
+                .replace("limit > 3", "limit > 4")
+                .replace("\"big\"", "\"bigger\""),
+            include_str!("skim/api_statement_after.hd").to_owned(),
             // A line break inside a header's brackets.
-            "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(\n    a: i32,\n    b: i32\n) -> i32: a + b\n",
+            base.replace("(a: i32, b: i32)", "(\n    a: i32,\n    b: i32\n)"),
         ] {
-            assert_eq!(hash(base), hash(same), "{same:?}");
+            assert_ne!(base, same);
+            assert_eq!(hash(base), hash(&same), "{same:?}");
         }
         for changed in [
-            "use std.fs\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i32) -> i32: a + b\n",
-            "use std.io\n\nlimit := 10\nif limit > 3:\n    println(\"big\")\n\nfn f(a: i32, b: i64) -> i32: a + b\n",
+            base.replace("std.io", "std.fs"),
+            base.replace("b: i32", "b: i64"),
         ] {
-            assert_ne!(hash(base), hash(changed), "{changed:?}");
+            assert_ne!(hash(base), hash(&changed), "{changed:?}");
         }
     }
 
     #[test]
     fn api_hash_includes_kept_layout() {
-        let first =
-            "impl User by Structure:\n    name = if flag:\n        \"x\"\n    other = \"y\"\n";
-        let second =
-            "impl User by Structure:\n    name = if flag:\n        \"x\"\n        other = \"y\"\n";
+        let first = include_str!("skim/by_structure.hd");
+        // The last line indented into the `if` suite.
+        let second = first.replace("\n    other", "\n        other");
+        assert_ne!(first, second);
         assert_ne!(
             skim(first.as_bytes()).api_text_hash,
             skim(second.as_bytes()).api_text_hash
@@ -689,7 +712,7 @@ mod tests {
 
     #[test]
     fn template_hash_keeps_bodies_whose_signature_is_inferred() {
-        let base = "pub fn f() -> i32:\n    1\nfn g() -> i32:\n    2\nfn h(x: fn() -> i32) -> i32 $ Console:\n    3\nfn k():\n    4\nimpl[T] Show for T by Structure:\n    fn show(self) -> string:\n        \"5\"\n    fn say(self) -> void $ Console:\n        6\n";
+        let base = include_str!("skim/template_bodies.hd");
         let hash = |s: &str| skim(s.as_bytes()).template_text_hash;
         let api = |s: &str| skim(s.as_bytes()).api_text_hash;
         for (from, to, kept) in [
@@ -701,18 +724,20 @@ mod tests {
             ("        6\n", "        60\n", false),
         ] {
             let edited = base.replace(from, to);
+            assert_ne!(base, edited, "{from:?}");
             assert_eq!(api(base), api(&edited), "{from:?}");
             assert_eq!(hash(base) == hash(&edited), kept, "{from:?}");
         }
     }
 
     /// Only `use` lines are uses (#1881), placed by the `tests:` blocks:
-    /// each form of line that starts with a name, and a `use` inside a
-    /// multiline string, in LF and CRLF text.
+    /// each form of line that starts with a name, a group continued to
+    /// its `}` on later lines, and a `use` inside a multiline string, in
+    /// LF and CRLF text.
     #[test]
     fn uses_are_the_use_lines_placed_by_the_tests_blocks() {
-        let lf = "use std.a # note\npub use std.b.{c}\nuser := 1\nuse := 2\nuse\nfoo(1)\nfn f() -> void:\n    use self.d as e\n    s := \"\"\"\nuse std.in_string\n\"\"\"\ntests:\n    use pkg.t\n    use std.u.{v}\n    s := \"\"\"\nuse pkg.in_string\n\"\"\"\n    test \"x\":\n        assert(true)\nuse std.after\n";
-        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
+        let lf = include_str!("skim/uses.hd");
+        for (text, nl) in [(lf.to_owned(), "\n"), (lf.replace('\n', "\r\n"), "\r\n")] {
             let sk = skim(text.as_bytes());
             let lines = |ranges: &[(u32, u32)]| -> Vec<String> {
                 ranges
@@ -725,6 +750,7 @@ mod tests {
                 [
                     "use std.a",
                     "use std.b.{c}",
+                    &format!("use std.g.{{{nl}    h,{nl}    i,{nl}}}"),
                     "use self.d as e",
                     "use std.after"
                 ]
@@ -738,7 +764,7 @@ mod tests {
     /// between and after them.
     #[test]
     fn template_hash_keeps_each_body_of_a_by_implementation() {
-        let base = "fn a() -> i32 $ Console:\n    1\nimpl Show for P by Structure:\n    fn b() -> i32 $ Console:\n        2\nfn c() -> i32 $ Console:\n    3\nimpl Show for Q:\n    fn d() -> i32 $ Console:\n        4\nimpl Show for R by Structure:\n    fn e() -> i32 $ Console:\n        5\n    fn f() -> i32 $ Console:\n        6\nfn g() -> i32 $ Console:\n    7\n";
+        let base = include_str!("skim/by_bodies.hd");
         let hash = |s: &str| skim(s.as_bytes()).template_text_hash;
         for (body, kept) in [
             ("1", true),
@@ -750,6 +776,7 @@ mod tests {
             ("7", true),
         ] {
             let edited = base.replace(&format!("{body}\n"), &format!("{body}0\n"));
+            assert_ne!(base, edited, "body {body}");
             assert_eq!(hash(base) == hash(&edited), kept, "body {body}");
         }
     }

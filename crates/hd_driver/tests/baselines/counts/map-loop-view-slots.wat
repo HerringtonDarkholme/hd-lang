@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $bump (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $value i32) (local $key i32)
     ;; 11 |     for (key, value) in &mut items:
     local.get $items

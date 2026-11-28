@@ -1,8 +1,8 @@
 # @dump: diagnostics
-use std.annotation.annotate
-use std.function.Fn
+use std.meta.annotate
+use std.ops.Fn
 use std.num.{Integer, Num}
-use std.structure.{Structure, Field}
+use std.meta.{Structure, Field}
 
 @annotate::[T](.Field)
 struct Fact[T]:

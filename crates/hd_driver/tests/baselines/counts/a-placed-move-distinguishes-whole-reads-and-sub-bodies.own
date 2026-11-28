@@ -4,7 +4,7 @@
 # expected: only a whole-local move ends its placed storage owner. Copies
 # followed by a move release once; a field read keeps its storage until Drop.
 # A closure parameter's move releases its own sub-body's cell, not its creator's.
-use std.annotation.cold
+use std.meta.cold
 
 struct Item:
     text: string

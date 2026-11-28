@@ -1,0 +1,8 @@
+# @dump: own wat
+# #2402: a nest of counted and plain leaves: the counted leaves move out of
+# their column's words, the plain ones read them; no column copies.
+fn mixed(s: string) -> (string, i32, string, i32):
+    let x = (s, (1, (s, 2)))
+    let (a0, (n1, (a2, n3))) = x
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    (a0, n1, a2, n3)

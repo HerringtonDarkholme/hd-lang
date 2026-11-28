@@ -1,2 +1,4 @@
 pub struct User:
     pub name: string
+
+pub let GUEST: User = User { name: "guest" }

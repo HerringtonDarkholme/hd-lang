@@ -120,7 +120,7 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   %49 = Drop [$2] : ()
         .Some(first) => first.len() + items.len()
 >   %27 = Read borrow [$4] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %28 = Call std/core/bytes_len[] (%27) : usize
 >   %29 = Break L0 %28 : never
 >   %30 = Block - : usize
 >   %31 = Scope %30 [] : usize

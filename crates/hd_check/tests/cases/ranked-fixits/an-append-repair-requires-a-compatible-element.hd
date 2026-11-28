@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# Changing append to push cannot repair a different element type.
+fn write(found: &mut List[string]) -> void:
+    found.append(+7)

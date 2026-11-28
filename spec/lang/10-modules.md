@@ -617,14 +617,28 @@ use dep.billing.types.{UserId as BillingUserId}
 7. r[module.use.missing-name] A use that names a declaration which an existing module of `std`, `pkg`, or a dependency does not declare is an error. Error: `unknown-import`.
 8. r[module.use.private-name] A use that names a declaration which its module declares without `pub` is an error. Error: `private-import`.
 9. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
-10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
+10. r[module.use.facade] Public facades expose selected declarations and their own child modules.
 11. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 12. r[module.use.ambiguous] A single use that names both a module and a declaration of its parent module, as `use pkg.words`, is an error. Error: `ambiguous-import`.
 13. r[module.use.missing-module] A use path whose module `std`, `pkg`, or a dependency does not have is an error. So is a `dep` path naming no manifest dependency. Error: `unknown-module`.
+14. r[module.use.facade.module] A module may re-export a child module of its own with `pub use M.{child}`, where `M` is the module itself. In this form a name of a child module names the module, even where `M` also binds a declaration of that name. Any other grouped name names a declaration. The child is then visible wherever `M` is ([Module Privacy](#module-privacy)). Unlike a `pub use` of a declaration, it binds no name in `M`.
+15. r[module.use.facade.module.own] A `pub use` that names a child module of another module is an error. Error: `private-module`.
 
 ```text
 # in package pkg: src/words.hd beside a root declaration words
 use pkg.words  # ambiguous-import: rename the module or the declaration
+```
+
+A facade re-exports its own child modules by name:
+
+```text
+# src/shop/mod.hd
+pub use pkg.shop.{cart}         # valid: shop.cart is visible wherever shop is
+
+# src/report.hd
+use pkg.shop.cart               # valid: shop re-exports cart
+use pkg.shop.{cart}             # error: unknown-import, cart is no declaration
+pub use pkg.shop.{cart}         # error: private-module
 ```
 
 ```text
@@ -643,89 +657,130 @@ pub use std.testing.assert_equal  # error: syntax-error
 
 ## Dependency Cycles
 
-The files of one folder may use each other in a loop, but folders must not
-depend on each other in a loop:
+Sibling modules may use each other in a loop; other modules must not:
 
 ```text
 # src/shop/mod.hd
-pub use pkg.shop.cart.{Cart}
-pub use pkg.shop.item.{Item}
+use pkg.shop.cart.{Cart}
 
-# src/shop/cart.hd: a loop with mod.hd, inside folder src/shop
-use pkg.shop.{Item}
+pub fn open() -> Cart:
+    Cart { size: 0 }
+
+# src/shop/cart.hd: a loop with its parent, legal
+use pkg.shop.{open}
+
+pub struct Cart:
+    pub size: i32
 ```
 
 ### Folders
 
-A source file's **folder** is the directory that holds it, or the
-directory of its child modules:
+Folders play no part in the [module graph](#module-graph). Which modules
+are siblings follows from module paths alone, so `x.hd` and `x/mod.hd`,
+which both name module `x` ([Directory Modules](#directory-modules)), have
+the same siblings.
 
-| Source file | Module | Folder |
-| --- | --- | --- |
-| `src/shop/mod.hd` | `shop` | `src/shop` |
-| `src/shop.hd`, when `src/shop/` holds its child modules | `shop` | `src/shop` |
-| `src/shop/cart.hd` | `shop.cart` | `src/shop` |
-| `src/shop/orders/order.hd` | `shop.orders.order` | `src/shop/orders` |
-| `src/shop.hd`, with no child modules | `shop` | `src` |
-| `src/lib.hd` | the package root | `src` |
+### Module Graph
 
-1. r[module.folder.holder] A source file's folder is the directory that holds it, except for a file with child modules.
-2. r[module.folder.parent-file] A file `x.hd` whose directory `x/` beside it holds source files, its child modules, is in folder `x/`, as `x/mod.hd` would be.
-3. r[module.folder.interchangeable] So `x.hd` and `x/mod.hd` are interchangeable: each is in the folder of its children.
-4. r[module.folder.parent-child] A parent module and its child modules share one folder, so a parent and a child that use each other make no folder edge.
-5. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
-6. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
+1. r[module.cycle.edge] The **module graph** of a package has an edge from module `M` to a different module `N` when a use in `M` names `N`: the module of a grouped use, the module a single use names, or the module that holds the declaration a single use names. The edge goes to `N` even when `N` only re-exports the name with `pub use`. So `use std.collections.UniqList` is an edge to `std.collections`.
+2. r[module.cycle.edge.no-pub-use] A `pub use` line makes no edge.
+3. r[module.cycle.edge.namespace] A use that names a module itself, such as `use pkg.shop`, makes an edge to that module.
+4. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
+5. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
+6. r[module.cycle.sibling-group] The **sibling group** of module `P` is `P` and its child modules, whose paths are `P`'s path and one more segment. The package root module's group holds the top-level modules.
+7. r[module.cycle.sibling-group.siblings] Modules are **siblings** when one sibling group holds them all. A parent is a sibling of its children, and children of one parent are siblings.
+8. r[module.cycle.siblings] Modules that reach each other in the module graph, one strongly connected group, are an error unless one sibling group holds them all. Error: `module-cycle`.
+9. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is an error. Error: `package-cycle`.
+
+Two modules of different parents that use each other loop:
 
 ```text
-src/shop/mod.hd      # module shop, folder src/shop
-src/shop/cart.hd     # module shop.cart, folder src/shop
+# src/billing.hd
+use pkg.shop.cart.{total}
+
+pub fn bill() -> i32:
+    total()
+
+# src/shop/mod.hd
+pub use pkg.shop.{cart}
+
+# src/shop/cart.hd
+use pkg.billing.{bill}  # error: module-cycle
+
+pub fn total() -> i32:
+    3
 ```
 
-### Folder Graph
-
-1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B`. The edge exists when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches. So `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
-2. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
-3. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
-4. r[module.cycle.nested] A folder and its parent or child folder are separate nodes, and an edge between them counts like any other.
-5. r[module.cycle.acyclic] The folder graph must be acyclic. A folder that depends on itself through other folders is an error. Error: `folder-cycle`.
-6. r[module.cycle.within-folder] Uses between files of one folder make no edge, so those files may use each other in any pattern, loops included.
-7. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is an error. Error: `package-cycle`.
-
-A root facade that uses a child folder, beside a shared root file that the
-child uses, makes a loop of folders:
+A facade that re-exports a child's name makes no edge, so the child may use
+the facade's own declarations:
 
 ```text
-# src/lib.hd, in folder src
-pub use pkg.shop.{Cart}
+# src/shop/mod.hd
+pub use pkg.shop.orders.{order}
 
-# src/error.hd, in folder src
-pub enum Error:
-    Empty
+pub fn money() -> i32:
+    100
 
-# src/shop/mod.hd, in folder src/shop
-use pkg.error.{Error}  # error: folder-cycle
+# src/shop/orders/mod.hd: no loop, and shop.orders is a child of shop
+use pkg.shop.{money}
+
+pub fn order() -> i32:
+    money()
+```
+
+A loop through a facade is no loop of the module graph, so its modules may
+have different parents:
+
+```text
+# src/text.hd
+use pkg.collections.{UniqList}
+
+pub struct Builder:
+    pub size: i32
+
+# src/collections/mod.hd
+pub use pkg.collections.uniq_list.{UniqList}
+
+# src/collections/uniq_list.hd
+use pkg.format.{Writer}
+
+pub struct UniqList:
+    pub writer: Writer
+
+# src/format.hd
+use pkg.text.{Builder}
+
+pub struct Writer:
+    pub builder: Builder
 ```
 
 > **Why.** Every signature that another file sees is written out, so files
-> are checked in parallel whatever their loops. The folder rule bounds the
-> largest set of files that must be compiled together at one folder. A
-> folder then compiles from the signatures of the folders it uses, as a Go
-> package compiles from its imports' export data.
+> are checked in parallel whatever their loops. The sibling rule keeps each
+> loop that `use` lines write inside one parent and its children, the
+> modules a reader finds together.
 
-> **Note.** Shared declarations go in a leaf folder. Moving `src/error.hd`
-> to `src/error/mod.hd` keeps the module name `error`, so no `use` line
-> changes, and breaks the loop above.
+> **Note.** Shared declarations go in a module that the modules of the loop
+> both use, below them.
+
+### Folder Graph
+
+Folders are not nodes of any graph; the [module graph](#module-graph)
+decides which loops are allowed.
 
 ### Cycle Diagnostic
 
-1. r[module.cycle.diagnostic.first-loop] The `folder-cycle` diagnostic must show one shortest loop through the tangle's first folder in path order, with each edge's `use` declaration.
-2. r[module.cycle.diagnostic.size] It must show the size of the tangle: the number of folders that lie on some loop with the shown ones.
-3. r[module.cycle.diagnostic.fix] When a flat module file `x.hd` lies on the loop, it must offer a fix-it that moves that file to `x/mod.hd`, which keeps its module name.
-4. r[module.cycle.diagnostic.fix.none] When no file on the loop is a flat module file, every folder on it is a directory with its own `mod.hd`, and the diagnostic offers no fix-it.
+1. r[module.cycle.diagnostic.report] The `module-cycle` diagnostic is reported once for each strongly connected group of the module graph that no sibling group holds.
+2. r[module.cycle.diagnostic.entry] Its modules `u` and `v` are the group's first module in path order that is no sibling of some module of the group, and the first module in path order that is no sibling of `u`. Its edge is the last edge of a shortest path from `v` to `u`, and it is reported at that edge's `use` line.
+3. r[module.cycle.diagnostic.shortest-loop] It must show a shortest path from `u` to `v` and then the path from `v` back to `u`, each edge with its `use` line.
+4. r[module.cycle.diagnostic.group] It must show the number of modules in the group.
+5. r[module.cycle.diagnostic.help] Its help must name the declarations that one shown edge between two modules that are no siblings names, to move into a module both sides use. That edge is the one whose `use` line names the fewest declarations; on a tie, the edge the diagnostic is reported at, then the first one shown.
 
 ```text
-folder-cycle: src/cart -> src/shop -> src/cart
-tangle of 3 folders; move src/cart.hd to src/cart/mod.hd
+error: src/shop/cart.hd:1:1: module-cycle: modules that are not siblings use each other
+  src/billing.hd:1:1: use pkg.shop.cart.{total}
+  src/shop/cart.hd:1:1: use pkg.billing.{bill}
+loop of 2 modules; only sibling modules may use each other in a loop
+help: move `bill` out of `billing`, into a module both use
 ```
 
 See also: [Use Declarations](03-names-and-scopes.md#use-declarations),
@@ -788,11 +843,11 @@ fn helper() -> void:
 3. r[module.prelude.from-error] The conversion trait `std.convert.From` and the error trait `std.error.Error` are not prelude names.
 4. r[module.prelude.own-from-error] A module may therefore declare its own `From` or `Error`.
 5. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
-6. r[module.prelude.inspect-reference-api] Likewise `std.inspect` declares `Inspectable` and `TypeId`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
+6. r[module.prelude.inspect-reference-api] Likewise `std.meta` declares `Inspectable` and `TypeId`, which code imports, as in `use std.meta.{Inspectable, TypeId}`.
 7. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
-8. r[module.prelude.function-items] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.function.{Fn, Tuple}`.
+8. r[module.prelude.function-items] `std.ops` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.ops.{Fn, Tuple}`.
 9. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
-10. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
+10. r[module.prelude.annotation-targets] `std.meta` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.meta.annotate`.
 11. r[module.prelude.ops-literal-markers] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a literal function, as in `use std.ops.num_suffix` or `use std.ops.{Template, str_prefix}`.
 12. r[module.prelude.no-literal-fn] The prelude supplies no literal suffix and no string prefix.
 13. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
@@ -1140,6 +1195,7 @@ pub enum ProcessError:
 
 pub trait Process:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]
 ```
 
 1. r[module.process.decl-struct] `Process` is a host capability trait that `std.process` declares, with the struct types `Command` and `ProcessOutput` and the enum `ProcessError`. `run!` takes its `Command` as a value and returns a `ProcessOutput` value.
@@ -1176,6 +1232,10 @@ struct ScriptedProcess:
     outputs: Map[string, ProcessOutput]
 
 impl Process for ScriptedProcess:
+    fn status!(&mut self, command: Command) -> Result[i32, ProcessError]:
+        output := self.run!(command)?
+        .Ok(output.status)
+
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(command.program):
             .Some(output) =>
@@ -1670,19 +1730,16 @@ where snapshot files live.
 
 ## Core Layer
 
-`std.core` is the standard library's leaf layer, as Rust's `core` is. It
-holds the primitives and the declarations that every other std module
-builds on. It uses no other module, so every std folder may use it.
+`std.core` holds the primitives and the declarations that the standard
+library builds on. Its imports follow the ordinary module rules.
 
-1. r[module.core.leaf] `std.core` is a folder of its own, and it uses no other module.
-2. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds. It also declares the inline and cold decorators ([`annot.inline.declared.v2`](14-annotations.md#r-annot.inline.declared.v2)), so the runtime modules can use them.
-3. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
-4. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
-5. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
+1. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds.
+2. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
+3. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
+4. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
 
 > **Why.** `List` and `Map` name these traits, so a module that names
-> `List` depends on them. With the traits in `std.core`, a std module that
-> needs only the core names never depends on the rest of std.
+> `List` depends on them.
 
 ## Runtime Modules
 
@@ -1701,9 +1758,8 @@ pub fn main() -> void:
 2. r[module.rt.std-only] Only a module of the standard library may use a runtime module, or a name declared in one.
 3. r[module.rt.std-only.error] So a use declaration in any other package whose path names a runtime module, or a name inside one, is an error. Error: `std-only-use`.
 4. r[module.rt.core-prelude] A runtime module sees only the `std.core` row of the [prelude](#prelude). It imports any other name it uses.
-5. r[module.rt.leaf] The runtime modules of the folder `lib/std/rt` use only `std.core` and each other, so with [`std.core`](#core-layer) they form std's leaf layer, and every std module may use them.
-6. r[module.rt.bytes] `std.rt.bytes` declares, with `pub`, each byte, text, and panic [primitive](../std/README.md#standard-library-primitives) that more than one std module calls. Each std module that calls one imports it from there, so each primitive is declared once.
-7. r[module.rt.entry] `std.rt.entry` holds the hd that reports an entry's or a test case's result. It uses std modules outside the leaf layer, so it is a folder of its own, `rt/entry`, above them.
+5. r[module.rt.bytes] `std.rt.bytes` declares, with `pub`, each byte, text, and panic [primitive](../std/README.md#standard-library-primitives) that more than one std module calls. Each std module that calls one imports it from there, so each primitive is declared once.
+6. r[module.rt.entry] `std.rt.entry` holds the hd that reports an entry's or a test case's result. It uses std modules outside the runtime, so it is a folder of its own, `rt/entry`.
 
 > **Why.** The runtime can then change how it represents values, or what
 > its functions take, without breaking any program.
@@ -1857,9 +1913,11 @@ impl[T < ?Copy] Ptr[T]:
     pub fn offset(self, count: usize) -> Ptr[T]
 
 pub fn size_of[T < ?Copy]() -> usize
+pub fn align_of[T < ?Copy]() -> usize
+pub fn needs_drop[T < ?Copy]() -> bool
 
 pub struct Buffer[T < ?Copy]:
-    address: usize
+    ptr: Ptr[T]
     capacity: usize
 
 impl[T < ?Copy] !Copy for Buffer[T]
@@ -1878,28 +1936,30 @@ pub fn new_string(len: usize) -> string
 
 1. r[module.rt.ptr.type] `Ptr[T]` is an ordinary struct. Its `address` is the heap address of the first of `size_of[T]()` bytes that may hold a value of type `T`.
 2. r[module.rt.ptr.copy] A copy of a `Ptr[T]` copies the address. It never copies, counts, or drops the value at the address.
-3. r[module.rt.ptr.decl] `read`, `write`, `as_ref`, `as_mut`, `offset`, and `size_of` are ordinary hd declarations marked `@intrinsic`, as for the [memory intrinsics](#r-module.rt.memory.decl).
+3. r[module.rt.ptr.decl] `read`, `write`, `as_ref`, `as_mut`, `offset`, `size_of`, `align_of`, and `needs_drop` are ordinary hd declarations marked `@intrinsic`, as for the [memory intrinsics](#r-module.rt.memory.decl).
 4. r[module.rt.ptr.size-of] `size_of[T]()` returns the number of heap bytes one value of `T` takes. It is the same for every value of `T` in a program instance.
 5. r[module.rt.ptr.size-of.number] For `bool`, `u8`, and `i8` it is 1, for `u16` and `i16` 2, for `u32`, `i32`, `f32`, and `char` 4, and for `u64`, `i64`, and `f64` 8. For `usize` it is the target's pointer width in bytes.
-6. r[module.rt.ptr.offset] `p.offset(count)` returns the `Ptr[T]` whose address is `p.address + count * size_of[T]()`.
-7. r[module.rt.ptr.write-value] `p.write(value)` moves `value` into `p`, so the heap there holds that value of `T`. Passing a copyable `T` copies it as any other by-value argument does; passing a non-copyable `T` leaves the argument moved.
-8. r[module.rt.ptr.write.over] A write replaces the bytes at `p` without dropping the value they held.
-9. r[module.rt.ptr.read] `p.read()` moves the value at `p` out and returns it, so the heap there no longer holds a value. Its bytes do not change.
-10. r[module.rt.ptr.as-ref] `p.as_ref()` returns an `&T` to the value at `p`, and `p.as_mut()` an `&mut T`, without moving, copying, or counting it. Std keeps the value there and unchanged by any other path for `'a`, as the borrow of the value that holds it would.
-11. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
-12. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
-13. r[module.rt.ptr.write.shared] While a shared reference is live, std writes no byte of its referent through a `Ptr`, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
-14. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
-15. r[module.rt.buffer.type] A `Buffer[T]` is raw memory: the address of room for `capacity()` values of `T`, and that capacity. It has no length and no element operation: which places of its room hold a value is known only to the std code that writes them. Its fields are private.
-16. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of the buffer or its room, and a reference into the room counts nothing ([`ref.count.local`](13-values-and-references.md#r-ref.count.local)).
-17. r[module.rt.buffer.borrowed-access] `capacity` and `at` take `&self`, and `grow` takes `&mut self`, so a call borrows the buffer, and only a writable buffer moves its room.
-18. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a buffer with room for `capacity` values of `T`, none of which holds a value. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
-19. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
-20. r[module.rt.buffer.grow] `b.grow(capacity)`, for a `capacity` above `b.capacity()`, moves the bytes of the room to a new room for `capacity` values and frees the old one, so each value moves to the same index of the new room. A smaller `capacity` has no effect. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
-21. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer frees its room and drops none of the values in it. `grow` frees the old room the same way. The std type that holds a buffer drops those values first.
-22. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
-23. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
-24. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
+6. r[module.rt.ptr.align-of] `align_of[T]()` returns the alignment, in bytes, at which the heap places a value of `T`: a power of two, at most 8, that divides `size_of[T]()`. It is the same for every value of `T` in a program instance.
+7. r[module.rt.ptr.needs-drop] `needs_drop[T]()` returns whether dropping a value of `T` does anything: whether it holds a counted reference or a value whose type implements [`Drop`](#r-module.rt.drop.decl). A local reference does not count. It is a constant for each `T`, as Rust's `core::mem::needs_drop` is.
+8. r[module.rt.ptr.offset] `p.offset(count)` returns the `Ptr[T]` whose address is `p.address + count * size_of[T]()`.
+9. r[module.rt.ptr.write-value] `p.write(value)` moves `value` into `p`, so the heap there holds that value of `T`. Passing a copyable `T` copies it as any other by-value argument does; passing a non-copyable `T` leaves the argument moved.
+10. r[module.rt.ptr.write.over] A write replaces the bytes at `p` without dropping the value they held.
+11. r[module.rt.ptr.read] `p.read()` moves the value at `p` out and returns it, so the heap there no longer holds a value. Its bytes do not change.
+12. r[module.rt.ptr.as-ref] `p.as_ref()` returns an `&T` to the value at `p`, and `p.as_mut()` an `&mut T`, without moving, copying, or counting it. Std keeps the value there and unchanged by any other path for `'a`, as the borrow of the value that holds it would.
+13. r[module.rt.ptr.integer] A value of an integer type is stored as its bytes, least significant first, so the [loads and stores](#r-module.rt.memory.load) of its width read and write it.
+14. r[module.rt.ptr.holds] Only the standard library reads or writes through a `Ptr[T]`, and it reads only where the heap holds a value of `T`.
+15. r[module.rt.ptr.write.shared] While a shared reference is live, std writes no byte of its referent through a `Ptr`, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
+16. r[module.rt.ptr.bounds] A read or a write that reaches a byte outside the heap stops the program instance with no panic category, as for [`module.rt.memory.bounds`](#r-module.rt.memory.bounds).
+17. r[module.rt.buffer.type] A `Buffer[T]` is raw memory: the address of room for `capacity()` values of `T`, and that capacity. It has no length and no element operation: which places of its room hold a value is known only to the std code that writes them. Its fields are private.
+18. r[module.rt.buffer.not-copyable] `Buffer[T]` is not copyable: a read by value moves it, so its room has one owner. No count is kept of the buffer or its room, and a reference into the room counts nothing ([`ref.count.local`](13-values-and-references.md#r-ref.count.local)).
+19. r[module.rt.buffer.borrowed-access] `capacity` and `at` take `&self`, and `grow` takes `&mut self`, so a call borrows the buffer, and only a writable buffer moves its room.
+20. r[module.rt.buffer.new] `Buffer::new(capacity)` returns a buffer with room for `capacity` values of `T`, none of which holds a value. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
+21. r[module.rt.buffer.at] `b.at(index)` returns the `Ptr[T]` of value `index` of the buffer's room: `b.at(0).offset(index)`. It checks no bound; reads and writes through it follow [`module.rt.ptr.holds`](#r-module.rt.ptr.holds).
+22. r[module.rt.buffer.grow] `b.grow(capacity)`, for a `capacity` above `b.capacity()`, moves the bytes of the room to a new room for `capacity` values and frees the old one, so each value moves to the same index of the new room. A smaller `capacity` has no effect. A capacity whose bytes do not fit the heap panics. Panic: `heap-exhausted`.
+23. r[module.rt.buffer.drop] `Buffer[T]` implements [`Drop`](#r-module.rt.drop.decl): dropping a buffer frees its room and drops none of the values in it. `grow` frees the old room the same way. The std type that holds a buffer drops those values first.
+24. r[module.rt.string.bytes] `string_bytes(text)` returns the `Ptr[u8]` of the first of the `text.len()` bytes of `text`'s UTF-8 encoding. The bytes stay at that address while `text` or a copy of it lives.
+25. r[module.rt.string.new] `new_string(len)` returns a new string of `len` bytes, whose values are unspecified until written. `new_string(0)` returns the empty string.
+26. r[module.rt.string.write] Only the bytes of a string that `new_string` returned are written through `string_bytes`, and std writes all of them, as valid UTF-8, before the string is used in any other way.
 
 > **Note.** A read and a write of the same value back move it out, and a
 > read whose result is discarded drops the value in place.
@@ -1931,7 +1991,7 @@ pub fn main() -> void:
 
 ### Initialization Order
 
-1. r[module.init.use-graph] Before execution, the compiler resolves the use graph reachable from the selected script or executable entry module. The graph may have loops inside one folder.
+1. r[module.init.use-graph] Before execution, the compiler resolves the use graph reachable from the selected script or executable entry module. Its edges include `pub use` lines, so it may have loops that the [module graph](#module-graph) does not.
 2. r[module.init.cycle] A **module cycle** is a strongly connected component of that graph: modules that use each other, or one module alone as a trivial cycle.
 3. r[module.init.cycle.once] Every reachable cycle is initialized exactly once per program instance, after every other cycle it uses has been initialized.
 4. r[module.init.cycle.ready-order] When several cycles are otherwise ready, the least fully qualified module identity in each cycle orders them lexicographically.
@@ -2108,6 +2168,43 @@ pub struct User:
 1. r[module.vis.private-default] Declarations are module-private by default.
 2. r[module.vis.pub] Prefix `pub` makes a declaration available to other modules.
 
+### Public Bindings
+
+A public binding is a top-level `let` binding that other modules import and read.
+Its type is written, so an importer checks its uses from the declaration alone:
+
+```text
+# src/codes.hd
+pub let EXIT_OK: i32 = 0
+pub let EXIT_USAGE: i64 = 2
+
+# src/main.hd
+use pkg.codes.{EXIT_OK, EXIT_USAGE}
+```
+
+1. r[module.vis.pub.binding] `pub let NAME: T = value` makes a top-level binding available to other modules.
+2. r[module.vis.pub.binding.type] A public binding writes its type, as every public declaration does ([`module.package.annotated`](#r-module.package.annotated)). Omitting it is an error. Error: `missing-binding-type`.
+3. r[module.vis.pub.binding.one-name] A public binding binds one name, with `let`. `pub` before a pattern or before `NAME := value` is an error. Error: `syntax-error`.
+4. r[module.vis.pub.binding.immutable] `pub let mut` is an error. Error: `pub-mutable-binding`.
+5. r[module.vis.pub.binding.read-only] Another module reads a public binding and never writes it. An assignment to an imported binding is an error. Error: `not-writable`.
+6. r[module.vis.pub.binding.uses] `use` and `pub use` name a public binding as they name a declaration.
+7. r[module.vis.pub.binding.init] A read of an imported binding follows [`module.init.binding`](#r-module.init.binding): its module's statement initializes it. In a module cycle, the read is in the reading statement's read set ([`module.init.cycle.dependency`](#r-module.init.cycle.dependency)), so that statement runs after the binding's. A binding whose statement reads it is an error. Error: `top-level-read-before-initialization`.
+
+```text
+pub let mut count = 0     # error: pub-mutable-binding
+pub let ANSWER = 42       # error: missing-binding-type
+pub ANSWER := 42          # error: syntax-error
+pub let (lo, hi) = (0, 9) # error: syntax-error
+
+# src/main.hd
+use pkg.codes.{EXIT_OK}
+fn reset() -> void:
+    EXIT_OK = 1           # error: not-writable
+```
+
+> **Why.** A module's state changes only through its own code. A module
+> that lets others change a value exposes a function that changes it.
+
 ### Public Uses
 
 Use `pub use` in a `mod.hd` file to expose a package-facing API:
@@ -2142,8 +2239,55 @@ pub use pkg.shop.a.{Token}
 use pkg.shop.a.{Token}  # error: re-export-loop
 ```
 
-> **Why.** Loops of `use` lines are allowed inside a folder, so a facade and
-> its children may use each other. A name still needs one declaration.
+> **Why.** A `pub use` line makes no edge of the module graph, so a facade
+> and its children may use each other. A name still needs one declaration.
+
+### Module Privacy
+
+A module is private to its parent, and the parent can re-export it:
+
+```text
+# src/shop/mod.hd
+pub use pkg.shop.{cart}
+pub use pkg.shop.ledger.{balance}
+
+# src/shop/orders/line.hd: under shop
+use pkg.shop.ledger.{balance}   # valid
+
+# src/report.hd: outside shop
+use pkg.shop.{balance}          # valid: through the re-export
+use pkg.shop.cart.{total}       # valid: shop re-exports cart
+use pkg.shop.ledger.{balance}   # error: private-module
+```
+
+1. r[module.vis.parent] A module is visible to its parent and to every module under its parent. Anywhere else it is visible only where its parent re-exports it ([`module.use.facade.module`](#r-module.use.facade.module)) and the parent is itself visible. This holds for every module a path passes through. Error: `private-module`.
+2. r[module.vis.parent.root] A package root, a test root or a task root is the parent of its top-level modules. A directory without `mod.hd` is a parent with no re-exports.
+3. r[module.vis.parent.fix] When the parent re-exports each declaration that a rejected use names, the diagnostic's fix-it names them through the parent.
+
+```text
+error: src/report.hd:1:1: private-module: `pkg.shop.ledger` is a child module of `pkg.shop`, which does not re-export it, so only `pkg.shop` and the modules below it may use it
+    fix: use `pkg.shop.{balance}`, which `pkg.shop` re-exports
+```
+
+A rejected use still binds its names, so the module's code checks against
+them.
+
+```text
+# money/src/lib.hd
+pub use pkg.{coins}
+
+# app/src/main.hd
+use dep.money.coins.{cents}     # valid: money's root re-exports coins
+use dep.money.ledger.{balance}  # error: private-module
+```
+
+> **Note.** std's root module re-exports every top-level std module but
+> [`std.rt`](#r-module.rt.std-only), so `use std.collections.UniqList`
+> works from every package.
+
+> **Why.** A folder's modules are its implementation, as a Rust module's
+> children are private by default. The parent's `pub use` lines are the one
+> place that says what the rest of the package may name.
 
 ### Member Visibility
 
@@ -2184,7 +2328,7 @@ See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 5. r[module.package.separate] Implementations may compile packages separately.
 
 ```hd
-use std.json.parse
+use std.encoding.json.parse
 ```
 
 ### Fully Annotated Declarations
@@ -2192,7 +2336,7 @@ use std.json.parse
 1. r[module.package.annotated] Every public declaration is fully annotated: its complete signature is written in source.
 2. r[module.package.annotated.parts] That signature includes parameter and result types, requirement rows, suspension, and generic parameters with their bounds and variance. It also includes the types of public fields and enum data.
 3. r[module.package.no-inference] Nothing in a public signature is inferred from a function body.
-4. r[module.package.no-pub-binding] Top-level bindings cannot be public. A `pub` binding is an error. Error: `syntax-error`.
+4. r[module.package.pub-binding] A top-level binding is public only as `pub let NAME: T = value` ([Public Bindings](#public-bindings)). Another `pub` binding is an error. Error: `syntax-error`.
 5. r[module.package.template-private] A private item that a [template](14-annotations.md#r-annot.template.form) body names follows the signature rules of a public declaration.
 6. r[module.package.template-private.result] So a private function a template names must declare its result type. Omitting it is an error. Error: `missing-result-type`.
 7. r[module.package.template-private.row] Such a function without a requirement clause has the empty row, as [`req.row.omitted.empty-pub`](11-requirements-and-suspension.md#r-req.row.omitted.empty-pub) states for a public function.
@@ -2384,7 +2528,7 @@ This `main` prints `usage: tool FILE` and exits with status 2.
 2. r[module.entry.host-facilities] Process arguments, console access, environment, and other host facilities are requirements supplied by the runtime through the requirement model.
 
 ```hd
-use std.host.Args
+use std.cli.Args
 
 pub fn main() -> void $ Args:
     args := $.use(Args).list()
@@ -2497,7 +2641,7 @@ Registered boundaries initially allow recursively structural values:
 
 1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
 2. r[module.boundary.never-result] A host capability method may also declare `never` as its whole result: its call never returns. If the host answers it anyway, the call panics with a message that names the trait and the method, as for a result that fails its check. Panic: `host-contract`. `never` crosses nowhere else, neither as an argument nor inside another type.
-3. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
+3. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.meta.TypeId`, closures, and live runtime handles are not boundary-safe.
 4. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
 5. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
 6. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
@@ -2558,7 +2702,7 @@ type's `Serialize` and `Deserialize` implementations
 ([serialization opt-in](14-annotations.md#serialization)):
 
 ```text
-use std.serde.{Serialize, Deserialize}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 pub struct Token:
@@ -2574,10 +2718,10 @@ pub trait Vault:  # a host capability of the selected runtime profile
     fn badge(self) -> Badge  # error: boundary-private-field
 ```
 
-1. r[module.boundary.out] A value of a struct type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
-2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
-3. r[module.boundary.serialize.exact] A value of a type that implements `std.serde.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
-4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.serde.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
+1. r[module.boundary.out] A value of a struct type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.encoding.Serialize`.
+2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.encoding.Deserialize`.
+3. r[module.boundary.serialize.exact] A value of a type that implements `std.encoding.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
+4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.encoding.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
 5. r[module.boundary.deserialize.no-dyn] Deserialization at a boundary never selects a type from the data: the target type comes from the signature.
 6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
@@ -2620,10 +2764,11 @@ fn demo() -> i32:
 hd build --release src/main.hd   # the official compiler targets Wasm
 ```
 
-> **Note.** hd has no `extern` declaration and no FFI capability. A Wasm
-> module can call only its imports, so a custom host trait that an
-> embedder binds is hd's foreign function interface, by
-> [`module.register.application`](#r-module.register.application).
+> **Note.** hd has no `extern` declaration. A host trait is hd's foreign
+> function interface: its provider is JavaScript, C that a package ships,
+> or Rust that an embedder registers, by
+> [`module.register.application`](#r-module.register.application) and
+> [Package Host Traits](#package-host-traits).
 
 ### Package Host Traits
 
@@ -2655,6 +2800,13 @@ pub trait Surface:
 18. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
 19. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
 20. r[module.host.package.contract-source-names] The package host contract records source names for structurally represented structs, enums and method parameters.
+21. r[module.host.package.c-types] A package host trait bound to a C provider declares only methods whose parameter and result types are rows of the [C value table](#c-value-table). Error: `boundary-not-safe`.
+22. r[module.host.package.c-references] In such a trait, a local reference to a number or to a list of numbers is boundary-safe. The C function may use it only until the call returns.
+23. r[module.host.package.c-aligned] The address the host passes for such a reference is a multiple of its number type's size. A reference at another address fails the call. Boundary failure: `host-contract`.
+24. r[module.host.package.c-suspend] A suspending method of such a trait takes only numbers and `bool`. Its result is a number, `List[u8]`, or a `Result` of one of them with an `i32` error. Error: `boundary-not-safe`.
+25. r[module.host.package.c-no-supertraits] Such a trait declares no supertraits: its C function table holds its own methods, in source order. Error: `boundary-not-safe`.
+26. r[module.host.package.c-handles] A method of such a trait that returns at once may return a reference to a trait value of a program trait, a returned host handle. That trait is bound to the same C provider and is held to these rules too.
+27. r[module.host.package.c-js-views] A JavaScript provider of such a trait receives a local reference to a number or to a list of numbers as a typed array over the guest's memory. It may read the array, and write it for `&mut`, only until the call returns.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.
@@ -2682,6 +2834,33 @@ A native package provider sees each hd boundary value as an owned Rust value:
 | Optional, result | `Option<T>`, `Result<T, E>` |
 | Private-field type | Typed Serde tree |
 | Returned host handle | Generated handle trait object |
+
+#### C Value Table
+
+A package's `[host]` table binds a trait to a C provider, and each
+method's types then map to C types:
+
+| hd type | C type |
+| --- | --- |
+| `bool`, integers, `f32`, `f64` | the C type of the same width; `usize` is `size_t` |
+| `&T`, `&mut T`, `T` a number type | `const T *`, `T *` |
+| `&List[T]`, `&mut List[T]`, `T` a number type | `const T *`, `T *`, then a `size_t` length |
+| `string` | `const uint8_t *` to its UTF-8 bytes, then a `size_t` length, with no NUL |
+| a returned host handle | `void *`, the library's handle object |
+| a suspending method's result: a number, `List[u8]`, or `Result[` one of them `, i32]` | completed through the call's token |
+
+```text
+@host
+pub trait Disk:   # bound to C by its package's [host] table
+    fn read!(&mut self, into: &mut List[u8]) -> i64   # error: boundary-not-safe
+    fn put(&mut self, row: Row) -> i32                 # error: boundary-not-safe
+```
+
+> **Why.** A suspending call outlives its frame when it is cancelled, so
+> it holds no pointer into the instance. C has no layout for a struct, so
+> a C shim flattens it.
+
+See also: [C Providers](../cli/command-line.md#c-providers).
 
 ### Closable Handles
 
@@ -2720,7 +2899,7 @@ defines what may cross into another domain, and how a call reaches code
 of another target.
 
 ```text
-use std.marker.Wire
+use std.meta.Wire
 
 struct Photo:
     width: u32
@@ -2755,7 +2934,7 @@ A **marker** is a trait with no members that extends `Marker`. Each kind
 of domain names the marker its values need:
 
 ```text
-use std.marker.{Marker, Send, Wire}
+use std.meta.{Marker, Send, Wire}
 
 pub trait GpuData < Marker   # a library's marker for one kind of device
 
@@ -2775,25 +2954,26 @@ fn demo(p: Point) -> void:
 ```
 
 1. r[module.marker.definition] A marker is a trait that extends `Marker` and declares no members. Its implementations say what may cross into one kind of domain.
-2. r[module.marker.std] `std.marker` declares `Marker`, `Send` and `Wire`, and `Send` and `Wire` extend `Marker`. Code imports them where it writes them, as in `use std.marker.Wire`.
+2. r[module.marker.std] `std.meta` declares `Marker`, `Send` and `Wire`, and `Send` and `Wire` extend `Marker`. Code imports them where it writes them, as in `use std.meta.Wire`.
 3. r[module.marker.members] A trait that extends `Marker` and declares a member is an error, reported on the member. Error: `invalid-marker-trait`.
 4. r[module.marker.not-copy] A marker does not bound its `Self` by `Copy`, unlike [`ref.copy.trait.default`](13-values-and-references.md#r-ref.copy.trait.default). A type that is not `Copy` may have a marker.
 5. r[module.marker.structural] A struct, enum, tuple, union, optional, `Result`, `List`, `Map`, `Set` or newtype has a marker when every field, payload, member, element, key and base type has it.
 6. r[module.marker.supplied] The compiler supplies those implementations, as it supplies `Copy`'s, by [`trait.sealed.supplied`](09-traits.md#r-trait.sealed.supplied). A generic type has a marker at each instance whose parts have it.
-7. r[module.marker.explicit] A type has a marker that rule 5 does not give it only through an explicit implementation. [Implementation Ownership](09-traits.md#implementation-ownership) places it beside the marker or beside the type.
-8. r[module.marker.explicit.only] A type with an explicit implementation of `Send`, `Sync` or `Wire` has each of the three only through an explicit implementation: rule 5 gives it none. Where such a type is a part of another type, its implementations answer for it. So [`std.sync.Arc`](../std/sync.md#arc), which holds only an address, is `Send` and `Sync` when its implementations say so, and never `Wire`.
-9. r[module.marker.sealed] `Send` and `Wire` are sealed: only the compiler and the standard library supply their implementations, by [`trait.sealed.send`](09-traits.md#r-trait.sealed.send) and [`trait.sealed.wire`](09-traits.md#r-trait.sealed.wire).
-10. r[module.marker.parameter] A type parameter has a marker only through its bound, as in `T < Wire`.
-11. r[module.marker.unsatisfied] A type argument that lacks a marker its bound names is an error. Error: `unsatisfied-trait-bound`.
-12. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
-13. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
-14. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
-15. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
-16. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
-17. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
-18. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
-19. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
-20. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
+7. r[module.marker.address] A [`Ptr[T]`](#r-module.rt.ptr.type) holds the value of `T` at its address, so `T` is one of its parts. So a type that keeps values behind a `Ptr` field, as [`Buffer[T]`](#r-module.rt.buffer.type) does, has a marker only when they do.
+8. r[module.marker.explicit] A type has a marker that rule 5 does not give it only through an explicit implementation. [Implementation Ownership](09-traits.md#implementation-ownership) places it beside the marker or beside the type.
+9. r[module.marker.explicit.only] A type with an explicit implementation of `Send`, `Sync` or `Wire` has each of the three only through an explicit implementation: rule 5 gives it none. Where such a type is a part of another type, its implementations answer for it. So [`std.sync.Arc`](../std/sync.md#arc), which holds only an address, is `Send` and `Sync` when its implementations say so, and never `Wire`.
+10. r[module.marker.sealed] `Send` and `Wire` are sealed: only the compiler and the standard library supply their implementations, by [`trait.sealed.send`](09-traits.md#r-trait.sealed.send) and [`trait.sealed.wire`](09-traits.md#r-trait.sealed.wire).
+11. r[module.marker.parameter] A type parameter has a marker only through its bound, as in `T < Wire`.
+12. r[module.marker.unsatisfied] A type argument that lacks a marker its bound names is an error. Error: `unsatisfied-trait-bound`.
+13. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
+14. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
+15. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
+16. r[module.marker.sync] `std.meta` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
+17. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
+18. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
+19. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
+20. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
+21. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
 
 `Wire` and `Send` are checked separately, so a value may have one and not
 the other:
@@ -2811,7 +2991,7 @@ the other:
 | r[module.marker.table.fn-value] Function values | every other value of a function type | no | no |
 
 ```text
-use std.marker.{Marker, Wire}
+use std.meta.{Marker, Wire}
 
 trait Tagged < Marker:
     fn tag(&self) -> string  # error: invalid-marker-trait

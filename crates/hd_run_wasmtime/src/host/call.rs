@@ -37,13 +37,17 @@ fn host(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     match method.id {
-        Id::ConsoleWriteSync
+        Id::ConsoleIsTerminal
+        | Id::ConsoleWriteSync
         | Id::ConsoleWriteErrorSync
         | Id::ConsoleInputReadLine
-        | Id::ConsoleInputReadAll => console::call(method, finish, caller, params),
+        | Id::ConsoleInputReadAll
+        | Id::ConsoleInputStdin
+        | Id::ConsoleInputStdinHandleRead => console::call(method, finish, caller, params),
         Id::ClockNow
         | Id::ClockMonotonic
         | Id::ClockSleep
+        | Id::SignalsWait
         | Id::SysOs
         | Id::SysArch
         | Id::SysHostname
@@ -58,6 +62,9 @@ fn host(
         | Id::FsReadReadText
         | Id::FsReadListDir
         | Id::FsReadStat
+        | Id::FsReadOpen
+        | Id::FsReadFileRead
+        | Id::FsReadFileDispose
         | Id::FsWriteWriteBytes
         | Id::FsWriteWriteText
         | Id::FsWriteAppendText
@@ -65,7 +72,7 @@ fn host(
         | Id::FsWriteRemove
         | Id::FsWriteRename
         | Id::FsWriteCopy => fs::call(method, finish, caller, params),
-        Id::ProcessRun => process::call(method, finish, caller, params),
+        Id::ProcessRun | Id::ProcessStatus => process::call(method, finish, caller, params),
         Id::WorkersSend | Id::WorkerPortNext | Id::WorkerPortReply => {
             workers::call(method, finish, caller, params)
         }

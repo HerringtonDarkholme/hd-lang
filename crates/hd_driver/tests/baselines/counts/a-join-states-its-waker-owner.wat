@@ -15,7 +15,7 @@
   (import "fixture" "waker" (global $waker (mut i32)))
   (import "fixture" "wake_bit" (global $wake_bit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $both'1 (param $frame i32) (param $a i32) (param $b i32) (result i32 i32 i32) (local $t3 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 7 |     join!(a, b)
@@ -367,8 +367,6 @@
               local.set $t5
               br 4
             end
-            i32.const 0
-            local.set $a
             local.get $t1
             i32.const 0
             i32.store $heap offset=16
@@ -380,7 +378,7 @@
               call $rt:release_ref'1
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=28
             i32.const 0
             local.set $t3
@@ -400,7 +398,7 @@
               end
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=8
             local.get $t1
             i32.load $heap offset=12
@@ -418,7 +416,7 @@
               end
             end
             local.get $t1
-            local.get $a
+            i32.const 0
             i32.store $heap offset=12
             local.get $t1
             i32.load $heap

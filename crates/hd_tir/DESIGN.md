@@ -105,7 +105,7 @@ records checked supertrait suppliers without changing row inference.
   and is `instantiation-too-deep` at the call. A body that stops with
   "not implemented" has the empty row.
 - **Cache.** `ModuleFinish` writes each solved row into the module's
-  items next to the inferred results. A row never enters a folder
+  items next to the inferred results. A row never enters a unit
   interface: only private callables infer, so no other module's
   `check_key` sees it, and a row changes only with the module's source,
   which `check_key(m)` covers. `row_keys` feeds the callable's own code
@@ -260,7 +260,7 @@ lexical frame. An expected context type is matched by type equality, so
 - `!` is part of the name, so suspension needs no inference.
 - A bang call outside a driver context is `bang-call-outside-suspension`
   ([`req.bang.driver-forms`](../../spec/lang/11-requirements-and-suspension.md#r-req.bang.driver-forms)).
-- **The `block_on` ban is direct-only.** In `defer` suites, default
+- **The `block_on` ban is direct-only.** In cleanup suites, default
   expressions, fact expressions and module initialization, a call whose
   resolved callee is `block_on` or `println` is an error. The check reads
   resolved callees in those contexts and no other body. An indirect call
@@ -329,19 +329,19 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   template's names taken from its resolution table and the target's
   members known ([Templates](../../spec/lang/14-annotations.md#templates)).
   The result is part of the target module's `check` entry. A template edit
-  changes the trait folder's deep hash, which rechecks exactly the modules
+  changes the trait unit's deep hash, which rechecks exactly the modules
   that derive from it.
   Implementation differs: no interface carries template bodies. The
   driver lowers each foreign template module from source once per run
   (`template_mods`) and checks it under a fresh body context built from
-  its scope, the opt-in module's items, and both folders' closures. An
+  its scope, the opt-in module's items, and both units' closures. An
   opt-in module's check key takes the template text hash of each
   non-std template module in its closure whose trait the module's text
   names (`template_hashes`, `crates/hd_driver/src/lib.rs:4169`); a
   module whose text names neither `derive` nor `Structure` takes none.
   The hash covers the module's API text, the template's method bodies,
   and every body whose signature a caller infers
-  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)).
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-unit-interface-construction)).
   This is worse: a header edit in a template's module rechecks every
   module that derives one of its templates.
 - **The instantiated-template check at each opt-in.** Every `@derive(X)`
@@ -388,7 +388,7 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   and the derived methods' items join the module's check entry.
 - **Header goals are not body work.** Supertraits of each impl,
   supertrait bindings, a derived newtype's base impl and a delegation
-  target's impl are checked by the folder's `HeaderCheck(F)` task
+  target's impl are checked by the unit's `HeaderCheck(F)` task
   ([crates/hd_resolve/DESIGN.md §4.10.1](../hd_resolve/DESIGN.md#4101-header-validation-stages),
   stage B; [crates/hd_sched/DESIGN.md §6.1](../hd_sched/DESIGN.md#61-tasks)), never by a
   body task.
@@ -402,7 +402,7 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   checked under `hd check --tests` and `hd test` by the module's
   test-role `ModulePrep(m)`, `Body(m)` and `ModuleFinish(m)` tasks
   ([crates/hd_sched/DESIGN.md §6.1](../hd_sched/DESIGN.md#61-tasks)).
-  Their uses make no folder edge, so the test role's `ModulePrep(m)`
+  Their uses make no unit edge, so the test role's `ModulePrep(m)`
   waits for the interfaces they use; the result is cached as
   `check-test`. Doc tests are
   extracted from `##` blocks into synthetic files whose spans map back to
@@ -470,27 +470,27 @@ Definite initialization of top-level bindings follows transitive read sets
 through function bodies
 ([`module.init.definite`](../../spec/lang/10-modules.md#r-module.init.definite)).
 Inside one module, the checker computes it while it checks. But a module
-cycle that spans several modules of a folder, through a use loop, needs
+cycle that spans several modules of a unit, through a use loop, needs
 the bodies of all of them: a body-derived fact across modules.
 
 So `ModuleFinish` writes an **init summary** per module
 (`hd_check::init::InitSummary`), from the facts the checker records
 while it checks (never from TIR): for each function and top-level
-statement, the top-level bindings it reads directly, the same-folder
+statement, the top-level bindings it reads directly, the same-unit
 functions it calls, and the dispatch sets it calls through
 ([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)),
 each named by one key (a trait's method, or a trait for all of its
 methods). The summary lists each key's methods in the module's impls once,
 so its size is linear in the module's facts and impl methods, not their
 product.
-`InitOrder(F)` reads the summaries of each module cycle of the folder,
+`InitOrder(F)` reads the summaries of each module cycle of the unit,
 orders statements by
 [Order Inside A Cycle](../../spec/lang/10-modules.md#order-inside-a-cycle),
 and reports `top-level-read-before-initialization`. Its key (`init_key`)
 is over the summaries, so a body edit that does not change what a
-function reads reruns nothing. Groups never span folders, so the fact
-stays inside one folder. The driver adds one `InitOrder` task per built
-folder; a folder with no module cycle does no work. A module with errors
+function reads reruns nothing. Groups never span units, so the fact
+stays inside one unit. The driver adds one `InitOrder` task per built
+unit; a unit with no module cycle does no work. A module with errors
 writes an empty summary, since the build stops before collection.
 
 #### 4.13.11 The Typed IR (TIR)
@@ -532,7 +532,6 @@ pub struct Body {
     pub label_inst: Vec<u32>,           // by LabelId: the Loop or Block a Break or Continue targets
     pub cap_local: Vec<LocalId>,        // by CaptureId; one closure's captures are contiguous
     pub cap_mode: Vec<CaptureMode>,     // Copy | Move | Shared; written once, at finish
-    pub susp: Vec<SuspRow>,             // 16 B: inst, scope chain, hook site
     pub consts: Vec<(Ty, u64)>,         // body-local constants, by constant Ref
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
@@ -739,11 +738,9 @@ ownership analysis or caching. `Pending` cannot escape that boundary.
 | `AwaitRace` | a: a `List[Suspend[T]]` | `T`. `race!`: one suspension point |
 | `Hook` | a: the hook's kind, b: the instruction it observes | `void`; normal emission drops it |
 
-Every suspension point has a side record (`SuspRow`): the `Scope`s
-enclosing it from the innermost out, which are the scopes whose suites
-cancellation must run there, and its hook site. Liveness is not
-recorded; emission computes it. Not built yet: no stage writes them
-today, though the wire's owned section carries them (`src/wire.rs`).
+Ownership lowering records each suspension point's cancellation block
+in `Body::cancel` (`own::scopes`). Emission derives suspension states
+from instructions and follows those blocks; it computes liveness.
 
 **Data and closures**
 
@@ -1069,11 +1066,10 @@ The verifier checks each of these:
    decision block. `Defer` is inside its `Scope`.
 6. `Await`, `AwaitValue`, `AwaitAll` and `AwaitRace` occur only in a
    suspending body or closure. No `Return`, `Break`, `Continue` or
-   failing `?` leaf is inside a `defer` suite. A suspension point is
-   only where a `using!` binding's `dispose!` put it; the checker rejects
-   one that source writes in a `defer` suite.
-7. Every suspension point's side record lists exactly the `Scope`s that
-   enclose it.
+   failing `?` leaf is inside a cleanup suite. A suspension point is
+   only where a `using!` binding's `dispose!` put it; a `defer` action is
+   an `FnMut() -> void`, so it cannot suspend.
+7. (Reserved; the unused suspension side records were removed.)
 8. Every projected call key has checked borrowed provider evidence.
    Identity entries use exact-key lookup; open tails use the invocation
    context, never a trait search in the emitter.
@@ -1129,8 +1125,8 @@ The verifier checks each of these:
     item's arguments followed by its own; an instance body makes a bound
     one a plain sub-body and empties an open one, so it holds none.
 
-Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
-to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
+Implementation differs: `verify` checks invariants 1 to 6, 8 to 15, 17
+and 20 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
 same with 23 in place of 22, for a body after the ownership passes.
 On an instance body `verify_owned` checks 24 too, wherever it runs:
 one pass over the columns and the calls, O(1) per type by its flags.
@@ -1153,7 +1149,7 @@ Those test-only queries do not require a second checker-facing fact API.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
     without errors. The second half runs in the driver's
     `ModuleFinish` (`poison_sites`), not in `finish`: an import's error
-    is reported at the folder, outside the body that reads its poisoned
+    is reported at the unit, outside the body that reads its poisoned
     name. It fires when neither the module nor the run so far reported
     an error.
   - 4: only a `Store` value into a bare local against its local, and a
@@ -1323,7 +1319,7 @@ with its per-item interface hash), for code keys.
 | item, kind, phase | the item's path row, the body kind, and `Phase` (checked or instance), hashed so an instance body's hash differs from its item's checked body's |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
-| owned section | an owned body's pass columns, `susp` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |
+| owned section | an owned body's pass columns, `exit_drops` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs
   and cannot be written. `id_words` knows the ID-carrying words of each
@@ -1343,9 +1339,8 @@ with its per-item interface hash), for code keys.
   every run and thread count. One enumeration (`references`) lists how
   a word reaches a record: a data word by its `Op`, the `ProviderGet`
   and `ItemRef` meta records, a closure's `sub_params` record (the
-  root's only when it has parameters), `SuspRow::scopes` and
-  `stable_lists`; the ID remapper and the compaction both read it. A
-  debug build decodes every written body and checks that it encodes
+  root's only when it has parameters) and `stable_lists`; the ID
+  remapper and the compaction both read it. A debug build decodes every written body and checks that it encodes
   back to the same bytes.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on
@@ -1374,7 +1369,8 @@ with its per-item interface hash), for code keys.
 
 **A real primary span.** Every diagnostic carries a primary span into
 source text; a sentinel file or zero-width synthetic placeholder is not a
-publishable diagnostic. Not built yet for `folder-cycle`; see #171.
+publishable diagnostic; `module-cycle` is reported at the `use` line of
+the edge it names.
 
 **Order.** Every diagnostic is sorted by package order, file stable path,
 start offset, end offset, code and rendered message. The key is total, so

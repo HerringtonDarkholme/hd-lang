@@ -59,6 +59,8 @@ fn own_objects(cache: &std::path::Path) {
 
 mod affected;
 mod build_wat;
+#[cfg(feature = "wasmtime")]
+mod c_providers;
 mod cache_gc;
 mod check_cmd;
 mod claims_concurrent;
@@ -88,6 +90,8 @@ mod property_tests;
 mod resource_limits;
 mod run;
 mod same_size_edit;
+#[cfg(unix)]
+mod signals;
 mod spread_position;
 mod stat_manifest;
 mod test_bodies;

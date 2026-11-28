@@ -88,13 +88,15 @@ jobs:
       # asks (`Packages::report`, #2308), so `--all-features` emits the
       # modules a build without `checked-report` does. They are kept in
       # target/tools. The list of test binaries (package directory, target,
-      # executable) goes with them, for scripts/ci-tests.sh.
+      # executable) goes with them, for scripts/ci-tests.sh. `--timings`
+      # writes each unit's compile time (target/cargo-timings), kept below, so
+      # a slow unit is read from the run, never estimated.
       - name: Build
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/tools
-          cargo test --release --all-features --workspace --no-run --message-format=json-render-diagnostics > target/ci-build.json
+          cargo test --release --all-features --workspace --no-run --timings --message-format=json-render-diagnostics > target/ci-build.json
           cp target/release/hd target/release/examples/count_ops target/tools/
           jq -r --arg root "$PWD/" 'select(.reason == "compiler-artifact" and .executable != null)
             | [(.manifest_path | ltrimstr($root) | rtrimstr("/Cargo.toml")), .target.name,
@@ -112,6 +114,15 @@ jobs:
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+
+      - name: Store the build timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-timings
+          path: target/cargo-timings/cargo-timing.html
+          retention-days: 7
+          if-no-files-found: warn
 
       # Doc tests compile at test time, against the libraries just built.
       - name: Doc tests
@@ -150,6 +161,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Restored before the build is fetched: on a key that matches only by
+      # prefix (a manifest changed), rust-cache cleans target/, which
+      # deleted the fetched target/tools and test list (run 45365652912).
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
       - name: Fetch the build
         uses: actions/download-artifact@v4
         with:
@@ -158,9 +175,6 @@ jobs:
 
       - name: Unpack the build
         run: zstd -dc target/ci-build.tar.zst | tar -xf -
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
@@ -233,6 +247,11 @@ jobs:
           node scripts/check-change.ts "$base" HEAD
 
       # Each check runs under its time budget (scripts/check-budgets.tsv).
+      - name: Check bench packages and expected output
+        if: ${{ !cancelled() }}
+        timeout-minutes: 1
+        run: node scripts/check-budget.ts check:bench-packages -- node scripts/check-bench-packages.ts --hd target/tools/hd
+
       - name: Lint and format JS/TS
         if: ${{ !cancelled() }}
         run: |
@@ -241,6 +260,12 @@ jobs:
           for check in types host-sources spec-sync cost typescript-sources; do
             node scripts/check-budget.ts "check:$check" -- pnpm run -s "check:$check"
           done
+
+      # Host, metrics, spec-tool and script tests (pnpm test). No workflow ran
+      # them, so three host failures sat unseen on main (#2418).
+      - name: Node tests
+        if: ${{ !cancelled() }}
+        run: node scripts/check-budget.ts test -- pnpm run -s test
 
       - name: Check formatting
         if: ${{ !cancelled() }}
@@ -439,8 +464,25 @@ jobs:
       - name: Unpack the build
         run: zstd -dc target/ci-build.tar.zst | tar -xf -
 
+      - name: Set up CLI signal-sender tracing
+        if: matrix.shard == 'cli and host'
+        run: |
+          if ! command -v strace >/dev/null; then
+            timeout 120 sudo apt-get update
+            timeout 120 sudo apt-get install -y strace
+          fi
+          timeout 40 node --test --test-name-pattern='CI runner traces a group kill' scripts/ci-tests.test.ts
+
       - name: Test
         run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/(hd_command|hd_run_wasmtime)/' --skip specification_conformance_passes_except_known_failures
+
+      - name: Keep CLI resource diagnostics
+        if: always() && matrix.shard == 'cli and host'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-resource-diagnostics-${{ github.run_attempt }}
+          path: target/ci-resources
+          if-no-files-found: ignore
 
   # `cargo install hd-lang` builds the published packages, and a package
   # holds only its own directory (crates/README.md, "Publishing"). The dry
@@ -549,6 +591,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            cargo-config: --config .github/cargo-windows-host.toml
+          - os: macos-latest
+            cargo-config: ""
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -567,6 +614,7 @@ jobs:
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
+      # Its post step prints cache hits, misses and non-cacheable calls.
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
@@ -591,7 +639,7 @@ jobs:
       # and the CLI with its conformance cases, in one cargo run.
       # --no-fail-fast: one run reports every failing test binary.
       - name: Test
-        run: cargo test --release --no-fail-fast --features hd_command/dist -p hd_cache -p hd_run_wasmtime -p hd_command
+        run: cargo ${{ matrix.cargo-config }} test --release --no-fail-fast --features hd_command/dist -p hd_cache -p hd_run_wasmtime -p hd_command
 
   # Split from the tests so the longest suite overlaps with the rest. Each
   # mode runs the Build job's conformance binary.
@@ -676,6 +724,19 @@ jobs:
           HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
           HD_CONFORMANCE_PHASE: ${{ matrix.phase }}
         run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact specification_conformance_passes_except_known_failures
+
+      # The room audit's probes and std's runtime modules under the optimized
+      # pipeline, with the checked runtime's asserts in the checked job (the
+      # two tests run at once): an optimization that drops a buffer before a
+      # raw read through it frees the room early there only (sroa's
+      # forwarding, lane 281), and one that lets such a read keep the buffer
+      # turns a move into a copy (lane 282).
+      - name: Room audit and std runtime modules (optimized)
+        if: ${{ !cancelled() && matrix.pipeline == 'optimized' }}
+        env:
+          HD_CONFORMANCE_PIPELINE: optimized
+          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
+        run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact checked_rooms_reject_leaks_and_double_frees std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
 
       # Runs std's runtime modules with the checked runtime's asserts too; the
       # Rust tests job runs them plain.

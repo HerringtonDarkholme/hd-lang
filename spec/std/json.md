@@ -2,7 +2,7 @@
 
 Status: standard library specification draft.
 
-This chapter defines `std.json`, which `lib/std` writes in ordinary hd
+This chapter defines `std.encoding.json`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the value type `Json`, and `Number`, which keeps 64-bit integers exact;
@@ -14,13 +14,13 @@ over the language tier:
 
 Nothing in it is language tier.
 
-1. r[std-json.import.core] `std.json` declares `Json`, `Number`, `JsonError`, and `parse`. None is a prelude name; code imports them, as in `use std.json.parse`.
-2. r[std-json.import.format] `std.json` also declares `to_json`, `from_json`, `encode`, and `decode`. None is a prelude name either.
-3. r[std-json.import.pretty] `std.json` also declares `encode_pretty`, which is not a prelude name.
+1. r[std-json.import.core] `std.encoding.json` declares `Json`, `Number`, `JsonError`, and `parse`. None is a prelude name; code imports them, as in `use std.encoding.json.parse`.
+2. r[std-json.import.format] `std.encoding.json` also declares `to_json`, `from_json`, `encode`, and `decode`. None is a prelude name either.
+3. r[std-json.import.pretty] `std.encoding.json` also declares `encode_pretty`, which is not a prelude name.
 4. r[std-json.no-panic] None of these functions panics.
 
 ```text
-use std.json.{Json, JsonError, parse}
+use std.encoding.json.{Json, JsonError, parse}
 
 fn read(text: string) -> Result[Json, JsonError]:
     parse(text)   # a bad text is an .Err: no call here panics
@@ -40,7 +40,7 @@ pub enum Json:
     Object(fields: JsonObject)
 ```
 
-1. r[std-json.value.decl] `std.json` declares the enum `Json` with exactly the variants above.
+1. r[std-json.value.decl] `std.encoding.json` declares the enum `Json` with exactly the variants above.
 2. r[std-json.value.object-type] An `Object` holds a [`JsonObject`](#json-objects), which keeps its members in insertion order. It is not a `Map`, whose [iteration order](../lang/04-type-system.md#r-types.map.order.unspecified) is unspecified.
 3. r[std-json.value.eq] `Json` implements `Eq`. Two values are equal when they are the same variant with equal contents.
 4. r[std-json.value.eq.array] Arrays are equal when they have equal items in the same order.
@@ -60,7 +60,7 @@ The accessors read one kind and give `.None` for any other:
 | r[std-json.value.accessors.u64] `as_u64` | `pub fn as_u64(&self) -> u64?` | what [`Number.as_u64`](#r-std-json.number.accessors.u64) gives for a `Number` |
 | r[std-json.value.accessors.f64] `as_f64` | `pub fn as_f64(&self) -> f64?` | what [`Number.as_f64`](#r-std-json.number.accessors.f64) gives for a `Number` |
 
-1. r[std-json.value.accessors] These methods are declared on `Json` in `std.json`. A negative `index` gives `.None`.
+1. r[std-json.value.accessors] These methods are declared on `Json` in `std.encoding.json`. A negative `index` gives `.None`.
 2. r[std-json.value.accessors.integer-exact] `as_i64` and `as_u64` give `.None` for a float, even one with no fraction, such as `1.0`, as an integer type's `from_json` does.
 
 | `Json` | `as_i64()` | `as_u64()` | `as_f64()` |
@@ -71,7 +71,7 @@ The accessors read one kind and give `.None` for any other:
 | `"2"` | `.None` | `.None` | `.None` |
 
 ```text
-use std.json.Json
+use std.encoding.json.Json
 
 fn count(value: Json) -> i64:
     value.as_i64().unwrap_or(0)   # 0 for 2.0: a float is not an integer
@@ -105,7 +105,7 @@ fn count(value: Json) -> i64:
 | `"db"` | `.None`: no leading `/` |
 
 ```text
-use std.json.{JsonError, parse}
+use std.encoding.json.{JsonError, parse}
 
 fn pool_max(text: string) -> Result[i64, JsonError]:
     doc := parse(text)?
@@ -131,13 +131,13 @@ where they were.
 | r[std-json.object.remove-ref] `remove` | `pub fn remove(&mut self, key: string) -> Json?` | removes the member `key` and gives its value, or `.None` when there is no such key; the other members keep their order |
 | r[std-json.object.keys] `keys` | `pub fn keys(&self) -> List[string]` | the keys, in insertion order |
 
-1. r[std-json.object.decl-struct] `std.json` declares the struct `JsonObject`, with private fields and the methods above. `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
+1. r[std-json.object.decl-struct] `std.encoding.json` declares the struct `JsonObject`, with private fields and the methods above. `JsonObject` implements `Iterable[(string, Json)]`, `Eq`, and `Debug`.
 2. r[std-json.object.order] `keys`, iteration, and `Debug` give the members in insertion order.
 3. r[std-json.object.eq] Two `JsonObject`s are equal when they have the same keys with equal values, in any order.
 4. r[std-json.object.value] A `JsonObject` is a value. Copying it, or a `Json` that holds it, copies its members, so `set` and `remove` change only the place they are called on.
 
 ```text
-use std.json.{Json, JsonObject}
+use std.encoding.json.{Json, JsonObject}
 
 fn build() -> Json:
     let mut fields = JsonObject::new()
@@ -154,7 +154,7 @@ Rust's `serde_json::Number`: integers in the `i64` and `u64` ranges are
 exact, and every other number is an `f64`.
 
 ```text
-use std.json.Number
+use std.encoding.json.Number
 
 fn big() -> Number:
     Number::from_u64(18446744073709551615)
@@ -163,7 +163,7 @@ fn half() -> Number?:
     Number::from_f64(0.5)
 ```
 
-1. r[std-json.number.decl-struct] `std.json` declares the struct `Number`, a value with no public member.
+1. r[std-json.number.decl-struct] `std.encoding.json` declares the struct `Number`, a value with no public member.
 2. r[std-json.number.repr] A `Number` holds an integer below zero, an integer from zero up, or a finite `f64`. One integer has one representation, whichever constructor made it.
 
 | Rule | Function | Result |
@@ -189,7 +189,7 @@ fn half() -> Number?:
 3. r[std-json.number.eq.zero] The floats `0.0` and `-0.0` are equal, as `f64` values are.
 
 ```text
-use std.json.Number
+use std.encoding.json.Number
 
 fn is_integer_two(n: Number) -> bool:
     n == Number::from_i64(2)   # false when n is the float 2.0
@@ -200,7 +200,7 @@ fn is_integer_two(n: Number) -> bool:
 1. r[std-json.number.display] `Number` implements `Display`. An integer prints in base ten, as [`types.display.int`](../lang/04-type-system.md#r-types.display.int) gives, and a float prints as `f64` does ([`types.display.float`](../lang/04-type-system.md#r-types.display.float)).
 
 ```text
-use std.json.Number
+use std.encoding.json.Number
 
 fn show(n: Number) -> string:
     "$n"   # an integer prints in base ten, a float as an f64
@@ -221,7 +221,7 @@ fn show(n: Number) -> string:
 `parse` reads one JSON text:
 
 ```text
-use std.json.{parse, Json, JsonError}
+use std.encoding.json.{parse, Json, JsonError}
 
 fn title(text: string) -> string:
     match parse(text):
@@ -243,7 +243,7 @@ fn title(text: string) -> string:
 6. r[std-json.parse.literals] The words `true`, `false`, and `null` are lowercase only.
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn accepts(text: string) -> bool:
     match parse(text):
@@ -262,7 +262,7 @@ fn checks() -> List[bool]:
 3. r[std-json.parse.object.key] A key is a string, and its escapes are decoded as a string's are.
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn last_wins() -> string:
     match parse("{\"b\": 1, \"a\": 2, \"b\": 3}"):
@@ -287,7 +287,7 @@ fn last_wins() -> string:
 5. r[std-json.parse.string.nul] `\u0000` is valid, and the string then holds U+0000.
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn decoded() -> string:
     match parse("\"a\\u0041\\n\""):
@@ -316,7 +316,7 @@ fn decoded() -> string:
 > ([`std-json.number.repr`](#r-std-json.number.repr)).
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn read_number(text: string) -> string:
     match parse(text):
@@ -342,7 +342,7 @@ fn demos() -> List[string]:
 | `"1.x"` | `.Err(UnexpectedCharacter(2))` |
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn first_error(text: string) -> string:
     match parse(text):
@@ -373,7 +373,7 @@ pub enum JsonError:
     UnknownVariant(path: string, name: string)
 ```
 
-1. r[std-json.error.variants.v2] `std.json` declares the enum `JsonError` with the eleven variants above. The first seven are parse errors, and the last four are decode errors.
+1. r[std-json.error.variants.v2] `std.encoding.json` declares the enum `JsonError` with the eleven variants above. The first seven are parse errors, and the last four are decode errors.
 2. r[std-json.error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-json.error.traits] `JsonError` implements `Eq`, `Debug`, and `Display`.
 
@@ -422,8 +422,8 @@ The `expected` of a `WrongType` depends on the type that reads the value:
 > makes it ambiguous, as in `serde_path_to_error`.
 
 ```text
-use std.json.{decode, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{decode, JsonError}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct User:
@@ -444,7 +444,7 @@ fn report(text: string) -> string:
 A `Json` writes as JSON text in two layouts, compact and pretty:
 
 ```text
-use std.json.{parse, Json}
+use std.encoding.json.{parse, Json}
 
 fn show(value: Json) -> string:
     "${value}"   # {"a":[1,2]}
@@ -471,7 +471,7 @@ fn show_pretty(value: Json) -> string:
 6. r[std-json.display.escapes] The escapes are `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, and `\t`, and `\u00` with two lowercase hex digits for the other controls. `/` is not escaped.
 
 ```text
-use std.json.{Json, parse}
+use std.encoding.json.{Json, parse}
 
 fn compact(value: Json) -> string:
     "$value"   # no whitespace outside strings: [1,2] and {"a":1}
@@ -499,7 +499,7 @@ fn demo() -> string:
 | `{"a":[]}` | `"{\n  \"a\": []\n}"` |
 
 ```text
-use std.json.parse
+use std.encoding.json.parse
 
 fn pretty_demo(text: string) -> string:
     match parse(text):
@@ -516,8 +516,8 @@ JSON is a format that reads a type's
 join them to JSON text:
 
 ```text
-use std.json.{encode, decode, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, decode, JsonError}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct Session:
@@ -554,7 +554,7 @@ fn load(text: string) -> Result[Session, JsonError]:
 10. r[std-json.derive.variant-object-one-key] An externally tagged variant object that `decode` reads has one key; a second key is `WrongType` at the object, expecting `variant`.
 
 ```text
-use std.json.{encode, decode, JsonError}
+use std.encoding.json.{encode, decode, JsonError}
 
 struct Plain:
     id: i32
@@ -571,8 +571,8 @@ fn load(text: string) -> Result[Plain, JsonError]:
 > `Serialize`.
 
 ```text
-use std.json.encode_pretty
-use std.serde.Serialize
+use std.encoding.json.encode_pretty
+use std.encoding.Serialize
 
 @derive(Serialize)
 struct Point:
@@ -604,7 +604,7 @@ JSON writes and reads each standard implementation of
 | r[std-json.std.list] List | `List[T]`, where `T` implements the trait | an `Array` of the items' values, in order | an `Array`, item by item |
 | r[std-json.std.map-scalar-keys] Map | `Map[K, V]`, where `K` implements `Eq`, `Hash`, and `MapKey`, and `V` implements the trait | an `Object` of the entries' values, in the map's iteration order | an `Object`, entry by entry, in its key order |
 
-1. r[std-json.std.json.impls] `std.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
+1. r[std-json.std.json.impls] `std.encoding.json` implements `Serialize` and `Deserialize` for `Json`. A `Json` reads through `peek`, so it takes any value.
 2. r[std-json.std.integer.read] A float is never an integer, so `1.0` is a `WrongType` for every integer type. So is an integer outside the type's range.
 3. r[std-json.std.float-special] A NaN or an infinity has no JSON number, so its `to_json` is `null`, as in `serde_json`.
 4. r[std-json.std.float-read] An `f32` reads the nearest `f32` to the number's `f64`. A number past the finite `f32` range is a `WrongType`.
@@ -619,7 +619,7 @@ JSON writes and reads each standard implementation of
 13. r[std-json.std.map-key-wrong-type] A refused key is `WrongType` with expected `"map key"` at that key's path.
 
 ```text
-use std.json.{encode, decode, JsonError}
+use std.encoding.json.{encode, decode, JsonError}
 
 fn round_trip(names: List[string]) -> Result[List[string], JsonError]:
     decode::[List[string]](encode(names))
@@ -638,8 +638,8 @@ key per member. It writes an enum in the externally tagged form, the
 variant's name with its members:
 
 ```text
-use std.json.encode
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.encode
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 enum Shape:
@@ -731,8 +731,8 @@ JSON reads the form that it writes for a derived `Serialize`:
 11. r[std-json.derive.from-json.included-payload-form] A variant payload has the form selected by the members included in its serde view. A variant with no included positional member and no named member reads the name-only form. One included positional member and no named member reads its direct value. Several included positional members and no named member read an `Array` of exactly that included length. A named or mixed variant reads an `Object`. A wrong payload shape or tuple length is a `WrongType` at the variant-name path segment. Object members read as a struct's do under that segment.
 
 ```text
-use std.json.{decode, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{decode, JsonError}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 enum Shape:
@@ -763,8 +763,8 @@ a `T?` member reads `.None`, and any other member is a `MissingField`:
 | `{"host":"db1","port":null}` | `.Err(WrongType("$.port", "u16"))` |
 
 ```text
-use std.json.{decode, JsonError}
-use std.serde.Deserialize
+use std.encoding.json.{decode, JsonError}
+use std.encoding.Deserialize
 
 @derive(Deserialize)
 struct Server:
@@ -789,4 +789,47 @@ fn load(text: string) -> Result[Server, JsonError]:
 > struct do, so a config file may leave out what the type already
 > settles. A `null` is a value the text wrote, so it is read.
 
-See also: [Encoding](encoding.md#decode-errors), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Serialization](../lang/14-annotations.md#serialization), [Serde](serde.md), [Derived Hashing](hash.md#derived-hashing).
+## Decoding A Stream
+
+`decode_stream` reads JSON texts one after another from a
+[`Read`](io.md#reading-in-chunks) source, as `jq` reads its input, so a
+program holds one value at a time:
+
+```text
+use std.console.{ConsoleInput, stdin}
+use std.encoding.json.{Json, StreamError, decode_stream}
+
+fn count_values!() -> usize $ ConsoleInput:
+    let mut values = decode_stream(stdin())
+    let count: usize = 0
+    while true:
+        let next: Result[Json, StreamError]? = values.next!()
+        match next:
+            .Some(.Ok(_)) => count = count + 1
+            _ => break
+    count
+```
+
+```text
+pub enum StreamError:
+    Read(error: IoError)
+    Json(error: JsonError)
+
+pub fn decode_stream[R < Read](source: R) -> JsonStream[R]
+```
+
+1. r[std-json.stream.decl] `std.encoding.json` declares `decode_stream`, `JsonStream[R < Read]` with private fields, and `StreamError`. Code imports them, as in `use std.encoding.json.{StreamError, decode_stream}`.
+2. r[std-json.stream.next] `next![T < Deserialize](&mut self) -> Result[T, StreamError]?` reads the next JSON text from the source and decodes it as `decode::[T]` would. It returns `.None` once only whitespace is left.
+3. r[std-json.stream.separators] Texts are separated by optional JSON whitespace. A container or a string ends at its closing byte; any other value ends at the next whitespace or structural byte, or at the end of the source.
+4. r[std-json.stream.chunks] How the source splits its bytes into chunks changes no result.
+5. r[std-json.stream.error] `StreamError` implements `Debug`, `Eq`, and `Display`. `Read(error)` is a failed read of the source, and `Json(error)` a value that did not decode.
+6. r[std-json.stream.position] A syntax error's `position` counts bytes from the start of the source. A value that the source ends inside is `UnexpectedEnd` at the source's length, and bytes that are not UTF-8 are `UnexpectedCharacter` at the first bad byte.
+7. r[std-json.stream.after-error] After `next!` returns an error, every later `next!` returns `.None`.
+8. r[std-json.stream.cost] The stream holds one chunk of the source and the bytes of one value. Each byte is scanned once to find where its value ends and once to decode it.
+
+> **Why.** A filter over a long stream, such as `jq`'s inputs, must not
+> hold the whole input. Go's `json.Decoder` and serde_json's
+> `StreamDeserializer` frame each value first; ending after an error is
+> serde_json's rule, since the stream's position is lost.
+
+See also: [Encoding](encoding.md#decode-errors), [Io](io.md), [Num](num.md#integer-parsing), [Collections](collections.md#map-methods), [Numeric Display](../lang/04-type-system.md#numeric-display), [Map Lookup And Order](../lang/04-type-system.md#lookup-and-order), [Serialization](../lang/14-annotations.md#serialization), [Serde](serde.md), [Derived Hashing](hash.md#derived-hashing).

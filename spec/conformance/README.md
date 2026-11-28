@@ -94,11 +94,11 @@ every fixture. They are the items a numbered chapter specifies:
   literal `snapshot`, and the functions of the test registration calls
   `it_each`, `it_prop`, and `it_prop_with`;
 - the lang items and traits of `std.task`, `std.convert`, `std.error`,
-  `std.inspect`, `std.function`, `std.process`, `std.ops`, `std.num`,
-  `std.structure`, `std.annotation`, and `std.format`
+  `std.meta`, `std.ops`, `std.process`, `std.ops`, `std.num`,
+  `std.meta`, `std.meta`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
   `Iterator` from `std.iter`;
-- the markers of `std.marker`, and the items of `std.remote` that
+- the markers of `std.meta`, and the items of `std.remote` that
   [Remote Built-Ins](../lang/10-modules.md#remote-built-ins) and
   [Crossing Errors](../lang/10-modules.md#crossing-errors) declare;
 - the intrinsics of built-in types, such as `List.push`, `string.len`,
@@ -533,6 +533,13 @@ hold every call of the named suspending function. The directive is valid only
 with `cancellation-cleanup`.
 
 ### Package Roles
+
+`# fixture-package-role: standard-library` compiles the primary file as a
+fresh module `std.conformance.NAME`, where `NAME` is the file's stem.
+The module belongs to the implementation's standard library and can use
+its declarations; it does not replace any existing standard-library module.
+This role tests restrictions on declarations inside the standard library.
+
 
 `# fixture-package-role: library` and
 `# fixture-package-role: root-application` select the synthetic

@@ -4,15 +4,261 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $borrowed (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 44 |     return x._0
     block
-      local.get $t0
+      i32.const 1
+      local.set $t0
+      i32.const 1
+      local.set $t1
+      i32.const 0
+      local.set $t0
       local.get $t1
+      if
+        local.get $t0
+        if
+        else
+          local.get $t0
+          if
+            local.get $t2
+            i32.load $heap
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=4
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=8
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=12
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=16
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=20
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=24
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=28
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=32
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=36
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=40
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=44
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=48
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=52
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=56
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=60
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=64
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=68
+            local.set $t1
+          end
+          local.get $t2
+          i32.load $heap offset=72
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=76
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=80
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=84
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=88
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=92
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=96
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=100
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=104
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=108
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=112
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=116
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=120
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=124
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=128
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=132
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=136
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=140
+          local.set $t1
+        end
+      end
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      if
+        local.get $t0
+        if
+        else
+          local.get $t0
+          if
+            local.get $t2
+            i32.load $heap
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=4
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=8
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=12
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=16
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=20
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=24
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=28
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=32
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=36
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=40
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=44
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=48
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=52
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=56
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=60
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=64
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=68
+            local.set $t0
+          end
+          local.get $t2
+          i32.load $heap offset=72
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=76
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=80
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=84
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=88
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=92
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=96
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=100
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=104
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=108
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=112
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=116
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=120
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=124
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=128
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=132
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=136
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=140
+          local.set $t0
+        end
+      end
+      local.get $t3
+      local.get $t2
       i32.const 72
       memory.copy $heap $heap
-      return
+      br 0
     end
   )
   (func $copied (param $x i32) (param $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
@@ -71,7 +317,8 @@
       local.set $t13
       local.set $t14
       local.set $t15
-      local.tee $t16
+      local.set $t16
+      local.get $t16
       local.get $t15
       local.get $t14
       local.get $t13
@@ -144,27 +391,63 @@
       local.get $t17
       local.get $x
       i32.store $heap offset=68
-      return
+      br 0
     end
   )
-  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
+  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 22 |     return x._0
     block
-      local.get $t0
-      if
-        local.get $t1
-        call $rt:drop
-      else
-        local.get $t1
-        i32.const 72
-        i32.add
-        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-      end
-      local.get $t2
+      i32.const 1
+      local.set $t0
+      i32.const 1
+      local.set $t1
+      i32.const 0
+      local.set $t0
       local.get $t1
+      if
+        local.get $t0
+        if
+          local.get $t2
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t2
+            call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+          end
+          local.get $t2
+          i32.const 72
+          i32.add
+          call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+        end
+      end
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      if
+        local.get $t0
+        if
+          local.get $t2
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t2
+            call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+          end
+          local.get $t2
+          i32.const 72
+          i32.add
+          call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+        end
+      end
+      local.get $t3
+      local.get $t2
       i32.const 72
       memory.copy $heap $heap
-      return
+      br 0
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
@@ -188,15 +471,261 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $borrowed (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 44 |     return x._0
     block
-      local.get $t0
+      i32.const 1
+      local.set $t0
+      i32.const 1
+      local.set $t1
+      i32.const 0
+      local.set $t0
       local.get $t1
+      if
+        local.get $t0
+        if
+        else
+          local.get $t0
+          if
+            local.get $t2
+            i32.load $heap
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=4
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=8
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=12
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=16
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=20
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=24
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=28
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=32
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=36
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=40
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=44
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=48
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=52
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=56
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=60
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=64
+            local.set $t1
+            local.get $t2
+            i32.load $heap offset=68
+            local.set $t1
+          end
+          local.get $t2
+          i32.load $heap offset=72
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=76
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=80
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=84
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=88
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=92
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=96
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=100
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=104
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=108
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=112
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=116
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=120
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=124
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=128
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=132
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=136
+          local.set $t1
+          local.get $t2
+          i32.load $heap offset=140
+          local.set $t1
+        end
+      end
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      if
+        local.get $t0
+        if
+        else
+          local.get $t0
+          if
+            local.get $t2
+            i32.load $heap
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=4
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=8
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=12
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=16
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=20
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=24
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=28
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=32
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=36
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=40
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=44
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=48
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=52
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=56
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=60
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=64
+            local.set $t0
+            local.get $t2
+            i32.load $heap offset=68
+            local.set $t0
+          end
+          local.get $t2
+          i32.load $heap offset=72
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=76
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=80
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=84
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=88
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=92
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=96
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=100
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=104
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=108
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=112
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=116
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=120
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=124
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=128
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=132
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=136
+          local.set $t0
+          local.get $t2
+          i32.load $heap offset=140
+          local.set $t0
+        end
+      end
+      local.get $t3
+      local.get $t2
       i32.const 72
       memory.copy $heap $heap
-      return
+      br 0
     end
   )
   (func $copied (param $x i32) (param $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
@@ -255,7 +784,8 @@
       local.set $t13
       local.set $t14
       local.set $t15
-      local.tee $t16
+      local.set $t16
+      local.get $t16
       local.get $t15
       local.get $t14
       local.get $t13
@@ -328,27 +858,63 @@
       local.get $t17
       local.get $x
       i32.store $heap offset=68
-      return
+      br 0
     end
   )
-  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
+  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
     ;; 22 |     return x._0
     block
-      local.get $t0
-      if
-        local.get $t1
-        call $rt:drop
-      else
-        local.get $t1
-        i32.const 72
-        i32.add
-        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-      end
-      local.get $t2
+      i32.const 1
+      local.set $t0
+      i32.const 1
+      local.set $t1
+      i32.const 0
+      local.set $t0
       local.get $t1
+      if
+        local.get $t0
+        if
+          local.get $t2
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t2
+            call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+          end
+          local.get $t2
+          i32.const 72
+          i32.add
+          call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+        end
+      end
+      i32.const 0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      if
+        local.get $t0
+        if
+          local.get $t2
+          call $rt:drop
+        else
+          local.get $t0
+          if
+            local.get $t2
+            call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+          end
+          local.get $t2
+          i32.const 72
+          i32.add
+          call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+        end
+      end
+      local.get $t3
+      local.get $t2
       i32.const 72
       memory.copy $heap $heap
-      return
+      br 0
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
@@ -372,7 +938,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
@@ -556,7 +1122,7 @@
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block

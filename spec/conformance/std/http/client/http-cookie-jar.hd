@@ -1,7 +1,7 @@
 # test: CookieJar is serializable data with explicit time and RFC6265 domain, path, expiry and Secure matching
 use std.convert.From
 use std.http.{CookieJar, Headers, Response, Url}
-use std.json.{decode, encode}
+use std.encoding.json.{decode, encode}
 use std.time.Timestamp
 use std.testing.assert_equal
 

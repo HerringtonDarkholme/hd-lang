@@ -1,0 +1,3 @@
+fn waiting!() -> i32:
+    step := fn!() -> i32: 42
+    step!()

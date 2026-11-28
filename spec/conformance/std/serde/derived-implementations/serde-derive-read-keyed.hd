@@ -11,8 +11,8 @@
 # expect-stdout: wide duplicate: unique key
 # expect-stdout: keyed without next_field: keyed record
 # expect-stdout: keyed without absent_field: i64
-use std.serde.{Deserialize, Deserializer, ValueKind, skip}
-use std.structure.{Facts, VariantInfo, Member}
+use std.encoding.{Deserialize, Deserializer, ValueKind, skip}
+use std.meta.{Facts, VariantInfo, Member}
 
 # A keyed reader over one flat record of integer values, or a newtype
 # payload when `keys` is empty. It records each `next_field`'s `guess`

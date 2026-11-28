@@ -1,0 +1,29 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A node whose arena holds 2,000 values, each with a list and a reference
+# back to the node: a ring closed only through the arena's values, over
+# several chunks. The collector finds it by running the arena's `Drop`
+# in every pass (`module.rt.drop.trace`); each pass sees every value, the
+# last one releases them, and the collector frees the chunks after the
+# lists' rooms. The checked runs' audit finds no leak.
+use std.arena.Arena
+
+struct Item:
+    names: List[string]
+    owner: (*mut Node)?
+
+struct Node:
+    arena: Arena
+    next: (*mut Node)?
+
+fn ring() -> void:
+    x := box(Node { arena: Arena::new(), next: .None })
+    let mut i = 0
+    while i < 2000:
+        owner := x
+        _ := x.arena.alloc(Item { names: ["a" + "$i"], owner: .Some(owner) })
+        i += 1
+
+pub fn main() -> void $ Console:
+    ring()
+    println("done")

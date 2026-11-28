@@ -6,7 +6,7 @@
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32
@@ -23,10 +23,12 @@ pub fn main() -> void $ Console:
     tag := "kept-" + "z".repeat(40)
 > app/main/main
 >   release string (last use)
+>   release string (last use)
     let mut m = Mapper { transform: fn(s, x): x }
     m.transform = fn(s, x):
 > app/main/main
 >   retain string (stored)
+>   release string (last use)
 >   retain counted reference (stored)
 >   release string (last use)
 >   release fn(&mut app.main.Mapper, i32) -> i32 (overwritten)
@@ -37,6 +39,7 @@ pub fn main() -> void $ Console:
     first := m.apply(1)
     println("$first ${m.apply(1)}")
 >   release app.main.Mapper [transform.1] (last use)
+>   release string (last use)
 == @build: checked
 # @dump: stdout counts
 # @build: dev | checked | release
@@ -44,7 +47,7 @@ pub fn main() -> void $ Console:
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32
@@ -61,10 +64,12 @@ pub fn main() -> void $ Console:
     tag := "kept-" + "z".repeat(40)
 > app/main/main
 >   release string (last use)
+>   release string (last use)
     let mut m = Mapper { transform: fn(s, x): x }
     m.transform = fn(s, x):
 > app/main/main
 >   retain string (stored)
+>   release string (last use)
 >   retain counted reference (stored)
 >   release string (last use)
 >   release fn(&mut app.main.Mapper, i32) -> i32 (overwritten)
@@ -75,6 +80,7 @@ pub fn main() -> void $ Console:
     first := m.apply(1)
     println("$first ${m.apply(1)}")
 >   release app.main.Mapper [transform.1] (last use)
+>   release string (last use)
 == @build: release
 # @dump: stdout counts
 # @build: dev | checked | release
@@ -82,7 +88,7 @@ pub fn main() -> void $ Console:
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32

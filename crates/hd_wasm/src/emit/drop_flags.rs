@@ -217,6 +217,14 @@ impl Em<'_, '_, '_> {
         fn add(em: &Em<'_, '_, '_>, ty: Ty, path: &mut Vec<Proj>, out: &mut Vec<Vec<Proj>>) {
             let (pool, env, mut parts) = (em.pool(), em.env(), Vec::new());
             out.push(path.clone());
+            // A part with no reference and no hook (`counted_type`) is one
+            // node: nothing under it drops, so its slot stands for its
+            // whole subtree, as `hd_tir::own::cell_drop` opens it, and as
+            // rustc's drop elaboration stops at a type without drop glue.
+            // A `Ptr` field takes one slot, as a `usize` does.
+            if !path.is_empty() && !crate::layout::facts::counted_type(pool, env, ty) {
+                return;
+            }
             let fields = crate::layout::facts::in_place_parts(pool, env, ty, None, &mut parts);
             for v in (0u32..).take(if fields { 1 } else { usize::MAX }) {
                 if !fields

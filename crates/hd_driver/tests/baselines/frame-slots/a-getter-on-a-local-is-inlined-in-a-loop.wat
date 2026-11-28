@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $total (param $k i64) (result i64) (local $user i32) (local $t0 i32) (local $sum i64) (local $t1 i64)
     ;; 21 |     user := User { name: "ada", age: 36 }
     global.get $stack

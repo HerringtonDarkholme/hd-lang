@@ -1,0 +1,7 @@
+# @dump: wat
+# expected: a using! binding of a `File` disposes it at scope exit with one call of the handle's `dispose` slot, and releasing its box calls no host import.
+use std.fs.File
+
+# subject
+pub fn close!(file: *mut dyn File) -> void:
+    using! held = file

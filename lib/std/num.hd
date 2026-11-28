@@ -1,12 +1,11 @@
-# std.num: the numeric traits, integer arithmetic variants, and parsing.
+# std.num: the numeric traits, integer arithmetic variants, and parsing errors.
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
-use std.annotation.inline
+use std.meta.inline
 use std.cmp.Ordering
-use std.text.Parse
-use std.rt.bytes.{string_from_bytes, panic_with, bytes_at}
-use std.rt.memory.{address_of, load_u64, store_u64}
+use std.rt.{string_from_bytes, panic_with, bytes_at}
+use std.rt.{address_of, load_u64, store_u64, string_bytes}
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -528,7 +527,9 @@ impl u64:
         if self > other: self - other else: other - self
 
 # `to_bits` and `from_bits` are Rust's: the IEEE 754 bit pattern, with the
-# sign bit on top (r-std-num.float-bits.exact).
+# sign bit on top (r-std-num.float-bits.exact). `pi` and `e` are Rust's
+# `f64::consts::PI` and `E` as associated functions, since hd has no
+# associated constants (#2285).
 impl f64:
     ## The IEEE 754 bit pattern of the value.
     ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
@@ -540,6 +541,16 @@ impl f64:
     pub fn from_bits(bits: u64) -> f64:
         f64_from(bits)
 
+    ## The circle constant pi, rounded to binary64.
+    ## See [std-num.float-math.constant.pi](../../spec/std/num.md#r-std-num.float-math.constant.pi).
+    pub fn pi() -> f64:
+        3.14159265358979323846264338327950288
+
+    ## Euler's number, rounded to binary64.
+    ## See [std-num.float-math.constant.e](../../spec/std/num.md#r-std-num.float-math.constant.e).
+    pub fn e() -> f64:
+        2.71828182845904523536028747135266250
+
 impl f32:
     ## The IEEE 754 bit pattern of the value.
     ## See [std-num.float-bits.to](../../spec/std/num.md#r-std-num.float-bits.to).
@@ -550,6 +561,16 @@ impl f32:
     ## See [std-num.float-bits.from](../../spec/std/num.md#r-std-num.float-bits.from).
     pub fn from_bits(bits: u32) -> f32:
         f32_from(bits)
+
+    ## The circle constant pi, rounded to binary32.
+    ## See [std-num.float-math.constant.pi](../../spec/std/num.md#r-std-num.float-math.constant.pi).
+    pub fn pi() -> f32:
+        3.14159265358979323846264338327950288
+
+    ## Euler's number, rounded to binary32.
+    ## See [std-num.float-math.constant.e](../../spec/std/num.md#r-std-num.float-math.constant.e).
+    pub fn e() -> f32:
+        2.71828182845904523536028747135266250
 
 # `total_cmp` is the IEEE 754 totalOrder: a pattern with the sign bit set
 # is flipped whole, so a more negative value gets a smaller key, and any
@@ -587,6 +608,11 @@ impl f32:
     pub fn is_finite(self) -> bool:
         self - self == 0.0
 
+    ## True exactly for positive or negative infinity.
+    ## See [std-num.is-infinite](../../spec/std/num.md#r-std-num.is-infinite).
+    pub fn is_infinite(self) -> bool:
+        self.abs() == f32::from_bits(0x7f800000)
+
 impl f64:
     ## True when the value is NaN.
     ## See [std-num.is-nan](../../spec/std/num.md#r-std-num.is-nan).
@@ -598,6 +624,11 @@ impl f64:
     ## See [std-num.is-finite](../../spec/std/num.md#r-std-num.is-finite).
     pub fn is_finite(self) -> bool:
         self - self == 0.0
+
+    ## True exactly for positive or negative infinity.
+    ## See [std-num.is-infinite](../../spec/std/num.md#r-std-num.is-infinite).
+    pub fn is_infinite(self) -> bool:
+        self.abs() == f64_from(0x7ff0000000000000)
 
     # Fixed-point text with `digits` fractional digits, correctly rounded
     # with ties to even (spec/std/num.md#fixed-point-text). The host hook
@@ -687,204 +718,11 @@ impl f32:
     @intrinsic
     pub fn copysign(self, sign: f32) -> f32
 
-# Floating power and remainder are ordinary std code. Wasm has no native
-# instructions for either operation, so the backend roots these two private
-# entry points and calls them for both widths (widening and narrowing f32).
-# Power is a port of fdlibm's `__ieee754_pow` (e_pow.c 1.5, the algorithm
-# of V8's `Math.pow`): IEEE 754 special cases exact, other results within
-# 1 ULP (spec/lang/05-expressions.md#r-expr.power.float.within-ulp).
-# Remainder uses exact shift-and-subtract on the significands.
-#
-# The port keeps fdlibm's notice:
-# ====================================================
-# Copyright (C) 2004 by Sun Microsystems, Inc. All rights reserved.
-#
-# Permission to use, copy, modify, and distribute this
-# software is freely granted, provided that this notice
-# is preserved.
-# ====================================================
-
-fn float_power_of_two(exponent: i32) -> f64:
-    f64_from(u64(exponent + 1023) << 52)
-
-# The special cases of IEEE 754-2019 clause 9.2 `pow`, as
-# `(true, result, 1.0)`. Otherwise `(false, |x|, sign)`, with `x` and `y`
-# finite and nonzero and `sign` -1.0 for a negative `x` and an odd `y`.
-fn power_special_cases(x: f64, y: f64) -> (bool, f64, f64):
-    if y == 0.0 || x == 1.0:
-        return (true, 1.0, 1.0)
-    if x != x || y != y:
-        return (true, x + y, 1.0)
-    y_magnitude := y.abs()
-    small_integer := y_magnitude < 9007199254740992.0
-    integer := y_magnitude >= 9007199254740992.0 || y.trunc() == y
-    odd := integer && small_integer && (y * 0.5).trunc() * 2.0 != y
-    infinity := f64_from(9218868437227405312)
-    if y_magnitude == infinity:
-        x_magnitude := x.abs()
-        if x_magnitude == 1.0:
-            return (true, 1.0, 1.0)
-        if (x_magnitude > 1.0) == (y > 0.0):
-            return (true, infinity, 1.0)
-        return (true, 0.0, 1.0)
-    if x == 0.0:
-        result := if y < 0.0: infinity else: 0.0
-        return (true, if odd: result.copysign(x) else: result, 1.0)
-    if x.abs() == infinity:
-        result := if y < 0.0: 0.0 else: infinity
-        return (true, if x < 0.0 && odd: -result else: result, 1.0)
-    if x < 0.0 && !integer:
-        return (true, f64_from(9221120237041090560), 1.0)
-    sign := if x < 0.0 && odd: -1.0 else: 1.0
-    (false, x.abs(), sign)
-
-# The high 32 bits of the value, fdlibm's `__HI`.
-fn high_word(value: f64) -> u32:
-    u32(f64_bits(value) >> 32)
-
-# The value with its low 32 bits cleared, fdlibm's `__LO(value) = 0`.
-fn low_cleared(value: f64) -> f64:
-    f64_from(f64_bits(value) & 0xffffffff00000000)
-
-@inline(.Never)
-fn float_pow_f64(x: f64, y: f64) -> f64:
-    infinity := f64_from(9218868437227405312)
-    let ax = x
-    let sign = 1.0
-    # A finite positive `x` other than 1 with a finite nonzero `y` is no
-    # special case, so the common case skips the checks.
-    if !(x > 0.0 && x < infinity && x != 1.0 && y.abs() < infinity && y != 0.0):
-        let (done, magnitude, negative_odd) = power_special_cases(x, y)
-        if done:
-            return magnitude
-        ax = magnitude
-        sign = negative_odd
-    # fdlibm's exact shortcuts; a negative `x` with `y` 0.5 was NaN above.
-    if y == 1.0:
-        return x
-    if y == -1.0:
-        return 1.0 / x
-    if y == 2.0:
-        return x * x
-    if y == 0.5:
-        return ax.sqrt()
-    let ix = high_word(ax)
-    iy := high_word(y) & 0x7fffffff
-    let t1 = 0.0
-    let t2 = 0.0
-    if iy > 0x41e00000:
-        # |y| > 2**31: over- or underflow unless x is within 2**-20 of 1.
-        if iy > 0x43f00000:
-            if ix <= 0x3fefffff:
-                return if y < 0.0: infinity else: 0.0
-            if ix >= 0x3ff00000:
-                return if y > 0.0: infinity else: 0.0
-        if ix < 0x3fefffff:
-            return sign * (if y < 0.0: infinity else: 0.0)
-        if ix > 0x3ff00000:
-            return sign * (if y > 0.0: infinity else: 0.0)
-        # log(x) is x - x**2/2 + x**3/3 - x**4/4 near 1.
-        t := ax - 1.0
-        w := (t * t) * (0.5 - t * (0.3333333333333333333333 - t * 0.25))
-        u := 1.44269502162933349609e+00 * t
-        v := t * 1.92596299112661746887e-08 - w * 1.44269504088896338700e+00
-        t1 = low_cleared(u + v)
-        t2 = v - (t1 - u)
-    else:
-        let n = +0
-        let a = ax
-        if ix < 0x00100000:
-            a = a * 9007199254740992.0
-            n = -53
-            ix = high_word(a)
-        n = n + i32(ix >> 20) - 1023
-        j := ix & 0x000fffff
-        ix = j | 0x3ff00000
-        # The interval: |x| < sqrt(3/2), |x| < sqrt(3), or halve it.
-        let k: u32 = if j > 0x3988E && j < 0xBB67A: 1 else: 0
-        if j >= 0xBB67A:
-            n = n + 1
-            ix = ix - 0x00100000
-        a = f64_from((u64(ix) << 32) | (f64_bits(a) & 0xffffffff))
-        bp := if k == 1: 1.5 else: 1.0
-        dp_h := if k == 1: 5.84962487220764160156e-01 else: 0.0
-        dp_l := if k == 1: 1.35003920212974897128e-08 else: 0.0
-        # ss = s_h + s_l = (x - 1) / (x + 1) or (x - 1.5) / (x + 1.5).
-        u := a - bp
-        v := 1.0 / (a + bp)
-        ss := u * v
-        s_h := low_cleared(ss)
-        # t_h = a + bp, high part.
-        t_h := f64_from(u64(((ix >> 1) | 0x20000000) + 0x00080000 + (k << 18)) << 32)
-        t_l := a - (t_h - bp)
-        s_l := v * ((u - s_h * t_h) - s_h * t_l)
-        # log(a)
-        s2 := ss * ss
-        let r = 2.30660745775561754067e-01 + s2 * 2.06975017800338417784e-01
-        r = 2.72728123808534006489e-01 + s2 * r
-        r = 3.33333329818377432918e-01 + s2 * r
-        r = 4.28571428578550184252e-01 + s2 * r
-        r = 5.99999999999994648725e-01 + s2 * r
-        r = s2 * s2 * r
-        r = r + s_l * (s_h + ss)
-        s_h2 := s_h * s_h
-        t_h2 := low_cleared(3.0 + s_h2 + r)
-        t_l2 := r - ((t_h2 - 3.0) - s_h2)
-        # u2 + v2 = ss * (1 + ...)
-        u2 := s_h * t_h2
-        v2 := s_l * t_h2 + t_l2 * ss
-        # 2 / (3 log2) * (ss + ...)
-        p_h := low_cleared(u2 + v2)
-        p_l := v2 - (p_h - u2)
-        z_h := 9.61796700954437255859e-01 * p_h
-        z_l := -7.02846165095275826516e-09 * p_h + p_l * 9.61796693925975554329e-01 + dp_l
-        # log2(a) = (ss + ...) * 2 / (3 log2) = n + dp_h + z_h + z_l
-        t := f64(n)
-        t1 = low_cleared(((z_h + z_l) + dp_h) + t)
-        t2 = z_l - (((t1 - t) - dp_h) - z_h)
-    # Split y into y1 + y2 and compute (y1 + y2) * (t1 + t2).
-    y1 := low_cleared(y)
-    p_l := (y - y1) * t1 + y * t2
-    let p_h = y1 * t1
-    z := p_l + p_h
-    if z >= 1024.0:
-        if z > 1024.0 || p_l + 8.0085662595372944372e-17 > z - p_h:
-            return sign * infinity
-    else if z <= -1075.0:
-        if z < -1075.0 || p_l <= z - p_h:
-            return sign * 0.0
-    # 2 ** (p_h + p_l), with n the nearest integer to z when |z| > 0.5:
-    # adding 0.5 to the high word, then dropping its fraction bits.
-    let n = +0
-    z_high := high_word(z)
-    if z_high & 0x7fffffff > 0x3fe00000:
-        k := i32((z_high & 0x7fffffff) >> 20) - 1023
-        rounded := z_high + (0x00100000 >> u32(k + 1))
-        whole_k := i32((rounded & 0x7fffffff) >> 20) - 1023
-        whole := f64_from(u64(rounded & ~(0x000fffff >> u32(whole_k))) << 32)
-        n = i32(((rounded & 0x000fffff) | 0x00100000) >> u32(20 - whole_k))
-        if z < 0.0:
-            n = -n
-        p_h = p_h - whole
-    t := low_cleared(p_l + p_h)
-    u := t * 6.93147182464599609375e-01
-    v := (p_l - (t - p_h)) * 6.93147180559945286227e-01 + t * -1.90465429995776804525e-09
-    e := u + v
-    w := v - (e - u)
-    e2 := e * e
-    let c = -1.65339022054652515390e-06 + e2 * 4.13813679705723846039e-08
-    c = 6.61375632143793436117e-05 + e2 * c
-    c = -2.77777777770155933842e-03 + e2 * c
-    c = 1.66666666666666019037e-01 + e2 * c
-    c = e - e2 * c
-    r := (e * c) / (c - 2.0) - (w + e * w)
-    result := 1.0 - (r - e)
-    bits := f64_bits(result)
-    exponent := i32(bits >> 52) + n
-    if exponent <= 0:
-        # A subnormal result: one rounding, in the last multiplication.
-        return sign * (result * float_power_of_two(n + 1022) * float_power_of_two(-1022))
-    sign * f64_from((u64(exponent) << 52) | (bits & 4503599627370495))
+# Floating power and remainder are ordinary std code: Wasm has no
+# instructions for them. Power calls float_pow_f64 at f64 and libm_powf
+# at f32, the same functions powf calls. Only f32 remainder widens and
+# narrows around float_rem_f64, which uses exact shift-and-subtract on
+# the significands.
 
 fn normalized_float(bits: u64) -> (i32, u64):
     let exponent = i32((bits >> 52) & 2047)
@@ -946,239 +784,6 @@ impl f32:
     ## See [std-num.float-sqrt](../../spec/std/num.md#r-std-num.float-sqrt).
     @intrinsic
     pub fn sqrt(self) -> f32
-
-# Parsing accepts an optional `+` or `-` and then decimal digits only.
-# Every scalar before the first invalid one is ASCII, so the scalar index
-# that `InvalidDigit` reports is also its byte offset (Strings STR10).
-# Reads the digits toward the sign, so the minimum value parses. Each step
-# checks the bound first, so the arithmetic stays inside `low` to `high`.
-# It reads the text's UTF-8 bytes: a non-ASCII byte is no digit, and every
-# byte before the first invalid one is ASCII, so the byte index is the
-# reported position.
-fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberError]:
-    size := text.len()
-    if size == 0:
-        return .Err(ParseNumberError.Empty)
-    negative := text[0] == 45
-    let index: usize = if negative || text[0] == 43: 1 else: 0
-    # A lone sign ends where a digit must follow: the end-of-text index.
-    if index == size:
-        return .Err(ParseNumberError.InvalidDigit(index))
-    let value: i64 = 0
-    while index < size:
-        byte := text[index]
-        if byte < 48 || byte > 57:
-            return .Err(ParseNumberError.InvalidDigit(index))
-        digit := i64(byte - 48)
-        # Division truncates toward zero, so each bound is exact.
-        if negative:
-            if value < (low + digit) / 10:
-                return .Err(ParseNumberError.OutOfRange)
-            value = value * 10 - digit
-        else:
-            if value > (high - digit) / 10:
-                return .Err(ParseNumberError.OutOfRange)
-            value = value * 10 + digit
-        index = index + 1
-    .Ok(value)
-
-# Unsigned parsing (r-std-num.parse.unsigned-type-grammar): the signed grammar without
-# `-`, which is an invalid digit at position 0. A `u64` holds every result,
-# so one reader serves every width.
-fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
-    size := text.len()
-    if size == 0:
-        return .Err(ParseNumberError.Empty)
-    let index: usize = if text[0] == 43: 1 else: 0
-    if index == size:
-        return .Err(ParseNumberError.InvalidDigit(index))
-    let value: u64 = 0
-    while index < size:
-        byte := text[index]
-        if byte < 48 || byte > 57:
-            return .Err(ParseNumberError.InvalidDigit(index))
-        digit := u64(byte - 48)
-        # Division truncates, so the bound is exact and the product cannot overflow.
-        if value > (high - digit) / 10:
-            return .Err(ParseNumberError.OutOfRange)
-        value = value * 10 + digit
-        index = index + 1
-    .Ok(value)
-
-# `Parse` for the numbers (r-std-num.parse.trait-impls): each impl reads the
-# grammar and the range of its type, and the error is `ParseNumberError`.
-impl Parse for i8:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[i8, ParseNumberError]:
-        match parse_integer(text, -128, 127):
-            .Ok(value) => .Ok(i8(value))
-            .Err(error) => .Err(error)
-
-impl Parse for i16:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[i16, ParseNumberError]:
-        match parse_integer(text, -32768, 32767):
-            .Ok(value) => .Ok(i16(value))
-            .Err(error) => .Err(error)
-
-impl Parse for i32:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[i32, ParseNumberError]:
-        match parse_integer(text, -2147483648, 2147483647):
-            .Ok(value) => .Ok(i32(value))
-            .Err(error) => .Err(error)
-
-impl Parse for i64:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[i64, ParseNumberError]:
-        parse_integer(text, i64::min_value(), i64::max_value())
-
-impl Parse for u8:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[u8, ParseNumberError]:
-        match parse_unsigned(text, 255):
-            .Ok(value) => .Ok(u8(value))
-            .Err(error) => .Err(error)
-
-impl Parse for u16:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[u16, ParseNumberError]:
-        match parse_unsigned(text, 65535):
-            .Ok(value) => .Ok(u16(value))
-            .Err(error) => .Err(error)
-
-impl Parse for u32:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[u32, ParseNumberError]:
-        match parse_unsigned(text, 4294967295):
-            .Ok(value) => .Ok(u32(value))
-            .Err(error) => .Err(error)
-
-impl Parse for u64:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[u64, ParseNumberError]:
-        parse_unsigned(text, 18446744073709551615)
-
-# `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-type-range).
-impl Parse for usize:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[usize, ParseNumberError]:
-        match parse_unsigned(text, 4294967295):
-            .Ok(value) => .Ok(usize(value))
-            .Err(error) => .Err(error)
-
-impl Parse for f64:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[f64, ParseNumberError]:
-        read_float64(text)
-
-# The `f32` is the `f64` that `f64.parse` reads, rounded to `f32`
-# (r-std-num.parse.float32).
-impl Parse for f32:
-    type Error = ParseNumberError
-
-    fn parse(text: string) -> Result[f32, ParseNumberError]:
-        match read_float64(text):
-            .Ok(value) => .Ok(f32(value))
-            .Err(error) => .Err(error)
-
-# Float parsing (spec/std/num.md#float-parsing), in the grammar of Rust's
-# `str::parse::<f64>`. The sign, the grammar, and the words `nan`, `inf`,
-# and `infinity` are read here, so every error and its position are std's.
-# The host hook only rounds an unsigned decimal number, and has no error
-# signal (r-std-num.parse-f64.hook.total).
-fn read_float64(text: string) -> Result[f64, ParseNumberError]:
-    size := text.len()
-    if size == 0:
-        return .Err(ParseNumberError.Empty)
-    negative := text[0] == 45
-    let start: usize = if negative || text[0] == 43: 1 else: 0
-    if start == size:
-        return .Err(ParseNumberError.InvalidDigit(start))
-    first := text[start]
-    let magnitude = 0.0
-    # `n`, `N`, `i`, `I`: a special word.
-    if first == 110 || first == 78 || first == 105 || first == 73:
-        match word_error(text, start):
-            .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
-            .None => pass
-        magnitude = if first == 110 || first == 78: 0.0 / 0.0 else: 1.0 / 0.0
-    else:
-        match decimal_error(text, start):
-            .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
-            .None => pass
-        # The sign is one ASCII byte, so the unsigned text starts at byte 1.
-        magnitude = round_decimal(if start == 0: text else: text.slice(1, size))
-    if negative: .Ok(-magnitude) else: .Ok(magnitude)
-
-# Where the bytes of `text` from `start` first break a decimal number
-# (r-std-num.parse-f64.decimal): the offset of the byte no continuation
-# allows, or the text's length when it ends where more must follow.
-# `.None` when all of it matches. Every byte before the first invalid one
-# is ASCII, so the byte offset is the position the spec reports.
-fn decimal_error(text: string, start: usize) -> usize?:
-    size := text.len()
-    let at = after_digits(text, start)
-    let digits = at > start
-    if at < size && text[at] == 46:
-        fraction := after_digits(text, at + 1)
-        digits = digits || fraction > at + 1
-        at = fraction
-    # Either side of the point may be empty, but not both.
-    if !digits:
-        return .Some(at)
-    if at < size && (text[at] == 101 || text[at] == 69):
-        at = at + 1
-        if at < size && (text[at] == 43 || text[at] == 45):
-            at = at + 1
-        if at >= size:
-            return .Some(size)
-        if text[at] < 48 || text[at] > 57:
-            return .Some(at)
-        at = after_digits(text, at)
-    if at < size: .Some(at) else: .None
-
-# Where the bytes of `text` from `start` first break the word `nan`, `inf`,
-# or `infinity`, each letter in either case (r-std-num.parse-f64.special):
-# the offset of the byte no word allows, or the text's length when it ends
-# inside a word. `.None` when the rest is one whole word.
-fn word_error(text: string, start: usize) -> usize?:
-    nan := text[start] == 110 || text[start] == 78
-    word := if nan: "nan" else: "infinity"
-    size := text.len()
-    let index: usize = 0
-    while start + index < size:
-        byte := text[start + index]
-        # An upper-case letter is 32 below its lower-case letter.
-        if index >= word.len() || (byte != word[index] && byte != word[index] - 32):
-            return .Some(start + index)
-        index = index + 1
-    # `inf` is a whole word as well as the start of `infinity`.
-    if index == word.len() || (!nan && index == 3): .None else: .Some(size)
-
-# The offset after the run of decimal digits that starts at `at`.
-fn after_digits(text: string, at: usize) -> usize:
-    let index = at
-    while index < text.len() && text[index] >= 48 && text[index] <= 57:
-        index = index + 1
-    index
-
-# The correctly rounded `f64` of an unsigned decimal number, ties to
-# even: positive infinity past the range and `0.0` below it. Callers pass
-# only text in the grammar (spec/std/README.md#standard-library-primitives).
-@intrinsic("parse_f64")
-fn round_decimal(text: string) -> f64:
-    panic("intrinsic")
 
 # The bit casts between a float and the unsigned integer of its width: one
 # reinterpret instruction each, keeping every bit
@@ -1259,397 +864,6 @@ impl f64:
     ## See [std-num.float-max.value](../../spec/std/num.md#r-std-num.float-max.value).
     pub fn max(self, other: f64) -> f64:
         if other != other || self > other: self else: other
-
-# Transcendental kernels ported from OpenLibm/fdlibm e_log.c and e_exp.c.
-# ====================================================
-# Copyright (C) 1993, 2004 by Sun Microsystems, Inc. All rights reserved.
-# Developed at SunSoft, a Sun Microsystems, Inc. business.
-# Permission to use, copy, modify, and distribute this
-# software is freely granted, provided that this notice is preserved.
-# ====================================================
-# Normalize once, then evaluate the fixed-degree approximation using split
-# ln(2) constants. No heap workspace, input-sized loop or native recursion.
-fn float_ln_f64(value: f64) -> f64:
-    if value == 0.0:
-        return -1.0 / 0.0
-    if value < 0.0:
-        return 0.0 / 0.0
-    if !value.is_finite():
-        return value + value
-    reduced := float_log_reduction(value)
-    f := reduced._0
-    exponent := reduced._1
-    word := reduced._2
-    k := f64(exponent)
-    hi := 6.93147180369123816490e-01
-    lo := 1.90821492927058770002e-10
-    if ((word + 2) & 0x000fffff) < 3:
-        if f == 0.0:
-            return if exponent == 0: 0.0 else: k * hi + k * lo
-        correction := f * f * (0.5 - 0.33333333333333333 * f)
-        return if exponent == 0: f - correction else: k * hi - ((correction - k * lo) - f)
-    s := f / (2.0 + f)
-    z := s * s
-    remainder := float_log_polynomial(z)
-    if ((i32(word) - 398458) | (440401 - i32(word))) > 0:
-        half_square := 0.5 * f * f
-        return if exponent == 0:
-            f - (half_square - s * (half_square + remainder))
-        else:
-            k * hi - ((half_square - (s * (half_square + remainder) + k * lo)) - f)
-    if exponent == 0: f - s * (f - remainder) else: k * hi - ((s * (f - remainder) - k * lo) - f)
-
-fn float_exp_f64(value: f64) -> f64:
-    if value.is_nan():
-        return value + value
-    if value > 7.09782712893383973096e+02:
-        return 1.0 / 0.0
-    if value < -7.45133219101941108420e+02:
-        return 0.0
-    let x = value
-    let k: i32 = 0
-    let hi = 0.0
-    let lo = 0.0
-    word := high_word(x) & 0x7fffffff
-    if word > 0x3fd62e42:
-        if word < 0x3ff0a2b2:
-            k = if x < 0.0: -1 else: +1
-            hi = x - f64(k) * 6.93147180369123816490e-01
-            lo = f64(k) * 1.90821492927058770002e-10
-        else:
-            k = i32(x * 1.44269504088896338700e+00 + 0.5.copysign(x))
-            hi = x - f64(k) * 6.93147180369123816490e-01
-            lo = f64(k) * 1.90821492927058770002e-10
-        x = hi - lo
-    else if word < 0x3e300000:
-        return 1.0 + x
-    square := x * x
-    p4 := -1.65339022054652515390e-06 + square * 4.13813679705723846039e-08
-    p3 := 6.61375632143793436117e-05 + square * p4
-    p2 := -2.77777777770155933842e-03 + square * p3
-    polynomial := 1.66666666666666019037e-01 + square * p2
-    correction := x - square * polynomial
-    if k == 0:
-        return 1.0 - ((x * correction) / (correction - 2.0) - x)
-    y := 1.0 - ((lo - (x * correction) / (2.0 - correction)) - hi)
-    if k == 1024:
-        return y * 2.0 * float_power_of_two(1023)
-    if k >= -1021:
-        return y * float_power_of_two(k)
-    y * float_power_of_two(k + 1000) * 9.33263618503218878990e-302
-
-# The signed exponent has at most 32 bits, including i32's minimum value.
-# Widen before negation; repeated squaring consumes one exponent bit per step.
-fn float_integer_power[F < Float](value: F, exponent: i32) -> F:
-    let bits = u32(if exponent < 0: -i64(exponent) else: i64(exponent))
-    let factor = if exponent < 0: F::one() / value else: value
-    let result = F::one()
-    while bits != 0:
-        if (bits & 1) != 0:
-            result *= factor
-        bits = bits >> 1
-        if bits != 0:
-            factor *= factor
-    result
-
-impl f64:
-    ## The natural logarithm.
-    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
-    pub fn ln(self) -> f64:
-        float_ln_f64(self)
-    ## The natural exponential.
-    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
-    pub fn exp(self) -> f64:
-        float_exp_f64(self)
-    ## This value raised to a floating-point exponent.
-    ## See [std-num.float-math.powf](../../spec/std/num.md#r-std-num.float-math.powf).
-    pub fn powf(self, exponent: f64) -> f64:
-        float_pow_f64(self, exponent)
-    ## This value raised to a signed integer exponent.
-    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
-    pub fn powi(self, exponent: i32) -> f64:
-        float_integer_power(self, exponent)
-    ## The sign as negative one, positive one, or NaN.
-    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
-    pub fn signum(self) -> f64:
-        if self.is_nan(): self else: 1.0.copysign(self)
-
-impl f32:
-    ## The natural logarithm.
-    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
-    pub fn ln(self) -> f32:
-        f32(float_ln_f64(f64(self)))
-    ## The natural exponential.
-    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
-    pub fn exp(self) -> f32:
-        f32(float_exp_f64(f64(self)))
-    ## This value raised to a floating-point exponent.
-    ## See [std-num.float-math.powf](../../spec/std/num.md#r-std-num.float-math.powf).
-    pub fn powf(self, exponent: f32) -> f32:
-        f32(float_pow_f64(f64(self), f64(exponent)))
-    ## This value raised to a signed integer exponent.
-    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
-    pub fn powi(self, exponent: i32) -> f32:
-        float_integer_power(self, exponent)
-    ## The sign as negative one, positive one, or NaN.
-    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
-    pub fn signum(self) -> f32:
-        if self.is_nan(): self else: f32(1.0).copysign(self)
-
-# Shared finite-positive reduction for ln, log2 and log10.
-fn float_log_reduction(value: f64) -> (f64, i32, u32):
-    let x = value
-    let exponent: i32 = 0
-    let word = high_word(x)
-    if word < 0x00100000:
-        x *= 18014398509481984.0
-        exponent -= 54
-        word = high_word(x)
-    exponent += i32(word >> 20) - 1023
-    word = word & 0x000fffff
-    halve := (word + 0x95f64) & 0x100000
-    x = f64_from((u64(word | (halve ^ 0x3ff00000)) << 32) | (f64_bits(x) & 0xffffffff))
-    exponent += i32(halve >> 20)
-    (x - 1.0, exponent, word)
-
-@inline(.Always)
-fn float_log_polynomial(z: f64) -> f64:
-    w := z * z
-    even := (
-        w
-        * (3.999999999940941908e-01 + w * (2.222219843214978396e-01 + w * 1.531383769920937332e-01))
-    )
-    odd_tail := 1.818357216161805012e-01 + w * 1.479819860511658591e-01
-    odd_middle := 2.857142874366239149e-01 + w * odd_tail
-    odd := z * (6.666666666666735130e-01 + w * odd_middle)
-    even + odd
-
-fn float_log_scaled(
-    value: f64,
-    inverse_hi: f64,
-    inverse_lo: f64,
-    exponent_hi: f64,
-    exponent_lo: f64,
-) -> f64:
-    if value == 0.0:
-        return -1.0 / 0.0
-    if value < 0.0:
-        return 0.0 / 0.0
-    if !value.is_finite():
-        return value + value
-    if value == 1.0:
-        return 0.0
-    reduced := float_log_reduction(value)
-    f := reduced._0
-    k := f64(reduced._1)
-    half_square := 0.5 * f * f
-    ratio := f / (2.0 + f)
-    remainder := ratio * (half_square + float_log_polynomial(ratio * ratio))
-    hi := low_cleared(f - half_square)
-    lo := (f - hi) - half_square + remainder
-    value_hi := hi * inverse_hi
-    exponent_value := k * exponent_hi
-    value_lo := k * exponent_lo + (lo + hi) * inverse_lo + lo * inverse_hi
-    sum := exponent_value + value_hi
-    (value_lo + ((exponent_value - sum) + value_hi)) + sum
-
-# OpenLibm s_atan.c: four argument-reduction intervals and an 11-term
-# minimax polynomial. The two chains preserve the reference's evaluation.
-fn float_atan_f64(value: f64) -> f64:
-    if value.is_nan():
-        return value + value
-    word := high_word(value) & 0x7fffffff
-    if word >= 0x44100000:
-        return 1.57079632679489655800.copysign(value)
-    if word < 0x3e400000:
-        return value
-    let x = value
-    let region: i32 = -1
-    if word >= 0x3fdc0000:
-        x = value.abs()
-        if word < 0x3ff30000:
-            if word < 0x3fe60000:
-                region = 0
-                x = (2.0 * x - 1.0) / (2.0 + x)
-            else:
-                region = 1
-                x = (x - 1.0) / (x + 1.0)
-        else if word < 0x40038000:
-            region = 2
-            x = (x - 1.5) / (1.0 + 1.5 * x)
-        else:
-            region = 3
-            x = -1.0 / x
-    z := x * x
-    w := z * z
-    odd4 := 4.97687799461593236017e-02 + w * 1.62858201153657823623e-02
-    odd3 := 6.66107313738753120669e-02 + w * odd4
-    odd2 := 9.09088713343650656196e-02 + w * odd3
-    odd1 := 1.42857142725034663711e-01 + w * odd2
-    odd := z * (3.33333333333329318027e-01 + w * odd1)
-    even3 := -5.83357013379057348645e-02 + w * -3.65315727442169155270e-02
-    even2 := -7.69187620504482999495e-02 + w * even3
-    even1 := -1.11111104054623557880e-01 + w * even2
-    even := w * (-1.99999999998764832476e-01 + w * even1)
-    if region < 0:
-        return x - x * (odd + even)
-    head := match region:
-        0 => 4.63647609000806093515e-01
-        1 => 7.85398163397448278999e-01
-        2 => 9.82793723247329054082e-01
-        _ => 1.57079632679489655800e+00
-    tail := match region:
-        0 => 2.26987774529616870924e-17
-        1 => 3.06161699786838301793e-17
-        2 => 1.39033110312309984516e-17
-        _ => 6.12323399573676603587e-17
-    (head - ((x * (odd + even) - tail) - x)).copysign(value)
-
-fn float_atan2_f64(y: f64, x: f64) -> f64:
-    if x.is_nan() || y.is_nan():
-        return x + y
-    negative_x := (f64_bits(x) >> 63) != 0
-    pi := 3.14159265358979311600
-    half_pi := 1.57079632679489655800
-    if y == 0.0:
-        return if negative_x: pi.copysign(y) else: y
-    if x == 0.0:
-        return half_pi.copysign(y)
-    if !x.is_finite():
-        if !y.is_finite():
-            return (if negative_x:
-                3.0 * 7.85398163397448278999e-01
-            else:
-                7.85398163397448278999e-01).copysign(y)
-        return (if negative_x: pi else: 0.0).copysign(y)
-    if !y.is_finite():
-        return half_pi.copysign(y)
-    difference := (i32(high_word(y) & 0x7fffffff) - i32(high_word(x) & 0x7fffffff)) >> 20
-    if difference > 60:
-        return half_pi.copysign(y)
-    z := if negative_x && difference < -60: 0.0 else: float_atan_f64((y / x).abs())
-    (if negative_x: pi - (z - 1.2246467991473531772e-16) else: z).copysign(y)
-
-# Shared rational correction for asin and acos on their reduced intervals.
-@inline(.Always)
-fn float_asin_correction(z: f64) -> f64:
-    p4 := 7.91534994289814532176e-04 + z * 3.47933107596021167570e-05
-    p3 := -4.00555345006794114027e-02 + z * p4
-    p2 := 2.01212532134862925881e-01 + z * p3
-    p1 := -3.25565818622400915405e-01 + z * p2
-    numerator := z * (1.66666666666666657415e-01 + z * p1)
-    q3 := -6.88283971605453293030e-01 + z * 7.70381505559019352791e-02
-    q2 := 2.02094576023350569471e+00 + z * q3
-    q1 := -2.40339491173441421878e+00 + z * q2
-    denominator := 1.0 + z * q1
-    numerator / denominator
-
-fn float_asin_f64(value: f64) -> f64:
-    size := value.abs()
-    if size >= 1.0:
-        return if size == 1.0:
-            value * 1.57079632679489655800 + value * 6.12323399573676603587e-17
-        else:
-            0.0 / 0.0
-    if size < 0.5:
-        if (high_word(value) & 0x7fffffff) < 0x3e500000:
-            return value
-        return value + value * float_asin_correction(value * value)
-    z := (1.0 - size) * 0.5
-    root := z.sqrt()
-    correction := float_asin_correction(z)
-    if (high_word(value) & 0x7fffffff) >= 0x3fef3333:
-        tail := 2.0 * (root + root * correction) - 6.12323399573676603587e-17
-        head := 1.57079632679489655800 - tail
-        return head.copysign(value)
-    high_root := low_cleared(root)
-    low_root := (z - high_root * high_root) / (root + high_root)
-    p := 2.0 * root * correction - (6.12323399573676603587e-17 - 2.0 * low_root)
-    q := 7.85398163397448278999e-01 - 2.0 * high_root
-    (7.85398163397448278999e-01 - (p - q)).copysign(value)
-
-fn float_acos_f64(value: f64) -> f64:
-    size := value.abs()
-    if size >= 1.0:
-        if size != 1.0:
-            return 0.0 / 0.0
-        return if value > 0.0: 0.0 else: 3.14159265358979311600
-    if size < 0.5:
-        if (high_word(value) & 0x7fffffff) <= 0x3c600000:
-            return 1.57079632679489655800
-        return (
-            1.57079632679489655800
-            - (value - (6.12323399573676603587e-17 - value * float_asin_correction(value * value)))
-        )
-    z := (1.0 - size) * 0.5
-    root := z.sqrt()
-    correction := float_asin_correction(z)
-    if value < 0.0:
-        return (
-            3.14159265358979311600
-            - 2.0 * (root + (correction * root - 6.12323399573676603587e-17))
-        )
-    high_root := low_cleared(root)
-    low_root := (z - high_root * high_root) / (root + high_root)
-    2.0 * (high_root + (correction * root + low_root))
-
-impl f64:
-    ## The base-two logarithm.
-    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
-    pub fn log2(self) -> f64:
-        float_log_scaled(self, 1.44269504072144627571, 1.67517131648865118353e-10, 1.0, 0.0)
-    ## The base-ten logarithm.
-    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
-    pub fn log10(self) -> f64:
-        float_log_scaled(
-            self,
-            4.34294481878168880939e-01,
-            2.50829467116452752298e-11,
-            3.01029995663611771306e-01,
-            3.69423907715893078616e-13,
-        )
-    ## The principal arctangent in radians.
-    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
-    pub fn atan(self) -> f64:
-        float_atan_f64(self)
-    ## The four-quadrant angle of (x, self), in radians.
-    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
-    pub fn atan2(self, x: f64) -> f64:
-        float_atan2_f64(self, x)
-    ## The principal arcsine in radians.
-    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
-    pub fn asin(self) -> f64:
-        float_asin_f64(self)
-    ## The principal arccosine in radians.
-    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
-    pub fn acos(self) -> f64:
-        float_acos_f64(self)
-
-impl f32:
-    ## The base-two logarithm.
-    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
-    pub fn log2(self) -> f32:
-        f32(f64(self).log2())
-    ## The base-ten logarithm.
-    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
-    pub fn log10(self) -> f32:
-        f32(f64(self).log10())
-    ## The principal arctangent in radians.
-    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
-    pub fn atan(self) -> f32:
-        f32(float_atan_f64(f64(self)))
-    ## The four-quadrant angle of (x, self), in radians.
-    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
-    pub fn atan2(self, x: f32) -> f32:
-        f32(float_atan2_f64(f64(self), f64(x)))
-    ## The principal arcsine in radians.
-    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
-    pub fn asin(self) -> f32:
-        f32(float_asin_f64(f64(self)))
-    ## The principal arccosine in radians.
-    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
-    pub fn acos(self) -> f32:
-        f32(float_acos_f64(f64(self)))
 
 # One slot per binary64 2/pi limb (66), plus the two extra input digits.
 # Borrowed access keeps the tuple place alive through each raw load/store.
@@ -1832,13 +1046,6 @@ fn float_limb_digit(byte: u8) -> u32:
         return u32(byte) + 4
     if byte == 43: 62 else: 63
 
-fn float_scale_binary(value: f64, exponent: i32) -> f64:
-    if exponent < -1022:
-        return value * float_power_of_two(exponent + 1022) * float_power_of_two(-1022)
-    if exponent > 1023:
-        return value * float_power_of_two(exponent - 1023) * float_power_of_two(1023)
-    value * float_power_of_two(exponent)
-
 fn float_reduction_digit(digits: (f64, f64, f64), index: i32) -> f64:
     match index:
         0 => digits._0
@@ -1853,304 +1060,2929 @@ fn float_half_pi_digit(index: i32) -> f64:
         3 => 3.28200341580791294123e-22
         _ => 1.27065575308067607349e-29
 
-# fdlibm's double-precision Payne-Hanek kernel: multiply only the window
-# of 2/pi that contributes the low three quotient bits and remainder.
-# Each input has at most three 24-bit digits. The table fixes the total
-# width; recomputation extends its window and never recurses.
-fn float_reduce_large(value: f64) -> (i32, f64, f64):
-    magnitude := value.abs()
-    exponent := i32(high_word(magnitude) >> 20) - 1046
-    scaled := f64_from((f64_bits(magnitude) & 0x000fffffffffffff) | (1046 << 52))
-    first := scaled.trunc()
-    rest := (scaled - first) * 16777216.0
-    second := rest.trunc()
-    third := (rest - second) * 16777216.0
-    digits := (first, second, third)
-    last := if third != 0.0: +2 else: (if second != 0.0: +1 else: +0)
-    start := if exponent > 3: (exponent - 3) / 24 else: +0
-    let scale = exponent - 24 * (start + 1)
+# The float math functions are a port of musl 1.2.5's libm (src/math), line
+# for line, so every method gives musl's result bit for bit
+# (r-std-num.float-math.musl). musl is the libm of Rust's and C's musl
+# targets, and its exp, exp2, log, log2 and pow (Arm's optimized routines)
+# are also glibc's since 2.28. Each function names the musl file it ports.
+# The port follows musl compiled without fused multiply-add (Wasm has none)
+# and in round-to-nearest, hd's only rounding mode, so the `__FP_FAST_FMA`
+# and directed-rounding branches are left out. hd has no floating-point
+# exception flags, so the statements that only raise one are left out too.
+# Where musl's integers wrap, the port uses the wrapping methods.
+#
+# musl as a whole is licensed under the following standard MIT license:
+# ----------------------------------------------------------------------
+# Copyright © 2005-2020 Rich Felker, et al.
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# ----------------------------------------------------------------------
+#
+# The files marked "Arm" carry this notice:
+#   Copyright (c) 2018, Arm Limited (2017-2018 for the f32 files).
+#   SPDX-License-Identifier: MIT
+#
+# The files marked "Sun" (from FreeBSD's msun, the fdlibm lineage) carry
+# this notice; k_tan.c and k_tanf.c read "Copyright 2004 Sun Microsystems,
+# Inc. All Rights Reserved." in its first line:
+#   ====================================================
+#   Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+#
+#   Developed at SunPro, a Sun Microsystems, Inc. business.
+#   Permission to use, copy, modify, and distribute this
+#   software is freely granted, provided that this notice
+#   is preserved.
+#   ====================================================
+# The f32 "Sun" files add "Conversion to float by Ian Lance Taylor, Cygnus
+# Support, ian@cygnus.com", and several add "Optimized by Bruce D. Evans."
+# fmaf.c carries David Schultz's notice, quoted at `libm_fmaf`. The files
+# with no mark (sinh.c and its kin, hypot.c, fma.c, scalbn.c) are musl's
+# own, under the MIT license above.
+
+# Word `index` of a packed table of 64-bit words: eleven characters per
+# word, each `?` (63) plus six bits, least significant first. The words
+# are musl's, as scripts/generate-libm-vectors.py --tables prints them; a
+# string literal is static data, but its bytes must be text, so each byte
+# carries six bits. Two loads and a fixed set of shifts read a word, with
+# no heap list and no bounds check (the callers' indices are masked).
+@inline(.Always)
+fn libm_word(table: string, index: usize) -> u64:
+    at := string_bytes(table).address + index * 11
+    let low = load_u64(at) - 0x3f3f3f3f3f3f3f3f
+    low = (low & 0x003f003f003f003f) | ((low >> 2) & 0x0fc00fc00fc00fc0)
+    low = (low & 0x00000fff00000fff) | ((low >> 4) & 0x00fff00000fff000)
+    low = (low & 0x0000000000ffffff) | ((low >> 8) & 0x0000ffffff000000)
+    high := (load_u64(at + 3) - 0x3f3f3f3f3f3f3f3f) >> 40
+    low | ((high & 0x3f) << 48) | ((high & 0x3f00) << 46) | ((high & 0x3f0000) << 44)
+
+@inline(.Always)
+fn libm_float(table: string, index: usize) -> f64:
+    f64_from(libm_word(table, index))
+
+# The top 12 bits of a double: its sign and exponent.
+@inline(.Always)
+fn libm_top12(x: f64) -> u32:
+    u32(f64_bits(x) >> 52)
+
+# musl exp_data.c (Arm): `tab[2k]` is the bits of T[k] and `tab[2k+1]` the
+# bits of H[k] less `k << 45`, where 2^(k/128) ~= H[k] * (1 + T[k]).
+# Read by exp, exp2 and pow; the words are shared as static table data.
+@inline(.Always)
+fn libm_exp_table() -> string:
+    "???????????????????o~Bm|JaY{sMZqBtKr}hub|n~B\\pLu[M@WppJ`@w\\}gHzn~BPZu`OgfVOqJD}fZgVpwn~BRW~XtGdsKqBsTWDRBZun~ByzW}b?grJqJ]Z^vhkEsn~B``kx`xs|_pBGnX\\WSspn~BXM|KZP}gOqBBMnpIzbnn~Bllv_\\XieVqBNcW}k`Tln~B{~]~QiPlMqBv^c[jGHjn~BPrxJotbn}oBaE|sqo}gn~BJwEcHQr?ipJZKl~nYuen~BMszJiGdTTqJPldCOFocn~BThmRK}M_OpJKFBZ?vjan~BUO^txMQqPqJ_vQimih_n~BnUDVhN}s?qBPxWhGbh]n~BGLXhiVpE?qJzDT^{_j[n~B|GbvT@~FNqJivGbwcnYn~B~MtC~oWaJqBtl{ZjntWn~Bek]CupXuUqJSrD@CA}Un~B_|aM}[NzYqBieJYp[GTn~B\\ab`JJwxNqJ\\cL~a?TRn~BLMkhCDsZIqBUrgWGmbPn~B|P?xoU_]?qBUq\\^PesNn~BSaIibvnbUqBwGU\\mhFMn~B|`C\\qb`VFqB~WikNx[Kn~Bq^}FWmqP?qB\\rfwdTsIn~B]`O[~kFmUqJ@MU|`~LHn~BpkYAlD}|AqB`z|FtvhFn~By~zZYkXG|oJOeluO~FEn~Bsi?BqHwLJqBJK?xeUgCn~BNmkrHIHDmpBU|aNh}IBn~BumIkLTVRBqBT[ZKIwn@n~BKPFjaF_OEqBp_LR{BV?n~BI`~s\\dRvNqB~Z@Xqa?~m~BCkdbz?wgEqJp~hc^Tk|m~Bg@tQKvmQQqJJfiMv[Y{m~BMuQSZ_~@XqJe`\\@lxIzm~BQZBd}_]sppJv~Xxsk|xm~BTk`rrePEXqJdbyCBvqwm~BlpcIfasfDqBaObCKXivm~BIeEIy@eCRqJ[?GjCScum~BZdwDG|whWpJiwq|`g_tm~BZgXQflHJ{pJVaISXV^sm~BPoio_t}WBpBlcWW_`_rm~BnRe@zc_XUqBV@OFlFcqm~BxLOgYFMrmpBOrRotIipm~BoGpB~ww~RqB]N|tojqom~Bo}i]zyKcupBfgaLTj|nm~Bv@MTjvZFRqBLs\\~XIJnm~BMMY[?OBdNqJfqQfuHZmm~BHLyc[rkvFqJAXuraillm~B^`rB|YkvwpJA}SfUlAlm~Burt]kZcCEqJNGXVIRYkm~BM]\\~WSOLRqBY^Qlu[sjm~BDkhan[JezpB|^{dSJPjm~BHODFaF}WOqBhODQ\\^oim~BiZ[EOTwpsoBvYSUIYQim~Bt?KXjWmKSqBGDQjT{uhm~B^YVe`hCxKqJHol\\xE]hm~BguszzS{KKqJDUdMoyFhm~Bme}IHavSCqJ_KKrsWsgm~BW`dTwtlrRqJdGQTAabgm~Bcd`^?iICVpBrdIRSVTgm~BgGaV~}}kRqJLnr^exHgm~BAeJLFuiCipJ~i|AtH@gm~BmfYZw}}XbpJngPX{Gzfm~BP`GwStBv?qJCQXSxvvfm~BNzbU}PuFwpJs|DzgVvfm~Bouva?jczEqJsDWhGhxfm~BIY]T]GREEqJH^eOUl}fm~BRR\\A]lKfOqB~sdvNdEgm~B\\SYRxqlKzpJFEoyrPPgm~Bj@{XStNzSqBqCKK@s]gm~BTpetjE}ydpBaxsruKngm~BA|{knS[gGqJQg`NS\\Ahm~Bs[rMpZZYRqJRwKRXeWhm~B]{^EyOgV?qJl]{GEhphm~Bm\\d[WBDtSqJlJHPZeLim~B?ggBZ\\UjOqBXYeaX^kim~BsiM{@~qlLqBZBiIATMjm~B~^]p[AeldpJKQSlUGrjm~BC|t{XLg|zpBu[VDXyYkm~BBubFf}PARqJE~^cJkDlm~Bhw@ZJaZi\\pJdV[ro]rlm~BXdJc{d~GkpJNGDqJRcmm~BieN|aKsOQqJOxcv^IWnm~BJxgXVreqDqJy]_qoDNom~Bfw[cjo~jppBOA~gAEHpm~BzMfA`VbslpBbKqwXKEqm~BbHaWaOOpFqJdT]VzXErm~BTFbwbZGFJqBrsaQknHsm~BTkJnRF|mPqJ\\TaNqMOtm~BQFbz[EBrOqBWLJKRwXum~Brit[mPWYCqB~u^]Tlevm~BsuhbVu{vAqJyL~s~muwm~BFMrqQ]fEKqBlMlUX}Hym~Byf\\sI|w]OqJeXZbh[_zm~ByyIvUd|oTpJzVpRwIy{m~B?Xnh|w?hOqJycTxLIV}m~BsKXjwOntgpJFxt}qZv~m~BtgGUjHmzPqJIXOgo?Z@n~BLv|VI[|~spBQF{QOy@Bn~Bkahcyn^nPqJHwptZHkCn~BrqojowiZrpB[IT`\\nXEn~BSu~f[HrwMqBy@|~^lIGn~BkeTAP~GwCqBJD|TmC~Hn~Bfh`Rw{YrbpBt]m@SuuJn~Bgd`ckpqYfpBh@xz[BqLn~BQVJrBa`a?qJyN[VTloNn~Bnh~~~sTjNqJ{dw@ItqPn~BHdY\\wwYBOqJqfWBG[wRn~Bf]ONeUwgspBFQy}[b@Un~BNGAO_wXcAqJWMWqUKMWn~BkIXoTBdUMqBDIruBW]Yn~BJlU?kedMCqB_PZ?rFq[n~B^wBlFCQtAqJ^lx]r[H^n~BHvoPzcjIHqJhCY|SWc`n~BRbgM_P_lspBu~rafzAcn~BpHVfPp]pBqBBqspzFden~BoFxsNIp|NqJYBHha}Ihn~B|PvGabhjLqJp^ebl_sjn~BG?ai@pzoMqBfgTWmn`mn~Bqk]iBRxICqBVizYvkQpn~BmVWspcIXIqB?TcZZXFsn~BlN}McjzLMqJSwJflu~un~B\\u[cLlRavpBWBhf@E{xn~BHqKW@D[@RpBpFvbjG{{n~B"
+
+# musl exp.c `specialcase` (Arm): scale * (1 + tmp) without an
+# intermediate overflow or a double rounding in the subnormal range.
+# `sbits` may have its exponent overflowed into the sign bit.
+fn libm_exp_special(tmp: f64, sbits: u64, ki: u64) -> f64:
+    if (ki & 0x80000000) == 0:
+        # k > 0: the exponent of scale might have overflowed by <= 460.
+        scale := f64_from(sbits.wrapping_sub(0x3f10000000000000))
+        return 5.486124068793689e+303 * (scale + scale * tmp)
+    # k < 0: round y to the right precision before scaling it into the
+    # subnormal range.
+    scale := f64_from(sbits.wrapping_add(0x3fe0000000000000))
+    let y = scale + scale * tmp
+    if y < 1.0:
+        let lo = scale - y + scale * tmp
+        hi := 1.0 + y
+        lo = 1.0 - hi + y + lo
+        y = (hi + lo) - 1.0
+        if y == 0.0:
+            y = 0.0
+    2.2250738585072014e-308 * y
+
+# musl exp.c (Arm): exp(x) = 2^(k/128) * exp(r), with the table above and a
+# degree-5 polynomial. Cost: one table pair and 10 floating operations.
+fn libm_exp(x: f64) -> f64:
+    let abstop = libm_top12(x) & 0x7ff
+    if abstop.wrapping_sub(0x3c9) >= 0x3f:
+        if abstop.wrapping_sub(0x3c9) >= 0x80000000:
+            # |x| < 2^-54: avoid a spurious underflow; 0 is a common input.
+            return 1.0 + x
+        if abstop >= 0x409:
+            if f64_bits(x) == 0xfff0000000000000:
+                return 0.0
+            if abstop >= 0x7ff:
+                return 1.0 + x
+            return if (f64_bits(x) >> 63) != 0: 0.0 else: 1.0 / 0.0
+        # Large x is special cased below.
+        abstop = 0
+    # x = ln2/128*k + r, with int k and r in [-ln2/256, ln2/256].
+    z := 184.6649652337873 * x
+    shifted := z + 6755399441055744.0
+    ki := f64_bits(shifted)
+    kd := shifted - 6755399441055744.0
+    r := x + kd * -0.005415212348111709 + kd * -1.2864023111638346e-14
+    idx := usize(2 * (ki & 127))
+    top := ki << 45
+    table := libm_exp_table()
+    tail := libm_float(table, idx)
+    sbits := libm_word(table, idx + 1).wrapping_add(top)
+    r2 := r * r
+    tmp := (
+        tail
+        + r
+        + r2 * (0.49999999999996786 + r * 0.16666666666665886)
+        + r2 * r2 * (0.0416666808410674 + r * 0.008333335853059549)
+    )
+    if abstop == 0:
+        return libm_exp_special(tmp, sbits, ki)
+    scale := f64_from(sbits)
+    scale + scale * tmp
+
+# musl exp2.c `specialcase` (Arm).
+fn libm_exp2_special(tmp: f64, sbits: u64, ki: u64) -> f64:
+    if (ki & 0x80000000) == 0:
+        # k > 0: the exponent of scale might have overflowed by 1.
+        scale := f64_from(sbits.wrapping_sub(0x0010000000000000))
+        return 2.0 * (scale + scale * tmp)
+    scale := f64_from(sbits.wrapping_add(0x3fe0000000000000))
+    let y = scale + scale * tmp
+    if y < 1.0:
+        let lo = scale - y + scale * tmp
+        hi := 1.0 + y
+        lo = 1.0 - hi + y + lo
+        y = (hi + lo) - 1.0
+        if y == 0.0:
+            y = 0.0
+    2.2250738585072014e-308 * y
+
+# musl exp2.c (Arm): 2^x = 2^(k/128) * 2^r with exp's table.
+fn libm_exp2(x: f64) -> f64:
+    let abstop = libm_top12(x) & 0x7ff
+    if abstop.wrapping_sub(0x3c9) >= 0x3f:
+        if abstop.wrapping_sub(0x3c9) >= 0x80000000:
+            return 1.0 + x
+        if abstop >= 0x409:
+            if f64_bits(x) == 0xfff0000000000000:
+                return 0.0
+            if abstop >= 0x7ff:
+                return 1.0 + x
+            if (f64_bits(x) >> 63) == 0:
+                return 1.0 / 0.0
+            else if f64_bits(x) >= 0xc090cc0000000000:
+                return 0.0
+        if f64_bits(x) << 1 > 0x811a000000000000:
+            # Large x is special cased below.
+            abstop = 0
+    # x = k/128 + r, with int k and r in [-1/256, 1/256].
+    shifted := x + 52776558133248.0
+    ki := f64_bits(shifted)
+    kd := shifted - 52776558133248.0
+    r := x - kd
+    idx := usize(2 * (ki & 127))
+    top := ki << 45
+    table := libm_exp_table()
+    tail := libm_float(table, idx)
+    sbits := libm_word(table, idx + 1).wrapping_add(top)
+    r2 := r * r
+    tmp := (
+        tail
+        + r * 0.6931471805599453
+        + r2 * (0.24022650695909065 + r * 0.0555041086686087)
+        + r2 * r2 * (0.009618131975721055 + r * 0.0013332074570119598)
+    )
+    if abstop == 0:
+        return libm_exp2_special(tmp, sbits, ki)
+    scale := f64_from(sbits)
+    scale + scale * tmp
+
+# musl pow_data.c (Arm): for each of 128 subintervals, the bits of 1/c,
+# log(c) and its tail.
+@inline(.Always)
+fn libm_pow_table() -> string:
+    "???????gu~B?_[mqJGJU~J?YtLgOAlyrB???????_u~B?_?U~uZsT~J_[NwWbOh[sJ???????Wu~B?_TPV[f\\T~Jl@dlTRiWbsJ???????Ou~B?_^JFuiET~JT^Ek]QM`erJ???????Gu~B?_v\\T}dnS~J_zRIReuECsJ????????u~B??EFAnWWS~JKRGRG|AuRsB???????wt~B?_i`EAB@S~Jyk__lNnO[rB???????ot~B?_SYTpchR~J_PXSEY[k_sB???????gt~B??GeYu|PR~JQAWpSvSUdsB???????_t~B??QwyIMyQ~JWnqlXyp]esB???????Wt~B?_gvRgTaQ~J~?zruQ`qTsB???????Wt~B?_gvRgTaQ~J~?zruQ`qTsB???????Ot~B?_vrzFSIQ~Juh|SgOaUUsJ???????Gt~B?_XY@bHqP~JCOtxgpzj^sJ????????t~B?_yijqtXP~Jobi_rW{F^sB???????ws~B?_cjxnW@P~JehT@|RKiesJ???????os~B??x[aRqgO~JMK?|}x}YKsJ???????gs~B??LlSUAOO~J~tA|]ajLorJ???????gs~B??LlSUAOO~J~tA|]ajLorJ???????_s~B??cVl`PmN~JFqRejiqTLsB???????Ws~B??EvJvI{M~Jc{i`[]jHjsB???????Os~B??nIm\\oHM~JO{~NS|sJVsJ???????Gs~B??{RjDAVL~JZ_eqzEhm`sB????????s~B??ieF^~bK~JsOwfg|S]fsB????????s~B??ieF^~bK~JsOwfg|S]fsB???????wr~B??XJsXgoJ~JN]zap?jRXsB???????or~B??K_Md{{I~Je@Xr~KeRyqB???????gr~B??jw^ozGI~JiFkP[REbdsJ???????gr~B??jw^ozGI~JiFkP[REbdsJ???????_r~B??D|[idSH~JbR\\oCc\\sisJ???????Wr~B??LGd@y^G~JHg~u~|ZnjsB???????Or~B??MCAcwiF~JWhsSq@xujsB???????Or~B??MCAcwiF~JWhsSq@xujsB???????Gr~B??\\Ef~_tE~JeHmkbiExOsJ????????r~B??xho@r~D~Jx?DC^Mcf]sJ????????r~B??xho@r~D~Jx?DC^Mcf]sJ???????wq~B??ZgbVmHD~JNmt@Omgv_sJ???????oq~B??wqklQRC~J{_VL`DKBVsB???????oq~B??wqklQRC~J{_VL`DKBVsB???????gq~B??hF_o^[B~JyOtHLXG]prB???????_q~B??~FwJTdA~JGO[[V?RbcsJ???????Wq~B??uJTjql@~JUMYCWOI_msJ???????Wq~B??uJTjql@~JUMYCWOI_msJ???????Oq~B??Hs{xvt?~JsnDyGYXYIsB???????Oq~B??Hs{xvt?~JsnDyGYXYIsB???????Gq~B??}upCHz~}JqNrg[PT\\dsJ????????q~B??oIm\\oH}}J{??{ioALisB????????q~B??oIm\\oH}}J{??{ioALisB???????wp~B??{UNQdV{}JEwzVW\\DB\\sJ???????op~B??mQysecy}JGjyUgVRMdsB???????op~B??mQysecy}JGjyUgVRMdsB???????gp~B??YKUVsow}JgXtJLdA^RsB???????gp~B??YKUVsow}JgXtJLdA^RsB???????_p~B??UxIIL{u}JYNvKH^rdesJ???????Wp~B??a@~[oEt}JVxdp`ld?^sB???????Wp~B??a@~[oEt}JVxdp`ld?^sB???????Op~B??}EU]\\Or}J^NP}KjlVksB???????Op~B??}EU]\\Or}J^NP}KjlVksB???????Gp~B??wgmZRXp}JHKybuxD^SsB????????p~B??WC?BbAn}JPygLByXUlsB????????p~B??WC?BbAn}JPygLByXUlsB???????wo~B??WEptlOj}JK@ftdjf_[sB???????wo~B??WEptlOj}JK@ftdjf_[sB???????oo~B??kKubD\\f}JmFi{sWC~ksJ???????oo~B??kKubD\\f}JmFi{sWC~ksJ???????go~B??k~x]gfb}JiynHt^j?trB???????go~B??k~x]gfb}JiynHt^j?trB???????_o~B???]Mkh_^}Jcf_^{XA_hsJ???????_o~B???]Mkh_^}Jcf_^{XA_hsJ???????Wo~B??WtFkPmV}JxWi}RQTbgsJ???????Oo~B???~oaIoN}J[YysurfF^rJ???????Oo~B???~oaIoN}J[YysurfF^rJ???????Go~B???CjhAw~|JcBcuL{bwXsJ???????Go~B???CjhAw~|JcBcuL{bwXsJ????????o~B??????????????????????????????o~B?????????????????????????????on~B??OatT@C?}BgnQfXmupOsJ???????_n~B??wcWXDGO}BQ^nwEkDvbsJ???????On~B??OqgSQQW}Bso_UqgJgisJ????????n~B??sxHuTO_}BR\\\\{[@[C@sB???????om~B??_JSziXc}Bgs^ntLfDksJ???????_m~B??{fSgIdg}B|XaUOVX]XsJ???????Om~B??[vLNvqk}BF_AuFHNYYsJ???????Gm~B??k@?Fbym}BzlRqNxRCMsJ???????wl~B??ePPnrdp}BZyXBUtdKdsJ???????gl~B??]sfU^nr}BVzsudyDqksB???????Wl~B??ydLhTyt}B]sPV{WOYksJ???????Ol~B??kyIKL?v}Bqs]fhugFkrB????????l~B??SU\\xtKx}BY^SnyoTCbsB???????ok~B??UjLakYz}Bdbu|j?GcRsJ???????gk~B??Cn@_Da{}BRriUEFlPesB???????Wk~B??aABerp}}B_VcxnaEolsJ???????Ok~B??}uxCHy~}B|jOgNXLLdsJ????????k~B??}HAywD@~Bq^OJMbvz`sB???????wj~B??~G}lai@~BscHMCxwhksB???????gj~B??g`KCUsA~B`QZ_JrUfBsB???????_j~B??XDoq^XB~BHIvQb_yJErB???????Oj~B??zKBuRcC~BwXZ~Sdv_dsB???????Gj~B??ZgcV}HD~BFvVYdb}KesB???????wi~B??@b}ysTE~BwxANkkwrXsB???????oi~B??V\\JI@{E~B`FAfdvWCdsJ???????gi~B??DPDuWaF~BDKSco@`X[sJ???????Wi~B??OMj~inG~BPrQyiQTNFsJ???????Oi~B??o|[jdUH~Bn|NgW`a{FsB????????i~B??ma{s}cI~BhDaTOLc[gsJ???????wh~B??|UV`\\KJ~BiEMjMtWLKsJ???????oh~B??}Mw[GsJ~BuI@TXP{QlsJ???????gh~B??@{En~ZK~BQnadDJFzprJ???????Wh~B??HtouRkL~Bt?ZDvjq~isJ???????Oh~B??px~zoSM~BoO^O_\\aCArB???????Gh~B??OvcvY|M~BPwwmdTPGIrJ????????h~B??zkkpPeN~Bo{LBIr}qZsB???????og~B?_TR_`R[O~BPySzUkLfwrB???????gg~B??UWftApO~BhjMNUkGEfsB???????_g~B?_}HAywDP~B[?^hbxOGksJ???????Wg~B?_NjJrtYP~B@YPhvvkejsB???????Og~B?_eUbdxnP~BvuzPPtmhksB???????Gg~B?_jBlTCDQ~BijjPyy|`IsB???????wf~B??Hv{@nnQ~BsR?SIhNfisB???????of~B??us`FNDR~BwqRGRjfwgsJ???????gf~B??`nu\\uYR~BG^V{oukZPsB???????_f~B??rKvHdoR~B[tj@uQtMWsB???????Wf~B?_]tbOZES~B\\AMckZBxGsB???????Of~B?_[[AvW[S~BtX|XHw{HnsJ???????Gf~B??rD]A]qS~BcalAZcGGmsJ????????f~B??IMFwiGT~BX\\KX@AfnmsB???????we~B??LqR\\~]T~BnBSVmv]j^sB???????oe~B??UU^vZtT~B[VEhGgqAIsJ"
+
+# musl pow.c `log_inline` (Arm): log(x) as `(y, tail)`, with about 15
+# extra bits in the tail. `ix` is x's bits, a subnormal normalized with a
+# negative exponent.
+@inline(.Always)
+fn libm_pow_log(ix: u64) -> (f64, f64):
+    tmp := ix.wrapping_sub(0x3fe6955500000000)
+    k := i64(tmp) >> 52
+    iz := ix.wrapping_sub(tmp & 0xfff0000000000000)
+    z := f64_from(iz)
+    kd := f64(k)
+    table := libm_pow_table()
+    idx := usize((tmp >> 45) & 127) * 3
+    invc := libm_float(table, idx)
+    logc := libm_float(table, idx + 1)
+    logctail := libm_float(table, idx + 2)
+    # Split z so rhi, rlo and rhi * rhi are exact and |rlo| <= |r|.
+    zhi := f64_from(iz.wrapping_add(0x80000000) & 0xffffffff00000000)
+    zlo := z - zhi
+    rhi := zhi * invc - 1.0
+    rlo := zlo * invc
+    r := rhi + rlo
+    # k*Ln2 + log(c) + r.
+    t1 := kd * 0.6931471805598903 + logc
+    t2 := t1 + r
+    lo1 := kd * 5.497923018708371e-14 + logctail
+    lo2 := t1 - t2 + r
+    ar := -0.5 * r
+    ar2 := r * ar
+    ar3 := r * ar2
+    arhi := -0.5 * rhi
+    arhi2 := rhi * arhi
+    hi := t2 + arhi2
+    lo3 := rlo * (ar + arhi)
+    lo4 := t2 - hi + arhi2
+    # p = log1p(r) - r - A[0]*r*r.
+    p := (
+        ar3
+        * (
+            -0.6666666666666679
+            + r * 0.5000000000000007
+            + ar2 * (
+                0.7999999995323976
+                + r * -0.6666666663487739
+                + ar2 * (-1.142909628459501 + r * 1.0000415263675542)
+            )
+        )
+    )
+    lo := lo1 + lo2 + lo3 + lo4 + p
+    y := hi + lo
+    (y, hi - y + lo)
+
+# musl pow.c `specialcase` (Arm): as exp's, keeping the result's sign.
+fn libm_pow_exp_special(tmp: f64, sbits: u64, ki: u64) -> f64:
+    if (ki & 0x80000000) == 0:
+        scale := f64_from(sbits.wrapping_sub(0x3f10000000000000))
+        return 5.486124068793689e+303 * (scale + scale * tmp)
+    sbits_low := sbits.wrapping_add(0x3fe0000000000000)
+    # Note: sbits is the signed scale.
+    scale := f64_from(sbits_low)
+    let y = scale + scale * tmp
+    if y.abs() < 1.0:
+        one := if y < 0.0: -1.0 else: 1.0
+        let lo = scale - y + scale * tmp
+        hi := one + y
+        lo = one - hi + y + lo
+        y = (hi + lo) - one
+        # Fix the sign of zero.
+        if y == 0.0:
+            y = f64_from(sbits_low & 0x8000000000000000)
+    2.2250738585072014e-308 * y
+
+# musl pow.c `exp_inline` (Arm): sign * exp(x + xtail), where
+# |xtail| < 2^-8/128 and |xtail| <= |x|; `sign_bias` is 0x40000 or 0.
+@inline(.Always)
+fn libm_pow_exp(x: f64, xtail: f64, sign_bias: u64) -> f64:
+    let abstop = libm_top12(x) & 0x7ff
+    if abstop.wrapping_sub(0x3c9) >= 0x3f:
+        if abstop.wrapping_sub(0x3c9) >= 0x80000000:
+            one := 1.0 + x
+            return if sign_bias != 0: -one else: one
+        if abstop >= 0x409:
+            # Inf and NaN are already handled.
+            infinity := if (f64_bits(x) >> 63) != 0: 0.0 else: 1.0 / 0.0
+            return if sign_bias != 0: -infinity else: infinity
+        abstop = 0
+    z := 184.6649652337873 * x
+    shifted := z + 6755399441055744.0
+    ki := f64_bits(shifted)
+    kd := shifted - 6755399441055744.0
+    let r = x + kd * -0.005415212348111709 + kd * -1.2864023111638346e-14
+    r += xtail
+    top := ki.wrapping_add(sign_bias) << 45
+    table := libm_exp_table()
+    idx := usize(ki & 127) * 2
+    tail := libm_float(table, idx)
+    sbits := libm_word(table, idx + 1).wrapping_add(top)
+    r2 := r * r
+    tmp := (
+        tail
+        + r
+        + r2 * (0.49999999999996786 + r * 0.16666666666665886)
+        + r2 * r2 * (0.0416666808410674 + r * 0.008333335853059549)
+    )
+    if abstop == 0:
+        return libm_pow_exp_special(tmp, sbits, ki)
+    scale := f64_from(sbits)
+    scale + scale * tmp
+
+# musl pow.c `checkint` (Arm): 0 if not an integer, 1 if odd, 2 if even,
+# for the bits of a nonzero finite value.
+fn libm_checkint(iy: u64) -> i32:
+    e := i32((iy >> 52) & 0x7ff)
+    if e < 0x3ff:
+        return 0
+    if e > 0x3ff + 52:
+        return 2
+    if (iy & ((u64(1) << u32(0x3ff + 52 - e)) - 1)) != 0:
+        return 0
+    if (iy & (u64(1) << u32(0x3ff + 52 - e))) != 0:
+        return 1
+    2
+
+# musl pow.c `zeroinfnan` (Arm): true for the bits of 0, infinity or NaN.
+@inline(.Always)
+fn libm_zeroinfnan(i: u64) -> bool:
+    (i << 1).wrapping_sub(1) >= 0xffdfffffffffffff
+
+# musl pow.c (Arm): exp(y * log(x)), with log in extra precision. It is
+# also the `**` operator at f64, so the backend roots it
+# (crates/hd_wasm FLOAT_FNS). Cost: two `match` table lookups and about
+# 60 floating operations.
+@inline(.Never)
+fn float_pow_f64(x: f64, y: f64) -> f64:
+    let sign_bias: u64 = 0
+    let ix = f64_bits(x)
+    iy := f64_bits(y)
+    let topx = libm_top12(x)
+    topy := libm_top12(y)
+    if (
+        topx.wrapping_sub(0x001) >= 0x7ff - 0x001
+        || (topy & 0x7ff).wrapping_sub(0x3be) >= 0x43e - 0x3be
+    ):
+        # Either x < 0x1p-1022 or inf or nan, or |y| < 2^-65 or
+        # |y| >= 2^63 or nan.
+        if libm_zeroinfnan(iy):
+            if iy << 1 == 0:
+                return 1.0
+            if ix == 0x3ff0000000000000:
+                return 1.0
+            if ix << 1 > 0xffe0000000000000 || iy << 1 > 0xffe0000000000000:
+                return x + y
+            if ix << 1 == 0x7fe0000000000000:
+                return 1.0
+            if (ix << 1 < 0x7fe0000000000000) == ((iy >> 63) == 0):
+                # |x| < 1 && y == inf, or |x| > 1 && y == -inf.
+                return 0.0
+            return y * y
+        if libm_zeroinfnan(ix):
+            let x2 = x * x
+            if (ix >> 63) != 0 && libm_checkint(iy) == 1:
+                x2 = -x2
+            return if (iy >> 63) != 0: 1.0 / x2 else: x2
+        # x and y are nonzero finite.
+        if (ix >> 63) != 0:
+            # Finite x < 0.
+            yint := libm_checkint(iy)
+            if yint == 0:
+                return (x - x) / (x - x)
+            if yint == 1:
+                sign_bias = 0x40000
+            ix = ix & 0x7fffffffffffffff
+            topx = topx & 0x7ff
+        if (topy & 0x7ff).wrapping_sub(0x3be) >= 0x43e - 0x3be:
+            # sign_bias is 0 here because y is not odd.
+            if ix == 0x3ff0000000000000:
+                return 1.0
+            if (topy & 0x7ff) < 0x3be:
+                # |y| < 2^-65: x^y ~= 1 + y*log(x).
+                return if ix > 0x3ff0000000000000: 1.0 + y else: 1.0 - y
+            return if (ix > 0x3ff0000000000000) == (topy < 0x800): 1.0 / 0.0 else: 0.0
+        if topx == 0:
+            # Normalize a subnormal x so its exponent becomes negative.
+            ix = (f64_bits(x * 4503599627370496.0) & 0x7fffffffffffffff).wrapping_sub(
+                0x0340000000000000,
+            )
+    let (hi, lo) = libm_pow_log(ix)
+    yhi := f64_from(iy & 0xfffffffff8000000)
+    ylo := y - yhi
+    lhi := f64_from(f64_bits(hi) & 0xfffffffff8000000)
+    llo := hi - lhi + lo
+    ehi := yhi * lhi
+    # |elo| < |ehi| * 2^-25.
+    elo := ylo * lhi + y * llo
+    libm_pow_exp(ehi, elo, sign_bias)
+
+# musl exp2f_data.c (Arm): the bits of 2^(i/32) less `i << 47`, for
+# expf, exp2f and powf.
+@inline(.Always)
+fn libm_exp2f_table() -> string:
+    "????????o~BsTWDRBZun~BNcW}k`Tln~BPldCOFocn~BzDT^{_j[n~BieJYp[GTn~BwGU\\mhFMn~B`z|FtvhFn~BT[ZKIwn@n~BJfiMv[Y{m~BaObCKXivm~BlcWW_`_rm~BfgaLTj|nm~BA}SfUlAlm~BhODQ\\^oim~BDUdMoyFhm~BLnr^exHgm~Bs|DzgVvfm~BFEoyrPPgm~BRwKRXeWhm~BZBiIATMjm~BdV[ro]rlm~BOA~gAEHpm~B\\TaNqMOtm~BlMlUX}Hym~BFxt}qZv~m~B[IT`\\nXEn~Bh@xz[BqLn~BFQy}[b@Un~B^lx]r[H^n~BYBHha}Ihn~B?TcZZXFsn~B"
+
+# musl expf.c (Arm), evaluated in double: exp(x) = 2^(k/32) * 2^(r/32).
+fn libm_expf(x: f32) -> f32:
+    xd := f64(x)
+    abstop := (f32_bits(x) >> 20) & 0x7ff
+    if abstop >= 0x42b:
+        # |x| >= 88 or x is nan.
+        if f32_bits(x) == 0xff800000:
+            return 0.0
+        if abstop >= 0x7f8:
+            return x + x
+        if x > 88.72283:
+            return 1.0 / 0.0
+        if x < -103.97208:
+            return 0.0
+    # x*32/ln2 = k + r with r in [-1/2, 1/2] and int k.
+    z := 46.16624130844683 * xd
+    shifted := z + 6755399441055744.0
+    ki := f64_bits(shifted)
+    kd := shifted - 6755399441055744.0
+    r := z - kd
+    let t = libm_word(libm_exp2f_table(), usize(ki & 31))
+    t = t.wrapping_add(ki << 47)
+    s := f64_from(t)
+    p := 1.6938359250920212e-06 * r + 0.00023459809789509004
+    r2 := r * r
+    let y = 0.021660849396613134 * r + 1.0
+    y = p * r2 + y
+    y = y * s
+    f32(y)
+
+# musl exp2f.c (Arm).
+fn libm_exp2f(x: f32) -> f32:
+    xd := f64(x)
+    abstop := (f32_bits(x) >> 20) & 0x7ff
+    if abstop >= 0x430:
+        # |x| >= 128 or x is nan.
+        if f32_bits(x) == 0xff800000:
+            return 0.0
+        if abstop >= 0x7f8:
+            return x + x
+        if x > 0.0:
+            return 1.0 / 0.0
+        if x <= -150.0:
+            return 0.0
+    # x = k/32 + r with r in [-1/64, 1/64] and int k.
+    shifted := xd + 211106232532992.0
+    ki := f64_bits(shifted)
+    kd := shifted - 211106232532992.0
+    r := xd - kd
+    let t = libm_word(libm_exp2f_table(), usize(ki & 31))
+    t = t.wrapping_add(ki << 47)
+    s := f64_from(t)
+    p := 0.05550361559341535 * r + 0.2402284522445722
+    r2 := r * r
+    let y = 0.6931471806916203 * r + 1.0
+    y = p * r2 + y
+    y = y * s
+    f32(y)
+
+# musl powf_data.c (Arm): for 16 subintervals, the bits of 1/c and
+# log2(c). It equals log2f_data.c's table, so log2f reads it too.
+@inline(.Always)
+fn libm_log2f_table() -> string:
+    "}MN}xp]Wu~BX?bdZXk~]~J|_wjIt][t~BcqNtq_uAZ~JoA@{ofRds~Bz\\zFIkWOV~JDM?moUXqr~Bz|[ZYc]fR~JdQEaKcPBr~BpWj{rnXFO~J_ywAzHaVq~BojvMZs@^H~J~ObEIhsmp~B^qrjRM]}A~JyUmaobtGp~B[tG]~mKWx}JfAOe@|Rdo~BM~tPuuxZi}J????????o~B???????????k]ce|rGWm~B|SNH^iKMr}B_ie?^KJhk~ByEHMSdi\\C~BernYVXBGj~BQRMpIl?`M~BlgYgbDloh~B[SepoVc@S~BlFC]BWm`g~Bw~xEkohbW~Ba`sStr|Xf~BKnVkMPIw[~B"
+
+# musl powf.c (Arm): x^y = 2^(y * log2(x)), in double.
+fn libm_powf(x: f32, y: f32) -> f32:
+    let sign_bias: u64 = 0
+    let ix = f32_bits(x)
+    iy := f32_bits(y)
+    if ix.wrapping_sub(0x00800000) >= 0x7f800000 - 0x00800000 || libm_zeroinfnanf(iy):
+        # Either x < 0x1p-126 or inf or nan, or y is 0 or inf or nan.
+        if libm_zeroinfnanf(iy):
+            if iy << 1 == 0:
+                return 1.0
+            if ix == 0x3f800000:
+                return 1.0
+            if ix << 1 > 0xff000000 || iy << 1 > 0xff000000:
+                return x + y
+            if ix << 1 == 0x7f000000:
+                return 1.0
+            if (ix << 1 < 0x7f000000) == ((iy & 0x80000000) == 0):
+                return 0.0
+            return y * y
+        if libm_zeroinfnanf(ix):
+            let x2 = x * x
+            if (ix & 0x80000000) != 0 && libm_checkintf(iy) == 1:
+                x2 = -x2
+            return if (iy & 0x80000000) != 0: 1.0 / x2 else: x2
+        # x and y are nonzero finite.
+        if (ix & 0x80000000) != 0:
+            # Finite x < 0.
+            yint := libm_checkintf(iy)
+            if yint == 0:
+                return (x - x) / (x - x)
+            if yint == 1:
+                sign_bias = 0x10000
+            ix = ix & 0x7fffffff
+        if ix < 0x00800000:
+            # Normalize a subnormal x so its exponent becomes negative.
+            ix = (f32_bits(x * 8388608.0) & 0x7fffffff).wrapping_sub(0x0b800000)
+    # log2(x) in double: musl `log2_inline`.
+    tmp := ix.wrapping_sub(0x3f330000)
+    i := usize((tmp >> 19) & 15)
+    top := tmp & 0xff800000
+    iz := ix.wrapping_sub(top)
+    k := i32(top) >> 23
+    table := libm_log2f_table()
+    invc := libm_float(table, 2 * i)
+    logc := libm_float(table, 2 * i + 1)
+    z := f64(f32_from(iz))
+    r := z * invc - 1.0
+    y0 := logc + f64(k)
+    r2 := r * r
+    let lp = 0.288457581109214 * r + -0.36092606229713164
+    p := 0.480898481472577 * r + -0.7213474675006291
+    r4 := r2 * r2
+    let q = 1.4426950408774342 * r + y0
+    q = p * r2 + q
+    lp = lp * r4 + q
+    ylogx := f64(y) * lp
+    if ((f64_bits(ylogx) >> 47) & 0xffff) >= 0x80bf:
+        # |y*log(x)| >= 126.
+        if ylogx > 127.99999995700433:
+            return if sign_bias != 0: -(1.0 / 0.0) else: 1.0 / 0.0
+        if ylogx <= -150.0:
+            return if sign_bias != 0: -0.0 else: 0.0
+    # 2^ylogx in double: musl `exp2_inline`.
+    shifted := ylogx + 211106232532992.0
+    ki := f64_bits(shifted)
+    kd := shifted - 211106232532992.0
+    re := ylogx - kd
+    let t = libm_word(libm_exp2f_table(), usize(ki & 31))
+    ski := ki.wrapping_add(sign_bias)
+    t = t.wrapping_add(ski << 47)
+    s := f64_from(t)
+    ze := 0.05550361559341535 * re + 0.2402284522445722
+    re2 := re * re
+    let ye = 0.6931471806916203 * re + 1.0
+    ye = ze * re2 + ye
+    ye = ye * s
+    f32(ye)
+
+# musl powf.c `checkint` (Arm).
+fn libm_checkintf(iy: u32) -> i32:
+    e := i32((iy >> 23) & 0xff)
+    if e < 0x7f:
+        return 0
+    if e > 0x7f + 23:
+        return 2
+    if (iy & ((u32(1) << u32(0x7f + 23 - e)) - 1)) != 0:
+        return 0
+    if (iy & (u32(1) << u32(0x7f + 23 - e))) != 0:
+        return 1
+    2
+
+# musl powf.c `zeroinfnan` (Arm).
+@inline(.Always)
+fn libm_zeroinfnanf(i: u32) -> bool:
+    (i << 1).wrapping_sub(1) >= 0xfeffffff
+
+# musl log_data.c (Arm): for each of 128 subintervals, the bits of 1/c,
+# log(c), and the two halves `chi + clo` of c that the computation
+# without fused multiply-add reads.
+@inline(.Always)
+fn libm_log_table() -> string:
+    "^yLwBBNLv~B??hxx|FrV~JjXzR@??Ce~B{kdOPqe?}pB^cMJi`vCv~B??OBAz}ZV~JTQZRB??Ke~B@tD?Gh}nLqB_Uj}G?e{u~B??]SRK}CV~JwPLdL??Se~BvUitE]y^MqB|pwC^WYsu~B?_FIwkDmU~Jl}eRF??[e~BKTATjhM~`pBPRZpJcSku~B?_F_OUTVU~Jm}ov}~~be~B|zOUK\\a^{pJyqoJr[Scu~B???Eu@l?U~J{U{WF??ke~B@gLvG`UoIqJbGcGW{X[u~B??HcEiKiT~JuFKV]??se~BPKXQ\\qpNBqBXzPhX}cSu~B??t?ULsRT~J}W^@j~~ze~BRtawYO?_}pJCRqbiYtKu~B??sYB^b|S~J?]h`M??Cf~BQdVApXu~zpBSo\\fjLJDu~B??Di|^YfS~JQc}X{~~Jf~Bc[WneGM?KqBKpdpQPe|t~B?_YaxGXPS~JiDP_^~~Rf~BQFO{mDh?mpJNpQct]Eut~B?_JkxO^zR~JOqxXN??[f~BspHTLFF~fpJ]BxUJrjmt~B??vbCxkdR~Jt_k^y~~bf~BBQO|]Ekn@qBwhPuqFUft~B??YnVw@OR~JeJKG}~~jf~BdPErh[`^opJFYdPQWD_t~B??gPnJ]yQ~J?c{Nl~~rf~B[kw]GGF_?qJRnuxM^xWt~B??MKwk@dQ~Juh`Hh~~zf~Bme^fl`AoLqBR}vhaVqPt~B?_guKUkNQ~JgNIfC??Cg~BroSxPH|^HqBBUc@A|nIt~B??xHhC]yP~JNqqcV??Kg~B@MNKuem~IqJ^vjkZJqBt~B?_NQjsUdP~J[MvKE??Sg~B{URXj|znHqBVzLLF|w{s~B?_^mY]UOP~JEfgO_??[g~BtlVCrVunJqJ?`avNNCus~B?_xzSA\\zO~JCcV|j~~bg~BVl[NayE?HqJGNI]?zRns~B??puWSieO~J^R?na??kg~BIkCww{L?|pJIUAwB~fgs~B?_zWQX}PO~JIm@Bd~~rg~BD{x~EDF?GqJsOGtcS?as~B??n`DHqyN~JBxWc{~~zg~Bw?f]OnV_BqBJsQEZw[Zs~B??zDthsPN~JF~d}]??Ch~BBOzvuDhNHqBS`PMRf|Ss~B??BC|OChM~JxmfPR??Kh~BuH?eJxC_~pBYPGlC\\aMs~B??ZyCt_?M~Jn\\_ze~~Rh~BmGu~XBn^NqJzb^D@TJGs~B??~\\hGIWL~JPJ@N]~~Zh~ByabHUii_opJpQnNYJw@s~B??XdCC?oK~JLgWPs~~bh~BnbIXPm@_FqJNy~T\\|gzr~B??PaUdAGK~J}wAe\\~~jh~BvKhUIAMOFqJhrsA_e\\tr~B??P_L]P_J~Jel^Ql~~rh~B??}e@b_r~oBjCKC?BUnr~B??|sKfkwI~JPpX{_??{h~BIkDafgyNIqJwi\\\\jOQhr~B??hCm?SPI~JE?ZPP??Ci~BUhLUXas~spBA?|fLJQbr~B??^Fg\\FiH~JyZ~mF??Ki~BWsuIIminKqB[gF`DnT\\r~B??BQhtEBH~JxtpdO??Si~BocF]\\jk~GqBaZRjHx[Vr~B??[PeAQ[G~JGxQ|\\??[i~BZnIu|WVONqJ?P\\RWefPr~B??BDs}gtF~JQLRU[??ci~BQWfoCIonMqJck{~MrtJr~B??fW{_JNF~JJxrRi??ki~B^|r~{OO~hpJHtOgt\\FEr~B??uLZixgE~JPz`jV~~ri~BsAFcQ[mNAqJOebNv_[?r~B??ylSDrAE~JwPOSm~~zi~BbylB_zb@ipB@`^dzysyq~B??BHutv[D~JZtOXZ~~Bj~BxioFw_k@YpBPfYEAgOtq~B??boNmFvC~JVhki}~~Jj~B\\orGsxP?xpJis~lgennq~B??_sPpaPC~J[jZdX~~Rj~B^ia`g@p~xpJjm@BypPiq~B??o_{iGkB~J[Uefc??[j~B}{c`OVs~IqBoSJD_Hvcq~B??OQjdxEB~J?Xp`x~~bj~BxNkoU]f~{pBtFyTVh^^q~B??ChOQt`A~JNlK@Q~~jj~BCna{m^q~bpJ~mRFZMJYq~B??Y]wfz{@~JDpTOQ~~rj~B`g}Mm^z~kpJ|U~bBuxSq~B??IJd_KW@~J^foWw~~zj~B[l_JVMOO@qJz_Oqi]jNq~B??q|V|fr?~JRXVl`~~Bk~BXgulSQUoJqBuASijC_Iq~B??i~HpLN?~Jb^d}p~~Jk~BlZKKL}m~cpJqCCrUeVDq~B??wQ{uzT~}JcO}n[~~Rk~Bt\\Cz{auNCqJZqns\\?Q?q~B??COUaoL}}JvfJTl~~Zk~BkB}SoNi^CqBJ_SRHPNzp~B??S}}_xD|}JT~Wej~~bk~BpJX}LYo_rpBhTubQTNup~B??IuM\\U}z}JYEQH`??kk~BCw?EcxW~gpJ{xvTPKQpp~B??uJ_cFvy}J[YCd\\~~rk~Bqh}p[wj^MqBhZqqspVkp~B??GIfNKox}JuP[~i~~zk~B}bwflebnMqBui@JKC_fp~B??k[rYchw}Jj_neU??Cl~BphTmgEX^tpB|Aflz@jap~B???jrEObv}J\\[~BL??Kl~BY^K[h@XoHqBuqzzdgw\\p~B???MDDN\\u}JC~O]i~~Rl~BKwNUD^bBWpJYFBRtsGXp~B??w`lx_Vt}Jd^Gvm??[l~BC|OoLXL_~pJ\\~tHOeZSp~B??]g]rDQs}JiIGv`??cl~B[pT~S}G^spJKHlKcyoNp~B??iYLd|Kr}JBIoYW~~jl~B}DUGDvp^KqBYfNCqlGJp~B??UpwfFGq}Jx[CZh??sl~BRDz~qyX?GqBpSJzg?bEp~B??aWWYcBp}JtBHPd~~zl~BHqkSEJL?mpBnQB`Yn~@p~B??_sipe}n}JSY~iL~~Bm~BQfUJ_?s_~pJrmeRNw]|o~B??s\\Itgul}J\\bkSZ~~Jm~Bc`oEIFK?zpBM~hI\\X?xo~B??O`crMnj}JnZ`Oq~~Rm~BPlIdoay~qpB`SIJbPcso~B??kC?dWgh}JPwdag~~Zm~BXxzzpMf|VpJY_hw{\\Ioo~B??k?r_Daf}JL{nfP??cm~B@_{A]tG_CqJPZbpB}qjo~B??gtfxT[d}JC\\Ph^~~jm~BtAqOTZ??wpBxK@gWm\\fo~B??WXHhGVb}J`}fCY??sm~BQqdT_`n?OpJ^^mSnmIbo~B??SDcL]Q`}JCrjmF??{m~BPW]L\\PCODqJzbaRn{x]o~B??wyAAk[]}JAsg]t~~Bn~BDCxzxCr}NpJX{WLKUjYo~B??gSQD^TY}JFjWx]??Kn~BTDp[qrY_IqBkcNzdy]Uo~B??W_NJUNU}JSQb_t~~Rn~BB\\{tSFsNIqBOqQsLfSQo~B??_iKmNIQ}JjpSi{~~Zn~Bt`Fe[On?apJhuI{EZKMo~B??O}_kVKK}J@P[}`~~bn~BJ\\}\\sF\\^vpBhIR]RSEIo~B??_i\\TREC}J}LMwQ~~jn~BpKI^YeP?npJGLfyfOAEo~B???zAN_Cw|J]Q}\\[??sn~BpqirJx]_ppBTEJDEO?Ao~B???Hxd?@_|JpKKwv~~zn~BY\\G[@[R@mpJYgnHv~@wn~B???cCM~zn|Bm@UXs~~Bo~BYj?FHti^IqJsh]WArPgn~B??ONtCCvF}BWhf`r~~Jo~B_JJ~Bfu^VqJmcX_oApWn~B??goCNirR}BVs?~|~~Ro~BZPxqsw~nVqBLviz{W^Hn~B??OaSC{fZ}BAuSrB??[o~BJZDx?NG?AqBfNPcB_[ym~B??OCMbLk`}Bgnk{x~~bo~BYSvL}}|~lpJjEzqw@gjm~B??[?Ondad}BdhLB@??ko~BjZaxm}vNPqJZqOfai@\\m~B??Gu?LGVh}BwKLh@??so~Bv~HQxh^^?qBtehABEhMm~B??wTnjuHl}B|vnuy~~zo~B?netoT?@vpJUhHWH?]?m~B??KedbX\\o}BUunmJ??Cp~BalOZCQL_MqBWmz\\dF_ql~B??QBbV~Sq}B\\P^xy~~Jp~BnZR~ch~n\\qBBCH^JGncl~B???MJulJs}BXjXtL??Sp~BmAdCo\\F?YqBMrt}epIVl~B??{TFed@u}BYUTGN??[p~Bmz|waf^~LqB\\ylViqqHl~B??_YtWfuv}BeOtH{~~bp~BrHvM[BB?PqBLrqY}we{k~B??EFMLsix}BXpRNQ??kp~BGEo??ev^XqBAcvhauenk~B??UBz]K]z}BvyXIw~~rp~BfpwfjIR}dpJl`oLlXqak~B??qxqKpO|}B?Olas~~zp~Bjnth\\}z^RqBC_TV|QHUk~B??evpDbA~}BcYwaK??Cq~BakT~PmE_^qBK}xmrSjHk~B??ScjSpX?~BBKS`B??Kq~Br{zfjJ{~RqB~[MzmNW|j~B??jcAUwP@~BCYNn~~~Rq~BqxaJ}\\]?upB@ZxuttNpj~B??bqLzeHA~BXFQIt~~Zq~B`po^ulJ~~pBggc`KwPdj~B??Tpe]|?B~B{grcS??cq~BjCc?{gk?qpJkwrzDJ]Xj~B??pK{K{vB~BRKUTS??kq~BA{`{rGG_QqJJaWqf`sLj~B??g]jXbmC~BzGd~j~~rq~Bqr|Rwwv~GqJI@RF`kSAj~B??^sgcrcD~BUuImJ??{q~BDFCKODt~DqJ}|m{Da}ui~B??NEcskYE~BnIm]z~~Br~B\\aaVGEF?@qJauBWpspji~B??hXkbNOF~B~|Dj}~~Jr~BT[zl~st~PqJfats~Wm_i~B??nEtB[DG~BU\\ehK??Sr~B|IwaaGw^TqBJMVAnBsTi~B??g|SdQyG~B`[~}P??[r~BKV\\BCjJ??qBfksiOiAJi~B??C}AWrmH~Bx}QUx~~br~BP\\iklsxNSqJPJ~cR?Y?i~B???J[s}aI~BAH\\vC??kr~B`bb\\olu^DqBZoruc{xth~B??\\?[DtUJ~BVdkkt~~rr~BpGpnOgb?ypBOEzpDSajh~B??KnK^UIK~BWOJki~~zr~BoITketu^WqBnw{dqzQ`h~B??EQTVb|K~Bs~iKT??Cs~BcSWE^\\B}fpBtlChmjJVh~B??kPssZoL~BhkwPV??Ks~BBDDvqX]?BqBw_sx\\YKLh~B??}rwE?bM~BbPZdf~~Rs~BYdgkweu~HqBeJtXn{SBh~B??xD?fOTN~B_VF@g~~Zs~BSHnoZEJoTqJ\\]|~MIdxg~B?_zFQoeBO~BfF{Zn~~bs~BqhaMqf?OZqB{@?r^y{ng~B??|cM_Z[O~BC[ind~~js~BDtVB~]z~SqJMKknYB[eg~B??f`]mEtO~B]^ACV??ss~B|gEvpPEoXqJz^pGi]A\\g~B??|Qr[gLP~BazB{N??{s~B[KT`Jcw^VqBGgxkkAoRg~B?_sGft?eP~BPnCvQ??Ct~BuOiXpTE@_pBTxRXgfcIg~B??Gr_~N}P~By\\Q@U??Kt~BHGrGMz{nUqJ_H?|TE_@g~B?_uWV~TUQ~BK@vuk~~Rt~BVFY@DGf?HqJhKIwbTawf~B?_IDH?RmQ~BhQtVn~~Zt~BQOUqMW}nZqBlUJvvLjnf~B??uOOGFER~BQ?`xV??ct~BO}}j@Uk^GqBAVqdfhyef~B?_@zlXq\\R~BQyRqB??kt~B?ronI_OO^qJVXoDq^O]f~B??rjz~StR~B{ePQ\\??st~Bh[SHzjQ_WqJKK`tZjkTf~B??}JbzmKS~BHiFmf~~zt~BCcUz?]j^SqJ"
+
+# musl log.c (Arm): log(x) = log1p(z/c - 1) + log(c) + k*ln2.
+# Cost: one table quadruple and about 25 floating operations.
+fn libm_log(x: f64) -> f64:
+    let ix = f64_bits(x)
+    top := u32(ix >> 48)
+    if ix.wrapping_sub(0x3fee000000000000) < 0x0003090000000000:
+        # Close to 1.0.
+        if ix == 0x3ff0000000000000:
+            return 0.0
+        r := x - 1.0
+        r2 := r * r
+        r3 := r * r2
+        let y = (
+            r3
+            * (
+                0.3333333333333352
+                + r * -0.24999999999998432
+                + r2 * 0.19999999999320328
+                + r3 * (
+                    -0.16666666669929706
+                    + r * 0.14285715076560868
+                    + r2 * -0.12499997863982555
+                    + r3 * (
+                        0.11110712032936046
+                        + r * -0.10000486757818193
+                        + r2 * 0.09181994006195467
+                        + r3 * -0.08328363062289341
+                    )
+                )
+            )
+        )
+        # Worst-case error is around 0.507 ULP.
+        let w = r * 134217728.0
+        rhi := r + w - w
+        rlo := r - rhi
+        w = rhi * rhi * -0.5
+        hi := r + w
+        let lo = r - hi + w
+        lo += -0.5 * rlo * (rhi + r)
+        y += lo
+        y += hi
+        return y
+    if top.wrapping_sub(0x0010) >= 0x7ff0 - 0x0010:
+        # x < 0x1p-1022 or inf or nan.
+        if ix << 1 == 0:
+            return -1.0 / 0.0
+        if ix == 0x7ff0000000000000:
+            return x
+        if (top & 0x8000) != 0 || (top & 0x7ff0) == 0x7ff0:
+            return (x - x) / (x - x)
+        # x is subnormal: normalize it.
+        ix = f64_bits(x * 4503599627370496.0).wrapping_sub(0x0340000000000000)
+    # x = 2^k z, with z in [OFF, 2*OFF) and exact.
+    tmp := ix.wrapping_sub(0x3fe6000000000000)
+    i := usize((tmp >> 45) & 127)
+    k := i64(tmp) >> 52
+    iz := ix.wrapping_sub(tmp & 0xfff0000000000000)
+    table := libm_log_table()
+    invc := libm_float(table, 4 * i)
+    logc := libm_float(table, 4 * i + 1)
+    z := f64_from(iz)
+    # r ~= z/c - 1, |r| < 1/256.
+    r := (z - libm_float(table, 4 * i + 2) - libm_float(table, 4 * i + 3)) * invc
+    kd := f64(k)
+    # hi + lo = r + log(c) + k*ln2.
+    w := kd * 0.6931471805598903 + logc
+    hi := w + r
+    lo := w - hi + r + kd * 5.497923018708371e-14
+    # log(x) = lo + (log1p(r) - r) + hi.
+    r2 := r * r
+    (
+        lo
+        + r2 * -0.5000000000000001
+        + r * r2 * (
+            0.33333333331825593
+            + r * -0.2499999999622955
+            + r2 * (0.20000304511814496 + r * -0.16667054827627667)
+        )
+        + hi
+    )
+
+# musl log2_data.c (Arm): as log's table, for 64 subintervals and log2(c).
+@inline(.Always)
+fn libm_log2_table() -> string:
+    "wrYkj`AHv~B??Zrm~TA`~JMiOmQ??Ge~BDWJPEkI@HqB`qkse\\^wu~B??l\\|QH`_~JeQrTC??We~Bh]nWinx~`pBIQLKMsRgu~B?_NymMS?_~JDJ^HB~~fe~ByAHNJ~k^AqBDqEsqo]Wu~B??sAuSk~]~JCgTmw??we~BeKx[U`w~GqBwbXCTi~Gu~B??}lYc\\~\\~JbRXe_~~Ff~BpIwVf?S~IqBkHorcmtxt~B??xpKwy~[~JOwOUT??Wf~B@LwGsUV~qpJw}SGYT?jt~B??Y~P_B@[~JTnTXQ??gf~BulAH{XMAwpB]weDNs][t~B??mMq[uAZ~Jee]Uq??wf~BvIa|eOMAapJt_~AXdOMt~B??ZJY|QDY~JQJJll~~Fg~Bnc[h]Wc?CqJ\\vYWl~S?t~B??E}Y|VGX~JBrn}l??Wg~B^gh{aQ~|lpBOnFQMajqs~B??X[ouCKW~JOlEbv~~fg~B|VXQHKD@MqJm~sKseRds~B??]ixfWOV~JeTpXx??wg~BDlvp}MN@IqJhT|j^nKWs~B??XEtmQTU~JD\\pna~~Fh~B{?aB?Pb}vpJRdJxMXUJs~B??peaMqYT~JP~HVK~~Vh~B\\dEgD?w~upJea\\FPCo}r~B??yVNSu_S~Jf\\cmz??gh~BBwFzCRK}opBu_DBvUXqr~B??i|vc]fR~JduQmf~~vh~BAWCbFd|^MqBItnlIpPer~B??UbRDimQ~JnunJV~~Fi~B}xYrLTDBipJteHwKwWYr~B??cq?LWuP~JT}N@]~~Vi~BjHZyKeY^EqBq]}CAQmMr~B??MOySg}O~JjsgVI~~fi~B]N@RteK`AqJpuZ`XcPBr~B??rxqoXFO~JiNOj\\~~vi~B{wAWibkCWpBVFfkIVAwq~B??e}auV`M~JLtRBp~~Fj~B[avHlul}MqJAu{CNR?lq~B??WNb`{sK~JYXPGM~~Vj~BvG`pX[pqRpBOlK^k?Jaq~B??IDKL_HJ~JsXMSX~~fj~B?wKd@d||rpBdvCdbHaVq~B??}Rno@^H~JnaIfR??wj~B?nXV`OkAtpBpU``|WDLq~B???_~G_tF~JX}lPZ@?Gk~BHF[yRXizjpBw{iNbZsAq~B??]@Y[yKE~Jm]^m?@?Wk~BUBfQf{x@{pJ\\NYr|zmwp~B??oThVNdC~JIu^Ta@?gk~B^oCyu@sAypJocrAWhsmp~B??IwcO]}A~J\\d?RX~~vk~BVVjexNR}GqB?Gq^CMDdp~B??[~YddW@~JNZ\\\\x~~Fl~B}E}Ve`?JWpJ{[\\t?Z_Zp~B??WnthHf~}JRq`Ta}~Vl~BrVhsZaA@zpJAR}lF|DQp~B??[}Z\\t]{}JKkgG\\}~fl~BuGyBsCd?FqBPVG?latGp~B??G|NWKWx}JUwFnd@?wl~BK_LhUwP?tpJfGqSN?n~o~B??_lFHMRu}JP]c|A??Gm~B_JuzH{A_HqBNiBsv@quo~B??S?qavNr}JWZytV@?Wm~By^NBWTvA}pJXBWUUZ}lo~B??kOYsFMo}JK?[zf??gm~BP_XPHKG`KqJLAs]}zRdo~B??OlGGxZi}J{l[|k@?wm~BsZVDT]A_NqJBmRpIVq[o~B??o\\NTh]c}JKvvIw@?Gn~BNMD\\qd\\_NqJ[lPBc^XSo~B???BDbyG\\}JISCBe??Wn~B[~~Hf?O[?pJayGG@FHKo~B???]hWaYP}JrSLbg~~fn~BoaY~`r|EWpJ`wvkd?@Co~B???yWbNGv|JHYwBT~~vn~BmxWcJjP}FqBj\\iqxzFon~B???SpMd~E}BfLQIC??Go~B@YcKdL~^ZqBCEn|RVEPn~B??wB`rKF`}BgX|wb~~Vo~BzThj\\b_}EqB~@@`^]?rm~B??waKq^Rk}BV\\Y`I??go~BPm~s?ylwVpJgjtdXirTm~B??sT]Gbir}BK~rVY??wo~BS?^pDKb_PqJevRnoZ\\xl~B??waOBIEx}Btjzjw~~Fp~BAjJ_elj}JqJrar~@Yz\\l~B??C@Yfm[}}BlEXRd~~Vp~Bn^}LVGp^\\qJBd]RqTJBl~B??u^OHLv@~B`ZBjP??gp~B~VnDDg??[qBbTfB[JJhk~B??ivBki\\C~BGHCqX??wp~B_uducnn_OqJPlktgzwNk~B??awvLs@F~Bmxd~N??Gq~BBlNfK@\\~GqJKp_?NlQvj~B??SiJylbH~BPa|fe??Wq~BAELdxha~KqBIV@W?oU^j~B??msi`ZBK~BYZmhh??gq~BDngVpLf?opJNMbJmXBGj~B??mrni?`M~BxwRI_~~vq~BxZikYfB^ZqBx?TIe?Vpi~B??wXsiO]O~BAANvv~~Fr~BSHDvmLR{|pB\\FrH{EOZi~B??[?gT?jP~B_lgUo~~Vr~BjFRrKXt?]qJJE~N{MlDi~B??m~SFpuQ~BKziBm??gr~BvPysJ\\M{tpBly~XHDloh~B??WpMXc@S~BuGzMC??wr~Br_WfSk[^[qBAcH^sRM[h~B??nMHwZJT~B~^WsA??Gs~BgsRJN~IA}pBqrj_xkNGh~B??LS_?XSU~BpqFML??Ws~BeeXXD]BAAqBpft|FEosg~B??nyLJ\\[V~BH}hTC??gs~BQrzROqd}HqJlX^mjVm`g~B??X^DqhbW~BrNSLC??ws~BhKtDlVQCwpJSeJUu]HNg~B??UwTD?iX~BN{f?K~~Ft~B[Rt\\Ca|_WqBa?`p~V?|f~B??|sm``nY~BnLz`|~~Vt~BF_Asp[]AFqJIV@DWGQjf~B??MgmINsZ~By]^Fq~~ft~BAkf[g|x|FqBK}nfxr|Xf~B??sn|OIw[~B@QB~j~~vt~B}cMKm?H_PqJ"
+
+# musl log2.c (Arm): log2(x) = log2(z/c) + log2(c) + k.
+fn libm_log2(x: f64) -> f64:
+    let ix = f64_bits(x)
+    top := u32(ix >> 48)
+    if ix.wrapping_sub(0x3feea4af00000000) < 0x000210aa00000000:
+        # Close to 1.0.
+        if ix == 0x3ff0000000000000:
+            return 0.0
+        r := x - 1.0
+        rhi := f64_from(f64_bits(r) & 0xffffffff00000000)
+        rlo := r - rhi
+        hi := rhi * 1.4426950407214463
+        let lo = rlo * 1.4426950407214463 + r * 1.6751713164886512e-10
+        r2 := r * r
+        r4 := r2 * r2
+        # Worst-case error is less than 0.55 ULP.
+        p := r2 * (-0.7213475204444817 + r * 0.48089834696298744)
+        let y = hi + p
+        lo += hi - y + p
+        lo += (
+            r4
+            * (
+                -0.360673760222145
+                + r * 0.2885390081805197
+                + r2 * (-0.24044917405728863 + r * 0.2060992861022954)
+                + r4 * (
+                    -0.18033596705327856
+                    + r * 0.1603032746063156
+                    + r2 * (-0.14483316576701266 + r * 0.13046826811283835)
+                )
+            )
+        )
+        y += lo
+        return y
+    if top.wrapping_sub(0x0010) >= 0x7ff0 - 0x0010:
+        # x < 0x1p-1022 or inf or nan.
+        if ix << 1 == 0:
+            return -1.0 / 0.0
+        if ix == 0x7ff0000000000000:
+            return x
+        if (top & 0x8000) != 0 || (top & 0x7ff0) == 0x7ff0:
+            return (x - x) / (x - x)
+        # x is subnormal: normalize it.
+        ix = f64_bits(x * 4503599627370496.0).wrapping_sub(0x0340000000000000)
+    tmp := ix.wrapping_sub(0x3fe6000000000000)
+    i := usize((tmp >> 46) & 63)
+    k := i64(tmp) >> 52
+    iz := ix.wrapping_sub(tmp & 0xfff0000000000000)
+    table := libm_log2_table()
+    invc := libm_float(table, 4 * i)
+    logc := libm_float(table, 4 * i + 1)
+    z := f64_from(iz)
+    kd := f64(k)
+    # r ~= z/c - 1, |r| < 1/128.
+    r := (z - libm_float(table, 4 * i + 2) - libm_float(table, 4 * i + 3)) * invc
+    rhi := f64_from(f64_bits(r) & 0xffffffff00000000)
+    rlo := r - rhi
+    t1 := rhi * 1.4426950407214463
+    t2 := rlo * 1.4426950407214463 + r * 1.6751713164886512e-10
+    # hi + lo = r/ln2 + log2(c) + k.
+    t3 := kd + logc
+    hi := t3 + t1
+    lo := t3 - hi + t1 + t2
+    # log2(r+1) = r/ln2 + r^2*poly(r).
+    r2 := r * r
+    r4 := r2 * r2
+    p := (
+        -0.7213475204444882
+        + r * 0.4808983469629985
+        + r2 * (-0.36067375954075914 + r * 0.2885390073180969)
+        + r4 * (-0.2404693555628422 + r * 0.2061202382173603)
+    )
+    lo + r2 * p + hi
+
+# musl log10.c (Sun): log10(x) from fdlibm's log kernel, with k*log10(2)
+# and the kernel's result split for extra precision.
+fn libm_log10(value: f64) -> f64:
+    let x = value
+    let bits = f64_bits(x)
+    let hx = u32(bits >> 32)
+    let k: i32 = 0
+    if hx < 0x00100000 || (hx >> 31) != 0:
+        if bits << 1 == 0:
+            return -1.0 / (x * x)
+        if (hx >> 31) != 0:
+            return (x - x) / 0.0
+        # Subnormal: scale x up.
+        k -= 54
+        x *= 18014398509481984.0
+        bits = f64_bits(x)
+        hx = u32(bits >> 32)
+    else if hx >= 0x7ff00000:
+        return x
+    else if hx == 0x3ff00000 && bits << 32 == 0:
+        return 0.0
+    # Reduce x into [sqrt(2)/2, sqrt(2)].
+    hx += 0x3ff00000 - 0x3fe6a09e
+    k += i32(hx >> 20) - 0x3ff
+    hx = (hx & 0x000fffff) + 0x3fe6a09e
+    x = f64_from((u64(hx) << 32) | (bits & 0xffffffff))
+    f := x - 1.0
+    hfsq := 0.5 * f * f
+    s := f / (2.0 + f)
+    z := s * s
+    w := z * z
+    t1 := (
+        w
+        * (3.999999999940941908e-01 + w * (2.222219843214978396e-01 + w * 1.531383769920937332e-01))
+    )
+    t2 := (
+        z
+        * (
+            6.666666666666735130e-01
+            + w * (
+                2.857142874366239149e-01
+                + w * (1.818357216161805012e-01 + w * 1.479819860511658591e-01)
+            )
+        )
+    )
+    r := t2 + t1
+    hi := f64_from(f64_bits(f - hfsq) & 0xffffffff00000000)
+    lo := f - hi - hfsq + s * (hfsq + r)
+    # val_hi + val_lo ~ log10(1+f) + k*log10(2).
+    let val_hi = hi * 4.34294481878168880939e-01
+    dk := f64(k)
+    y := dk * 3.01029995663611771306e-01
+    let val_lo = (
+        dk * 3.69423907715893078616e-13
+        + (lo + hi) * 2.50829467116452752298e-11
+        + lo * 4.34294481878168880939e-01
+    )
+    sum := y + val_hi
+    val_lo += (y - sum) + val_hi
+    val_hi = sum
+    val_lo + val_hi
+
+# musl log1p.c (Sun): log(1+x), with a correction term for the rounding
+# of 1+x.
+fn libm_log1p(value: f64) -> f64:
+    let x = value
+    bits := f64_bits(x)
+    hx := u32(bits >> 32)
+    let k: i32 = 1
+    let c = 0.0
+    let f = 0.0
+    if hx < 0x3fda827a || (hx >> 31) != 0:
+        # 1+x < sqrt(2)+.
+        if hx >= 0xbff00000:
+            # x <= -1.0.
+            if x == -1.0:
+                return x / 0.0
+            return (x - x) / 0.0
+        if hx << 1 < 0x79400000:
+            # |x| < 2^-53.
+            return x
+        if hx <= 0xbfd2bec4:
+            # sqrt(2)/2- <= 1+x < sqrt(2)+.
+            k = 0
+            c = 0.0
+            f = x
+    else if hx >= 0x7ff00000:
+        return x
+    if k != 0:
+        u := 1.0 + x
+        let hu = u32(f64_bits(u) >> 32)
+        hu += 0x3ff00000 - 0x3fe6a09e
+        k = i32(hu >> 20) - 0x3ff
+        # Correction term ~ log(1+x) - log(u), avoiding underflow in c/u.
+        if k < 54:
+            c = if k >= 2: 1.0 - (u - x) else: x - (u - 1.0)
+            c /= u
+        else:
+            c = 0.0
+        # Reduce u into [sqrt(2)/2, sqrt(2)].
+        hu = (hu & 0x000fffff) + 0x3fe6a09e
+        f = f64_from((u64(hu) << 32) | (f64_bits(u) & 0xffffffff)) - 1.0
+    hfsq := 0.5 * f * f
+    s := f / (2.0 + f)
+    z := s * s
+    w := z * z
+    t1 := (
+        w
+        * (3.999999999940941908e-01 + w * (2.222219843214978396e-01 + w * 1.531383769920937332e-01))
+    )
+    t2 := (
+        z
+        * (
+            6.666666666666735130e-01
+            + w * (
+                2.857142874366239149e-01
+                + w * (1.818357216161805012e-01 + w * 1.479819860511658591e-01)
+            )
+        )
+    )
+    r := t2 + t1
+    dk := f64(k)
+    (
+        s * (hfsq + r)
+        + (dk * 1.90821492927058770002e-10 + c)
+        - hfsq
+        + f
+        + dk * 6.93147180369123816490e-01
+    )
+
+# musl logf_data.c (Arm): for 16 subintervals, the bits of 1/c and log(c).
+@inline(.Always)
+fn libm_logf_table() -> string:
+    "}MN}xp]Wu~B]jIb?]~]T~J|_wjIt][t~BZvEofAnnQ~JoA@{ofRds~BfhRS~xiFO~JDM?moUXqr~BhRa_ea\\KJ~JdQEaKcPBr~BW\\FoI{sTE~J_ywAzHaVq~B?CGfFnai@~J~ObEIhsmp~B]x?bMZfRy}JyUmaobtGp~BKrPWYprdp}JfAOe@|Rdo~B]oOwwOnSa}J????????o~B???????????k]ce|rGWm~BCed{\\hYhi}B_ie?^KJhk~BsyaLiMdV{}BernYVXBGj~BGkLGvTmHD~BlgYgbDloh~Bo\\cGLWgoJ~BlFC]BWm`g~B`zFgGnW@P~Ba`sStr|Xf~BHwmlV@B@S~B"
+
+# musl logf.c (Arm), in double.
+fn libm_logf(x: f32) -> f32:
+    let ix = f32_bits(x)
+    if ix == 0x3f800000:
+        return 0.0
+    if ix.wrapping_sub(0x00800000) >= 0x7f800000 - 0x00800000:
+        # x < 0x1p-126 or inf or nan.
+        if ix << 1 == 0:
+            return -1.0 / 0.0
+        if ix == 0x7f800000:
+            return x
+        if (ix & 0x80000000) != 0 || ix << 1 >= 0xff000000:
+            return (x - x) / (x - x)
+        # x is subnormal: normalize it.
+        ix = f32_bits(x * 8388608.0).wrapping_sub(0x0b800000)
+    # x = 2^k z, with z in [OFF, 2*OFF] and exact.
+    tmp := ix.wrapping_sub(0x3f330000)
+    i := usize((tmp >> 19) & 15)
+    k := i32(tmp) >> 23
+    iz := ix.wrapping_sub(tmp & 0xff800000)
+    table := libm_logf_table()
+    invc := libm_float(table, 2 * i)
+    logc := libm_float(table, 2 * i + 1)
+    z := f64(f32_from(iz))
+    # log(x) = log1p(z/c - 1) + log(c) + k*ln2.
+    r := z * invc - 1.0
+    y0 := logc + f64(k) * 0.6931471805599453
+    r2 := r * r
+    let y = 0.333456765744066 * r + -0.4999997485802103
+    y = -0.25089342214237154 * r2 + y
+    y = y * r2 + (y0 + r)
+    f32(y)
+
+# musl log2f.c (Arm), in double.
+fn libm_log2f(x: f32) -> f32:
+    let ix = f32_bits(x)
+    if ix == 0x3f800000:
+        return 0.0
+    if ix.wrapping_sub(0x00800000) >= 0x7f800000 - 0x00800000:
+        # x < 0x1p-126 or inf or nan.
+        if ix << 1 == 0:
+            return -1.0 / 0.0
+        if ix == 0x7f800000:
+            return x
+        if (ix & 0x80000000) != 0 || ix << 1 >= 0xff000000:
+            return (x - x) / (x - x)
+        # x is subnormal: normalize it.
+        ix = f32_bits(x * 8388608.0).wrapping_sub(0x0b800000)
+    tmp := ix.wrapping_sub(0x3f330000)
+    i := usize((tmp >> 19) & 15)
+    top := tmp & 0xff800000
+    iz := ix.wrapping_sub(top)
+    k := i32(tmp) >> 23
+    table := libm_log2f_table()
+    invc := libm_float(table, 2 * i)
+    logc := libm_float(table, 2 * i + 1)
+    z := f64(f32_from(iz))
+    # log2(x) = log1p(z/c - 1)/ln2 + log2(c) + k.
+    r := z * invc - 1.0
+    y0 := logc + f64(k)
+    r2 := r * r
+    let y = 0.4811247078767291 * r + -0.7213476299867769
+    y = -0.36051725506874704 * r2 + y
+    p := 1.4426950186867042 * r + y0
+    y = y * r2 + p
+    f32(y)
+
+# musl log10f.c (Sun), in f32.
+fn libm_log10f(value: f32) -> f32:
+    let x = value
+    let ix = f32_bits(x)
+    let k: i32 = 0
+    if ix < 0x00800000 || (ix >> 31) != 0:
+        if ix << 1 == 0:
+            return -1.0 / (x * x)
+        if (ix >> 31) != 0:
+            return (x - x) / 0.0
+        # Subnormal: scale x up.
+        k -= 25
+        x *= 33554432.0
+        ix = f32_bits(x)
+    else if ix >= 0x7f800000:
+        return x
+    else if ix == 0x3f800000:
+        return 0.0
+    # Reduce x into [sqrt(2)/2, sqrt(2)].
+    ix += 0x3f800000 - 0x3f3504f3
+    k += i32(ix >> 23) - 0x7f
+    ix = (ix & 0x007fffff) + 0x3f3504f3
+    x = f32_from(ix)
+    f := x - 1.0
+    s := f / (2.0 + f)
+    z := s * s
+    w := z * z
+    t1 := w * (0.40000972 + w * 0.24279079)
+    t2 := z * (0.6666666 + w * 0.28498787)
+    r := t2 + t1
+    hfsq := 0.5 * f * f
+    hi := f32_from(f32_bits(f - hfsq) & 0xfffff000)
+    lo := f - hi - hfsq + s * (hfsq + r)
+    dk := f32(k)
+    (
+        dk * 7.903415e-07
+        + (lo + hi) * -3.168997e-05
+        + lo * 0.43432617
+        + hi * 0.43432617
+        + dk * 0.3010292
+    )
+
+# musl log1pf.c (Sun), in f32.
+fn libm_log1pf(value: f32) -> f32:
+    let x = value
+    ix := f32_bits(x)
+    let k: i32 = 1
+    let c: f32 = 0.0
+    let f: f32 = 0.0
+    if ix < 0x3ed413d0 || (ix >> 31) != 0:
+        # 1+x < sqrt(2)+.
+        if ix >= 0xbf800000:
+            # x <= -1.0.
+            if x == -1.0:
+                return x / 0.0
+            return (x - x) / 0.0
+        if ix << 1 < 0x67000000:
+            # |x| < 2^-24.
+            return x
+        if ix <= 0xbe95f619:
+            # sqrt(2)/2- <= 1+x < sqrt(2)+.
+            k = 0
+            c = 0.0
+            f = x
+    else if ix >= 0x7f800000:
+        return x
+    if k != 0:
+        u := 1.0 + x
+        let iu = f32_bits(u)
+        iu += 0x3f800000 - 0x3f3504f3
+        k = i32(iu >> 23) - 0x7f
+        # Correction term ~ log(1+x) - log(u), avoiding underflow in c/u.
+        if k < 25:
+            c = if k >= 2: 1.0 - (u - x) else: x - (u - 1.0)
+            c /= u
+        else:
+            c = 0.0
+        # Reduce u into [sqrt(2)/2, sqrt(2)].
+        iu = (iu & 0x007fffff) + 0x3f3504f3
+        f = f32_from(iu) - 1.0
+    s := f / (2.0 + f)
+    z := s * s
+    w := z * z
+    t1 := w * (0.40000972 + w * 0.24279079)
+    t2 := z * (0.6666666 + w * 0.28498787)
+    r := t2 + t1
+    hfsq := 0.5 * f * f
+    dk := f32(k)
+    s * (hfsq + r) + (dk * 9.058001e-06 + c) - hfsq + f + dk * 0.6931381
+
+# musl expm1.c (Sun): exp(x) - 1, accurate near zero.
+fn libm_expm1(value: f64) -> f64:
+    let x = value
+    bits := f64_bits(x)
+    hx := u32(bits >> 32) & 0x7fffffff
+    sign := (bits >> 63) != 0
+    # Filter out huge and non-finite arguments.
+    if hx >= 0x4043687a:
+        # |x| >= 56*ln2.
+        if x != x:
+            return x
+        if sign:
+            return -1.0
+        if x > 7.09782712893383973096e+02:
+            return x * 8.98846567431158e+307
+    let k: i32 = 0
+    let c = 0.0
+    if hx > 0x3fd62e42:
+        # |x| > 0.5 ln2: argument reduction.
+        let hi = 0.0
+        let lo = 0.0
+        if hx < 0x3ff0a2b2:
+            # and |x| < 1.5 ln2.
+            if !sign:
+                hi = x - 6.93147180369123816490e-01
+                lo = 1.90821492927058770002e-10
+                k = 1
+            else:
+                hi = x + 6.93147180369123816490e-01
+                lo = -1.90821492927058770002e-10
+                k = -1
+        else:
+            k = i32(1.44269504088896338700e+00 * x + (if sign: -0.5 else: 0.5))
+            t := f64(k)
+            # t*ln2_hi is exact here.
+            hi = x - t * 6.93147180369123816490e-01
+            lo = t * 1.90821492927058770002e-10
+        x = hi - lo
+        c = (hi - x) - lo
+    else if hx < 0x3c900000:
+        # |x| < 2^-54: return x.
+        return x
+    # x is now in the primary range.
+    hfx := 0.5 * x
+    hxs := x * hfx
+    r1 := (
+        1.0
+        + hxs * (
+            -3.33333333333331316428e-02
+            + hxs * (
+                1.58730158725481460165e-03
+                + hxs * (
+                    -7.93650757867487942473e-05
+                    + hxs * (4.00821782732936239552e-06 + hxs * -2.01099218183624371326e-07)
+                )
+            )
+        )
+    )
+    t := 3.0 - r1 * hfx
+    let e = hxs * ((r1 - t) / (6.0 - x * t))
+    if k == 0:
+        # c is 0.
+        return x - (x * e - hxs)
+    e = x * (e - c) - c
+    e -= hxs
+    # exp(x) ~ 2^k (x_reduced - e + 1).
+    if k == -1:
+        return 0.5 * (x - e) - 0.5
+    if k == 1:
+        if x < -0.25:
+            return -2.0 * (e - (x + 0.5))
+        return 1.0 + 2.0 * (x - e)
+    twopk := f64_from(u64(0x3ff + k) << 52)
+    if k < 0 || k > 56:
+        # It suffices to return exp(x) - 1.
+        let y = x - e + 1.0
+        if k == 1024:
+            y = y * 2.0 * 8.98846567431158e+307
+        else:
+            y = y * twopk
+        return y - 1.0
+    inverse := f64_from(u64(0x3ff - k) << 52)
+    if k < 20: (x - e + (1.0 - inverse)) * twopk else: (x - (e + inverse) + 1.0) * twopk
+
+# musl expm1f.c (Sun), in f32.
+fn libm_expm1f(value: f32) -> f32:
+    let x = value
+    bits := f32_bits(x)
+    hx := bits & 0x7fffffff
+    sign := (bits >> 31) != 0
+    if hx >= 0x4195b844:
+        # |x| >= 27*ln2.
+        if hx > 0x7f800000:
+            return x
+        if sign:
+            return -1.0
+        if hx > 0x42b17217:
+            # x > log(FLT_MAX).
+            return x * 1.7014118e+38
+    let k: i32 = 0
+    let c: f32 = 0.0
+    if hx > 0x3eb17218:
+        # |x| > 0.5 ln2: argument reduction.
+        let hi: f32 = 0.0
+        let lo: f32 = 0.0
+        if hx < 0x3f851592:
+            # and |x| < 1.5 ln2.
+            if !sign:
+                hi = x - 0.6931381
+                lo = 9.058001e-06
+                k = 1
+            else:
+                hi = x + 0.6931381
+                lo = -9.058001e-06
+                k = -1
+        else:
+            k = i32(1.442695 * x + (if sign: -0.5 else: 0.5))
+            t := f32(k)
+            hi = x - t * 0.6931381
+            lo = t * 9.058001e-06
+        x = hi - lo
+        c = (hi - x) - lo
+    else if hx < 0x33000000:
+        # |x| < 2^-25: return x.
+        return x
+    hfx := 0.5 * x
+    hxs := x * hfx
+    r1 := 1.0 + hxs * (-0.033333212 + hxs * 0.001580717)
+    t := 3.0 - r1 * hfx
+    let e = hxs * ((r1 - t) / (6.0 - x * t))
+    if k == 0:
+        return x - (x * e - hxs)
+    e = x * (e - c) - c
+    e -= hxs
+    if k == -1:
+        return 0.5 * (x - e) - 0.5
+    if k == 1:
+        if x < -0.25:
+            return -2.0 * (e - (x + 0.5))
+        return 1.0 + 2.0 * (x - e)
+    twopk := f32_from(u32(0x7f + k) << 23)
+    if k < 0 || k > 56:
+        let y = x - e + 1.0
+        if k == 128:
+            y = y * 2.0 * 1.7014118e+38
+        else:
+            y = y * twopk
+        return y - 1.0
+    inverse := f32_from(u32(0x7f - k) << 23)
+    if k < 23: (x - e + (1.0 - inverse)) * twopk else: (x - (e + inverse) + 1.0) * twopk
+
+# musl __expo2.c: exp(x)/2 for x >= log(DBL_MAX), as exp(x - k ln2) *
+# 2^(k-1) with k = 2043.
+fn libm_expo2(x: f64, sign: f64) -> f64:
+    scale := f64_from(0x7fc0000000000000)
+    libm_exp(x - 1416.0996898839683) * (sign * scale) * scale
+
+# musl __expo2f.c: as __expo2.c, with k = 235.
+fn libm_expo2f(x: f32, sign: f32) -> f32:
+    scale := f32_from(0x7a000000)
+    libm_expf(x - 162.88959) * (sign * scale) * scale
+
+# musl sinh.c: (exp(x) - 1/exp(x))/2, through expm1.
+fn libm_sinh(x: f64) -> f64:
+    h := if (f64_bits(x) >> 63) != 0: -0.5 else: 0.5
+    magnitude := f64_bits(x) & 0x7fffffffffffffff
+    absx := f64_from(magnitude)
+    w := u32(magnitude >> 32)
+    # |x| < log(DBL_MAX).
+    if w < 0x40862e42:
+        t := libm_expm1(absx)
+        if w < 0x3ff00000:
+            if w < 0x3ff00000 - (26 << 20):
+                return x
+            return h * (2.0 * t - t * t / (t + 1.0))
+        return h * (t + t / (t + 1.0))
+    # |x| > log(DBL_MAX) or nan.
+    libm_expo2(absx, 2.0 * h)
+
+# musl sinhf.c.
+fn libm_sinhf(x: f32) -> f32:
+    let h: f32 = 0.5
+    if (f32_bits(x) >> 31) != 0:
+        h = -h
+    w := f32_bits(x) & 0x7fffffff
+    absx := f32_from(w)
+    # |x| < log(FLT_MAX).
+    if w < 0x42b17217:
+        t := libm_expm1f(absx)
+        if w < 0x3f800000:
+            if w < 0x3f800000 - (12 << 23):
+                return x
+            return h * (2.0 * t - t * t / (t + 1.0))
+        return h * (t + t / (t + 1.0))
+    libm_expo2f(absx, 2.0 * h)
+
+# musl cosh.c: 1 + (exp(x) - 1)^2 / (2 exp(x)) near zero, else
+# (exp(x) + 1/exp(x))/2.
+fn libm_cosh(value: f64) -> f64:
+    magnitude := f64_bits(value) & 0x7fffffffffffffff
+    x := f64_from(magnitude)
+    w := u32(magnitude >> 32)
+    # |x| < log(2).
+    if w < 0x3fe62e42:
+        if w < 0x3ff00000 - (26 << 20):
+            return 1.0
+        t := libm_expm1(x)
+        return 1.0 + t * t / (2.0 * (1.0 + t))
+    # |x| < log(DBL_MAX).
+    if w < 0x40862e42:
+        t := libm_exp(x)
+        return 0.5 * (t + 1.0 / t)
+    # |x| > log(DBL_MAX) or nan.
+    libm_expo2(x, 1.0)
+
+# musl coshf.c.
+fn libm_coshf(value: f32) -> f32:
+    w := f32_bits(value) & 0x7fffffff
+    x := f32_from(w)
+    # |x| < log(2).
+    if w < 0x3f317217:
+        if w < 0x3f800000 - (12 << 23):
+            return 1.0
+        t := libm_expm1f(x)
+        return 1.0 + t * t / (2.0 * (1.0 + t))
+    # |x| < log(FLT_MAX).
+    if w < 0x42b17217:
+        t := libm_expf(x)
+        return 0.5 * (t + 1.0 / t)
+    libm_expo2f(x, 1.0)
+
+# musl tanh.c: (exp(2x) - 1) / (exp(2x) + 1), through expm1.
+fn libm_tanh(value: f64) -> f64:
+    sign := (f64_bits(value) >> 63) != 0
+    magnitude := f64_bits(value) & 0x7fffffffffffffff
+    x := f64_from(magnitude)
+    w := u32(magnitude >> 32)
+    let t = x
+    if w > 0x3fe193ea:
+        # |x| > log(3)/2 ~= 0.5493 or nan.
+        if w > 0x40340000:
+            # |x| > 20 or nan.
+            t = 1.0 - 0.0 / x
+        else:
+            t = libm_expm1(2.0 * x)
+            t = 1.0 - 2.0 / (t + 2.0)
+    else if w > 0x3fd058ae:
+        # |x| > log(5/3)/2 ~= 0.2554.
+        t = libm_expm1(2.0 * x)
+        t = t / (t + 2.0)
+    else if w >= 0x00100000:
+        # |x| >= 0x1p-1022.
+        t = libm_expm1(-2.0 * x)
+        t = -t / (t + 2.0)
+    if sign: -t else: t
+
+# musl tanhf.c.
+fn libm_tanhf(value: f32) -> f32:
+    sign := (f32_bits(value) >> 31) != 0
+    w := f32_bits(value) & 0x7fffffff
+    x := f32_from(w)
+    let t = x
+    if w > 0x3f0c9f54:
+        # |x| > log(3)/2 ~= 0.5493 or nan.
+        if w > 0x41200000:
+            # |x| > 10.
+            t = 1.0 + 0.0 / x
+        else:
+            t = libm_expm1f(2.0 * x)
+            t = 1.0 - 2.0 / (t + 2.0)
+    else if w > 0x3e82c578:
+        # |x| > log(5/3)/2 ~= 0.2554.
+        t = libm_expm1f(2.0 * x)
+        t = t / (t + 2.0)
+    else if w >= 0x00800000:
+        # |x| >= 0x1p-126.
+        t = libm_expm1f(-2.0 * x)
+        t = -t / (t + 2.0)
+    if sign: -t else: t
+
+# musl asinh.c: sign(x) * log(|x| + sqrt(x*x + 1)).
+fn libm_asinh(value: f64) -> f64:
+    bits := f64_bits(value)
+    e := u32(bits >> 52) & 0x7ff
+    sign := (bits >> 63) != 0
+    let x = f64_from(bits & 0x7fffffffffffffff)
+    if e >= 0x3ff + 26:
+        # |x| >= 0x1p26 or inf or nan.
+        x = libm_log(x) + 0.693147180559945309417232121458176568
+    else if e >= 0x3ff + 1:
+        # |x| >= 2.
+        x = libm_log(2.0 * x + 1.0 / ((x * x + 1.0).sqrt() + x))
+    else if e >= 0x3ff - 26:
+        # |x| >= 0x1p-26.
+        x = libm_log1p(x + x * x / ((x * x + 1.0).sqrt() + 1.0))
+    if sign: -x else: x
+
+# musl asinhf.c.
+fn libm_asinhf(value: f32) -> f32:
+    i := f32_bits(value) & 0x7fffffff
+    sign := (f32_bits(value) >> 31) != 0
+    let x = f32_from(i)
+    if i >= 0x3f800000 + (12 << 23):
+        # |x| >= 0x1p12 or inf or nan.
+        x = libm_logf(x) + 0.6931472
+    else if i >= 0x3f800000 + (1 << 23):
+        # |x| >= 2.
+        x = libm_logf(2.0 * x + 1.0 / ((x * x + 1.0).sqrt() + x))
+    else if i >= 0x3f800000 - (12 << 23):
+        # |x| >= 0x1p-12.
+        x = libm_log1pf(x + x * x / ((x * x + 1.0).sqrt() + 1.0))
+    if sign: -x else: x
+
+# musl acosh.c: log(x + sqrt(x*x - 1)).
+fn libm_acosh(x: f64) -> f64:
+    e := u32(f64_bits(x) >> 52) & 0x7ff
+    if e < 0x3ff + 1:
+        # |x| < 2: invalid if x < 1.
+        return libm_log1p(x - 1.0 + ((x - 1.0) * (x - 1.0) + 2.0 * (x - 1.0)).sqrt())
+    if e < 0x3ff + 26:
+        # |x| < 0x1p26.
+        return libm_log(2.0 * x - 1.0 / (x + (x * x - 1.0).sqrt()))
+    # |x| >= 0x1p26 or nan.
+    libm_log(x) + 0.693147180559945309417232121458176568
+
+# musl acoshf.c.
+fn libm_acoshf(x: f32) -> f32:
+    bits := f32_bits(x)
+    if (bits & 0x7fffffff) < 0x3f800000 + (1 << 23):
+        # |x| < 2: invalid if x < 1.
+        return libm_log1pf(x - 1.0 + ((x - 1.0) * (x - 1.0) + 2.0 * (x - 1.0)).sqrt())
+    if bits < 0x3f800000 + (12 << 23):
+        # 2 <= x < 0x1p12.
+        return libm_logf(2.0 * x - 1.0 / (x + (x * x - 1.0).sqrt()))
+    # x >= 0x1p12 or x <= -2 or nan.
+    libm_logf(x) + 0.6931472
+
+# musl atanh.c: log1p(2x/(1-x))/2.
+fn libm_atanh(value: f64) -> f64:
+    bits := f64_bits(value)
+    e := u32(bits >> 52) & 0x7ff
+    sign := (bits >> 63) != 0
+    let y = f64_from(bits & 0x7fffffffffffffff)
+    if e < 0x3ff - 1:
+        if e >= 0x3ff - 32:
+            # |x| < 0.5.
+            y = 0.5 * libm_log1p(2.0 * y + 2.0 * y * y / (1.0 - y))
+    else:
+        # Avoid overflow.
+        y = 0.5 * libm_log1p(2.0 * (y / (1.0 - y)))
+    if sign: -y else: y
+
+# musl atanhf.c.
+fn libm_atanhf(value: f32) -> f32:
+    magnitude := f32_bits(value) & 0x7fffffff
+    sign := (f32_bits(value) >> 31) != 0
+    let y = f32_from(magnitude)
+    if magnitude < 0x3f800000 - (1 << 23):
+        if magnitude >= 0x3f800000 - (32 << 23):
+            # |x| < 0.5.
+            y = 0.5 * libm_log1pf(2.0 * y + 2.0 * y * y / (1.0 - y))
+    else:
+        # Avoid overflow.
+        y = 0.5 * libm_log1pf(2.0 * (y / (1.0 - y)))
+    if sign: -y else: y
+
+# musl cbrt.c (Sun): a rough cube root from the exponent bits, a
+# polynomial to 23 bits, then one Newton step to 53 bits.
+fn libm_cbrt(x: f64) -> f64:
+    let bits = f64_bits(x)
+    let hx = u32(bits >> 32) & 0x7fffffff
+    if hx >= 0x7ff00000:
+        # cbrt(NaN, INF) is itself.
+        return x + x
+    if hx < 0x00100000:
+        # Zero or subnormal.
+        bits = f64_bits(x * 18014398509481984.0)
+        hx = u32(bits >> 32) & 0x7fffffff
+        if hx == 0:
+            return x
+        hx = hx / 3 + 696219795
+    else:
+        hx = hx / 3 + 715094163
+    let t = f64_from((bits & 0x8000000000000000) | (u64(hx) << 32))
+    # New cbrt to 23 bits: cbrt(x) = t*cbrt(x/t**3) ~= t*P(t**3/x).
+    let r = (t * t) * (t / x)
+    t = (
+        t
+        * (
+            (1.87595182427177009643 + r * (-1.88497979543377169875 + r * 1.621429720105354466140))
+            + ((r * r) * r) * (-0.758397934778766047437 + r * 0.145996192886612446982)
+        )
+    )
+    # Round t away from zero to 23 bits.
+    t = f64_from(f64_bits(t).wrapping_add(0x80000000) & 0xffffffffc0000000)
+    # One Newton step to 53 bits, with error < 0.667 ulps.
+    s := t * t
+    r = x / s
+    w := t + t
+    r = (r - t) / (w + r)
+    t + t * r
+
+# musl cbrtf.c (Sun): two Newton steps in double.
+fn libm_cbrtf(x: f32) -> f32:
+    let bits = f32_bits(x)
+    let hx = bits & 0x7fffffff
+    if hx >= 0x7f800000:
+        # cbrt(NaN, INF) is itself.
+        return x + x
+    if hx < 0x00800000:
+        # Zero or subnormal.
+        if hx == 0:
+            return x
+        bits = f32_bits(x * 16777216.0)
+        hx = bits & 0x7fffffff
+        hx = hx / 3 + 642849266
+    else:
+        hx = hx / 3 + 709958130
+    let t = f64(f32_from((bits & 0x80000000) | hx))
+    xd := f64(x)
+    let r = t * t * t
+    t = t * (xd + xd + r) / (xd + r + r)
+    r = t * t * t
+    t = t * (xd + xd + r) / (xd + r + r)
+    f32(t)
+
+# musl hypot.c `sq`: x*x as an exact hi + lo, by Dekker's split.
+@inline(.Always)
+fn libm_square(x: f64) -> (f64, f64):
+    xc := x * 134217729.0
+    xh := x - xc + xc
+    xl := x - xh
+    hi := x * x
+    (hi, xh * xh - hi + 2.0 * xh * xl + xl * xl)
+
+# musl hypot.c: sqrt(x*x + y*y) with the squares exact and the sum
+# scaled out of overflow and underflow.
+fn libm_hypot(a: f64, b: f64) -> f64:
+    let ux = f64_bits(a) & 0x7fffffffffffffff
+    let uy = f64_bits(b) & 0x7fffffffffffffff
+    # Arrange |x| >= |y|.
+    if ux < uy:
+        swap := ux
+        ux = uy
+        uy = swap
+    ex := i32(ux >> 52)
+    ey := i32(uy >> 52)
+    let x = f64_from(ux)
+    let y = f64_from(uy)
+    # hypot(inf, nan) == inf.
+    if ey == 0x7ff:
+        return y
+    if ex == 0x7ff || uy == 0:
+        return x
+    if ex - ey > 64:
+        return x + y
+    # A precise sqrt argument without overflow.
+    let z = 1.0
+    if ex > 0x3ff + 510:
+        z = 5.260135901548374e+210
+        x *= 1.90109156629516e-211
+        y *= 1.90109156629516e-211
+    else if ey < 0x3ff - 450:
+        z = 1.90109156629516e-211
+        x *= 5.260135901548374e+210
+        y *= 5.260135901548374e+210
+    let (hx, lx) = libm_square(x)
+    let (hy, ly) = libm_square(y)
+    z * (ly + lx + hy + hx).sqrt()
+
+# musl hypotf.c: the sum of squares in double.
+fn libm_hypotf(a: f32, b: f32) -> f32:
+    let ux = f32_bits(a) & 0x7fffffff
+    let uy = f32_bits(b) & 0x7fffffff
+    if ux < uy:
+        swap := ux
+        ux = uy
+        uy = swap
+    let x = f32_from(ux)
+    let y = f32_from(uy)
+    if uy == 0x7f800000:
+        return y
+    if ux >= 0x7f800000 || uy == 0 || ux - uy >= 25 << 23:
+        return x + y
+    let z: f32 = 1.0
+    if ux >= (0x7f + 60) << 23:
+        z = 1.23794004e+27
+        x *= 8.077936e-28
+        y *= 8.077936e-28
+    else if uy < (0x7f - 60) << 23:
+        z = 8.077936e-28
+        x *= 1.23794004e+27
+        y *= 1.23794004e+27
+    z * f32(f64(x) * f64(x) + f64(y) * f64(y)).sqrt()
+
+# musl scalbn.c: x * 2^n, rounding once.
+fn libm_scalbn(x: f64, count: i32) -> f64:
+    let n = count
+    let y = x
+    if n > 1023:
+        y *= 8.98846567431158e+307
+        n -= 1023
+        if n > 1023:
+            y *= 8.98846567431158e+307
+            n -= 1023
+            if n > 1023:
+                n = 1023
+    else if n < -1022:
+        # Make the final n < -53 to avoid a double rounding in the
+        # subnormal range.
+        y *= 2.004168360008973e-292
+        n += 1022 - 53
+        if n < -1022:
+            y *= 2.004168360008973e-292
+            n += 1022 - 53
+            if n < -1022:
+                n = -1022
+    y * f64_from(u64(0x3ff + n) << 52)
+
+# musl fma.c `normalize`: the significand shifted so its top 10 bits and
+# last bit are 0, its exponent, and its sign bit (0x800 or 0).
+fn libm_fma_split(x: f64) -> (u64, i32, i32):
+    let ix = f64_bits(x)
+    let e = i32(ix >> 52)
+    sign := e & 0x800
+    e = e & 0x7ff
+    if e == 0:
+        ix = f64_bits(x * 9.223372036854776e+18)
+        e = i32((ix >> 52) & 0x7ff)
+        e = if e != 0: e - 63 else: 0x800
+    ix = (ix & 0x000fffffffffffff) | 0x0010000000000000
+    (ix << 1, e - (0x3ff + 52 + 1), sign)
+
+# musl fma.c `mul`: the 128-bit product of two significands, as (hi, lo).
+fn libm_fma_mul(x: u64, y: u64) -> (u64, u64):
+    xlo := x & 0xffffffff
+    xhi := x >> 32
+    ylo := y & 0xffffffff
+    yhi := y >> 32
+    t1 := xlo * ylo
+    t2 := xlo * yhi + xhi * ylo
+    t3 := xhi * yhi
+    lo := t1.wrapping_add(t2 << 32)
+    (t3 + (t2 >> 32) + (if t1 > lo: 1 else: 0), lo)
+
+# musl fma.c: x*y + z with one rounding, in 128-bit integer arithmetic.
+# Every path is a fixed number of steps.
+fn libm_fma(x: f64, y: f64, z: f64) -> f64:
+    let (mx, ex, sx) = libm_fma_split(x)
+    let (my, ey, sy) = libm_fma_split(y)
+    let (mz, ez, sz) = libm_fma_split(z)
+    # 971 is 0x7ff - 0x3ff - 52 - 1: a zero, infinity or NaN.
+    if ex >= 971 || ey >= 971:
+        return x * y + z
+    if ez >= 971:
+        if ez > 971:
+            # z == 0.
+            return x * y + z
+        return z
+    # mul: r = x*y; either the top 20 or 21 bits of rhi and the last 2
+    # bits of rlo are 0.
+    let (rhi, rlo) = libm_fma_mul(mx, my)
+    # Align the exponents: z <<= kz and r >>= kr, with kz + kr == d.
+    let e = ex + ey
+    let d = ez - e
+    let zhi: u64 = 0
+    let zlo: u64 = 0
+    if d > 0:
+        if d < 64:
+            zlo = mz << u32(d)
+            zhi = mz >> u32(64 - d)
+        else:
+            zlo = 0
+            zhi = mz
+            e = ez - 64
+            d -= 64
+            if d == 0:
+                pass
+            else if d < 64:
+                let sticky: u64 = if (rlo << u32(64 - d)) != 0: 1 else: 0
+                rlo = (rhi << u32(64 - d)) | (rlo >> u32(d)) | sticky
+                rhi = rhi >> u32(d)
+            else:
+                rlo = 1
+                rhi = 0
+    else:
+        zhi = 0
+        d = -d
+        if d == 0:
+            zlo = mz
+        else if d < 64:
+            zlo = (mz >> u32(d)) | (if (mz << u32(64 - d)) != 0: 1 else: 0)
+        else:
+            zlo = 1
+    # Add.
+    let negative = (sx ^ sy) != 0
+    let nonzero = true
+    if (sx ^ sy ^ sz) == 0:
+        # r += z.
+        rlo = rlo.wrapping_add(zlo)
+        rhi = rhi.wrapping_add(zhi.wrapping_add(if rlo < zlo: 1 else: 0))
+    else:
+        # r -= z.
+        t := rlo
+        rlo = rlo.wrapping_sub(zlo)
+        rhi = rhi.wrapping_sub(zhi).wrapping_sub(if t < rlo: 1 else: 0)
+        if (rhi >> 63) != 0:
+            rlo = u64(0).wrapping_sub(rlo)
+            rhi = u64(0).wrapping_sub(rhi).wrapping_sub(if rlo != 0: 1 else: 0)
+            negative = !negative
+        nonzero = rhi != 0
+    # Set rhi to the top 63 bits of the result; the last bit is sticky.
+    if nonzero:
+        e += 64
+        d = i32(rhi.leading_zeros()) - 1
+        # d > 0.
+        let sticky: u64 = if (rlo << u32(d)) != 0: 1 else: 0
+        rhi = (rhi << u32(d)) | (rlo >> u32(64 - d)) | sticky
+    else if rlo != 0:
+        d = i32(rlo.leading_zeros()) - 1
+        if d < 0:
+            rhi = (rlo >> 1) | (rlo & 1)
+        else:
+            rhi = rlo << u32(d)
+    else:
+        # An exact +-0.
+        return x * y + z
+    e -= d
+    # Convert to double: i is in [1<<62, (1<<63)-1].
+    let i = i64(rhi)
+    if negative:
+        i = -i
+    # |r| is in [0x1p62, 0x1p63].
+    let r = f64(i)
+    if e < -1022 - 62:
+        # The result is subnormal before rounding.
+        if e == -1022 - 63:
+            c := if negative: -9.223372036854776e+18 else: 9.223372036854776e+18
+            if r == c:
+                # The minimum normal after rounding; musl imitates the
+                # underflow with a conversion to float.
+                smallest := f32(1.2744734909236908e-57 * r)
+                return 1.8928834978668395e-270 * f64(smallest)
+            # One bit is lost when scaled: add another top bit to round
+            # only once at the conversion when it is inexact.
+            if (rhi << 53) != 0:
+                i = i64((rhi >> 1) | (rhi & 1) | 0x4000000000000000)
+                if negative:
+                    i = -i
+                r = f64(i)
+                # Remove the top bit.
+                r = 2.0 * r - c
+        else:
+            # Round only once when scaled.
+            let sticky: u64 = if (rhi << 54) != 0: 1 else: 0
+            i = i64(((rhi >> 10) | sticky) << 10)
+            if negative:
+                i = -i
+            r = f64(i)
+    libm_scalbn(r, e)
+
+# musl fmaf.c, from FreeBSD's s_fmaf.c, which carries this notice:
+#   Copyright (c) 2005-2011 David Schultz <das@FreeBSD.ORG>
+#   All rights reserved.
+#
+#   Redistribution and use in source and binary forms, with or without
+#   modification, are permitted provided that the following conditions
+#   are met:
+#   1. Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#   2. Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#
+#   THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+#   ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#   ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+#   FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+#   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+#   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+#   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+#   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+#   OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+#   SUCH DAMAGE.
+# A double has more than twice a float's precision, so x*y + z in double
+# is exact but for one rounding, except in a halfway case.
+fn libm_fmaf(x: f32, y: f32, z: f32) -> f32:
+    xy := f64(x) * f64(y)
+    zd := f64(z)
+    result := xy + zd
+    let bits = f64_bits(result)
+    e := (bits >> 52) & 0x7ff
+    # The common case: not a halfway case, NaN, or exact.
+    if (bits & 0x1fffffff) != 0x10000000 || e == 0x7ff || (result - xy == zd && result - zd == xy):
+        return f32(result)
+    # Inexact and exactly halfway between two floats: move the low bit
+    # toward the error.
+    negative := (bits >> 63) != 0
+    err := if negative == (zd > xy): xy - result + zd else: zd - result + xy
+    if negative == (err < 0.0):
+        bits += 1
+    else:
+        bits -= 1
+    f32(f64_from(bits))
+
+# musl __rem_pio2_large.c (Sun): Payne-Hanek reduction of a huge
+# argument, given as up to three 24-bit digits `x` scaled by 2^e0, by the
+# window of 2/pi that the low three quotient bits and the remainder need.
+# `prec` 0 (f32) sums the result into `y0`; 1 (f64) also gives the tail
+# `y1`. A recomputation widens the window; it never recurses, and the
+# 66-limb table bounds it: the arrays hold at most 20 terms, as musl's do.
+fn libm_rem_pio2_large(x: (f64, f64, f64), nx: i32, e0: i32, prec: i32) -> (i32, f64, f64):
+    jk := if prec == 0: +3 else: +4
+    jp := jk
+    # Determine jx, jv and q0; note that 3 > q0.
+    jx := nx - 1
+    let jv = (e0 - 3) / 24
+    if jv < 0:
+        jv = 0
+    let q0 = e0 - 24 * (jv + 1)
     let mut f = FloatReductionWords::new()
     let mut q = FloatReductionWords::new()
-    let mut iq = FloatReductionWords::new()
     let mut fq = FloatReductionWords::new()
+    let mut iq = FloatReductionWords::new()
+    # Set up f[0] to f[jx+jk], where f[jx+jk] = ipio2[jv+jk].
+    let j = jv - jx
     let i: i32 = 0
-    while i <= last + 4:
-        at := start - last + i
-        f.set(i, if at < 0: 0.0 else: float_two_over_pi(at))
+    while i <= jx + jk:
+        f.set(i, if j < 0: 0.0 else: float_two_over_pi(j))
         i += 1
+        j += 1
+    # Compute q[0], q[1], ... q[jk].
     i = 0
-    while i <= 4:
+    while i <= jk:
         let sum = 0.0
-        let j: i32 = 0
-        while j <= last:
-            sum += float_reduction_digit(digits, j) * f.get(last + i - j)
+        j = 0
+        while j <= jx:
+            sum += float_reduction_digit(x, j) * f.get(jx + i - j)
             j += 1
         q.set(i, sum)
         i += 1
-    let end: i32 = 4
+    let jz = jk
     let n: i32 = 0
     let z = 0.0
-    let half: i32 = 0
+    let ih: i32 = 0
     while true:
-        z = q.get(end)
-        let j = end
+        # Distill q[] into iq[] in reverse.
         i = 0
+        j = jz
+        z = q.get(jz)
         while j > 0:
-            carry := (z * 5.9604644775390625e-08).trunc()
-            iq.set(i, z - 16777216.0 * carry)
-            z = q.get(j - 1) + carry
+            high := (5.960464477539063e-08 * z).trunc()
+            iq.set(i, (z - 16777216.0 * high).trunc())
+            z = q.get(j - 1) + high
             i += 1
             j -= 1
-        z = float_scale_binary(z, scale)
+        # Compute n.
+        z = libm_scalbn(z, q0)
+        # Trim off the integer part >= 8.
         z -= 8.0 * (z * 0.125).floor()
         n = i32(z)
         z -= f64(n)
-        half = 0
-        if scale > 0:
-            top := i32(iq.get(end - 1))
-            extra := top >> u32(24 - scale)
+        ih = 0
+        if q0 > 0:
+            # iq[jz-1] is needed to determine n.
+            top := i32(iq.get(jz - 1))
+            extra := top >> u32(24 - q0)
             n += extra
-            iq.set(end - 1, f64(top - (extra << u32(24 - scale))))
-            half = i32(iq.get(end - 1)) >> u32(23 - scale)
-        else if scale == 0:
-            half = i32(iq.get(end - 1)) >> 23
+            iq.set(jz - 1, f64(top - (extra << u32(24 - q0))))
+            ih = i32(iq.get(jz - 1)) >> u32(23 - q0)
+        else if q0 == 0:
+            ih = i32(iq.get(jz - 1)) >> 23
         else if z >= 0.5:
-            half = 2
-        if half > 0:
+            ih = 2
+        if ih > 0:
+            # q > 0.5: compute 1 - q.
             n += 1
             let carry: i32 = 0
             i = 0
-            while i < end:
+            while i < jz:
                 digit := i32(iq.get(i))
                 if carry == 0:
                     if digit != 0:
                         carry = 1
-                        iq.set(i, f64(16777216 - digit))
+                        iq.set(i, f64(0x1000000 - digit))
                 else:
-                    iq.set(i, f64(16777215 - digit))
+                    iq.set(i, f64(0xffffff - digit))
                 i += 1
-            if scale == 1:
-                iq.set(end - 1, f64(i32(iq.get(end - 1)) & 0x7fffff))
-            else if scale == 2:
-                iq.set(end - 1, f64(i32(iq.get(end - 1)) & 0x3fffff))
-            if half == 2:
+            if q0 > 0:
+                # A rare case: a chance of 1 in 12.
+                if q0 == 1:
+                    iq.set(jz - 1, f64(i32(iq.get(jz - 1)) & 0x7fffff))
+                else if q0 == 2:
+                    iq.set(jz - 1, f64(i32(iq.get(jz - 1)) & 0x3fffff))
+            if ih == 2:
                 z = 1.0 - z
                 if carry != 0:
-                    z -= float_scale_binary(1.0, scale)
+                    z -= libm_scalbn(1.0, q0)
+        # Check whether recomputation is needed.
         if z == 0.0:
             let any: i32 = 0
-            i = end - 1
-            while i >= 4:
+            i = jz - 1
+            while i >= jk:
                 any = any | i32(iq.get(i))
                 i -= 1
             if any == 0:
-                let more: i32 = 1
-                while iq.get(4 - more) == 0.0:
-                    more += 1
-                i = end + 1
-                while i <= end + more:
-                    f.set(last + i, float_two_over_pi(start + i))
+                # k is the number of terms needed.
+                let k: i32 = 1
+                while iq.get(jk - k) == 0.0:
+                    k += 1
+                # Add q[jz+1] to q[jz+k].
+                i = jz + 1
+                while i <= jz + k:
+                    f.set(jx + i, float_two_over_pi(jv + i))
                     let sum = 0.0
-                    let j: i32 = 0
-                    while j <= last:
-                        sum += float_reduction_digit(digits, j) * f.get(last + i - j)
+                    j = 0
+                    while j <= jx:
+                        sum += float_reduction_digit(x, j) * f.get(jx + i - j)
                         j += 1
                     q.set(i, sum)
                     i += 1
-                end += more
+                jz += k
                 continue
         break
+    # Chop off zero terms.
     if z == 0.0:
-        end -= 1
-        scale -= 24
-        while iq.get(end) == 0.0:
-            end -= 1
-            scale -= 24
+        jz -= 1
+        q0 -= 24
+        while iq.get(jz) == 0.0:
+            jz -= 1
+            q0 -= 24
     else:
-        z = float_scale_binary(z, -scale)
+        # Break z into 24-bit digits if necessary.
+        z = libm_scalbn(z, -q0)
         if z >= 16777216.0:
-            carry := (z * 5.9604644775390625e-08).trunc()
-            iq.set(end, z - 16777216.0 * carry)
-            end += 1
-            scale += 24
-            iq.set(end, carry)
+            high := (5.960464477539063e-08 * z).trunc()
+            iq.set(jz, (z - 16777216.0 * high).trunc())
+            jz += 1
+            q0 += 24
+            iq.set(jz, high)
         else:
-            iq.set(end, z)
-    let weight = float_scale_binary(1.0, scale)
-    i = end
+            iq.set(jz, z.trunc())
+    # Convert the integer chunks to floating point.
+    let fw = libm_scalbn(1.0, q0)
+    i = jz
     while i >= 0:
-        q.set(i, weight * iq.get(i))
-        weight *= 5.9604644775390625e-08
+        q.set(i, fw * iq.get(i))
+        fw *= 5.960464477539063e-08
         i -= 1
-    i = end
+    # Compute PIo2[0, ..., jp] * q[jz, ..., 0].
+    i = jz
     while i >= 0:
-        let sum = 0.0
+        fw = 0.0
         let k: i32 = 0
-        while k <= 4 && k <= end - i:
-            sum += float_half_pi_digit(k) * q.get(i + k)
+        while k <= jp && k <= jz - i:
+            fw += float_half_pi_digit(k) * q.get(i + k)
             k += 1
-        fq.set(end - i, sum)
+        fq.set(jz - i, fw)
         i -= 1
-    let head = 0.0
-    i = end
+    # Compress fq[] into y[].
+    fw = 0.0
+    i = jz
     while i >= 0:
-        head += fq.get(i)
+        fw += fq.get(i)
         i -= 1
-    let tail = fq.get(0) - head
+    y0 := if ih == 0: fw else: -fw
+    if prec == 0:
+        return (n & 7, y0, 0.0)
+    fw = fq.get(0) - fw
     i = 1
-    while i <= end:
-        tail += fq.get(i)
+    while i <= jz:
+        fw += fq.get(i)
         i += 1
-    if half != 0:
-        head = -head
-        tail = -tail
-    if value < 0.0: (-(n & 7), -head, -tail) else: (n & 7, head, tail)
+    (n & 7, y0, if ih == 0: fw else: -fw)
 
-fn float_reduce_half_pi(value: f64) -> (i32, f64, f64):
-    word := high_word(value) & 0x7fffffff
-    if word >= 0x413921fb:
-        return float_reduce_large(value)
-    # The medium algorithm also covers the four small nonzero quadrants.
-    # Wasm's native nearest replaces fdlibm's rounding-mode add/sub trick.
-    count := (value * 6.36619772367581382433e-01).round_ties_even()
-    let r = value - count * 1.57079632673412561417
-    let w = count * 6.07710050650619224932e-11
-    let head = r - w
-    original_exponent := i32(word >> 20)
-    if original_exponent - i32((high_word(head) >> 20) & 0x7ff) > 16:
-        previous := r
-        part := count * 6.07710050630396597660e-11
-        r = previous - part
-        w = count * 2.02226624879595063154e-21 - ((previous - r) - part)
-        head = r - w
-        if original_exponent - i32((high_word(head) >> 20) & 0x7ff) > 49:
-            previous := r
-            part := count * 2.02226624871116645580e-21
-            r = previous - part
-            w = count * 8.47842766036889956997e-32 - ((previous - r) - part)
-            head = r - w
-    (i32(count), head, (r - head) - w)
-
-fn float_sin_kernel(x: f64, tail: f64, reduced: bool) -> f64:
-    square := x * x
-    fourth := square * square
-    remainder := (
-        8.33333333332248946124e-03
-        + square * (-1.98412698298579493134e-04 + square * 2.75573137070700676789e-06)
-        + square * fourth * (-2.50507602534068634195e-08 + square * 1.58969099521155010221e-10)
+# musl __rem_pio2.c (Sun): x - n*pi/2 as (n, y0, y1), with y0 + y1 in
+# [-pi/4, pi/4]. The caller handles |x| ~<= pi/4.
+fn libm_rem_pio2(x: f64) -> (i32, f64, f64):
+    bits := f64_bits(x)
+    sign := (bits >> 63) != 0
+    ix := u32(bits >> 32) & 0x7fffffff
+    if ix <= 0x400f6a7a:
+        # |x| ~<= 5pi/4. Near pi/2 or 2pi/2 cancellation needs the medium case.
+        if (ix & 0xfffff) != 0x921fb:
+            return libm_rem_pio2_small(x, sign, if ix <= 0x4002d97c: +1 else: +2)
+    else if ix <= 0x401c463b:
+        # |x| ~<= 9pi/4. Near 3pi/2 or 4pi/2 cancellation needs the medium case.
+        if ix <= 0x4015fdbc:
+            if ix != 0x4012d97c:
+                return libm_rem_pio2_small(x, sign, +3)
+        else if ix != 0x401921fb:
+            return libm_rem_pio2_small(x, sign, +4)
+    if ix < 0x413921fb:
+        # |x| ~< 2^20*(pi/2), medium size: rint(x/(pi/2)).
+        let fnv = x * 6.36619772367581382433e-01 + 6755399441055744.0 - 6755399441055744.0
+        let n = i32(fnv)
+        let r = x - fnv * 1.57079632673412561417e+00
+        # The first round, good to 85 bits.
+        let w = fnv * 6.07710050650619224932e-11
+        if r - w < -0.7853981633974483:
+            n -= 1
+            fnv -= 1.0
+            r = x - fnv * 1.57079632673412561417e+00
+            w = fnv * 6.07710050650619224932e-11
+        else if r - w > 0.7853981633974483:
+            n += 1
+            fnv += 1.0
+            r = x - fnv * 1.57079632673412561417e+00
+            w = fnv * 6.07710050650619224932e-11
+        let y0 = r - w
+        ex := i32(ix >> 20)
+        if ex - i32((f64_bits(y0) >> 52) & 0x7ff) > 16:
+            # The second round, good to 118 bits.
+            t := r
+            w = fnv * 6.07710050630396597660e-11
+            r = t - w
+            w = fnv * 2.02226624879595063154e-21 - ((t - r) - w)
+            y0 = r - w
+            if ex - i32((f64_bits(y0) >> 52) & 0x7ff) > 49:
+                # The third round, good to 151 bits, covers all cases.
+                t2 := r
+                w = fnv * 2.02226624871116645580e-21
+                r = t2 - w
+                w = fnv * 8.47842766036889956997e-32 - ((t2 - r) - w)
+                y0 = r - w
+        return (n, y0, (r - y0) - w)
+    # All other, large arguments.
+    if ix >= 0x7ff00000:
+        # x is inf or NaN.
+        return (0, x - x, x - x)
+    # z = scalbn(|x|, -ilogb(x) + 23), split into three 24-bit digits.
+    let z = f64_from((bits & 0x000fffffffffffff) | 0x4160000000000000)
+    first := f64(i32(z))
+    z = (z - first) * 16777216.0
+    second := f64(i32(z))
+    third := (z - second) * 16777216.0
+    # Skip zero terms; the first term is nonzero.
+    count := if third != 0.0: +3 else: (if second != 0.0: +2 else: +1)
+    let (n, y0, y1) = libm_rem_pio2_large(
+        (first, second, third),
+        count,
+        i32(ix >> 20) - (0x3ff + 23),
+        1,
     )
-    cube := square * x
-    if !reduced:
-        return x + cube * (-1.66666666666666324348e-01 + square * remainder)
-    x - ((square * (0.5 * tail - cube * remainder) - tail) - cube * -1.66666666666666324348e-01)
+    if sign: (-n, -y0, -y1) else: (n, y0, y1)
 
-fn float_cos_kernel(x: f64, tail: f64) -> f64:
-    square := x * x
-    fourth := square * square
-    lower_tail := -1.38888888888741095749e-03 + square * 2.48015872894767294178e-05
-    lower := square * (4.16666666666666019037e-02 + square * lower_tail)
-    upper_tail := 2.08757232129817482790e-09 + square * -1.13596475577881948265e-11
-    upper := fourth * fourth * (-2.75573143513906633035e-07 + square * upper_tail)
-    remainder := lower + upper
-    half_square := 0.5 * square
-    head := 1.0 - half_square
-    head + (((1.0 - head) - half_square) + (square * remainder - x * tail))
+# musl __rem_pio2.c's cases for |x| ~<= 9pi/4: x - k*pi/2 with pi/2 in two
+# parts, the first exact in k*pio2_1.
+fn libm_rem_pio2_small(x: f64, negative: bool, k: i32) -> (i32, f64, f64):
+    multiple := f64(k)
+    if !negative:
+        # One round, good to 85 bits.
+        z := x - multiple * 1.57079632673412561417e+00
+        y0 := z - multiple * 6.07710050650619224932e-11
+        return (k, y0, (z - y0) - multiple * 6.07710050650619224932e-11)
+    z := x + multiple * 1.57079632673412561417e+00
+    y0 := z + multiple * 6.07710050650619224932e-11
+    (-k, y0, (z - y0) + multiple * 6.07710050650619224932e-11)
 
-fn float_tan_kernel(value: f64, tail: f64, inverse: bool) -> f64:
-    transformed := (high_word(value) & 0x7fffffff) >= 0x3fe59428
+# musl __sin.c (Sun): sin(x + y) on [-pi/4, pi/4], y the tail of x;
+# `tail` false means y is 0.
+fn libm_sin_kernel(x: f64, y: f64, tail: bool) -> f64:
+    z := x * x
+    w := z * z
+    r := (
+        8.33333333332248946124e-03
+        + z * (-1.98412698298579493134e-04 + z * 2.75573137070700676789e-06)
+        + z * w * (-2.50507602534068634195e-08 + z * 1.58969099521155010221e-10)
+    )
+    v := z * x
+    if !tail:
+        return x + v * (-1.66666666666666324348e-01 + z * r)
+    x - ((z * (0.5 * y - v * r) - y) - v * -1.66666666666666324348e-01)
+
+# musl __cos.c (Sun): cos(x + y) on [-pi/4, pi/4].
+fn libm_cos_kernel(x: f64, y: f64) -> f64:
+    z := x * x
+    let w = z * z
+    r := (
+        z * (
+            4.16666666666666019037e-02
+            + z * (-1.38888888888741095749e-03 + z * 2.48015872894767294178e-05)
+        )
+        + w * w * (
+            -2.75573143513906633035e-07
+            + z * (2.08757232129817482790e-09 + z * -1.13596475577881948265e-11)
+        )
+    )
+    hz := 0.5 * z
+    w = 1.0 - hz
+    w + (((1.0 - w) - hz) + (z * r - x * y))
+
+# musl __tan.c (Sun): tan(x + y) on [-pi/4, pi/4], or -1/tan when `odd`.
+fn libm_tan_kernel(value: f64, tail: f64, odd: bool) -> f64:
     let x = value
     let y = tail
-    if transformed:
-        if value < 0.0:
+    hx := u32(f64_bits(x) >> 32)
+    # |x| >= 0.6744.
+    big := (hx & 0x7fffffff) >= 0x3fe59428
+    sign := (hx >> 31) != 0
+    if big:
+        if sign:
             x = -x
             y = -y
         x = (7.85398163397448278999e-01 - x) + (3.06161699786838301793e-17 - y)
         y = 0.0
-    square := x * x
-    fourth := square * square
-    odd4 := 7.81794442939557092300e-05 + fourth * -1.85586374855275456654e-05
-    odd3 := 5.88041240820264096874e-04 + fourth * odd4
-    odd2 := 3.59207910759131235356e-03 + fourth * odd3
-    odd1 := 2.18694882948595424599e-02 + fourth * odd2
-    odd := 1.33333333333201242699e-01 + fourth * odd1
-    even4 := 7.14072491382608190305e-05 + fourth * 2.59073051863633712884e-05
-    even3 := 2.46463134818469906812e-04 + fourth * even4
-    even2 := 1.45620945432529025516e-03 + fourth * even3
-    even1 := 8.86323982359930005737e-03 + fourth * even2
-    even := square * (5.39682539762260521377e-02 + fourth * even1)
-    cube := square * x
-    correction := (y + square * (cube * (odd + even) + y)) + 3.33333333333334091986e-01 * cube
-    sum := x + correction
-    if transformed:
-        direction := if inverse: -1.0 else: 1.0
-        result := direction - 2.0 * (x - (sum * sum / (sum + direction) - correction))
-        return if value < 0.0: -result else: result
-    if !inverse:
-        return sum
-    if sum == 0.0:
-        return -1.0 / sum
-    head := low_cleared(sum)
-    tail_sum := correction - (head - x)
-    reciprocal := -1.0 / sum
-    reciprocal_head := low_cleared(reciprocal)
-    reciprocal_head + reciprocal * ((1.0 + reciprocal_head * head) + reciprocal_head * tail_sum)
+    z := x * x
+    let w = z * z
+    # x^5 (T[1] + x^4 T[3] + ...) + x^5 (x^2 (T[2] + x^4 T[4] + ...)).
+    let r = (
+        1.33333333333201242699e-01
+        + w * (
+            2.18694882948595424599e-02
+            + w * (
+                3.59207910759131235356e-03
+                + w * (
+                    5.88041240820264096874e-04
+                    + w * (7.81794442939557092300e-05 + w * -1.85586374855275456654e-05)
+                )
+            )
+        )
+    )
+    let v = (
+        z
+        * (
+            5.39682539762260521377e-02
+            + w * (
+                8.86323982359930005737e-03
+                + w * (
+                    1.45620945432529025516e-03
+                    + w * (
+                        2.46463134818469906812e-04
+                        + w * (7.14072491382608190305e-05 + w * 2.59073051863633712884e-05)
+                    )
+                )
+            )
+        )
+    )
+    let s = z * x
+    r = y + z * (s * (r + v) + y) + s * 3.33333333333334091986e-01
+    w = x + r
+    if big:
+        s = if odd: -1.0 else: 1.0
+        v = s - 2.0 * (x + (r - w * w / (w + s)))
+        return if sign: -v else: v
+    if !odd:
+        return w
+    # -1.0/(x+r) has up to 2 ulp error, so compute it accurately.
+    w0 := f64_from(f64_bits(w) & 0xffffffff00000000)
+    # w0 + v = r + x.
+    v = r - (w0 - x)
+    a := -1.0 / w
+    a0 := f64_from(f64_bits(a) & 0xffffffff00000000)
+    a0 + a * (1.0 + a0 * w0 + a0 * v)
+
+# musl sin.c (Sun).
+fn libm_sin(x: f64) -> f64:
+    ix := u32(f64_bits(x) >> 32) & 0x7fffffff
+    # |x| ~< pi/4.
+    if ix <= 0x3fe921fb:
+        if ix < 0x3e500000:
+            # |x| < 2^-26.
+            return x
+        return libm_sin_kernel(x, 0.0, false)
+    # sin(Inf or NaN) is NaN.
+    if ix >= 0x7ff00000:
+        return x - x
+    let (n, y0, y1) = libm_rem_pio2(x)
+    match n & 3:
+        0 => libm_sin_kernel(y0, y1, true)
+        1 => libm_cos_kernel(y0, y1)
+        2 => -libm_sin_kernel(y0, y1, true)
+        _ => -libm_cos_kernel(y0, y1)
+
+# musl cos.c (Sun).
+fn libm_cos(x: f64) -> f64:
+    ix := u32(f64_bits(x) >> 32) & 0x7fffffff
+    # |x| ~< pi/4.
+    if ix <= 0x3fe921fb:
+        if ix < 0x3e46a09e:
+            # |x| < 2^-27 * sqrt(2).
+            return 1.0
+        return libm_cos_kernel(x, 0.0)
+    # cos(Inf or NaN) is NaN.
+    if ix >= 0x7ff00000:
+        return x - x
+    let (n, y0, y1) = libm_rem_pio2(x)
+    match n & 3:
+        0 => libm_cos_kernel(y0, y1)
+        1 => -libm_sin_kernel(y0, y1, true)
+        2 => -libm_cos_kernel(y0, y1)
+        _ => libm_sin_kernel(y0, y1, true)
+
+# musl tan.c (Sun).
+fn libm_tan(x: f64) -> f64:
+    ix := u32(f64_bits(x) >> 32) & 0x7fffffff
+    # |x| ~< pi/4.
+    if ix <= 0x3fe921fb:
+        if ix < 0x3e400000:
+            # |x| < 2^-27.
+            return x
+        return libm_tan_kernel(x, 0.0, false)
+    # tan(Inf or NaN) is NaN.
+    if ix >= 0x7ff00000:
+        return x - x
+    let (n, y0, y1) = libm_rem_pio2(x)
+    libm_tan_kernel(y0, y1, (n & 1) != 0)
+
+# musl __rem_pio2f.c (Sun): x - n*pi/2 in double, with 25+53 bits of
+# pi/2 for medium arguments and __rem_pio2_large for huge ones.
+fn libm_rem_pio2f(x: f32) -> (i32, f64):
+    bits := f32_bits(x)
+    ix := bits & 0x7fffffff
+    xd := f64(x)
+    if ix < 0x4dc90fdb:
+        # |x| ~< 2^28*(pi/2), medium size.
+        let fnv = xd * 6.36619772367581382433e-01 + 6755399441055744.0 - 6755399441055744.0
+        let n = i32(fnv)
+        let y = xd - fnv * 1.57079631090164184570e+00 - fnv * 1.58932547735281966916e-08
+        if y < -0.7853981852531433:
+            n -= 1
+            fnv -= 1.0
+            y = xd - fnv * 1.57079631090164184570e+00 - fnv * 1.58932547735281966916e-08
+        else if y > 0.7853981852531433:
+            n += 1
+            fnv += 1.0
+            y = xd - fnv * 1.57079631090164184570e+00 - fnv * 1.58932547735281966916e-08
+        return (n, y)
+    if ix >= 0x7f800000:
+        # x is inf or NaN.
+        return (0, f64(x - x))
+    # Scale x into [2^23, 2^24 - 1].
+    e0 := i32(ix >> 23) - (0x7f + 23)
+    scaled := f64(f32_from(ix - (u32(e0) << 23)))
+    let (n, y, _) = libm_rem_pio2_large((scaled, 0.0, 0.0), 1, e0, 0)
+    if (bits >> 31) != 0: (-n, -y) else: (n, y)
+
+# musl __sindf.c (Sun): sin(x) for |x| ~<= pi/4, in double.
+fn libm_sin_kernelf(x: f64) -> f32:
+    z := x * x
+    w := z * z
+    r := -0.00019839334836096632 + z * 2.718311493989822e-06
+    s := z * x
+    f32((x + s * (-0.16666666641626524 + z * 0.008333329385889463)) + s * w * r)
+
+# musl __cosdf.c (Sun): cos(x) for |x| ~<= pi/4, in double.
+fn libm_cos_kernelf(x: f64) -> f32:
+    z := x * x
+    w := z * z
+    r := -0.001388676377460993 + z * 2.439044879627741e-05
+    f32(((1.0 + z * -0.499999997251031) + w * 0.04166662332373906) + (w * z) * r)
+
+# musl __tandf.c (Sun): tan(x), or -1/tan(x) when `odd`, in double.
+fn libm_tan_kernelf(x: f64, odd: bool) -> f32:
+    z := x * x
+    let r = 0.002974357433599673 + z * 0.009465647849436732
+    t := 0.05338123784456704 + z * 0.024528318116654728
+    w := z * z
+    s := z * x
+    u := 0.3333313950307914 + z * 0.13339200271297674
+    r = (x + s * u) + (s * w) * (t + w * r)
+    f32(if odd: -1.0 / r else: r)
+
+# musl sinf.c (Sun): small multiples of pi/2 in double, then the kernels.
+fn libm_sinf(x: f32) -> f32:
+    bits := f32_bits(x)
+    sign := (bits >> 31) != 0
+    ix := bits & 0x7fffffff
+    xd := f64(x)
+    if ix <= 0x3f490fda:
+        # |x| ~<= pi/4.
+        if ix < 0x39800000:
+            # |x| < 2^-12.
+            return x
+        return libm_sin_kernelf(xd)
+    if ix <= 0x407b53d1:
+        # |x| ~<= 5pi/4.
+        if ix <= 0x4016cbe3:
+            # |x| ~<= 3pi/4.
+            if sign:
+                return -libm_cos_kernelf(xd + 1.5707963267948966)
+            return libm_cos_kernelf(xd - 1.5707963267948966)
+        return libm_sin_kernelf(if sign: -(xd + 3.141592653589793) else: -(xd - 3.141592653589793))
+    if ix <= 0x40e231d5:
+        # |x| ~<= 9pi/4.
+        if ix <= 0x40afeddf:
+            # |x| ~<= 7pi/4.
+            if sign:
+                return libm_cos_kernelf(xd + 4.71238898038469)
+            return -libm_cos_kernelf(xd - 4.71238898038469)
+        return libm_sin_kernelf(if sign: xd + 6.283185307179586 else: xd - 6.283185307179586)
+    # sin(Inf or NaN) is NaN.
+    if ix >= 0x7f800000:
+        return x - x
+    let (n, y) = libm_rem_pio2f(x)
+    match n & 3:
+        0 => libm_sin_kernelf(y)
+        1 => libm_cos_kernelf(y)
+        2 => libm_sin_kernelf(-y)
+        _ => -libm_cos_kernelf(y)
+
+# musl cosf.c (Sun).
+fn libm_cosf(x: f32) -> f32:
+    bits := f32_bits(x)
+    sign := (bits >> 31) != 0
+    ix := bits & 0x7fffffff
+    xd := f64(x)
+    if ix <= 0x3f490fda:
+        # |x| ~<= pi/4.
+        if ix < 0x39800000:
+            # |x| < 2^-12.
+            return 1.0
+        return libm_cos_kernelf(xd)
+    if ix <= 0x407b53d1:
+        # |x| ~<= 5pi/4.
+        if ix > 0x4016cbe3:
+            # |x| ~> 3pi/4.
+            return -libm_cos_kernelf(if sign: xd + 3.141592653589793 else: xd - 3.141592653589793)
+        if sign:
+            return libm_sin_kernelf(xd + 1.5707963267948966)
+        return libm_sin_kernelf(1.5707963267948966 - xd)
+    if ix <= 0x40e231d5:
+        # |x| ~<= 9pi/4.
+        if ix > 0x40afeddf:
+            # |x| ~> 7pi/4.
+            return libm_cos_kernelf(if sign: xd + 6.283185307179586 else: xd - 6.283185307179586)
+        if sign:
+            return libm_sin_kernelf(-xd - 4.71238898038469)
+        return libm_sin_kernelf(xd - 4.71238898038469)
+    # cos(Inf or NaN) is NaN.
+    if ix >= 0x7f800000:
+        return x - x
+    let (n, y) = libm_rem_pio2f(x)
+    match n & 3:
+        0 => libm_cos_kernelf(y)
+        1 => libm_sin_kernelf(-y)
+        2 => -libm_cos_kernelf(y)
+        _ => libm_sin_kernelf(y)
+
+# musl tanf.c (Sun).
+fn libm_tanf(x: f32) -> f32:
+    bits := f32_bits(x)
+    sign := (bits >> 31) != 0
+    ix := bits & 0x7fffffff
+    xd := f64(x)
+    if ix <= 0x3f490fda:
+        # |x| ~<= pi/4.
+        if ix < 0x39800000:
+            # |x| < 2^-12.
+            return x
+        return libm_tan_kernelf(xd, false)
+    if ix <= 0x407b53d1:
+        # |x| ~<= 5pi/4.
+        if ix <= 0x4016cbe3:
+            # |x| ~<= 3pi/4.
+            return libm_tan_kernelf(
+                if sign: xd + 1.5707963267948966 else: xd - 1.5707963267948966,
+                true,
+            )
+        return libm_tan_kernelf(if sign: xd + 3.141592653589793 else: xd - 3.141592653589793, false)
+    if ix <= 0x40e231d5:
+        # |x| ~<= 9pi/4.
+        if ix <= 0x40afeddf:
+            # |x| ~<= 7pi/4.
+            return libm_tan_kernelf(
+                if sign: xd + 4.71238898038469 else: xd - 4.71238898038469,
+                true,
+            )
+        return libm_tan_kernelf(if sign: xd + 6.283185307179586 else: xd - 6.283185307179586, false)
+    # tan(Inf or NaN) is NaN.
+    if ix >= 0x7f800000:
+        return x - x
+    let (n, y) = libm_rem_pio2f(x)
+    libm_tan_kernelf(y, (n & 1) != 0)
+
+# musl asin.c and acos.c `R` (Sun): the rational approximation of
+# (asin(x) - x)/x^3 in x^2.
+@inline(.Always)
+fn libm_asin_r(z: f64) -> f64:
+    p := (
+        z
+        * (
+            1.66666666666666657415e-01
+            + z * (
+                -3.25565818622400915405e-01
+                + z * (
+                    2.01212532134862925881e-01
+                    + z * (
+                        -4.00555345006794114027e-02
+                        + z * (7.91534994289814532176e-04 + z * 3.47933107596021167570e-05)
+                    )
+                )
+            )
+        )
+    )
+    q := (
+        1.0
+        + z * (
+            -2.40339491173441421878e+00
+            + z * (
+                2.02094576023350569471e+00
+                + z * (-6.88283971605453293030e-01 + z * 7.70381505559019352791e-02)
+            )
+        )
+    )
+    p / q
+
+# musl asin.c (Sun).
+fn libm_asin(value: f64) -> f64:
+    let x = value
+    hx := u32(f64_bits(x) >> 32)
+    ix := hx & 0x7fffffff
+    if ix >= 0x3ff00000:
+        # |x| >= 1 or nan.
+        if f64_bits(x) << 1 == 0x7fe0000000000000:
+            # asin(+-1) = +-pi/2.
+            return x * 1.57079632679489655800e+00
+        return 0.0 / (x - x)
+    if ix < 0x3fe00000:
+        # |x| < 0.5; 0x1p-1022 <= |x| < 0x1p-26 returns x.
+        if ix < 0x3e500000 && ix >= 0x00100000:
+            return x
+        return x + x * libm_asin_r(x * x)
+    # 1 > |x| >= 0.5.
+    z := (1.0 - x.abs()) * 0.5
+    s := z.sqrt()
+    r := libm_asin_r(z)
+    if ix >= 0x3fef3333:
+        # |x| > 0.975.
+        x = 1.57079632679489655800e+00 - (2.0 * (s + s * r) - 6.12323399573676603587e-17)
+    else:
+        # f + c = sqrt(z).
+        f := f64_from(f64_bits(s) & 0xffffffff00000000)
+        c := (z - f * f) / (s + f)
+        x = (
+            0.5 * 1.57079632679489655800e+00
+            - (
+                2.0 * s * r
+                - (6.12323399573676603587e-17 - 2.0 * c)
+                - (0.5 * 1.57079632679489655800e+00 - 2.0 * f)
+            )
+        )
+    if (hx >> 31) != 0: -x else: x
+
+# musl acos.c (Sun).
+fn libm_acos(x: f64) -> f64:
+    hx := u32(f64_bits(x) >> 32)
+    ix := hx & 0x7fffffff
+    if ix >= 0x3ff00000:
+        # |x| >= 1 or nan.
+        if f64_bits(x) << 1 == 0x7fe0000000000000:
+            # acos(1) = 0, acos(-1) = pi.
+            return if (hx >> 31) != 0: 2.0 * 1.57079632679489655800e+00 else: 0.0
+        return 0.0 / (x - x)
+    if ix < 0x3fe00000:
+        # |x| < 0.5.
+        if ix <= 0x3c600000:
+            # |x| < 2^-57.
+            return 1.57079632679489655800e+00
+        return (
+            1.57079632679489655800e+00
+            - (x - (6.12323399573676603587e-17 - x * libm_asin_r(x * x)))
+        )
+    if (hx >> 31) != 0:
+        # x < -0.5.
+        z := (1.0 + x) * 0.5
+        s := z.sqrt()
+        w := libm_asin_r(z) * s - 6.12323399573676603587e-17
+        return 2.0 * (1.57079632679489655800e+00 - (s + w))
+    # x > 0.5.
+    z := (1.0 - x) * 0.5
+    s := z.sqrt()
+    df := f64_from(f64_bits(s) & 0xffffffff00000000)
+    c := (z - df * df) / (s + df)
+    w := libm_asin_r(z) * s + c
+    2.0 * (df + w)
+
+# musl asinf.c and acosf.c `R` (Sun), in f32.
+@inline(.Always)
+fn libm_asin_rf(z: f32) -> f32:
+    p := z * (0.16666587 + z * (-0.042743422 + z * -0.008656363))
+    q := 1.0 + z * -0.70662963
+    p / q
+
+# musl asinf.c (Sun).
+fn libm_asinf(x: f32) -> f32:
+    hx := f32_bits(x)
+    ix := hx & 0x7fffffff
+    if ix >= 0x3f800000:
+        # |x| >= 1.
+        if ix == 0x3f800000:
+            # asin(+-1) = +-pi/2.
+            return f32(f64(x) * 1.5707963267948966)
+        return 0.0 / (x - x)
+    if ix < 0x3f000000:
+        # |x| < 0.5; 0x1p-126 <= |x| < 0x1p-12 returns x.
+        if ix < 0x39800000 && ix >= 0x00800000:
+            return x
+        return x + x * libm_asin_rf(x * x)
+    # 1 > |x| >= 0.5.
+    z := (1.0 - x.abs()) * 0.5
+    s := f64(z).sqrt()
+    result := f32(1.5707963267948966 - 2.0 * (s + s * f64(libm_asin_rf(z))))
+    if (hx >> 31) != 0: -result else: result
+
+# musl acosf.c (Sun).
+fn libm_acosf(x: f32) -> f32:
+    hx := f32_bits(x)
+    ix := hx & 0x7fffffff
+    if ix >= 0x3f800000:
+        # |x| >= 1 or nan.
+        if ix == 0x3f800000:
+            return if (hx >> 31) != 0: 2.0 * 1.5707963 else: 0.0
+        return 0.0 / (x - x)
+    if ix < 0x3f000000:
+        # |x| < 0.5.
+        if ix <= 0x32800000:
+            # |x| < 2^-26.
+            return 1.5707963
+        return 1.5707963 - (x - (7.5497894e-08 - x * libm_asin_rf(x * x)))
+    if (hx >> 31) != 0:
+        # x < -0.5.
+        z := (1.0 + x) * 0.5
+        s := z.sqrt()
+        w := libm_asin_rf(z) * s - 7.5497894e-08
+        return 2.0 * (1.5707963 - (s + w))
+    # x > 0.5.
+    z := (1.0 - x) * 0.5
+    s := z.sqrt()
+    df := f32_from(f32_bits(s) & 0xfffff000)
+    c := (z - df * df) / (s + df)
+    w := libm_asin_rf(z) * s + c
+    2.0 * (df + w)
+
+# musl atan.c (Sun): four reduction intervals and an 11-term polynomial.
+fn libm_atan(value: f64) -> f64:
+    let x = value
+    let ix = u32(f64_bits(x) >> 32)
+    sign := (ix >> 31) != 0
+    ix = ix & 0x7fffffff
+    if ix >= 0x44100000:
+        # |x| >= 2^66.
+        if x != x:
+            return x
+        return if sign: -1.57079632679489655800e+00 else: 1.57079632679489655800e+00
+    let id: i32 = -1
+    if ix < 0x3fdc0000:
+        # |x| < 0.4375.
+        if ix < 0x3e400000:
+            # |x| < 2^-27.
+            return x
+    else:
+        x = x.abs()
+        if ix < 0x3ff30000:
+            # |x| < 1.1875.
+            if ix < 0x3fe60000:
+                # 7/16 <= |x| < 11/16.
+                id = 0
+                x = (2.0 * x - 1.0) / (2.0 + x)
+            else:
+                # 11/16 <= |x| < 19/16.
+                id = 1
+                x = (x - 1.0) / (x + 1.0)
+        else if ix < 0x40038000:
+            # |x| < 2.4375.
+            id = 2
+            x = (x - 1.5) / (1.0 + 1.5 * x)
+        else:
+            # 2.4375 <= |x| < 2^66.
+            id = 3
+            x = -1.0 / x
+    z := x * x
+    w := z * z
+    # The sum of aT[i] z^(i+1) as odd and even polynomials.
+    s1 := (
+        z
+        * (
+            3.33333333333329318027e-01
+            + w * (
+                1.42857142725034663711e-01
+                + w * (
+                    9.09088713343650656196e-02
+                    + w * (
+                        6.66107313738753120669e-02
+                        + w * (4.97687799461593236017e-02 + w * 1.62858201153657823623e-02)
+                    )
+                )
+            )
+        )
+    )
+    s2 := (
+        w
+        * (
+            -1.99999999998764832476e-01
+            + w * (
+                -1.11111104054623557880e-01
+                + w * (
+                    -7.69187620504482999495e-02
+                    + w * (-5.83357013379057348645e-02 + w * -3.65315727442169155270e-02)
+                )
+            )
+        )
+    )
+    if id < 0:
+        return x - x * (s1 + s2)
+    result := match id:
+        0 => 4.63647609000806093515e-01 - (x * (s1 + s2) - 2.26987774529616870924e-17 - x)
+        1 => 7.85398163397448278999e-01 - (x * (s1 + s2) - 3.06161699786838301793e-17 - x)
+        2 => 9.82793723247329054082e-01 - (x * (s1 + s2) - 1.39033110312309984516e-17 - x)
+        _ => 1.57079632679489655800e+00 - (x * (s1 + s2) - 6.12323399573676603587e-17 - x)
+    if sign: -result else: result
+
+# musl atan2.c (Sun).
+fn libm_atan2(y: f64, x: f64) -> f64:
+    pi := 3.1415926535897931160e+00
+    pi_lo := 1.2246467991473531772e-16
+    if x != x || y != y:
+        return x + y
+    xbits := f64_bits(x)
+    ybits := f64_bits(y)
+    if xbits == 0x3ff0000000000000:
+        # x = 1.0.
+        return libm_atan(y)
+    # 2*sign(x) + sign(y).
+    m := u32(ybits >> 63) | (u32(xbits >> 62) & 2)
+    ix := u32(xbits >> 32) & 0x7fffffff
+    iy := u32(ybits >> 32) & 0x7fffffff
+    lx := u32(xbits & 0xffffffff)
+    ly := u32(ybits & 0xffffffff)
+    if (iy | ly) == 0:
+        # y = 0.
+        return match m:
+            0 => y
+            1 => y
+            2 => pi
+            _ => -pi
+    if (ix | lx) == 0:
+        # x = 0.
+        return if (m & 1) != 0: -pi / 2.0 else: pi / 2.0
+    if ix == 0x7ff00000:
+        # x is INF.
+        if iy == 0x7ff00000:
+            return match m:
+                0 => pi / 4.0
+                1 => -pi / 4.0
+                2 => 3.0 * pi / 4.0
+                _ => -3.0 * pi / 4.0
+        return match m:
+            0 => 0.0
+            1 => -0.0
+            2 => pi
+            _ => -pi
+    # |y/x| > 0x1p64.
+    if ix + (64 << 20) < iy || iy == 0x7ff00000:
+        return if (m & 1) != 0: -pi / 2.0 else: pi / 2.0
+    # z = atan(|y/x|) without a spurious underflow.
+    z := if (m & 2) != 0 && iy + (64 << 20) < ix: 0.0 else: libm_atan((y / x).abs())
+    match m:
+        0 => z
+        1 => -z
+        2 => pi - (z - pi_lo)
+        _ => (z - pi_lo) - pi
+
+# musl atanf.c (Sun), in f32.
+fn libm_atanf(value: f32) -> f32:
+    let x = value
+    let ix = f32_bits(x)
+    sign := (ix >> 31) != 0
+    ix = ix & 0x7fffffff
+    if ix >= 0x4c800000:
+        # |x| >= 2^26.
+        if x != x:
+            return x
+        return if sign: -1.5707963 else: 1.5707963
+    let id: i32 = -1
+    if ix < 0x3ee00000:
+        # |x| < 0.4375.
+        if ix < 0x39800000:
+            # |x| < 2^-12.
+            return x
+    else:
+        x = x.abs()
+        if ix < 0x3f980000:
+            # |x| < 1.1875.
+            if ix < 0x3f300000:
+                # 7/16 <= |x| < 11/16.
+                id = 0
+                x = (2.0 * x - 1.0) / (2.0 + x)
+            else:
+                # 11/16 <= |x| < 19/16.
+                id = 1
+                x = (x - 1.0) / (x + 1.0)
+        else if ix < 0x401c0000:
+            # |x| < 2.4375.
+            id = 2
+            x = (x - 1.5) / (1.0 + 1.5 * x)
+        else:
+            # 2.4375 <= |x| < 2^26.
+            id = 3
+            x = -1.0 / x
+    z := x * x
+    w := z * z
+    s1 := z * (0.33333328 + w * (0.14253636 + w * 0.061687607))
+    s2 := w * (-0.19999158 + w * -0.106480174)
+    if id < 0:
+        return x - x * (s1 + s2)
+    result := match id:
+        0 => 0.4636476 - ((x * (s1 + s2) - 5.0121582e-09) - x)
+        1 => 0.7853981 - ((x * (s1 + s2) - 3.7748947e-08) - x)
+        2 => 0.9827937 - ((x * (s1 + s2) - 3.4473217e-08) - x)
+        _ => 1.5707963 - ((x * (s1 + s2) - 7.5497894e-08) - x)
+    if sign: -result else: result
+
+# musl atan2f.c (Sun), in f32.
+fn libm_atan2f(y: f32, x: f32) -> f32:
+    let pi: f32 = 3.1415927
+    let pi_lo: f32 = -8.742278e-08
+    if x != x || y != y:
+        return x + y
+    xbits := f32_bits(x)
+    ybits := f32_bits(y)
+    if xbits == 0x3f800000:
+        # x = 1.0.
+        return libm_atanf(y)
+    # 2*sign(x) + sign(y).
+    m := (ybits >> 31) | ((xbits >> 30) & 2)
+    ix := xbits & 0x7fffffff
+    iy := ybits & 0x7fffffff
+    if iy == 0:
+        # y = 0.
+        return match m:
+            0 => y
+            1 => y
+            2 => pi
+            _ => -pi
+    if ix == 0:
+        # x = 0.
+        return if (m & 1) != 0: -pi / 2.0 else: pi / 2.0
+    if ix == 0x7f800000:
+        # x is INF.
+        if iy == 0x7f800000:
+            return match m:
+                0 => pi / 4.0
+                1 => -pi / 4.0
+                2 => 3.0 * pi / 4.0
+                _ => -3.0 * pi / 4.0
+        return match m:
+            0 => 0.0
+            1 => -0.0
+            2 => pi
+            _ => -pi
+    # |y/x| > 0x1p26.
+    if ix + (26 << 23) < iy || iy == 0x7f800000:
+        return if (m & 1) != 0: -pi / 2.0 else: pi / 2.0
+    # z = atan(|y/x|) with a correct underflow.
+    z := if (m & 2) != 0 && iy + (26 << 23) < ix: 0.0 else: libm_atanf((y / x).abs())
+    match m:
+        0 => z
+        1 => -z
+        2 => pi - (z - pi_lo)
+        _ => (z - pi_lo) - pi
+
+# The signed exponent has at most 32 bits, including i32's minimum value.
+# Widen before negation; repeated squaring consumes one exponent bit per step.
+fn float_integer_power[F < Float](value: F, exponent: i32) -> F:
+    let bits = u32(if exponent < 0: -i64(exponent) else: i64(exponent))
+    let factor = if exponent < 0: F::one() / value else: value
+    let result = F::one()
+    while bits != 0:
+        if (bits & 1) != 0:
+            result *= factor
+        bits = bits >> 1
+        if bits != 0:
+            factor *= factor
+    result
 
 impl f64:
     ## The sine of this angle in radians.
     ## See [std-num.float-math.sin](../../spec/std/num.md#r-std-num.float-math.sin).
     pub fn sin(self) -> f64:
-        word := high_word(self) & 0x7fffffff
-        if word < 0x3e500000:
-            return self
-        if !self.is_finite():
-            return self - self
-        if word <= 0x3fe921fb:
-            return float_sin_kernel(self, 0.0, false)
-        reduced := float_reduce_half_pi(self)
-        match reduced._0 & 3:
-            0 => float_sin_kernel(reduced._1, reduced._2, true)
-            1 => float_cos_kernel(reduced._1, reduced._2)
-            2 => -float_sin_kernel(reduced._1, reduced._2, true)
-            _ => -float_cos_kernel(reduced._1, reduced._2)
+        libm_sin(self)
     ## The cosine of this angle in radians.
     ## See [std-num.float-math.cos](../../spec/std/num.md#r-std-num.float-math.cos).
     pub fn cos(self) -> f64:
-        word := high_word(self) & 0x7fffffff
-        if word < 0x3e400000:
-            return 1.0
-        if !self.is_finite():
-            return self - self
-        if word <= 0x3fe921fb:
-            return float_cos_kernel(self, 0.0)
-        reduced := float_reduce_half_pi(self)
-        match reduced._0 & 3:
-            0 => float_cos_kernel(reduced._1, reduced._2)
-            1 => -float_sin_kernel(reduced._1, reduced._2, true)
-            2 => -float_cos_kernel(reduced._1, reduced._2)
-            _ => float_sin_kernel(reduced._1, reduced._2, true)
+        libm_cos(self)
     ## The tangent of this angle in radians.
     ## See [std-num.float-math.tan](../../spec/std/num.md#r-std-num.float-math.tan).
     pub fn tan(self) -> f64:
-        word := high_word(self) & 0x7fffffff
-        if word < 0x3e400000:
-            return self
-        if !self.is_finite():
-            return self - self
-        if word <= 0x3fe921fb:
-            return float_tan_kernel(self, 0.0, false)
-        reduced := float_reduce_half_pi(self)
-        float_tan_kernel(reduced._1, reduced._2, (reduced._0 & 1) != 0)
+        libm_tan(self)
+    ## The principal arcsine in radians.
+    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
+    pub fn asin(self) -> f64:
+        libm_asin(self)
+    ## The principal arccosine in radians.
+    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
+    pub fn acos(self) -> f64:
+        libm_acos(self)
+    ## The principal arctangent in radians.
+    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
+    pub fn atan(self) -> f64:
+        libm_atan(self)
+    ## The four-quadrant angle of (x, self), in radians.
+    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
+    pub fn atan2(self, x: f64) -> f64:
+        libm_atan2(self, x)
+    ## The hyperbolic sine.
+    ## See [std-num.float-math.sinh](../../spec/std/num.md#r-std-num.float-math.sinh).
+    pub fn sinh(self) -> f64:
+        libm_sinh(self)
+    ## The hyperbolic cosine.
+    ## See [std-num.float-math.cosh](../../spec/std/num.md#r-std-num.float-math.cosh).
+    pub fn cosh(self) -> f64:
+        libm_cosh(self)
+    ## The hyperbolic tangent.
+    ## See [std-num.float-math.tanh](../../spec/std/num.md#r-std-num.float-math.tanh).
+    pub fn tanh(self) -> f64:
+        libm_tanh(self)
+    ## The inverse hyperbolic sine.
+    ## See [std-num.float-math.asinh](../../spec/std/num.md#r-std-num.float-math.asinh).
+    pub fn asinh(self) -> f64:
+        libm_asinh(self)
+    ## The inverse hyperbolic cosine; NaN below 1.
+    ## See [std-num.float-math.acosh](../../spec/std/num.md#r-std-num.float-math.acosh).
+    pub fn acosh(self) -> f64:
+        libm_acosh(self)
+    ## The inverse hyperbolic tangent; NaN outside [-1, 1].
+    ## See [std-num.float-math.atanh](../../spec/std/num.md#r-std-num.float-math.atanh).
+    pub fn atanh(self) -> f64:
+        libm_atanh(self)
+    ## The natural exponential.
+    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
+    pub fn exp(self) -> f64:
+        libm_exp(self)
+    ## Two raised to this value.
+    ## See [std-num.float-math.exp2](../../spec/std/num.md#r-std-num.float-math.exp2).
+    pub fn exp2(self) -> f64:
+        libm_exp2(self)
+    ## The natural exponential less one, accurate near zero.
+    ## See [std-num.float-math.exp-m1](../../spec/std/num.md#r-std-num.float-math.exp-m1).
+    pub fn exp_m1(self) -> f64:
+        libm_expm1(self)
+    ## The natural logarithm.
+    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
+    pub fn ln(self) -> f64:
+        libm_log(self)
+    ## The base-two logarithm.
+    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
+    pub fn log2(self) -> f64:
+        libm_log2(self)
+    ## The base-ten logarithm.
+    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
+    pub fn log10(self) -> f64:
+        libm_log10(self)
+    ## The natural logarithm of one plus this value, accurate near zero.
+    ## See [std-num.float-math.ln-1p](../../spec/std/num.md#r-std-num.float-math.ln-1p).
+    pub fn ln_1p(self) -> f64:
+        libm_log1p(self)
+    ## The cube root.
+    ## See [std-num.float-math.cbrt](../../spec/std/num.md#r-std-num.float-math.cbrt).
+    pub fn cbrt(self) -> f64:
+        libm_cbrt(self)
+    ## The length of the hypotenuse of a right triangle with legs `self` and `other`.
+    ## See [std-num.float-math.hypot](../../spec/std/num.md#r-std-num.float-math.hypot).
+    pub fn hypot(self, other: f64) -> f64:
+        libm_hypot(self, other)
+    ## `self * a + b` with one rounding.
+    ## See [std-num.float-math.mul-add](../../spec/std/num.md#r-std-num.float-math.mul-add).
+    pub fn mul_add(self, a: f64, b: f64) -> f64:
+        libm_fma(self, a, b)
+    ## This value raised to a floating-point exponent.
+    ## See [std-num.float-math.powf-musl](../../spec/std/num.md#r-std-num.float-math.powf-musl).
+    pub fn powf(self, exponent: f64) -> f64:
+        float_pow_f64(self, exponent)
+    ## This value raised to a signed integer exponent.
+    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
+    pub fn powi(self, exponent: i32) -> f64:
+        float_integer_power(self, exponent)
+    ## The sign as negative one, positive one, or NaN.
+    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
+    pub fn signum(self) -> f64:
+        if self.is_nan(): self else: 1.0.copysign(self)
 
 impl f32:
     ## The sine of this angle in radians.
     ## See [std-num.float-math.sin](../../spec/std/num.md#r-std-num.float-math.sin).
     pub fn sin(self) -> f32:
-        f32(f64(self).sin())
+        libm_sinf(self)
     ## The cosine of this angle in radians.
     ## See [std-num.float-math.cos](../../spec/std/num.md#r-std-num.float-math.cos).
     pub fn cos(self) -> f32:
-        f32(f64(self).cos())
+        libm_cosf(self)
     ## The tangent of this angle in radians.
     ## See [std-num.float-math.tan](../../spec/std/num.md#r-std-num.float-math.tan).
     pub fn tan(self) -> f32:
-        f32(f64(self).tan())
+        libm_tanf(self)
+    ## The principal arcsine in radians.
+    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
+    pub fn asin(self) -> f32:
+        libm_asinf(self)
+    ## The principal arccosine in radians.
+    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
+    pub fn acos(self) -> f32:
+        libm_acosf(self)
+    ## The principal arctangent in radians.
+    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
+    pub fn atan(self) -> f32:
+        libm_atanf(self)
+    ## The four-quadrant angle of (x, self), in radians.
+    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
+    pub fn atan2(self, x: f32) -> f32:
+        libm_atan2f(self, x)
+    ## The hyperbolic sine.
+    ## See [std-num.float-math.sinh](../../spec/std/num.md#r-std-num.float-math.sinh).
+    pub fn sinh(self) -> f32:
+        libm_sinhf(self)
+    ## The hyperbolic cosine.
+    ## See [std-num.float-math.cosh](../../spec/std/num.md#r-std-num.float-math.cosh).
+    pub fn cosh(self) -> f32:
+        libm_coshf(self)
+    ## The hyperbolic tangent.
+    ## See [std-num.float-math.tanh](../../spec/std/num.md#r-std-num.float-math.tanh).
+    pub fn tanh(self) -> f32:
+        libm_tanhf(self)
+    ## The inverse hyperbolic sine.
+    ## See [std-num.float-math.asinh](../../spec/std/num.md#r-std-num.float-math.asinh).
+    pub fn asinh(self) -> f32:
+        libm_asinhf(self)
+    ## The inverse hyperbolic cosine; NaN below 1.
+    ## See [std-num.float-math.acosh](../../spec/std/num.md#r-std-num.float-math.acosh).
+    pub fn acosh(self) -> f32:
+        libm_acoshf(self)
+    ## The inverse hyperbolic tangent; NaN outside [-1, 1].
+    ## See [std-num.float-math.atanh](../../spec/std/num.md#r-std-num.float-math.atanh).
+    pub fn atanh(self) -> f32:
+        libm_atanhf(self)
+    ## The natural exponential.
+    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
+    pub fn exp(self) -> f32:
+        libm_expf(self)
+    ## Two raised to this value.
+    ## See [std-num.float-math.exp2](../../spec/std/num.md#r-std-num.float-math.exp2).
+    pub fn exp2(self) -> f32:
+        libm_exp2f(self)
+    ## The natural exponential less one, accurate near zero.
+    ## See [std-num.float-math.exp-m1](../../spec/std/num.md#r-std-num.float-math.exp-m1).
+    pub fn exp_m1(self) -> f32:
+        libm_expm1f(self)
+    ## The natural logarithm.
+    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
+    pub fn ln(self) -> f32:
+        libm_logf(self)
+    ## The base-two logarithm.
+    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
+    pub fn log2(self) -> f32:
+        libm_log2f(self)
+    ## The base-ten logarithm.
+    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
+    pub fn log10(self) -> f32:
+        libm_log10f(self)
+    ## The natural logarithm of one plus this value, accurate near zero.
+    ## See [std-num.float-math.ln-1p](../../spec/std/num.md#r-std-num.float-math.ln-1p).
+    pub fn ln_1p(self) -> f32:
+        libm_log1pf(self)
+    ## The cube root.
+    ## See [std-num.float-math.cbrt](../../spec/std/num.md#r-std-num.float-math.cbrt).
+    pub fn cbrt(self) -> f32:
+        libm_cbrtf(self)
+    ## The length of the hypotenuse of a right triangle with legs `self` and `other`.
+    ## See [std-num.float-math.hypot](../../spec/std/num.md#r-std-num.float-math.hypot).
+    pub fn hypot(self, other: f32) -> f32:
+        libm_hypotf(self, other)
+    ## `self * a + b` with one rounding.
+    ## See [std-num.float-math.mul-add](../../spec/std/num.md#r-std-num.float-math.mul-add).
+    pub fn mul_add(self, a: f32, b: f32) -> f32:
+        libm_fmaf(self, a, b)
+    ## This value raised to a floating-point exponent.
+    ## See [std-num.float-math.powf-musl](../../spec/std/num.md#r-std-num.float-math.powf-musl).
+    pub fn powf(self, exponent: f32) -> f32:
+        libm_powf(self, exponent)
+    ## This value raised to a signed integer exponent.
+    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
+    pub fn powi(self, exponent: i32) -> f32:
+        float_integer_power(self, exponent)
+    ## The sign as negative one, positive one, or NaN.
+    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
+    pub fn signum(self) -> f32:
+        if self.is_nan(): self else: f32(1.0).copysign(self)
+
+## An integer conversion failed because the value is outside the destination type's range.
+## See [std-num.try-from.error](../../spec/std/num.md#r-std-num.try-from.error).
+@derive(Debug, Eq)
+@error("out of range integral type conversion attempted")
+pub struct TryFromIntError: pass

@@ -1,0 +1,24 @@
+# test: fractional parameter casts use the value rules
+# Rule: types.cast.family, types.cast.saturate.
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 0
+# expect-stdout: 1
+# expect-stdout: 1.5
+use std.num.{Integer, Num}
+
+fn fraction[T < Integer]() -> T:
+    T(1.5)
+
+fn negative[T < Integer]() -> T:
+    T(-1.5)
+
+fn number[T < Num]() -> T:
+    T(1.5)
+
+pub fn main() -> void $ Console:
+    println(fraction::[i8]())
+    println(fraction::[u8]())
+    println(negative::[u8]())
+    println(number::[i8]())
+    println(number::[f32]())

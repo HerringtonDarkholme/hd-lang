@@ -28,19 +28,13 @@
 // Usage:
 //   node scripts/coverage.ts [--only SETS] [--jobs N]   measure and report
 //   node scripts/coverage.ts --check                    also fail on a drop
-//   node scripts/coverage.ts --record [--from REPORT]   rewrite the baseline
-//   node scripts/coverage.ts --check --from REPORT      check a stored report
+//   node scripts/coverage.ts --check --from REPORT --base PREVIOUS_REPORT
+//   node scripts/coverage.ts --attribute                retain per-set evidence
 //
-// `--check` fails when a crate's percent is more than 0.05 points under
-// bench/coverage/baseline.json and an uncovered line sits on a line changed
-// since the baseline's commit; it prints those ranges. A fall with no such
-// line is covered code deleted and passes (#1521). Without a diff from the
-// baseline's commit, any fall fails. With no baseline yet it only reports.
-// `--record` rewrites the baseline from the measured report, or from a
-// report.json that CI uploaded (its uncovered/ folder beside it). Both need
-// every run. The baseline only moves by `--record`: CI measures on a schedule,
-// and by the time a run ends main has usually moved on, so the counts gate's
-// automatic refresh (which yields to a newer main) would rarely apply.
+// `--check` compares uncovered lines with the previous measured main run's
+// artifact, mapping unchanged lines through git diff. New gaps and coverage
+// lost on unchanged lines fail; deleted covered code cannot fail. Percentages
+// are reported only. --base selects a downloaded report for an offline check.
 //
 // The full conformance suites run on CI only. Outside CI a conformance,
 // std-rt-checked or cli-conformance set needs HD_CONFORMANCE_ONLY naming its
@@ -59,15 +53,26 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { classifyRust, type FileLines, type LineKind } from "../bench/coverage/rust-lines.ts";
+import {
+  mapUncovered,
+  newUncovered,
+  previousMeasurement,
+  type CoverageRun,
+  type Range,
+} from "../bench/coverage/history.ts";
+import { contributions } from "../bench/coverage/contributions.ts";
+import { archiveProfiles, restoreProfiles } from "../bench/coverage/profiles.ts";
 
 const root = join(import.meta.dirname, "..");
 const output = join(root, "bench", "coverage");
 const work = join(root, "target", "coverage");
-const baselinePath = join(output, "baseline.json");
-const TOLERANCE = 0.05;
+const coverageTarget = resolve(
+  root,
+  process.env.CARGO_LLVM_COV_TARGET_DIR ?? "target/llvm-cov-target",
+);
 const PRINT_LIMIT = 200;
 
 const CORE = [
@@ -110,8 +115,30 @@ const conformance = (name: string, test: string, env: Record<string, string>): R
   conformance: "filtered",
 });
 
+// Measured >60s under instrumentation in run45186693397. Normal CI still
+// runs these: repeated hash/order permutations, widths2..2048, and2k/20k test
+// exports measure determinism/scale, not a new coverage scenario per repeat.
+const COVERAGE_SKIPS = [
+  "rows_determinism::row_polymorphic_programs_build_identically_in_every_order",
+  "supplied_tuple_specialize::tuple_effect_summaries_borrow_small_and_shared_wide_operands",
+  "test_plan::a_test_program_exports_two_entries_and_a_function_per_case",
+];
 const RUNS: Run[] = [
-  { name: "driver", args: [...DRIVER, "--lib", "--test", "stages", "--test", "all"], env: {} },
+  {
+    name: "driver",
+    args: [
+      ...DRIVER,
+      "--test",
+      "unit",
+      "--test",
+      "stages",
+      "--test",
+      "all",
+      "--",
+      ...COVERAGE_SKIPS.flatMap((name) => ["--skip", name]),
+    ],
+    env: {},
+  },
   conformance("conformance", SUITE, {}),
   conformance("conformance-checked", SUITE, { HD_CONFORMANCE_CHECKED: "1" }),
   conformance("conformance-checked-optimized", SUITE, {
@@ -125,10 +152,24 @@ const RUNS: Run[] = [
     env: {},
     conformance: "filtered",
   },
+  // Trace names are lazy: exercise one traced dev link in its own CLI
+  // process, without enabling tracing for the other coverage test sets.
+  {
+    name: "cli-trace",
+    args: [
+      "-p",
+      "hd_command",
+      "--test",
+      "all",
+      "--",
+      "--exact",
+      "work_report::a_trace_names_each_task_and_the_serial_phases",
+    ],
+    env: {},
+  },
 ];
 const SET_NAMES = ["core", ...CORE, ...RUNS.map((run) => run.name)];
 
-type Range = { file: string; first: number; last: number };
 type Lines = { covered: number; total: number };
 type CrateReport = Lines & { percent: number; invariant: Lines };
 type Report = {
@@ -140,14 +181,14 @@ type Report = {
   crates: Partial<Record<Crate, CrateReport>>;
 };
 type Measured = { report: Report; uncovered: Map<Crate, Range[]> };
-type Baseline = { commit: string; crates: Partial<Record<Crate, number>> };
 
 // ---- options ----
 
 const { values } = parseArgs({
   options: {
     check: { type: "boolean", default: false },
-    record: { type: "boolean", default: false },
+    attribute: { type: "boolean", default: false },
+    base: { type: "string" },
     from: { type: "string" },
     only: { type: "string" },
     jobs: { type: "string" },
@@ -155,23 +196,24 @@ const { values } = parseArgs({
 });
 
 function selectedSets(): string[] {
-  if (
-    (values.check || values.record) &&
-    values.from === undefined &&
-    process.env.HD_CONFORMANCE_ONLY
-  ) {
-    fail("--check and --record need the whole suite; unset HD_CONFORMANCE_ONLY");
+  if (values.check && values.from === undefined && process.env.HD_CONFORMANCE_ONLY) {
+    fail("--check needs the whole suite; unset HD_CONFORMANCE_ONLY");
   }
   if (values.only === undefined) {
-    return SET_NAMES.filter((name) => !(CORE as readonly string[]).includes(name));
+    // Run45437978053: checked adds no line beyond these retained sets.
+    // Dropping it saves 424s + 2s reporting; dev must stay (4 shared lines).
+    // Explicit --only still permits a diagnostic measurement of that mode.
+    return SET_NAMES.filter(
+      (name) => !(CORE as readonly string[]).includes(name) && name !== "conformance-checked",
+    );
   }
   const sets = values.only.split(",").filter(Boolean);
   const unknown = sets.filter((set) => !SET_NAMES.includes(set));
   if (unknown.length > 0) {
     fail(`unknown set ${unknown.join(", ")}; the sets are ${SET_NAMES.join(", ")}`);
   }
-  if (values.check || values.record) {
-    fail("--check and --record need every run; leave out --only");
+  if (values.check) {
+    fail("--check needs every run; leave out --only");
   }
   return sets;
 }
@@ -203,14 +245,20 @@ function guardLocalRuns(runs: Run[]): void {
 // ---- measuring ----
 
 function cargo(args: string[], env: Record<string, string> = {}): void {
-  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, CARGO_LLVM_COV_TARGET_DIR: coverageTarget };
   for (const key of MODE_KEYS) {
     delete childEnv[key];
   }
   Object.assign(childEnv, env);
   const shown = Object.entries(env).map(([key, value]) => `${key}=${value} `);
   console.log(`\n$ ${shown.join("")}cargo ${args.join(" ")}`);
-  const result = spawnSync("cargo", args, { cwd: root, env: childEnv, stdio: "inherit" });
+  // cost: one invocation per selected test set/report; no unbounded retry.
+  const result = spawnSync("cargo", args, {
+    cwd: root,
+    env: childEnv,
+    stdio: "inherit",
+    timeout: 75 * 60_000,
+  });
   if (result.status !== 0) {
     fail(`cargo ${args.slice(0, 2).join(" ")} failed (${result.status ?? result.signal})`);
   }
@@ -239,15 +287,52 @@ function measure(sets: string[]): Measured {
   // Stale test binaries of the workspace would map old line numbers, so each
   // measurement rebuilds the workspace crates (dependencies stay built).
   cargo(["llvm-cov", "clean", "--workspace"]);
+  const setsDir = join(work, "sets");
+  rmSync(setsDir, { recursive: true, force: true });
+  const setCounts = new Map<string, Map<string, Map<number, number>>>();
+  const profiles: [string, string][] = [];
   for (const run of runs) {
     const start = performance.now();
-    cargo(["llvm-cov", "--no-report", "--release", ...jobs, ...run.args], run.env);
+    cargo(["llvm-cov", "--no-report", "--release", ...jobs, ...run.args], {
+      ...run.env,
+      LLVM_PROFILE_FILE_NAME: `${run.name}-%p-%m.profraw`,
+    });
     seconds[run.name] = Math.round((performance.now() - start) / 1000);
+    if (!values.attribute) {
+      continue;
+    }
+    const dir = join(setsDir, run.name);
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "lcov.info");
+    const reportStart = performance.now();
+    cargo(["llvm-cov", "report", "--release", "--lcov", "--skip-functions", "--output-path", path]);
+    seconds[`${run.name}-report`] = Math.round((performance.now() - reportStart) / 1000);
+    setCounts.set(run.name, parseLcov(readFileSync(path, "utf8")));
+    writeFileSync(
+      join(dir, "timing.json"),
+      JSON.stringify(
+        {
+          name: run.name,
+          seconds: seconds[run.name],
+          reportSeconds: seconds[`${run.name}-report`],
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    for (const profile of archiveProfiles(coverageTarget, dir)) {
+      profiles.push(profile);
+    }
+  }
+  // Restore the raw inputs for the ordinary merged report, without rerunning tests.
+  restoreProfiles(profiles);
+  if (values.attribute) {
+    writeContributions(setCounts, seconds, setsDir);
   }
   mkdirSync(work, { recursive: true });
   const lcov = join(work, "lcov.info");
   const start = performance.now();
-  cargo(["llvm-cov", "report", "--release", "--lcov", "--output-path", lcov]);
+  cargo(["llvm-cov", "report", "--release", "--lcov", "--skip-functions", "--output-path", lcov]);
   seconds.report = Math.round((performance.now() - start) / 1000);
   const counts = parseLcov(readFileSync(lcov, "utf8"));
   return summarize(counts, {
@@ -256,6 +341,52 @@ function measure(sets: string[]): Measured {
     conformanceOnly: process.env.HD_CONFORMANCE_ONLY || null,
     seconds,
   });
+}
+
+// Classify each current source file once across all sets. Only covered core
+// non-test/non-invariant lines count as contributions, just like the main report.
+function writeContributions(
+  sets: Map<string, Map<string, Map<number, number>>>,
+  seconds: Record<string, number>,
+  dir: string,
+): void {
+  const classified = new Map<string, FileLines>();
+  for (const files of sets.values()) {
+    for (const absolute of files.keys()) {
+      const file = relative(root, absolute).split("\\").join("/");
+      if (crateOf(file) && !classified.has(file)) {
+        classified.set(file, classifyRust(readFileSync(join(root, file), "utf8"), file));
+      }
+    }
+  }
+  const dirs = testFiles(classified);
+  const covered = new Map<string, Set<string>>();
+  for (const [name, files] of sets) {
+    const lines = new Set<string>();
+    for (const [absolute, counts] of files) {
+      const file = relative(root, absolute).split("\\").join("/");
+      const source = classified.get(file);
+      if (!source || isTestFile(file, dirs)) {
+        continue;
+      }
+      for (const [at, count] of counts) {
+        if (count > 0 && source.kinds.get(at) === "code") {
+          lines.add(`${file}:${at}`);
+        }
+      }
+    }
+    covered.set(name, lines);
+  }
+  const unique = contributions(covered);
+  const rows = [...covered].map(([name, lines]) => ({
+    name,
+    seconds: seconds[name],
+    reportSeconds: seconds[`${name}-report`],
+    covered: lines.size,
+    unique: unique.get(name),
+  }));
+  writeFileSync(join(dir, "contributions.json"), JSON.stringify(rows, null, 2) + "\n");
+  console.log("Per-set measured core-line contributions:", rows);
 }
 
 // Absolute source path to its line counts.
@@ -447,28 +578,21 @@ function readStored(path: string): Measured {
     if (existsSync(list)) {
       const lines = readFileSync(list, "utf8").split("\n").filter(Boolean);
       uncovered.set(crate, lines.map(parseRange));
+    } else if (report.crates[crate]) {
+      fail(`missing uncovered lines in stored measurement: ${list}`);
     }
   }
   return { report, uncovered };
 }
 
-function readBaseline(): Baseline | undefined {
-  return existsSync(baselinePath)
-    ? (JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline)
-    : undefined;
-}
-
-function summaryTable(report: Report, baseline: Baseline | undefined): string {
+function summaryTable(report: Report): string {
   const rows = CORE.flatMap((crate) => {
     const row = report.crates[crate];
     if (row === undefined) {
       return [];
     }
-    const base = baseline?.crates[crate];
-    const delta = base === undefined ? "" : ` (${(row.percent - base).toFixed(2)})`;
     return [
       `| ${crate} | ${row.covered} | ${row.total} | ${row.percent.toFixed(2)}% | ` +
-        `${base === undefined ? "-" : `${base.toFixed(2)}%`}${delta} | ` +
         `${row.invariant.covered} / ${row.invariant.total} |`,
     ];
   });
@@ -478,8 +602,8 @@ function summaryTable(report: Report, baseline: Baseline | undefined): string {
   return [
     `### Core coverage at ${report.commit.slice(0, 9)}`,
     "",
-    "| Crate | Covered | Lines | Percent | Baseline | Invariant covered |",
-    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    "| Crate | Covered | Lines | Percent | Invariant covered |",
+    "| --- | ---: | ---: | ---: | ---: |",
     ...rows,
     "",
     `Runs: ${report.runs.join(", ")}. Time: ${times}.`,
@@ -487,62 +611,98 @@ function summaryTable(report: Report, baseline: Baseline | undefined): string {
   ].join("\n");
 }
 
-// ---- check and record ----
+// ---- compare with the previous measured main run ----
 
 function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
-}
-
-// Lines added or changed between two commits, per file; undefined when git can't tell.
-function changedLines(
-  from: string,
-  to: string,
-  crate: Crate,
-): Map<string, Set<number>> | undefined {
-  let diff: string;
-  try {
-    diff = git([
-      "diff",
-      "-U0",
-      "--no-color",
-      "--no-ext-diff",
-      from,
-      to,
-      "--",
-      `crates/${crate}/src`,
-    ]);
-  } catch {
-    return undefined;
-  }
-  const changed = new Map<string, Set<number>>();
-  let lines = new Set<number>();
-  for (const line of diff.split("\n")) {
-    const file = /^\+\+\+ b\/(.*)$/.exec(line);
-    const hunk = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line);
-    if (file) {
-      lines = new Set();
-      changed.set(file[1], lines);
-    } else if (hunk) {
-      const first = Number(hunk[1]);
-      const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
-      for (let at = first; at < first + count; at++) {
-        lines.add(at);
-      }
-    }
-  }
-  return changed;
-}
-
-function newRanges(ranges: Range[], changed: Map<string, Set<number>>): Range[] {
-  return ranges.filter((range) => {
-    const lines = changed.get(range.file);
-    for (let at = range.first; lines && at <= range.last; at++) {
-      if (lines.has(at)) {
-        return true;
-      }
-    }
-    return false;
+  // cost: one diff of the two measured commits, or one commit-ID lookup.
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+    timeout: 30_000,
   });
+}
+
+function gh(args: string[]): string {
+  // cost: one bounded run listing or the selected run's artifact download.
+  return execFileSync("gh", args, { cwd: root, encoding: "utf8", timeout: 60_000 });
+}
+
+// Cost: at most 100 recent main runs, one ancestry/artifact lookup per
+// candidate, and downloads only for live artifacts. No compiler rerun.
+function previousReport(commit: string): Measured | undefined {
+  if (values.base) {
+    return readStored(values.base);
+  }
+  const repo =
+    process.env.GITHUB_REPOSITORY ??
+    gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
+  const data = JSON.parse(
+    gh([
+      "api",
+      `repos/${repo}/actions/workflows/coverage.yml/runs?branch=main&per_page=100`,
+      "--jq",
+      "{workflow_runs: [.workflow_runs[] | {id, head_sha}]}",
+    ]),
+  ) as { workflow_runs: CoverageRun[] };
+  const previous = previousMeasurement(
+    data.workflow_runs,
+    Number(process.env.GITHUB_RUN_ID ?? Infinity),
+    (sha) => {
+      // cost: at most 100 ancestry queries over the recent runs.
+      const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", sha, commit], {
+        cwd: root,
+        timeout: 10_000,
+      });
+      if (ancestor.status === 1) {
+        return false;
+      }
+      if (ancestor.status !== 0) {
+        throw new Error(`cannot map previous coverage commit ${sha}`);
+      }
+      return true;
+    },
+    (run) => {
+      const artifacts = JSON.parse(
+        gh(["api", `repos/${repo}/actions/runs/${run.id}/artifacts?name=core-coverage`]),
+      ) as { artifacts: { name: string; expired: boolean }[] };
+      if (!artifacts.artifacts.some((item) => item.name === "core-coverage" && !item.expired)) {
+        return undefined;
+      }
+      const dir = join(work, "previous", String(run.id));
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+      gh([
+        "run",
+        "download",
+        String(run.id),
+        "--repo",
+        repo,
+        "--name",
+        "core-coverage",
+        "--dir",
+        dir,
+      ]);
+      const path = join(dir, "bench", "coverage", "report.json");
+      // always() also uploads per-set timings after a timeout. Those are
+      // useful diagnostics, but are not a completed coverage measurement.
+      if (!existsSync(path)) {
+        return undefined;
+      }
+      const measured = readStored(path);
+      if (measured.report.commit !== run.head_sha) {
+        throw new Error("coverage artifact commit differs from its run");
+      }
+      if (measured.report.conformanceOnly || CORE.some((crate) => !measured.report.crates[crate])) {
+        return undefined;
+      }
+      return measured;
+    },
+  );
+  if (!previous) {
+    console.log("No previous complete main measurement in the recent run history: report only.");
+  }
+  return previous;
 }
 
 function printRanges(title: string, ranges: Range[]): void {
@@ -555,65 +715,52 @@ function printRanges(title: string, ranges: Range[]): void {
   }
 }
 
-function check({ report, uncovered }: Measured, baseline: Baseline | undefined): boolean {
-  if (baseline === undefined) {
-    console.log("No bench/coverage/baseline.json yet; record one with --record.");
+function check({ report, uncovered }: Measured, previous: Measured | undefined): boolean {
+  if (!previous) {
     return true;
+  }
+  if (report.conformanceOnly || previous.report.conformanceOnly) {
+    fail("a comparison needs complete measurements, not named conformance subsets");
+  }
+  const before = previous.report.commit;
+  console.log(`Comparing uncovered lines with main's measurement at ${before.slice(0, 9)}.`);
+  const diff = git([
+    "-c",
+    "core.quotePath=false",
+    "diff",
+    "-U0",
+    "--find-renames",
+    "--no-color",
+    "--no-ext-diff",
+    before,
+    report.commit,
+    "--",
+    ...CORE.map((crate) => `crates/${crate}/src`),
+  ]);
+  const mapped = mapUncovered([...previous.uncovered.values()].flat(), diff);
+  const mappedCrates = new Map<Crate, Range[]>();
+  for (const range of mapped) {
+    const crate = crateOf(range.file);
+    if (crate) {
+      const ranges = mappedCrates.get(crate) ?? [];
+      ranges.push(range);
+      mappedCrates.set(crate, ranges);
+    }
   }
   let ok = true;
   for (const crate of CORE) {
-    const row = report.crates[crate];
-    const base = baseline.crates[crate];
-    if (row === undefined || base === undefined) {
-      console.log(`${crate}: ${row === undefined ? "not measured" : "no baseline"}`);
-      ok &&= row !== undefined;
-      continue;
-    }
-    if (row.percent > base + TOLERANCE) {
-      console.log(`${crate}: ${row.percent}% is above the baseline ${base}%; --record raises it`);
-    }
-    if (row.percent >= base - TOLERANCE) {
-      continue;
-    }
-    console.log(`${crate}: ${row.percent}% fell below the baseline ${base}%`);
-    const ranges = uncovered.get(crate) ?? [];
-    const changed = changedLines(baseline.commit, report.commit, crate);
-    if (changed === undefined) {
+    if (!report.crates[crate]) {
+      console.log(`${crate}: not measured`);
       ok = false;
-      printRanges(`uncovered ranges (no diff from ${baseline.commit.slice(0, 9)})`, ranges);
       continue;
     }
-    // A change fails only for what it makes worse: an uncovered line on a
-    // line it changed. Deleting covered code lowers the percentage without
-    // leaving any such line, and passes (#1521).
-    const fresh = newRanges(ranges, changed);
-    if (fresh.length === 0) {
-      console.log(
-        `${crate}: no uncovered line on lines changed since ${baseline.commit.slice(0, 9)}; ` +
-          "the fall is covered code deleted, which passes",
-      );
-      continue;
+    const fresh = newUncovered(uncovered.get(crate) ?? [], mappedCrates.get(crate) ?? []);
+    if (fresh.length) {
+      ok = false;
+      printRanges(`${crate}: new or newly uncovered ranges`, fresh);
     }
-    ok = false;
-    printRanges(`uncovered ranges on lines changed since ${baseline.commit.slice(0, 9)}`, fresh);
   }
   return ok;
-}
-
-function record(report: Report): void {
-  const missing = CORE.filter((crate) => report.crates[crate] === undefined);
-  const runs = ["core", ...RUNS.map((run) => run.name)];
-  const partial = runs.some((run) => !report.runs.includes(run)) || report.conformanceOnly;
-  if (missing.length > 0 || partial) {
-    fail(`a baseline needs every crate and run; this report has ${report.runs.join(", ")}`);
-  }
-  const crates: Partial<Record<Crate, number>> = {};
-  for (const crate of CORE) {
-    crates[crate] = report.crates[crate]?.percent;
-  }
-  const baseline: Baseline = { commit: report.commit, crates };
-  writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  console.log(`Recorded ${relative(root, baselinePath)} at ${report.commit.slice(0, 9)}.`);
 }
 
 function main(): void {
@@ -626,8 +773,7 @@ function main(): void {
   } else {
     measured = readStored(values.from);
   }
-  const baseline = readBaseline();
-  const table = summaryTable(measured.report, baseline);
+  const table = summaryTable(measured.report);
   console.log(`\n${table}`);
   if (values.from === undefined) {
     writeFileSync(join(output, "summary.md"), table);
@@ -635,11 +781,13 @@ function main(): void {
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, table);
   }
-  if (values.record) {
-    record(measured.report);
-  } else if (values.check && !check(measured, baseline)) {
+  if (values.check && !check(measured, previousReport(measured.report.commit))) {
     process.exitCode = 1;
   }
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  fail(String(error));
+}

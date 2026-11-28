@@ -1,0 +1,30 @@
+# @dump: wat
+# @build: v8 release
+# `n := w.len()` before the loop and the index guard's `self.len()`
+# inside it read one place through two inlined `self` references to
+# `w.items`, each set once: both key as `[*$w .items .len]`, so `i < n`
+# decides the guard and its test goes (#2368).
+use std.collections.UniqList
+use std.meta.inline
+
+struct Wrap:
+    items: UniqList[i64]
+
+impl Wrap:
+    @inline(.Always)
+    fn len(&self) -> usize:
+        self.items.len()
+
+    @inline(.Always)
+    fn at(&self, i: usize) -> i64:
+        self.items[i]
+
+fn total(w: &Wrap) -> i64:
+    let s = 0i64
+    let i = 0usize
+    n := w.len()
+    # subject
+    while i < n:
+        s = s + w.at(i)
+        i = i + 1
+    s

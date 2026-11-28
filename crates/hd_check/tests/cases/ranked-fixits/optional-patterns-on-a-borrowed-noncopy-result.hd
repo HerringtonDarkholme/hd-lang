@@ -1,0 +1,11 @@
+# @dump: diagnostics fixed
+# Borrowing keeps the Result payload in its original owner.
+# expected: both alternatives check; conversion must use as_ref().ok().
+struct Item: pass
+
+impl !Copy for Item
+
+fn present(value: &Result[Item, string]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false

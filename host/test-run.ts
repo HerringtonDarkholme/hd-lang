@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { parentPort, Worker, workerData } from "node:worker_threads";
 import { runCases } from "./cases.ts";
+import { PROGRAM_STACK } from "./run-support.ts";
 import type { Worker as WorkerType } from "node:worker_threads";
 import {
   createHost,
@@ -59,7 +60,10 @@ export function configOf(spec: string): Dynamic {
 let spare: { worker: WorkerType; exited: boolean } | null = null;
 
 function startWorker(): { worker: WorkerType; exited: boolean } {
-  const worker = new Worker(new URL(import.meta.url), { workerData: { hdTestRun: true } });
+  const worker = new Worker(new URL(import.meta.url), {
+    workerData: { hdTestRun: true },
+    resourceLimits: PROGRAM_STACK,
+  });
   const started = { worker, exited: false };
   worker.once("exit", () => {
     started.exited = true;

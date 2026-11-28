@@ -1,0 +1,29 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# @helper: app/main/landing_nested_nonzero
+# Hand-built emitter value-block fixture (#2373).
+# The stage runner replaces these signature carriers with verified TIR.
+# Both an explicit Break and a constant-tail Scope supply the value join.
+use std.meta.cold
+
+@cold
+fn landing_plain_zero(n: usize) -> usize:
+    n
+@cold
+fn landing_plain_nonzero(n: usize) -> usize:
+    n
+@cold
+fn landing_nested_zero(n: usize) -> usize:
+    n
+@cold
+# subject
+fn landing_nested_nonzero(n: usize) -> usize:
+    n
+
+pub fn main() -> void $ Console:
+    println("${landing_plain_zero(0)} ${landing_plain_zero(1)} ${landing_plain_zero(2)}")
+    println("${landing_plain_nonzero(0)} ${landing_plain_nonzero(1)} ${landing_plain_nonzero(2)}")
+    println("${landing_nested_zero(0)} ${landing_nested_zero(1)} ${landing_nested_zero(2)}")
+    println(
+        "${landing_nested_nonzero(0)} ${landing_nested_nonzero(1)} ${landing_nested_nonzero(2)}",
+    )

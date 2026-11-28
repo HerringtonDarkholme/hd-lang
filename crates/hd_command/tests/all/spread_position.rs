@@ -32,10 +32,7 @@ fn hd(root: &Path, args: &[&str]) -> Output {
         .expect("run hd")
 }
 
-const DECLS: &str = "\
-fn f(a: i32, b: i32) -> i32: a + b
-fn g(xs...: List[i32]) -> i32: 0
-";
+const DECLS: &str = include_str!("programs/spread_position/decls.hd");
 
 /// A positional after the spread, or a second spread, is reported once.
 #[test]

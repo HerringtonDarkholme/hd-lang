@@ -1,0 +1,11 @@
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("equal without reason"):
+        assert_equal(1, 2)
+
+    it("condition without reason"):
+        assert(false)
+
+    it("equal with reason"):
+        assert_equal(3, 4, reason="three is not four")

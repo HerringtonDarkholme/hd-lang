@@ -1,4 +1,4 @@
-//! Interface records, folder interfaces and their blobs, and impl tables
+//! Interface records, unit interfaces and their blobs, and impl tables
 //! (`crates/hd_resolve/DESIGN.md` §4.10 to §4.12; `docs/compiler/data-structures.md` §3.16;
 //! `crates/hd_check/DESIGN.md` (trait solver) §3.3). Types are `hd_types` types in the run's pool; a
 //! blob carries them through entry-local tables.
@@ -11,13 +11,15 @@ use std::sync::{Arc, Mutex};
 
 use crate::known::KnownItems;
 use hd_base::wire::{Reader, Writer};
-use hd_base::{AppendVec, DefId, FolderId, Hash128, PathId, StableHasher, StageResult, Symbol};
+use hd_base::{AppendVec, DefId, Hash128, PathId, StableHasher, StageResult, Symbol, UnitId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
 };
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{ConstValue, CopyDecl, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{
+    ConstValue, CopyDecl, FnDeps, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList,
+};
 
 /// The segment prefix of a local declaration's hidden scope; `#` is in no
 /// identifier, so no field or parameter default (also `Hidden`) has it.
@@ -252,6 +254,21 @@ pub struct Generic {
 }
 
 impl Generic {
+    /// The one sealed numeric bound after ignoring the ordinary Copy bound.
+    /// Read semantic bounds, not their written order or first-bound shortcut.
+    #[must_use]
+    pub fn numeric_family(&self, names: &Names<'_>) -> Option<DefId> {
+        let mut bounds = self
+            .bounds
+            .iter()
+            .map(|&b| names.pool.trait_value(b).map(|(d, _)| d))
+            .filter(|b| *b != Some(names.known.copy));
+        let bound = bounds.next()??;
+        (bounds.next().is_none()
+            && [names.known.num, names.known.integer, names.known.float].contains(&bound))
+        .then_some(bound)
+    }
+
     #[must_use]
     pub fn plain(name: Symbol) -> Self {
         Self {
@@ -785,11 +802,11 @@ pub enum ItemData {
         assoc_lifetimes: Vec<Vec<u16>>,
         by: Option<Symbol>,
         kind: ImplKind,
-        /// Carries `std.structure`'s `fills_defaults()`
+        /// Carries `std.meta`'s `fills_defaults()`
         /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
         /// `build` fills each member that declares a default from it.
         fills_defaults: bool,
-        /// The fact types the implementation names with `std.structure`'s
+        /// The fact types the implementation names with `std.meta`'s
         /// `skips::[F]()` (`annot.impl-fact.skips`): as a derivation's
         /// walker, describer or source, it omits each member whose known
         /// facts hold a value of one of them.
@@ -824,6 +841,11 @@ pub enum ItemData {
     /// written declaration: `List` and `Map` (`types.coll.*`) and `Suspend`
     /// (`types.suspend`). Not a struct.
     Builtin,
+    /// A public top-level binding, `pub let NAME: T = value`
+    /// (`module.vis.pub.binding`), by its written type: an importer reads
+    /// it from the header alone. Its storage is the global its module's
+    /// init stores under the same path.
+    Binding(Ty),
 }
 
 /// Attached documentation, keyed by the relative declaration path.
@@ -1002,6 +1024,7 @@ impl Item {
             ItemData::Impl { .. } => HeadKind::Impl,
             ItemData::Alias { .. } => HeadKind::Alias,
             ItemData::Newtype(..) => HeadKind::Newtype,
+            ItemData::Binding(_) => HeadKind::Binding,
             ItemData::Method { .. } | ItemData::AssocType { .. } => return None,
         })
     }
@@ -1018,10 +1041,12 @@ pub enum HeadKind {
     Impl,
     Alias,
     Newtype,
+    /// `pub let NAME: T = value` (`module.vis.pub.binding`).
+    Binding,
 }
 
 impl HeadKind {
-    const ALL: [HeadKind; 7] = [
+    const ALL: [HeadKind; 8] = [
         HeadKind::Fn,
         HeadKind::Struct,
         HeadKind::Enum,
@@ -1029,6 +1054,7 @@ impl HeadKind {
         HeadKind::Impl,
         HeadKind::Alias,
         HeadKind::Newtype,
+        HeadKind::Binding,
     ];
     /// Names a type constructor.
     #[must_use]
@@ -1048,6 +1074,17 @@ pub struct Export {
     pub name: Symbol,
     pub def: DefId,
     pub kind: HeadKind,
+}
+
+/// A foreign primitive spelling that failed ordinary name resolution.
+/// User declarations with these names still resolve normally.
+#[must_use]
+pub fn numeric_type_hint(name: &str) -> &'static str {
+    if matches!(name, "isize" | "int" | "uint" | "float" | "double") {
+        "; use a fixed-width numeric type such as i32, i64 or f64; indices use usize"
+    } else {
+        ""
+    }
 }
 
 /// Where std offers a name a module did not import: the message's hint,
@@ -1090,23 +1127,45 @@ impl ImportHint {
     }
 }
 
-/// One folder interface's public std exports by the name an import hint
-/// asks for (#1876): built once, on the first hint that reads the
-/// interface, so a hint costs one probe per interface instead of a pass
-/// over every export.
+/// Public std exports by the name an import hint asks for (#1876).
+/// A caller supplies one explicit index; the driver builds its shared
+/// embedded-std index lazily, only when a diagnostic asks for advice.
+/// Owned names let either index outlive the interner that built it.
 #[derive(Debug, Default)]
 pub struct ImportIndex {
     /// By name, each std export of it: its module path, its item, and
     /// whether that path is a re-export rather than the declaring module
     /// (a trait of `std.core` is named by the module that re-exports it,
     /// as Rust's std names core's).
-    by_name: HashMap<Symbol, Vec<(String, DefId, bool)>>,
+    by_name: HashMap<String, Vec<(String, DefId, bool)>>,
     /// By last segment, the std modules that export something.
     by_leaf: HashMap<String, Vec<String>>,
 }
 
+/// Explicit advice for a compiler world: an existing index, or its lazy factory.
+#[derive(Clone, Copy)]
+pub enum ImportHints<'a> {
+    Index(&'a ImportIndex),
+    Lazy(fn() -> &'static ImportIndex),
+}
+
+impl ImportHints<'_> {
+    pub(crate) fn hint(self, name: &str) -> ImportHint {
+        match self {
+            Self::Index(index) => index.hint(name),
+            Self::Lazy(index) => index().hint(name),
+        }
+    }
+}
+
+/// An explicit empty advice index for worlds with no std export source.
+pub static EMPTY_IMPORT_INDEX: std::sync::LazyLock<ImportIndex> =
+    std::sync::LazyLock::new(ImportIndex::default);
+
 impl ImportIndex {
-    fn new(names: &Names<'_>, exports: &[Export]) -> ImportIndex {
+    /// Own the public names and paths; the source interner may then be dropped.
+    #[must_use]
+    pub fn new(names: &Names<'_>, exports: &[Export]) -> ImportIndex {
         let mut out = ImportIndex::default();
         let mut modules = hd_base::HashSet::default();
         for e in exports {
@@ -1132,40 +1191,23 @@ impl ImportIndex {
                 declared != e.module
             };
             out.by_name
-                .entry(e.name)
+                .entry(names.text(e.name).to_owned())
                 .or_default()
                 .push((e.module.clone(), e.def, reexport));
         }
         out
     }
-}
 
-/// An import hint from the public std exports of `ifaces`, including the
-/// modules that contain them. Re-exports of one declaration count as one
-/// item, with its declaring module preferred over a re-export's path,
-/// except that a re-export is preferred over `std.core`. Each interface
-/// answers from its [`ImportIndex`].
-#[must_use]
-pub fn std_import_hint<'a>(
-    names: &Names<'_>,
-    ifaces: impl IntoIterator<Item = &'a FolderIface>,
-    name: &str,
-) -> ImportHint {
-    let mut items = HashMap::<DefId, (bool, String)>::default();
-    let mut modules = std::collections::BTreeSet::new();
-    let sym = names.syms.find(name);
-    for iface in ifaces {
+    /// One name probe, plus work proportional to its matching candidates.
+    #[must_use]
+    pub fn hint(&self, name: &str) -> ImportHint {
+        let mut items = HashMap::<DefId, (bool, String)>::default();
+        let mut modules = std::collections::BTreeSet::new();
         crate::work::hint_work(1);
-        let index = iface
-            .import_index
-            .get_or_init(|| ImportIndex::new(names, &iface.exports));
-        if let Some(found) = index.by_leaf.get(name) {
+        if let Some(found) = self.by_leaf.get(name) {
             modules.extend(found.iter().cloned());
         }
-        let Some(exports) = sym.and_then(|s| index.by_name.get(&s)) else {
-            continue;
-        };
-        for (module, def, reexport) in exports {
+        for (module, def, reexport) in self.by_name.get(name).into_iter().flatten() {
             crate::work::hint_work(1);
             let path = format!("{module}.{name}");
             let found = items.entry(*def).or_insert((*reexport, path.clone()));
@@ -1173,42 +1215,93 @@ pub fn std_import_hint<'a>(
                 *found = (*reexport, path);
             }
         }
-    }
-    let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
-    paths.extend(modules);
-    paths.sort_stable();
-    paths.dedup();
-    match paths.as_slice() {
-        [] => ImportHint::default(),
-        [path] => ImportHint {
-            text: format!("; add `use {path}`"),
-            path: Some(path.clone()),
-        },
-        _ => {
-            let modules: Vec<_> = paths
-                .iter()
-                .take(3)
-                .map(|p| {
-                    format!(
-                        "`{}`",
-                        p.rsplit_once('.').map_or(p.as_str(), |(module, _)| module)
-                    )
-                })
-                .collect();
-            ImportHint {
-                text: format!(
-                    "; `{name}` has several public std homes: {}; add a `use` from the intended module",
-                    modules.join(", ")
-                ),
-                path: None,
+        let mut paths: Vec<String> = items.into_values().map(|(_, path)| path).collect();
+        paths.extend(modules);
+        paths.sort_stable();
+        paths.dedup();
+        match paths.as_slice() {
+            [] => ImportHint::default(),
+            [path] => ImportHint {
+                text: format!("; add `use {path}`"),
+                path: Some(path.clone()),
+            },
+            _ => {
+                let modules: Vec<_> = paths
+                    .iter()
+                    .take(3)
+                    .map(|p| {
+                        format!(
+                            "`{}`",
+                            p.rsplit_once('.').map_or(p.as_str(), |(module, _)| module)
+                        )
+                    })
+                    .collect();
+                ImportHint {
+                    text: format!(
+                        "; `{name}` has several public std homes: {}; add a `use` from the intended module",
+                        modules.join(", ")
+                    ),
+                    path: None,
+                }
             }
         }
     }
 }
 
-/// A run's dense interface-item directory. Each folder registers its index
+/// The type a misspelt `name` most likely meant (#2332,
+/// [`hd_diag::suggest::best_match`]): a struct, enum, alias or newtype
+/// that `locals` binds at byte `at` or `scope` binds, `kind` telling an
+/// item's kind, or, given `params`, one of those type parameters or a
+/// builtin type; without them, a struct only, as a literal names. A near candidate is looked up in `scope`, so a scope that
+/// notes its lookups (#248) keys on it. Cost: one pass over the names in
+/// scope, on an error only.
+pub fn type_typo<'n>(
+    names: &'n Names<'_>,
+    (scope, locals, at): (&crate::ModuleScope, &crate::Locals, u32),
+    params: Option<&[Symbol]>,
+    name: &str,
+    kind: impl Fn(DefId) -> Option<HeadKind>,
+) -> Option<&'n str> {
+    let typed = params.is_some();
+    let builtins = ["never", "void"]
+        .into_iter()
+        .chain(Prim::ALL.iter().map(|p| p.name()))
+        .filter(|_| typed);
+    let params = params.unwrap_or_default();
+    let visible = locals
+        .items()
+        .iter()
+        .filter(|l| l.covers(at))
+        .map(|l| l.name);
+    let syms = params.iter().chain(&scope.name).copied().chain(visible);
+    let candidates: Vec<&str> = syms.map(|s| names.text(s)).chain(builtins).collect();
+    let builtin =
+        |c: &str| typed && (c == "never" || c == "void" || Prim::ALL.iter().any(|p| p.name() == c));
+    let fits = |k: HeadKind| {
+        if typed {
+            k.is_type()
+        } else {
+            k == HeadKind::Struct
+        }
+    };
+    hd_diag::suggest::best_match(name, candidates.iter().copied(), |c| {
+        let Some(s) = names.syms.find(c) else {
+            return builtin(c);
+        };
+        let item = match locals.at(s, at) {
+            Some(l) => Some(l.kind),
+            None => scope
+                .lookup(s)
+                .filter(|b| b.kind == crate::BindingKind::Item)
+                .and_then(|b| kind(DefId::from_raw(b.value))),
+        };
+        params.contains(&s) || builtin(c) || item.is_some_and(fits)
+    })
+}
+
+/// A run's dense interface-item directory. Each unit registers its index
 /// once, after attaching metadata and before publishing its frozen interface.
-/// Registration reads no item records. Rows may grow while other folders are
+/// Registration reads no item records. Rows may grow while other units are
 /// being checked; published rows are atomic and readers never take the writer
 /// lock. Each lookup still restricts access to its own interface closure.
 #[derive(Default)]
@@ -1221,11 +1314,11 @@ impl IfaceIndex {
     const MISSING: u64 = u64::MAX;
     const AMBIGUOUS: u64 = u64::MAX - 1;
 
-    /// Adds one frozen folder's `(DefId, item slot)` index. The driver calls
+    /// Adds one frozen unit's `(DefId, item slot)` index. The driver calls
     /// this before publishing the interface's `Arc`, on cache hits and misses.
-    /// `FolderId::NONE` is not a folder. Re-registering the same index is inert.
-    pub fn insert(&self, folder: FolderId, iface: &FolderIface) {
-        assert!(folder.get().is_some(), "an interface has a folder");
+    /// `UnitId::NONE` is not a unit. Re-registering the same index is inert.
+    pub fn insert(&self, unit: UnitId, iface: &UnitIface) {
+        assert!(unit.get().is_some(), "an interface has a unit");
         let Some(last) = iface
             .by_def
             .keys()
@@ -1248,7 +1341,7 @@ impl IfaceIndex {
             if def.get().is_none() {
                 continue;
             }
-            let value = (u64::from(folder.raw()) << 32)
+            let value = (u64::from(unit.raw()) << 32)
                 | u64::from(u32::try_from(slot).expect("interface item slot"));
             let row = self.rows.get(def.raw()).expect("interface index row");
             let old = row.load(Ordering::Relaxed);
@@ -1257,13 +1350,27 @@ impl IfaceIndex {
                     value
                 } else {
                     // A malformed/recovery interface may repeat an identity
-                    // in another folder. Keep the old ordered search for that
+                    // in another unit. Keep the old ordered search for that
                     // identity alone, including fallback after a bad record.
                     Self::AMBIGUOUS
                 },
                 Ordering::Release,
             );
         }
+    }
+
+    /// The sole registered location, without granting visibility to it.
+    /// Missing and recovery-duplicate IDs have no unique location.
+    #[must_use]
+    pub fn unique_location(&self, def: DefId) -> Option<(UnitId, usize)> {
+        let location = self.location(def);
+        if matches!(location, Self::MISSING | Self::AMBIGUOUS) {
+            return None;
+        }
+        Some((
+            UnitId::from_raw(u32::try_from(location >> 32).ok()?),
+            usize::try_from(location & u64::from(u32::MAX)).ok()?,
+        ))
     }
 
     fn location(&self, def: DefId) -> u64 {
@@ -1273,14 +1380,28 @@ impl IfaceIndex {
     }
 }
 
+/// An immutable checking context. The driver shares its dependency set
+/// and reads interfaces from its once-published unit table; lookup does
+/// not copy a closure or allocate a slot for every visible unit.
+pub trait InterfaceContext: Sync {
+    fn unit(&self, unit: UnitId) -> Option<&UnitIface>;
+    fn iter(&self) -> Box<dyn Iterator<Item = &UnitIface> + '_>;
+}
+
+pub type Interfaces<'a> = dyn InterfaceContext + 'a;
+
+#[cfg(any(test, feature = "testing"))]
+#[path = "../tests/support/interface_context.rs"]
+mod context_fixtures;
+
 /// Finds items by `DefId` across one module's own items and the
 /// interfaces of its closure.
 pub struct Lookup<'a> {
     pub own: &'a [Item],
     pub own_index: HashMap<DefId, usize>,
-    pub ifaces: Vec<&'a FolderIface>,
+    pub ifaces: &'a Interfaces<'a>,
     index: &'a IfaceIndex,
-    by_folder: Vec<Option<&'a FolderIface>>,
+    import_hints: ImportHints<'a>,
     /// The own items' derivation templates by trait, made on the first
     /// derivation that asks.
     templates: std::sync::OnceLock<HashMap<DefId, DefId>>,
@@ -1304,30 +1425,28 @@ fn templates_by_trait<'i>(items: impl Iterator<Item = &'i Item>) -> HashMap<DefI
 }
 
 impl<'a> Lookup<'a> {
+    /// Own items over a persistent dependency context. Only the own
+    /// declarations are indexed here; inherited metadata stays shared.
     #[must_use]
     pub fn new(
         own: &'a [Item],
-        ifaces: impl IntoIterator<Item = (FolderId, &'a FolderIface)>,
+        context: &'a dyn InterfaceContext,
         index: &'a IfaceIndex,
+        import_hints: ImportHints<'a>,
     ) -> Self {
-        let own_index = own.iter().enumerate().map(|(i, it)| (it.def, i)).collect();
-        let mut visible = Vec::new();
-        let mut by_folder = Vec::new();
-        for (folder, iface) in ifaces {
-            if by_folder.len() <= folder.idx() {
-                by_folder.resize(folder.idx() + 1, None);
-            }
-            by_folder[folder.idx()] = Some(iface);
-            visible.push(iface);
-        }
         Self {
             own,
-            own_index,
-            ifaces: visible,
+            own_index: own.iter().enumerate().map(|(i, it)| (it.def, i)).collect(),
+            ifaces: context,
             index,
-            by_folder,
+            import_hints,
             templates: std::sync::OnceLock::new(),
         }
+    }
+
+    #[must_use]
+    pub fn import_hint(&self, name: &str) -> ImportHint {
+        self.import_hints.hint(name)
     }
 
     /// The derivation template of `trait_` (`annot.template.form`): the
@@ -1342,28 +1461,44 @@ impl<'a> Lookup<'a> {
             .copied()
             .or_else(|| self.ifaces.iter().find_map(|f| f.template_of(trait_)))
     }
-    /// The interface of `folder`, when the closure holds it.
+    /// The interface of `unit`, when the closure holds it.
     #[must_use]
-    pub fn folder(&self, folder: FolderId) -> Option<&'a FolderIface> {
-        self.by_folder.get(folder.idx()).copied().flatten()
+    pub fn unit(&self, unit: UnitId) -> Option<&'a UnitIface> {
+        self.ifaces.unit(unit)
     }
     #[must_use]
     pub fn item(&self, d: DefId) -> Option<&'a Item> {
         if let Some(&i) = self.own_index.get(&d) {
             return self.own.get(i);
         }
+        self.interface_item(d)
+    }
+
+    /// An interface item only, preserving first-interface recovery order.
+    #[must_use]
+    pub fn interface_item(&self, d: DefId) -> Option<&'a Item> {
         match self.index.location(d) {
             IfaceIndex::AMBIGUOUS => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING if d == DefId::NONE => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING => None,
             location => {
-                let folder = usize::try_from(location >> 32).expect("interface folder");
-                let slot =
-                    usize::try_from(location & u64::from(u32::MAX)).expect("interface item slot");
-                self.by_folder.get(folder)?.as_ref()?.items.get(slot)
+                let unit = u32::try_from(location >> 32).ok()?;
+                let slot = usize::try_from(location & u64::from(u32::MAX)).ok()?;
+                self.unit(UnitId::from_raw(unit))?.items.get(slot)
             }
         }
     }
+
+    /// Whether any visible interface's item satisfies `test`. Recovery
+    /// duplicates keep the old ordered scan; ordinary IDs use one index
+    /// read rather than walking every interface of every caller.
+    pub fn interface_satisfies(&self, d: DefId, test: impl Fn(&Item) -> bool) -> bool {
+        match self.index.location(d) {
+            IfaceIndex::AMBIGUOUS => self.ifaces.iter().any(|f| f.item(d).is_some_and(&test)),
+            _ => self.interface_item(d).is_some_and(test),
+        }
+    }
+
     /// Failed trait declarations whose target still needs error recovery.
     #[must_use]
     pub fn poisoned_impls(&self) -> Vec<&'a Item> {
@@ -1377,7 +1512,7 @@ impl<'a> Lookup<'a> {
             )
         };
         let mut out: Vec<&Item> = self.own.iter().filter(poisoned).collect();
-        for f in &self.ifaces {
+        for f in self.ifaces.iter() {
             out.extend(f.items.impls().filter(poisoned));
         }
         out
@@ -1468,12 +1603,12 @@ impl Declarations for LookupDecls<'_> {
 
 // ------------------------------------------------------------- the blob
 
-/// A folder's interface (§4.10): its exported items, every impl and their
+/// A unit's interface (§4.10): its exported items, every impl and their
 /// members, the export index with chains followed, the blob they were read
 /// from or written to, and the deep hash.
 #[derive(Debug)]
-pub struct FolderIface {
-    pub folder: String,
+pub struct UnitIface {
+    pub unit: String,
     pub items: Items,
     pub by_def: HashMap<DefId, usize>,
     pub exports: Vec<Export>,
@@ -1483,36 +1618,33 @@ pub struct FolderIface {
     /// the impls of private types (`private_impl_items`).
     pub api_hash: Hash128,
     /// The hash of the whole blob, every impl head included: what
-    /// coherence and the folder's own header check read.
+    /// coherence and the unit's own header check read.
     pub heads_hash: Hash128,
     pub deep_hash: Hash128,
     /// Where each item and written type sits: `(item, slot)` to (module
-    /// index in the folder, anchor). Outside every hash; diagnostics only.
+    /// index in the unit, anchor). Outside every hash; diagnostics only.
     pub spans: HashMap<(DefId, u32), (u32, crate::anchor::Anchor)>,
     /// The private-name index (`crates/hd_resolve/DESIGN.md` §4.9): each
     /// top-level declaration without `pub`, as (module path, name). A
     /// failed export lookup that finds a row is `private-import`. Outside
     /// every hash; diagnostics only.
     pub private_names: hd_base::HashSet<(String, Symbol)>,
-    /// Names no use can reach through this folder: each public name whose
+    /// Names no use can reach through this unit: each public name whose
     /// `pub use` chain loops (`module.pub-use.chain.loop`), as (module
     /// path, name). A failed export lookup that finds a row is
     /// `re-export-loop`, reported where the loop was built, quietly
-    /// through other folders. Outside every hash; diagnostics only.
+    /// through other units. Outside every hash; diagnostics only.
     pub loop_names: hd_base::HashSet<(String, Symbol)>,
     /// The names of declarations whose source holds a parse diagnostic
     /// (`grammar.recovery.item`), as (module path, name): a use of one
     /// binds poison, quietly. Part of every hash when not empty
-    /// ([`FolderIface::set_broken`]); such an interface is never stored.
+    /// ([`UnitIface::set_broken`]); such an interface is never stored.
     pub broken_names: hd_base::HashSet<(String, Symbol)>,
     /// The hash of `private_names` and `loop_names` as their entry
     /// sections encode them: what a failed lookup reads besides the
-    /// exports, so a key over the reads of a folder's header lowering
+    /// exports, so a key over the reads of a unit's header lowering
     /// takes it with the deep hash (#248). Zero until the driver sets it.
     pub names_hash: Hash128,
-    /// The std exports by name, for import hints ([`ImportIndex`]): made
-    /// on the first hint that reads this interface. Outside every hash.
-    pub import_index: std::sync::OnceLock<ImportIndex>,
     /// Each trait's derivation template among the items, the first in
     /// order (`annot.template.form`), made on the first derivation that
     /// asks (#1928). Outside every hash.
@@ -1520,12 +1652,12 @@ pub struct FolderIface {
     /// The modules a REPL input's `use`s name, as (input module path,
     /// local name, module path): what the input leaves in the session
     /// besides its exports (`cli.repl.uses.other`). Empty for any other
-    /// folder. Part of the API hash when not empty, since later inputs
+    /// unit. Part of the API hash when not empty, since later inputs
     /// resolve names through it.
     pub module_uses: Vec<(String, String, String)>,
 }
 
-impl FolderIface {
+impl UnitIface {
     /// The derivation template of `trait_` among the items: one probe of
     /// an index of the template impls, made once by their tags.
     #[must_use]
@@ -1558,9 +1690,9 @@ impl FolderIface {
             .and_then(|&i| self.exports.get(i))
     }
 
-    /// Records the folder's broken names (`grammar.recovery.item`). A
+    /// Records the unit's broken names (`grammar.recovery.item`). A
     /// dependent's check reads them, as poison, so they join the heads, API
-    /// and deep hashes; `mentions` are those [`folder_iface`] took. No
+    /// and deep hashes; `mentions` are those [`unit_iface`] took. No
     /// hash changes when `rows` is empty.
     pub fn set_broken(
         &mut self,
@@ -2065,6 +2197,10 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             put_type_attrs(w, t, a)?;
         }
         ItemData::Builtin => w.u8(9),
+        ItemData::Binding(ty) => {
+            w.u8(10);
+            w.u32(t.ty(*ty)?);
+        }
     }
     Ok(())
 }
@@ -2206,6 +2342,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         }
         8 => ItemData::Newtype(t.ty(r.u32())?, get_type_attrs(r, t)?),
         9 => ItemData::Builtin,
+        10 => ItemData::Binding(t.ty(r.u32())?),
         _ => return None,
     };
     Some(Item {
@@ -2340,6 +2477,54 @@ pub fn encode_items(names: &Names<'_>, items: &[Item], exports: &[Export]) -> St
     Ok(out.bytes)
 }
 
+/// One item's fingerprint and the declarations its record names: the hash
+/// of its record as [`encode_items`] writes it, with tables of its own, so
+/// paths, symbols and types are named by content, not by their positions
+/// in a module's blob; and every path those tables hold (each with its
+/// ancestors). An item added to or removed from the module leaves the
+/// others' fingerprints as they were, as rustc's per-item `hir_owner`
+/// hashes do. A type `hashed` gives a hash for is written as that hash,
+/// not its rows, and listed in `tys` instead of adding its paths, so over
+/// a memo of type hashes the cost is the record's own words.
+pub fn item_fingerprint(
+    names: &Names<'_>,
+    it: &Item,
+    hashed: &dyn Fn(Ty) -> Option<Hash128>,
+) -> StageResult<ItemFingerprint> {
+    let mut t = TableWriter::hashing(names.pool, names.paths, names.syms, hashed);
+    let mut body = Writer::default();
+    body.u32(t.def(it.def));
+    body.u8(impl_tag(it));
+    let (own, params) = param_names(it);
+    body.u8(u8::from(own) | if it.configured() { CONFIGURED } else { 0 });
+    body.len_of(params);
+    for g in params {
+        body.u32(t.sym(g.name));
+    }
+    put_item(&mut body, &mut t, it)?;
+    let mut w = Writer::default();
+    t.write(&mut w);
+    w.bytes.extend_from_slice(&body.bytes);
+    let mut h = StableHasher::new("item-fingerprint-v1");
+    h.bytes(&w.bytes);
+    Ok(ItemFingerprint {
+        hash: h.finish(),
+        paths: t.paths().collect(),
+        tys: t.hashed_tys().to_vec(),
+        rows: t.ty_rows(),
+    })
+}
+
+/// What [`item_fingerprint`] gives: the record's hash, the paths its
+/// tables hold, the types it wrote as their hash, and how many type rows
+/// it wrote (its work).
+pub struct ItemFingerprint {
+    pub hash: Hash128,
+    pub paths: Vec<PathId>,
+    pub tys: Vec<Ty>,
+    pub rows: usize,
+}
+
 /// An item's index tag: its impl kind's position in `ImplKind::ALL`, with
 /// `INHERENT` set for an inherent block; `TRAIT` for a trait; else
 /// `NOT_IMPL`.
@@ -2471,7 +2656,7 @@ struct Source {
     docs: Vec<ItemDocs>,
 }
 
-/// A folder interface's items, by position: each decoded from the blob on
+/// A unit interface's items, by position: each decoded from the blob on
 /// first use (docs/compiler/data-structures.md §3.9.1), or given whole when the
 /// interface was built in this run. `decoded` counts the records read.
 #[derive(Debug, Default)]
@@ -2527,7 +2712,11 @@ impl Items {
         self.defs.len()
     }
 
+    /// Out of line, so its coverage counters are this crate's: a copy
+    /// inlined into a caller's crate (a release build's small functions)
+    /// counts apart.
     #[must_use]
+    #[inline(never)]
     pub fn is_empty(&self) -> bool {
         self.defs.is_empty()
     }
@@ -2667,20 +2856,63 @@ pub fn deep_hash(api_hash: Hash128, mentions: &[(String, Hash128)]) -> Hash128 {
     h.finish()
 }
 
-/// What other folders may see: public items, every impl, and the members
-/// of both.
+/// What other units may see: public items, every impl, the members of
+/// both, and each private type declaration their headers reach, at any
+/// depth. A dependent's solver walks a public type's fields into a private
+/// one for `Copy` and the markers (`ref.copy.structure`,
+/// `module.marker.structural`), as rustc's metadata keeps every ADT; it
+/// cannot name one, since only `exports` bind names. Cost: one pass over
+/// the kept headers' types, each type once.
 #[must_use]
-pub fn interface_items(items: &[Item]) -> Vec<Item> {
+pub fn interface_items(pool: &InternPool, items: &[Item]) -> Vec<Item> {
+    let by_def: HashMap<DefId, usize> = items
+        .iter()
+        .enumerate()
+        .map(|(i, it)| (it.def, i))
+        .collect();
+    let mut keep = vec![false; items.len()];
+    let (mut defs, mut tys) = (Vec::new(), Vec::new());
+    for (i, it) in items.iter().enumerate() {
+        if it.public || matches!(it.data, ItemData::Impl { .. }) {
+            keep[i] = true;
+            header_parts(pool, it, &mut defs, &mut tys);
+        }
+    }
+    let mut seen = hd_base::HashSet::default();
+    while let Some(t) = tys.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        let mut named = Vec::new();
+        ty_parts(pool, t, &mut named, &mut tys);
+        for d in named {
+            let Some(&j) = by_def.get(&d) else { continue };
+            let it = &items[j];
+            if !keep[j]
+                && matches!(
+                    it.data,
+                    ItemData::Struct(..)
+                        | ItemData::Enum { .. }
+                        | ItemData::Newtype(..)
+                        | ItemData::Alias { .. }
+                )
+            {
+                keep[j] = true;
+                header_parts(pool, it, &mut defs, &mut tys);
+            }
+        }
+    }
     items
         .iter()
-        .filter(|i| i.public || matches!(i.data, ItemData::Impl { .. }))
-        .cloned()
+        .zip(keep)
+        .filter(|&(_, k)| k)
+        .map(|(it, _)| it.clone())
         .collect()
 }
 
-/// The impls among `all` (a folder's items) whose target or trait is a
-/// private declaration of the folder, and their members: only
-/// coherence and the folder's own checks read them, so they stay out of
+/// The impls among `all` (a unit's items) whose target or trait is a
+/// private declaration of the unit, and their members: only
+/// coherence and the unit's own checks read them, so they stay out of
 /// `api_hash` (`crates/hd_resolve/DESIGN.md` §4.10, "Two hashes, two
 /// readers"). A target is private when its head is a private type; a
 /// type in an argument does not count, which keeps more in the hash.
@@ -2723,7 +2955,7 @@ pub fn private_impl_items(pool: &InternPool, all: &[Item]) -> hd_base::HashSet<D
 }
 
 /// Every item a set of interface items names, in first-mention order:
-/// the folders of these are the interface's `mentions` (§4.11.3).
+/// the units of these are the interface's `mentions` (§4.11.3).
 #[must_use]
 pub fn mentioned_defs<'a>(
     pool: &InternPool,
@@ -2803,7 +3035,9 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
             tys.extend(assoc.iter().map(|a| a.1));
         }
         ItemData::AssocType { bounds, .. } => tys.extend(bounds.iter().copied()),
-        ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => tys.push(*body),
+        ItemData::Alias { body, .. } | ItemData::Newtype(body, _) | ItemData::Binding(body) => {
+            tys.push(*body);
+        }
         ItemData::Builtin => {}
     }
 }
@@ -2864,18 +3098,18 @@ pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<T
     }
 }
 
-/// A folder interface over items (already filtered), exports and their
-/// blob; `mentions` are the deep hashes of the other folders it names.
+/// A unit interface over items (already filtered), exports and their
+/// blob; `mentions` are the deep hashes of the other units it names.
 #[must_use]
-pub fn folder_iface(
-    folder: &str,
+pub fn unit_iface(
+    unit: &str,
     items: Items,
     exports: Vec<Export>,
     blob: Arc<[u8]>,
     api_blob: Option<Hash128>,
     mentions: &[(String, Hash128)],
     module_uses: Vec<(String, String, String)>,
-) -> FolderIface {
+) -> UnitIface {
     let by_def = items
         .defs()
         .iter()
@@ -2903,8 +3137,8 @@ pub fn folder_iface(
     let heads_hash = with_uses(hd_base::hash128(&blob));
     let api_hash = api_blob.map_or(heads_hash, with_uses);
     let deep_hash = deep_hash(api_hash, mentions);
-    FolderIface {
-        folder: folder.to_owned(),
+    UnitIface {
+        unit: unit.to_owned(),
         items,
         by_def,
         exports,
@@ -2918,7 +3152,6 @@ pub fn folder_iface(
         loop_names: hd_base::HashSet::default(),
         broken_names: hd_base::HashSet::default(),
         names_hash: Hash128::default(),
-        import_index: std::sync::OnceLock::new(),
         templates: std::sync::OnceLock::new(),
         module_uses,
     }
@@ -2929,31 +3162,61 @@ pub fn folder_iface(
 /// Templates take no row; inherent blocks are not trait impls.
 #[must_use]
 pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
-    let by_def: HashMap<DefId, &Item> = impls.iter().map(|i| (i.def, *i)).collect();
-    let mut rows: Vec<(DefId, DefId, Ty, TyList, ImplKind, usize, Hash128)> = impls
+    // Keep each row's validated implementation data through sorting rather
+    // than rebuilding an item lookup and recovering from impossible misses.
+    struct Row<'a> {
+        trait_: DefId,
+        item: &'a Item,
+        self_ty: Ty,
+        args: TyList,
+        kind: ImplKind,
+        assoc: &'a [(DefId, Ty)],
+        outlives: bool,
+        rank: Hash128,
+    }
+    let mut rows: Vec<Row<'_>> = impls
         .iter()
-        .filter_map(|i| match i.data {
+        .filter_map(|i| match &i.data {
             ItemData::Impl {
                 trait_,
                 self_ty,
                 trait_args,
                 kind,
+                assoc,
+                self_lifetimes,
+                trait_slots,
                 ..
-            } if trait_ != DefId::NONE && kind.is_impl() => Some((
-                trait_,
-                i.def,
-                self_ty,
-                trait_args,
-                kind,
-                i.generics.len(),
-                names.path_hash(i.def),
-            )),
+            } if *trait_ != DefId::NONE && kind.is_impl() => Some(Row {
+                trait_: *trait_,
+                item: i,
+                self_ty: *self_ty,
+                args: *trait_args,
+                kind: *kind,
+                assoc,
+                outlives: self_lifetimes
+                    .iter()
+                    .chain(trait_slots)
+                    .any(|&l| l == STATIC_LIFETIME),
+                rank: names.path_hash(i.def),
+            }),
             _ => None,
         })
         .collect();
-    rows.sort_stable_by_key(|r| (names.path_hash(r.0), r.6));
+    rows.sort_stable_by_key(|r| (names.path_hash(r.trait_), r.rank));
     let mut t = ImplTable::default();
-    for (n, (trait_, def, self_ty, args, kind, n_params, rank)) in rows.into_iter().enumerate() {
+    for (n, r) in rows.into_iter().enumerate() {
+        let Row {
+            trait_,
+            item,
+            self_ty,
+            args,
+            kind,
+            assoc,
+            outlives,
+            rank,
+        } = r;
+        let def = item.def;
+        let generics = &item.generics;
         let n = u32::try_from(n).expect("impls");
         t.by_trait
             .entry(trait_.raw())
@@ -2966,29 +3229,13 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::UnionTemplate => HeadKey::UnionAny,
             _ => HeadKey::of(names.pool.types(), self_ty),
         });
-        t.n_params.push(u8::try_from(n_params).unwrap_or(u8::MAX));
+        t.n_params
+            .push(u8::try_from(generics.len()).unwrap_or(u8::MAX));
         t.head_self.push(self_ty);
         t.head_args.push(args);
-        let item = by_def.get(&def);
-        t.head_outlives.push(item.is_some_and(|i| {
-            match &i.data {
-                ItemData::Impl {
-                    self_lifetimes,
-                    trait_slots,
-                    ..
-                } => self_lifetimes
-                    .iter()
-                    .chain(trait_slots)
-                    .any(|&l| l == STATIC_LIFETIME),
-                _ => false,
-            }
-        }));
+        t.head_outlives.push(outlives);
         let mut plan = Vec::new();
-        for (gi, g) in item
-            .map_or(&[][..], |i| i.generics.as_slice())
-            .iter()
-            .enumerate()
-        {
+        for (gi, g) in generics.iter().enumerate() {
             for b in &g.bounds {
                 if let TyData::TraitValue {
                     def: tr,
@@ -3021,10 +3268,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             }
         }
         t.plan.push(plan);
-        t.assoc.push(match item.map(|i| &i.data) {
-            Some(ItemData::Impl { assoc, .. }) => assoc.clone(),
-            _ => vec![],
-        });
+        t.assoc.push(assoc.to_vec());
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::UnionTemplate => ImplOrigin::UnionTemplate,
@@ -3111,6 +3355,26 @@ pub fn show_ty_qualified_in(
     show_ty_opts(names, pool, t, rows, true)
 }
 
+/// Qualified diagnostic rendering with short opaque bounds, owners and arguments.
+/// A caller comparing two types may fall back to full paths if these still clash.
+#[must_use]
+pub fn show_ty_diagnostic_in(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    rows: bool,
+) -> String {
+    let mut shower = Shower::new(
+        names,
+        pool,
+        (rows, true),
+        SHOWN_TYPE_BYTES,
+        SHOWN_TYPE_DEPTH,
+    );
+    shower.short_opaque_paths = true;
+    shower.show(t)
+}
+
 fn show_ty_opts(
     names: &Names<'_>,
     pool: hd_types::Types<'_>,
@@ -3131,29 +3395,35 @@ fn show_ty_opts(
 /// The lifetime marks of a function type's reference slots, inputs then
 /// result, for a message (`fn.type.lifetime.identity`): `None` when
 /// elision gives its map, else a name for each slot that shares one.
-fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
-    // An open map names no shared lifetime ([`hd_types::FnDeps`]).
+fn lifetime_marks(
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    params: TyList,
+    result: Ty,
+    deps: FnDeps,
+    mut visit: impl FnMut(),
+) -> Option<Marks> {
+    // Keep validation of open or misaligned maps; the caller already decoded Fn.
     let (ins, outs) = pool.fn_ty_deps(t).filter(|(_, outs)| !outs.is_empty())?;
-    let TyData::Fn {
-        params,
-        result,
-        deps,
-        ..
-    } = pool.get(t)
-    else {
-        return None;
-    };
     if pool.fn_deps_written(pool.list_items(params), result, &[]) == deps {
         return None;
     }
-    let all: Vec<u32> = ins.iter().chain(outs).copied().collect();
-    let name = |l: u32| {
-        (l != 0 && all.iter().filter(|&&x| x == l).count() > 1)
-            .then(|| char::from(b'a' + u8::try_from((l - 1) % 26).unwrap_or(0)))
-    };
-    Some(std::cell::RefCell::new(
-        all.iter().map(|&l| name(l)).collect(),
-    ))
+    let mut first = HashMap::default();
+    let mut marks = std::collections::VecDeque::with_capacity(ins.len() + outs.len());
+    for (at, &lifetime) in ins.iter().chain(outs).enumerate() {
+        visit();
+        let earlier = *first.entry(lifetime).or_insert(at);
+        let shared = earlier != at;
+        let name = (shared && lifetime != 0)
+            .then(|| char::from(b'a' + u8::try_from((lifetime - 1) % 26).unwrap_or(0)));
+        if shared {
+            // Every earlier iteration appended one mark, so this index
+            // precedes the current end even if the deque's storage grew.
+            marks[earlier] = name;
+        }
+        marks.push_back(name);
+    }
+    Some(std::cell::RefCell::new(marks))
 }
 
 /// Each reference slot's mark, in [`hd_types::Types::ref_slots`] order.
@@ -3170,6 +3440,7 @@ struct Shower<'s, 'n> {
     pool: hd_types::Types<'s>,
     rows: bool,
     qualified: bool,
+    short_opaque_paths: bool,
     out: String,
     limit: usize,
     max_depth: u32,
@@ -3190,6 +3461,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             pool,
             rows,
             qualified,
+            short_opaque_paths: false,
             out: String::new(),
             limit,
             max_depth,
@@ -3240,6 +3512,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             self.limit.saturating_sub(self.out.len()),
             self.max_depth,
         );
+        sub.short_opaque_paths = self.short_opaque_paths;
         sub.ty(t, depth, None);
         (sub.out, sub.cut)
     }
@@ -3442,9 +3715,10 @@ impl<'s, 'n> Shower<'s, 'n> {
                 result,
                 row,
                 suspends,
+                deps,
                 ..
             } => {
-                let own = lifetime_marks(pool, t);
+                let own = lifetime_marks(pool, t, params, result, deps, || {});
                 let own = own.as_ref();
                 self.put(if suspends { "fn!(" } else { "fn(" });
                 self.list(pool.list_items(params), ", ", d, own);
@@ -3463,19 +3737,22 @@ impl<'s, 'n> Shower<'s, 'n> {
                 owner, args, bound, ..
             } => {
                 self.put("impl ");
-                let (shown, cut) = self.render(bound, d, self.rows);
-                let shown = match shown.strip_prefix("dyn ") {
-                    Some(rest) => rest.to_owned(),
-                    None => shown,
-                };
-                self.put_rendered((shown, cut));
-                if self.qualified {
+                // A bound renders as a trait name. `dyn` is emitted only
+                // by a reference, after its `&` or `*` prefix.
+                let qualified = self.qualified;
+                if self.short_opaque_paths {
+                    self.qualified = false;
+                }
+                let shown = self.render(bound, d, self.rows);
+                self.put_rendered(shown);
+                if qualified {
                     self.put(" returned by ");
                     self.seg(owner);
                     self.put("[");
                     self.list(pool.list_items(args), ", ", d, marks);
                     self.close("]");
                 }
+                self.qualified = qualified;
             }
             TyData::Param(p) => self.put(&self.names.param_name(p.owner, p.index)),
             TyData::Assoc { assoc, self_ty, .. } => {
@@ -3543,9 +3820,9 @@ mod tests {
         )
     }
 
-    fn indexed_folder(folder: &str, items: super::Items) -> super::FolderIface {
-        super::folder_iface(
-            folder,
+    fn indexed_unit(unit: &str, items: super::Items) -> super::UnitIface {
+        super::unit_iface(
+            unit,
             items,
             Vec::new(),
             std::sync::Arc::from(&b""[..]),
@@ -3556,25 +3833,78 @@ mod tests {
     }
 
     #[test]
-    fn lookup_keeps_own_precedence_and_restricts_sparse_ids_to_visible_folders() {
-        use hd_base::{DefId, FolderId};
+    fn function_lifetime_names_take_linear_work_at_width_and_depth() -> Result<(), &'static str> {
+        use hd_types::{Inputs, InternPool, RowId, Ty, TyData};
+        for width in [100, 1_000] {
+            for depth in [0, 20] {
+                let pool = InternPool::new();
+                let reference = pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable: false,
+                    counted: false,
+                });
+                let mut input = pool.product(pool.list(&vec![reference; width]), None);
+                for _ in 0..depth {
+                    input = pool.product(pool.list(&[input]), None);
+                }
+                let mut ins = vec![1; width];
+                ins[width - 1] = 2;
+                let params = pool.list(&[input]);
+                let deps = pool.types().fn_deps(&ins, &[2]);
+                let function = pool.intern_ty(&TyData::Fn {
+                    params,
+                    result: reference,
+                    row: RowId::EMPTY,
+                    suspends: false,
+                    inputs: Inputs::Fixed,
+                    deps,
+                });
+                let mut work = 0;
+                let marks =
+                    super::lifetime_marks(pool.types(), function, params, reference, deps, || {
+                        work += 1;
+                    })
+                    .ok_or("non-elided function lifetimes")?;
+                let marks = marks.borrow();
+                assert_eq!(marks.len(), width + 1);
+                // Dependency canonicalization splits input lifetimes absent from
+                // the result; only the last input/result pair shares a name.
+                assert!(marks.iter().take(width - 1).all(Option::is_none));
+                assert!(marks[width - 1].is_some());
+                assert_eq!(marks[width - 1], marks[width]);
+                println!("width={width} depth={depth} lifetime_id_visits={work}");
+                assert!(
+                    work <= width + 1,
+                    "{work} lifetime-ID visits at width {width}, depth {depth}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn lookup_keeps_own_precedence_and_restricts_sparse_ids_to_visible_units() {
+        use hd_base::{DefId, UnitId};
         let shared = DefId::from_raw(3);
         let distant = DefId::from_raw(257);
-        let first = indexed_folder("first", super::Items::new(vec![indexed_item(shared, 1)]));
-        let later = indexed_folder("later", super::Items::new(vec![indexed_item(distant, 2)]));
+        let first = indexed_unit("first", super::Items::new(vec![indexed_item(shared, 1)]));
+        let later = indexed_unit("later", super::Items::new(vec![indexed_item(distant, 2)]));
         let index = super::IfaceIndex::default();
-        index.insert(FolderId::from_raw(2), &first);
-        let visible = [(FolderId::from_raw(2), &first)];
-        let lookup = super::Lookup::new(&[], visible, &index);
+        index.insert(UnitId::from_raw(2), &first);
+        let visible = [(UnitId::from_raw(2), &first)];
+        let interfaces = visible;
+        let lookup = super::Lookup::new(
+            &[],
+            &interfaces,
+            &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
+        );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
             first.item(shared).unwrap()
         ));
-        assert!(
-            lookup.item(distant).is_none(),
-            "a pending folder has no row"
-        );
-        // A later folder may publish while an older lookup is being used.
+        assert!(lookup.item(distant).is_none(), "a pending unit has no row");
+        // A later unit may publish while an older lookup is being used.
         // Its new rows must not become visible in that lookup's closure.
         std::thread::scope(|scope| {
             let reader = scope.spawn(|| {
@@ -3583,7 +3913,7 @@ mod tests {
                     assert!(lookup.item(distant).is_none());
                 }
             });
-            index.insert(FolderId::from_raw(7), &later);
+            index.insert(UnitId::from_raw(7), &later);
             reader.join().unwrap();
         });
         assert!(lookup.item(distant).is_none(), "outside the closure");
@@ -3594,13 +3924,12 @@ mod tests {
         );
         assert!(lookup.item(DefId::NONE).is_none());
         let own = vec![indexed_item(shared, 3), indexed_item(shared, 4)];
+        let interfaces = [(UnitId::from_raw(2), &first), (UnitId::from_raw(7), &later)];
         let lookup = super::Lookup::new(
             &own,
-            [
-                (FolderId::from_raw(2), &first),
-                (FolderId::from_raw(7), &later),
-            ],
+            &interfaces,
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(
             std::ptr::eq(lookup.item(shared).unwrap(), own.get(1).unwrap()),
@@ -3613,42 +3942,46 @@ mod tests {
     }
 
     #[test]
-    fn lookup_preserves_folder_order_and_bad_record_fallback_for_duplicate_ids() {
-        use hd_base::{DefId, FolderId};
+    fn lookup_preserves_unit_order_and_bad_record_fallback_for_duplicate_ids() {
+        use hd_base::{DefId, UnitId};
         let shared = DefId::from_raw(3);
-        let first = indexed_folder("first", super::Items::new(vec![indexed_item(shared, 1)]));
-        let second = indexed_folder(
+        let first = indexed_unit("first", super::Items::new(vec![indexed_item(shared, 1)]));
+        let second = indexed_unit(
             "second",
             super::Items::new(vec![indexed_item(shared, 2), indexed_item(shared, 3)]),
         );
-        let missing = indexed_folder(
+        let missing = indexed_unit(
             "missing",
             super::Items::with_source(vec![shared], vec![super::NOT_IMPL], None),
         );
         let index = super::IfaceIndex::default();
         // Registration order cannot decide a lookup's duplicate precedence.
-        index.insert(FolderId::from_raw(4), &second);
-        index.insert(FolderId::from_raw(1), &first);
-        index.insert(FolderId::from_raw(7), &missing);
+        index.insert(UnitId::from_raw(4), &second);
+        index.insert(UnitId::from_raw(1), &first);
+        index.insert(UnitId::from_raw(7), &missing);
+        let interfaces = [
+            (UnitId::from_raw(1), &first),
+            (UnitId::from_raw(4), &second),
+        ];
         let lookup = super::Lookup::new(
             &[],
-            [
-                (FolderId::from_raw(1), &first),
-                (FolderId::from_raw(4), &second),
-            ],
+            &interfaces,
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
             first.item(shared).unwrap()
         ));
+        let interfaces = [
+            (UnitId::from_raw(7), &missing),
+            (UnitId::from_raw(4), &second),
+        ];
         let lookup = super::Lookup::new(
             &[],
-            [
-                (FolderId::from_raw(7), &missing),
-                (FolderId::from_raw(4), &second),
-            ],
+            &interfaces,
             &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
         );
         assert!(std::ptr::eq(
             lookup.item(shared).unwrap(),
@@ -3658,7 +3991,7 @@ mod tests {
 
     #[test]
     fn lookup_directory_keeps_interface_records_lazy() {
-        use hd_base::FolderId;
+        use hd_base::UnitId;
         let (pool, paths, syms) = (
             InternPool::new(),
             PathTable::new(),
@@ -3684,10 +4017,16 @@ mod tests {
             .collect();
         let blob = encode_items(&names, &items, &[]).unwrap();
         let (lazy, _) = decode_lazy(&names, std::sync::Arc::from(blob)).unwrap();
-        let iface = indexed_folder("app", lazy);
+        let iface = indexed_unit("app", lazy);
         let index = super::IfaceIndex::default();
-        index.insert(FolderId::from_raw(0), &iface);
-        let lookup = super::Lookup::new(&[], [(FolderId::from_raw(0), &iface)], &index);
+        index.insert(UnitId::from_raw(0), &iface);
+        let interfaces = [(UnitId::from_raw(0), &iface)];
+        let lookup = super::Lookup::new(
+            &[],
+            &interfaces,
+            &index,
+            crate::iface::ImportHints::Index(&crate::iface::EMPTY_IMPORT_INDEX),
+        );
         assert_eq!(
             iface.items.decoded(),
             0,

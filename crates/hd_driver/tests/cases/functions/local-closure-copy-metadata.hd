@@ -1,7 +1,7 @@
 # @dump: own wat stdout
 # @build: release checked
 # expected: copied closure metadata preserves checked arithmetic, strings and a call-result loan.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

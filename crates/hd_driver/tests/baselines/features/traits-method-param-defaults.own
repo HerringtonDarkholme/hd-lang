@@ -29,7 +29,7 @@ impl Joiner:
 >   %0 = Read borrow [*$0 .parts] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
@@ -89,7 +89,7 @@ fn generic_method(j: Joiner, s: string) -> usize:
 >   %3 = Scope %2 [] : string
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

@@ -1,5 +1,5 @@
 # test: a walked member must satisfy the walker's strengthened bound, checked at the opt-in
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

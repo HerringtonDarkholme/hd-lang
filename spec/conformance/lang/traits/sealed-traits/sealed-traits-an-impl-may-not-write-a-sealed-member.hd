@@ -1,5 +1,5 @@
 # test: sealed traits an impl may not write a sealed member
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 trait Plugin < Inspectable:
     fn name(self) -> string

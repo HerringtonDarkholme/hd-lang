@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# A poisoned initializer must not add an unrelated disposal error.
+fn run() -> void:
+    using resource = missing_resource

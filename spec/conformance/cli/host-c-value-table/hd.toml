@@ -1,0 +1,5 @@
+[package]
+name = "host_c_table"
+
+[host]
+"main.Disk" = { c = "hd_disk" }

@@ -1,0 +1,4 @@
+[package]
+name="shop"
+[capabilities]
+Process=false

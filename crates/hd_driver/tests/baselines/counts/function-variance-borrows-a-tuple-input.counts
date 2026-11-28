@@ -6,34 +6,60 @@
 # borrows every input that holds a thin reference by value, so `invoke`
 # drops its tuple after the call, and its caller's box with it (#1693).
 # `read_cold` keeps its frame's own count of the tuple's referent.
-use std.annotation.cold
+use std.meta.cold
 
 fn read(value: (&i32, i32)) -> i32:
     *value._0 + value._1
 
 @cold
 fn read_cold!(value: (&i32, i32)) -> i32:
-    *value._0 + value._1
+    pause!()
 > app/main/read_cold
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/read_cold
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read_cold
 >   retain counted reference (by design)
+    *value._0 + value._1
 
 @cold
 fn invoke(call: fn((*i32, i32)) -> i32, value: *i32) -> i32:
     call((value, +3))
 > app/main/invoke
 >   release (*i32, i32) [0] (last use)
+>   release *i32 (last use)
 >   release fn((*i32, i32)) -> i32 (last use)
 
 fn escaped(value: *i32) -> Suspend[i32]:
     let adapted: fn!((*i32, i32)) -> i32 = read_cold
 > app/main/escaped
 >   release (*i32, i32) [0] (last use)
+>   release fn((*i32, i32)) -> Suspend[i32] (last use)
+>   release *i32 (last use)
     let call: fn((*i32, i32)) -> Suspend[i32] = adapted
     call((value, +3))
 
 fn main_like() -> bool:
     invoke(read, box(+7)) == 10
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

@@ -5,7 +5,7 @@
 # branch releases the cell, so its `FlagClear` stands before the
 # `Read move` and writes the cell before it can be freed. Its `Drop`
 # releases the cell, so it clears nothing, and no flag local is read.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 
 struct Token:
@@ -26,6 +26,7 @@ fn take(value: Token) -> usize:
     value.id
 
 fn relayed!(value: Token) -> Token:
+    pause!()
     value
 
 # subject
@@ -38,3 +39,8 @@ fn moved_cell!(early: bool) -> usize:
         return take(value)
     other.id
 
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

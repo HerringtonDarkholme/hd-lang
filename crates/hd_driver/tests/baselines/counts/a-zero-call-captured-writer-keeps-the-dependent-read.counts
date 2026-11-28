@@ -6,7 +6,7 @@
 # The dependent result `d` points into what the root holds: `Drop [$ps]`
 # and `Drop [$h]` follow `*d`, not the read, so a writer the loop never
 # calls leaves the root alive (#1700, `ref.box.root`).
-use std.function.FnMut
+use std.ops.FnMut
 
 struct P:
     name: string
@@ -27,6 +27,7 @@ fn element() -> string:
     let mut ps = [box(P { name: "a" })]
 > app/main/element
 >   release counted reference (last use)
+>   release counted reference (last use)
     change := fn() -> void: ps[0] = box(P { name: "b" })
 > app/main/element
 >   unique List[*mut app.main.P] (may be shared)
@@ -41,6 +42,7 @@ fn element() -> string:
 fn field() -> string:
     let mut h = Holder { p: box(P { name: "e" }) }
 > app/main/field
+>   release counted reference (last use)
 >   release counted reference (last use)
     change := fn() -> void: h.p = box(P { name: "f" })
 > app/main/field

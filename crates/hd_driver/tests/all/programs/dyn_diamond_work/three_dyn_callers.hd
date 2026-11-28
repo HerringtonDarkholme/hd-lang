@@ -1,0 +1,23 @@
+trait T:
+    fn a(&self) -> i32
+    fn b(&self) -> i32
+    fn c(&self) -> i32
+
+struct S: pass
+
+impl T for S:
+    fn a(&self) -> i32: 1
+    fn b(&self) -> i32: 2
+    fn c(&self) -> i32: 3
+
+fn call_a(x: &dyn T) -> i32: x.a()
+
+fn call_b(x: &dyn T) -> i32: x.b()
+
+fn call_c(x: &dyn T) -> i32: x.c()
+
+fn plain(n: i32) -> i32: n + 1
+
+pub fn main() -> void $ Console:
+    s := S {}
+    println(call_a(&s) + call_b(&s) + call_c(&s) + plain(1))

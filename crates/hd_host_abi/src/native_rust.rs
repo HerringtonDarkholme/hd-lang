@@ -1,5 +1,5 @@
 //! The Rust companion `NAME.host.rs` of a module requiring package host
-//! traits (`cli.host.package.native-companion`, `native-generated`): one
+//! traits (`cli.host.package.native-artifact-companion`, `native-generated`): one
 //! provider trait per host interface, the owned value types its methods
 //! cross (the Native Value Table, `module.host.package.native-values`), and
 //! a registry builder whose `build` yields the `hd_run_wasmtime::native::

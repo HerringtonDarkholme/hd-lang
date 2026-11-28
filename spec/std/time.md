@@ -12,8 +12,8 @@ ordinary hd over the language tier:
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
   it returns, and the helpers `now`, `monotonic`, `elapsed`, and `sleep!`;
 - `ManualClock`, the deterministic `Clock` provider;
-- the UTC `Date` of a `Timestamp`, RFC 3339 and ISO 8601 text, the
-  `Timestamp.format` layouts, and `ParseTimeError`;
+- the UTC `Date` and fixed-offset `DateTime` of a `Timestamp`, RFC 3339
+  and ISO 8601 text, strftime layouts, and time parse errors;
 - the serialization opt-in of `Duration`, `Timestamp`, and `Instant`.
 
 The language tier keeps the suffix mechanism
@@ -249,7 +249,7 @@ pub trait Clock:
 ### Timestamps And Instants
 
 1. r[std-time.timestamp.decl] `std.time` declares `Timestamp`, a point in UTC time held as whole milliseconds since the Unix epoch in an `i64`, with private fields.
-2. r[std-time.timestamp.api-milliseconds] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, `t.checked_since(earlier: Timestamp) -> Duration?`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Reading RFC 3339 text is [`impl Parse for Timestamp`](#parsing-rfc-3339).
+2. r[std-time.timestamp.api-calendar] The public API of `Timestamp` is `Timestamp::from_unix_milliseconds(milliseconds: i64)`, `t.unix_milliseconds() -> i64`, `t.since(earlier: Timestamp) -> Duration`, `t.checked_since(earlier: Timestamp) -> Duration?`, and the two methods of [Dates](#dates): `date` and `to_rfc3339`. Its fixed-offset conversion is [`to_datetime`](#r-std-time.datetime.to-datetime), and RFC 3339 reading is [`impl Parse for Timestamp`](#parsing-rfc-3339).
 3. r[std-time.timestamp.unix-milliseconds] `t.unix_milliseconds()` returns the milliseconds since the Unix epoch that `t` holds, so `Timestamp::from_unix_milliseconds(m).unix_milliseconds()` is `m` for every `m`.
 4. r[std-time.timestamp.since-saturating] `t.since(earlier)` is the time from `earlier` to `t`. It is zero when `earlier` is the later one, and the longest duration when the time does not fit in `i64` milliseconds. It never panics.
 5. r[std-time.timestamp.checked-since] `t.checked_since(earlier)` is `.Some` of that time, and `.None` when `earlier` is the later one or the time does not fit in `i64` milliseconds.
@@ -416,6 +416,61 @@ pub struct Date:
 > Time zones need a database, and Rust, Kotlin, and Zig keep them out of
 > their standard libraries too.
 
+### Broken-down Time
+
+`DateTime` holds calendar fields at a fixed offset, without consulting a host time zone.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `year` | `i32` | astronomical year, including zero |
+| `month`, `day` | `u8` | month 1–12 and a valid day of that month |
+| `hour`, `minute`, `second` | `u8` | hour 0–23, minute 0–59, second 0–59 |
+| `nanosecond` | `u32` | the fractional second, 0–999,999,999 |
+| `offset` | `UtcOffset` | seconds east of UTC |
+| `zone` | `string?` | an optional zone name, default `.None` |
+
+1. r[std-time.datetime.decl] `std.time` declares `DateTime` with the public fields in the table above, implementing `Eq` and `Debug`.
+2. r[std-time.offset.decl] `UtcOffset` has a public `seconds: i32` field and implements `Eq` and `Debug`.
+3. r[std-time.offset.from-seconds] `UtcOffset::from_seconds(seconds: i32) -> Result[UtcOffset, TimeError]` accepts −86,399 through 86,399, returning `InvalidField("offset")` otherwise.
+4. r[std-time.datetime.calendar] `DateTime` uses the proleptic Gregorian calendar and astronomical years of [Dates](#dates).
+5. r[std-time.datetime.to-datetime] `Timestamp.to_datetime(offset: UtcOffset) -> DateTime` splits the timestamp at that fixed offset, setting `zone` to `.None`.
+6. r[std-time.datetime.millisecond-parts] A DateTime made from a Timestamp has `nanosecond` equal to its millisecond fraction times 1,000,000.
+7. r[std-time.datetime.to-timestamp] `DateTime.to_timestamp() -> Result[Timestamp, TimeError]` applies its offset and checks every component before conversion, without normalizing invalid fields.
+8. r[std-time.datetime.conversion-range] A conversion whose timestamp lies outside `i64` milliseconds returns `TimeError.OutOfRange`.
+9. r[std-time.weekday.decl] `Weekday` declares `Monday`, `Tuesday`, `Wednesday`, `Thursday`, `Friday`, `Saturday`, and `Sunday`, in that order, implementing `Eq` and `Debug`.
+10. r[std-time.datetime.weekday] `DateTime.weekday() -> Weekday` computes its calendar date's weekday.
+11. r[std-time.datetime.day-of-year] `DateTime.day_of_year() -> u16` returns the date's ordinal day, from 1 through 366.
+12. r[std-time.time-error.decl] `TimeError` implements `Eq`, `Debug`, `Display`, and `Error`, with `InvalidField(field: string)`, `OutOfRange`, and `Other(message: string)`.
+13. r[std-time.datetime.invalid-field] An invalid month, day, hour, minute, second, nanosecond, or offset returns `InvalidField` naming that field during timestamp conversion.
+
+14. r[std-time.offset.utc] `UtcOffset::utc() -> UtcOffset` returns the zero offset.
+15. r[std-time.datetime.fraction-retained] Parsing `%f` keeps all its one through six microsecond digits in `DateTime.nanosecond`, padding the fraction on the right.
+16. r[std-time.datetime.floor-milliseconds] `to_timestamp()` floors the represented instant to whole milliseconds toward negative infinity, including times before the epoch.
+17. r[std-time.datetime.microsecond-format] `%f` prints six microsecond digits from `DateTime.nanosecond`; converting a Timestamp to DateTime therefore gives three trailing zeros.
+
+| DateTime text parsed with `%F %T.%f` at UTC | `to_timestamp().unix_milliseconds()` |
+| --- | ---: |
+| `1970-01-01 00:00:00.123456` | `123` |
+| `1969-12-31 23:59:59.999999` | `-1` |
+
+> **Why.** Fixed-offset values keep calendar code deterministic and ordinary hd.
+> Calendar fields do not require a host clock or an implicit local zone.
+
+### Parsing Layouts
+
+1. r[std-time.datetime.parse] `DateTime::parse(text: string, layout: string) -> Result[DateTime, ParseTimeError]` reads the directives of [Layouts](#layouts).
+2. r[std-time.datetime.parse-defaults] Missing fields default to 1900-01-01 at midnight, with offset zero, nanosecond zero, and no zone name.
+3. r[std-time.datetime.parse-offset] `%z` accepts `Z`, `±HHMM[SS]`, or `±HH:MM[:SS]`, setting the fixed offset; every numeric offset component has exactly two digits.
+4. r[std-time.datetime.parse-zone] `%Z` accepts `UTC`, `GMT`, or `Z`, case-insensitively, storing the consumed spelling in `zone`.
+5. r[std-time.datetime.parse-names] Month, weekday, and AM/PM names are matched case-insensitively against the fixed English tables.
+6. r[std-time.datetime.parse-short-year] A `%y` or `%g` without a century maps 00–68 to 2000–2068 and 69–99 to 1969–1999.
+7. r[std-time.datetime.parse-composites] Composite directives expand to the primitive layouts in the directive table.
+8. r[std-time.datetime.parse-layout-error] An invalid layout returns `ParseTimeError.Other` naming its directive and layout byte position.
+9. r[std-time.datetime.parse-complete] Parsing consumes the complete input; trailing unmatched bytes are errors.
+10. r[std-time.datetime.parse-week-fields] `%j` resolves an ordinal date; `%U` or `%W` with a weekday resolves a week date; `%G` or `%g`, `%V`, and a weekday resolve an ISO week date.
+11. r[std-time.datetime.parse-iso-complete] An ISO week requires its ISO year and weekday; an invalid ISO week or incomplete ISO combination is an error.
+12. r[std-time.datetime.parse-year-width] A year adjacent to another numeric directive reads at most four digits, and a century at most two; delimited years accept expanded signed or unsigned text.
+
 ### RFC 3339 Text
 
 `to_rfc3339` writes a timestamp as RFC 3339 text in UTC:
@@ -488,23 +543,73 @@ fn clock_text(millis: i64) -> string:
     Timestamp::from_unix_milliseconds(millis).format("%Y-%m-%d %H:%M")  # "2023-11-14 22:13"
 ```
 
-| Specifier | Text |
-| --- | --- |
-| `%Y` | the year, as [`std-time.rfc3339.text.year`](#r-std-time.rfc3339.text.year) writes it |
-| `%m`, `%d` | the month and the day of `t.date()`, two digits each |
-| `%H`, `%M`, `%S` | the UTC hour `00` to `23`, minute, and second, two digits each |
-| `%z` | the UTC offset, always `+0000` |
-| `%%` | a `%` |
+| Specifier | Meaning | At 2015-03-05 23:51:47.123, offset +05:30:15, zone IST |
+| --- | --- | --- |
+| `%a` | abbreviated weekday name | `Thu` |
+| `%A` | full weekday name | `Thursday` |
+| `%b` | abbreviated month name | `Mar` |
+| `%B` | full month name | `March` |
+| `%c` | C-locale date and time | `Thu Mar  5 23:51:47 2015` |
+| `%C` | century, using floor division by 100 | `20` |
+| `%d` | day 01–31 | `05` |
+| `%D` | month/day/two-digit year | `03/05/15` |
+| `%e` | day, space-padded to two columns | ` 5` |
+| `%F` | year-month-day | `2015-03-05` |
+| `%g` | ISO week-year modulo 100, two digits | `15` |
+| `%G` | full ISO week-year | `2015` |
+| `%h` | same as %b | `Mar` |
+| `%H` | hour 00–23 | `23` |
+| `%I` | hour 01–12 | `11` |
+| `%j` | ordinal day 001–366 | `064` |
+| `%k` | hour 0–23, space-padded | `23` |
+| `%l` | hour 1–12, space-padded | `11` |
+| `%m` | month 01–12 | `03` |
+| `%M` | minute 00–59 | `51` |
+| `%n` | newline | `\n` |
+| `%p` | AM or PM | `PM` |
+| `%r` | 12-hour time with AM/PM | `11:51:47 PM` |
+| `%R` | 24-hour hour:minute | `23:51` |
+| `%s` | whole Unix seconds at the fixed offset | `1425579692` |
+| `%S` | second 00–59 | `47` |
+| `%t` | tab | `\t` |
+| `%T` | 24-hour hour:minute:second | `23:51:47` |
+| `%u` | weekday 1–7, Monday first | `4` |
+| `%U` | week 00–53, first Sunday starts week 01 | `09` |
+| `%V` | ISO week 01–53, week 01 contains January 4 | `10` |
+| `%w` | weekday 0–6, Sunday first | `4` |
+| `%W` | week 00–53, first Monday starts week 01 | `09` |
+| `%x` | same as %D | `03/05/15` |
+| `%X` | same as %T | `23:51:47` |
+| `%y` | year modulo 100, two digits | `15` |
+| `%Y` | full year as RFC 3339 writes it | `2015` |
+| `%z` | numeric UTC offset | `+053015` |
+| `%Z` | zone name | `IST` |
+| `%f` | six microsecond digits | `123000` |
+| `%%` | literal percent | `%` |
 
-1. r[std-time.format] `t.format(layout: string) -> string` returns `layout` with each specifier in the table above replaced by its text, and every other character kept.
-2. r[std-time.format.unknown] A `%` followed by any other character, or by the end of `layout`, is kept as written. So `%q` stays `%q`, and a final `%` stays `%`. `format` never panics.
-3. r[std-time.format.no-locale] `format` has no locale, no names of months or days, and no specifier for the milliseconds. A program writes the milliseconds with `to_rfc3339`.
-4. r[std-time.format.rfc3339] `t.format("%Y-%m-%dT%H:%M:%SZ")` is `t.to_rfc3339()` when the milliseconds of `t` are zero.
+1. r[std-time.format.strftime] `DateTime.format(layout: string) -> string` replaces the directives in the table with the value’s fixed C-locale text, preserving literal characters.
+2. r[std-time.format.utc] `Timestamp.format(layout: string) -> string` formats its UTC DateTime.
+3. r[std-time.format.invalid-directive] An unknown directive or final `%` panics, naming the directive and its byte position. Panic: `explicit-panic`.
+4. r[std-time.format.c-locale] Names and composite layouts use the fixed English C locale, independently of the host locale.
+5. r[std-time.format.zone-name] `%Z` prints `zone` when present, otherwise `UTC` at offset zero and empty text at any other offset.
+6. r[std-time.format.offset-seconds] `%z` writes `±HHMM`, adding two seconds digits when the offset has nonzero seconds.
+7. r[std-time.format.composites] Composite directives expand to the primitive layouts below.
+8. r[std-time.format.unix-seconds] `%s` applies the fixed offset and prints whole seconds since 1970-01-01 00:00 UTC.
+9. r[std-time.format.rfc3339] `t.format("%Y-%m-%dT%H:%M:%SZ")` is `t.to_rfc3339()` when the milliseconds of `t` are zero.
+
+| Composite | Primitive layout |
+| --- | --- |
+| `%c` | `%a %b %e %H:%M:%S %Y` |
+| `%D`, `%x` | `%m/%d/%y` |
+| `%F` | `%Y-%m-%d` |
+| `%r` | `%I:%M:%S %p` |
+| `%R` | `%H:%M` |
+| `%T`, `%X` | `%H:%M:%S` |
 
 > **Why.** Dates, times, and an offset cover log lines and file names.
 > The specifiers are those of C, Python, and Rust's chrono, which agents
 > already write, where Go's reference-date layouts are easy to misspell.
-> The set stays small because there is no time zone and no locale.
+> The fixed locale and explicit offset keep results independent of host settings.
 
 ### Parsing RFC 3339
 
@@ -558,7 +663,7 @@ fn read_stamp(text: string) -> Timestamp?:
 ### Time Parse Errors
 
 One error type serves all time text: RFC 3339 timestamps and duration
-text. A failed parse reports one of six errors, each at a position:
+text, as well as DateTime layouts. The six positioned errors retain their fields; `Other` carries a message:
 
 ```text
 pub enum ParseTimeError:
@@ -568,9 +673,10 @@ pub enum ParseTimeError:
     MissingUnit(position: usize)
     UnknownUnit(position: usize)
     Inexact(position: usize)
+    Other(message: string)
 ```
 
-1. r[std-time.parse-error.declared] `std.time` declares the enum `ParseTimeError` with the variants above, each with one field `position: usize`. Code imports it, as in `use std.time.ParseTimeError`.
+1. r[std-time.parse-error.declared-other] `std.time` declares the enum `ParseTimeError` with the variants above; `Other` carries `message: string`, and every other variant carries `position: usize`. Code imports it, as in `use std.time.ParseTimeError`.
 2. r[std-time.parse-error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-time.parse-error.invalid-character] A character that the grammar does not allow at its place gives `InvalidCharacter` at that character. So does a character after a complete timestamp.
 4. r[std-time.parse-error.out-of-range] A field whose digits are well formed but whose value is out of its range gives `OutOfRange` at the field's first digit.
@@ -601,8 +707,8 @@ See also: [Decode Errors](encoding.md#decode-errors),
 whole milliseconds, and `Timestamp` as its RFC 3339 text:
 
 ```text
-use std.json.encode
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.encode
+use std.encoding.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp}
 
 @derive(Serialize, Deserialize)
@@ -615,7 +721,7 @@ fn record(lease: Lease) -> string:
     encode(lease)  # {"holder":"ada","granted_at":"2023-11-14T22:13:20Z","term":30000}
 ```
 
-1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
+1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.encoding.Serialize` and `std.encoding.Deserialize`.
 2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
 3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
 4. r[std-time.serde.int-read] An `Instant`, and a `Duration` whose value is a number, each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.

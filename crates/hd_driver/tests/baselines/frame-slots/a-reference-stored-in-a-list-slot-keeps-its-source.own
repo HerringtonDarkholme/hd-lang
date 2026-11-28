@@ -95,7 +95,7 @@ app/main/replaced
   %62 = Call std/rt.memory/string_bytes[] (%61) : Ptr[u8]
   %63 = Read copy [%62 .address] : usize
   %64 = Read borrow [$14] : string
-  %65 = Call std/rt.bytes/bytes_len[] (%64) : usize
+  %65 = Call std/core/bytes_len[] (%64) : usize
   %66 = Call std/rt.memory/copy[] (%60, %63, %65) : ()
   %67 = Break L3 - : never
   %68 = Block - : ()
@@ -128,7 +128,7 @@ app/main/replaced
   %95 = LoanBegin %94 #0 : ()
   %96 = Store [$7] %94 : ()
   %97 = Read borrow [$7] : string
-  %98 = Call std/rt.bytes/bytes_len[] (%97) : usize
+  %98 = Call std/core/bytes_len[] (%97) : usize
   %99 = Break L1 %98 : never
   %100 = Block - : usize
   %101 = Scope %100 [] : usize
@@ -138,7 +138,7 @@ app/main/replaced
   %105 = Drop [$1] : ()
   %106 = Prim Add [%91 %101] : usize
   %107 = Read borrow [$5] : string
-  %108 = Call std/rt.bytes/bytes_len[] (%107) : usize
+  %108 = Call std/core/bytes_len[] (%107) : usize
   %109 = Break L0 %108 : never
   %110 = Block - : usize
   %111 = Scope %110 [] : usize

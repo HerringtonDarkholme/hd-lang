@@ -1,2 +1,3 @@
+pub use pkg.user.{types}
 pub fn greeting(name: string) -> string:
     "hello, ${name}"

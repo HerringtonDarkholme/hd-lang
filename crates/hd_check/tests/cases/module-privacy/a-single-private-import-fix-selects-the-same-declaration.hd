@@ -1,0 +1,11 @@
+# @dump: diagnostics fixed
+# @package: single-private-import-fix-selects-the-same-declaration
+use pkg.api.hidden.take
+
+pub fn probe() -> i32:
+    take()
+# @file: api/mod.hd
+pub use self.hidden.{take}
+# @file: api/hidden.hd
+pub fn take() -> i32:
+    +1

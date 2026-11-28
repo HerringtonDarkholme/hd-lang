@@ -5,7 +5,7 @@
 # expect-stdout: 5
 # expect-stdout: equal
 # expect-stdout: 4 7
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 use std.testing.assert_equal
 
 fn invoke[F, T, R](call: fn(&F, (T,)) -> R, f: F, value: T) -> R:

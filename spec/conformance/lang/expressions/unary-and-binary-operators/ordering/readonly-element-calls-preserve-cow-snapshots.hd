@@ -1,6 +1,6 @@
 # #1379: call-scoped read-only element loans preserve values and later writes.
 # expr.ord.std.sequences; expr.ord.trait.ref; ref.elem.slot; types.coll.value.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn ordered(left: List[string], right: List[string]) -> bool:

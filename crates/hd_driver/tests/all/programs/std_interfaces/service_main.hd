@@ -1,0 +1,4 @@
+use pkg.service.load.{load}
+
+pub fn main() -> void $ Console:
+    println(load().name)

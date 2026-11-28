@@ -1,5 +1,5 @@
-# test: a result path may cross a `*T` field, and the caller locks only that path
-# Spec 13 Result Paths: ref.result.path.counted.
+# test: a result path never crosses a `*T` field, since a reference made through it is local to the function
+# Spec 13 Result Paths: ref.result.path.counted; Spec 13 Local References: ref.local.pointer.
 struct User:
     name: string
 
@@ -7,10 +7,5 @@ struct Team:
     lead: *User
     size: i32
 
-fn lead_name(t: &Team) -> &'t.lead.name string:
-    &t.lead.name
-
-fn grow(t: &mut Team) -> void $ Console:
-    n := lead_name(t)
-    t.size += 1
-    println(*n)
+fn lead_name(t: &Team) -> &'t.lead.name string: # diagnostic: local-reference-escapes
+    panic("a result path through a pointer")

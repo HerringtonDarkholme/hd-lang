@@ -6,8 +6,8 @@
 
 use hd_base::{DefId, StageResult};
 use hd_diag::Code;
+use hd_resolve::BindingKind;
 use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
-use hd_resolve::{BindingKind, Item};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
 use hd_types::AdtId;
@@ -113,17 +113,23 @@ impl Ck<'_, '_> {
         let duration = (kind == LITERAL_SUFFIX)
             .then(|| duration_scale(self.cx.names.known, name))
             .flatten();
-        let def = if let Some((suffix, scale)) = duration {
+        let item = if let Some((suffix, scale)) = duration {
             let text = self.cx.src.text(self.cx.src.first(n));
             let digits = split_suffix(text).0;
             if !decimal_digits(digits) {
-                let mut msg = format!("duration literal `{text}` needs a whole decimal integer");
-                if let Some(millis) = duration_fraction(digits, scale)
-                    && millis <= i64::MAX as u128
-                {
-                    msg = format!("{msg}; write `{millis}ms`");
-                }
-                self.err(Code::TypeMismatch, n, &msg);
+                let msg = format!("duration literal `{text}` needs a whole decimal integer");
+                let Some(millis) =
+                    duration_fraction(digits, scale).filter(|&m| m <= i64::MAX as u128)
+                else {
+                    self.err(Code::TypeMismatch, n, &msg);
+                    return Ok(self.poison(n));
+                };
+                let fixed = format!("{millis}ms");
+                self.err(Code::TypeMismatch, n, &format!("{msg}; write `{fixed}`"));
+                let span = self.cx.src.token_span(self.cx.src.first(n));
+                let title = format!("write `{fixed}`");
+                self.diags
+                    .add_fix(&title, hd_diag::FixSafety::Exact, &[(span, &fixed)]);
                 return Ok(self.poison(n));
             }
             let count = digits.replace('_', "").parse::<u64>().ok();
@@ -138,48 +144,46 @@ impl Ck<'_, '_> {
                 );
                 return Ok(self.poison(n));
             }
-            suffix
+            self.cx.lookup.item(suffix)
         } else {
             let sym = self.cx.names.syms.intern(name);
             if self.is_poison_name(name) {
                 return Ok(self.poison(n));
             }
             let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
-                let msg = format!("`{name}` is not defined");
+                let msg = format!(
+                    "`{name}` is not defined{}",
+                    hd_resolve::iface::numeric_type_hint(name)
+                );
                 self.err(Code::UnknownName, n, &msg);
                 return Ok(self.poison(n));
             };
             let def = DefId::from_raw(b.value);
-            let marked = b.kind == BindingKind::Item
-                && self
-                    .cx
-                    .lookup
-                    .item(def)
-                    .and_then(Item::fn_attrs)
-                    .is_some_and(|a| a.literal_fn == kind);
-            if !marked {
-                let (code, name_of, what) = if kind == LITERAL_SUFFIX {
-                    (
-                        Code::InvalidLiteralSuffix,
-                        "invalid-literal-suffix",
-                        "suffix",
-                    )
-                } else {
-                    (Code::InvalidStringPrefix, "invalid-string-prefix", "prefix")
-                };
-                let msg =
-                    format!("{name_of}: `{name}` is not a function marked for a literal {what}");
-                self.err(code, n, &msg);
-                return Ok(self.poison(n));
-            }
-            def
+            (b.kind == BindingKind::Item)
+                .then(|| self.cx.lookup.item(def))
+                .flatten()
+                .filter(|item| item.fn_attrs().is_some_and(|a| a.literal_fn == kind))
+        };
+        let Some(item) = item else {
+            let (code, name_of, what) = if kind == LITERAL_SUFFIX {
+                (
+                    Code::InvalidLiteralSuffix,
+                    "invalid-literal-suffix",
+                    "suffix",
+                )
+            } else {
+                (Code::InvalidStringPrefix, "invalid-string-prefix", "prefix")
+            };
+            let msg = format!("{name_of}: `{name}` is not a function marked for a literal {what}");
+            self.err(code, n, &msg);
+            return Ok(self.poison(n));
         };
         let args = Args {
             positional: vec![n],
             ..Args::empty()
         };
         self.lit_arg = Some(n.index());
-        let r = self.call_item(def, &[], &args, n, false, want);
+        let r = self.call_item(item, &[], &args, n, false, want);
         self.lit_arg = None;
         r
     }

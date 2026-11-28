@@ -1,5 +1,7 @@
+use std.error.Error
+use std.format.DebugWriter
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
-use std.function.FnMut
+use std.ops.FnMut
 
 impl[T < ?Copy, E < ?Copy] Result[T, E]:
     ## `.Ok` of `transform(value)` for an `.Ok`, and the error unchanged for an `.Err`.
@@ -36,6 +38,20 @@ impl[T < ?Copy, E < ?Copy] Result[T, E]:
         match self:
             .Ok(_) => .None
             .Err(error) => .Some(error)
+
+    ## Borrows either payload in place without copying it or moving the result.
+    ## See [std-result.as-ref](../../spec/std/result.md#r-std-result.as-ref).
+    pub fn as_ref(&self) -> Result[&T, &E]:
+        match self:
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(error)
+
+    ## Borrows either payload mutably in place without moving the result.
+    ## See [std-result.as-mut](../../spec/std/result.md#r-std-result.as-mut).
+    pub fn as_mut(&mut self) -> Result[&mut T, &mut E]:
+        match self:
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(error)
 
     ## True for an `.Ok`.
     ## See [std-result.is-ok](../../spec/std/result.md#r-std-result.is-ok).
@@ -93,3 +109,43 @@ impl[T < ?Copy, E < ?Copy & Debug] Result[T, E]:
         match self:
             .Ok(value) => value
             .Err(error) => panic("called `Result::unwrap()` on an `Err` value: ${debug(&error)}")
+
+# The error that `context` wraps around an `.Err`: its text is the message,
+# and its source is the wrapped error (r-std-error.context.result-private-wrapper).
+## An error that adds a context message over its source.
+## See [std-error.context.result-private-wrapper](../../spec/std/error.md#r-std-error.context.result-private-wrapper).
+struct ContextError:
+    message: string
+    error: *dyn Error
+
+# Keep handwritten Display: retain the existing Error.source implementation and original reference.
+impl Display for ContextError:
+    fn to_string(&self) -> string:
+        self.message
+
+# Keep handwritten Error: return the original erased source reference without wrapping it.
+impl Error for ContextError:
+    fn source(&self) -> (*dyn Error)?:
+        .Some(self.error)
+
+# Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
+# (r-std-error.context.ok, r-std-error.context.erased-wrapper).
+impl[T, E < Error & 'static] Result[T, E]:
+    ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
+    ## See [std-error.context.result-home](../../spec/std/error.md#r-std-error.context.result-home).
+    pub fn context(self, message: string) -> Result[T, *dyn Error]:
+        match self:
+            .Ok(value) => .Ok(value)
+            .Err(error) =>
+                # Both boxes escape in the returned trait value: the context and its retained source.
+                .Err(box(ContextError { message: message, error: box(error) }))
+
+# The private wrapper keeps its existing Debug implementation: the erased
+# source has no Debug, so its Display text stands in for it.
+# Keep handwritten Debug: display the erased source, which need not implement Debug.
+impl Debug for ContextError:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        out.debug_struct("ContextError")
+            .field("message", self.message)
+            .field("source", self.error.to_string())
+            .finish()

@@ -1,7 +1,7 @@
 # test: payload enums select scoped commands, including unit, optional and nested forms
 # Spec std/cli: std-cli.typed-commands.derive, std-cli.typed-commands.payload, std-cli.typed-commands.optional, std-cli.typed-commands.scope.
 use std.cli.{Cli, CliError, short, positional}
-use std.host.{Args, ScriptedArgs}
+use std.cli.{Args, ScriptedArgs}
 use std.path.Path
 
 @derive(Cli, Eq, Debug)

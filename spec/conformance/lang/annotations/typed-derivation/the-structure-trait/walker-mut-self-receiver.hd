@@ -1,6 +1,6 @@
 # test: a walker method must take &mut self, as Walker declares; the former mut self receiver is a signature mismatch
 # Spec 14 The Structure Trait: annot.structure.protocol-ref.
-use std.structure.{Field, Variant, Walker}
+use std.meta.{Field, Variant, Walker}
 
 struct Tally:
     n: i32

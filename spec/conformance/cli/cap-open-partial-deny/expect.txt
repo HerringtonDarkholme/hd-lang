@@ -1,0 +1,6 @@
+# FsRead is partially denied: the table grants data/ alone. open! of a
+# file under data/ reads it, and open! outside it returns NotGranted
+# before any file is opened, never a panic, so the program exits 0.
+run: hd run
+stdout: data/note.txt: read 8 bytes
+stdout: top.txt: not granted

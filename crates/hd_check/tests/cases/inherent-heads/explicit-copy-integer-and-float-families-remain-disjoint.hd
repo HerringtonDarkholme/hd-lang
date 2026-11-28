@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @build: std
+# @std-module: num.hd
+# expected: no diagnostics; explicit Copy preserves disjoint numeric families.
+use std.num.{Integer, Float}
+impl[N < Copy & Integer] N:
+    fn copied_numeric_probe(self) -> bool:
+        true
+
+impl[N < Copy & Float] N:
+    fn copied_numeric_probe(self) -> bool:
+        false

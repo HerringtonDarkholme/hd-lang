@@ -1,0 +1,12 @@
+enum Pair:
+    Values(left: i32, right: i32)
+fn inspect(value: Pair, remaining: usize) -> bool:
+    let mut count = +1
+    _ := count
+    match value:
+        .Values(right, left) =>
+            debug(+1)
+            remaining < 0
+fn stop() -> i32:
+    return +1
+    +2

@@ -1,0 +1,19 @@
+@host
+pub trait Both:
+    fn read(&self) -> i32
+
+@host
+pub trait Empty:
+    fn read(&self) -> i32
+
+@host
+pub trait Rust:
+    fn read(&self) -> i32
+
+@host
+pub trait Path:
+    fn read(&self) -> i32
+
+@host
+pub trait Digit:
+    fn read(&self) -> i32

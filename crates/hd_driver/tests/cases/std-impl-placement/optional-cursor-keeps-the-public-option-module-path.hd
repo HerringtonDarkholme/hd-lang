@@ -1,0 +1,12 @@
+# @dump: stdout
+# @build: dev | checked | release
+use std.option.OptionIter
+use std.iter.{DoubleEndedIterator, ExactSizeIterator}
+
+pub fn main() -> void $ Console:
+    let value: i32? = .Some(+7)
+    let mut cursor: OptionIter[i32] = value.iter()
+    println(cursor.len())
+    println(cursor.next_back() == .Some(+7))
+    println(cursor.next() == .None)
+    println(cursor.len())

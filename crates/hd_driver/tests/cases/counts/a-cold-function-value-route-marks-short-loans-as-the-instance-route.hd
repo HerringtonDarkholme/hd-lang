@@ -4,16 +4,18 @@
 # collected instance of its own: the emitter's fallback boundary. That
 # boundary runs the same short-loan marking as `settled`
 # (`promote::short_loans`), so both show the same counts.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn lookup_direct!(values: *Map[string, string], key: string) -> usize:
+    pause!()
     match values.get(key):
         .Some(value) => value.len()
         .None => 0
 
 @cold
 fn lookup_viewed!(values: *Map[string, string], key: string) -> usize:
+    pause!()
     match values.get(key):
         .Some(value) => value.len()
         .None => 0
@@ -28,3 +30,8 @@ pub fn main!() -> void:
     _ := lookup_direct(values, "key")!()
     f := viewed()
     _ := f(values, "key")!()
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

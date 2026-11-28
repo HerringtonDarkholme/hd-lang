@@ -57,7 +57,7 @@ pub(crate) fn projection_too_deep(shown: &str) -> String {
 /// walked once per run and universe, not once per body that holds it:
 /// O(distinct member types) per run plus one probe per member per body.
 #[derive(Default)]
-pub(crate) struct ProjectionCycles<'a> {
+pub struct ProjectionCycles<'a> {
     done: HashMap<Ty, Option<Ty>>,
     reported: HashSet<Ty>,
     checked: HashSet<Ty>,
@@ -178,6 +178,7 @@ impl<'a> ProjectionCycles<'a> {
                                 | hd_resolve::ItemData::Method { .. }
                                 | hd_resolve::ItemData::AssocType { .. }
                                 | hd_resolve::ItemData::Alias { .. }
+                                | hd_resolve::ItemData::Binding(_)
                                 | hd_resolve::ItemData::Builtin => {}
                             }
                         }
@@ -222,7 +223,14 @@ impl<'a> ProjectionCycles<'a> {
 
     /// `known` answers a type published clean, where the walk stops;
     /// `left` collects each type the walk leaves with no cycle found.
-    fn search(
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::result_unit_err,
+            reason = "running out of fuel carries no detail"
+        )
+    )]
+    pub fn search(
         done: &mut HashMap<Ty, Option<Ty>>,
         root: Ty,
         fuel: &mut Fuel,
@@ -365,8 +373,7 @@ impl Ck<'_, '_> {
         // A tuple element is a place as a field is (`expr.place.tuple-field`).
         let elem = self.tuple_elem_of(bt, name);
         let Some((idx, ft)) = self.field_of(bt, name).or(elem) else {
-            let msg = format!("no field `{name}` on {}", self.show(bt));
-            self.err(Code::UnknownField, lhs, &msg);
+            self.unknown_field(bt, name, lhs);
             return Ok(());
         };
         if elem.is_none() {
@@ -418,8 +425,10 @@ impl Ck<'_, '_> {
                 if g.mutable {
                     return true;
                 }
-                let text = self.cx.names.text(s).to_owned();
-                self.not_writable(&text, g.short, false, at);
+                if !self.imported_write(s, at) {
+                    let text = self.cx.names.text(s).to_owned();
+                    self.not_writable(&text, g.short, false, at);
+                }
                 false
             }
             // `ref.write.field`: through `&mut` only.
@@ -461,10 +470,12 @@ impl Ck<'_, '_> {
         let short = flags & local_flags::SHORT != 0 || self.using_locals.contains(&l);
         let param = flags & local_flags::PARAM != 0;
         self.not_writable(&name, short, param, at);
-        // `fn.method.self-struct-write`: the fix takes `&mut self`.
-        if param && name == "self" {
+        // `fn.method.self-struct-write`: the fix takes `&mut self`; a
+        // parameter or a `let` becomes `mut` (`ref.place.not-writable.fix`).
+        // A `:=` binding is left to the author, who may want a copy.
+        if !short {
             let syn = self.b.body_mut().local_syn[l.idx()];
-            self.writable_binding_fix("self", false, true, syn);
+            self.writable_binding_fix(&name, short, param, syn);
         }
         false
     }
@@ -692,7 +703,8 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
         | hd_resolve::ItemData::Trait(_)
         | hd_resolve::ItemData::Impl { .. }
         | hd_resolve::ItemData::Method { .. }
-        | hd_resolve::ItemData::AssocType { .. } => {}
+        | hd_resolve::ItemData::AssocType { .. }
+        | hd_resolve::ItemData::Binding(_) => {}
     }
 }
 
@@ -704,7 +716,7 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
 /// (`data.struct.contains.ends`); the rest hold no declaration's value: a
 /// parameter, a primitive, a projection or opaque type, whose value the
 /// instance decides, and a goal in error or still open.
-fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
+pub fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
     match pool.get(t) {
         TyData::Adt(AdtId::Product { .. }, _) if let Some((elems, _)) = pool.product_parts(t) => {
             out.extend_from_slice(elems);
@@ -1103,139 +1115,4 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
     (sccs.iter())
         .map(|m| m.iter().map(|&x| x as usize).collect())
         .collect()
-}
-
-#[cfg(test)]
-mod containment_tests {
-    use super::*;
-
-    #[test]
-    fn inline_containment_preserves_product_rest_boundary() {
-        let pool = hd_types::InternPool::new();
-        let fixed = pool.list(&[Ty::I32]);
-        for (ty, expected) in [
-            (pool.product(fixed, Some(Ty::STRING)), vec![Ty::I32]),
-            (pool.product(fixed, None), vec![Ty::I32]),
-            (
-                pool.product(hd_types::TyList::EMPTY, Some(Ty::STRING)),
-                vec![],
-            ),
-            (
-                pool.intern_ty(&TyData::Adt(AdtId::Sum, pool.list(&[Ty::I32, Ty::STRING]))),
-                vec![Ty::I32, Ty::STRING],
-            ),
-        ] {
-            let mut out = Vec::new();
-            inline_kids(pool.types(), ty, None, &mut out);
-            assert_eq!(out, expected);
-        }
-    }
-
-    #[test]
-    fn projection_graph_work_depends_only_on_reachable_width_and_depth() {
-        // A thousand roots share a depth-20 suffix. A repeated check adds
-        // no expansion, even with ten times as much unrelated memo state.
-        for unrelated in [100, 1000] {
-            let mut done = HashMap::default();
-            for i in 0..unrelated {
-                done.insert(Ty(100_000 + i), None);
-            }
-            let mut fuel = Fuel::new(100_000);
-            let mut expanded = 0;
-            let mut expand = |t: Ty| {
-                expanded += 1;
-                if t.0 < 1000 {
-                    vec![Ty(5000 + t.0)]
-                } else if t.0 < 1019 {
-                    // Shared branches must not cause exponential retries.
-                    vec![Ty(t.0 + 1), Ty(t.0 + 1)]
-                } else {
-                    vec![]
-                }
-            };
-            for _ in 0..2 {
-                for i in 0..1000 {
-                    assert_eq!(
-                        ProjectionCycles::search(
-                            &mut done,
-                            Ty(i),
-                            &mut fuel,
-                            &mut |_| false,
-                            &mut Vec::new(),
-                            &mut |t| if (5000..6000).contains(&t.0) {
-                                Ty(1000)
-                            } else {
-                                t
-                            },
-                            &mut expand
-                        ),
-                        Ok(None)
-                    );
-                }
-            }
-            assert_eq!(expanded, 1020);
-            // The first projection enters the suffix's root directly;
-            // only its other nineteen nodes need separate enter events.
-            assert_eq!(fuel.spent(), 2019);
-        }
-    }
-
-    #[test]
-    fn a_thousand_node_projected_ring_is_iterative_and_memoized() {
-        let mut done = HashMap::default();
-        let mut fuel = Fuel::new(2000);
-        let mut expanded = 0;
-        let mut expand = |t: Ty| {
-            expanded += 1;
-            vec![Ty(t.0 + 1)]
-        };
-        assert_eq!(
-            ProjectionCycles::search(
-                &mut done,
-                Ty(0),
-                &mut fuel,
-                &mut |_| false,
-                &mut Vec::new(),
-                &mut |t| if t == Ty(1000) { Ty(0) } else { t },
-                &mut expand
-            ),
-            Ok(Some(Ty(0)))
-        );
-        for i in 0..1000 {
-            assert_eq!(
-                ProjectionCycles::search(
-                    &mut done,
-                    Ty(i),
-                    &mut fuel,
-                    &mut |_| false,
-                    &mut Vec::new(),
-                    &mut |t| if t == Ty(1000) { Ty(0) } else { t },
-                    &mut expand
-                ),
-                Ok(Some(Ty(0)))
-            );
-        }
-        assert_eq!(expanded, 1000);
-        assert_eq!(fuel.spent(), 1001);
-    }
-
-    #[test]
-    fn exhaustion_does_not_cache_an_unfinished_graph_as_valid() {
-        let mut done = HashMap::default();
-        let mut expand = |t: Ty| vec![Ty(t.0 + 1)];
-        let mut fuel = Fuel::new(20);
-        assert_eq!(
-            ProjectionCycles::search(
-                &mut done,
-                Ty(0),
-                &mut fuel,
-                &mut |_| false,
-                &mut Vec::new(),
-                &mut |t| t,
-                &mut expand
-            ),
-            Err(())
-        );
-        assert!(done.is_empty());
-    }
 }

@@ -1,0 +1,8 @@
+use pkg.ring.a.{hello}
+use pkg.log.{record}
+
+record("c ${hello()}")
+let c_val = +4
+
+pub fn from_c() -> i32:
+    c_val

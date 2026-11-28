@@ -2,15 +2,15 @@
 # generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins),
 # and the plain std over them (spec/std/remote.md): `per_request`, `home`,
 # `action` and the HTTP adapters.
-use std.annotation.inline
-use std.function.Fn
+use std.meta.inline
+use std.ops.Fn
 use std.hash.Hash
 use std.http.{Http, HttpError, Request, Response, Url}
-use std.marker.Wire
+use std.meta.Wire
 use std.num.Integer
 use std.random.Random
-use std.rt.bytes.char_from_scalar
-use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
+use std.rt.{char_from_scalar}
+use std.meta.{Field, Key, Members, Source, Structure, Variant, Walker}
 use std.time.Clock
 
 ## A marker for interface traits whose methods another target may run.
@@ -564,13 +564,13 @@ fn crossing_frame[C < ?Copy](number: u64, captures: C) -> List[u8]:
     wire_put::[C]()(&captures, &mut out)
     out.bytes
 
-# The number of the function a `Wire` crossing literal was lifted to: the
-# literal's own number and the function's type, so each instance of a
-# generic literal has its own. Collection keeps the same numbers for the
-# worker's dispatcher.
+# Collection resolves the leading argument to the lifted literal's full
+# instance number, including its enclosing generic arguments. This ordinary
+# helper keeps the code argument's call ABI and ownership; the worker's
+# dispatcher uses the same number.
 @inline(.Never)
-fn crossing_number[F](literal: u64, _code: F) -> u64:
-    literal ^ type_number::[F]()
+fn crossing_number[F](number: u64, _code: F) -> u64:
+    number
 
 # The worker's side of a `Wire` crossing: runs the function literal
 # `number` was lifted to on its encoded captures, and returns its encoded
@@ -864,7 +864,7 @@ impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
 # the host's tree format, and malformed frames, which decode to `.None`.
 tests:
     use std.http.{Method, ScriptedHttp}
-    use std.marker.Wire
+    use std.meta.Wire
     use std.random.SeededRandom
     use std.testing.{assert, assert_equal}
     use std.time.{Duration, ManualClock, Timestamp, sleep}

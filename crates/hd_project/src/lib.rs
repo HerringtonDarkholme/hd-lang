@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
-//! `hd_project`: manifests, module discovery and identity, folders, the
-//! folder graph and the `SourceSet` trait (`docs/compiler/design-overview.md` §2.1,
+//! `hd_project`: manifests, module discovery and identity, units, the
+//! unit graph and the `SourceSet` trait (`docs/compiler/design-overview.md` §2.1,
 //! `crates/hd_resolve/DESIGN.md` §4.7 and §4.8).
 //!
 //! No file system access here (§2.2 rule 3): sources come through
@@ -14,7 +14,7 @@ use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, Hash128, ModuleId, Span};
+use hd_base::{FileId, Hash128, HashMap, ModuleId, Span, UnitId};
 use hd_diag::Code;
 
 pub use doctest::{BODY_INDENT, DocTest, doc_tests};
@@ -22,8 +22,8 @@ pub use manifest::{
     CAPABILITY_KEYS, Executable, Grant, HostDeclarations, HostPath, HostProvider, LintNames,
     LintTable, Manifest, ManifestError, Problem, Requirement, STD_NAME, Version, Workspace,
     capability_insertion, capability_insertion_for, compatibility_line, grant_problem, host_path,
-    is_capability_selector, key_problem, parse_manifest, problems, requirement_problem,
-    std_name_problem,
+    is_capability_selector, key_problem, package_name_problem, parse_manifest, problems,
+    requirement_problem,
 };
 
 /// One file of a source set: its package-relative path with `/`.
@@ -176,8 +176,8 @@ pub enum Root {
     Task,
     /// A REPL input (`docs/compiler/live-execution.md` "REPL Decisions"): the synthetic
     /// file `repl#N` of
-    /// the session's `N`th input, outside every package folder. It is its
-    /// own module and its own folder, and its relative lookup starts at
+    /// the session's `N`th input, outside every package unit. It is its
+    /// own module and its own unit, and its relative lookup starts at
     /// the package root module, as `src/lib.hd`'s does (`cli.repl.package.lib`).
     Repl,
     /// A package without that layout, as std or a single-file program:
@@ -471,7 +471,11 @@ pub struct Module {
     pub id: ModuleId,
     pub file: FileId,
     pub path: String,
-    pub folder: FolderId,
+    /// Its compile unit (`crates/hd_resolve/DESIGN.md` §4.8): a strongly
+    /// connected group of the module graph, once [`ModuleGraph::build`]
+    /// has grouped the table; until then the module alone, or its
+    /// package's test unit.
+    pub unit: UnitId,
     pub role: Role,
     /// Index into `ModuleTable::packages`: 0 is the root package.
     pub package: u16,
@@ -483,6 +487,72 @@ pub struct Module {
     pub floor: String,
     /// Its own program, which no `use` reaches.
     pub entry: bool,
+    /// Its parent re-exports it with `pub use PARENT.{name}`
+    /// (`module.use.facade.module`), so it is visible wherever its parent
+    /// is; set by [`ModuleGraph::build`].
+    pub published: bool,
+}
+
+/// Whether module path `parent` is a root, whose children are top-level
+/// modules: a package root module, or the test, task or REPL root below
+/// one, whose last segment is the compiler's own `$` segment.
+#[must_use]
+pub fn is_root_path(parent: &str) -> bool {
+    parent
+        .rsplit_once('.')
+        .is_none_or(|(_, last)| last.starts_with('$'))
+}
+
+/// Whether module `importer` is `parent` or one of its descendants.
+#[must_use]
+pub fn within(importer: &str, parent: &str) -> bool {
+    importer
+        .strip_prefix(parent)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
+/// The subtree a child of module path `parent` is visible in without a
+/// re-export (`module.vis.parent`, `module.vis.parent.root`): the parent's
+/// own, or for a child of a root, its whole package, whose root module is
+/// the path's first segment.
+#[must_use]
+pub fn private_scope(parent: &str) -> &str {
+    if is_root_path(parent) {
+        parent.split('.').next().unwrap_or(parent)
+    } else {
+        parent
+    }
+}
+
+/// The number of segments of the shortest prefix of `path` that names a
+/// module `importer` may not name: a module outside whose
+/// [`private_scope`] `importer` is, and which its parent does not
+/// re-export (`module.vis.parent`, `module.vis.parent.root`). `published`
+/// answers `None` for a path that names no module, else whether its parent
+/// re-exports it. A prefix that names no module, such as a directory
+/// without `mod.hd`, is skipped; its children's parent is still that path,
+/// so no module can re-export them. Cost: one `published` lookup per
+/// segment past the first.
+pub fn hidden_prefix<S: AsRef<str>>(
+    importer: &str,
+    path: &[S],
+    published: impl Fn(&str) -> Option<bool>,
+) -> Option<usize> {
+    let mut prefix = String::new();
+    for (k, seg) in path.iter().enumerate() {
+        let parent_len = prefix.len();
+        if k > 0 {
+            prefix.push('.');
+        }
+        prefix.push_str(seg.as_ref());
+        if k == 0 || within(importer, private_scope(&prefix[..parent_len])) {
+            continue;
+        }
+        if published(&prefix) == Some(false) {
+            return Some(k + 1);
+        }
+    }
+    None
 }
 
 /// What the roots of one module's use paths name (`module.root.*`,
@@ -617,16 +687,17 @@ impl UseRoots {
     }
 }
 
-/// One folder: the interface unit.
+/// One compile unit: a strongly connected group of the module graph, its
+/// modules in path order (`crates/hd_resolve/DESIGN.md` §4.8).
 #[derive(Clone, Debug)]
-pub struct Folder {
-    pub id: FolderId,
+pub struct Unit {
+    pub id: UnitId,
     pub path: String,
     pub modules: Vec<ModuleId>,
     pub package: u16,
 }
 
-/// Modules and folders of the root package and the packages it reaches
+/// Modules and units of the root package and the packages it reaches
 /// (std among them), in path order (§4.7).
 #[derive(Clone, Debug, Default)]
 pub struct ModuleTable {
@@ -653,7 +724,7 @@ pub struct ModuleTable {
     /// (`SourceEntry::stamp`).
     pub stamps: Vec<Option<Hash128>>,
     pub modules: Vec<Module>,
-    pub folders: Vec<Folder>,
+    pub units: Vec<Unit>,
     /// Identity errors of discovery (§4.7 step 3): each module's file, the
     /// code and the message, in path order.
     pub problems: Vec<(FileId, Code, String)>,
@@ -1140,14 +1211,6 @@ fn module_roots(packages: &[PackageIn<'_>]) -> Vec<String> {
     roots
 }
 
-/// The folder path of a module path: everything before its last segment.
-/// A module with child modules is in its own folder instead
-/// (`module.folder.parent-file`); `ModuleTable` applies that rule.
-#[must_use]
-pub fn folder_of(module: &str) -> &str {
-    module.rsplit_once('.').map_or(module, |(f, _)| f)
-}
-
 impl ModuleTable {
     /// Discovery (§4.7) of one package.
     #[must_use]
@@ -1165,9 +1228,9 @@ impl ModuleTable {
 
     /// Discovery (§4.7) of the root package (first) and the packages it
     /// reaches: every file in a package's scope is a module, its path from
-    /// `module_path`. Its directory is its folder, except that `x.hd`
-    /// beside a directory `x/` of source files is in folder `x/`
-    /// (`module.folder.parent-file`), and `x/mod.hd` is module `x`.
+    /// `module_path`, where `x/mod.hd` is module `x`. Each module starts as
+    /// its own unit, each package's test modules as one; the module graph
+    /// groups them ([`ModuleGraph::build`]).
     #[must_use]
     pub fn discover_all(packages: &[PackageIn<'_>]) -> Self {
         let roots = module_roots(packages);
@@ -1179,7 +1242,7 @@ impl ModuleTable {
             dev_requires: packages.iter().map(|p| p.dev_requires.clone()).collect(),
             ..Self::default()
         };
-        let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
+        let mut units: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
         let mut folded_seen: BTreeMap<String, usize> = BTreeMap::new();
         for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
@@ -1220,19 +1283,17 @@ impl ModuleTable {
                     && p.entries.contains(&module_below(&e.path));
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
-                let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
                 // The test unit (`crates/hd_resolve/DESIGN.md` §4.8): every
                 // test module of a package, wherever its file lies, is one
-                // folder, after the folders its uses reach; so no library
-                // folder holds test code (`module.cycle.test-code`).
-                let folder = if !executable && role_of(&e.path) == Role::Test {
+                // unit, after the units its uses reach; so no library unit
+                // holds test code (`module.cycle.test-code`). Any other
+                // module starts as its own unit.
+                let unit = if !executable && role_of(&e.path) == Role::Test {
                     format!("{root}.$tests")
-                } else if mod_file || dirs.contains(stem) || repl_input(&e.path).is_some() {
-                    path.clone()
                 } else {
-                    folder_of(&path).to_owned()
+                    path.clone()
                 };
-                folders.entry(folder).or_insert((pi, Vec::new())).1.push(id);
+                units.entry(unit).or_insert((pi, Vec::new())).1.push(id);
                 let file = FileId::from_raw(id.raw());
                 let beside = match Root::of(&e.path) {
                     (Root::Test | Root::Task, rest) => !rest.contains('/') && dirs.contains(stem),
@@ -1339,7 +1400,7 @@ impl ModuleTable {
                         path.clone()
                     },
                     path,
-                    folder: FolderId::NONE,
+                    unit: UnitId::NONE,
                     role: if executable {
                         Role::Exe
                     } else {
@@ -1348,16 +1409,17 @@ impl ModuleTable {
                     package: pi,
                     floor,
                     entry: is_entry(&e.path) || executable,
+                    published: false,
                 });
             }
         }
         t.roots = roots;
-        for (i, (path, (package, mods))) in folders.into_iter().enumerate() {
-            let id = FolderId::from_raw(u32::try_from(i).expect("folders"));
+        for (i, (path, (package, mods))) in units.into_iter().enumerate() {
+            let id = UnitId::from_raw(u32::try_from(i).expect("units"));
             for &m in &mods {
-                t.modules[m.idx()].folder = id;
+                t.modules[m.idx()].unit = id;
             }
-            t.folders.push(Folder {
+            t.units.push(Unit {
                 id,
                 path,
                 modules: mods,
@@ -1379,6 +1441,23 @@ impl ModuleTable {
     pub fn usable(&self, path: &str) -> bool {
         self.module(path)
             .is_some_and(|m| !self.modules[m.idx()].entry)
+    }
+
+    /// Whether the module at `path` is one its parent re-exports; `None`
+    /// when no module has that path.
+    #[must_use]
+    pub fn published(&self, path: &str) -> Option<bool> {
+        self.module(path).map(|m| self.modules[m.idx()].published)
+    }
+
+    /// The module paths below `path`, in path order: a range of the path
+    /// index, O(log modules + the modules below).
+    pub fn modules_below<'a>(&'a self, path: &str) -> impl Iterator<Item = &'a str> + 'a {
+        // `/` follows `.` in byte order, so the range holds `path.` and
+        // every longer path that starts with it.
+        let lo = format!("{path}.");
+        let hi = format!("{path}/");
+        self.by_path.range(lo..hi).map(|(p, _)| p.as_str())
     }
 
     /// What the use roots of module `m` name.
@@ -1529,53 +1608,20 @@ impl ModuleTable {
         out
     }
 
-    /// The folder of a module path, if the module exists.
+    /// The unit whose path is `path`. Units are in path order, so this is
+    /// a binary search.
     #[must_use]
-    pub fn folder_of_module(&self, path: &str) -> Option<FolderId> {
-        self.module(path).map(|m| self.modules[m.idx()].folder)
+    pub fn unit_at(&self, path: &str) -> Option<UnitId> {
+        self.units
+            .binary_search_by(|f| f.path.as_str().cmp(path))
+            .ok()
+            .map(|i| self.units[i].id)
     }
 
-    /// Merges each group of folders into one folder, named after the
-    /// group's first folder in path order: folder-cycle recovery, which
-    /// resolves the folders of a cycle together as one folder
-    /// (`crates/hd_resolve/DESIGN.md` §4.8 rule 5). Groups that share a
-    /// folder become one. Folder IDs are renumbered in path order.
-    pub fn merge_folders(&mut self, groups: &[Vec<FolderId>]) {
-        let n = self.folders.len();
-        let mut parent: Vec<usize> = (0..n).collect();
-        for g in groups {
-            let Some(first) = g.first() else { continue };
-            for f in &g[1..] {
-                let (a, b) = (find(&mut parent, first.idx()), find(&mut parent, f.idx()));
-                // The folder first in path order stays.
-                let (keep, gone) = if a < b { (a, b) } else { (b, a) };
-                parent[gone] = keep;
-            }
-        }
-        let old = std::mem::take(&mut self.folders);
-        let mut new_id = vec![usize::MAX; n];
-        for i in 0..n {
-            let r = find(&mut parent, i);
-            if r == i {
-                new_id[i] = self.folders.len();
-                let mut f = old[i].clone();
-                f.id = FolderId::from_raw(u32::try_from(self.folders.len()).expect("folders"));
-                f.modules.clear();
-                self.folders.push(f);
-            }
-        }
-        for i in 0..n {
-            let target = new_id[find(&mut parent, i)];
-            self.folders[target]
-                .modules
-                .extend(old[i].modules.iter().copied());
-        }
-        for f in &mut self.folders {
-            f.modules.sort_stable_by_key(|m| m.raw());
-            for &m in &f.modules {
-                self.modules[m.idx()].folder = f.id;
-            }
-        }
+    /// The unit of a module path, if the module exists.
+    #[must_use]
+    pub fn unit_of_module(&self, path: &str) -> Option<UnitId> {
+        self.module(path).map(|m| self.modules[m.idx()].unit)
     }
 
     /// The module a `use` path names: its longest prefix that is a module.
@@ -1591,152 +1637,488 @@ impl ModuleTable {
     }
 }
 
-/// The representative of `x` in a union-find forest, with path compression.
-fn find(parent: &mut [usize], x: usize) -> usize {
-    let mut r = x;
-    while parent[r] != r {
-        r = parent[r];
-    }
-    let mut y = x;
-    while parent[y] != r {
-        let next = parent[y];
-        parent[y] = r;
-        y = next;
-    }
-    r
+/// One `use` a module makes, its root resolved: what the module graph
+/// reads of it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UseRef {
+    /// The absolute path up to its group: `app.shop` for
+    /// `use pkg.shop.{x}`, `app.shop.x` for `use pkg.shop.x`.
+    pub path: String,
+    pub grouped: bool,
+    pub public: bool,
+    /// Each grouped name, with the local name it binds.
+    pub names: Vec<(String, String)>,
+    /// Its index among the module's written `use` lines; `None` for an
+    /// implicit use: a prelude row, the test runtime, a REPL session.
+    pub line: Option<u32>,
 }
 
-/// A bit set over the program graph's folders (`crates/hd_sched/DESIGN.md` §6.1).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct FolderSet(Vec<u64>);
-
-impl FolderSet {
-    #[must_use]
-    pub fn with_capacity(n: usize) -> Self {
-        Self(vec![0; n.div_ceil(64)])
-    }
-    pub fn insert(&mut self, f: FolderId) -> bool {
-        let (w, b) = (f.idx() / 64, f.idx() % 64);
-        if w >= self.0.len() {
-            self.0.resize(w + 1, 0);
-        }
-        let was = self.0[w] & (1 << b) != 0;
-        self.0[w] |= 1 << b;
-        !was
-    }
-    #[must_use]
-    pub fn contains(&self, f: FolderId) -> bool {
-        self.0
-            .get(f.idx() / 64)
-            .is_some_and(|w| w & (1 << (f.idx() % 64)) != 0)
-    }
-    pub fn union(&mut self, other: &FolderSet) {
-        if other.0.len() > self.0.len() {
-            self.0.resize(other.0.len(), 0);
-        }
-        for (a, b) in self.0.iter_mut().zip(&other.0) {
-            *a |= b;
-        }
-    }
-    pub fn iter(&self) -> impl Iterator<Item = FolderId> + '_ {
-        self.0.iter().enumerate().flat_map(|(w, &bits)| {
-            (0..64)
-                .filter(move |b| bits & (1u64 << b) != 0)
-                .map(move |b| FolderId::from_raw(u32::try_from(w * 64 + b).expect("folder")))
-        })
-    }
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.iter().map(|w| w.count_ones() as usize).sum()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.iter().all(|w| *w == 0)
-    }
+/// A loop the sibling rule forbids (`module.cycle.siblings`), as its
+/// diagnostic shows it (`module.cycle.diagnostic.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleLoop {
+    /// The modules of its strongly connected group.
+    pub modules: usize,
+    /// The edges shown, each as (module, its use line, the module it
+    /// names): a shortest path from the group's first module `u`, in path
+    /// order, that is no sibling of some module of the group, to the first
+    /// such module `v`, then one back. The last edge enters `u` and is the
+    /// one reported.
+    pub walk: Vec<(ModuleId, u32, ModuleId)>,
+    /// The declarations to move and the module they are in: those of the
+    /// shown edge between two modules that are no siblings whose `use`
+    /// line names the fewest.
+    pub help: (ModuleId, Vec<String>),
 }
 
-/// The folder graph (§4.8): use edges between folders, a DAG order and
-/// `folder-cycle` diagnostics. Self edges are dropped.
+/// A policy edge: the module a use names, the first such use line, and
+/// the declarations that line names in it.
+pub type PolicyEdge = (ModuleId, u32, Vec<String>);
+
+/// The module graph. Two edge sets over the modules:
+/// - the dependency edges go to the module each use names, `pub use`,
+///   the prelude's rows, the test runtime and a REPL session included.
+///   They order initialization and group the compile units, so nothing is
+///   read before it is set. A facade's own `pub use` edge reaches the
+///   module that declares a name it re-exports, and naming a module makes
+///   the implementations it holds visible, std's implementations for
+///   primitives among them (`trait.own.module.inherent.home`). A written
+///   single use of a module also has one to the module's parent, whose
+///   exports its binding reads (`module.use.ambiguous`), unless the
+///   parent exports no item at all: it declares nothing, and its only
+///   `pub use` lines publish its own children. Such a facade, std's root
+///   among them, holds no name the use could also mean, and an edge to it
+///   would join the user to whatever the facade's own unit depends on;
+///   A written hidden-module use also depends on the facade above its
+///   first private prefix, whose exports its exact repair reads
+///   (`module.vis.parent.fix`). Both binding queries use the same parent
+///   dependency machinery after publication facts are complete;
+/// - the policy edges (`module.cycle.edge`) are the written library uses
+///   of one package, a `pub use` making none: the sibling rule
+///   (`module.cycle.siblings`) judges their loops.
+///
+/// Cost: O(modules + uses + written path-prefix lookups) for the edges,
+/// at most two candidate parent edges per written use, one Tarjan walk over the units
+/// and one over the policy edges, and a breadth-first search inside each
+/// forbidden group.
 #[derive(Clone, Debug, Default)]
-pub struct FolderGraph {
-    pub uses: Vec<Vec<FolderId>>,
-    /// Folders in dependency order: every folder after the folders it uses.
-    pub order: Vec<FolderId>,
-    /// Each strongly connected component of more than one folder, its
-    /// members in path order (§4.8 rules 3 and 4).
-    pub cycles: Vec<Vec<FolderId>>,
-    /// `closure(F)`: F plus every folder its uses reach.
-    pub closure: Vec<FolderSet>,
-    /// Longest path to a sink: the `FolderIface` priority (`crates/hd_sched/DESIGN.md` §6.3).
+pub struct ModuleGraph {
+    /// Per module: the modules it depends on, sorted, itself left out.
+    pub deps: Vec<Vec<ModuleId>>,
+    /// Per module: the edges the loop rule judges (`module.cycle.edge`),
+    /// sorted.
+    pub policy: Vec<Vec<PolicyEdge>>,
+    /// Per unit: the units it uses, sorted.
+    pub uses: Vec<Vec<UnitId>>,
+    /// Units in dependency order: every unit after the units it uses.
+    pub order: Vec<UnitId>,
+    /// Longest path to a sink: the interface task's priority
+    /// (`crates/hd_sched/DESIGN.md` §6.3).
     pub height: Vec<u32>,
+    /// Each forbidden loop, its group's first module in path order.
+    pub loops: Vec<ModuleLoop>,
+    /// Nodes entered plus edges followed, for cost tests.
+    pub work: u64,
 }
 
-impl FolderGraph {
-    /// Builds the graph from each module's non-test use paths.
-    #[must_use]
-    pub fn build(table: &ModuleTable, module_uses: &[Vec<String>]) -> Self {
-        let n = table.folders.len();
-        let mut g = FolderGraph {
-            uses: vec![Vec::new(); n],
+impl ModuleGraph {
+    /// Builds the graph from each module's uses and groups `table`'s units
+    /// into its strongly connected components. `declares` tells, per
+    /// module, whether its text may declare an item: `false` only when
+    /// every code line is a `use` line.
+    pub fn build(table: &mut ModuleTable, uses: &[Vec<UseRef>], declares: &[bool]) -> Self {
+        let n = table.modules.len();
+        let mut g = ModuleGraph {
+            deps: vec![Vec::new(); n],
+            policy: vec![Vec::new(); n],
             ..Self::default()
         };
-        for (m, uses) in module_uses.iter().enumerate() {
-            let from = table.modules[m].folder;
-            let test_code = table.modules[m].role == Role::Test;
-            for u in uses {
-                if let Some(target) = table.module_of_use(u) {
-                    let to = table.modules[target.idx()].folder;
-                    // Only test code may use a test module; another use is
-                    // an error of its own and makes no edge.
-                    let into_tests = table.modules[target.idx()].role == Role::Test;
-                    if to != from && (test_code || !into_tests) {
-                        let u = &mut g.uses[from.idx()];
-                        if let Err(at) = u.binary_search_by_key(&to.raw(), |f| f.raw()) {
-                            u.insert(at, to);
+        let mut child = String::new();
+        let mut published = vec![false; n];
+        let mut exports_items: Vec<bool> = (0..n)
+            .map(|m| declares.get(m).copied().unwrap_or(true))
+            .collect();
+        // Publication facts must precede dependency edges: a private-use
+        // repair reads the facade above its first hidden prefix.
+        // Cost: one pass over public uses and their written names.
+        for (m, list) in uses.iter().enumerate() {
+            let path = &table.modules[m].path;
+            for u in list.iter().filter(|u| u.public) {
+                if u.grouped && u.path == *path {
+                    for (name, _) in &u.names {
+                        child.clear();
+                        child.push_str(path);
+                        child.push('.');
+                        child.push_str(name);
+                        if let Some(module) = table.module(&child) {
+                            published[module.idx()] = true;
+                        } else {
+                            exports_items[m] = true;
+                        }
+                    }
+                } else {
+                    exports_items[m] = true;
+                }
+            }
+        }
+        for (module, &published) in table.modules.iter_mut().zip(&published) {
+            module.published = published;
+        }
+        let mut namespace_roots = vec![None; table.roots.len()];
+        let mut named: Vec<(ModuleId, Option<Vec<String>>)> = Vec::new();
+        for (m, list) in uses.iter().enumerate() {
+            let module = &table.modules[m];
+            let test = module.role == Role::Test;
+            let p = &mut g.policy[m];
+            let deps = &mut g.deps[m];
+            for u in list {
+                // The module the use names: for a grouped use, its path's;
+                // else the module it names, or the one holding the
+                // declaration it names. With the names its `use` line writes
+                // there, `None` for a namespace.
+                named.clear();
+                // The two binding queries share dependency-edge machinery:
+                // a namespace can clash with its parent's item, and a hidden
+                // path can be repaired by the facade above its hidden prefix.
+                // Neither is a written policy edge. At most two parents per
+                // written use; hidden_prefix visits its path segments once.
+                if u.line.is_some() {
+                    let namespace = !u.grouped && table.module(&u.path).is_some();
+                    let ambiguous = namespace
+                        .then(|| u.path.rsplit_once('.').and_then(|(p, _)| table.module(p)))
+                        .flatten();
+                    // A namespace has no declaration repair; only its
+                    // ambiguity query above reads a facade's exports.
+                    let repair = if namespace {
+                        None
+                    } else {
+                        let segments: Vec<&str> = u.path.split('.').collect();
+                        hidden_prefix(&module.path, &segments, |p| {
+                            table.module(p).map(|id| table.modules[id.idx()].published)
+                        })
+                        .and_then(|hidden| table.module(&segments[..hidden - 1].join(".")))
+                    };
+                    for above in ambiguous.into_iter().chain(repair) {
+                        if exports_items[above.idx()]
+                            && above.idx() != m
+                            && (test || table.modules[above.idx()].role != Role::Test)
+                        {
+                            g.work += 1;
+                            deps.push(above);
                         }
                     }
                 }
+                if u.grouped {
+                    let Some(t) = table.module(&u.path) else {
+                        continue;
+                    };
+                    // A module's own `pub use M.{child}` publishes the child
+                    // (`module.use.facade.module`); it reads nothing of it and
+                    // makes no edge. Every other grouped name is a declaration
+                    // of the group's module (`module.use.grouped`).
+                    let mut decls = Vec::new();
+                    for (name, _) in &u.names {
+                        child.clear();
+                        child.push_str(&u.path);
+                        child.push('.');
+                        child.push_str(name);
+                        if !u.public || u.path != module.path || table.module(&child).is_none() {
+                            decls.push(name.clone());
+                        }
+                    }
+                    named.push((t, Some(decls)));
+                } else if let Some(t) = table.module(&u.path) {
+                    let package = usize::from(table.modules[t.idx()].package);
+                    if u.line.is_some() && u.path == table.roots[package] {
+                        namespace_roots[package] = Some(t);
+                    }
+                    named.push((t, None));
+                } else if let Some((parent, last)) = u.path.rsplit_once('.')
+                    && let Some(t) = table.module(parent)
+                {
+                    named.push((t, Some(vec![last.to_owned()])));
+                } else {
+                    continue;
+                }
+                for (named, written) in named.drain(..) {
+                    g.work += 1;
+                    let target = &table.modules[named.idx()];
+                    // Only test code may use a test module; another use is
+                    // an error of its own and makes no edge.
+                    if named.idx() == m || (!test && target.role == Role::Test) {
+                        continue;
+                    }
+                    deps.push(named);
+                    if let Some(line) = u.line
+                        && !u.public
+                        && !test
+                        && target.package == module.package
+                    {
+                        p.push((named, line, written.unwrap_or_default()));
+                    }
+                }
+            }
+            deps.sort_stable_by_key(|d| d.raw());
+            deps.dedup();
+            // The first line naming each module makes its edge.
+            p.sort_stable_by_key(|e| (e.0.raw(), e.1));
+            p.dedup_by(|b, a| a.0 == b.0);
+        }
+        // An imported package namespace qualifies its library modules.
+        // Share their interface prerequisites at the root, not at every
+        // importer. These are not written source-use policy edges.
+        // Cost: one module scan and at most one edge per library module,
+        // independent of the number of imports of the same namespace.
+        let mut namespace_uses = Vec::new();
+        if namespace_roots.iter().any(Option::is_some) {
+            for root in namespace_roots.iter().flatten() {
+                let uses = g.deps[root.idx()].clone();
+                g.work += uses.len() as u64;
+                namespace_uses.push((*root, uses));
+            }
+            for (m, module) in table.modules.iter().enumerate() {
+                g.work += 1;
+                if let Some(root) = namespace_roots[usize::from(module.package)]
+                    && m != root.idx()
+                    && module.role == Role::Lib
+                    && !module.entry
+                {
+                    g.deps[root.idx()].push(module.id);
+                    g.work += 1;
+                }
+            }
+            for root in namespace_roots.into_iter().flatten() {
+                g.deps[root.idx()].sort_stable_by_key(|module| module.raw());
+                g.deps[root.idx()].dedup();
             }
         }
-        // Path-sorted roots and edges preserve DFS postorder, including
-        // within cycles, while the shared walk uses heap frames.
-        hd_base::scc::traverse(n, (0..n).map(hd_base::scc::node), |event| {
-            match event {
-                hd_base::scc::Event::Enter(f, out) => {
-                    out.extend(g.uses[f as usize].iter().map(|f| f.raw()));
-                }
-                hd_base::scc::Event::Finish(f) => g.order.push(FolderId::from_raw(f)),
-                hd_base::scc::Event::Component(members, _) if members.len() > 1 => {
-                    let mut members: Vec<_> =
-                        members.iter().copied().map(FolderId::from_raw).collect();
-                    members.sort_stable_by_key(|f| f.raw());
-                    g.cycles.push(members);
-                }
-                hd_base::scc::Event::Edge(_, _) | hd_base::scc::Event::Component(_, _) => {}
-            }
-            true
-        });
-        g.closure = vec![FolderSet::with_capacity(n); n];
-        g.height = vec![0; n];
-        for &f in &g.order {
-            let mut c = FolderSet::with_capacity(n);
-            c.insert(f);
-            let mut h = 0;
-            for &u in &g.uses[f.idx()] {
-                c.union(&g.closure[u.idx()]);
-                h = h.max(g.height[u.idx()] + 1);
-            }
-            g.closure[f.idx()] = c;
-            g.height[f.idx()] = h;
+        g.group_units(table);
+        // Namespace children are interface prerequisites, not implicit
+        // initializers. Keep the original module-use edges for execution.
+        for (root, uses) in namespace_uses {
+            g.deps[root.idx()] = uses;
         }
+        g.find_loops(table);
         g
+    }
+
+    /// Makes each strongly connected group of units one unit, in path
+    /// order, and orders the units.
+    fn group_units(&mut self, table: &mut ModuleTable) {
+        let nf = table.units.len();
+        let deps = &self.deps;
+        let sccs = {
+            let t = &*table;
+            hd_base::scc::sccs(nf, |f, out| {
+                for m in &t.units[f as usize].modules {
+                    out.extend(deps[m.idx()].iter().map(|d| t.modules[d.idx()].unit.raw()));
+                }
+            })
+        };
+        self.work += sccs.work;
+        // A unit takes the path and package of its first member: units
+        // stay in path order.
+        let mut new_id = vec![u32::MAX; sccs.len()];
+        let old = std::mem::take(&mut table.units);
+        for (f, unit) in old.into_iter().enumerate() {
+            let c = sccs.comp[f] as usize;
+            let Unit {
+                path,
+                modules,
+                package,
+                ..
+            } = unit;
+            if new_id[c] == u32::MAX {
+                new_id[c] = u32::try_from(table.units.len()).expect("units");
+                table.units.push(Unit {
+                    id: UnitId::from_raw(new_id[c]),
+                    path,
+                    modules: Vec::new(),
+                    package,
+                });
+            }
+            table.units[new_id[c] as usize].modules.extend(modules);
+        }
+        for unit in &mut table.units {
+            unit.modules.sort_stable_by_key(|m| m.raw());
+            for m in &unit.modules {
+                table.modules[m.idx()].unit = unit.id;
+            }
+        }
+        let units = table.units.len();
+        self.uses = vec![Vec::new(); units];
+        for (m, deps) in self.deps.iter().enumerate() {
+            let from = table.modules[m].unit;
+            let out = &mut self.uses[from.idx()];
+            out.extend(
+                deps.iter()
+                    .map(|d| table.modules[d.idx()].unit)
+                    .filter(|f| *f != from),
+            );
+        }
+        for out in &mut self.uses {
+            out.sort_stable_by_key(|f| f.raw());
+            out.dedup();
+        }
+        // Tarjan finishes each component after every one it reaches.
+        self.order = (0..sccs.len())
+            .map(|c| UnitId::from_raw(new_id[c]))
+            .collect();
+        self.height = vec![0; units];
+        for &f in &self.order {
+            let h = self.uses[f.idx()]
+                .iter()
+                .map(|u| self.height[u.idx()] + 1)
+                .max()
+                .unwrap_or(0);
+            self.height[f.idx()] = h;
+        }
+    }
+
+    /// The groups the sibling rule forbids (`module.cycle.siblings`):
+    /// strongly connected groups of the policy edges that no sibling group
+    /// holds. Module P's sibling group is P and its children, so a module
+    /// is in its parent's group and its own: a group of the graph is legal
+    /// when one of its first module's two groups holds every module, each
+    /// asked by a parent lookup.
+    fn find_loops(&mut self, table: &ModuleTable) {
+        let n = table.modules.len();
+        let policy = &self.policy;
+        let sccs = hd_base::scc::sccs(n, |m, out| {
+            out.extend(policy[m as usize].iter().map(|e| e.0.raw()));
+        });
+        self.work += sccs.work;
+        let path = |m: ModuleId| table.modules[m.idx()].path.as_str();
+        let parent = |m: ModuleId| path(m).rsplit_once('.').map_or("", |(p, _)| p);
+        // Whether `m` is in the sibling group of the module at `p`.
+        let in_group = |m: ModuleId, p: &str| path(m) == p || parent(m) == p;
+        let siblings = |a: ModuleId, b: ModuleId| {
+            parent(a) == parent(b) || parent(a) == path(b) || parent(b) == path(a)
+        };
+        for c in 0..sccs.len() {
+            if sccs.members(c).len() < 2 {
+                continue;
+            }
+            let mut members: Vec<ModuleId> = sccs
+                .members(c)
+                .iter()
+                .map(|&m| ModuleId::from_raw(m))
+                .collect();
+            let first = members[0];
+            if [parent(first), path(first)]
+                .iter()
+                .any(|p| members.iter().all(|m| in_group(*m, p)))
+            {
+                continue;
+            }
+            members.sort_stable_by_key(|m| m.raw());
+            // In a tree, sibling groups that meet pairwise share a member
+            // group, so some two modules of a forbidden group are no
+            // siblings. A module's siblings in the group are those of its
+            // parent's group and its own, counted per parent: linear.
+            let mut children: HashMap<&str, usize> = HashMap::default();
+            let mut paths: hd_base::HashSet<&str> = hd_base::HashSet::default();
+            for &m in &members {
+                *children.entry(parent(m)).or_default() += 1;
+                paths.insert(path(m));
+            }
+            let count = |p: &str| children.get(p).copied().unwrap_or(0);
+            let sibling_count = |m: ModuleId| {
+                count(parent(m)) + count(path(m)) + usize::from(paths.contains(parent(m)))
+            };
+            let Some(u) = members
+                .iter()
+                .copied()
+                .find(|&m| sibling_count(m) < members.len())
+            else {
+                continue;
+            };
+            let Some(v) = members.iter().copied().find(|&v| !siblings(u, v)) else {
+                continue;
+            };
+            let inside = |m: ModuleId| sccs.comp[m.idx()] as usize == c;
+            let mut walk = self.shortest_path(u, v, &inside);
+            walk.extend(self.shortest_path(v, u, &inside));
+            // The edge between two modules that are no siblings whose
+            // `use` line names the fewest declarations; a namespace use
+            // names none, so it is taken last. On a tie, the reported
+            // edge, then the first shown.
+            let names = |&(from, _, to): &(ModuleId, u32, ModuleId)| {
+                self.edge(from, to).map_or(&[][..], |e| &e.2[..])
+            };
+            let count = |e: &(ModuleId, u32, ModuleId)| match names(e).len() {
+                0 => usize::MAX,
+                k => k,
+            };
+            let last = walk.len().saturating_sub(1);
+            let pick = std::iter::once(last)
+                .chain(0..last)
+                .filter(|&i| !siblings(walk[i].0, walk[i].2))
+                .min_by_key(|&i| count(&walk[i]))
+                .unwrap_or(last);
+            let help = walk
+                .get(pick)
+                .map_or((u, Vec::new()), |e| (e.2, names(e).to_vec()));
+            self.loops.push(ModuleLoop {
+                modules: members.len(),
+                walk,
+                help,
+            });
+        }
+        self.loops
+            .sort_stable_by_key(|l| l.walk.last().map_or(0, |e| e.2.raw()));
+    }
+
+    /// The policy edge from `from` to `to`.
+    fn edge(&self, from: ModuleId, to: ModuleId) -> Option<&PolicyEdge> {
+        let p = &self.policy[from.idx()];
+        p.binary_search_by_key(&to.raw(), |e| e.0.raw())
+            .ok()
+            .map(|i| &p[i])
+    }
+
+    /// A shortest path of policy edges from `a` to `b` through modules
+    /// `inside` accepts, each edge as (module, use line, module reached).
+    /// Breadth-first over edges in path order; the parent map is the
+    /// visited set, so the cost is the group's size.
+    fn shortest_path(
+        &mut self,
+        a: ModuleId,
+        b: ModuleId,
+        inside: &dyn Fn(ModuleId) -> bool,
+    ) -> Vec<(ModuleId, u32, ModuleId)> {
+        let mut parent: HashMap<ModuleId, (ModuleId, u32)> = HashMap::default();
+        let mut queue = std::collections::VecDeque::from([a]);
+        while let Some(at) = queue.pop_front() {
+            for &(to, line, _) in &self.policy[at.idx()] {
+                self.work += 1;
+                if to == a || !inside(to) || parent.contains_key(&to) {
+                    continue;
+                }
+                parent.insert(to, (at, line));
+                if to == b {
+                    let mut path = Vec::new();
+                    let mut x = b;
+                    while x != a {
+                        let (p, line) = parent[&x];
+                        path.push((p, line, x));
+                        x = p;
+                    }
+                    path.reverse();
+                    return path;
+                }
+                queue.push_back(to);
+            }
+        }
+        Vec::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, UseRootError, parse_manifest,
+        MemorySources, ModuleGraph, ModuleId, ModuleTable, PackageIn, Scope, UseRef, UseRootError,
+        hidden_prefix, parse_manifest,
     };
 
     fn collisions(files: &[&str]) -> Vec<(String, hd_diag::Code)> {
@@ -1826,64 +2208,532 @@ mod tests {
         assert_eq!(collisions(&["src/x.hd", "src/x/mod.hd"]).len(), 1);
     }
 
-    #[test]
-    fn folders_order_closure_and_cycles() {
-        let mut s = MemorySources::default();
-        s.insert("main.hd", "");
-        s.insert("a/x.hd", "");
-        s.insert("b/y.hd", "");
-        let t = ModuleTable::discover("pkg", &s);
-        assert_eq!(
-            t.folders
+    /// A use naming `module`, grouped over `names`, written on line 0.
+    fn grouped(module: &str, names: &[&str]) -> UseRef {
+        UseRef {
+            path: module.to_owned(),
+            grouped: true,
+            public: false,
+            names: names
                 .iter()
-                .map(|f| f.path.as_str())
-                .collect::<Vec<_>>(),
-            ["pkg", "pkg.a", "pkg.b"]
-        );
-        let main = t.module("pkg.main").expect("main").idx();
-        let x = t.module("pkg.a.x").expect("x").idx();
-        let mut uses = vec![Vec::new(); 3];
-        uses[main] = vec!["pkg.a.x.thing".to_owned()];
-        uses[x] = vec!["pkg.b.y".to_owned()];
-        let g = FolderGraph::build(&t, &uses);
-        assert!(g.cycles.is_empty());
-        let names: Vec<&str> = g
-            .order
+                .map(|n| ((*n).to_owned(), (*n).to_owned()))
+                .collect(),
+            line: Some(0),
+        }
+    }
+
+    /// The module graph of the files `files` of package `pkg`, each with
+    /// its uses.
+    fn graph_of(files: &[(&str, Vec<UseRef>)]) -> (ModuleTable, ModuleGraph) {
+        graph_with(files, &[])
+    }
+
+    /// As [`graph_of`], with the files `bare` declaring nothing.
+    fn graph_with(files: &[(&str, Vec<UseRef>)], bare: &[&str]) -> (ModuleTable, ModuleGraph) {
+        let mut s = MemorySources::default();
+        for (f, _) in files {
+            s.insert(f, "");
+        }
+        let mut t = ModuleTable::discover("pkg", &s);
+        let mut uses = vec![Vec::new(); t.modules.len()];
+        for (f, u) in files {
+            let m = t.files.iter().position(|x| x == f).expect("file");
+            uses[m] = u.clone();
+        }
+        let declares: Vec<bool> = t
+            .files
             .iter()
-            .map(|f| t.folders[f.idx()].path.as_str())
+            .map(|f| !bare.contains(&f.as_str()))
             .collect();
-        assert_eq!(names, ["pkg.b", "pkg.a", "pkg"]);
-        assert_eq!(g.closure[0].len(), 3);
-        assert_eq!(g.height[0], 2);
-        let y = t.module("pkg.b.y").expect("y").idx();
-        uses[y] = vec!["pkg.main".to_owned()];
-        let g = FolderGraph::build(&t, &uses);
-        assert_eq!(g.cycles.len(), 1);
-        assert_eq!(
-            g.cycles[0][0].raw(),
-            0,
-            "named from the first member in path order"
-        );
+        let g = ModuleGraph::build(&mut t, &uses, &declares);
+        (t, g)
     }
 
     #[test]
-    fn a_parent_file_lives_in_its_children_folder() {
-        let mut s = MemorySources::default();
-        s.insert("testing.hd", "");
-        s.insert("testing/arbitrary.hd", "");
-        s.insert("text.hd", "");
-        s.insert("shop/mod.hd", "");
-        s.insert("shop/cart.hd", "");
-        let t = ModuleTable::discover("std", &s);
-        let folder = |m: &str| {
-            let id = t.module(m).expect(m);
-            t.folders[t.modules[id.idx()].folder.idx()].path.clone()
+    fn an_implicit_library_header_does_not_import_the_package_namespace() {
+        let (table, graph) = graph_of(&[
+            ("src/lib.hd", Vec::new()),
+            ("src/unused.hd", Vec::new()),
+            (
+                "src/main.hd",
+                vec![UseRef {
+                    path: "pkg".to_owned(),
+                    ..UseRef::default()
+                }],
+            ),
+        ]);
+        let root = table.module("pkg").unwrap();
+        assert!(graph.deps[root.idx()].is_empty());
+    }
+
+    #[test]
+    fn imported_root_shares_namespace_interfaces_across_width_and_depth() {
+        let mut previous = Vec::new();
+        for width in [100usize, 1_000] {
+            for depth in [2usize, 20] {
+                let mut app = MemorySources::default();
+                app.insert("src/lib.hd", "");
+                let mut library = MemorySources::default();
+                library.insert("src/lib.hd", "");
+                library.insert("src/main.hd", "");
+                for index in 0..width {
+                    app.insert(&format!("src/client{index}.hd"), "");
+                    library.insert(&format!("src/child{index}.hd"), "");
+                }
+                let mut prefix = "src".to_owned();
+                for _ in 0..depth {
+                    prefix.push_str("/nested");
+                    library.insert(&format!("{prefix}/mod.hd"), "");
+                }
+                let package = |name, sources, requires| PackageIn {
+                    name,
+                    identity: name,
+                    sources,
+                    scope: Scope::Library,
+                    requires,
+                    entries: Vec::new(),
+                    dev_requires: Vec::new(),
+                };
+                let mut table = ModuleTable::discover_all(&[
+                    package("app", &app, vec![("library".to_owned(), 1)]),
+                    package("library", &library, Vec::new()),
+                ]);
+                assert!(table.problems.is_empty());
+                let mut uses = vec![Vec::new(); table.modules.len()];
+                for (m, module) in table.modules.iter().enumerate() {
+                    if module.path.starts_with("app.client") {
+                        uses[m].push(UseRef {
+                            path: "library".to_owned(),
+                            line: Some(0),
+                            ..UseRef::default()
+                        });
+                    }
+                }
+                let root = table.module("library").unwrap();
+                let mut exported = grouped("library.child0", &["x"]);
+                exported.public = true;
+                uses[root.idx()].push(exported);
+                let graph = ModuleGraph::build(&mut table, &uses, &vec![false; uses.len()]);
+                assert_eq!(
+                    graph.uses[table.modules[root.idx()].unit.idx()].len(),
+                    width + depth
+                );
+                assert_eq!(
+                    graph.deps[root.idx()],
+                    [table.module("library.child0").unwrap()]
+                );
+                for (m, module) in table.modules.iter().enumerate() {
+                    if module.path.starts_with("app.client") {
+                        assert_eq!(graph.deps[m], [root]);
+                    }
+                    assert!(graph.policy[m].is_empty());
+                }
+                println!("width {width}, depth {depth}: {} visits", graph.work);
+                previous.push(graph.work);
+            }
+        }
+        for (small, large) in previous[..2].iter().zip(&previous[2..]) {
+            assert!(*large <= 11 * *small, "tenfold width: {small} -> {large}");
+        }
+    }
+
+    fn unit_paths(t: &ModuleTable) -> Vec<&str> {
+        t.units.iter().map(|f| f.path.as_str()).collect()
+    }
+
+    /// `module.use.ambiguous`: a single use of a module reads its parent's
+    /// exports, which may declare the same name, so it depends on the
+    /// parent; it judges no loop through it. Without the edge `main` was
+    /// bound before `pkg`'s interface was built under some schedules
+    /// (`HD_JOBS=2`), and `words()` cascaded into `unknown-name`.
+    #[test]
+    fn a_single_module_use_depends_on_the_parent() {
+        let single = |path: &str| UseRef {
+            grouped: false,
+            names: Vec::new(),
+            ..grouped(path, &[])
         };
-        assert_eq!(folder("std.testing"), "std.testing");
-        assert_eq!(folder("std.testing.arbitrary"), "std.testing");
-        assert_eq!(folder("std.text"), "std");
-        assert_eq!(folder("std.shop"), "std.shop");
-        assert_eq!(folder("std.shop.cart"), "std.shop");
+        let (t, g) = graph_of(&[
+            ("src/lib.hd", Vec::new()),
+            ("src/words.hd", Vec::new()),
+            ("src/main.hd", vec![single("pkg.words")]),
+            ("src/shop/mod.hd", Vec::new()),
+            ("src/shop/cart.hd", vec![single("pkg.shop.ledger")]),
+            ("src/shop/ledger.hd", Vec::new()),
+        ]);
+        let id = |p: &str| t.module(p).expect(p);
+        let deps = |p: &str| -> Vec<&str> {
+            let mut d: Vec<&str> = g.deps[id(p).idx()]
+                .iter()
+                .map(|d| t.modules[d.idx()].path.as_str())
+                .collect();
+            hd_base::SliceSort::sort_stable(&mut d[..]);
+            d
+        };
+        assert_eq!(deps("pkg.main"), ["pkg", "pkg.words"]);
+        assert_eq!(deps("pkg.shop.cart"), ["pkg.shop", "pkg.shop.ledger"]);
+        let policy: Vec<ModuleId> = g.policy[id("pkg.main").idx()].iter().map(|e| e.0).collect();
+        assert_eq!(policy, [id("pkg.words")]);
+        let order: Vec<&str> = g
+            .order
+            .iter()
+            .map(|f| t.units[f.idx()].path.as_str())
+            .collect();
+        let at = |p: &str| order.iter().position(|o| *o == p).expect(p);
+        assert!(at("pkg") < at("pkg.main"), "{order:?}");
+    }
+
+    /// The parent edge serves only a written use's binding, and only a
+    /// parent that may export an item. Here the facade `pkg` declares
+    /// nothing and publishes its children; it reads `pkg.words` without a
+    /// line, as std's root reads its language layer. `words` naming
+    /// `pkg.shop` joins no loop with it. An implicit use, a REPL input's
+    /// of an earlier input, makes no parent edge either. A facade
+    /// re-exporting an item, `pkg.shop`, keeps the edge.
+    #[test]
+    fn a_parent_exporting_no_item_takes_no_parent_edge() {
+        let single = |path: &str| UseRef {
+            grouped: false,
+            names: Vec::new(),
+            ..grouped(path, &[])
+        };
+        let implicit = |path: &str| UseRef {
+            line: None,
+            ..single(path)
+        };
+        let facade = UseRef {
+            public: true,
+            ..grouped("pkg", &["words", "shop"])
+        };
+        let item = UseRef {
+            public: true,
+            ..grouped("pkg.shop.ledger", &["count"])
+        };
+        let (t, g) = graph_with(
+            &[
+                ("src/lib.hd", vec![facade, implicit("pkg.words")]),
+                ("src/words.hd", vec![single("pkg.shop")]),
+                ("src/main.hd", vec![implicit("pkg.shop.cart")]),
+                ("src/shop/mod.hd", vec![item]),
+                ("src/shop/cart.hd", vec![single("pkg.shop.ledger")]),
+                ("src/shop/ledger.hd", Vec::new()),
+            ],
+            &["src/lib.hd", "src/shop/mod.hd"],
+        );
+        let id = |p: &str| t.module(p).expect(p);
+        let deps = |p: &str| -> Vec<&str> {
+            let mut d: Vec<&str> = g.deps[id(p).idx()]
+                .iter()
+                .map(|d| t.modules[d.idx()].path.as_str())
+                .collect();
+            hd_base::SliceSort::sort_stable(&mut d[..]);
+            d
+        };
+        assert_eq!(deps("pkg.words"), ["pkg.shop"]);
+        assert_eq!(deps("pkg.main"), ["pkg.shop.cart"]);
+        assert_eq!(deps("pkg.shop.cart"), ["pkg.shop", "pkg.shop.ledger"]);
+        assert!(
+            unit_paths(&t).contains(&"pkg.words"),
+            "{:?}",
+            unit_paths(&t)
+        );
+    }
+
+    /// Units are the dependency graph's strongly connected groups, in path
+    /// order, ordered with every unit after the units it uses.
+    #[test]
+    fn units_order_and_height() {
+        let (t, g) = graph_of(&[
+            ("src/app.hd", vec![grouped("pkg.a.x", &["thing"])]),
+            ("src/a/x.hd", vec![grouped("pkg.b.y", &["y"])]),
+            ("src/b/y.hd", Vec::new()),
+        ]);
+        assert!(g.loops.is_empty());
+        let order: Vec<&str> = g
+            .order
+            .iter()
+            .map(|f| t.units[f.idx()].path.as_str())
+            .collect();
+        assert_eq!(order, ["pkg.b.y", "pkg.a.x", "pkg.app"]);
+        let main = t.unit_of_module("pkg.app").expect("main");
+        assert_eq!(g.height[main.idx()], 2);
+    }
+
+    /// `module.use.facade.module`: a module's own `pub use M.{child}`
+    /// publishes the child and makes no edge; another module's does not.
+    /// A grouped use makes its edge to its module, whatever its names.
+    #[test]
+    fn module_reexports_publish_own_children() {
+        let public = |path: &str, names: &[&str]| UseRef {
+            public: true,
+            ..grouped(path, names)
+        };
+        let (t, g) = graph_of(&[
+            ("src/shop/mod.hd", vec![public("pkg.shop", &["cart"])]),
+            ("src/shop/cart.hd", Vec::new()),
+            ("src/shop/ledger.hd", Vec::new()),
+            ("src/report.hd", vec![public("pkg.shop", &["ledger"])]),
+            ("src/audit.hd", vec![grouped("pkg.shop", &["cart"])]),
+        ]);
+        assert_eq!(t.published("pkg.shop.cart"), Some(true));
+        assert_eq!(t.published("pkg.shop.ledger"), Some(false));
+        assert_eq!(t.published("pkg.shop.nothing"), None);
+        let id = |p: &str| t.module(p).expect(p);
+        assert!(
+            g.deps[id("pkg.shop").idx()].is_empty(),
+            "a re-export reads nothing"
+        );
+        // Another module's re-export of shop's child publishes nothing; it
+        // reads shop's exports, a dependency edge, and makes no policy edge.
+        assert_eq!(g.deps[id("pkg.report").idx()], [id("pkg.shop")]);
+        assert!(g.policy[id("pkg.report").idx()].is_empty());
+        let audit = id("pkg.audit").idx();
+        let policy: Vec<ModuleId> = g.policy[audit].iter().map(|e| e.0).collect();
+        assert_eq!(policy, [id("pkg.shop")]);
+        assert_eq!(g.deps[audit], [id("pkg.shop")]);
+    }
+
+    /// `module.vis.parent`, `module.vis.parent.root`: the first prefix of a
+    /// path that names a module outside whose scope the importer is, and
+    /// which its parent does not re-export. A root's children are visible
+    /// in their package, a nested module in its parent's subtree; a bare
+    /// directory re-exports nothing (`module.vis.parent.root`).
+    #[test]
+    fn hidden_prefix_finds_the_first_private_module() {
+        let modules = [
+            ("app", false),
+            ("app.top", true),
+            ("app.shop", false),
+            ("app.shop.cart", true),
+            ("app.shop.ledger", false),
+            ("app.shop.ledger.rows", false),
+            ("app.shop.orders.item", false),
+            ("app.$tests.common", false),
+            ("app.$tests.common.x", false),
+        ];
+        let published = |p: &str| modules.iter().find(|(m, _)| *m == p).map(|(_, b)| *b);
+        let hidden = |importer: &str, path: &str| {
+            let segs: Vec<&str> = path.split('.').collect();
+            hidden_prefix(importer, &segs, published)
+        };
+        assert_eq!(hidden("app.report", "app.shop.f"), None, "same package");
+        assert_eq!(
+            hidden("other.main", "app.shop.f"),
+            Some(2),
+            "another package"
+        );
+        assert_eq!(
+            hidden("other.main", "app.top.f"),
+            None,
+            "the root re-exports it"
+        );
+        assert_eq!(
+            hidden("other.main", "app.f"),
+            None,
+            "the root module itself"
+        );
+        assert_eq!(
+            hidden("app.report", "app.shop.cart.total"),
+            None,
+            "re-exported"
+        );
+        assert_eq!(hidden("app.report", "app.shop.ledger.balance"), Some(3));
+        assert_eq!(hidden("app.report", "app.shop.ledger.rows.r"), Some(3));
+        assert_eq!(
+            hidden("app.shop", "app.shop.ledger.balance"),
+            None,
+            "the parent"
+        );
+        assert_eq!(
+            hidden("app.shop.cart", "app.shop.ledger.balance"),
+            None,
+            "a sibling"
+        );
+        assert_eq!(
+            hidden("app.shop.orders.line", "app.shop.ledger.f"),
+            None,
+            "below"
+        );
+        assert_eq!(hidden("app.shop.cart", "app.shop.ledger.rows.r"), Some(4));
+        assert_eq!(
+            hidden("app.report", "app.shop.orders.item.f"),
+            Some(4),
+            "bare dir"
+        );
+        assert_eq!(
+            hidden("app.shopping", "app.shop.ledger.f"),
+            Some(3),
+            "no prefix match"
+        );
+        assert_eq!(
+            hidden("app.$tests.t", "app.$tests.common.f"),
+            None,
+            "test root"
+        );
+        assert_eq!(hidden("app.$tests.t", "app.$tests.common.x.f"), Some(4));
+    }
+
+    /// `module.cycle.edge`: a use's edge goes to the module it names, and a
+    /// `pub use` makes none. Its dependency edge goes there too, and the
+    /// facade's own `pub use` edge reaches the declaring module. A root
+    /// facade that a child unit's module uses back is one unit with it.
+    #[test]
+    fn facades_make_no_policy_edge() {
+        let mut reexport = grouped("pkg.shop", &["Cart"]);
+        reexport.public = true;
+        let (t, g) = graph_of(&[
+            ("src/lib.hd", vec![reexport]),
+            ("src/error.hd", Vec::new()),
+            ("src/shop/mod.hd", vec![grouped("pkg", &["Error"])]),
+        ]);
+        let shop = t.module("pkg.shop").expect("shop").idx();
+        let lib = t.module("pkg").expect("lib");
+        assert_eq!(
+            g.policy[shop].iter().map(|e| e.0).collect::<Vec<_>>(),
+            [lib]
+        );
+        assert!(g.policy[lib.idx()].is_empty(), "a pub use makes no edge");
+        assert!(g.loops.is_empty(), "shop and its parent are siblings");
+        assert_eq!(g.deps[shop], [lib]);
+        assert_eq!(
+            unit_paths(&t),
+            ["pkg", "pkg.error"],
+            "the facade loop is one unit"
+        );
+        let (t, g) = graph_of(&[
+            (
+                "src/lib.hd",
+                vec![{
+                    let mut u = grouped("pkg.error", &["Error"]);
+                    u.public = true;
+                    u
+                }],
+            ),
+            ("src/error.hd", Vec::new()),
+            ("src/shop/orders/mod.hd", vec![grouped("pkg", &["Error"])]),
+        ]);
+        let orders = t.module("pkg.shop.orders").expect("orders").idx();
+        let error = t.module("pkg.error").expect("error");
+        let lib = t.module("pkg").expect("lib");
+        assert_eq!(g.deps[orders], [lib]);
+        assert_eq!(g.deps[lib.idx()], [error]);
+        assert_eq!(unit_paths(&t).len(), 3);
+        assert!(g.loops.is_empty());
+    }
+
+    /// `module.cycle.siblings`: modules with one parent may loop, and so may
+    /// a parent and its children; cousins may not.
+    #[test]
+    fn only_siblings_loop() {
+        let (_, g) = graph_of(&[
+            ("src/text.hd", vec![grouped("pkg.format", &["f"])]),
+            ("src/format.hd", vec![grouped("pkg.text", &["t"])]),
+        ]);
+        assert!(g.loops.is_empty(), "siblings");
+        let (t, g) = graph_of(&[
+            ("src/shop/mod.hd", vec![grouped("pkg.shop.cart", &["c"])]),
+            ("src/shop/cart.hd", vec![grouped("pkg.shop", &["s"])]),
+        ]);
+        assert!(g.loops.is_empty(), "a parent and its child");
+        assert_eq!(unit_paths(&t), ["pkg.shop"], "one unit");
+        let (t, g) = graph_of(&[
+            ("src/billing.hd", vec![grouped("pkg.shop.cart", &["total"])]),
+            (
+                "src/shop/cart.hd",
+                vec![grouped("pkg.billing", &["bill", "tax"])],
+            ),
+        ]);
+        assert_eq!(g.loops.len(), 1);
+        let l = &g.loops[0];
+        assert_eq!(l.modules, 2);
+        let billing = t.module("pkg.billing").expect("billing");
+        let cart = t.module("pkg.shop.cart").expect("cart");
+        // From the first module in path order to the first that is no
+        // sibling of it, and back; the last edge is reported.
+        assert_eq!(l.walk, [(billing, 0, cart), (cart, 0, billing)]);
+        assert_eq!(l.help, (cart, vec!["total".to_owned()]));
+    }
+
+    /// A strongly connected group whose every loop is legal, but which no
+    /// sibling group holds, is still one error: the parent `p` loops with
+    /// its sibling `r` and with its child `p.c`.
+    #[test]
+    fn a_group_no_sibling_group_holds_is_an_error() {
+        let (t, g) = graph_of(&[
+            (
+                "src/p.hd",
+                vec![grouped("pkg.r", &["r"]), {
+                    let mut u = grouped("pkg.p.c", &["c"]);
+                    u.line = Some(1);
+                    u
+                }],
+            ),
+            ("src/p/c.hd", vec![grouped("pkg.p", &["p"])]),
+            ("src/r.hd", vec![grouped("pkg.p", &["p"])]),
+        ]);
+        assert_eq!(g.loops.len(), 1);
+        let c = t.module("pkg.p.c").expect("c");
+        let r = t.module("pkg.r").expect("r");
+        let walk = &g.loops[0].walk;
+        assert_eq!((walk[0].0, walk.last().map(|e| e.2)), (c, Some(c)));
+        assert!(walk.iter().any(|e| e.2 == r));
+    }
+
+    /// Cost (`.agents/skills/shared-rules.md`): a loop of 1000 sibling
+    /// modules, and 1000 uses of a `pub use` chain of depth 20, cost work
+    /// linear in modules plus edges.
+    #[test]
+    fn module_graph_work_is_linear() {
+        let n = 1000;
+        let files: Vec<(String, Vec<UseRef>)> = (0..n)
+            .map(|i| {
+                (
+                    format!("src/m{i}.hd"),
+                    vec![grouped(&format!("pkg.m{}", (i + 1) % n), &["x"])],
+                )
+            })
+            .collect();
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (t, g) = graph_of(&refs);
+        assert!(g.loops.is_empty());
+        assert_eq!(t.units.len(), 1);
+        assert!(g.work < 8 * n as u64, "work {}", g.work);
+        // A forbidden ring of 1000 cousins: one error, linear work.
+        let files: Vec<(String, Vec<UseRef>)> = (0..n)
+            .map(|i| {
+                (
+                    format!("src/a{i}/x.hd"),
+                    vec![grouped(&format!("pkg.a{}.x", (i + 1) % n), &["x"])],
+                )
+            })
+            .collect();
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (_, g) = graph_of(&refs);
+        assert_eq!(g.loops.len(), 1);
+        assert_eq!(g.loops[0].walk.len(), n);
+        assert!(g.work < 8 * n as u64, "work {}", g.work);
+        // Depth 20: c0 re-exports from c1, ..., c19 declares; 1000 users.
+        let depth = 20;
+        let mut files: Vec<(String, Vec<UseRef>)> = (0..depth)
+            .map(|i| {
+                let mut u = grouped(&format!("pkg.c{}", i + 1), &["x"]);
+                u.public = true;
+                (
+                    format!("src/c{i}.hd"),
+                    if i + 1 < depth { vec![u] } else { Vec::new() },
+                )
+            })
+            .collect();
+        files.extend((0..n).map(|i| (format!("src/u{i}.hd"), vec![grouped("pkg.c0", &["x"])])));
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (t, g) = graph_of(&refs);
+        let first = t.module("pkg.c0").expect("facade");
+        let user = t.module("pkg.u7").expect("user").idx();
+        assert_eq!(g.deps[user], [first]);
+        assert!(g.work < 12 * (n + depth) as u64, "work {}", g.work);
     }
 
     #[test]
@@ -2151,7 +3001,7 @@ mod tests {
 
     /// `tasks/shared.hd` beside `tasks/shared/` is one error on the file
     /// (`cli.task.beside-directory`); `src/x.hd` beside `src/x/` is the parent
-    /// file of folder `x` and no error (`module.folder.parent-file`).
+    /// of the modules in `x/` and no error (`module.path.directory`).
     #[test]
     fn a_task_file_beside_its_directory_is_a_duplicate_module() {
         let mut s = MemorySources::default();
@@ -2193,29 +3043,6 @@ mod tests {
             super::user_text("(in `shop/$tests/flow/main`)", &file_of),
             "(in `tests/flow/main`)"
         );
-    }
-
-    /// Folder-cycle recovery: two folders that use each other become one,
-    /// named after the first in path order.
-    #[test]
-    fn merged_folders_hold_both_modules() {
-        let mut s = MemorySources::default();
-        for f in ["src/a/x.hd", "src/b/y.hd", "src/c/z.hd"] {
-            s.insert(f, "");
-        }
-        let mut t = ModuleTable::discover("shop", &s);
-        let a = t.folder_of_module("shop.a.x").expect("a");
-        let b = t.folder_of_module("shop.b.y").expect("b");
-        t.merge_folders(&[vec![b, a]]);
-        assert_eq!(t.folders.len(), 2);
-        assert_eq!(
-            t.folder_of_module("shop.a.x"),
-            t.folder_of_module("shop.b.y")
-        );
-        let merged = t.folder_of_module("shop.a.x").expect("merged");
-        assert_eq!(t.folders[merged.idx()].path, "shop.a");
-        assert_eq!(t.folders[merged.idx()].modules.len(), 2);
-        assert_ne!(t.folder_of_module("shop.c.z"), Some(merged));
     }
 
     /// `module.test.non-test-use.dev-dependency`, `module.test.cyclic-dev-unit`:

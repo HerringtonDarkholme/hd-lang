@@ -5,9 +5,11 @@ struct Tally:
     n: i64
 
 fn bump!(t: &mut Tally) -> void:
+    pause!()
     t.n += 1
 
 fn read!(t: &Tally) -> i64:
+    pause!()
     t.n
 
 fn local!() -> i64:
@@ -27,3 +29,9 @@ fn copied!() -> i64:
     tally := Tally { n: 0 }
     run := fn!() -> i64: read!(&tally)
     run!()
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

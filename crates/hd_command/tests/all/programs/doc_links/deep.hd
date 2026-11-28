@@ -1,0 +1,4 @@
+## Deep. See [`total`] and [`Cart.add`].
+
+use pkg.{total}
+use pkg.cart.{Cart}

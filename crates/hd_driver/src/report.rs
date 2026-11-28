@@ -95,18 +95,26 @@ pub struct Counters {
     /// How many TIR bodies were decoded: only the ones collection and
     /// emission reach (#49).
     pub bodies_decoded: usize,
-    /// The item bodies the ownership passes ran on, by path, rather than
-    /// reading their owned form from the store (#2028).
+    /// The item bodies the ownership passes ran on, by path, sorted,
+    /// rather than reading their owned form from the store (#2028).
     pub bodies_owned: Vec<String>,
     /// The generic instances the ownership passes ran on, by item path,
-    /// rather than reading their owned form from the store (#2106).
+    /// sorted, rather than reading their owned form from the store (#2106).
     pub instances_owned: Vec<String>,
+    /// The instances whose units a dev link emitted, by item path,
+    /// sorted, rather than taking them from the store (#2423).
+    pub units_emitted: Vec<String>,
+    /// How many units a dev link took from the store (#2423).
+    pub units_reused: usize,
+    /// The type rows a dev link's declaration graph wrote to fingerprint
+    /// the program's declarations, each distinct type once (#2423).
+    pub decl_rows: usize,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
     /// Generic instance bodies built (`hd_mono::instantiate`): one per
     /// distinct item and type arguments the run owns.
     pub instances_built: usize,
-    /// How many folder interface item records were decoded from blobs:
+    /// How many unit interface item records were decoded from blobs:
     /// only the ones the run reads (#213).
     pub iface_records: usize,
     /// Of those, the records of items other than impls and traits, which
@@ -123,7 +131,7 @@ pub struct Counters {
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,
-    /// Per folder: the hash of its interface blob bytes.
+    /// Per unit: the hash of its interface blob bytes.
     pub iface_blobs: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
     /// Per stage: the `graph` parts (`Coherence`, `InitOrder`,
@@ -132,9 +140,9 @@ pub struct Counters {
     /// How many body-unit pass runs collection's planner made
     /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2): 0 in a pipeline with no body pass.
     pub body_passes: usize,
-    /// Folders the program view read to list its built folders
-    /// (`Run::with_env`): the program's folders once, whatever its bodies.
-    pub view_folders: usize,
+    /// Unit impl tables initialized for the shared checking/program views,
+    /// once per built unit, whatever the number of bodies or solver probes.
+    pub view_units: usize,
 }
 
 impl Counters {
@@ -162,5 +170,7 @@ impl Counters {
         self.tir_decoded.sort_stable();
         self.tir_decoded.dedup();
         self.coherence_traits.sort_stable();
+        self.bodies_owned.sort_stable();
+        self.instances_owned.sort_stable();
     }
 }

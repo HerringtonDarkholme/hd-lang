@@ -6,73 +6,68 @@
 const { MessageChannel, Worker, receiveMessageOnPort, workerData } =
   process.getBuiltinModule("node:worker_threads");
 import type { MessagePort } from "node:worker_threads";
-import { CrossError } from "./gen/abi.ts";
-import { Err, Ok, variant } from "./wire.ts";
+import { Frames, type Link, workerSends } from "./worker-link.ts";
+import { PROGRAM_STACK } from "./run-support.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type Flag = Int32Array<SharedArrayBuffer>;
 
-// Posts `message` on `port` and wakes the side that waits on `flag`.
-const post = (port: MessagePort, flag: Flag, message: Dynamic): void => {
-  port.postMessage(message);
+// Posts `message` on `port`, moving `frame`'s buffer, and wakes the side
+// that waits on `flag`.
+const post = (port: MessagePort, flag: Flag, message: Dynamic, frame?: Uint8Array): void => {
+  port.postMessage(message, frame ? [frame.buffer as ArrayBuffer] : []);
   Atomics.add(flag, 0, 1);
   Atomics.notify(flag, 0);
 };
 
-// The next message on `port`, whose sender counts its posts on `flag`:
-// waits without spinning until one is there.
-const take = (port: MessagePort, flag: Flag): Dynamic => {
-  for (;;) {
-    const seen = Atomics.load(flag, 0);
-    const item = receiveMessageOnPort(port);
-    if (item) {
-      return item.message;
-    }
-    Atomics.wait(flag, 0, seen);
-  }
-};
-
-// `hd:Workers` (std-remote.workers.host): the first send starts one worker
-// thread on `module`, and each send waits for its frame's reply. A worker
-// whose instance ended, or a host without the module, is `Unreachable`.
-// Cost: one thread and one instance per run; per send, two copies of the
-// frame and two of the reply.
+// `hd:Workers` (std-remote.workers.host, worker-link.ts): the first send
+// starts one worker thread on `module`. The worker posts each reply and
+// wakes the instance's `reactor`, and `drain` delivers it; the port's
+// listener delivers while the instance awaits a Promise. A host without
+// the module answers `Unreachable`.
+// Cost: one thread and one instance per run; per send, one wake of the
+// worker and one of the reactor; no polling.
 export function workersProvider(
   module: WebAssembly.Module | undefined,
-): Record<string, (frame: Uint8Array) => Dynamic> {
-  let link: { port: MessagePort; down: Flag; up: Flag } | null = null;
-  const lost = () => Err(variant(CrossError, "Unreachable"));
+  reactor: Flag,
+): { provider: Record<string, (frame: Uint8Array) => Dynamic>; drain: () => void } {
+  type Port = Link & { port: MessagePort; deliver: (message: Dynamic) => void };
+  const { send, current } = workerSends((deliver): Port | null => {
+    if (!module) {
+      return null;
+    }
+    const { port1, port2 } = new MessageChannel();
+    const down = new Int32Array(new SharedArrayBuffer(4));
+    new Worker(new URL(import.meta.url), {
+      workerData: { hdWorker: { module, port: port2, down, up: reactor } },
+      transferList: [port2],
+    }).unref();
+    port1.on("message", deliver);
+    port1.unref();
+    return {
+      port: port1,
+      deliver,
+      post: (message: Dynamic, frame?: Uint8Array) => post(port1, down, message, frame),
+    };
+  });
   return {
-    send: (frame: Uint8Array) => {
-      if (!module) {
-        return lost();
+    provider: { send },
+    drain: () => {
+      for (let from = current(); from !== null; from = current()) {
+        const item = receiveMessageOnPort(from.port);
+        if (!item) {
+          return;
+        }
+        from.deliver(item.message);
       }
-      if (!link) {
-        const { port1, port2 } = new MessageChannel();
-        const flag = () => new Int32Array(new SharedArrayBuffer(4));
-        link = { port: port1, down: flag(), up: flag() };
-        const hdWorker = { module, port: port2, down: link.down, up: link.up };
-        new Worker(new URL(import.meta.url), {
-          workerData: { hdWorker },
-          transferList: [port2],
-        }).unref();
-        port1.unref();
-      }
-      post(link.port, link.down, { frame });
-      const reply = take(link.port, link.up);
-      if (reply.frame) {
-        return Ok(reply.frame);
-      }
-      link = null;
-      return lost();
     },
   };
 }
 
-// The worker thread: `hd:WorkerPort` takes the parent's frames, and an
-// instance that ends tells the parent so. Not awaited at the top level:
-// node.ts imports this module, so a top-level wait for node.ts would wait
-// on itself.
+// The worker thread: `hd:WorkerPort` takes the parent's frames in order,
+// and an instance that ends tells the parent so. Not awaited at the top
+// level: node.ts imports this module, so a top-level wait for node.ts
+// would wait on itself.
 async function serve(worker: {
   module: WebAssembly.Module;
   port: MessagePort;
@@ -80,23 +75,40 @@ async function serve(worker: {
   up: Flag;
 }): Promise<void> {
   const { module, port, down, up } = worker;
-  const { createHost } = await import("./node.ts");
-  const sink = {
-    out: (text: string) => void process.stdout.write(text),
-    err: (text: string) => void process.stderr.write(text),
+  const frames = new Frames();
+  const next = (): Uint8Array => {
+    for (;;) {
+      const seen = Atomics.load(down, 0);
+      for (let item; (item = receiveMessageOnPort(port));) {
+        frames.add(item.message);
+      }
+      const frame = frames.take();
+      if (frame) {
+        return frame;
+      }
+      Atomics.wait(down, 0, seen);
+    }
   };
-  const host = createHost(sink, {
-    module,
-    workerPort: {
-      next: () => take(port, down).frame ?? null,
-      reply: (frame: Uint8Array) => post(port, up, { frame }),
-    },
-  });
   try {
-    await host.run(await WebAssembly.instantiate(module, host.imports), "hd.init", "hd.worker");
+    const { createHost } = await import("./node.ts");
+    const sink = {
+      out: (text: string) => void process.stdout.write(text),
+      err: (text: string) => void process.stderr.write(text),
+    };
+    const host = createHost(sink, {
+      module,
+      workerPort: {
+        next,
+        reply: (frame: Uint8Array) => post(port, up, { id: frames.taken, frame }, frame),
+      },
+    });
+    try {
+      await host.run(await WebAssembly.instantiate(module, host.imports), "hd.init", "hd.worker");
+    } finally {
+      host.close();
+    }
   } finally {
     post(port, up, { lost: true });
-    host.close();
   }
 }
 if (workerData?.hdWorker) {
@@ -115,7 +127,10 @@ export function startThread(
   if (!module || !heap) {
     return false;
   }
-  new Worker(new URL(import.meta.url), { workerData: { hdThread: { module, heap, block } } });
+  new Worker(new URL(import.meta.url), {
+    workerData: { hdThread: { module, heap, block } },
+    resourceLimits: PROGRAM_STACK,
+  });
   return true;
 }
 

@@ -1,0 +1,10 @@
+# @dump: diagnostics
+struct Widget:
+    value: i32
+
+impl Widget:
+    fn create(value: i32) -> Widget:
+        Widget { value: value }
+
+fn run(widget: Widget) -> Widget:
+    widget.create(1)

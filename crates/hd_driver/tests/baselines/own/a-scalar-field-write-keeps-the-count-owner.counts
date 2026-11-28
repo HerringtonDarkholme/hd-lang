@@ -4,7 +4,7 @@
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string
@@ -30,6 +30,7 @@ fn aliased(text: string) -> i64:
     let mut value = Record { text, n: 1 }
 > app/main/aliased
 >   release app.main.Record [text.0] (last use)
+>   release string (last use)
     view := identity(&mut value)
     alias := view
     alias.n += 3
@@ -45,8 +46,9 @@ fn nested(text: string) -> i64:
 
 fn snapshot(text: string) -> i64:
     let mut value = Record { text, n: 1 }
-    saved := value
 > app/main/snapshot
+>   release string (last use)
+    saved := value
 >   retain app.main.Record [text.0] (second owner)
     view := &mut value
     view.n = 2
@@ -78,8 +80,10 @@ fn counted_field(text: string) -> usize:
     let mut value = Record { text, n: 1 }
 > app/main/counted_field
 >   release string (last use)
+>   release string (last use)
     view := &mut value
     view.text = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     value.text.len()
 
@@ -87,11 +91,13 @@ fn counted_field(text: string) -> usize:
 fn replace(value: &mut Record) -> void:
     value.text = "replaced"
 > app/main/replace
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 
 fn mutable_call(text: string) -> usize:
     let mut value = Record { text, n: 1 }
 > app/main/mutable_call
+>   release string (last use)
 >   release string (last use)
     replace(&mut value)
     value.text.len()
@@ -100,6 +106,7 @@ fn heap(text: string) -> i64:
     let mut value = box(Record { text, n: 1 })
 > app/main/heap
 >   release *mut app.main.Record (last use)
+>   release string (last use)
     view := &mut value
     view.n = 7
     value.n
@@ -108,6 +115,7 @@ fn indexed(items: List[i64]) -> i64:
     let mut value = Buffer { items }
 > app/main/indexed
 >   retain List[i64] (stored)
+>   release List[i64] (last use)
     view := &mut value
     view.items[0] = 9
 >   unique List[i64] (may be shared)
@@ -145,7 +153,7 @@ pub fn main() -> void $ Console:
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string
@@ -171,6 +179,7 @@ fn aliased(text: string) -> i64:
     let mut value = Record { text, n: 1 }
 > app/main/aliased
 >   release app.main.Record [text.0] (last use)
+>   release string (last use)
     view := identity(&mut value)
     alias := view
     alias.n += 3
@@ -186,8 +195,9 @@ fn nested(text: string) -> i64:
 
 fn snapshot(text: string) -> i64:
     let mut value = Record { text, n: 1 }
-    saved := value
 > app/main/snapshot
+>   release string (last use)
+    saved := value
 >   retain app.main.Record [text.0] (second owner)
     view := &mut value
     view.n = 2
@@ -219,8 +229,10 @@ fn counted_field(text: string) -> usize:
     let mut value = Record { text, n: 1 }
 > app/main/counted_field
 >   release string (last use)
+>   release string (last use)
     view := &mut value
     view.text = "fresh"
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
     value.text.len()
 
@@ -228,11 +240,13 @@ fn counted_field(text: string) -> usize:
 fn replace(value: &mut Record) -> void:
     value.text = "replaced"
 > app/main/replace
+>   retain counted reference (conservative: source call)
 >   release counted reference (overwritten)
 
 fn mutable_call(text: string) -> usize:
     let mut value = Record { text, n: 1 }
 > app/main/mutable_call
+>   release string (last use)
 >   release string (last use)
     replace(&mut value)
     value.text.len()
@@ -241,6 +255,7 @@ fn heap(text: string) -> i64:
     let mut value = box(Record { text, n: 1 })
 > app/main/heap
 >   release *mut app.main.Record (last use)
+>   release string (last use)
     view := &mut value
     view.n = 7
     value.n
@@ -249,6 +264,7 @@ fn indexed(items: List[i64]) -> i64:
     let mut value = Buffer { items }
 > app/main/indexed
 >   retain List[i64] (stored)
+>   release List[i64] (last use)
     view := &mut value
     view.items[0] = 9
 >   unique List[i64] (may be shared)
@@ -286,7 +302,7 @@ pub fn main() -> void $ Console:
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string
@@ -348,11 +364,10 @@ fn copied_parameter(before: Record) -> i64:
 
 fn counted_field(text: string) -> usize:
     let mut value = Record { text, n: 1 }
-> app/main/counted_field
->   release string (last use)
     view := &mut value
     view.text = "fresh"
->   release counted reference (overwritten)
+> app/main/counted_field
+>   release string (overwritten)
     value.text.len()
 
 @cold
@@ -394,9 +409,6 @@ pub fn main() -> void $ Console:
     println(direct(text))
     println(aliased(text))
     println(nested(text))
->   retain string (stored)
->   release app.main.Outer [inner.text.0] (last use)
->   release app.main.Outer [inner.text.0] (last use)
     println(snapshot(text))
 >   retain string (stored)
 >   retain app.main.Record [text.0] (second owner)
@@ -408,8 +420,7 @@ pub fn main() -> void $ Console:
     println(wide_snapshot((source, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
     println(counted_field(text))
 >   retain string (stored)
->   release counted reference (overwritten)
->   release string (last use)
+>   release string (overwritten)
     println(mutable_call(text))
 >   retain string (stored)
     println(heap(text))

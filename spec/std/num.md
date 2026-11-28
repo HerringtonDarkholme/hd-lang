@@ -10,7 +10,7 @@ This chapter defines the numeric APIs of `std.num`:
 - `to_u64` and `from_u64`, the conversions of `Integer` to and from `u64`;
 - the bit counts `count_ones`, `leading_zeros`, and `trailing_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
-- `is_nan` and `is_finite` on `f32` and `f64`;
+- `is_nan`, `is_finite` and `is_infinite` on `f32` and `f64`;
 - `min` and `max`, which ignore a single NaN;
 - `total_cmp`, the total order of floats;
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
@@ -18,7 +18,7 @@ This chapter defines the numeric APIs of `std.num`:
 - `trunc`, `floor`, `ceil`, `round`, `round_ties_even`, and `copysign` on
   the floats;
 - `sqrt` on the floats, an intrinsic method;
-- trigonometric functions, logarithms, exponentials, powers, signs, and the `PI()` and `E()` constant functions;
+- trigonometric and hyperbolic functions, logarithms, exponentials, powers, roots, `hypot`, `mul_add`, signs, and the constant functions `pi()` and `e()`, with musl libm's results;
 - integer parsing through `Parse`, with `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
 - float parsing through `Parse`;
@@ -226,6 +226,7 @@ fn bounded(ratio: f64) -> bool:
 
 1. r[std-num.is-nan] `std.num` declares `fn is_nan(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is a NaN.
 2. r[std-num.is-finite] `std.num` declares `fn is_finite(self) -> bool` on `f32` and on `f64`. It returns `true` exactly when `self` is neither a NaN nor an infinity.
+3. r[std-num.is-infinite] `std.num` declares `fn is_infinite(self) -> bool` on `f32` and on `f64`, returning `true` exactly for positive or negative infinity.
 
 ## Float Bit Patterns
 
@@ -469,7 +470,7 @@ fn ratio(text: string) -> f64:
 > rounding is what Rust and `serde_json` give. It needs big-number
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
 
-> **Note.** `std.json` checks its own grammar, that of RFC 8259, before it
+> **Note.** `std.encoding.json` checks its own grammar, that of RFC 8259, before it
 > calls `text.parse::[f64]()`. So JSON text still rejects `NaN`, `+1`, `.5`, and
 > `5.`, by [`std-json.parse.number.grammar`](json.md#r-std-json.parse.number.grammar).
 
@@ -732,13 +733,14 @@ Both floating-point widths provide the usual mathematical methods. Angles
 are in radians, with Rust's names and argument order:
 
 ```text
-use std.f64.consts.{PI, E}
-
 fn wave(turns: f64) -> f64:
-    (turns * 2.0 * PI()).sin()
+    (turns * 2.0 * f64::pi()).sin()
 
 fn growth(time: f64) -> f64:
-    time.exp() / E()
+    time.exp() / f64::e()
+
+fn distance(dx: f64, dy: f64) -> f64:
+    dx.hypot(dy)
 ```
 
 Here `F` is either `f32` or `f64`:
@@ -756,6 +758,18 @@ Here `F` is either `f32` or `f64`:
 | `ln` | `fn ln(self) -> F` | natural logarithm |
 | `log2` | `fn log2(self) -> F` | base-two logarithm |
 | `log10` | `fn log10(self) -> F` | base-ten logarithm |
+| `sinh` | `fn sinh(self) -> F` | hyperbolic sine |
+| `cosh` | `fn cosh(self) -> F` | hyperbolic cosine |
+| `tanh` | `fn tanh(self) -> F` | hyperbolic tangent |
+| `asinh` | `fn asinh(self) -> F` | inverse hyperbolic sine |
+| `acosh` | `fn acosh(self) -> F` | inverse hyperbolic cosine |
+| `atanh` | `fn atanh(self) -> F` | inverse hyperbolic tangent |
+| `exp2` | `fn exp2(self) -> F` | two raised to the value |
+| `exp_m1` | `fn exp_m1(self) -> F` | `exp(self) - 1`, accurate near zero |
+| `ln_1p` | `fn ln_1p(self) -> F` | `ln(1 + self)`, accurate near zero |
+| `cbrt` | `fn cbrt(self) -> F` | cube root |
+| `hypot` | `fn hypot(self, other: F) -> F` | `sqrt(self² + other²)` without intermediate overflow |
+| `mul_add` | `fn mul_add(self, a: F, b: F) -> F` | `self * a + b` with one rounding |
 | `powf` | `fn powf(self, exponent: F) -> F` | floating-point power |
 | `powi` | `fn powi(self, exponent: i32) -> F` | integer power |
 | `signum` | `fn signum(self) -> F` | the sign as `-1.0`, `1.0`, or NaN |
@@ -773,15 +787,42 @@ Here `F` is either `f32` or `f64`:
 11. r[std-num.float-math.log2] `log2` returns the base-two logarithm of its input.
 12. r[std-num.float-math.log10] `log10` returns the base-ten logarithm of its input.
 13. r[std-num.float-math.log-special] Each logarithm maps either zero to negative infinity, positive infinity to itself, and negative inputs to NaN.
-14. r[std-num.float-math.powf] `x.powf(y)` has the value, special cases, and accuracy of floating [`x ** y`](../lang/05-expressions.md#r-expr.power.float.special).
+14. r[std-num.float-math.powf-musl] At `f64`, `x.powf(y)` equals floating [`x ** y`](../lang/05-expressions.md#r-expr.power.float.special), with its special cases; at `f32` it is musl's `powf`.
 15. r[std-num.float-math.powi] `x.powi(n)` raises `x` to integer `n`, using the reciprocal for negative `n` and returning `1.0` for zero `n`.
 16. r[std-num.float-math.powi-special] For nonzero `n`, `powi` gives NaN for NaN and applies the exponent's sign and parity to zero and infinity.
 17. r[std-num.float-math.signum] `signum` returns `1.0` for positive values, positive zero, or positive infinity, and `-1.0` for their negative counterparts.
-18. r[std-num.float-math.nan] Except the power identities, each mathematical method returns NaN for a NaN input; either NaN argument makes `atan2` return NaN.
-19. r[std-num.float-math.precision] The last bits of finite transcendental results and integer powers are implementation-dependent, as with Rust's corresponding methods.
+18. r[std-num.float-math.nan-input] Except the power identities and `hypot` with an infinite argument, each method in the table returns NaN when any argument is NaN.
+19. r[std-num.float-math.powi-precision] The last bits of a finite `powi` result are implementation-dependent, as with Rust's `powi`.
 20. r[std-num.float-math.no-panic] None of these methods panics for any floating-point input or `i32` exponent.
-21. r[std-num.float-math.constant.pi] `std.f32.consts.PI() -> f32` and `std.f64.consts.PI() -> f64` return π rounded to the named width.
-22. r[std-num.float-math.constant.e] `std.f32.consts.E() -> f32` and `std.f64.consts.E() -> f64` return Euler's number rounded to the named width.
+21. r[std-num.float-math.constant.pi] The associated functions `f32::pi() -> f32` and `f64::pi() -> f64` return π rounded to the named width.
+22. r[std-num.float-math.constant.e] The associated functions `f32::e() -> f32` and `f64::e() -> f64` return Euler's number rounded to the named width.
+23. r[std-num.float-math.powf-even-unit] For a finite even integer exponent, `(-1.0).powf(exponent)` returns `1.0`, including exponent magnitudes at least 2^53.
+24. r[std-num.float-math.sinh] `sinh` returns the hyperbolic sine, preserving either zero and either infinity.
+25. r[std-num.float-math.cosh] `cosh` returns the hyperbolic cosine, mapping either zero to `1.0` and either infinity to positive infinity.
+26. r[std-num.float-math.tanh] `tanh` returns the hyperbolic tangent, preserving either zero and mapping either infinity to `1.0` with its sign.
+27. r[std-num.float-math.asinh] `asinh` returns the inverse hyperbolic sine, preserving either zero and either infinity.
+28. r[std-num.float-math.acosh] `acosh` returns the inverse hyperbolic cosine, mapping `1.0` to positive zero, and returns NaN below `1.0`.
+29. r[std-num.float-math.atanh] `atanh` returns the inverse hyperbolic tangent, preserving either zero, and maps `1.0` and `-1.0` to infinities of their sign.
+30. r[std-num.float-math.atanh-domain] `atanh` returns NaN outside `[-1.0, 1.0]`.
+31. r[std-num.float-math.exp2] `exp2` returns two raised to its input, mapping either zero to `1.0` and negative infinity to positive zero.
+32. r[std-num.float-math.exp-m1] `exp_m1` returns `exp(x) - 1` without cancellation near zero, preserving either zero and mapping negative infinity to `-1.0`.
+33. r[std-num.float-math.ln-1p] `ln_1p` returns `ln(1 + x)` without cancellation near zero, preserving either zero and mapping `-1.0` to negative infinity.
+34. r[std-num.float-math.ln-1p-domain] `ln_1p` returns NaN below `-1.0`.
+35. r[std-num.float-math.cbrt] `cbrt` returns the real cube root, so a negative input gives a negative result, preserving either zero and either infinity.
+36. r[std-num.float-math.hypot] `x.hypot(y)` returns `sqrt(x * x + y * y)`, with no overflow or underflow in an intermediate result.
+37. r[std-num.float-math.hypot-infinity] `hypot` returns positive infinity when either argument is an infinity, even when the other is NaN.
+38. r[std-num.float-math.mul-add] `x.mul_add(a, b)` returns `x * a + b` rounded once, as IEEE 754 `fusedMultiplyAdd`.
+39. r[std-num.float-math.musl] Each method below returns musl libm 1.2.5's result for its function and width, bit for bit, except a NaN result's sign and payload.
+
+| Method | `f64` function | `f32` function |
+| --- | --- | --- |
+| `sin`, `cos`, `tan` | `sin`, `cos`, `tan` | `sinf`, `cosf`, `tanf` |
+| `asin`, `acos`, `atan`, `atan2` | `asin`, `acos`, `atan`, `atan2` | `asinf`, `acosf`, `atanf`, `atan2f` |
+| `sinh`, `cosh`, `tanh` | `sinh`, `cosh`, `tanh` | `sinhf`, `coshf`, `tanhf` |
+| `asinh`, `acosh`, `atanh` | `asinh`, `acosh`, `atanh` | `asinhf`, `acoshf`, `atanhf` |
+| `exp`, `exp2`, `exp_m1` | `exp`, `exp2`, `expm1` | `expf`, `exp2f`, `expm1f` |
+| `ln`, `log2`, `log10`, `ln_1p` | `log`, `log2`, `log10`, `log1p` | `logf`, `log2f`, `log10f`, `log1pf` |
+| `cbrt`, `hypot`, `mul_add`, `powf` | `cbrt`, `hypot`, `fma`, `pow` | `cbrtf`, `hypotf`, `fmaf`, `powf` |
 
 The signs below are the sign of `y`, including the sign of zero:
 
@@ -797,10 +838,34 @@ The signs below are the sign of `y`, including the sign of zero:
 | negative infinity | either infinity | `3π/4` with `y`'s sign |
 
 > **Note.** [`abs`](#r-std-num.float-abs) already provides floating-point
-> absolute values at both widths. [`powf`](#r-std-num.float-math.powf)
-> retains the language's floating-power accuracy guarantee.
+> absolute values at both widths. [`powf`](#r-std-num.float-math.powf-musl)
+> retains the language's floating-power accuracy guarantee. musl's `atanf`
+> and `acosf` give `0x3fc90fda` for π/2, one ulp below the nearest
+> `f32`, and its `atan2f` with `x` equal to `1.0` is `atanf(y)`.
 
 > **Why.** These are Rust's names, domains, signed-zero conventions, and
-> argument order. Rust's [float methods](https://doc.rust-lang.org/std/primitive.f64.html)
-> leave transcendental precision implementation-dependent. Constant
-> functions use ordinary module paths without adding associated constants.
+> argument order. Rust leaves the last bits of its
+> [float methods](https://doc.rust-lang.org/std/primitive.f64.html) to the
+> platform's libm, so a program prints different digits on different
+> systems. These methods return musl's, the libm of Rust's and C's musl
+> targets. musl's `exp`, `exp2`, `log`, `log2` and `pow` are also glibc's
+> since 2.28. Constant functions use ordinary module paths without adding
+> associated constants.
+
+## Fallible Integer Conversions
+
+`TryFrom` provides checked narrowing and changes of signedness without
+panicking on an out-of-range value.
+
+1. r[std-num.try-from.all-pairs] Every pair among `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `usize`, and `u64` implements `std.convert.TryFrom[Source]` for its destination type.
+2. r[std-num.try-from.exact] If the source value is within the destination type's range, `try_from` returns `.Ok` with the same integer value.
+3. r[std-num.try-from.range] Otherwise, `try_from` returns `.Err(TryFromIntError {})`, without wrapping or panicking for the range failure.
+4. r[std-num.try-from.profiles] These range checks apply in every build profile, including release.
+5. r[std-num.try-from.error] `std.num.TryFromIntError` is an empty struct implementing `Copy`, `Eq`, `Debug`, `Display`, and `Error`, with no source error.
+6. r[std-num.try-from.message] Its `Display` text is `out of range integral type conversion attempted`.
+7. r[std-num.try-from.usize] Conversions involving `usize` use its target-dependent range, as [`std-num.u64.checked`](#r-std-num.u64.checked) does.
+8. r[std-num.try-from.panicking] `Integer.to_u64` and `Integer.from_u64` retain their panicking behavior specified in [Conversion To And From u64](#conversion-to-and-from-u64).
+
+> **Why.** An integer that does not fit is a normal fallible-conversion
+> result. The panicking methods remain useful where failure breaks a
+> program's assumption.

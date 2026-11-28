@@ -1,0 +1,3 @@
+# Public bindings for the public-binding cases, each with its written type.
+pub let EXIT_OK: i32 = 0
+pub let EXIT_USAGE: i64 = 2

@@ -94,7 +94,8 @@ type Referent = (Ty, bool);
 
 /// The local index of the builder's canonical whole-local place word.
 #[inline]
-pub(super) fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
+#[must_use]
+pub fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
     use hd_tir::ir::place::BARE_LOCAL;
     // ruled out: callers require a whole local; the builder sets BARE_LOCAL.
     debug_assert!(
@@ -111,9 +112,14 @@ pub(super) fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
 /// reads the stored data/vtable pair, lent: a counted one's count is its
 /// stated `Retain` (`hd_tir::own::retains`). Keep this representation
 /// operation separate from place discovery and result storage.
-fn project_reference(function: &mut crate::module::Func, at: u32, value: &RefLayout, fat: bool) {
+pub fn project_reference(
+    function: &mut crate::module::Func,
+    at: u32,
+    value: &RefLayout,
+    fat: bool,
+) {
     if fat {
-        for local in rt::ref_lend(function, at, value) {
+        for local in rt::ref_lend(function, at, &value.leaves) {
             function.get(local);
         }
     } else {
@@ -326,8 +332,14 @@ impl Em<'_, '_, '_> {
             self.f.zero(ls[k]);
         }
         for (slot, value) in repairs {
-            let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
-            self.f.u32(value);
+            if let Some(value) = value {
+                self.f.u32(value);
+            } else {
+                // A static address, which the merge relocates; the plain
+                // constant keeps no data label (`Func::static_addr`).
+                let at = crate::rt::empty_buffer(self.m);
+                self.f.push(crate::module::Ins::Static(at));
+            }
             self.f.set(ls[slot]);
         }
         Ok(())
@@ -740,23 +752,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The rest of `Ref` `i` of the part at `off` of the value at address
-    /// `at`: the address there, or the trait value a fat reference reads
-    /// at it.
-    fn ref_projection(
-        &mut self,
-        i: u32,
-        at: u32,
-        field: &RefLayout,
-        off: u32,
-        fat: bool,
-    ) -> StageResult<()> {
-        let at = self.offset_local(at, off);
-        project_reference(&mut self.f, at, field, fat);
-        self.store(i)?;
-        Ok(())
-    }
-
     /// The rest of `Ref` `i` from where its place's head lies (`base`, of
     /// type `ty`, in memory or in locals): the address of the struct field
     /// `path` reaches there, with a count of its own.
@@ -782,19 +777,26 @@ impl Em<'_, '_, '_> {
             ty = ft;
         }
         let m = mem_of(self.pool(), self.env(), ty)?;
+        // Only a trait value's reference reads its referent's layout
+        // (`rt::ref_lend`); a thin one is the field's address, and asks
+        // nothing of its type's count shims (#2402).
         if let ValueAt::Mem(at, _) = value
-            && has_path
+            && (has_path || fat)
         {
-            let field = self.ref_layout(ty)?;
-            return self.ref_projection(i, at, &field, off, fat);
-        }
-        match value {
-            ValueAt::Mem(at, _) if fat => {
+            let at = if has_path {
+                self.offset_local(at, off)
+            } else {
+                at
+            };
+            if fat {
                 let value = self.ref_layout(ty)?;
                 project_reference(&mut self.f, at, &value, true);
-                self.store(i)?;
-                return Ok(());
+            } else {
+                self.f.get(at);
             }
+            return self.store(i);
+        }
+        match value {
             ValueAt::Mem(at, _) => {
                 self.f.get(at);
                 if off != 0 {
@@ -870,7 +872,10 @@ impl Em<'_, '_, '_> {
                 return Ok(());
             }
             let r = self.at_i32(&at);
-            let value = self.ref_layout(target)?;
+            // The referent's leaves only: a read through a reference counts
+            // by its own statements, so it asks nothing of the referent
+            // type's count shims (#2402).
+            let leaves = mem_of(self.pool(), self.env(), target)?.leaves;
             if fields.as_ref().is_some_and(Vec::is_empty) {
                 // A loan is the leaves its place holds, or, for an enum a
                 // match only decides on and binds parts of, the place.
@@ -896,14 +901,14 @@ impl Em<'_, '_, '_> {
                     return Ok(());
                 }
                 // A copy's count is its stated `Retain` (`Em::own_retain`).
-                for l in rt::ref_lend(&mut self.f, r, &value) {
+                for l in rt::ref_lend(&mut self.f, r, &leaves) {
                     self.f.get(l);
                 }
                 self.store(i)?;
             } else if let Some(fields) = fields {
                 let declared = self.declared_referent(&p, d)?;
                 let (_, part) = self.fold_path(declared, &fields)?;
-                self.read_part(i, r, &value, part)?;
+                self.read_part(i, r, &leaves, part)?;
             } else {
                 let declared = self.declared_referent(&p, d)?;
                 // ruled out: steps follow last_through's final Elem/Deref.
@@ -917,9 +922,37 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let (at, ty) = self.walk_place(i, &p, p.proj.len(), start)?;
+        if let (At::Vals(ls), PlaceRoot::Value(r)) = (&at, p.root)
+            && r.as_inst().is_some()
+            && p.proj.iter().all(|s| matches!(s, Proj::Field(_)))
+            && self.names_part(i, r.0)
+        {
+            self.vals.insert(i, ls.clone());
+            return Ok(());
+        }
         self.push_at(&at, ty)?;
         self.store(i)?;
         Ok(())
+    }
+
+    /// Whether read `i` of a part of instruction value `whole`
+    /// (`place_read`, `part_read`) is that part of the value's own
+    /// locals, with nothing emitted. A value's locals are set once where
+    /// it is made, and change only when a release zeroes them all or an
+    /// `Empty` zeroes a moved part: a borrow outlives no part of its
+    /// value; a value that counts nothing is never released. A nested
+    /// tuple pattern reads each column from
+    /// the one above (`hd_check` `expand_tuple`): a copy per level would
+    /// cost O(depth^2) leaves (#2400, #2402).
+    pub(super) fn names_part(&self, i: u32, whole: u32) -> bool {
+        let t = self.ty_of(whole);
+        // ruled out: a move here. instance dispatch handles field-only
+        // Read moves with own_move_part before place_read; part_read's
+        // other caller is a Field instruction, never a Read move.
+        self.susp.is_none()
+            && !self.input_transferred.contains_key(&i)
+            && (self.b.is_borrow(i)
+                || !self.cx().tracked(t) && !crate::layout::holds_drop(self.pool(), self.env(), t))
     }
 
     /// Whether read `i` of a whole `target` through reference type
@@ -981,9 +1014,9 @@ impl Em<'_, '_, '_> {
     /// Reads only `part` of the value that the reference in local `at`
     /// names, into instruction `dest`'s value: the part's leaves at the
     /// address.
-    fn read_part(&mut self, dest: u32, at: u32, value: &RefLayout, part: Part) -> StageResult<()> {
+    fn read_part(&mut self, dest: u32, at: u32, leaves: &[Leaf], part: Part) -> StageResult<()> {
         self.f
-            .push_leaves(at, &value.leaves[part.first..part.first + part.count]);
+            .push_leaves(at, &leaves[part.first..part.first + part.count]);
         self.store(dest)
     }
 
@@ -1586,109 +1619,5 @@ pub(super) fn part_use(b: &hd_tir::ir::Body, k: usize) -> Option<u32> {
             .then_some(v)
         }
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::bare_local;
-    use hd_base::{DefId, LocalId};
-    use hd_tir::ir::{BodyKind, Place, TirBuilder};
-
-    #[test]
-    fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
-        use crate::layout::Leaf;
-        use crate::module::{Func, Ins, Val};
-        use crate::op::Op;
-        use crate::rt::RefLayout;
-
-        // A legal backend representation: two i32 leaves in memory,
-        // data first and vtable second, with a count on the data address.
-        // This exercises representation emission; it does not claim a
-        // checked user expression currently produces this storage form.
-        let value = RefLayout {
-            size: 8,
-            leaves: [0, 4]
-                .map(|offset| Leaf {
-                    offset,
-                    val: Val::I32,
-                    bytes: 4,
-                    signed: false,
-                })
-                .into(),
-            counted: crate::rt::Counted::Address {
-                index: 0,
-                known: false,
-            },
-        };
-        for fat in [false, true] {
-            let mut function = Func::default();
-            let address = function.local(Val::I32);
-            super::project_reference(&mut function, address, &value, fat);
-            let loads: Vec<_> = function
-                .body
-                .iter()
-                .filter_map(|instruction| {
-                    if let Ins::Op(Op::I32Load(argument)) = instruction {
-                        Some(argument.offset)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            assert_eq!(loads, if fat { vec![0, 4] } else { vec![] });
-            let calls: Vec<_> = function
-                .body
-                .iter()
-                .filter_map(|instruction| {
-                    if let Ins::Call(symbol, _) = instruction {
-                        Some((*function.symbol(*symbol)).clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            // A counted reference's count is its stated `Retain`.
-            assert!(calls.is_empty(), "a projection must not acquire a count");
-            let results = if fat { 2 } else { 1 };
-            assert!(
-                function
-                    .body
-                    .iter()
-                    .rev()
-                    .take(results)
-                    .all(|instruction| matches!(instruction, Ins::Op(Op::LocalGet(_))))
-            );
-        }
-    }
-
-    #[test]
-    fn bare_local_decodes_canonical_whole_locals() {
-        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
-        for local in [0, 7, 1024] {
-            let word = builder.place(&Place::local(LocalId::from_raw(local)));
-            assert_eq!(bare_local(builder.body(), word), local as usize);
-        }
-    }
-
-    #[cfg(debug_assertions)]
-    #[test]
-    fn bare_local_rejects_other_place_encodings() {
-        // Imported here: the test exists only with debug assertions, so the
-        // release test build would warn about them at module level.
-        use hd_tir::ir::{PlaceRoot, Proj, Ref, place};
-        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
-        let record_local = builder.words_record(&[place::ROOT_LOCAL, 7]);
-        let projected = builder.place(&Place {
-            root: PlaceRoot::Local(LocalId::from_raw(7)),
-            proj: vec![Proj::Field(0)],
-        });
-        let value = builder.place(&Place {
-            root: PlaceRoot::Value(Ref(0)),
-            proj: vec![],
-        });
-        for word in [record_local, projected, value, place::BARE_LOCAL - 1] {
-            assert!(std::panic::catch_unwind(|| bare_local(builder.body(), word)).is_err());
-        }
     }
 }

@@ -4,7 +4,7 @@
 # expect-stdout: 1 2
 # test: a list parameter stored in a field, by construction, copy-update, assignment or through a reference, is still its caller's list, so a push to the field leaves the caller's unchanged
 # Spec 13 Copy: a copy of a collection is a value of its own.
-use std.annotation.inline
+use std.meta.inline
 
 struct Built:
     items: List[i32]

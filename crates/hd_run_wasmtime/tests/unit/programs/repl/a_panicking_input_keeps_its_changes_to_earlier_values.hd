@@ -1,0 +1,2 @@
+log.push("started")
+line := log[5]

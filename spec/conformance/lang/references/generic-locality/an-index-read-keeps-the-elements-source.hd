@@ -1,0 +1,33 @@
+# test: a read through a user Index has the origins of the receiver's elements, so it cannot return a local reference the receiver holds
+# Spec 13 Generic Locality: ref.generic.call; Spec 13: ref.lifetime.store.element; Spec 5: expr.index.trait.read-ref.
+use std.ops.Index
+use std.ops.IndexMut
+use std.ops.IndexSet
+
+struct P:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+impl[T] Index[usize] for Holder[T]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        &self.value
+
+impl[T] IndexMut[usize] for Holder[T]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        &mut self.value
+
+impl[T] IndexSet[usize, T] for Holder[T]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        self.value = value
+
+fn first(q: &P) -> &P:
+    p := P { name: "x${1}" }
+    h := Holder { value: &p }
+    h[0] # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    println(first(&q).name)

@@ -52,45 +52,31 @@ app/main/aliases
     uses $0: entry -> %0 consume last
   local $1 counter: Counter [read assigned captured captured-assigned] place
   local $2 mutable: &mut Counter [:= read assigned] value
-    uses $2: %5 -> %6 consume, %16 lend last
-  local $3 immutable: &Counter [read assigned] value
-    uses $3: %8 -> %9 consume last
+    uses $2: %5 -> %11 lend last
   local $4 before: usize [:= read assigned] value
-    uses $4: %15 -> %20 lend last
-  local $5 value: &Counter [read] value
-    uses $5: %22 -> %23 lend last
-  local $6 value: &Counter [read] value
-    uses $6: %10 -> %11 lend last
+    uses $4: %10 -> %15 lend last
   %0 = Read copy [$0] : usize
   %1 = NewStruct [%0] : Counter
   %2 = Box #1 #0 : ()
   %3 = Store [$1] %1 : ()
   %4 = Ref mut local frame [$1] : &mut Counter
   %5 = Store [$2] %4 : ()
-  %6 = Read borrow [$2] : &mut Counter
-  %7 = Coerce %6 [Weaken -] : &Counter
-  %8 = Store [$3] %7 : ()
-  %9 = Read borrow [$3] : &Counter
-  %10 = Store [$6] %9 : ()
-  %11 = Read copy [*$6 .value] : usize
-  %12 = Break L1 %11 : never
-  %13 = Block - : usize
-  %14 = Scope %13 [] : usize
-  %15 = Store [$4] %14 : ()
-  %16 = Read move [$2] : &mut Counter
-  %17 = Intrinsic Empty [] : ()
-  %18 = Call app/main/increment[] (%16) : ()
-  %19 = LoanEnd [%16] : ()
-  %20 = Read copy [$4] : usize
-  %21 = Ref local frame [$1] : &Counter
-  %22 = Store [$5] %21 : ()
-  %23 = Read copy [*$5 .value] : usize
-  %24 = Break L0 %23 : never
-  %25 = Block - : usize
-  %26 = Scope %25 [] : usize
-  %27 = LoanEnd [$5] : ()
-  %28 = Drop [$1] : ()
-  %29 = Prim Add [%20 %26] : usize
-  %30 = Block %29 : usize
+  %6 = Read copy [$1 .value] : usize
+  %7 = Break L1 %6 : never
+  %8 = Block - : usize
+  %9 = Scope %8 [] : usize
+  %10 = Store [$4] %9 : ()
+  %11 = Read move [$2] : &mut Counter
+  %12 = Intrinsic Empty [] : ()
+  %13 = Call app/main/increment[] (%11) : ()
+  %14 = LoanEnd [%11] : ()
+  %15 = Read copy [$4] : usize
+  %16 = Read copy [$1 .value] : usize
+  %17 = Break L0 %16 : never
+  %18 = Block - : usize
+  %19 = Scope %18 [] : usize
+  %20 = Drop [$1] : ()
+  %21 = Prim Add [%15 %19] : usize
+  %22 = Block %21 : usize
   storage sub 0: $1 slot
   summary kept []

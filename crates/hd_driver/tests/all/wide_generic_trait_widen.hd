@@ -1,4 +1,4 @@
-use std.annotation.cold
+use std.meta.cold
 
 # The runtime harness expands this type argument beyond specialization's
 # leaf budget. No value of Big is constructed.

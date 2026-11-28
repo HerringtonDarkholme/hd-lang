@@ -47,7 +47,7 @@ fn limited() -> i32:
 > error: geo/shapes.hd:145..146: unclosed-delimiter: unclosed '(' delimiter
 > error: geo/shapes.hd:198..202: syntax-error: unexpected indentation
 > error: main.hd:477..489: argument-count: `scaled` takes 1 argument
-> error: main.hd:716..718: syntax-error: expected an expression, found a line ending
+> error: main.hd:716..718: syntax-error: a continued expression needs parentheses around the whole expression
 > error: main.hd:816..821: syntax-error: expected a declaration, found 'LIMIT'
 > error: main.hd:839..840: unclosed-delimiter: unclosed '(' delimiter
 > error: near.hd:13..14: unclosed-delimiter: unclosed '{' delimiter

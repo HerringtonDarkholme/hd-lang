@@ -1,0 +1,6 @@
+# test: global local omitted result cycle one annotated
+# Rule: fn.decl.omitted-cycle.resolve.
+fn outer():
+    fn local() -> i32:
+        outer()
+    if true: +0 else: local()

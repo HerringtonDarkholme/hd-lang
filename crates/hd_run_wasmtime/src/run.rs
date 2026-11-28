@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use super::engine::{EngineConfig, WasmtimeEngine, thread_stack};
@@ -16,7 +17,7 @@ pub struct Captured {
 
 /// A shared buffer that a run writes one stream to.
 #[derive(Clone, Default)]
-pub(crate) struct Shared(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+pub struct Shared(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for Shared {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
@@ -32,7 +33,8 @@ impl std::io::Write for Shared {
 }
 
 impl Shared {
-    pub(crate) fn take(&self) -> Vec<u8> {
+    #[must_use]
+    pub fn take(&self) -> Vec<u8> {
         self.0
             .lock()
             .map(|mut v| std::mem::take(&mut *v))
@@ -157,7 +159,7 @@ pub fn run_traced(
 }
 
 /// [`run_traced`] for a run that `interrupt` may cancel, as a Ctrl-C does
-/// (`cli.cancel.ctrl-c`): a request while the program waits on the host
+/// (`cli.cancel.unhandled-ctrl-c`): a request while the program waits on the host
 /// cancels its entry, and the next one, or `bound` after that cancel,
 /// abandons it; a request while Wasm runs stops it (`cancel.rs`).
 pub fn run_cancellable(
@@ -168,14 +170,16 @@ pub fn run_cancellable(
     interrupt: &HostInterrupt,
     bound: Duration,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
-    run_profile_with(
+    run_image(
         config,
         RuntimeProfile::Default,
-        wasm,
+        hd_run::artifact::Image::Wasm(wasm),
         setup,
         io,
-        None,
-        Some((interrupt, bound)),
+        RunOptions {
+            cancel: Some((interrupt, bound)),
+            ..RunOptions::default()
+        },
     )
     .map(|(o, frames, _)| (o, frames))
 }
@@ -191,35 +195,197 @@ fn run_profile(
     io: HostIo,
     read: Option<&str>,
 ) -> Result<Ran, String> {
-    run_profile_with(config, profile, wasm, setup, io, read, None)
+    run_image(
+        config,
+        profile,
+        hd_run::artifact::Image::Wasm(wasm),
+        setup,
+        io,
+        RunOptions {
+            read,
+            ..RunOptions::default()
+        },
+    )
 }
 
-fn run_profile_with(
+/// Runs an explicitly selected native image through the ordinary host,
+/// cancellation and frame-reporting path, without Wasm translation.
+///
+/// # Safety
+/// The image must be produced by a compatible native compiler and must
+/// remain unchanged while its code is mapped.
+#[allow(unsafe_code)]
+pub unsafe fn run_native(
+    native: &hd_run::artifact::Native,
+    setup: &HostSetup,
+    io: HostIo,
+    cancel: Option<(&HostInterrupt, Duration)>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        EngineConfig::pipeline(hd_base::OptLevel::Optimized),
+        RuntimeProfile::Default,
+        hd_run::artifact::Image::Native(native),
+        setup,
+        io,
+        RunOptions {
+            cancel,
+            ..RunOptions::default()
+        },
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
+}
+
+/// Records Firefox guest samples while running portable Wasm.
+pub fn run_sampled(
     config: EngineConfig,
-    profile: RuntimeProfile,
     wasm: &[u8],
     setup: &HostSetup,
     io: HostIo,
-    read: Option<&str>,
+    output: &Path,
     cancel: Option<(&HostInterrupt, Duration)>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        config,
+        RuntimeProfile::Default,
+        hd_run::artifact::Image::Wasm(wasm),
+        setup,
+        io,
+        RunOptions {
+            sample: Some(output),
+            cancel,
+            ..RunOptions::default()
+        },
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
+}
+
+/// Records Firefox guest samples from an explicitly selected native image.
+///
+/// # Safety
+/// The image must meet the same compatibility and immutability conditions
+/// as [`run_native`]. Profiling changes no native-image trust boundary.
+#[allow(unsafe_code)]
+pub unsafe fn run_native_sampled(
+    native: &hd_run::artifact::Native,
+    setup: &HostSetup,
+    io: HostIo,
+    output: &Path,
+    cancel: Option<(&HostInterrupt, Duration)>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        EngineConfig::pipeline(hd_base::OptLevel::Optimized),
+        RuntimeProfile::Default,
+        hd_run::artifact::Image::Native(native),
+        setup,
+        io,
+        RunOptions {
+            sample: Some(output),
+            cancel,
+            ..RunOptions::default()
+        },
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
+}
+
+#[derive(Clone, Copy, Default)]
+struct RunOptions<'a> {
+    read: Option<&'a str>,
+    cancel: Option<(&'a HostInterrupt, Duration)>,
+    sample: Option<&'a Path>,
+    /// The libraries of the module's C-bound root traits.
+    c: &'a [crate::native::c::Library],
+}
+
+/// Runs `image` as the entry points above do, with `c`, the libraries the
+/// invoker selected for the module's C-bound root traits
+/// (`cli.host.c.file`): before the guest starts, each is opened, its entry
+/// symbol checked and its provider created, and the instance's close
+/// destroys it (`crate::native::c`).
+///
+/// # Safety
+/// A native image must meet [`run_native`]'s conditions. Each library runs
+/// with the process's authority, which the app's root consent granted.
+#[allow(unsafe_code)]
+pub unsafe fn run_with_c_providers(
+    config: EngineConfig,
+    image: hd_run::artifact::Image<'_>,
+    setup: &HostSetup,
+    io: HostIo,
+    c: &[crate::native::c::Library],
+    cancel: Option<(&HostInterrupt, Duration)>,
+    sample: Option<&Path>,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_image(
+        config,
+        RuntimeProfile::Default,
+        image,
+        setup,
+        io,
+        RunOptions {
+            cancel,
+            sample,
+            c,
+            ..RunOptions::default()
+        },
+    )
+    .map(|(outcome, frames, _)| (outcome, frames))
+}
+
+#[allow(unsafe_code)]
+fn run_image(
+    config: EngineConfig,
+    profile: RuntimeProfile,
+    image: hd_run::artifact::Image<'_>,
+    setup: &HostSetup,
+    io: HostIo,
+    options: RunOptions<'_>,
 ) -> Result<Ran, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("hd-wasmtime".into())
             .stack_size(thread_stack(&config))
             .spawn_scoped(scope, move || {
-                let engine = WasmtimeEngine::new_with_profile(config, profile)?;
-                let module = engine
-                    .load(wasm, &hd_cache::MemoryStore::default())
-                    .map_err(|e| match e {
-                        LoadError::NotHd(m) | LoadError::Engine(m) => m,
-                    })?;
-                let started = match cancel {
-                    Some((interrupt, bound)) => {
-                        engine.instantiate_cancellable(&module, setup, io, interrupt, bound)
+                let (engine, module) = match image {
+                    hd_run::artifact::Image::Wasm(wasm) => {
+                        let engine = WasmtimeEngine::new_with_profile(config, profile)?;
+                        let module = engine
+                            .load(wasm, &hd_cache::MemoryStore::default())
+                            .map_err(|e| match e {
+                                LoadError::NotHd(m) | LoadError::Engine(m) => m,
+                            })?;
+                        (engine, module)
                     }
-                    None => engine.instantiate_with(&module, setup, io),
+                    hd_run::artifact::Image::Native(native) => {
+                        // SAFETY: Native reaches this private function only
+                        // through the native entry points, whose callers guarantee the image.
+                        unsafe { crate::precompiled::load(native)? }
+                    }
                 };
+                let sampling = options
+                    .sample
+                    .map(|path| {
+                        crate::sampling::Sampling::start(
+                            &engine,
+                            &module,
+                            &setup.program,
+                            path,
+                            match image {
+                                hd_run::artifact::Image::Wasm(wasm) => wasm,
+                                hd_run::artifact::Image::Native(native) => &native.metadata,
+                            },
+                        )
+                    })
+                    .transpose()?;
+                let started = engine.instantiate_run(
+                    &module,
+                    setup,
+                    io,
+                    options.cancel,
+                    sampling
+                        .as_ref()
+                        .map(|sampling| std::sync::Arc::clone(&sampling.profiler)),
+                    options.c,
+                );
                 let mut inst = started.map_err(|e| match e {
                     StartError::Refused(m) | StartError::Engine(m) => m,
                 })?;
@@ -227,7 +393,10 @@ fn run_profile_with(
                     Outcome::Exit(0) => hd_run::drive(&mut inst, usize::MAX),
                     other => other,
                 };
-                let value = read.and_then(|name| inst.global_i32(name));
+                if let Some(sampling) = sampling {
+                    sampling.finish()?;
+                }
+                let value = options.read.and_then(|name| inst.global_i32(name));
                 Ok((outcome, std::mem::take(&mut inst.last_frames), value))
             })
             .map_err(|e| e.to_string())?

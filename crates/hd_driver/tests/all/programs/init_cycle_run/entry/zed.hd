@@ -1,0 +1,8 @@
+use pkg.main.{seed}
+use pkg.log.{record}
+
+let h = seed() * 2
+record("zed h ${h}")
+
+pub fn zed_value() -> i32:
+    h

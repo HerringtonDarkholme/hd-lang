@@ -105,7 +105,7 @@ fn lent(xs: List[string]) -> usize:
 >   %18 = Store [$7] %17 : ()
 >   %19 = Read copy [$1] : usize
 >   %20 = Read borrow [$9] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L2 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize

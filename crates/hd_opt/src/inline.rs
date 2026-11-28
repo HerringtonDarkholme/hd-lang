@@ -6,7 +6,7 @@
 //! build owns bodies in, callees first.
 
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;
@@ -641,21 +641,24 @@ impl dyn InlineEnv + '_ {
         let mut k = StableHasher::new("inline");
         k.hash(hash);
         let (mut sites, mut hashes) = (Vec::new(), Vec::new());
-        let loops = hd_tir::ir::Topology::new(body).loop_of;
+        // The caller's analyses, each built on first use in this round, as
+        // LLVM's analysis manager does: a body with no known call builds
+        // none, and the copy-in reuses this round's topology.
+        let topo = OnceCell::new();
         let literals = if self.memo().is_some() {
             hd_tir::inline::literal_arguments(body)
         } else {
             Vec::new()
         };
-        let writer_origins = if self.memo().is_some() {
-            writer_origins(body)
-        } else {
-            Vec::new()
+        let release = self.memo().is_some();
+        let (origins, uses) = (OnceCell::new(), OnceCell::new());
+        let writer_origins = || {
+            let made = origins.get_or_init(|| release.then(|| writer_origins(body)));
+            made.as_deref().unwrap_or_default()
         };
-        let writer_uses = if self.memo().is_some() {
-            writer_uses(body)
-        } else {
-            Vec::new()
+        let writer_uses = || {
+            let made = uses.get_or_init(|| release.then(|| writer_uses(body)));
+            made.as_deref().unwrap_or_default()
         };
         let mut caller_effects = None;
         let sets =
@@ -666,7 +669,6 @@ impl dyn InlineEnv + '_ {
             let mut counts = stack.work.get();
             counts.rows += 1;
             stack.work.set(counts);
-            let in_loop = loops[c] != hd_tir::ir::NONE;
             let lifted = (sets.as_ref()).and_then(|sets| self.lifted_call(body, sets, c, args));
             let Some((def, targs)) = hd_tir::inline::known_call(body, c)
                 .and_then(|callee| match callee {
@@ -677,6 +679,13 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
+            // A bang Call constructs a cold suspension; only Await runs its
+            // body here. Preserve constructors even when inlining is preferred.
+            if lifted.is_none() && body.tags[c] != Tag::Await && self.suspends(def) {
+                continue;
+            }
+            let in_loop =
+                topo.get_or_init(|| hd_tir::ir::Topology::new(body)).loop_of[c] != hd_tir::ir::NONE;
             let key = Key::new(def, targs, lifted.is_some());
             let hint = self.hint(key);
             if loops_only && !in_loop && (key.lifted || !self.declares_local_reference(def)) {
@@ -733,7 +742,7 @@ impl dyn InlineEnv + '_ {
             }
             let writer_refs = self
                 .scalar_writer_refs(&copy)
-                .filter(|&mask| writer_arguments(body, c, mask, &writer_origins));
+                .filter(|&mask| writer_arguments(body, c, mask, writer_origins()));
             if loops_only && !in_loop && writer_refs.is_none() {
                 continue;
             }
@@ -773,7 +782,7 @@ impl dyn InlineEnv + '_ {
                         caller_effects.get_or_insert_with(|| hd_tir::own::WriteEffects::new(body));
                     hd_tir::own::promote::inline_args(effects, c, counted, writes, &may_write)
                 } else if writer_refs.is_some() {
-                    fresh_writer_args(body, c, &writer_uses)
+                    fresh_writer_args(body, c, writer_uses())
                 } else {
                     0
                 };
@@ -797,7 +806,7 @@ impl dyn InlineEnv + '_ {
                         0
                     } else if let Some(mask) = writer_refs {
                         let values =
-                            self.writer_values(&copy, body, c, mask, &writer_origins) & args;
+                            self.writer_values(&copy, body, c, mask, writer_origins()) & args;
                         by_ref = mask & !values;
                         // A writer does not prevent an independent scalar
                         // reader from keeping the call's by-value ABI.
@@ -844,7 +853,8 @@ impl dyn InlineEnv + '_ {
         }
         // All of the body's copies in one rebuild; a lifted function's
         // instantiation that only its copied calls used goes.
-        let copied = hd_tir::inline::inline_bound_calls(body, sites).unwrap_or_default();
+        let subs = topo.into_inner().map(|t| t.sub);
+        let copied = hd_tir::inline::inline_bound_calls(body, subs, sites).unwrap_or_default();
         // A body the removal refuses is malformed: the instance verifier
         // rejects it.
         if lifted_sites && copied.contains(&true) {
@@ -1019,7 +1029,13 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
-        let made = made.filter(|(body, _)| hint != InlineHint::Default || copy_metadata_fits(body));
+        // Preparation copies ready callees bottom-up. A remaining suspension
+        // point needs its own cancellation boundary; never splice that body
+        // into its caller. Cache this proof with the existing prepared copy.
+        let made = made.filter(|(body, _)| {
+            !body.tags.iter().copied().any(crate::whole::is_point)
+                && (hint != InlineHint::Default || copy_metadata_fits(body))
+        });
         if let Some(memo) = memo {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
@@ -1233,7 +1249,9 @@ impl dyn InlineEnv + '_ {
     /// its types do not settle.
     fn instance(&self, key: Key) -> Option<(Body, Hash128, bool)> {
         let (pool, def) = (self.pool(), key.def);
-        let (copy, hash) = if key.lifted {
+        let (copy, hash) = if !key.lifted && self.const_fold() && self.intrinsic(def).is_some() {
+            self.constant_numeric_intrinsic(key)?
+        } else if key.lifted {
             let made = self.lifted_body(def, key.args)?;
             (copy_metadata_fits(&made.0) && self.priced(&made.0, false)).then_some(made)?
         } else {
@@ -1250,6 +1268,31 @@ impl dyn InlineEnv + '_ {
         }
         let fits = self.fits(key, &copy);
         Some((copy, hash, fits))
+    }
+
+    /// Lower the existing constant bound intrinsics at concrete types before
+    /// branch folding. No copy of an intrinsic's placeholder HD body runs.
+    fn constant_numeric_intrinsic(&self, key: Key) -> Option<(Body, Hash128)> {
+        use hd_tir::ir::{BodyKind, TirBuilder, TirSink};
+        let minimum = match self.intrinsic(key.def)?.as_str() {
+            "int_min" => true,
+            "int_max" => false,
+            _ => return None,
+        };
+        let result = hd_mono::subst(self.pool(), self, key.def, key.args, self.result(key.def)?);
+        let bits = hd_mono::scalar::integer_bound(result, minimum)?;
+        let (source, hash) = self.checked_body(key.def)?;
+        let syn = source
+            .sub_root
+            .first()
+            .and_then(|&i| source.syn.get(i as usize))
+            .copied()?;
+        let mut build = TirBuilder::new(key.def, BodyKind::Fn);
+        let block = build.open_block();
+        let value = build.const_value(result, bits);
+        let root = build.close_block(block, Some(value), result, syn);
+        let body = build.finish(root, &[]).ok()?;
+        Some((body, *hash))
     }
 
     /// A larger return scope has not proved the call's loan-end
@@ -1342,6 +1385,7 @@ impl dyn InlineEnv + '_ {
         }
         let (copy, hash, _) = self.instance(Key::new(def, targs, false))?;
         if !copy_metadata_fits(&copy)
+            || copy.tags.iter().copied().any(crate::whole::is_point)
             || !self.fits_size(&copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
@@ -1366,8 +1410,10 @@ impl dyn InlineEnv + '_ {
     /// change, and its hash, when a call of it may inline: a function
     /// with a body of its own, not marked
     /// `@inline(.Never)` or `@cold` (`annot.inline.never`), and that does
-    /// not suspend or call itself. Dev builds consider std functions and
-    /// explicitly decorated user functions; release builds consider all
+    /// not call itself. Driven bang calls use this same preparation path,
+    /// but only copies with no remaining suspension point may inline.
+    /// Dev builds consider std functions
+    /// plus explicitly decorated user functions; release builds consider all
     /// user functions. `fits` applies the selected hint's size and
     /// reference policy.
     fn inline_callee(&self, def: DefId) -> Option<(Body, Hash128)> {
@@ -1383,10 +1429,7 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        let (_, suspends, _) = self.signature(def)?;
-        if suspends {
-            return None;
-        }
+        let _ = self.signature(def)?;
         let (body, hash) = self.checked_body(def)?;
         // A With can hold many keys in very few instructions. The same
         // metadata bound as literal consumers prevents record width from
@@ -1471,6 +1514,10 @@ impl dyn InlineEnv + '_ {
             return None;
         };
         if !body.is_instantiation(made as usize)
+            || matches!(
+                self.pool().get(body.ty[made as usize]),
+                TyData::Fn { suspends: true, .. }
+            )
             || body.call_providers(c) != hd_tir::ir::Providers::None
             || (count > 0 && made != body.data[c][0])
         {
@@ -1755,6 +1802,11 @@ impl dyn InlineEnv + '_ {
     /// argument's type, as the call binds it. Any other difference keeps
     /// the call.
     fn fits_call(&self, caller: &Body, c: usize, copy: &mut Body) -> bool {
+        // Literal closures also reach this gate without callee preparation.
+        // Every copied body must complete before cancellation can unwind it.
+        if copy.tags.iter().copied().any(crate::whole::is_point) {
+            return false;
+        }
         let pool = self.pool();
         let open = |t: Ty| hd_mono::reveal(pool, self, t);
         let fits = |got: Option<Ty>, want: Ty| {

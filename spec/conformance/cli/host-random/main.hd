@@ -1,0 +1,16 @@
+use std.random.{Random, rng}
+
+pub fn main() -> void $ Console + Random:
+    let mut source = $.use(Random)
+    println("${source.fill(16).len()} ${source.fill(100000).len()} ${source.fill(0).len()}")
+    let distinct = 0
+    let previous = source.next_u64()
+    for _ in 0..8:
+        next := source.next_u64()
+        if next != previous:
+            distinct = distinct + 1
+        previous = next
+    println("${distinct}")
+    let mut r = rng()
+    roll := r.int(1..=6)
+    println("${roll >= 1 && roll <= 6}")

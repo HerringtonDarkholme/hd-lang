@@ -91,10 +91,7 @@ fn a_worker_publishes_its_check_before_waiting_for_an_unrelated_module() {
         Executor::Pool(2),
     ] {
         let mut sources = MemorySources::default();
-        sources.insert(
-            "main.hd",
-            "pub fn main() -> void $ Console:\n    println(\"hi\")\n",
-        );
+        sources.insert("main.hd", include_str!("programs/claim_order/main.hd"));
         let store = Claims::default();
         let host = Host {
             render_tir: &[],
@@ -192,8 +189,8 @@ impl CacheStore for Stops {
 
 /// Each claimed kind's computation ends its claim on every exit, not
 /// only at its put: a `check` miss (`module_prep` through
-/// `module_finish`), an `iface` miss (`folder_iface`, the read list and
-/// the interface) and a `graph` miss (a folder's header findings, the
+/// `module_finish`), an `iface` miss (`unit_iface`, the read list and
+/// the interface) and a `graph` miss (a unit's header findings, the
 /// coherence rows, the package's parts) that stop before their puts
 /// leave no claim held, and a build that finishes leaves none either.
 #[test]
@@ -205,10 +202,7 @@ fn a_computation_that_stops_before_its_put_ends_its_claim() {
         Some(EntryKind::Graph),
     ] {
         let mut sources = MemorySources::default();
-        sources.insert(
-            "main.hd",
-            "use util\nstruct P:\n    x: i32\nimpl P: Eq\npub fn main():\n    let x = util.one()\n",
-        );
+        sources.insert("main.hd", include_str!("programs/claim_order/stops.hd"));
         sources.insert("util/util.hd", "pub fn one() -> i32: 1\n");
         let store = Stops {
             inner: MemoryStore::default(),

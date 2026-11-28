@@ -6,7 +6,7 @@
 # expect-stdout: c
 # expect-stdout: e
 # expect-stdout: g
-use std.function.FnMut
+use std.ops.FnMut
 
 struct P:
     name: string

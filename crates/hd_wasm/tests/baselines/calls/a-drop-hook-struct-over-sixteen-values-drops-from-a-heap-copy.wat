@@ -2,32 +2,48 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $consume (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $consume (param $t1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64)
     ;; 61 | fn consume(b: Big) -> i32: b.f0 + b.f15
-    local.get $t0
-    i32.load $heap offset=16
-    local.get $t0
-    i32.load $heap offset=76
-    local.set $t1
-    i64.extend_i32_s
-    local.get $t1
-    i64.extend_i32_s
-    i64.add
-    local.tee $t2
-    i64.const 2147483647
-    i64.gt_s
-    local.get $t2
-    i64.const -2147483648
-    i64.lt_s
-    i32.or
-    if
-      call $rt:panic
-      unreachable
+    block
+      i32.const 1
+      local.set $t0
+      local.get $t1
+      i32.load $heap offset=16
+      local.set $t2
+      local.get $t1
+      i32.load $heap offset=76
+      local.set $t3
+      local.get $t2
+      i64.extend_i32_s
+      local.set $t4
+      local.get $t3
+      i64.extend_i32_s
+      local.set $t5
+      local.get $t4
+      local.get $t5
+      i64.add
+      local.set $t4
+      local.get $t4
+      i64.const 2147483647
+      i64.gt_s
+      local.get $t4
+      i64.const -2147483648
+      i64.lt_s
+      i32.or
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t4
+      i32.wrap_i64
+      local.set $t2
+      local.get $t0
+      if
+        local.get $t1
+        call $rt:drop
+      end
     end
     local.get $t2
-    i32.wrap_i64
-    local.get $t0
-    call $rt:drop
   )
 )

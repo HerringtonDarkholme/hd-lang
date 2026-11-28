@@ -1,0 +1,4 @@
+use pkg.collections.list.{Items}
+
+pub fn sorted(list: Items) -> Items:
+    list

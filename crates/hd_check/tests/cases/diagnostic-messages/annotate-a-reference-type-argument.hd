@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+trait Named:
+    fn name(&self) -> string
+
+struct User:
+    name: string
+
+impl Named for User:
+    fn name(&self) -> string:
+        self.name
+
+fn pair[T](r: &T, v: T) -> T:
+    v
+
+fn same(named: &dyn Named, user: User) -> void:
+    _ := pair(named, user) # diagnostic: cannot-infer-type

@@ -2,8 +2,8 @@
 # Spec std/json Derived Deserialize: std-json.derive.from-json.default, std-json.derive.from-json.null-present, std-json.derive.from-json.missing, std-json.derive.from-json.included-payload-form (issue 371).
 # Spec std/serde Derived Implementations: std-serde.derive.deserialize.unskipped-default.
 # Spec 14 Build: annot.build.enum-member.
-use std.json.{decode, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{decode, JsonError}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct ServerConfig:

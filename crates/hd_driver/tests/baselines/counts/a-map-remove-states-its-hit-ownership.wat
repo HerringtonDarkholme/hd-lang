@@ -55,14 +55,12 @@
       i32.const 10
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 4
       i32.mul
       i32.add
       i32.const -1
-      i32.store $heap
+      i32.store $heap offset=32
       local.get $t0
       local.get $t0
       i32.load $heap
@@ -126,14 +124,12 @@
       i32.const 10
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 4
       i32.mul
       i32.add
       i32.const -1
-      i32.store $heap
+      i32.store $heap offset=32
       local.get $t0
       local.get $t0
       i32.load $heap
@@ -186,13 +182,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 8
       i32.mul
       i32.add
-      i32.load $heap offset=4
+      i32.load $heap offset=36
       local.set $t1
       local.set $t2
       local.get $t0
@@ -201,14 +195,12 @@
       i32.const 10
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 4
       i32.mul
       i32.add
       i32.const -1
-      i32.store $heap
+      i32.store $heap offset=32
       local.get $t0
       local.get $t0
       i32.load $heap
@@ -283,14 +275,12 @@
       i32.const 10
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 4
       i32.mul
       i32.add
       i32.const -1
-      i32.store $heap
+      i32.store $heap offset=32
       local.get $t0
       local.get $t0
       i32.load $heap
@@ -355,14 +345,12 @@
       i32.const 10
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 4
       i32.mul
       i32.add
       i32.const -1
-      i32.store $heap
+      i32.store $heap offset=32
       local.get $t0
       local.get $t0
       i32.load $heap

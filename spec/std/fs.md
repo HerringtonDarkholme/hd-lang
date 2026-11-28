@@ -8,6 +8,7 @@ over the language tier:
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` value that describes a file;
 - a free helper for each method of `FsRead` and `FsWrite`;
+- `File`, a file opened to read in chunks, with the helper `open!`;
 - `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
 
@@ -65,6 +66,7 @@ pub trait FsRead:
     fn read_text!(self, path: Path) -> Result[string, FsError]
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
     fn stat!(self, path: Path) -> Result[Entry?, FsError]
+    fn open!(self, path: Path) -> Result[*mut dyn File, FsError]
 ```
 
 1. r[std-fs.read.decl] `std.fs` declares the host capability trait `FsRead` with the methods above. Code imports it, as in `use std.fs.FsRead`.
@@ -72,6 +74,7 @@ pub trait FsRead:
 3. r[std-fs.read.text] `read_text!` returns that content as a string. Content that is not valid UTF-8 is `.Err(FsError.InvalidUtf8(path))`.
 4. r[std-fs.read.list-dir] `list_dir!` returns one `Entry` for each entry of the directory at `path`.
 5. r[std-fs.read.stat] `stat!` returns the `Entry` for `path`, or `.None` when nothing is there.
+6. r[std-fs.read.open] `open!` opens the file at `path` for reading in chunks, as [Reading Files In Chunks](#reading-files-in-chunks) defines.
 
 ## Writing
 
@@ -183,6 +186,43 @@ fn count_files!(dir: Path) -> Result[usize, FsError] $ FsRead:
 > **No `exists!`.** `stat!` already answers a missing path with `.None`, so
 > `stat!(path)?.is_some()` says whether anything is there, and keeps a failed
 > check, such as a denied path, apart from "missing". One atom, not two.
+
+## Reading Files In Chunks
+
+`open!` opens a file to read it a chunk at a time, so a filter holds one
+chunk and can stop before the end:
+
+```text
+use std.fs.{FsError, FsRead, open}
+use std.io.Read
+use std.path.Path
+
+fn first_bytes!(path: Path) -> Result[List[u8], FsError] $ FsRead:
+    using! file = open!(path)?
+    .Ok(file.read!(16).unwrap_or([]))
+```
+
+```text
+use std.io.Read
+use std.ops.AsyncDisposable
+
+pub trait File < Read & AsyncDisposable
+
+pub fn open!(path: Path) -> Result[*mut dyn File, FsError] $ FsRead
+```
+
+1. r[std-fs.open.decl] `std.fs` declares `pub fn open!(path: Path) -> Result[*mut dyn File, FsError] $ FsRead`, which returns `open!(path)` of the covering `FsRead` provider without changing it. Code imports it, as in `use std.fs.open`.
+2. r[std-fs.open.handle] `std.fs` declares the handle trait `File < Read & AsyncDisposable`, which a provider's `open!` returns as a `*mut dyn File`. Every copy of the reference reaches the one open file.
+3. r[std-fs.open.errors] `open!` reports what `read_bytes!` of the same path reports: `NotGranted` outside the grant, `NotFound`, `PermissionDenied`, and `IsADirectory` for a directory.
+4. r[std-fs.open.chunks] Each `read!(max)` of a host `File` returns the file's next bytes, at most `max`, with one host call. A regular file's chunk is `max` bytes, or all that are left when fewer.
+5. r[std-fs.open.special-file] A read of a special file, such as a FIFO, returns the bytes it has, at most `max`, and lets other tasks run while it waits for any.
+6. r[std-fs.open.dispose] A `File` is a closable handle by [Closable Handles](../lang/10-modules.md#closable-handles), which a `using!` binding disposes. Its `dispose!` closes the file and releases its host descriptor. Disposing a closed file does nothing. After a dispose, `read!` through any copy returns `.Err(IoError.Closed)`.
+7. r[std-fs.open.default] `FsRead.open!` has a default body: it calls `read_bytes!(path)` and serves those bytes from memory, as a [`Cursor`](io.md#cursor) does, until it is disposed. `MemoryFs` uses it.
+
+> **Why.** A file is closed where its `using!` binding's scope ends, as a
+> socket of [`std.net`](net.md#socket-handles) is, so a program that opens
+> files one after another holds one at a time. Closing a file opened for
+> reading reports nothing a program can act on, so `File` has no `close`.
 
 ## Walking And Globbing
 

@@ -1,0 +1,7 @@
+# @dump: own wat
+# #2402: a `match` arm with the nest of a `let` reads its columns the same
+# way: each leaf moves out of the column above, which no copy repeats.
+fn arm(x: (string, (string, (string, string)))) -> List[string]:
+    # subject
+    match x:
+        (a0, (a1, (a2, z))) => [a0, a1, a2, z]

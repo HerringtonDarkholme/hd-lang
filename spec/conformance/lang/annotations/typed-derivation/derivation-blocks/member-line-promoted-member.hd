@@ -1,6 +1,6 @@
 # test: a member line must name a direct member, and a member promoted through an embedded part is not one
 # Spec 14 Member Lines: annot.line.name.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

@@ -81,6 +81,7 @@
 mod constant;
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
@@ -98,23 +99,31 @@ use crate::op::Op as I;
 /// caller provides (`sret`, step 2 of #2031), whose address is then the
 /// worker's last parameter and the worker returns nothing.
 pub(crate) struct Abi {
-    pub(crate) params: Rc<[Option<Mem>]>,
+    pub(crate) params: Arc<[Option<Mem>]>,
     pub(crate) ret: Option<Mem>,
 }
 
 /// An instance's worker ABI, shared.
-pub(crate) type Params = Rc<Abi>;
+pub(crate) type Params = Arc<Abi>;
 
 /// The worker ABI of instance `id`, or none when no parameter and not
 /// the result passes by address and the instance keeps the leaf ABI
-/// alone.
-pub(crate) fn params(input: &Input<'_>, m: &mut Module, id: InstId) -> Option<Params> {
-    if let Some(p) = m.indirect_params.get(&id) {
-        return p.clone();
+/// alone: [`prepare`]'s. The link emits, and `inst_of` names, only the
+/// instances of `input.order`, each of which [`prepare`] answers.
+pub(crate) fn params(m: &Module, id: InstId) -> Option<Params> {
+    m.indirect_params[id.idx()].clone()
+}
+
+/// Each instance's worker ABI, which its emission and its callers' read,
+/// computed on the task's threads before any is emitted, by instance
+/// index. Cost: one computation per instance, as each instance's
+/// emission made before, and one slot per instance of the table.
+pub(crate) fn prepare(input: &Input<'_>, m: &mut Module) {
+    let mut all = vec![None; input.collected.table.item.len()];
+    for (id, p) in hd_sched::par_map(input.order, |&id| (id, compute(input, id))) {
+        all[id.idx()] = p;
     }
-    let p = compute(input, id);
-    m.indirect_params.insert(id, p.clone());
-    p
+    m.facts_mut().indirect_params = all;
 }
 
 fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
@@ -128,12 +137,12 @@ fn compute(input: &Input<'_>, id: InstId) -> Option<Params> {
     }
     let b = (input.body)(id)?;
     let ret = compute_ret(input, b, id);
-    let params = compute_params(input, b, id);
+    let params = compute_params(input, b);
     if params.is_none() && ret.is_none() {
         return None;
     }
     let params = params.unwrap_or_else(|| param_locals(b).iter().map(|_| None).collect());
-    Some(Rc::new(Abi { params, ret }))
+    Some(Arc::new(Abi { params, ret }))
 }
 
 /// The result's layout when instance `id`, a plain function, returns a
@@ -153,31 +162,24 @@ fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Me
     crate::layout::mem(input.pool, input.env, ret).ok()
 }
 
-fn compute_params(
-    input: &Input<'_>,
-    b: &hd_tir::ir::Body,
-    id: InstId,
-) -> Option<Rc<[Option<Mem>]>> {
+fn compute_params(input: &Input<'_>, b: &hd_tir::ir::Body) -> Option<Arc<[Option<Mem>]>> {
     let (pool, env) = (input.pool, input.env);
-    let t = &input.collected.table;
-    let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
     let locals = param_locals(b);
-    // A counted parameter passes by address only when the callee owns it
-    // (`layout::Pass::Owned`): its count arrives with its bits, and its
-    // drop releases them from the address (`Em::mem_release`). A lent one
-    // keeps leaves.
-    let lends = env.lends(item, args) | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]);
+    // A counted parameter passes by address whether the callee owns it
+    // or not (rustc's `PassMode::Indirect` for any by-value argument
+    // over two pointers). An owned one's count arrives with its bits, and
+    // its drop releases them from the address (`Em::mem_release`); a lent
+    // one (`layout::Pass::Borrowed`) is the caller's place, which neither
+    // side counts, and its drops stand under `ParamOwned`, false for it.
+    // Leaves would cost each call O(the value's size) (#2399).
     let mut found: HashMap<usize, Mem> = HashMap::default();
     let mut counted: HashMap<usize, hd_types::Ty> = HashMap::default();
-    for (k, &l) in locals.iter().enumerate() {
+    for &l in &locals {
         let ty = b.local_ty[l];
         if matches!(by_address(pool, env, ty), Ok(true))
             && let Ok(m) = crate::layout::mem(pool, env, ty)
         {
             if crate::layout::tracked(pool, env, ty) || crate::layout::holds_drop(pool, env, ty) {
-                if k < 64 && lends & (1 << k) != 0 {
-                    continue;
-                }
                 counted.insert(l, ty);
             }
             found.insert(l, m);
@@ -280,6 +282,11 @@ pub(crate) fn wrapper(
     leaves: &[Vec<Val>],
     results: Vec<Val>,
 ) -> Func {
+    debug_assert_eq!(
+        abi.params.len(),
+        leaves.len(),
+        "ABI logical parameter groups"
+    );
     let mut params = Vec::new();
     // Per worker parameter: the wrapper's first parameter for it, and the
     // block offset of an address one.
@@ -307,12 +314,18 @@ pub(crate) fn wrapper(
         size = (size + mem.size).next_multiple_of(8);
         (off, mem)
     });
-    let rest = worker.params.len() - plan.len() - usize::from(result.is_some());
-    for k in 0..rest {
+    // Freeze the worker suffix before appending to plan: plan.len() grows
+    // once per forwarded value and cannot also be the suffix's base index.
+    let end = worker.params.len() - usize::from(result.is_some());
+    for &value in &worker.params[plan.len()..end] {
         let at = u32_of(params.len());
-        params.push(worker.params[plan.len() + k]);
+        params.push(value);
         plan.push((at, None));
     }
+    debug_assert_eq!(
+        plan.len() + usize::from(result.is_some()),
+        worker.params.len()
+    );
     let mut f = m.func(format!("{}#leaves", worker.name), params, results);
     let base = f.local(Val::I32);
     let size = size.cast_signed();
@@ -410,8 +423,8 @@ impl Em<'_, '_, '_> {
     /// The parameters instance `key`'s worker takes by address, for a
     /// direct call of it.
     pub(super) fn worker_of(&mut self, key: hd_base::Hash128) -> Option<Params> {
-        let id = *self.m.inst_of.get(&key)?;
-        params(self.input, self.m, id)
+        let id = self.m.inst(key)?;
+        params(self.m, id)
     }
 
     /// The field reads of an address parameter that only pass on as an
@@ -484,12 +497,13 @@ impl Em<'_, '_, '_> {
                 }
                 let mode = b.data[r as usize][1];
                 let t = self.ty_of(r);
-                let owned_copy = mode == ReadMode::Copy as u32
-                    && matches!(
-                        self.argument_pass(Some(lends), k, t),
-                        crate::layout::Pass::Owned
-                    );
-                if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy {
+                let pass = self.argument_pass(Some(lends), k, t);
+                let owned_copy =
+                    mode == ReadMode::Copy as u32 && matches!(pass, crate::layout::Pass::Owned);
+                // A lent argument is the caller's place: its address.
+                let lent =
+                    mode != ReadMode::Move as u32 && matches!(pass, crate::layout::Pass::Borrowed);
+                if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy || lent {
                     out.push(r);
                 }
             }
@@ -717,7 +731,10 @@ impl Em<'_, '_, '_> {
                         {
                             self.placed.insert(r, (base, off));
                             self.placed.insert(block, (base, off));
-                            work.push((value, off));
+                            // The block tail still writes parameters and constants
+                            // through `placed_tail`; only instructions have more
+                            // construction to plan at this destination.
+                            work.extend(Ref(value).as_inst().map(|i| (i.0, off)));
                         }
                     }
                     continue;
@@ -1067,6 +1084,7 @@ impl Em<'_, '_, '_> {
         // callee that owns it is copied into the call's block, where the
         // retain shim takes its counts from the address.
         let mut moves: Vec<(usize, u32)> = Vec::new();
+        let mut moved_from: HashSet<usize> = HashSet::default();
         let mut whole_reads: Vec<(usize, u32)> = Vec::new();
         let mut dropped: HashSet<usize> = HashSet::default();
         for &i in self.rows.clone().iter() {
@@ -1094,6 +1112,9 @@ impl Em<'_, '_, '_> {
                         whole_reads.push((l.idx(), u32_of(i)));
                     } else if b.data[i][1] == ReadMode::Move as u32 {
                         moves.push((l.idx(), u32_of(i)));
+                    }
+                    if b.data[i][1] == ReadMode::Move as u32 {
+                        moved_from.insert(l.idx());
                     }
                 }
                 Tag::Store if p.proj.is_empty() && b.data[i][1] != NONE => {
@@ -1190,6 +1211,20 @@ impl Em<'_, '_, '_> {
             let lands_counted = uses.get(&v) == Some(&1)
                 && (b.tags[v as usize] != Tag::Read
                     || b.data[v as usize][1] == ReadMode::Move as u32);
+            // A borrowed read of memory stored whole, at its one use, into
+            // a local never moved from, dropped, or read whole but as a
+            // worker's address: the local names the place it reads (an
+            // inlined lent parameter), so it costs no slot and no copy.
+            let alias = b.tags[v as usize] == Tag::Read
+                && b.data[v as usize][1] == ReadMode::Borrow as u32
+                && uses.get(&v) == Some(&1)
+                && !moved_from.contains(&l)
+                && !dropped.contains(&l)
+                && !whole.contains(&l);
+            if alias {
+                kept.push((l, m, v));
+                continue;
+            }
             let ruled_out = if counted {
                 whole.contains(&l) || far.contains(&l) || !lands_counted
             } else {
@@ -1212,6 +1247,19 @@ impl Em<'_, '_, '_> {
             if b.tags[v as usize] == Tag::Read && self.mem_source(v).is_none() {
                 continue;
             }
+            if b.tags[v as usize] == Tag::Read
+                && b.data[v as usize][1] == ReadMode::Borrow as u32
+                && let Some((at, off, _, fields, src)) = self.mem_field(v)
+            {
+                // An alias: the read passes on its address and the store
+                // writes nothing ([`Em::mem_store`]).
+                let (_, part) = self.fold_path(b.local_ty[src], &fields)?;
+                self.mem_locals
+                    .insert(l, (at, off + part.offset, Rc::new(mem)));
+                self.frame_copies.push(v);
+                self.aliased.insert(v);
+                continue;
+            }
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
@@ -1221,7 +1269,9 @@ impl Em<'_, '_, '_> {
                 self.plan_in_place(v, base, off, &uses)?;
             }
         }
-        self.stack_frame = Some((base, size));
+        if size != 0 {
+            self.stack_frame = Some((base, size));
+        }
         Ok(())
     }
 
@@ -1256,7 +1306,7 @@ impl Em<'_, '_, '_> {
         // Big = panic(..)` and a match whose other arm panics; TIR ends the
         // path before the store), so `v` has its values or its address.
         let v = self.b.data[i as usize][1];
-        if self.written.contains(&v) {
+        if self.written.contains(&v) || self.aliased.contains(&v) {
             return Ok(true);
         }
         if let Some(&(at, from)) = self.mem_vals.get(&v) {

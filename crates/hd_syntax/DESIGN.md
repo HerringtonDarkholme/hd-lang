@@ -263,7 +263,7 @@ playground) read the tree through named views instead of raw columns.
 
 Each skeleton carries an **api text hash**, a cache key input: the hash
 of the token kinds and texts, and the layout tokens, of everything that
-can change its folder's interface:
+can change its unit's interface:
 
 - every `use` and `pub use` line, except test-only ones;
 - every declaration header, private ones included, without bodies;
@@ -274,7 +274,7 @@ can change its folder's interface:
 - template bodies, and the default and fact token ranges;
 - a function body that declares a local `struct`, `enum`, `trait`, `impl`
   or `type`, since those lift to module items and a local impl is in the
-  folder interface.
+  unit interface.
 
 Left out: other function bodies, `tests:` blocks, top-level statements,
 comments, doc comments and whitespace.
@@ -309,9 +309,9 @@ changes no api text hash. Default and fact token ranges stay in the hash
 because they are header text; the interface keeps only whether a default
 exists and a fact's type, so the deep hash cuts off an edit inside them.
 
-The folder interface key uses these hashes instead of source hashes
+The unit interface key uses these hashes instead of source hashes
 (`iface_key` in `crates/hd_cache/src/lib.rs`). So a body edit never
-rebuilds its folder's interface. A private header edit rebuilds it, but
+rebuilds its unit's interface. A private header edit rebuilds it, but
 the rebuilt blob's deep hash changes only if the public part changed.
 This two-level cutoff avoids Swift's over-invalidation, where adding a
 private function recompiles every user
@@ -320,7 +320,7 @@ private function recompiles every user
 ### 4.6 Item Index
 
 The item tree is an **index** over the syntax tree (for parsed modules)
-and the interface (for modules known only through their folder's blob).
+and the interface (for modules known only through their unit's blob).
 It copies nothing that the node or the record already holds.
 
 ```rust

@@ -1,17 +1,17 @@
-# test: a dependent result lent from a counted reference a pattern binds from a place walks a real list to its last node
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.projection.
+# test: a walk over counted links returns the last node's counted reference, which a pattern binds from a place, and reads it at the caller
+# Spec 13 Local References: ref.local.pointer; Spec 13 Origins: ref.dep.origin.projection.
 # expect-stdout: 3
 # expect-stdout: 3
 struct Node:
     value: i32
     next: *Node?
 
-fn last(n: &Node) -> &Node:
+fn last(n: *Node) -> *Node:
     match n.next:
         .Some(m) => last(m)
         .None => n
 
-fn last_loop(n: &Node) -> &Node:
+fn last_loop(n: *Node) -> *Node:
     let mut cur = n
     while true:
         match cur.next:
@@ -22,6 +22,6 @@ fn last_loop(n: &Node) -> &Node:
 pub fn main() -> void $ Console:
     c := box(Node { value: 3, next: .None })
     b := box(Node { value: 2, next: .Some(c) })
-    a := Node { value: 1, next: .Some(b) }
-    println(last(&a).value)
-    println(last_loop(&a).value)
+    a := box(Node { value: 1, next: .Some(b) })
+    println(last(a).value)
+    println(last_loop(a).value)

@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: dev program | checked program | release program | release checked program
+# @host: main.TransportFactory
+# @helper: std/http/host_provider
+# A package host returns the wire handle; HD wraps it with its Http adapter.
+use std.http.Http
+
+@host
+pub trait TransportFactory:
+    fn open(&self) -> *mut dyn Http
+
+pub fn main() -> void $ TransportFactory:
+    _ := $.use(TransportFactory).open()

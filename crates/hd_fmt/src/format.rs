@@ -21,6 +21,7 @@ const HAS_ELSE: u8 = 1;
 const CONTAINS_SUITE: u8 = 1 << 1;
 const IN_PIPE: u8 = 1 << 2;
 const FORCE_FLAT: u8 = 1 << 3;
+const UNDELIMITED_SUITE: u8 = 1 << 4;
 
 pub(crate) fn format(source: &str, parsed: &Parse) -> (String, PrintStats) {
     let analysis = Analysis::new(source, parsed);
@@ -83,12 +84,23 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 node.kind(),
                 S::ClosureExpr | S::IfExpr | S::MatchExpr | S::TrailingCallExpr
             ) {
-                node_flags[index] |= CONTAINS_SUITE;
+                node_flags[index] |= CONTAINS_SUITE | UNDELIMITED_SUITE;
             }
             if node_flags[index] & CONTAINS_SUITE != 0
                 && let Some(parent) = parents[index].get()
             {
                 node_flags[parent.idx()] |= CONTAINS_SUITE;
+                // Delimiters give their contents a fresh expression context.
+                // A suite inside them is safe in an enclosing same-line arm.
+                let delimited = matches!(node.kind(), S::ParenExpr | S::StringExpr)
+                    || comma_group(node.kind(), *node, &parsed.tokens)
+                        && node
+                            .last_token()
+                            .get()
+                            .is_some_and(|last| parsed.tokens.kind(last).is_close_delimiter());
+                if node_flags[index] & UNDELIMITED_SUITE != 0 && !delimited {
+                    node_flags[parent.idx()] |= UNDELIMITED_SUITE;
+                }
             }
         }
         let mut this = Self {
@@ -277,7 +289,12 @@ impl<'s, 'p> Analysis<'s, 'p> {
             // as a value-level named argument, `left=l`.
             S::NamedArgument | S::ContextEntry | S::NamedPattern => self.mark_named_argument(node),
             S::UsingStmt => self.mark_using(node),
-            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl | S::MarkerBound => {
+            S::BoundList
+            | S::ConstParameter
+            | S::RequirementRow
+            | S::ImplDecl
+            | S::MarkerBound
+            | S::ImplType => {
                 self.mark_type_spacing(node);
             }
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
@@ -408,7 +425,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
                         .find(|ancestor| ancestor.kind() == S::IfExpr)
                         .unwrap_or(parent)
                 };
-                self.if_is_value(owner)
+                one_statement
+                    && self.node_flags[node.index().idx()] & UNDELIMITED_SUITE == 0
+                    && self.if_is_value(owner)
             }
             _ => false,
         }
@@ -777,8 +796,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
         node.kind() == outer.kind()
             && (outer.kind() == S::PipeExpr
-                || self.needs_continuation_wrapper(outer)
-                || self.in_bracket_or_brace(outer))
+                || self.in_delimited_context(outer)
+                || self.needs_continuation_wrapper(outer))
     }
 
     fn mark_assignment(&mut self, node: NodeRef<'_>) {
@@ -814,6 +833,23 @@ impl<'s, 'p> Analysis<'s, 'p> {
 
     fn mark_type_spacing(&mut self, node: NodeRef<'_>) {
         let tokens = &self.parsed.tokens;
+        // Only the bound owner's direct operators are joins. A reference
+        // inside its type arguments belongs to a child and stays glued.
+        if matches!(node.kind(), S::BoundList | S::MarkerBound | S::ImplType) {
+            for token in node.direct_tokens() {
+                let kind = tokens.kind(token);
+                let spaced = match node.kind() {
+                    S::BoundList => matches!(kind, T::Lt | T::Amp),
+                    S::MarkerBound => matches!(kind, T::Plus | T::Amp),
+                    _ => kind == T::Amp,
+                };
+                if spaced {
+                    self.set_gap(token.idx(), Gap::Space);
+                    self.set_gap(token.idx() + 1, Gap::Space);
+                }
+            }
+            return;
+        }
         let Some((first, last)) = token_bounds(node) else {
             return;
         };
@@ -824,22 +860,12 @@ impl<'s, 'p> Analysis<'s, 'p> {
         } else {
             last
         };
-        // A bound list's own `<` and `&` join its bounds; a `&` inside a
-        // bound's type arguments is a reference type's.
-        let direct: Vec<usize> = if matches!(node.kind(), S::BoundList | S::MarkerBound) {
-            node.direct_tokens().map(hd_base::TokenIdx::idx).collect()
-        } else {
-            Vec::new()
-        };
         for index in first..=header_end {
             let kind = tokens.kind[index];
             let spaced = match node.kind() {
-                S::BoundList => matches!(kind, T::Lt | T::Amp) && direct.contains(&index),
                 // `N < const usize`: its `<` is the parameter's own token.
                 S::ConstParameter => kind == T::Lt,
                 S::RequirementRow => kind == T::Plus,
-                // `fn() -> T + Send & 's` (`grammar.fn.crossing-parameter`).
-                S::MarkerBound => matches!(kind, T::Plus | T::Amp) && direct.contains(&index),
                 S::ImplDecl => kind == T::KwFor,
                 _ => false,
             };
@@ -914,9 +940,11 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let Some(first) = node.first_token().get() else {
             return;
         };
+        // The clause's direct owner decides its layout: a let-else or
+        // loop-else does not belong to an enclosing if's suite.
         let owner = self
-            .ancestors(node)
-            .find(|ancestor| ancestor.kind() == S::IfExpr);
+            .parent(node)
+            .filter(|parent| parent.kind() == S::IfExpr);
         let gap = match owner {
             Some(owner) if self.if_is_value(owner) => Gap::Soft(" "),
             Some(_) => Gap::Hard,
@@ -1079,11 +1107,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let Some(mut parent) = self.parent(node) else {
             return false;
         };
-        if parent.kind() == S::ParenExpr
-            && self.removable_paren(parent).is_some()
-            && let Some(grandparent) = self.parent(parent)
-        {
-            parent = grandparent;
+        if parent.kind() == S::ParenExpr {
+            // Preserved parentheses already provide a continuation boundary;
+            // their binary contents still need an independently breakable group.
+            if self.removable_paren(parent).is_none() {
+                return true;
+            }
+            if let Some(grandparent) = self.parent(parent) {
+                parent = grandparent;
+            }
         }
         matches!(
             parent.kind(),
@@ -1093,20 +1125,19 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 | S::AssignmentStmt
                 | S::ReturnStmt
                 | S::ExprStmt
-                | S::Argument
-                | S::NamedArgument
         ) || self.is_suite_header(node)
     }
 
-    fn in_bracket_or_brace(&self, node: NodeRef<'_>) -> bool {
+    fn in_delimited_context(&self, node: NodeRef<'_>) -> bool {
         for ancestor in self.ancestors(node) {
             if matches!(ancestor.kind(), S::Block | S::Root) {
                 return false;
             }
-            if comma_group(ancestor.kind(), ancestor, &self.parsed.tokens)
-                && ancestor
-                    .direct_tokens()
-                    .any(|token| matches!(self.parsed.tokens.kind(token), T::LBracket | T::LBrace))
+            if ancestor.kind() == S::ArgumentList
+                || comma_group(ancestor.kind(), ancestor, &self.parsed.tokens)
+                    && ancestor.direct_tokens().any(|token| {
+                        matches!(self.parsed.tokens.kind(token), T::LBracket | T::LBrace)
+                    })
             {
                 return true;
             }
@@ -1192,8 +1223,12 @@ impl<'s, 'p> Builder<'s, 'p> {
                 .analysis
                 .parent(node)
                 .is_some_and(|parent| binary(parent.kind()));
-        let regular_binary = outer_binary && self.analysis.needs_continuation_wrapper(node);
-        let delimited_binary = outer_binary && self.analysis.in_bracket_or_brace(node);
+        let delimited_binary = outer_binary && self.analysis.in_delimited_context(node);
+        // Delimiters also contain a chain in a suite header. An authored,
+        // comment-bearing parenthesis still keeps its own breakable group.
+        let regular_binary = outer_binary
+            && (!delimited_binary || self.analysis.has_preserved_paren_parent(node))
+            && self.analysis.needs_continuation_wrapper(node);
         let pipe = node.kind() == S::PipeExpr
             && !self
                 .analysis
@@ -1960,6 +1995,14 @@ mod tests {
             let (twice, _) = format(&formatted, &reparsed);
             assert_eq!(twice, formatted, "{} is not idempotent", file.display());
         }
+    }
+
+    #[test]
+    fn nested_let_else_preserves_tree_comments_and_fixed_point() {
+        verify_corpus(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../spec/conformance/cli/fmt-let-else/want"),
+        );
     }
 
     /// On the stack `hd fmt` runs with (`hd_sched::pool::WORKER_STACK`):

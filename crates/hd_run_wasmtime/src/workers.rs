@@ -4,8 +4,10 @@
 //! (`std.remote.worker_serve`). Its `WorkerPort.next` takes each frame
 //! from a channel, and `reply` answers the send that frame came from. A
 //! send waits on the `hd-io` runtime, so the program's other operations
-//! go on meanwhile. Cost: one thread and one instance per run; per send,
-//! one copy of the frame and one of the reply each way.
+//! go on meanwhile. Cancelling it aborts that wait, which drops its reply's
+//! receiver, and the worker skips a frame whose receiver is gone. Cost:
+//! one thread and one instance per run; per send, one copy of the frame
+//! and one of the reply each way.
 
 use std::sync::{Arc, mpsc};
 
@@ -22,7 +24,7 @@ use crate::runtime::reactor::Done;
 /// A frame for the worker, and where its reply goes.
 type Job = (Vec<u8>, oneshot::Sender<Vec<u8>>);
 /// A worker's frames, and the reply of the one taken.
-type Port = (mpsc::Receiver<Job>, Option<oneshot::Sender<Vec<u8>>>);
+pub type Port = (mpsc::Receiver<Job>, Option<oneshot::Sender<Vec<u8>>>);
 
 /// What a worker is made of: the parent's engine and module.
 pub(crate) struct Spawn {
@@ -102,11 +104,7 @@ pub(crate) fn call(
             pending(host.reactor.offload(reply), |_| lost())
         }
         Id::WorkerPortNext => {
-            let next = (caller.data_mut().workers.port.as_mut()).and_then(|(frames, reply)| {
-                let (frame, to) = frames.recv().ok()?;
-                *reply = Some(to);
-                Some(frame)
-            });
+            let next = caller.data_mut().workers.port.as_mut().and_then(take);
             Ok(Ret::value(&next))
         }
         Id::WorkerPortReply => {
@@ -121,6 +119,18 @@ pub(crate) fn call(
         }
         _ => Err(crate::host::misrouted(method)),
     }
+}
+
+/// The next frame whose send still waits, which `reply` then answers. A
+/// frame whose send was cancelled before the worker took it is dropped
+/// unrun (`std-host.op.cancel`), as tokio's `spawn_blocking` abort drops a
+/// task that has not started; one already taken runs to its end, and its
+/// reply finds no receiver. Cost: one closed check per frame.
+#[must_use]
+pub fn take((frames, reply): &mut Port) -> Option<Vec<u8>> {
+    let (frame, to) = frames.iter().find(|(_, to)| !to.is_closed())?;
+    *reply = Some(to);
+    Some(frame)
 }
 
 impl State {

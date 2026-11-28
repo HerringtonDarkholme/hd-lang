@@ -6,7 +6,7 @@
 # The dependent result `d` points into what the root holds: `Drop [$ps]`
 # and `Drop [$h]` follow `*d`, not the read, so a writer the loop never
 # calls leaves the root alive (#1700, `ref.box.root`).
-use std.function.FnMut
+use std.ops.FnMut
 
 struct P:
     name: string
@@ -73,10 +73,10 @@ fn element() -> string:
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 ps: List[*mut P] [read assigned captured] place
 >   local $2 change: fn() -> () [:= read assigned] value
->     uses $2: %20 -> %28 consume last
+>     uses $2: %20 -> %27 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
->     uses $4: %27 -> %31 lend last
+>     uses $4: %26 -> %30 lend last
 >   %0 = NewStruct ["a"] : P
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
@@ -84,8 +84,8 @@ fn element() -> string:
 >   %4 = NewList - [%3] : List[*mut P]
 >   %5 = Box #1 #1 : ()
 >   %6 = Store [$1] %4 : ()
->   %37 = Drop [$1] : ()
->   %38 = Block %31 : string
+>   %35 = Drop [$1] : ()
+>   %36 = Block %30 : string
     change := fn() -> void: ps[0] = box(P { name: "b" })
 >   %7 = Retain %17 Entry captures #0 : ()
 >   %8 = NewStruct ["b"] : P
@@ -107,20 +107,18 @@ fn element() -> string:
 >   %23 = LoanBegin %22 #0 : ()
 >   %24 = Call app/main/name_of[] (%22) : &string
 >   %25 = LoanEnd [%22] : ()
->   %26 = LoanBegin %24 #4 : ()
->   %27 = Store [$4] %24 : ()
+>   %26 = Store [$4] %24 : ()
     repeat(0, change)
->   %28 = Read move [$2] : fn() -> ()
->   %29 = Intrinsic Empty [] : ()
->   %30 = Call app/main/repeat[fn() -> ()] (0:usize, %28) : ()
->   %30 keeps %28
+>   %27 = Read move [$2] : fn() -> ()
+>   %28 = Intrinsic Empty [] : ()
+>   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
+>   %29 keeps %27
     *d
->   %31 = Read copy [*$4] : string
->   %32 = Retain %31 Value #0 : ()
->   %33 = LoanClose %23 : ()
->   %34 = LoanClose %26 : ()
->   %35 = Drop [$4] : ()
->   %36 = Drop [$1] : ()
+>   %30 = Read copy [*$4] : string
+>   %31 = Retain %30 Value #0 : ()
+>   %32 = LoanClose %23 : ()
+>   %33 = Drop [$4] : ()
+>   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell
@@ -132,10 +130,10 @@ fn field() -> string:
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 h: Holder [read assigned captured captured-assigned] place
 >   local $2 change: fn() -> () [:= read assigned] value
->     uses $2: %21 -> %28 consume last
+>     uses $2: %21 -> %27 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
->     uses $4: %27 -> %31 lend last
+>     uses $4: %26 -> %30 lend last
 >   %0 = NewStruct ["e"] : P
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
@@ -144,8 +142,8 @@ fn field() -> string:
 >   %5 = NewStruct [%4] : Holder
 >   %6 = Box #1 #1 : ()
 >   %7 = Store [$1] %5 : ()
->   %37 = Drop [$1] : ()
->   %38 = Block %31 : string
+>   %35 = Drop [$1] : ()
+>   %36 = Block %30 : string
     change := fn() -> void: h.p = box(P { name: "f" })
 >   %8 = Retain %18 Entry captures #0 : ()
 >   %9 = NewStruct ["f"] : P
@@ -166,20 +164,18 @@ fn field() -> string:
 >   %23 = LoanBegin %22 #0 : ()
 >   %24 = Call app/main/name_of[] (%22) : &string
 >   %25 = Drop [%22] : ()
->   %26 = LoanBegin %24 #4 : ()
->   %27 = Store [$4] %24 : ()
+>   %26 = Store [$4] %24 : ()
     repeat(0, change)
->   %28 = Read move [$2] : fn() -> ()
->   %29 = Intrinsic Empty [] : ()
->   %30 = Call app/main/repeat[fn() -> ()] (0:usize, %28) : ()
->   %30 keeps %28
+>   %27 = Read move [$2] : fn() -> ()
+>   %28 = Intrinsic Empty [] : ()
+>   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
+>   %29 keeps %27
     *d
->   %31 = Read copy [*$4] : string
->   %32 = Retain %31 Value #0 : ()
->   %33 = LoanClose %23 : ()
->   %34 = LoanClose %26 : ()
->   %35 = Drop [$4] : ()
->   %36 = Drop [$1] : ()
+>   %30 = Read copy [*$4] : string
+>   %31 = Retain %30 Value #0 : ()
+>   %32 = LoanClose %23 : ()
+>   %33 = Drop [$4] : ()
+>   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell

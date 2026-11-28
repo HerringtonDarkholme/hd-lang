@@ -1,5 +1,5 @@
 # test: from_u64 panics above the i64 maximum
-# Spec std/num Conversion To And From u64: std-num.u64.checked.
+# Spec std/num Conversion To And From u64: std-num.u64.checked, std-num.try-from.panicking.
 use std.num.Integer
 
 fn narrow[N < Integer](n: u64) -> N:

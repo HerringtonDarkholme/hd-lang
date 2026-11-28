@@ -216,7 +216,7 @@ tests:
 through the template of `Arbitrary`.
 
 1. r[std-testing.arbitrary.derive] `@derive(Arbitrary)` derives `Arbitrary` through its [template](../lang/14-annotations.md#templates). The derived `arbitrary` draws each member with its type's `Arbitrary`. For an enum, it draws a variant, then that variant's payload.
-2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.structure`: it reads each variant's and member's [`self_ref`](../lang/14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
+2. r[std-testing.arbitrary.derive.template] That template is ordinary `std.testing` code over `std.meta`: it reads each variant's and member's [`self_ref`](../lang/14-annotations.md#self-references), and the compiler supplies nothing for `Arbitrary` itself.
 3. r[std-testing.arbitrary.derive.member-bound] The template requires the type of every member to implement `Arbitrary`, whether or not `arbitrary.with` tunes the member. It does not require a member to be [inspectable](../lang/09-traits.md#inspectable-types).
 4. r[std-testing.arbitrary.derive.params-arbitrary] For a generic type, the derived implementation gets `T < Arbitrary` for each type parameter `T` that a member's type uses, by [`annot.bound.params`](../lang/14-annotations.md#r-annot.bound.params). So `@derive(Arbitrary)` on `struct Box[T]` with a member `value: T` needs no hand-written block.
 5. r[std-testing.arbitrary.derive.not-derivable] A type with a member whose type fails that bound, such as a function-typed member, is not derivable. `@derive(Arbitrary)` on it is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
@@ -554,7 +554,8 @@ test binds with `$.with` instead:
 | --- | --- | --- |
 | `Console` | `MemoryConsole` | [Buffer Console](console.md#buffer-console) |
 | `ConsoleInput` | `ScriptedInput` | [Scripted Input](console.md#scripted-input) |
-| `Args`, `Env` | `ScriptedArgs`, `ScriptedEnv` | [Map Providers](host.md#map-providers) |
+| `Args` | `ScriptedArgs` | [Program Arguments](cli.md#program-arguments) |
+| `Env` | `ScriptedEnv` | [Map Providers](host.md#map-providers) |
 | `Clock` | `ManualClock` | [Manual Clock](time.md#manual-clock) |
 | `Random` | `SeededRandom` | [Seeded Random](random.md#seeded-random) |
 | `FsRead`, `FsWrite` | `MemoryFs` | [Memory File System](fs.md#memory-file-system) |

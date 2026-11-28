@@ -8,7 +8,7 @@
 # loan on `*m` stops an alias from changing `transform` during the call.
 # `apply` stays a call, as a release build would otherwise copy it into
 # `run`.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(i32) -> i32

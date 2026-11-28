@@ -77,7 +77,7 @@ fn total(head: *Chain?) -> usize:
 >   %8 = LoanBegin %7 #0 : ()
 >   %9 = Store [$4] %7 : ()
 >   %10 = Read borrow [$4] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %11 = Call std/core/bytes_len[] (%10) : usize
 >   %12 = Break L1 %11 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize

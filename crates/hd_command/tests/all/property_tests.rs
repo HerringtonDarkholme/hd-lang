@@ -45,10 +45,7 @@ fn text(b: &[u8]) -> String {
 fn every_row_runs_and_a_failing_row_hides_no_other() {
     let root = package(
         "hd-props-rows",
-        "pub fn double(value: i32) -> i32: value * 2\n\n\
-         tests:\n    use std.testing.{assert, it_each}\n\n    \
-         it_each(\"doubles\", [1, 2, 3], body=fn!(value: i32):\n        \
-         assert(double(value) != 4, reason=\"the second row fails\")\n    )\n",
+        include_str!("programs/property_tests/every_row_runs_and_a_failing_row_hides_no_other.hd"),
     );
     let out = hd_test(&root, &["--format", "json"]);
     assert_eq!(
@@ -86,23 +83,7 @@ fn every_row_runs_and_a_failing_row_hides_no_other() {
     );
 }
 
-const PROPERTIES: &str = "use std.testing.{Arbitrary, Choices}\n\n\
-@derive(Debug)\n\
-pub struct Point:\n    x: i64\n    y: i64\n\n\
-impl Arbitrary for Point:\n    fn arbitrary(c: &mut Choices) -> Point:\n        \
-Point { x: c.int(0..=1000), y: c.int(0..=1000) }\n\n\
-fn even(c: &mut Choices) -> i64:\n    let value: i64 = c.int(0..=100)\n    \
-c.assume(value % 2 == 0)\n    value\n\n\
-fn small(c: &mut Choices) -> i64:\n    c.int(0..=9)\n\n\
-tests:\n    use std.testing.{assert, assert_equal, it_prop, it_prop_with}\n\n    \
-it_prop(\"adding zero keeps a value\", prop=fn!(value: i32):\n        \
-assert_equal(value + 0, value, reason=\"zero\")\n    )\n\n    \
-it_prop(\"points stay near\", prop=fn!(p: Point):\n        \
-assert(p.x < 50 || p.y < 30, reason=\"a far point\")\n    )\n\n    \
-it_prop_with(\"only even values are checked\", gen=even, prop=fn!(n: i64):\n        \
-assert(n % 2 == 0, reason=\"assume discards odd values\")\n    )\n\n    \
-it_prop_with(\"eight small values\", gen=small, cases=8, prop=fn!(n: i64):\n        \
-assert(n >= 0 && n <= 9, reason=\"from 0 to 9\")\n    )\n";
+const PROPERTIES: &str = include_str!("programs/property_tests/properties.hd");
 
 /// `std-testing.prop.generate-and-shrink`, `.prop.failure-input`, `.prop.discard`,
 /// `.prop.regression-file`, `.prop.regression-format`,
@@ -149,11 +130,7 @@ fn a_failing_property_shrinks_saves_and_replays() {
 fn too_many_discards_fail_the_property() {
     let root = package(
         "hd-props-discards",
-        "use std.testing.Choices\n\n\
-         fn rejects(c: &mut Choices) -> i64:\n    c.assume(false)\n    0\n\n\
-         tests:\n    use std.testing.it_prop_with\n\n    \
-         it_prop_with(\"never runs its body\", gen=rejects, cases=3, prop=fn!(n: i64):\n        \
-         pass\n    )\n",
+        include_str!("programs/property_tests/too_many_discards_fail_the_property.hd"),
     );
     let out = hd_test(&root, &["--seed", "1"]);
     assert_eq!(
@@ -175,16 +152,9 @@ fn too_many_discards_fail_the_property() {
 fn a_message_imitating_a_report_keeps_its_own_category() {
     let root = package(
         "hd-props-imitated-report",
-        "use std.testing.Choices\n\n\
-         fn imitates(c: &mut Choices) -> i64:\n    \
-         panic(\"x\\npanic: explicit-panic: std.testing: case discarded\")\n    0\n\n\
-         tests:\n    use std.testing.it_prop_with\n\n    \
-         it(\"is no overflow\", expect_panic=\"integer-overflow\"):\n        \
-         panic(\"x\\npanic: integer-overflow: y\")\n\n    \
-         it(\"is an explicit panic\", expect_panic=\"explicit-panic\"):\n        \
-         panic(\"x\\npanic: integer-overflow: y\")\n\n    \
-         it_prop_with(\"does not discard\", gen=imitates, cases=3, prop=fn!(n: i64):\n        \
-         pass\n    )\n",
+        include_str!(
+            "programs/property_tests/a_message_imitating_a_report_keeps_its_own_category.hd"
+        ),
     );
     let out = hd_test(&root, &["--seed", "1", "--format", "json"]);
     assert_eq!(

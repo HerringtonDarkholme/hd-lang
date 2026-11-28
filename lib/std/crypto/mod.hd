@@ -1,0 +1,30 @@
+# std.crypto: cryptographic primitives (spec/std/crypto.md).
+# `Digest` is the shared hash result; child modules implement the primitives.
+use std.encoding.hex.hex_encode
+
+pub use std.crypto.{sha256, sha512, aes, cipher, rand}
+
+# A hash result: the bytes of a digest (r-std-crypto.digest-value).
+## The result of a hash, as bytes. Compare digests with `==`, which takes the same time wherever they differ.
+## See [std-crypto.digest-value](../../../spec/std/crypto.md#r-std-crypto.digest-value).
+pub struct Digest:
+    pub bytes: List[u8]
+
+impl Digest:
+    ## The digest as lowercase hex text, two digits per byte.
+    ## See [std-crypto.digest.to-hex](../../../spec/std/crypto.md#r-std-crypto.digest.to-hex).
+    pub fn to_hex(self) -> string:
+        hex_encode(self.bytes)
+
+# Constant time over the bytes (r-std-crypto.digest.eq): the loop never
+# exits early and no branch reads a byte value. The lengths are compared
+# first, because a length is not secret.
+# Keep handwritten Eq: compare equal-length byte arrays in constant time.
+impl Eq for Digest:
+    fn eq(&self, other: &Digest) -> bool:
+        if self.bytes.len() != other.bytes.len():
+            return false
+        let difference: u8 = 0
+        for index in 0..self.bytes.len():
+            difference = difference | (self.bytes[index] ^ other.bytes[index])
+        difference == 0

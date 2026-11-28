@@ -1,0 +1,5 @@
+fn nap!() -> void:
+    defer(fn() -> void: values.push(2))
+    values.push(1)
+    sleep!(Duration.seconds(+30))
+nap!()

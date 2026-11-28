@@ -21,7 +21,7 @@ fn copied(s: string) -> usize:
 >   %22 = Block %16 : usize
     f() + s.len()
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L2 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -32,7 +32,7 @@ fn copied(s: string) -> usize:
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
 >   %11 = Read borrow [$0] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L1 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
@@ -113,7 +113,7 @@ fn copy_shares(s: string) -> usize:
     inc()
 >   %2 = Read copy [$1] : usize
 >   %3 = Read borrow [$0] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -130,7 +130,7 @@ fn copy_shares(s: string) -> usize:
     again()
 >   %18 = Read copy [$1] : usize
 >   %19 = Read borrow [$0] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %20 = Call std/core/bytes_len[] (%19) : usize
 >   %21 = Break L2 %20 : never
 >   %22 = Block - : usize
 >   %23 = Scope %22 [] : usize

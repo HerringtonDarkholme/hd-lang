@@ -3,7 +3,7 @@
 # annot.structure.named-positions, annot.structure.borrowed-receiver,
 # annot.structure.name, annot.structure.name.constant (ST8, owner decision 2026-09-30).
 # The name has no module path and no type arguments.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 trait Named:
     fn type_name() -> string
 

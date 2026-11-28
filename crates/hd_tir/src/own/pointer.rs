@@ -487,29 +487,6 @@ pub fn decide(cx: &impl Context) -> Decisions {
             }
             let excl = word & loan_word::EXCL != 0 || activated.contains(&v);
             let own = accs[id].get(&v);
-            if word & loan_word::INNER != 0 {
-                // The object a call's returned reference points into, past
-                // the argument's own: the callee reached it through a pointer.
-                let callee = match accs[id].get(&v).map(|x| &x.callees[..]) {
-                    Some([callee]) => Some(*callee),
-                    _ => None,
-                };
-                let inner: Vec<Ty> = (callee.into_iter())
-                    .flat_map(|c| {
-                        (0..call_args(b, v as usize).len())
-                            .flat_map(move |k| returned_inner(cx, c, k))
-                    })
-                    .collect();
-                if inner
-                    .iter()
-                    .any(|&t| program(t, excl, None) && meets(lo, hi, &[v], t, excl))
-                {
-                    for &t in &inner {
-                        kept.push(((*id, v, u32::MAX - 1), t, excl));
-                    }
-                }
-                continue;
-            }
             let r = roots_of(cx, &mut prepared, &mut roots, *id, b);
             ref_sites(cx, b, *id, v, &r, |site, object, x| {
                 if program(object, x, own) && meets(lo, hi, &[v], object, x) {
@@ -637,42 +614,6 @@ fn ref_sites(
             exclusive && n == last,
         );
     }
-}
-
-/// Objects reached past an argument's own counted object by its returned refs.
-fn returned_inner(cx: &impl Context, callee: InstId, k: usize) -> Vec<Ty> {
-    let Some(b) = cx.body(callee) else {
-        return Vec::new();
-    };
-    let Some(&l) = cx.param_locals(callee).get(k) else {
-        return Vec::new();
-    };
-    let param = b.local_ty[l];
-    let counted = cx.reference(param).is_some_and(|r| r.whole && !r.fat);
-    let mut out = Vec::new();
-    for &i in cx.instructions(callee) {
-        if b.tags[i] != Tag::Ref {
-            continue;
-        }
-        let Some(p) = b.decode_place(b.data[i][0]) else {
-            continue;
-        };
-        if !matches!(p.root, PlaceRoot::Local(x) if x.idx() == l) {
-            continue;
-        }
-        let inner: Vec<Ty> = cx
-            .type_crossings(param, &p.proj)
-            .into_iter()
-            .filter(|&(j, _)| !(counted && j == 0))
-            .map(|x| x.1)
-            .collect();
-        if let Some(&last) = inner.last()
-            && !out.contains(&last)
-        {
-            out.push(last);
-        }
-    }
-    out
 }
 
 fn call_args(b: &Body, i: usize) -> Vec<u32> {

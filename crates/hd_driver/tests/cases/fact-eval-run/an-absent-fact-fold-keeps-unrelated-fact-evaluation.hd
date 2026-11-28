@@ -1,8 +1,8 @@
 # @dump: stdout
 # Proving that a requested type is absent must not remove evaluation of the
 # declaration's unrelated fact values.
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

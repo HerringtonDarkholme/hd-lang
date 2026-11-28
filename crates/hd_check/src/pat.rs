@@ -498,8 +498,8 @@ struct RangeBounds {
 /// A variant pattern's sub-patterns by field position (`None` for an
 /// omitted named field), with the named fields the variant does not
 /// declare, and the named fields that repeat a field already matched:
-/// their names and sub-patterns, and whether the field is a repeat, for the
-/// caller to report and bind to the poison type.
+/// their names and named patterns, and whether the field is a repeat, for
+/// the caller to report and bind to the poison type.
 type VariantSubs<'t> = (Vec<Option<NodeRef<'t>>>, Vec<(String, NodeRef<'t>, bool)>);
 
 impl Ck<'_, '_> {
@@ -509,6 +509,18 @@ impl Ck<'_, '_> {
         &mut self,
         p: NodeRef<'_>,
         t: Ty,
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
+        self.declare_pattern_subject(p, t, t, binds)
+    }
+
+    /// Retain the subject before implicit reference peeling for repairs that
+    /// edit the match expression, rather than its referent's pattern.
+    fn declare_pattern_subject(
+        &mut self,
+        p: NodeRef<'_>,
+        t: Ty,
+        subject: Ty,
         binds: &mut Vec<(NodeIdx, LocalId)>,
     ) -> StageResult<()> {
         let pool = self.pool();
@@ -524,7 +536,7 @@ impl Ck<'_, '_> {
             if self.ref_counted(t) == Some(false) {
                 self.pattern_below_ref = Some(saved.map_or(mutable, |m| m && mutable));
             }
-            let r = self.declare_pattern(p, self.deref_ty(referent), binds);
+            let r = self.declare_pattern_subject(p, self.deref_ty(referent), subject, binds);
             self.pattern_below_ref = saved;
             return r;
         }
@@ -558,6 +570,11 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("write `.{}` or a qualified name", self.cx.src.text(nt));
                     self.err(Code::BareVariantPattern, p, &msg);
+                    self.insert_fix(
+                        "write `.` before the variant",
+                        self.cx.src.token_span(nt).lo,
+                        ".",
+                    );
                     self.pattern_rejected = true;
                     return Ok(());
                 }
@@ -732,6 +749,8 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("write `.{name}` or a qualified name");
                     self.err(Code::BareVariantPattern, p, &msg);
+                    let lo = self.cx.src.span(p).lo;
+                    self.insert_fix("write `.` before the variant", lo, ".");
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);
                 }
@@ -759,21 +778,46 @@ impl Ck<'_, '_> {
                     // nor hides later arms, and its names bind to poison. An
                     // unknown variant reports once per subject type.
                     if self.first_unknown_variant(t) {
-                        let msg = self.unknown_variant_msg(&name, t);
+                        let variants = self.variant_names(t);
+                        let best =
+                            hd_diag::suggest::best_match(&name, variants.iter().copied(), |_| true);
+                        let msg = self.unknown_variant_msg(&name, t, &variants, best);
+                        let best = best.map(str::to_owned);
                         self.err(Code::UnknownVariant, p, &msg);
-                        self.result_pattern_fixes(t, p);
+                        if let Some(last) = p
+                            .direct_tokens()
+                            .filter(|&tk| self.cx.src.text(tk) == name)
+                            .last()
+                        {
+                            self.diags
+                                .add_typo_fix(self.cx.src.token_span(last), best.as_deref());
+                        }
+                        self.result_pattern_fixes(subject, p);
                     }
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);
                 };
                 let (subs, unknown) = self.variant_subpatterns(p, t, &name);
-                for (fname, sub, repeated) in unknown {
+                for (fname, k, repeated) in unknown {
+                    let sub = k.children().next().unwrap_or(k);
                     if repeated {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, sub, &msg);
                     } else {
-                        let msg = format!("no field `{fname}` of variant `{name}`");
+                        let fields = self.variant_field_names(t, &name);
+                        let best = hd_diag::suggest::best_match(
+                            &fname,
+                            fields.iter().map(String::as_str),
+                            |_| true,
+                        );
+                        let did = hd_diag::suggest::did_you_mean(best);
+                        let msg = format!("no field `{fname}` of variant `{name}`{did}");
                         self.err(Code::UnknownField, sub, &msg);
+                        // A shorthand field also binds the name: no fix.
+                        if sub.index() != k.index() {
+                            let first = self.cx.src.token_span(self.cx.src.first(k));
+                            self.diags.add_typo_fix(first, best);
+                        }
                     }
                     self.pattern_rejected = true;
                     self.declare_pattern(sub, Ty::POISON, binds)?;
@@ -821,8 +865,16 @@ impl Ck<'_, '_> {
                     }
                     seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
-                        let msg = format!("no field `{fname}` on {}", self.show(t));
+                        let best = self.field_typo(t, &fname);
+                        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                        let msg = format!("no field `{fname}` on {}{did}", self.show(t));
                         self.err(Code::UnknownField, f, &msg);
+                        // A shorthand field also binds the name: no fix.
+                        if f.children().next().is_some() {
+                            let first = self.cx.src.first(f);
+                            self.diags
+                                .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
+                        }
                         self.pattern_rejected = true;
                         self.declare_poisoned_field(f, binds)?;
                         continue;
@@ -1003,7 +1055,7 @@ impl Ck<'_, '_> {
                 // by the caller; its sub-pattern binds to the poison type
                 // so its uses stay silent.
                 if slot.is_none() {
-                    unknown.push((fname.to_owned(), k.children().next().unwrap_or(k), false));
+                    unknown.push((fname.to_owned(), k, false));
                 }
                 (slot, k.children().next().or(Some(k)))
             } else {
@@ -1015,9 +1067,9 @@ impl Ck<'_, '_> {
             if std::mem::replace(&mut filled[slot], true) {
                 // `flow.match.data.fields.duplicate`: the repeat reports
                 // and binds to the poison type.
-                if let Some(sub) = sub {
+                if sub.is_some() {
                     let fname = self.cx.src.text(self.cx.src.first(k));
-                    unknown.push((fname.to_owned(), sub, true));
+                    unknown.push((fname.to_owned(), k, true));
                 }
                 continue;
             }
@@ -2856,7 +2908,7 @@ impl Ck<'_, '_> {
 
     /// Combine the comparisons of the written range bounds, in source order.
     /// A range pattern must have at least one bound (`flow.match.range.*`).
-    fn range_comparison(
+    pub(crate) fn range_comparison(
         &mut self,
         lo: Option<Ref>,
         hi: Option<Ref>,
@@ -3094,7 +3146,7 @@ impl Ck<'_, '_> {
     /// `t` with its references taken off: the type whose values
     /// the exhaustiveness and reachability checks split, which a test
     /// reads through any reference (`ref.match.read`).
-    fn strip(&self, t: Ty) -> Ty {
+    pub(crate) fn strip(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
@@ -3529,30 +3581,25 @@ impl Ck<'_, '_> {
         true
     }
 
-    /// `unknown-variant` on a pattern naming `.{name}` of `t`, listing the
-    /// variants `t` has when it is an enum: the fix is one of them.
-    fn unknown_variant_msg(&self, name: &str, t: Ty) -> String {
+    /// `unknown-variant` on a pattern naming `.{name}` of `t`, whose
+    /// `variants` it misspells as `best`, else lists: the fix is one of them.
+    fn unknown_variant_msg(
+        &self,
+        name: &str,
+        t: Ty,
+        variants: &[&str],
+        best: Option<&str>,
+    ) -> String {
         let shown = self.show(t);
-        let pool = self.pool();
-        let st = self.strip(t);
-        let variants = match pool.get(st) {
-            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
-                match self.cx.lookup.item(def).map(|i| &i.data) {
-                    Some(ItemData::Enum { variants, .. }) => variants
-                        .iter()
-                        .map(|v| self.cx.names.text(v.name))
-                        .collect::<Vec<_>>(),
-                    _ => Vec::new(),
-                }
-            }
-            _ => Vec::new(),
-        };
+        if let Some(best) = best {
+            return format!("no variant `.{name}` of {shown}; did you mean `.{best}`?");
+        }
         if variants.is_empty() {
             return format!("no variant `.{name}` of {shown}");
         }
         format!(
             "no variant `.{name}` of {shown}; {}",
-            variant_list(&variants)
+            variant_list(variants)
         )
     }
 
@@ -3623,7 +3670,8 @@ pub(crate) fn binding_parts(s: NodeRef<'_>) -> (NodeRef<'_>, Option<NodeRef<'_>>
 /// The variants of an enum as `unknown-variant` lists them: all of a
 /// small enum, the first few and a count of the rest of a large one, so
 /// the message stays short for an enum of any size.
-fn variant_list(names: &[&str]) -> String {
+#[must_use]
+pub fn variant_list(names: &[&str]) -> String {
     const SHOWN: usize = 4;
     let dotted = |n: &&str| format!("`.{n}`");
     match names {
@@ -3640,123 +3688,32 @@ fn variant_list(names: &[&str]) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::variant_list;
-
-    #[test]
-    fn range_comparisons_preserve_single_bounds_and_reject_missing_bounds() {
-        crate::body::with_checker(|ck| {
-            let before = (ck.b.body().len(), ck.b.body().extra.len());
-            for (lo, hi, expected) in [
-                (Some(hd_tir::ir::Ref(31)), None, hd_tir::ir::Ref(31)),
-                (None, Some(hd_tir::ir::Ref(47)), hd_tir::ir::Ref(47)),
-            ] {
-                assert_eq!(
-                    ck.range_comparison(lo, hi, hd_base::NodeIdx::NONE)
-                        .expect("one written bound"),
-                    expected,
-                );
-            }
-            let error = ck
-                .range_comparison(None, None, hd_base::NodeIdx::NONE)
-                .expect_err("no written bounds");
-            assert_eq!(error.stage, hd_base::Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-            assert_eq!(
-                error.what,
-                "range-pattern comparison requires at least one bound"
-            );
-            assert_eq!((ck.b.body().len(), ck.b.body().extra.len()), before);
-        });
-    }
-
-    #[test]
-    fn two_range_comparisons_emit_one_ordered_and() {
-        use hd_tir::ir::PrimOp;
-        crate::body::with_checker(|ck| {
-            let lo = ck.b.const_value(hd_types::Ty::BOOL, 0);
-            let hi = ck.b.const_value(hd_types::Ty::BOOL, 1);
-            let before = ck.b.body().len();
-            let result = ck
-                .range_comparison(Some(lo), Some(hi), hd_base::NodeIdx::NONE)
-                .expect("two written bounds");
-            let body = ck.b.body();
-            assert_eq!(body.len(), before + 1);
-            assert_eq!(result.0 as usize, before);
-            assert_eq!(body.tags[before], hd_tir::ir::Tag::Prim);
-            assert_eq!(body.data[before][0], PrimOp::And as u32);
-            assert_eq!(body.ty[before], hd_types::Ty::BOOL);
-            let start = body.data[before][1] as usize;
-            assert_eq!(&body.extra[start..start + 3], &[2, lo.0, hi.0]);
-        });
-    }
-
-    #[test]
-    fn unsettled_non_pattern_input_returns_an_error_without_a_decision_chain() {
-        crate::body::with_checker(|ck| {
-            let node = ck.cx.src.parse.tree.root();
-            let rows = [super::Row::rest()];
-            let matrix = vec![super::DRow {
-                row: 0,
-                cells: vec![super::Cell::Pat(node)],
-                sets: Vec::new(),
-            }];
-            let before = (
-                ck.b.body().len(),
-                ck.b.body().extra.len(),
-                ck.b.body().local_ty.len(),
-                ck.infer.var_count(),
-            );
-            let mut stack = Vec::new();
-            let error = ck
-                .matrix(
-                    &rows,
-                    vec![super::Occ {
-                        v: hd_tir::ir::Ref(hd_tir::ir::NONE),
-                        t: hd_types::Ty::I32,
-                        place: hd_tir::ir::NONE,
-                        moves: false,
-                    }],
-                    matrix,
-                    &mut hd_base::HashMap::default(),
-                    &mut stack,
-                )
-                .expect_err("unsettled non-test cell");
-            assert_eq!(error.stage, hd_base::Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-            assert_eq!(
-                error.what,
-                format!(
-                    "pattern decision requires a settled test, found {:?}",
-                    node.kind()
-                )
-            );
-            assert!(stack.is_empty());
-            assert_eq!(
-                (
-                    ck.b.body().len(),
-                    ck.b.body().extra.len(),
-                    ck.b.body().local_ty.len(),
-                    ck.infer.var_count()
-                ),
-                before
-            );
-        });
-    }
-
-    #[test]
-    fn variant_lists_stay_short() {
-        assert_eq!(variant_list(&["Only"]), "its only variant is `.Only`");
-        assert_eq!(
-            variant_list(&["Ok", "Err"]),
-            "its variants are `.Ok` and `.Err`"
-        );
-        assert_eq!(
-            variant_list(&["A", "B", "C", "D", "E", "F"]),
-            "its variants are `.A`, `.B`, `.C`, `.D` and 2 more"
-        );
-    }
+/// A one-row decision over an `i32` whose only cell is the pattern node
+/// `pattern`, which no test has settled; with whether the decision stack
+/// stayed empty (`crate::testing::Checker::decide_unsettled`).
+#[cfg(feature = "testing")]
+pub(crate) fn decide_unsettled(
+    ck: &mut Ck<'_, '_>,
+    pattern: NodeRef<'_>,
+) -> (StageResult<()>, bool) {
+    let matrix = vec![DRow {
+        row: 0,
+        cells: vec![Cell::Pat(pattern)],
+        sets: Vec::new(),
+    }];
+    let occ = Occ {
+        v: Ref(hd_tir::ir::NONE),
+        t: Ty::I32,
+        place: hd_tir::ir::NONE,
+        moves: false,
+    };
+    let mut stack = Vec::new();
+    let result = ck.matrix(
+        &[Row::rest()],
+        vec![occ],
+        matrix,
+        &mut HashMap::default(),
+        &mut stack,
+    );
+    (result, stack.is_empty())
 }

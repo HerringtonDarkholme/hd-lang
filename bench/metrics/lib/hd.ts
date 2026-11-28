@@ -310,7 +310,7 @@ export function jsonLines(text: string): Record<string, unknown>[] {
 export const diagnosticsOf = (text: string): Record<string, unknown>[] =>
   jsonLines(text).filter((record) => record.kind === "diagnostic");
 
-/** The summary object of a `--format json` run, the last one (cli.json.summary.result). */
+/** The summary object of a `--format json` run, the last one (cli.json.summary.command-result). */
 export const summaryOf = (text: string): Record<string, unknown> | undefined =>
   jsonLines(text)
     .filter((record) => record.kind === "summary")

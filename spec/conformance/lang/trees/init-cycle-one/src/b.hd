@@ -1,0 +1,4 @@
+use pkg.a.{read_a}
+
+pub fn read_b() -> i32:
+    read_a()

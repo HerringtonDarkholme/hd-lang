@@ -100,9 +100,15 @@ fn entirely_counted_references_create_no_cell_liveness_batches() {
         let (body, _, _) = body(width, depth, None);
         let cx = Cx::default();
         let mut uses = Vec::new();
-        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
-            uses.push((i, l));
-        });
+        extra_cell_uses(
+            &body,
+            &cx,
+            &Tables::default(),
+            |_| true,
+            &mut |i, l, _, _| {
+                uses.push((i, l));
+            },
+        );
         assert!(uses.is_empty());
         assert_eq!(
             cx.classifications.get(),
@@ -123,9 +129,15 @@ fn an_owner_with_a_local_or_mixed_reference_still_lives_until_its_use() {
         let (body, consumer, owner) = body(1000, 0, Some(ty));
         let cx = Cx::default();
         let mut uses = Vec::new();
-        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
-            uses.push((i, l));
-        });
+        extra_cell_uses(
+            &body,
+            &cx,
+            &Tables::default(),
+            |_| true,
+            &mut |i, l, _, _| {
+                uses.push((i, l));
+            },
+        );
         assert!(
             uses.contains(&(consumer, owner)),
             "the uncounted view keeps its owner alive"
@@ -168,9 +180,15 @@ fn all_cell_owners_are_solved_together_at_large_width_and_depth() {
         let (body, consumers) = local_chains(width, depth);
         let cx = Cx::default();
         let mut uses = hd_base::HashSet::default();
-        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
-            uses.insert((i, l));
-        });
+        extra_cell_uses(
+            &body,
+            &cx,
+            &Tables::default(),
+            |_| true,
+            &mut |i, l, _, _| {
+                uses.insert((i, l));
+            },
+        );
         for pair in consumers {
             assert!(uses.contains(&pair), "lost cell use {pair:?}");
         }
@@ -227,9 +245,15 @@ fn cell_origin_worklist_does_not_rescan_the_body_per_alias_depth() {
         let (body, consumers) = reverse_stores(width, depth);
         let cx = Cx::default();
         let mut uses = hd_base::HashSet::default();
-        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
-            uses.insert((i, l));
-        });
+        extra_cell_uses(
+            &body,
+            &cx,
+            &Tables::default(),
+            |_| true,
+            &mut |i, l, _, _| {
+                uses.insert((i, l));
+            },
+        );
         for pair in consumers {
             assert!(uses.contains(&pair), "lost transitive cell use {pair:?}");
         }
@@ -251,8 +275,8 @@ fn immutable_frame_queries_match_marking_at_width_and_depth() {
         let before = (body.data.clone(), body.cap_mode.clone());
         let cx = Cx::default();
         let mut observed = Vec::new();
-        uses(&body, &topo, &cx, &mut Tables::default(), |i, l, f| {
-            observed.push((i, l, f));
+        uses(&body, &topo, &cx, &mut Tables::default(), |i, l, f, k| {
+            observed.push((i, l, f, k));
         });
         assert_eq!((&body.data, &body.cap_mode), (&before.0, &before.1));
         let marking = Cx::default();
@@ -262,7 +286,7 @@ fn immutable_frame_queries_match_marking_at_width_and_depth() {
             &topo,
             &marking,
             &mut Tables::default(),
-            |i, l, f| marked.push((i, l, f)),
+            |i, l, f, k| marked.push((i, l, f, k)),
         );
         assert_eq!(observed, marked);
         assert_eq!(cx.transfers.get(), marking.transfers.get());

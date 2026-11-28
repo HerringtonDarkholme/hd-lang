@@ -7,7 +7,8 @@ use std.http.Http
 use std.net.Net
 use std.process.Process
 use std.host.Sys
-use std.host.{Env, Args}
+use std.host.Env
+use std.cli.Args
 
 pub fn main!() -> void $ Console + Http + Net + Process + Sys + Env + Args:
     pass

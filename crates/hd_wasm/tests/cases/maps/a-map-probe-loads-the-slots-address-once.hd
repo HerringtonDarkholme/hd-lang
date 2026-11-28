@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release
-# @helper: std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index
+# @helper: std/collections.uniq_map/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index
 # expected: an unchanged field read through a reference loads once, not
 # per read or per iteration (issue: a loop reloads an unchanged struct
 # field read through a reference on every iteration)

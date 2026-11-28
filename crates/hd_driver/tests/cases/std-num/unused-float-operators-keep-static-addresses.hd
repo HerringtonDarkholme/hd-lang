@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: dev program | release program
+# Unreachable operators collect neither helpers nor their static tables.
+fn unused64(x: f64, y: f64) -> (f64, f64):
+    (x ** y, x % y)
+
+fn unused32(x: f32, y: f32) -> (f32, f32):
+    (x ** y, x % y)
+
+pub fn main() -> void $ Console:
+    println("marker")

@@ -1,5 +1,5 @@
 # test: a block with no trait holds only member lines, not methods
-use std.structure.Structure
+use std.meta.Structure
 
 struct Account:
     id: i64

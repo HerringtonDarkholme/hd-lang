@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -138,4 +138,19 @@ export async function tcpHost(text: TestContext): Promise<Dynamic> {
   const peer = await arrived;
   text.after(() => peer.destroy());
   return { ...api, handle: stream.value, peer };
+}
+
+// A newly created PID file can still be empty: Number("") would signal
+// the caller's entire process group. Validate before probes and cleanup.
+export function positivePid(pid: number): number {
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, "signal target must be a positive process id");
+  return pid;
+}
+
+export function readPid(path: string): number {
+  return positivePid(Number(readFileSync(path, "utf8")));
+}
+
+export function signalProcess(pid: number, signal: NodeJS.Signals | number): void {
+  process.kill(positivePid(pid), signal);
 }

@@ -6,7 +6,7 @@
 # and the old value released through the address that walk found. A store
 # known to find its place empty has none: `s`'s first store, and `u`'s, whose
 # only `rt:drop` calls are at its last uses.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 struct P:
@@ -46,6 +46,9 @@ fn fresh() -> UniqList[i32]:
 
 fn declared(c: bool) -> usize:
     u := fresh()
+> app/main/declared
+>   release std.collections.uniq_list.UniqList[i32] (last use)
     if c:
+>   release std.collections.uniq_list.UniqList[i32] (last use)
         return u.len()
     0

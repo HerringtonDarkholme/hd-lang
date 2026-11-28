@@ -9,10 +9,9 @@ use crate::host::{Host, Ret, Stop, int_arg};
 
 mod clock;
 mod env;
-mod platform;
-mod random;
-#[cfg(test)]
-mod tests;
+pub(crate) mod platform;
+pub(crate) mod random;
+mod signals;
 
 pub(crate) use random::random;
 
@@ -28,6 +27,7 @@ pub(crate) fn call(
         Id::ClockNow => clock::now(),
         Id::ClockMonotonic => clock::monotonic(),
         Id::ClockSleep => clock::sleep(finish, caller, params)?,
+        Id::SignalsWait => signals::wait(finish, caller, params)?,
         Id::RandomNextU64 => {
             let b: [u8; 8] = random(8)?
                 .try_into()

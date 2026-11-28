@@ -1,5 +1,5 @@
 # test: get on a payload handle of another variant panics
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Same:
     fn same(self, other: Self) -> bool

@@ -1,6 +1,6 @@
 # test: closures that change their captures run through FnMut bounds
 # expect: test
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn each[F < FnMut(i32) -> void](items: List[i32], mut f: F) -> void:
     for item in items:

@@ -31,7 +31,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %26 = Block %19 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
@@ -84,7 +84,7 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   %1 = Read borrow [$0] : &mut Map[string, List[string]]
 >   %2 = Read borrow [$1] : string
 >   %3 = NewList - [] : List[string]
->   %4 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, List[string]] (%1, %2, %3) : &mut List[string]
+>   %4 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, List[string]] (%1, %2, %3) : &mut List[string]
 >   %5 = MakeUnique %4 Operation operand 0 #5 : ()
 >   %6 = Retain %4 Operation operand 1 #0 : ()
 >   %7 = Retain %4 Operation operand 2 #0 : ()

@@ -1,0 +1,9 @@
+# @dump: tree diagnostics
+# expected: the missing colon is reported, and recovery keeps the following statement and function.
+fn choose(flag: bool) -> i32:
+    if flag: +1
+    else if !flag
+    +2
+
+fn after_missing_colon() -> i32:
+    +3

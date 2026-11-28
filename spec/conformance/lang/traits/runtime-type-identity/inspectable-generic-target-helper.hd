@@ -1,5 +1,5 @@
 # test: a generic helper passes its target through Inspectable evidence
-use std.inspect.Inspectable
+use std.meta.Inspectable
 struct User:
     name: string
 struct Post:

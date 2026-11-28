@@ -166,7 +166,7 @@ fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
 >   %14 = Call app/main/n_at[string] (%11, %13) : usize
 >   %15 = Prim Add [%10 %14] : usize
 >   %16 = Read borrow [$3] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize

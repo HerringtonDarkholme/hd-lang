@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# expected: changing a by-value receiver suggests &mut self; a plain parameter suggests mut.
+trait Change:
+    fn change(self) -> void
+
+impl Change for List[i32]:
+    fn change(self) -> void:
+        self.push(+1)
+
+fn change_parameter(items: List[i32]) -> void:
+    items.push(+2)
+
+fn change_reference(items: &List[i32]) -> void:
+    items.push(+3)

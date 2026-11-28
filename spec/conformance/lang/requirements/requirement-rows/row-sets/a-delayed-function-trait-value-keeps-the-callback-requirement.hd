@@ -1,6 +1,6 @@
 # test: a function trait method passed as a value to a generic call keeps the callback's requirement
 # Spec lang/11-requirements-and-suspension.md: req.row.set.call.
-use std.function.Fn
+use std.ops.Fn
 
 fn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:
     call(&f, (value,))

@@ -10,7 +10,7 @@ fn save(s: string) -> Result[void, string]:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %15 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -41,42 +41,44 @@ fn report(s: string) -> string:
     match save(s):
 > app/main/report
 >   local $0 s: string [param read] value
->     uses $0: entry -> %0 lend, %10 lend last
+>     uses $0: entry -> %0 lend, %9 lend last
 >   local $1 message: string [read assigned] value
->     uses $1: %24 -> %17 consume last
+>     uses $1: %11 -> %22 consume last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
 >   %5 = Prim Gt [%4 0:usize] : bool
->   %6 = NewVariant #0 [-] : Result[(), string]
->   %7 = Break L1 %6 : never
->   %8 = Block - : never
->   %9 = If %5 [%8 -] : ()
->   %10 = Read borrow [$0] : string
->   %11 = Intrinsic StrConcat [%10 "?"] : string
->   %12 = NewVariant #1 [%11] : Result[(), string]
->   %13 = Break L1 %12 : never
->   %14 = Block - : Result[(), string]
->   %15 = Scope %14 [] : Result[(), string]
->   %28 = Block - : never
->   %29 = Match %15 [%28 %16 %19] : string
->   %30 = Intrinsic ParamOwned [0:i32] : bool
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Release %35 Exit local $0 #2 : ()
->   %35 = Block %29 : string
+>   %6 = Break L2 - : never
+>   %7 = Block - : never
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Read borrow [$0] : string
+>   %10 = Intrinsic StrConcat [%9 "?"] : string
+>   %12 = Break L3 - : never
+>   %13 = Block - : never
+>   %14 = Scope %13 [] : never
+>   %15 = Block - : ()
+>   %16 = Scope %15 [] : ()
+>   %18 = Scope %17 [] : string
+>   %19 = Break L4 %18 : never
+>   %20 = Block - : ()
+>   %21 = Scope %20 [] : ()
+>   %25 = Scope %24 [] : string
+>   %26 = Break L4 %25 : never
+>   %27 = Block - : string
+>   %28 = Scope %27 [] : string
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Release %34 Exit local $0 #2 : ()
+>   %34 = Block %28 : string
         .Ok(()) => "saved"
->   %16 = Block "saved" : string
->   %21 = Block - : never
->   %27 = SwitchTag %15 [#0 %21 %26] : never
+>   %17 = Block "saved" : string
         .Err(message) => message
->   %17 = Read move [$1] : string
->   %18 = Intrinsic Empty [] : ()
->   %19 = Block %17 : string
->   %22 = Read move [%15 as #1 .0] : string
+>   %11 = Store [$1] %10 : ()
+>   %22 = Read move [$1] : string
 >   %23 = Intrinsic Empty [] : ()
->   %24 = Store [$1] %22 : ()
+>   %24 = Block %22 : string
 >   summary kept [] borrows [$0]

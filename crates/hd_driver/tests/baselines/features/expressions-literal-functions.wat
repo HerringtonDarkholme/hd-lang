@@ -127,7 +127,7 @@
     local.get $t0
     local.get $t1
   )
-  (func $lbl (param $n i64) (result i32 i32) (local $value i64) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $lbl (param $n i64) (result i32 i32) (local $value i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 18 |     Label { text: "#${n}" }
     local.get $n
     local.tee $value
@@ -146,27 +146,26 @@
     i32.add
     local.set $t1
     i32.const 1
-    local.tee $t0
     local.get $t1
     i32.add
-    local.tee $t2
+    local.tee $t0
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t0
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
     i32.const 35
     i32.store8 $heap
     local.get $n
-    local.get $t3
-    local.get $t0
+    local.get $t2
+    i32.const 1
     i32.add
     local.get $t1
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t0
   )
 )

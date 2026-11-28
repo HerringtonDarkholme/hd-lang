@@ -6,7 +6,7 @@
 # are calls' results moved into their locals: hoisting's fresh values,
 # though not fresh buffers (`IsUnique fresh`, only new collections), so
 # a store into one list's buffer leaves the other's check hoisted.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn filled(n: usize, value: usize) -> List[usize]:

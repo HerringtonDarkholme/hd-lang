@@ -7,7 +7,7 @@ use std::path::Path;
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "pub fn main() -> void $ Console:\n    xs := [for i in 0..10 => \"n$i\"]\n    println(\"${xs.len()} ${xs[3]}\")\n";
+const MAIN: &str = include_str!("programs/build_wat/main.hd");
 
 /// `hd build ARGS` in `root`, with `HD_WAT` when `wat`, and its own cache.
 fn build(root: &Path, wat: bool, args: &[&str]) {
@@ -16,11 +16,12 @@ fn build(root: &Path, wat: bool, args: &[&str]) {
         "HD_CACHE",
         crate::shared_objects(root.with_extension("cache")),
     )
-    .env_remove("HD_JOBS")
+    .env("HD_JOBS", "2")
     .env_remove("HD_ENGINE")
     .env_remove("HD_WAT")
     .current_dir(root)
     .arg("build")
+    .args(["--format", "wasm"])
     .args(args);
     if wat {
         cmd.env("HD_WAT", "1");

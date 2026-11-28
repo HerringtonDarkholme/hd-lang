@@ -8,7 +8,8 @@ use crate::codec::{Enc, Wire, encode};
 
 /// `Sys.<name>`'s result: the value, `.NotGranted` outside the grant, or
 /// `.Unsupported` when the platform cannot tell.
-pub(super) fn sys(name: &str, grants: &Grants) -> Enc {
+#[must_use]
+pub fn sys(name: &str, grants: &Grants) -> Enc {
     match name {
         "os" => sys_read(name, grants, || {
             Some(
@@ -55,11 +56,7 @@ pub(super) fn sys(name: &str, grants: &Grants) -> Enc {
     }
 }
 
-pub(super) fn sys_read<T: Wire>(
-    name: &str,
-    grants: &Grants,
-    read: impl FnOnce() -> Option<T>,
-) -> Enc {
+pub fn sys_read<T: Wire>(name: &str, grants: &Grants, read: impl FnOnce() -> Option<T>) -> Enc {
     let result = if grants.covers_name("Sys", name) {
         read().ok_or_else(|| HostError::Unsupported {
             name: name.to_owned(),

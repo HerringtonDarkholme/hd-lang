@@ -1,9 +1,9 @@
 # @dump: diagnostics
 # @build: dev | checked
 # test: consumed annotate calls check target arguments through plain, aliased and qualified names
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
 @annotate(.Missing) # diagnostic: unknown-variant
 struct Plain: pass
@@ -11,5 +11,5 @@ struct Plain: pass
 @targets(kinds=[.Missing]) # diagnostic: unknown-variant
 struct Aliased: pass
 
-@annotation.annotate([.Missing]...) # diagnostic: unknown-variant
+@meta.annotate([.Missing]...) # diagnostic: unknown-variant
 struct Qualified: pass

@@ -67,8 +67,20 @@ place instances are made. `ValueFlow` reads only the body's own TIR, so it
 runs once per body, not once per instance.
 
 Planned, not built: instance-unit passes such as use counts, an inline
-plan, escape analysis and scalar replacement; the pass table declares
-none of them until something runs it. `summaries` is declared, and the
+plan and escape analysis; the pass table declares none of them until
+something runs it. Scalar replacement is built: `sroa` (`sroa.rs`, #2365,
+#2366) runs on each instance body right after the inliner, before the
+ownership passes. It forwards a reference bound once to a local's field
+path to that path, spills such a local around a cold call that keeps its
+address, and deletes the bindings left unused, so the storage pass gives
+the local no slot and its fields are Wasm locals. After it, `known_ctor`
+(`known_ctor.rs`, #2367) sends an inlined body's enum constructors
+straight to the arms of the `match` that reads them (case of known
+constructor), so a `for` over a user iterator keeps no tag; and
+`prove::loop_loads` (`prove/loop_loads.rs`, #2368) hoists a load through
+a reference out of a loop that writes no memory (the loan rules
+`ref.excl.*` stand in for alias analysis) and drops a bounds guard a
+dominating `i < n` decides. `summaries` is declared, and the
 driver does that work: it owns bodies
 callees first, in `inline::bottom_up`'s order, and records their release
 summaries ([§9](#9-release-summaries)); the inliner
@@ -166,7 +178,7 @@ the crate that reads it.
 | Level | Passes (`tir`) | Link passes | Knobs | Engine |
 | --- | --- | --- | --- | --- |
 | `DEV` | `liveness` | none (wasmtime: `inline_counts`) | none | V8 tiers by itself; Cranelift `None` |
-| `OPTIMIZED` | `value_flow`, `const_fold`, `devirt_known`, `closure_spec`, `summaries`, `arg_promote`, `liveness` | none (wasmtime: `inline_counts`) | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
+| `OPTIMIZED` | `value_flow`, `const_fold`, `sroa`, `devirt_known`, `closure_spec`, `summaries`, `arg_promote`, `liveness` | none (wasmtime: `inline_counts`) | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
 
 Code generation is shared by every target (§4), except that inlining:
 Cranelift does not inline the small count helpers, while V8 does and ran

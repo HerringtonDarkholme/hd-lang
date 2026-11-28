@@ -1,0 +1,14 @@
+use std.host.Sys
+use std.task.block_on
+use std.time.{Clock, ms}
+fn invoke(change: fn(i32) -> i32, count: i32) -> i32:
+    if count == 0: change(+0) else: invoke(change, count - 1)
+pub fn main() -> void $ Console + Sys + Clock:
+    let system: &dyn Sys = $.use(Sys)
+    let change: fn(i32) -> i32 = if system.os().expect("os").len() == 0:
+        fn(value: i32) -> i32: value + 1
+    else:
+        fn(value: i32) -> i32: value + 2
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+    println("${invoke(change, +1)}")

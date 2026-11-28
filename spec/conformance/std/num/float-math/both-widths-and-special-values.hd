@@ -1,4 +1,6 @@
 # test: every float math method keeps both widths and IEEE special inputs
+# Binary32 pi/2 is musl's: atanf and acosf return 0x3fc90fda, one ulp below
+# the nearest float, and atan2f(y, 1.0) is atanf(y) (std-num.float-math.musl).
 use std.testing.assert
 
 fn near32(value: f32, expected: u32) -> void:
@@ -205,8 +207,8 @@ tests:
         near32(f32::from_bits(1065353216).asin(), 1070141403)
 
     it("acos checks binary32 and both-width special values"):
-        assert_equal(f32::from_bits(0).acos().to_bits(), 1070141403)
-        assert_equal(f32::from_bits(2147483648).acos().to_bits(), 1070141403)
+        assert_equal(f32::from_bits(0).acos().to_bits(), 1070141402)
+        assert_equal(f32::from_bits(2147483648).acos().to_bits(), 1070141402)
         assert(f32::from_bits(2139095040).acos().is_nan())
         assert(f32::from_bits(4286578688).acos().is_nan())
         assert(f32::from_bits(2143289345).acos().is_nan())
@@ -256,8 +258,8 @@ tests:
     it("atan checks binary32 and both-width special values"):
         assert_equal(f32::from_bits(0).atan().to_bits(), 0)
         assert_equal(f32::from_bits(2147483648).atan().to_bits(), 2147483648)
-        assert_equal(f32::from_bits(2139095040).atan().to_bits(), 1070141403)
-        assert_equal(f32::from_bits(4286578688).atan().to_bits(), 3217625051)
+        assert_equal(f32::from_bits(2139095040).atan().to_bits(), 1070141402)
+        assert_equal(f32::from_bits(4286578688).atan().to_bits(), 3217625050)
         assert(f32::from_bits(2143289345).atan().is_nan())
         assert_equal(f64::from_bits(0).atan().to_bits(), 0)
         assert_equal(f64::from_bits(9223372036854775808).atan().to_bits(), 9223372036854775808)
@@ -1176,7 +1178,7 @@ tests:
         assert_equal(f32::from_bits(2139095040).atan2(f32::from_bits(0)).to_bits(), 1070141403)
         assert_equal(
             f32::from_bits(4286578688).atan2(f32::from_bits(1065353216)).to_bits(),
-            3217625051,
+            3217625050,
         )
         assert_equal(
             f32::from_bits(3212836864).atan2(f32::from_bits(1065353216)).to_bits(),
@@ -1193,7 +1195,7 @@ tests:
         )
         assert_equal(
             f32::from_bits(2139095040).atan2(f32::from_bits(1065353216)).to_bits(),
-            1070141403,
+            1070141402,
         )
         assert_equal(
             f32::from_bits(4286578688).atan2(f32::from_bits(2139095040)).to_bits(),

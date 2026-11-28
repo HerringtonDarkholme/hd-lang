@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# Converting the container cannot repair a different payload type.
+fn number(value: Result[string, string]) -> i32?:
+    value

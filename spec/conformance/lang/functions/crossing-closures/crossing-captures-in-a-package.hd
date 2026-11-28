@@ -3,7 +3,7 @@
 # fixture-package-tree: crossing-captures/src/main.hd
 # expect-stdout: ok 2 3
 use pkg.values.base
-use std.marker.{Send, Wire}
+use std.meta.{Send, Wire}
 
 struct Bag:
     items: List[i32]

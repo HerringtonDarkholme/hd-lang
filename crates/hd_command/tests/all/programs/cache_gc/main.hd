@@ -1,0 +1,4 @@
+use pkg.cart
+
+pub fn main() -> void $ Console:
+    println("{cart.total(+100)}")

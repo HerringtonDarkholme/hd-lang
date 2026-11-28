@@ -1,5 +1,5 @@
 # test: varargs a vararg parameter may take a tuple bound type parameter
-use std.function.Tuple
+use std.ops.Tuple
 
 fn count[Args < Tuple](values...: Args) -> i32:
     0

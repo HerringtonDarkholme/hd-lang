@@ -5,9 +5,9 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[f64]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[f64]" (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $fill (param $n i32) (result i32 i32 i32) (local $size i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $value f64) (local $t2 i32)
+  (func $fill (param $n i32) (result i32 i32 i32) (local $xs.buffer.ptr i32) (local $xs.buffer.capacity i32) (local $xs.len i32) (local $t1 i32) (local $value f64) (local $t2 i32) (local $xs i32) (local $t0 i32) (local $t3 i32)
     ;; 10 |     let mut xs = UniqList::[f64].with_capacity(n)
     global.get $stack
     global.get $stack_limit
@@ -26,37 +26,9 @@
     local.get $n
     i32.const 8
     call $room
-    local.set $size
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $xs
-    local.get $size
-    i32.store $heap
-    local.get $xs
     local.get $n
-    i32.store $heap offset=4
-    local.get $xs
-    i32.const 0
-    i32.store $heap offset=8
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=12
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=16
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=20
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=24
-    local.get $xs
-    i32.const 1
-    i32.store $heap offset=28
+    local.set $xs.buffer.capacity
+    local.set $xs.buffer.ptr
     ;; 11 |     for i in 0..n:
     block
       loop
@@ -70,33 +42,77 @@
         i32.add
         local.set $t1
     ;; 12 |         xs.push(0.0)
-        local.get $xs
-        i32.load $heap offset=8
-        local.set $size
-        local.get $xs
-        i32.load $heap offset=4
-        local.get $size
+        local.get $xs.buffer.capacity
+        local.get $xs.len
         i32.le_u
         if
-          local.get $xs
-          local.get $size
+          local.get $xs.len
           i32.const 1
           i32.add
+          local.set $t2
+          local.get $t0
+          i64.const 0
+          i64.store $heap
+          local.get $t0
+          i32.const 8
+          i32.add
+          local.tee $xs
+          local.get $xs.buffer.ptr
+          i32.store $heap
+          local.get $xs
+          local.get $xs.buffer.capacity
+          i32.store $heap offset=4
+          local.get $xs
+          local.get $xs.len
+          i32.store $heap offset=8
+          local.get $xs
+          i32.const 1
+          i32.store $heap offset=12
+          local.get $xs
+          i32.const 1
+          i32.store $heap offset=16
+          local.get $xs
+          i32.const 1
+          i32.store $heap offset=20
+          local.get $xs
+          i32.const 1
+          i32.store $heap offset=24
+          local.get $xs
+          i32.const 1
+          i32.store $heap offset=28
+          local.get $xs
+          local.get $t2
           call $"impl[T < ?Copy] UniqList[T].reserve_for[f64]"
+          local.get $xs
+          i32.load $heap
+          local.get $xs
+          i32.load $heap offset=4
+          local.get $xs
+          i32.load $heap offset=8
+          local.get $xs
+          i32.const 0
+          i32.store $heap
+          local.get $xs
+          i32.const 0
+          i32.store $heap offset=4
+          local.get $xs
+          i32.const 0
+          i32.store $heap offset=8
+          drop
+          local.set $xs.buffer.capacity
+          local.set $xs.buffer.ptr
         end
-        local.get $xs
-        i32.load $heap
-        local.get $size
+        local.get $xs.buffer.ptr
+        local.get $xs.len
         i32.const 8
         i32.mul
         i32.add
         local.get $value
         f64.store $heap
-        local.get $xs
-        local.get $size
+        local.get $xs.len
         i32.const 1
         i32.add
-        i32.store $heap offset=8
+        local.set $xs.len
     ;; 11 |     for i in 0..n:
         br 0
       end
@@ -104,22 +120,19 @@
     ;; 13 |     for i in 0..n:
     block
       loop
-        local.get $t2
+        local.get $t3
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
+        local.get $t3
+        local.get $t3
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t3
     ;; 14 |         xs[i] = 1.0
         local.tee $t1
-        f64.const 0x1p+0
-        local.set $value
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $xs.len
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -130,35 +143,22 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $xs
-        i32.load $heap
+        local.get $xs.buffer.ptr
         local.get $t1
         i32.const 8
         i32.mul
         i32.add
-        local.get $value
+        f64.const 0x1p+0
         f64.store $heap
     ;; 13 |     for i in 0..n:
         br 0
       end
     end
     ;; 15 |     xs
-    local.get $xs
-    i32.load $heap
-    local.get $xs
-    i32.load $heap offset=4
-    local.get $xs
-    i32.load $heap offset=8
+    local.get $xs.buffer.ptr
+    local.get $xs.buffer.capacity
+    local.get $xs.len
     ;; 10 |     let mut xs = UniqList::[f64].with_capacity(n)
-    local.get $xs
-    i32.const 0
-    i32.store $heap
-    local.get $xs
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $xs
-    i32.const 0
-    i32.store $heap offset=8
     local.get $t0
     i32.const 40
     i32.add

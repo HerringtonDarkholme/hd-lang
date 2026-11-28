@@ -34,7 +34,7 @@ fn messages(out: &Output) -> Vec<String> {
 /// template, which gets its walker from `WALKER` (an expression).
 fn show_lib(walker: &str) -> String {
     format!(
-        "use std.structure.{{Structure, Field, Variant, Walker}}
+        "use std.meta.{{Structure, Field, Variant, Walker}}
 
 trait Show:
     fn show(self) -> string
@@ -72,7 +72,7 @@ impl[T] Show for T by Structure:
     )
 }
 
-/// The template lives in another folder of the package; editing only its
+/// The template lives in another unit of the package; editing only its
 /// helper's body reaches the deriving module's check.
 #[test]
 fn template_edit_in_another_module_rechecks_the_opt_in() {
@@ -92,15 +92,7 @@ impl[S] Walker[S] for Quiet:
         .Ok(())
 "
     };
-    let main = "use pkg.lib.show.Show
-
-@derive(Show)
-struct Label:
-    text: string
-
-pub fn main() -> void:
-    pass
-";
+    let main = include_str!("programs/derive_members/label_main.hd");
     let store = crate::warm_store();
     let mut src = MemorySources::default();
     src.insert("app/main.hd", main);

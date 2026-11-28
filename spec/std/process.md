@@ -186,3 +186,18 @@ fn killed!(tool: string) -> Result[bool, ProcessError] $ Process:
 
 See also: [Processes](../lang/10-modules.md#processes),
 [Running Executables](testing.md#running-executables).
+
+## Inherited standard streams
+
+1. r[std-process.command.status] `Command.status!(self) -> Result[i32, ProcessError] $ Process` calls the covering provider's `status!(&mut self, command: Command) -> Result[i32, ProcessError]` method.
+2. r[std-process.status.helper] `pub fn status!(command: Command) -> Result[i32, ProcessError] $ Process` calls `command.status!()`.
+3. r[std-process.status.inherit] The host's `status!` inherits the parent's standard input, output, and error streams, ignoring `Command.stdin`.
+4. r[std-process.status.result] Its result uses `ProcessOutput.status`'s convention: a nonzero exit is `.Ok`, and signal termination is `128 + signal`.
+5. r[std-process.status.controls] `status!` uses `run!`'s arguments, environment, working directory, grants, start errors, and cancellation rules.
+6. r[std-process.scripted.status] `ScriptedProcess.reply_status(&mut self, program: string, result: Result[i32, ProcessError]) -> void` queues status answers independently of `run!` answers, consuming them in order and repeating the last.
+7. r[std-process.scripted.status-recording] `received_status(&self) -> List[Command]` returns every command received by `status!`, in call order, including unqueued commands answered with `.Err(ProcessError.NotFound(program))`.
+
+8. r[std-process.status.node-launcher] A standalone Node embedding supplies its `processLauncher` path for inherited-stdio calls, as for Windows captured calls; the CLI supplies its own executable.
+
+> **Why.** Editors and pagers need the user's streams rather than captured
+> output; Rust's `Command::status` provides the same inherited-stream operation.

@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# A relaxed trait's Self is not copied, including in a default method.
+trait Resource < ?Copy:
+    fn twice(self) -> (Self, Self):
+        (self, self)
+
+    fn read(&self) -> Self:
+        *self

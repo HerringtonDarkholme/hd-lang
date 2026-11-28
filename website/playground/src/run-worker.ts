@@ -4,6 +4,7 @@
 // (crates/hd_command/DESIGN.md §7.9, docs/compiler/engines-and-test-runner.md §18.4).
 
 import type { RunResult } from "./runner.ts";
+import { serveWorker } from "../../../host/web.ts";
 import { runCompiled, type CompiledRun } from "./rust-runner.ts";
 
 export interface RunRequest {
@@ -23,13 +24,19 @@ export type RunMessage =
   | { readonly kind: "result"; readonly id: number; readonly result: RunResult };
 
 interface WorkerScope {
-  onmessage: ((event: MessageEvent<RunRequest>) => void) | null;
+  onmessage: ((event: MessageEvent<RunRequest | { hdWorker: WebAssembly.Module }>) => void) | null;
   postMessage(message: RunMessage): void;
 }
 
 const scope = self as unknown as WorkerScope;
 
-scope.onmessage = async ({ data: { id, run } }) => {
+// A program's `Workers` start this script as a worker of its own
+// (host/web.ts `serveWorker`), with the program's module.
+scope.onmessage = async ({ data }) => {
+  if ("hdWorker" in data) {
+    return serveWorker(scope, data.hdWorker);
+  }
+  const { id, run } = data;
   const onStdout = (line: string, debug?: boolean): void =>
     scope.postMessage({ kind: "stdout", id, line, ...(debug ? { debug } : {}) });
   const result = await runCompiled(run, onStdout);

@@ -206,7 +206,7 @@ test("later inputs edit an earlier input's type's facts, before and after a rebu
   const repl = new Repl();
   repl.start();
   // A walker that writes each member's `Column` fact, or else its name.
-  const columns = `use std.structure.{Structure, Field, Variant, Walker}
+  const columns = `use std.meta.{Structure, Field, Variant, Walker}
 
 struct Column:
     name: string

@@ -28,20 +28,23 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{Enc, Is, IsOps as _, Pass, Test, num, vals};
-use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
+use crate::layout::{Enc, Is, IsOps as _, NumWidth, Pass, Test, num_width, vals};
+use crate::module::{
+    Edit, Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem,
+};
 use crate::rt::Helper;
 use hd_layout::shims::Portion;
 
 mod body_facts;
-mod borrow;
+pub(crate) mod borrow;
 pub(crate) use body_facts::{BodyFactCell, prepare as prepare_body_facts};
+pub(crate) use indirect::prepare as prepare_indirect;
 mod loan_facts;
 pub(crate) use borrow::lent_receiver_reads;
 pub(crate) use hd_tir::own::pointer::LoanSite;
 pub(crate) use hd_tir::own::pointer::{StorageRoots, global_root};
 mod closure;
-mod control;
+pub(crate) mod control;
 mod count;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
@@ -58,11 +61,11 @@ mod loan;
 mod map;
 mod promote;
 pub use promote::{Settled, settled};
-mod refs;
+pub(crate) mod refs;
 mod row;
-mod shape;
-mod susp;
-mod susp_spill;
+pub(crate) mod shape;
+pub(crate) mod susp;
+pub(crate) mod susp_spill;
 mod switch;
 mod text;
 mod value;
@@ -101,7 +104,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         // A promoted copy borrows what it takes by value (§23.40).
         lends: input.env.lends(item, args)
             | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
-        indirect: indirect::params(input, m, id),
+        indirect: indirect::params(m, id),
     };
     let Some(abi) = own.indirect.clone() else {
         return body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b);
@@ -215,16 +218,16 @@ fn body_func<'i>(
     b: &'i Body,
 ) -> StageResult<Func> {
     let (item, args) = (own.item, own.args);
-    let inst = m.inst_of.get(&own.key).copied();
+    let inst = m.inst(own.key);
     // Each collected instance emits once. Consume its cell reference so
     // the shared body facts end after the last sibling emitter, rather
     // than retaining every body's analysis until the module links.
     let body_cell = inst
-        .and_then(|id| m.body_facts.get_mut(id.idx()))
-        .and_then(Option::take)
+        .and_then(|id| m.body_facts.remove(&id))
         .unwrap_or_default();
     let boundary = inst.and_then(|id| (input.boundary)(id)).unwrap_or_else(|| {
-        let inputs = promote::boundary_inputs(input, b, item, own.cold.is_some(), own.lends);
+        let inputs =
+            promote::boundary_inputs(input, b, targets, item, own.cold.is_some(), own.lends);
         let topo = hd_tir::ir::Topology::new(b);
         let work = &mut crate::work::loan_queries;
         let mut boundary = hd_tir::own::boundary::plan(b, &topo, input.own_cx, &inputs, work);
@@ -244,7 +247,9 @@ fn body_func<'i>(
     // A suspending body is a state machine over a frame (`susp.rs`), but
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
-    let plan = susp::plan(b, b.sub_root[sub as usize]);
+    let plan = susp::plan(b, b.sub_root[sub as usize], &|i| {
+        susp::waits(input, targets, b, i)
+    });
     let closure = (sub != 0).then(|| {
         closure::closure_of(
             input,
@@ -257,7 +262,9 @@ fn body_func<'i>(
         None => {
             own.cold.is_none()
                 && input.env.suspends(item)
-                && !(input.entry.root(item) && plan.0.is_empty())
+                && !(input.entry.root(item)
+                    && input.entry.held(item).is_none()
+                    && plan.0.is_empty())
         }
         Some((_, suspends, _)) => suspends,
     };
@@ -449,10 +456,11 @@ fn body_func<'i>(
     if let Some(cell) = &once {
         if em.m.track_origins {
             let name = format!("{}#once", (input.path)(item));
-            em.m.storage_names.insert(key, name);
+            em.m.edit(Edit::StorageName(key, name, true));
         }
         cell.enter(&mut em, ret)?;
     }
+    em.bangs = plan.2;
     if suspending {
         let pc = em.f.local(Val::I32);
         let cancelled = em.f.local(Val::I32);
@@ -561,6 +569,17 @@ fn body_func<'i>(
                 if let Some(reason) = copy {
                     em.because(reason, |em| em.count_local(*l, ls, true))?;
                 }
+            }
+        }
+        // A parameter passed by address has no leaves to hold, but is lent
+        // as its entry says all the same: its drops stand under
+        // `ParamOwned`, false for it (#2399).
+        for (&l, entry) in &entries {
+            if matches!(entry, Entry::Lent)
+                && em.parameter_positions.contains_key(&l)
+                && em.mem_locals.contains_key(&l)
+            {
+                em.borrowed.insert(l);
             }
         }
     }
@@ -718,18 +737,21 @@ impl Reentry {
         let cell = self.cell;
         if em.input.runtime.checked.is_some() {
             // Teardown zeros the flag between test cases, as a once-cell's.
-            em.m.stored.insert(
+            em.m.edit(Edit::Stored(
                 cell,
                 Stored {
                     vals: vec![Val::I32],
                     counted: crate::rt::Counted::None,
                     slot: None,
                 },
-            );
+            ));
         }
         if em.m.track_origins {
-            em.m.storage_names
-                .insert(cell, format!("{}#evaluating", path(item)));
+            em.m.edit(Edit::StorageName(
+                cell,
+                format!("{}#evaluating", path(item)),
+                true,
+            ));
         }
         em.f.global_get(self.flag());
         em.f.op(I::If(BlockType::Empty));
@@ -749,10 +771,10 @@ impl Reentry {
 
 /// A facts or structure-handle body owns one cached result per instance.
 /// Its flag follows the result globals: 0 empty, 2 evaluating, 1 ready.
-struct OnceCell<'b> {
-    key: Hash128,
-    results: Vec<Val>,
-    fact: Option<&'b str>,
+pub struct OnceCell<'b> {
+    pub key: Hash128,
+    pub results: Vec<Val>,
+    pub fact: Option<&'b str>,
 }
 
 impl OnceCell<'_> {
@@ -765,7 +787,7 @@ impl OnceCell<'_> {
     }
 
     /// Opens the cached path and loads its result, before its retain.
-    fn load_cached(&self, f: &mut Func) -> Vec<u32> {
+    pub fn load_cached(&self, f: &mut Func) -> Vec<u32> {
         f.global_get(self.global(self.results.len()));
         f.i32(1);
         f.op(I::I32Eq);
@@ -778,7 +800,7 @@ impl OnceCell<'_> {
         held
     }
 
-    fn return_cached(f: &mut Func, held: &[u32]) {
+    pub fn return_cached(f: &mut Func, held: &[u32]) {
         for l in held {
             f.get(*l);
         }
@@ -787,7 +809,7 @@ impl OnceCell<'_> {
     }
 
     /// Publishes the values after the global has taken its own count.
-    fn publish(&self, f: &mut Func, held: &[u32]) {
+    pub fn publish(&self, f: &mut Func, held: &[u32]) {
         for (k, l) in held.iter().enumerate() {
             f.get(*l);
             f.global_set(self.global(k));
@@ -807,14 +829,14 @@ impl OnceCell<'_> {
             let mut vals = self.results.clone();
             vals.push(Val::I32);
             let counted = crate::rt::counted_of(em.input, em.m, ret)?;
-            em.m.stored.insert(
+            em.m.edit(Edit::Stored(
                 self.key,
                 Stored {
                     vals,
                     counted,
                     slot: None,
                 },
-            );
+            ));
         }
         let held = self.load_cached(&mut em.f);
         // The global keeps its count; every caller receives a fresh one.
@@ -862,67 +884,6 @@ impl OnceCell<'_> {
         }
         Ok(())
     }
-}
-
-/// A minimal handle body increments a counter on entry and returns it.
-/// Execute the emitted cache twice: the body must have run only once.
-#[test]
-fn handle_once_cell_runs_its_body_once() {
-    let cell = OnceCell {
-        key: Hash128(616),
-        results: vec![Val::I32],
-        fact: None,
-    };
-    let counter = Global::Storage(Hash128(617), 0, Val::I32);
-    let mut m = Module::default();
-    let mut handle = m.func("handle", vec![], vec![Val::I32]);
-    let cached = cell.load_cached(&mut handle);
-    OnceCell::return_cached(&mut handle, &cached);
-    handle.global_get(counter);
-    handle.i32(1);
-    handle.op(I::I32Add);
-    let result = handle.local(Val::I32);
-    handle.set(result);
-    handle.get(result);
-    handle.global_set(counter);
-    cell.publish(&mut handle, &[result]);
-    handle.get(result);
-    let mut runs = m.func("runs", vec![], vec![Val::I32]);
-    runs.global_get(counter);
-    m.define(Sym::Inst(Hash128(616)), handle);
-    m.export("handle", Sym::Inst(Hash128(616)));
-    m.define(Sym::Inst(Hash128(617)), runs);
-    m.export("runs", Sym::Inst(Hash128(617)));
-    let wasm = m.finish().expect("link counter fixture");
-    let mut child = hd_testkit::node::command()
-        .args([
-            "--input-type=module",
-            "-e",
-            r"
-            const chunks = [];
-            for await (const chunk of process.stdin) chunks.push(chunk);
-            const {instance} = await WebAssembly.instantiate(Buffer.concat(chunks));
-            const first = instance.exports.handle();
-            const second = instance.exports.handle();
-            const runs = instance.exports.runs();
-            if (first !== 1 || second !== 1 || runs !== 1) {
-                throw new Error(JSON.stringify({first, second, runs}));
-            }
-        ",
-        ])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("start Node counter fixture");
-    std::io::Write::write_all(&mut child.stdin.take().expect("fixture stdin"), &wasm)
-        .expect("send counter fixture");
-    let output = child.wait_with_output().expect("run counter fixture");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 /// The parameter locals of closure body `sub`, in order.
@@ -1136,7 +1097,7 @@ pub(crate) fn callee_params(
 ) -> Vec<Ty> {
     let (pool, env) = (input.pool, input.env);
     let t = &input.collected.table;
-    if let Some(&id) = m.inst_of.get(&key)
+    if let Some(id) = m.inst(key)
         && t.sub[id.idx()] == Sub::Body(0)
         && let Some(b) = (input.body)(id)
     {
@@ -1167,7 +1128,7 @@ pub(super) fn param_locals(b: &Body) -> Vec<usize> {
 
 /// An open Wasm block, for branch depths.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Ctl {
+pub enum Ctl {
     Plain,
     /// The end of a `Loop`, a `Match` or a labelled `Block`.
     Brk(u32),
@@ -1208,22 +1169,22 @@ struct MapProbe {
 }
 
 #[derive(Clone)]
-struct FrameRefs {
+pub struct FrameRefs {
     local: usize,
-    plan: crate::frame_referents::Plan,
+    pub plan: crate::frame_referents::Plan,
     /// One saved pointer per physical reference slot; zero means it was inactive
     /// when constructed, independent of later parameter-tag mutations.
-    held: Vec<u32>,
-    conditional: Vec<bool>,
+    pub held: Vec<u32>,
+    pub conditional: Vec<bool>,
     /// Layout gives simultaneously live fields distinct physical indices;
     /// logical leaves in disjoint enum arms can share one physical value.
     /// They share its saved owner slot, keeping frame size proportional to
     /// the parameter's physical representation, not its variant count.
-    slots: Vec<usize>,
+    pub slots: Vec<usize>,
 }
 
 impl FrameRefs {
-    fn new(local: usize, plan: crate::frame_referents::Plan, f: &mut Func) -> Self {
+    pub fn new(local: usize, plan: crate::frame_referents::Plan, f: &mut Func) -> Self {
         let mut index = HashMap::default();
         let mut held = Vec::new();
         let mut conditional = Vec::new();
@@ -1383,6 +1344,9 @@ struct Em<'i, 'a, 'm> {
     /// kept in memory when [`Em::forwarded`] lets it pass as an address:
     /// the store copies it with one `memory.copy`.
     frame_copies: Vec<u32>,
+    /// The borrowed reads of memory a local kept in memory aliases
+    /// ([`Em::frame_locals`]): their stores write nothing.
+    aliased: hd_base::HashSet<u32>,
     /// Each read of such a local or of a parameter's fields that only
     /// passes on as an address: an argument of a direct call to a worker
     /// or a value copied into a local kept in memory ([`Em::forwarded`]).
@@ -1433,6 +1397,9 @@ struct Em<'i, 'a, 'm> {
     /// How many `using` dispose suites that wait the instruction being
     /// emitted is inside: their points are shielded (`susp.rs`).
     shield: u32,
+    /// The instructions that hold a bang call (`susp::plan`): a cleanup
+    /// suite among them runs under the driver, shielded.
+    bangs: hd_base::HashSet<u32>,
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
@@ -1614,6 +1581,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             mem_locals: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
+            aliased: hd_base::HashSet::default(),
             forward: hd_base::HashSet::default(),
             mem_vals: HashMap::default(),
             sret: None,
@@ -1632,6 +1600,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             cell_layouts: std::cell::RefCell::default(),
             flagged: None,
             susp: None,
+            bangs: hd_base::HashSet::default(),
             shield: 0,
             cells: shared,
             param_vals: HashMap::default(),
@@ -1791,8 +1760,13 @@ impl Em<'_, '_, '_> {
 
     /// The arithmetic view of a type: its width, signedness and float kind.
     fn num(&self, t: Ty) -> (u8, bool, bool) {
+        let (width, signed, float) = self.num_width(t);
+        (width.bits(), signed, float)
+    }
+
+    fn num_width(&self, t: Ty) -> (NumWidth, bool, bool) {
         let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), t);
-        num(self.pool(), t)
+        num_width(self.pool(), t)
     }
 
     /// Pushes every value of `r`. `NONE` is the unit value, which has none.
@@ -2291,7 +2265,9 @@ impl Em<'_, '_, '_> {
         if tail != NONE
             && let Some(d) = dest
         {
-            self.tail_into(tail, d, blk)?;
+            // Every incoming edge writes the labelled block's join locals.
+            // The copy after the label merges Break and fall-through values.
+            self.tail_into(tail, if labelled { blk } else { d }, blk)?;
         }
         if labelled {
             self.close();
@@ -2685,13 +2661,14 @@ impl Em<'_, '_, '_> {
                     self.slot(i)?;
                 }
                 self.open(Ctl::Plain);
-                // A cleanup suite (`own::scopes`). One that waits runs
-                // under the driver (flow.using.async.not-forbidden), its
-                // points shielded (flow.using.async.cancel.shielded); one
-                // that does not is a forbidden context
-                // (`req.drive.block-on.indirect`).
+                // A cleanup suite (`own::scopes`). One that holds a bang
+                // call runs under the driver
+                // (flow.using.async.not-forbidden), its points shielded
+                // (flow.using.async.cancel.shielded), though its calls may
+                // all complete at once (#2419); one that holds none is a
+                // forbidden context (`req.drive.block-on.indirect`).
                 let suite = self.b.is_suite(i);
-                let shield = u32::from(suite && self.range(i).is_some());
+                let shield = u32::from(suite && self.bangs.contains(&i));
                 let forbid = i32::from(suite) - i32::from(shield != 0);
                 self.shield += shield;
                 self.forbid_by(forbid);
@@ -2841,19 +2818,7 @@ impl Em<'_, '_, '_> {
                     self.pool(),
                     crate::layout::strip_newtype(self.pool(), self.env(), self.ty(i)),
                 );
-                let srcs: Vec<value::Src> = members.into_iter().map(value::Src::Ref).collect();
-                // Construction consumes its parts (§23.25).
-                let srcs = if self.b.is_borrowed_coercion(i) {
-                    srcs
-                } else {
-                    self.count_parts(&srcs, &tys)?
-                };
-                for (s, mt) in srcs.iter().zip(tys) {
-                    for k in 0..self.vals(mt)?.len() {
-                        self.src(s, k)?;
-                    }
-                }
-                self.store(i)?;
+                self.new_in_locals(i, &members, &tys)?;
             }
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,
@@ -2872,7 +2837,13 @@ impl Em<'_, '_, '_> {
                 self.call_value(i, a, &args)?;
             }
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
-                self.point(i, a, bw)?;
+                match susp::ready_callee(self.input, self.calls, self.b, i) {
+                    Some(t) => self.await_ready(i, t.key, t.item, t.args)?,
+                    None if susp::ready_slot(self.input, self.calls, self.b, i) => {
+                        self.await_ready_slot(i, a)?;
+                    }
+                    None => self.point(i, a, bw)?,
+                }
             }
             Tag::With => self.with(i, a, bw)?,
             Tag::ContextNew => self.context_new(i, a)?,
@@ -2955,7 +2926,7 @@ impl Em<'_, '_, '_> {
         let h = self.env().path_hash(def);
         if self.m.track_origins {
             let path = (self.input.path)(def);
-            self.m.storage_names.entry(h).or_insert(path);
+            self.m.edit(Edit::StorageName(h, path, false));
         }
         h
     }
@@ -3167,6 +3138,8 @@ impl Em<'_, '_, '_> {
         Ok(Some(s))
     }
 
+    /// `first` resolves the crossing helper's leading `u64`; every other
+    /// argument retains its original ABI index and ownership operation.
     pub(super) fn push_args(
         &mut self,
         i: u32,
@@ -3174,7 +3147,16 @@ impl Em<'_, '_, '_> {
         params: Option<&[Ty]>,
         lends: Option<u64>,
         copy: Option<Reason>,
+        first: Option<u64>,
     ) -> StageResult<()> {
+        let offset = usize::from(first.is_some());
+        if let Some(bits) = first {
+            self.f.op(Instruction::I64Const(bits.cast_signed()));
+        }
+        // ruled out: only CrossingNumber supplies `first`; its declared
+        // leading u64 is one scalar argument and one scalar parameter.
+        let args = &args[offset..];
+        let params = params.map(|params| &params[offset..]);
         let Some(params) = params else {
             for r in args {
                 if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
@@ -3188,7 +3170,7 @@ impl Em<'_, '_, '_> {
         };
         if params.len() == args.len() {
             for (k, (r, t)) in args.iter().zip(params).enumerate() {
-                self.push_arg(i, k, *r, *t, lends)?;
+                self.push_arg(i, k + offset, *r, *t, lends)?;
             }
             return Ok(());
         }
@@ -3207,7 +3189,7 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned = self.argument_pass(lends, k, *t)
+            if let Pass::Owned = self.argument_pass(lends, k + offset, *t)
                 && self
                     .operation_count(i, Tag::Release, CountPart::Arguments)
                     .is_none()
@@ -3264,7 +3246,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// Call `i` of instance `ct` at `args`.
-    fn call_instance(&mut self, i: u32, ct: &hd_mono::CallTarget, args: &[u32]) -> StageResult<()> {
+    fn call_instance(
+        &mut self,
+        i: u32,
+        ct: &hd_mono::CallTarget,
+        args: &[u32],
+        first: Option<u64>,
+    ) -> StageResult<()> {
         let suspends = self.env().suspends(ct.item);
         if suspends && let Some(on) = crate::drive::block_on_of(self.b, &self.topo, self.calls, i) {
             return self.call_known_drive(i, ct, args, on);
@@ -3284,7 +3272,14 @@ impl Em<'_, '_, '_> {
                 dest = abi.ret.as_ref().map(|mem| self.result_dest(i, mem));
                 worker = Some(self.push_worker_args(i, args, params, lends, &abi.params)?);
             } else {
-                self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
+                self.push_args(
+                    i,
+                    args,
+                    params.as_deref(),
+                    Some(lends),
+                    self.f.reason,
+                    first,
+                )?;
             }
         }
         let c = self.push_call_providers(i, ct.item, ct.args)?;
@@ -3330,8 +3325,11 @@ impl Em<'_, '_, '_> {
         }
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
+            Some(Target::CrossingNumber { call, number }) => {
+                self.call_instance(i, &call, &args, Some(number))
+            }
             Some(Target::Call(ct)) => match &ct.kind {
-                TargetKind::Instance => self.call_instance(i, &ct, &args),
+                TargetKind::Instance => self.call_instance(i, &ct, &args, None),
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
                     if matches!(key.as_str(), "downcast_ref" | "downcast_mut") =>
@@ -3464,20 +3462,22 @@ impl Em<'_, '_, '_> {
         self.f.helper(Helper::ForbidCheck);
         self.f.at = at;
         self.f.origin_at = origin;
-        self.f.i32(0);
+        let complete = self.input.ready.contains(&target.key);
+        if !complete {
+            self.f.i32(0);
+        }
         self.push_cold_args(i, args, target.item, target.args, None)?;
         let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
+        if complete {
+            self.f.i32(0);
+        }
         self.f.set(frame);
         for value in values.iter().rev() {
             self.f.set(*value);
         }
         self.release_call_ctx(i, context);
-        let complete = self
-            .m
-            .inst_of
-            .get(&target.key)
-            .is_some_and(|&id| crate::drive::completes(self.input, id));
+        // A body that completes at once (#2419) never hands back a frame.
         self.driven.insert(
             on,
             Driven {
@@ -3547,10 +3547,11 @@ impl Em<'_, '_, '_> {
         };
         let slot = match drive {
             Some((_, buffer)) => {
-                crate::drive::index(self.env(), self.m, trait_, method, buffer.is_some()) as usize
+                crate::drive::index(self.input, self.m, trait_, method, buffer.is_some()) as usize
             }
-            // Collection dispatches only a method with a slot.
-            None => hd_mono::slot_methods(self.env(), trait_)
+            // Collection dispatches only a method with a slot, and this
+            // call keeps it (`Collected::slots`).
+            None => (self.input.collected.slots(self.env(), trait_))
                 .iter()
                 .position(|m| *m == method)
                 .expect("a dynamically dispatched method has a slot"),
@@ -3661,7 +3662,14 @@ impl Em<'_, '_, '_> {
         let args = self.b.call_args(i as usize).to_vec();
         let params = self.param_tys(call.key, call.item, call.args);
         let lends = self.env().lends(call.item, call.args);
-        self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
+        self.push_args(
+            i,
+            &args,
+            params.as_deref(),
+            Some(lends),
+            self.f.reason,
+            None,
+        )?;
         let c = self.push_call_providers(i, call.item, call.args)?;
         if bracket {
             self.forbid_by(1);
@@ -3764,27 +3772,13 @@ impl Em<'_, '_, '_> {
             // Bounds need no operand or bit loop: the result's type fixes
             // their width and signedness, including 32-bit `usize`.
             "int_min" | "int_max" => {
-                let (bits, signed, _) = self.num(self.ty_of(i));
-                let minimum = key == "int_min";
-                if bits == 64 {
-                    let value = match (minimum, signed) {
-                        (true, true) => i64::MIN,
-                        (true, false) => 0,
-                        (false, true) => i64::MAX,
-                        (false, false) => -1,
-                    };
-                    self.f.op(I::I64Const(value));
+                let (width, signed, _) = self.num_width(self.ty_of(i));
+                let value = width.integer_bound(signed, key == "int_min");
+                if width == NumWidth::W64 {
+                    self.f.op(I::I64Const(value.cast_signed()));
                 } else {
-                    let value = match (minimum, signed, bits) {
-                        (true, false, _) => 0,
-                        (true, true, 32) => i32::MIN,
-                        (true, true, _) => -(1i32 << (bits - 1)),
-                        (false, true, 32) => i32::MAX,
-                        (false, false, 32) => -1,
-                        (false, true, _) => width_mask(bits - 1),
-                        (false, false, _) => width_mask(bits),
-                    };
-                    self.f.i32(value);
+                    let [a, b, c, d, ..] = value.to_le_bytes();
+                    self.f.i32(i32::from_le_bytes([a, b, c, d]));
                 }
                 self.store(i)
             }
@@ -4212,10 +4206,12 @@ impl Em<'_, '_, '_> {
 
     /// `std.rt.memory`'s typed intrinsics on the heap (`module.rt.ptr.*`).
     /// A `Ptr[T]` is its address, and a `T` there has the layout of a
-    /// list's element of `T`, so `size_of` is that size and `offset` one
-    /// multiply and add.
+    /// list's element of `T`, so `size_of` and `align_of` are that size
+    /// and alignment, `needs_drop` whether counting a `T` does anything
+    /// (`hd_layout::counted`), and `offset` one multiply and add.
     fn ptr(&mut self, i: u32, key: &str, targs: TyList, args: &[u32]) -> StageResult<()> {
-        // Each is a method of `impl[T] Ptr[T]` or `size_of[T]`.
+        // Each is a method of `impl[T] Ptr[T]`, or `size_of[T]`,
+        // `align_of[T]` or `needs_drop[T]`.
         let targs = self.pool().list_items(targs);
         let t = targs[targs.len() - 1];
         let m = crate::layout::mem(self.pool(), self.env(), t)?;
@@ -4225,6 +4221,11 @@ impl Em<'_, '_, '_> {
             self.f.u32(m.size);
             self.f.op(I::I32Mul);
             self.f.op(I::I32Add);
+        } else if key == "ptr_align_of" {
+            self.f.u32(m.align);
+        } else if key == "ptr_needs_drop" {
+            let counted = crate::layout::counted(self.pool(), self.env(), t);
+            self.f.u32(u32::from(counted));
         } else {
             self.f.u32(m.size);
         }
@@ -4872,18 +4873,32 @@ impl Em<'_, '_, '_> {
     fn float_value(&mut self, op: PrimOp, ops: &[u32], v: Val) -> StageResult<()> {
         let single = v == Val::F32;
         if matches!(op, PrimOp::Pow | PrimOp::Rem) {
+            // Power uses its operand width's libm, as the inherent powf does.
+            // Only remainder widens: f64's exact significand subtraction also
+            // gives the exact f32 remainder before narrowing.
+            let widen = single && op == PrimOp::Rem;
             for r in ops {
                 self.comp(*r, 0)?;
-                if single {
+                if widen {
                     self.f.op(I::F64PromoteF32);
                 }
             }
-            self.f.call(Sym::Inst(if op == PrimOp::Pow {
-                self.input.float_ops.pow
+            let key = if op == PrimOp::Pow {
+                if single {
+                    self.input.float_ops.pow_f32
+                } else {
+                    self.input.float_ops.pow
+                }
             } else {
                 self.input.float_ops.rem
-            }));
-            if single {
+            };
+            // ruled out: a missing key. Collection follows every floating
+            // operator's implicit std call after generic/closure substitution.
+            self.f.call(Sym::Inst(required(
+                key,
+                "collection recorded the floating operator's std implementation",
+            )));
+            if widen {
                 self.f.op(I::F32DemoteF64);
             }
             return Ok(());
@@ -5450,7 +5465,8 @@ impl Em<'_, '_, '_> {
 }
 
 /// The smallest and largest value of a `bits`-wide integer type.
-pub(crate) const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
+#[must_use]
+pub const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
     if signed {
         (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
     } else {
@@ -5462,12 +5478,8 @@ pub(crate) const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
 /// the type's range `(min, max)`; `op` is `+`, `-`, `*`, or unary `-`
 /// read as `0 - x`. The set is one interval, since each operation is
 /// monotonic in `x`.
-pub(crate) fn operand_range(
-    op: PrimOp,
-    c: i128,
-    c_left: bool,
-    (min, max): (i128, i128),
-) -> (i128, i128) {
+#[must_use]
+pub fn operand_range(op: PrimOp, c: i128, c_left: bool, (min, max): (i128, i128)) -> (i128, i128) {
     let floor = |a: i128, b: i128| {
         let q = a / b;
         if a % b != 0 && (a < 0) != (b < 0) {
@@ -5513,69 +5525,4 @@ fn float_unary(name: &str) -> Option<[I; 2]> {
         "sqrt" => [I::F32Sqrt, I::F64Sqrt],
         _ => return None,
     })
-}
-
-#[cfg(test)]
-mod frame_ref_tests {
-    use super::*;
-    use crate::frame_referents::{Guard, Plan, Referent};
-    use crate::layout::{Discr, Leaf};
-
-    #[test]
-    fn disjoint_variants_share_one_saved_owner_per_physical_value() {
-        let discr = Discr {
-            value: 0,
-            leaf: Leaf {
-                offset: 0,
-                val: Val::I32,
-                bytes: 4,
-                signed: false,
-            },
-            enc: Enc::Direct,
-        };
-        let plan = Plan {
-            guards: (0..1_000)
-                .map(|variant| Guard {
-                    parent: None,
-                    discr,
-                    variant,
-                })
-                .collect(),
-            refs: (0..1_000)
-                .map(|variant| Referent {
-                    guard: Some(variant),
-                    value: 1,
-                })
-                .collect(),
-        };
-        let mut f = Func::default();
-        let saved = FrameRefs::new(0, plan, &mut f);
-        assert_eq!(saved.plan.refs.len(), 1_000);
-        assert_eq!(saved.held.len(), 1);
-        assert_eq!(f.locals, [Val::I32]);
-        assert_eq!(saved.conditional, [true]);
-        assert!(saved.slots.iter().all(|&slot| slot == 0));
-    }
-
-    #[test]
-    fn simultaneous_fields_keep_distinct_owners() {
-        let plan = Plan {
-            guards: vec![],
-            refs: vec![
-                Referent {
-                    guard: None,
-                    value: 0,
-                },
-                Referent {
-                    guard: None,
-                    value: 1,
-                },
-            ],
-        };
-        let mut f = Func::default();
-        let saved = FrameRefs::new(0, plan, &mut f);
-        assert_eq!(saved.held.len(), 2);
-        assert_eq!(saved.slots, [0, 1]);
-        assert_eq!(saved.conditional, [false, false]);
-    }
 }

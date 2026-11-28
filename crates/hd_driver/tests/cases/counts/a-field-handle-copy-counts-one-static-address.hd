@@ -4,7 +4,7 @@
 # builds once in static data (#889): keeping a copy counts that one address,
 # which the runtime skips for static data. No count reaches the record's
 # member information, facts list or closures.
-use std.structure.Field
+use std.meta.Field
 
 struct Point:
     x: i32

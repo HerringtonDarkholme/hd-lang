@@ -1,0 +1,7 @@
+# test: a private type through a module is private import in a body's annotation
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    let secret: shapes.Secret = panic("never") # diagnostic: private-import
+    pass

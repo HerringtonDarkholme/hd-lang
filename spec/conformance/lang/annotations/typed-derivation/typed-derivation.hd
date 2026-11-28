@@ -1,6 +1,6 @@
 # test: templates over Structure derive traits for data and enum types, configured by facts and member lines
 
-use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Facts, Member, Field, Variant, Walker, Describer}
 
 # Library: facts, two traits, their templates, a walker, and a describer.
 

@@ -3,7 +3,7 @@
 # Explicitly hinted copies are built bottom-up in dev too: `run` copies
 # `a`, which has already copied `b`, which has already copied `c`, so no
 # call remains (#1235).
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always)
 fn c(value: i32) -> i32:

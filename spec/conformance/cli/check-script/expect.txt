@@ -16,3 +16,10 @@ run: hd test tested.hd
 exit: 101
 run: hd greet.hd
 stdout: hello, Ada
+# An empty script runs and checks, doing nothing (`module.init.script-empty`).
+run: hd empty.hd
+stdout-json: []
+run: hd check empty.hd
+stderr: check result: ok.
+run: hd empty.hd
+stdout-json: []

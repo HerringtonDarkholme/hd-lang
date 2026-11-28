@@ -1,0 +1,9 @@
+let mut log: List[string] = []
+log.push("init")
+
+pub fn size() -> usize:
+    log.len()
+
+pub fn grow() -> usize:
+    log.push("more")
+    log.len()

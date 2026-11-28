@@ -1,0 +1,8 @@
+pub fn double(value: i32) -> i32: value * 2
+
+tests:
+    use std.testing.{assert, it_each}
+
+    it_each("doubles", [1, 2, 3], body=fn!(value: i32):
+        assert(double(value) != 4, reason="the second row fails")
+    )

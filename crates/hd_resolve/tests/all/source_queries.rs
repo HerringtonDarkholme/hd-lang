@@ -1,9 +1,9 @@
 //! Read-only source and declaration queries used by diagnostics and tooling.
 
-use hd_base::{FileId, FolderId, NodeIdx, TokenIdx};
+use hd_base::{FileId, NodeIdx, TokenIdx, UnitId};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::facts::{DeclView, callee_of, fact_lines, is_marker, name_path, path_def};
-use hd_resolve::iface::{IfaceIndex, folder_iface};
+use hd_resolve::iface::{IfaceIndex, unit_iface};
 use hd_resolve::{
     Binding, BindingKind, ImplKind, Item, ItemData, Items, KnownItems, Lookup, ModuleScope, Names,
     Origin, Src, TypeAttrs,
@@ -301,7 +301,7 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
     let derived = implementation("derived", ImplKind::Derived);
     let written = implementation("written", ImplKind::Written);
     let own = [record.clone(), derived.clone(), written];
-    let folder = folder_iface(
+    let unit = unit_iface(
         "app.data",
         Items::new(vec![record.clone(), derived]),
         Vec::new(),
@@ -310,10 +310,16 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
         &[],
         Vec::new(),
     );
-    let folder_id = FolderId::from_raw(0);
+    let unit_id = UnitId::from_raw(0);
     let index = IfaceIndex::default();
-    index.insert(folder_id, &folder);
-    let lookup = Lookup::new(&own, [(folder_id, &folder)], &index);
+    index.insert(unit_id, &unit);
+    let interfaces = [(unit_id, &unit)];
+    let lookup = Lookup::new(
+        &own,
+        &interfaces,
+        &index,
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX),
+    );
     let mut scope = ModuleScope::default();
     scope.bind(
         record.name,
@@ -335,7 +341,7 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
         0,
     );
     let blocks = [NodeIdx::from_raw(4), NodeIdx::from_raw(9)];
-    let view = DeclView::new(names, folder_id, &scope, &lookup, &blocks);
+    let view = DeclView::new(names, unit_id, &scope, &lookup, &blocks);
     assert!(view.derivation_block(blocks[0]));
     assert!(view.derivation_block(blocks[1]));
     assert!(!view.derivation_block(NodeIdx::from_raw(5)));
@@ -447,4 +453,194 @@ fn scope_overlay_rebases_modules_and_ambiguities_and_hides_unreadable_names() {
             .iter()
             .all(|(label, _)| label != "choice" && label != "broken")
     );
+}
+
+/// Worlds may expose their already-owned module text; the recorder must
+/// preserve that fast path without making the path-text query a dependency.
+#[test]
+fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
+    use hd_base::PathId;
+    use hd_resolve::{Reads, Recorded, UnitIface, World};
+    use std::cell::RefCell;
+
+    struct IndexedWorld {
+        node: PathId,
+        calls: RefCell<Vec<String>>,
+    }
+    impl World for IndexedWorld {
+        fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+            hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX)
+        }
+
+        fn module_path_node(&self, module: PathId) -> Option<&str> {
+            (module == self.node).then_some("app.data")
+        }
+        fn module_unit(&self, module: &str) -> Option<u32> {
+            self.calls.borrow_mut().push(module.to_owned());
+            (module == "app.data").then_some(7)
+        }
+        fn usable(&self, module: &str) -> bool {
+            module == "app.data"
+        }
+        fn test_only(&self, _module: &str) -> bool {
+            false
+        }
+        fn published(&self, module: &str) -> Option<bool> {
+            self.usable(module).then_some(false)
+        }
+        fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
+            None
+        }
+    }
+
+    let run = Run::new();
+    let names = run.names();
+    let data = names.module("app.data");
+    let missing = names.module("app.missing");
+    let world = IndexedWorld {
+        node: data,
+        calls: RefCell::default(),
+    };
+    let recorded = Recorded::new(&world);
+    assert_eq!(recorded.module_path_node(data), Some("app.data"));
+    assert_eq!(recorded.module_path_node(missing), None);
+    assert_eq!(recorded.reads(), Reads::default());
+    assert!(world.calls.borrow().is_empty());
+
+    // The default node lookup takes owned text for data and renders the
+    // missing node's text. Every lookup reaches the world exactly once.
+    assert_eq!(recorded.module_unit_node(&names, missing), None);
+    assert_eq!(recorded.module_unit_node(&names, data), Some(7));
+    assert_eq!(recorded.module_unit_node(&names, data), Some(7));
+    assert_eq!(
+        *world.calls.borrow(),
+        ["app.missing", "app.data", "app.data"]
+    );
+    let expected = Reads {
+        modules: vec!["app.data".into(), "app.missing".into()],
+        units: Vec::new(),
+    };
+    assert_eq!(recorded.reads(), expected);
+
+    // Holding dependency reads must not suppress the underlying lookup.
+    recorded.hold_reads(true);
+    assert_eq!(
+        recorded.module_unit_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        world.calls.borrow().last().map(String::as_str),
+        Some("app.held")
+    );
+    assert_eq!(recorded.reads(), expected);
+    recorded.hold_reads(false);
+    assert_eq!(
+        recorded.module_unit_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        recorded.reads().modules,
+        ["app.data", "app.held", "app.missing"]
+    );
+}
+
+/// `module.rt.std-only`: neither a runtime module nor a public re-export
+/// of its declaration is a usable import repair in another package.
+#[test]
+fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
+    use hd_resolve::HeadKind;
+    use hd_resolve::iface::{Export, ImportHint, ImportIndex};
+    use hd_resolve::work::count_hint_work;
+
+    let mut warm_work = Vec::new();
+    for width in [100u64, 1000] {
+        let run = Run::new();
+        let names = run.names();
+        let visible = names.item("std.text", "Shared");
+        let hidden = names.item("std.rt.memory", "Shared");
+        let tree = names.item("std.rtree", "Node");
+        let export = |module: &str, label: &str, def| Export {
+            module: module.into(),
+            name: run.syms.intern(label),
+            def,
+            kind: HeadKind::Struct,
+        };
+        let mut exports = vec![
+            export("std.text", "Shared", visible),
+            export("std.facade", "Shared", visible),
+            export("std.other_facade", "Shared", hidden),
+            export("std.rt.memory", "Shared", hidden),
+            export("std.leaky", "RuntimeOnly", hidden),
+            export("std.rt", "RootOnly", visible),
+            export("std.rt.memory", "NestedOnly", visible),
+            export("std.rtree", "Node", tree),
+        ];
+        for i in 0..width {
+            let label = format!("Filler{i}");
+            exports.push(export("std.misc", &label, names.item("std.misc", &label)));
+        }
+        let ((index, hint), cold) = count_hint_work(|| {
+            let index = ImportIndex::new(&names, &exports);
+            let hint = index.hint("Shared");
+            (index, hint)
+        });
+        assert_eq!(hint.path.as_deref(), Some("std.text.Shared"));
+        assert_eq!(hint.text, "; add `use std.text.Shared`");
+        // Explicit advice is independent of the lookup's visible interfaces.
+        let directory = IfaceIndex::default();
+        let interfaces = [];
+        let lookup = Lookup::new(
+            &[],
+            &interfaces,
+            &directory,
+            hd_resolve::iface::ImportHints::Index(&index),
+        );
+        assert_eq!(lookup.import_hint("Shared"), hint);
+
+        assert!(cold >= width, "the first hint indexes all exports");
+        for label in [
+            "RuntimeOnly",
+            "RootOnly",
+            "NestedOnly",
+            "leaky",
+            "rt",
+            "memory",
+        ] {
+            let (hint, work) = count_hint_work(|| index.hint(label));
+            assert_eq!(hint, ImportHint::default(), "{width}: {label}");
+            assert_eq!(work, 1, "an absent name probes the explicit index once");
+        }
+        for (label, path) in [
+            ("Node", "std.rtree.Node"),
+            ("rtree", "std.rtree"),
+            ("text", "std.text"),
+        ] {
+            assert_eq!(index.hint(label).path.as_deref(), Some(path));
+        }
+        let (again, work) = count_hint_work(|| index.hint("Shared"));
+        assert_eq!(again, hint);
+        warm_work.push(work);
+    }
+    assert_eq!(
+        warm_work[0], warm_work[1],
+        "tenfold unrelated exports must not increase a warm lookup's work"
+    );
+}
+
+#[test]
+fn unknown_use_root_diagnostics_keep_empty_and_written_paths() {
+    for (path, root) in [
+        (Vec::<&str>::new(), ""),
+        (vec!["missing", "name"], "missing"),
+    ] {
+        let (code, message) =
+            hd_resolve::lower::use_root_diagnostic(hd_project::UseRootError::UnknownRoot, &path);
+        assert_eq!(code, hd_diag::Code::UnknownModule);
+        assert_eq!(
+            message,
+            format!(
+                "`{root}` is no use root; a path starts with `pkg`, `std`, `dep`, `self` or `super`"
+            )
+        );
+    }
 }

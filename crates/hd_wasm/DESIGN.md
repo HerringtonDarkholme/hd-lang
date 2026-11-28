@@ -472,7 +472,10 @@ cannot move under one.
   a `dyn` releases its data with no knowledge of the type: the release
   and, later, the trace are the data's own descriptor's (§23.4). A
   vtable is a static record of the method slots in the trait's declared
-  order, then each direct supertrait's vtable address. `Inspectable`'s
+  order, then each direct supertrait's vtable address. A closed program
+  keeps a slot only for a method some call through a trait value names
+  (`hd_mono::Collected::slots`, crates/hd_mono/DESIGN.md §13.5), for host
+  providers and handles too; a REPL session keeps every slot. `Inspectable`'s
   `runtime_type` slot answers the type's identity (§15.2's `TypeId`).
 - **Providers** are trait values, passed as `(data, vtable)` pairs in key
   order (crates/hd_mono/DESIGN.md §13.18).
@@ -553,13 +556,13 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
-- **The folder `std.rt`.** `lib/std/rt/` is a leaf below the root std
-  folder (`module.rt.leaf`): its modules see only `std.core`'s names, so
-  root std modules may use them. The entry glue `std.rt.entry` (the
+- **The unit `std.rt`.** `lib/std/rt/`'s modules see only `std.core`'s
+  prelude row (`module.rt.core-prelude`), and root std modules may use
+  them. The entry glue `std.rt.entry` (the
   virtual `rt/entry/mod.hd`) and the checked runtime (`rt/checked/`,
-  `rt/checked_report/`) use root modules, so each is a folder of its own
+  `rt/checked_report/`) use root modules, so each is a unit of its own
   above the root. The driver reaches `std.rt.entry` and the allocator's
-  folder for every program, whatever the program uses; emitted code calls
+  unit for every program, whatever the program uses; emitted code calls
   the runtime by name.
 - **Test programs.** Tests export `hd.test.init(N)`, module `N`'s
   inits, and `hd.test(N, ctx)`, case `N`'s entry poll with the suspension
@@ -693,7 +696,7 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 - **Scans.** `bytes_index_set` calls `rt:bytes_index_set` (`scan.rs`,
   #428), linked only when reached, one per constant set. A constant set
   that a few compares cover (flipped blocks, spans, single bytes, chosen
-  greedily) tests each lane with them; std.json's escape set is
+  greedily) tests each lane with them; std.encoding.json's escape set is
   `(b ^ 2) < 0x21 | b == 0x5C`. Any other set looks each byte up in its
   32-byte bit table with three swizzles. It reads 16 bytes per step with
   `v128.load` and `i8x16.bitmask` while 16 remain, then the string's last
@@ -1534,6 +1537,18 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   local reference its parameters hold by value, a tuple member's too.
   A frame retains its providers, since the scope that installed them
   may end before the frame does.
+- **Completed at once** (issue #2419). A bang instance whose points
+  are all bang calls of instances that complete at once completes at
+  once itself (`hd_opt::whole::completes_at_once`, the greatest fixed
+  point over the bang-call edges; `Input::ready`). A bang call of one is
+  no suspension point: the caller calls its body's fresh path with frame
+  0 and drops the 0 it hands back (`Em::await_ready`), so a caller whose
+  points are all such calls has no state and no frame either. Its other
+  parts stay for a cold call or a cold vtable slot, and unreferenced
+  they are dropped. rustc 1.97 builds a coroutine for an `async fn`
+  with no `.await` and its caller keeps a state for the await (MIR);
+  only LLVM's inliner removes them at -O3. swiftc 6.4 splits such an
+  `async` function at its executor hop at -Onone and -O alike.
 - **Lent frames** (issue #1355). When the frame counts such objects, the
   instance has a second constructor, `Part::Lent` (`NAME.lent`), built by
   the same code without those counts. A cold call whose frame only an
@@ -1732,8 +1747,8 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
 
   Public-field structs and enum payloads cross structurally
   (`module.boundary.public`). At a profile boundary, private-field types
-  use the collected `std.serde.Serialize` instance when leaving hd and
-  `std.serde.Deserialize` when entering, crossing as that codec's string.
+  use the collected `std.encoding.Serialize` instance when leaving hd and
+  `std.encoding.Deserialize` when entering, crossing as that codec's string.
   Newtypes use their field's representation; only a lone `string`
   argument crosses as its bytes alone.
 
@@ -2246,9 +2261,10 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   counted, so a checked build audits the same counts.
 - **The stack** is a downward region in memory 0 between static data and
   the heap start. `Global::Stack` and `Global::StackLimit` delimit it;
-  the allocator cannot consume its pages. Its 16 pages retain the previous
-  1 MiB capacity, over nine times the measured 114,480-byte frame-case peak
-  (#2183). Every reservation compares its size against `top - limit`
+  the allocator cannot consume its pages. Its 128 pages are 8 MiB, Rust's
+  main-thread stack (#2396), over seventy times the measured 114,480-byte
+  frame-case peak (#2183); each thread's region is as large
+  (`std/rt/thread.hd` `FRAMES`). Every reservation compares its size against `top - limit`
   before subtraction and reports `stack-exhausted` on failure. References,
   value blocks, wide calls and local slots share this address space.
 - **Wide bodies** (#640) put their locals in a zeroed shadow frame after
@@ -2758,15 +2774,17 @@ host finishes the call at once. Such a call goes through a second slot
 instead, the method's **drive slot**: the cold call and its first poll
 in one (`drive.rs`).
 
-- **Awaited at once.** A bang call `x.m!(args)` of a trait value, at a
-  point that no `using` suite shields. Or a cold call `x.m(args)` that
+- **Awaited at once.** A bang call `x.m!(args)` of a trait value, a
+  shielded one in a `using` suite too: it steps as a direct shielded
+  await does. Or a cold call `x.m(args)` that
   `block_on` drives, either as its argument or through a local. The
   call is stored in the local, and `block_on` moves it out. Only drops
   of other values may run between (`drive::block_on_of`). Any other cold
   call, such as a suspension kept for `join!`, uses the cold slot. Only
-  a method that is not generic, of a trait with no type arguments and no
-  supertraits, has a drive slot, so all of the trait's vtables have the
-  same shape.
+  a method that is not generic, of a trait with no type arguments but
+  rows (`AsyncDisposable[$ R]`), has a drive slot, so all of the trait's
+  vtables have the same shape. In a closed program, a method that only
+  drive slots call keeps a trapping normal slot (`Facts::drive_only`).
 - **The vtable.** Before any vtable is built, `drive::collect` reads
   every body for the methods that some call awaits at once. Each vtable
   of their trait gets their drive slots after its method slots, in
@@ -2781,8 +2799,10 @@ in one (`drive.rs`).
   registered with the current waker, as the first poll leaves it. An hd
   provider's slot (`Helper::Drive`) calls the cold slot's function,
   polls the frame once, and releases it when it is done. That is the
-  same work and the same allocations as before. A trapping cold slot
-  gets a trapping drive slot.
+  same work and the same allocations as before. An implementation that
+  completes at once (§23.21) is driven by its body's fresh path
+  (`Helper::DynSlot` with `body`): no frame is made. A trapping cold
+  slot gets a trapping drive slot.
 - **The caller.** At a bang point, a fresh start calls the drive slot.
   A Pending frame becomes the child and the task suspends as before; a
   resume polls the child. For `block_on`, the forbidden-context check
@@ -2846,9 +2866,9 @@ dev builds keep the address at a call; the inliner's by-value binding
   by the mark `defaults::promoted(mask)`), when the target is the plain
   instance and each promoted argument is a read-only `Ref` of a part of a
   local no closure captures, used only by the call and its `Drop`s
-  (`hd_tir::own::promote::promoted_call_in`). Only the parameters whose
-  arguments are such `Ref`s are candidates
-  (`hd_tir::own::promote::promotable_args_in`), so one argument passed on
+  (`hd_tir::own::promote::promotable_args_in`). Collection computes that
+  candidate mask once; the callee returns a nonzero subset, so no caller
+  recheck is needed. Thus one argument passed on
   from a reference keeps the others promoted. A call that may also run
   the callee's exclusive copy (stage 8, #1118) runs the promoted copy of
   that one, which borrows across calls what the plain body counts. The
@@ -2881,7 +2901,7 @@ dev builds keep the address at a call; the inliner's by-value binding
   references when each referent is one a promoted copy takes
   (`lent_referent`, counted parts allowed) and the copy only reads
   through it (`hd_opt/src/inline.rs`, `by_value`), at a call whose
-  argument for each is a `Ref` as above (`promoted_call_in`). The copy is
+  argument for each is a `Ref` as above (`promotable_args_in`). The copy is
   promoted, and the caller's `Ref` becomes a `Read` of its place
   (`hd_tir::inline::Site::by_value`), so the copy's parameter binds the
   value: no reference lives in a local, which keeps the reason such
@@ -2908,3 +2928,73 @@ dev builds keep the address at a call; the inliner's by-value binding
   copy binds (`Text(*self).size()`) forwards the borrow of the place it
   was read from to the copy's `self` (`hd_tir::own::borrow`'s forwarding
   locals); the emitter's `loan_locals` follow the read to that borrow.
+
+### 23.41 Stored Units
+
+A dev link keeps each instance's emitted unit in the store and merges it
+into a later link while its inputs are unchanged (#2423), as rustc reuses
+a codegen unit's work product (`determine_cgu_reuse`) and wasm-ld merges
+object files.
+
+- A unit is one instance's emission on a module of its own
+  (`Module::emit_unit`): the functions it defined, its count shim
+  requests, its table edits and its static data requests. Its symbol,
+  global and signature tables are its own (`Symbols::unit`), every entry
+  it names in first-use order, so nothing in it depends on the module or
+  the run.
+- The merge (`Module::merge`) runs in content order: it interns the
+  unit's table entries, places its static data, queues its shims,
+  applies its edits and renumbers each function once. An entry the module
+  has keeps its id and the others are added in the unit's order, so a
+  stored unit and a fresh one leave the module the same. Cost: one intern
+  per table entry, one step per static request and per instruction.
+- Stored form (`module/wire.rs`): a listing per type of its variants and
+  fields, exhaustive in both directions, so a variant the listing lacks is
+  a compile error. Types are rows of the program's type tables
+  (`hd_types::wire`), as a TIR body's are. A unit that names a vtable, a
+  recursive boundary codec or a package host interface, which the module
+  numbers, is not stored; nor is one the merge emits again in order.
+- Key (`units.rs`): the run's fingerprint (toolchain, pipeline, profile,
+  settings; not the program's declarations), the link's
+  program-wide facts (flags, runtime, driven methods, addressed bindings,
+  loan types, coinductive flags), the instance's key and its content: its
+  body without node indices (`hd_tir::wire::content_hash`), sub-body,
+  masks, entry root, call targets by stable names, loan rows, and its
+  slot facts (`Collected::slot_facts`): the kept slots of each trait whose
+  table layout its code reads and the final digest of each table it
+  builds. A vtable keeps only the slots some trait-value call names
+  (#2415, #2420), so a dyn call's slot index and a widening's parent
+  offset depend on the whole program's calls.
+- Declarations (`UnitStore::decls`, `hd_driver/src/unit_decls.rs`): the
+  content holds the declarations its emission can read, not one hash of
+  every declaration, as rustc keys a query on its inputs' fingerprints.
+  They are the non-std declarations its body names (the body wire
+  form's path rows), its type arguments, its call targets' items,
+  arguments and results, and its loan rows' types, each with its
+  ancestors (a method's impl). Each is hashed deeply: a graph of the
+  program's non-std items, each an item's record hash
+  (`hd_resolve::item_fingerprint`, its own tables, so names are paths)
+  with an edge to every declaration it names and from every declaration
+  an impl names to the impl (a type's `!Copy`, drop hook, associated
+  types and trait impls), condensed by Tarjan's algorithm; a component's
+  hash holds its members and the components it reaches. So adding a
+  function no unit reaches emits none again, and a struct's new field
+  emits every unit that reaches the struct. Cost: one record encoding
+  per non-std item and one visit per node and edge per link (3 ms for
+  md-reader), and one probe per declaration a unit names.
+- Reads: emission reaches another instance only by key, through
+  `Module::inst`, which records it. A stored unit keeps each read
+  instance's content and is reused only while each is unchanged, as
+  `try_mark_green` checks a work product's dependencies.
+- Only a dev link has a store: its emission reads no summary of another
+  body (`lent_mask` is 0 and the return-loan shapes are none without
+  summaries), so every input is in the key or the reads. Under the TIR
+  verifier's policy each reused unit is emitted again and compared.
+- A count shim of a type with a `Drop` hook names the type by its `canon`
+  digest, not its number in the run's pool, so a stored unit's shim keys
+  hold in a later build.
+
+Where hd does worse than rustc: the unit is stored before `finish`, which
+still runs over the whole module, because `finish` makes whole-module
+choices (reachability, the acyclic runtime, cold calls, the function
+table and static layout).

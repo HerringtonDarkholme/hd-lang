@@ -36,7 +36,7 @@ use crate::ty::Named;
 
 /// The first field type of std's resolved `Facts` declaration.
 /// Every build loads std; malformed known-item metadata is an internal error.
-fn facts_items(item: Option<&Item>) -> StageResult<Ty> {
+pub fn facts_items(item: Option<&Item>) -> StageResult<Ty> {
     let items = match item.map(|item| &item.data) {
         Some(ItemData::Struct(fields, _)) => fields.first().map(|field| field.ty),
         _ => None,
@@ -569,7 +569,7 @@ fn rename_style_value(
     .flatten()
 }
 
-/// Validates std.serde's internal and adjacent enum shapes against the
+/// Validates std.encoding's internal and adjacent enum shapes against the
 /// declaration facts after its no-trait metadata block has edited them
 /// (`std-serde.enum-tagging.*`).
 fn check_enum_tagging(
@@ -963,7 +963,12 @@ fn check_annotate(
         .children()
         .filter(|d| d.kind() == SyntaxKind::Decorator)
         .filter(|d| decorator_def(cx, *d) == Some(cx.names.known.annotate))
-        .filter_map(|d| d.children().next())
+        .filter_map(|d| {
+            Some((
+                d.children().next()?,
+                cx.lookup.item(cx.names.known.annotate)?,
+            ))
+        })
         .peekable();
     if expressions.peek().is_none() {
         return Ok(());
@@ -980,7 +985,7 @@ fn check_annotate(
         diags,
     );
     let block = ck.b.open_block();
-    for e in expressions {
+    for (e, item) in expressions {
         ck.move_to(cx.src.span(e).lo);
         let callee = match e.kind() {
             SyntaxKind::CallExpr => e.children().next(),
@@ -996,12 +1001,12 @@ fn check_annotate(
             // then check the value arguments at annotate's default T. In
             // particular, a pattern may mention a `?Copy` parameter.
             let explicit = ck.callee_targs(path, list)?;
-            if let Some(sig) = cx.lookup.item(cx.names.known.annotate).and_then(Item::sig) {
+            if let Some(sig) = item.sig() {
                 ck.fresh_generics(sig, &explicit, e)?;
             }
         }
         let args = ck.args_of(hd_resolve::Src::child(e, SyntaxKind::ArgumentList));
-        ck.call_item(cx.names.known.annotate, &[], &args, e, false, None)?;
+        ck.call_item(item, &[], &args, e, false, None)?;
     }
     let root = ck.b.close_block(block, None, Ty::VOID, node.index());
     ck.finish_body(root)?;
@@ -1458,10 +1463,8 @@ impl Ck<'_, '_> {
         if e.kind() == SyntaxKind::NameExpr {
             let text = self.cx.src.text(self.cx.src.first(e)).to_owned();
             if let Some(Named::Item(def)) = self.scope_name(&text)
-                && matches!(
-                    self.cx.lookup.item(def).map(|i| &i.data),
-                    Some(ItemData::Fn(_, _))
-                )
+                && let Some(item) = self.cx.lookup.item(def)
+                && matches!(&item.data, ItemData::Fn(_, _))
             {
                 let args = Args {
                     positional: vec![],
@@ -1470,7 +1473,7 @@ impl Ck<'_, '_> {
                     named: vec![],
                     trailing: None,
                 };
-                return self.call_item(def, &[], &args, e, false, want);
+                return self.call_item(item, &[], &args, e, false, want);
             }
         }
         self.expr(e, want)
@@ -1648,54 +1651,5 @@ impl Ck<'_, '_> {
         let msg = format!("`facts_of` takes a module-level function: {why}");
         self.err(Code::InvalidFactsOfTarget, at, &msg);
         (Ref(NONE), Ty::POISON)
-    }
-}
-
-#[cfg(test)]
-mod metadata_tests {
-    use super::facts_items;
-    use hd_base::{DefId, Stage, Symbol};
-    use hd_resolve::{Field, Item, ItemData, TypeAttrs};
-    use hd_types::Ty;
-
-    fn item(data: ItemData) -> Item {
-        Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data)
-    }
-
-    #[test]
-    fn items_type_is_the_first_resolved_field() {
-        let field = |ty| Field {
-            name: Symbol::from_raw(2),
-            ty,
-            public: true,
-            has_default: false,
-            embedded: false,
-            lifetimes: Vec::new(),
-            fn_lifetimes: Vec::new(),
-        };
-        for ty in [Ty::I32, Ty::VOID] {
-            let declaration = item(ItemData::Struct(
-                vec![field(ty), field(Ty::POISON)],
-                TypeAttrs::default(),
-            ));
-            assert_eq!(facts_items(Some(&declaration)).expect("items type"), ty);
-        }
-    }
-
-    #[test]
-    fn absent_non_struct_and_empty_metadata_are_internal_errors() {
-        let wrong = item(ItemData::Builtin);
-        let empty = item(ItemData::Struct(Vec::new(), TypeAttrs::default()));
-        let enum_item = item(ItemData::Enum {
-            shared: Vec::new(),
-            variants: Vec::new(),
-            attrs: TypeAttrs::default(),
-        });
-        for declaration in [None, Some(&wrong), Some(&empty), Some(&enum_item)] {
-            let error = facts_items(declaration).expect_err("invalid Facts metadata");
-            assert_eq!(error.stage, Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-        }
     }
 }

@@ -900,8 +900,7 @@ impl Ck<'_, '_> {
         if matches!(self.infer.resolve(self.pool(), t), Ty::POISON | Ty::NEVER) {
             return;
         }
-        let msg = format!("no field `{name}` on {}", self.show(t));
-        self.err(Code::UnknownField, e, &msg);
+        self.unknown_field(t, name, e);
     }
 
     fn not_a_reference(&mut self, t: Ty, n: NodeRef<'_>) {
@@ -916,13 +915,23 @@ impl Ck<'_, '_> {
     }
 
     /// A top-level binding named `s`: its own module's, else an earlier
-    /// REPL input's.
+    /// REPL input's, else another module's public binding, which is
+    /// read-only here (`module.vis.pub.binding.read-only`).
     pub(crate) fn global_binding(&self, s: Symbol) -> Option<crate::init::InputBinding> {
         let init = self.cx.init.borrow();
         init.globals
             .get(&s)
             .map(crate::init::Global::binding)
             .or_else(|| init.earlier.get(&s).copied())
+            .or_else(|| {
+                let (def, ty) = self.imported_binding(s)?;
+                Some(crate::init::InputBinding {
+                    def,
+                    ty,
+                    short: false,
+                    mutable: false,
+                })
+            })
     }
 
     /// Whether `&mut` may refer to the place `p` (`ref.place.writable`);
@@ -934,6 +943,8 @@ impl Ck<'_, '_> {
                 let g = self.global_binding(s);
                 if g.is_some_and(|g| g.mutable) {
                     true
+                } else if self.imported_write(s, at) {
+                    false
                 } else {
                     let name = self.cx.names.text(s).to_owned();
                     let short = g.is_some_and(|g| g.short);
@@ -1360,6 +1371,7 @@ impl Ck<'_, '_> {
         }
         // ruled out: ref.box.object; no expression makes a counted
         // reference to an interior place.
+        #[cfg(debug_assertions)]
         debug_assert!(
             counted_refs_are_whole(pool, b),
             "a counted reference to an interior place"
@@ -1410,6 +1422,7 @@ fn is_literal(mut e: NodeRef<'_>) -> bool {
 /// (`ref.box.object`): a local's or a value's own storage, or what a
 /// counted reference refers to. The checker makes a counted one only for
 /// such a place, so the backend counts it as a payload start (§23.30).
+#[cfg(debug_assertions)]
 fn counted_refs_are_whole(pool: hd_types::Types<'_>, b: &hd_tir::ir::Body) -> bool {
     let counted = |t: Ty| matches!(pool.get(t), TyData::Ref { counted: true, .. });
     (0..b.tags.len()).all(|i| {

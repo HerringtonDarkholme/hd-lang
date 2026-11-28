@@ -155,7 +155,7 @@ mod tests {
             pool.install(|| {
                 let caller = std::thread::current().id();
                 let mut graph = TaskGraph::default();
-                let first = graph.add(TaskKind::FolderGraph, &[]);
+                let first = graph.add(TaskKind::UnitGraph, &[]);
                 graph.add(TaskKind::PackageResult, &[first]);
                 let ran = Mutex::new(Vec::new());
                 let (graph, left) = run_pool(graph, 2, &|_, kind, spawn| {
@@ -212,7 +212,7 @@ mod tests {
                 assert!(started.send(()).is_ok());
             });
             let mut graph = TaskGraph::default();
-            graph.add(TaskKind::FolderGraph, &[]);
+            graph.add(TaskKind::UnitGraph, &[]);
             let (_, left) = run_pool(graph, 2, &|_, _, _| {
                 if std::thread::current().id() != caller {
                     // Make the old pool's job wait until its caller has
@@ -238,7 +238,7 @@ mod tests {
             struct TaskFailure;
             let failure = std::panic::catch_unwind(|| {
                 let mut graph = TaskGraph::default();
-                graph.add(TaskKind::FolderGraph, &[]);
+                graph.add(TaskKind::UnitGraph, &[]);
                 run_pool(graph, 2, &|_, _, _| std::panic::panic_any(TaskFailure));
             });
             assert!(failure.is_err());
@@ -283,14 +283,14 @@ mod tests {
     #[test]
     fn pool_runs_every_task_once_after_its_dependencies() {
         let mut g = TaskGraph::default();
-        let root = g.add(TaskKind::FolderGraph, &[]);
+        let root = g.add(TaskKind::UnitGraph, &[]);
         for f in 0..8 {
-            g.add(TaskKind::FolderIface(f), &[root]);
+            g.add(TaskKind::UnitIface(f), &[root]);
         }
         let log = Mutex::new(Vec::new());
         let (g, left) = run_pool(g, 4, &|_, kind, sp: &dyn Spawn| {
             log.lock().expect("log").push(kind);
-            if let TaskKind::FolderIface(f) = kind {
+            if let TaskKind::UnitIface(f) = kind {
                 let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
                 let e = sp.add(TaskKind::Body(f), &[]);
                 sp.edge(e, link);
@@ -299,7 +299,7 @@ mod tests {
         });
         let log = log.into_inner().expect("log");
         assert_eq!(left, 0);
-        assert_eq!(log[0], TaskKind::FolderGraph);
+        assert_eq!(log[0], TaskKind::UnitGraph);
         assert_eq!(log.len(), 25);
         assert_eq!(g.len(), 25);
     }

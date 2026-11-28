@@ -4,7 +4,7 @@
 # @build: dev | release
 # expected: each never-inlined carrier forwards existing loan provenance;
 # expected: the aliasing push checks the live loan before changing storage.
-use std.annotation.inline
+use std.meta.inline
 
 pub struct Slots:
     items: List[string]
@@ -34,6 +34,7 @@ fn unwrap[T](value: Carrier[T]) -> T:
 pub fn through_generic(p: *mut Slots, alias: *mut Slots) -> string:
     held := keep((42, p.get_ref().expect("slot")))
 > app/main/through_generic
+>   release string (last use)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
     alias.items.push("grown")
@@ -44,6 +45,8 @@ pub fn through_generic(p: *mut Slots, alias: *mut Slots) -> string:
 pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
 > app/main/through_optional
+>   release string (last use)
+>   release string (last use)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
@@ -55,6 +58,7 @@ pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> stri
 pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
 > app/main/through_struct
+>   release string (last use)
 >   release *mut app.main.Slots (last use)
 >   release *mut app.main.Slots (last use)
     alias.items.push("grown")
@@ -66,7 +70,7 @@ pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
 # @build: dev | release
 # expected: each never-inlined carrier forwards existing loan provenance;
 # expected: the aliasing push checks the live loan before changing storage.
-use std.annotation.inline
+use std.meta.inline
 
 pub struct Slots:
     items: List[string]

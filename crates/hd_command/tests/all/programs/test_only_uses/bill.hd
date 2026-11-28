@@ -1,0 +1,5 @@
+use pkg.money.coins.cents
+use std.testing.assert_equal
+
+it("bills"):
+    assert_equal(cents(), 100, reason="file")

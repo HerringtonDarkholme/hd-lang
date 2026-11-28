@@ -1,0 +1,3 @@
+# test: a public binding cannot be mut
+# Spec 10 Public Bindings: module.vis.pub.binding.immutable.
+pub let mut count = 0 # diagnostic: pub-mutable-binding

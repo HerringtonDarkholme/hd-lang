@@ -17,9 +17,9 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"generic[Tally]" (param $frame i32) (param $t5 i64) (result i64 i32) (local $t3 i32) (local $t6 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -209,8 +209,6 @@
             local.set $t6
             br 1
           end
-          i32.const 0
-          local.set $t4
           local.get $t1
           i32.const 0
           i32.store $heap offset=4
@@ -230,7 +228,7 @@
             end
           end
           local.get $t1
-          local.get $t4
+          i32.const 0
           i32.store $heap
           local.get $t1
           i32.load $heap
@@ -365,7 +363,7 @@
     global.set $stack
   )
   (func $generic.poll'1 (param $t0 i32) (result i32 i64) (local $t2 i64) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     call $rt:poll_check
     if
@@ -408,7 +406,7 @@
     return
   )
   (func $generic.cancel'1 (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -447,7 +445,7 @@
     call $rt:cancel_leave
   )
   (func $generic.drop'1 (param $t0 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -483,7 +481,7 @@
     end
   )
   (func $generic'1 (param $t2 i64) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     call $rt:frame'1
     local.tee $t0
     i32.const 8
@@ -497,7 +495,7 @@
     local.get $t0
   )
   (func $"generic[i32]" (param $frame i32) (param $t5 i32) (result i32 i32) (local $t3 i32) (local $t7 i32) (local $t6 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -687,8 +685,6 @@
             local.set $t7
             br 1
           end
-          i32.const 0
-          local.set $t4
           local.get $t1
           i32.const 0
           i32.store $heap offset=4
@@ -708,7 +704,7 @@
             end
           end
           local.get $t1
-          local.get $t4
+          i32.const 0
           i32.store $heap
           local.get $t1
           i32.load $heap
@@ -843,7 +839,7 @@
     global.set $stack
   )
   (func $generic.poll'2 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     call $rt:poll_check
     if
@@ -886,7 +882,7 @@
     return
   )
   (func $generic.cancel'2 (param $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -925,7 +921,7 @@
     call $rt:cancel_leave
   )
   (func $generic.drop'2 (param $t0 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -961,7 +957,7 @@
     end
   )
   (func $generic'2 (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     call $rt:frame'2
     local.tee $t0
     i32.const 4
@@ -975,7 +971,7 @@
     local.get $t0
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     i32.eqz
     if
@@ -1006,7 +1002,7 @@
     local.get $t2
   )
   (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 12 |     copy!(&value)
+    ;; 13 |     copy!(&value)
     local.get $t0
     i32.eqz
     if

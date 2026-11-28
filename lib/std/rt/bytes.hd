@@ -1,18 +1,25 @@
 # std.rt.bytes: the byte, text and panic primitives that several std
 # modules share (spec/std/README.md#standard-library-primitives), each
 # declared once. A runtime module, so only std may use it
-# (spec/lang/10-modules.md#r-module.rt.std-only), and it uses only std.core
-# (spec/lang/10-modules.md#r-module.rt.leaf), so every std module may use it.
+# (spec/lang/10-modules.md#r-module.rt.std-only).
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
-use std.core.Copy
-use std.rt.memory.{Buffer, Ptr, copy, new_string, string_bytes, store_u8}
-
-## The number of bytes in `text`.
-@intrinsic("bytes_len")
-pub fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
+use std.core.{Copy}
+pub use std.core.{bytes_len, bytes_mismatch, char_scalar}
+use std.rt.hint.inline
+use std.rt.memory.{
+    Buffer,
+    Ptr,
+    copy,
+    copy_bytes,
+    fill,
+    load_u8,
+    load_u32,
+    new_string,
+    string_bytes,
+    store_u8,
+}
 
 ## The byte at offset `index`, which must be below `bytes_len(text)`.
 @intrinsic("bytes_at")
@@ -60,12 +67,184 @@ pub trait TextSink < ?Copy:
     fn append_signed(&mut self, value: i64) -> void
     fn append_unsigned(&mut self, value: u64) -> void
 
+# A value constructor available only inside std, so sibling modules can
+# keep a local builder without exposing its representation or API.
+pub trait TextBuilderValue < ?Copy:
+    fn new_value() -> Self
+
+# A private unique byte accumulator: Buffer owns the room and frees it,
+# while len counts initialized bytes. Dropping its u8 payload needs no
+# per-element loop.
+pub struct TextBuffer:
+    buffer: Buffer[u8]
+    len: usize
+
+impl TextBuffer:
+    pub fn new() -> TextBuffer:
+        TextBuffer { buffer: Buffer::[u8].new(0), len: 0 }
+
+impl TextSink for TextBuffer:
+    @inline(.Always)
+    fn append_text(&mut self, text: string) -> void:
+        size := bytes_len(text)
+        if size == 0:
+            return
+        destination := self.spare(size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
+        self.advance(size)
+
+    @inline(.Never)
+    fn append_signed(&mut self, value: i64) -> void:
+        destination := self.spare(20)
+        digits := format_signed(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.advance(digits._1)
+
+    @inline(.Never)
+    fn append_unsigned(&mut self, value: u64) -> void:
+        destination := self.spare(20)
+        digits := format_unsigned(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.advance(digits._1)
+
+impl ByteBuffer for TextBuffer:
+    @inline(.Never)
+    fn push_byte(&mut self, byte: u8) -> void:
+        self.spare(1).write(byte)
+        self.advance(1)
+
+    @inline(.Always)
+    fn spare(&mut self, additional: usize) -> Ptr[u8]:
+        if additional > self.buffer.capacity() - self.len:
+            self.grow_bytes(additional)
+        self.buffer.at(self.len)
+
+    @inline(.Always)
+    fn advance(&mut self, count: usize) -> void:
+        self.len += count
+
+    fn take_text(&mut self) -> string:
+        size := self.len
+        self.len = 0
+        string_from_buffer(self.buffer.take(), size)
+
+    fn copy_text(&self) -> string:
+        out := new_string(self.len)
+        copy_bytes(string_bytes(out).address, self.buffer.at(0).address, self.len)
+        out
+
+impl TextBuffer:
+    @inline(.Never)
+    fn grow_bytes(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.len, additional)
+        let capacity = self.buffer.capacity()
+        if capacity == 0:
+            capacity = 4
+        while capacity < minimum:
+            if capacity > 0x7fff0000:
+                capacity = minimum
+                break
+            capacity *= 2
+        self.buffer.grow(capacity)
+
 # A copyable serializer must keep independent output snapshots. Its room is
 # an initialized, counted string at the allocation's payload start, with a
 # separate used length. Only std can name or mutate this internal storage.
 pub struct TextRoom:
     pub room: string
     pub len: usize
+
+# TextRoom's counted string keeps generic serializer copies independent.
+# Its payload always starts at the allocation, so testing the existing
+# count word needs no allocator lookup and no retain/release pair.
+impl TextRoom:
+    pub fn new() -> TextRoom:
+        TextRoom { room: "", len: 0 }
+
+    @inline(.Always)
+    fn spare(&mut self, additional: usize) -> Ptr[u8]:
+        capacity := bytes_len(self.room)
+        address := string_bytes(self.room).address
+        if capacity == 0 || additional > capacity - self.len || load_u32(address - 8) != 1:
+            self.grow(additional)
+        Ptr::[u8] { address: string_bytes(self.room).address + self.len }
+
+    @inline(.Never)
+    fn grow(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.len, additional)
+        let capacity = bytes_len(self.room)
+        if capacity == 0:
+            capacity = 64
+        while capacity < minimum:
+            if capacity > 0x7fff0000:
+                capacity = minimum
+                break
+            capacity *= 2
+        next := new_string(capacity)
+        address := string_bytes(next).address
+        copy_bytes(address, string_bytes(self.room).address, self.len)
+        fill(address + self.len, 0, capacity - self.len)
+        self.room = next
+
+    @inline(.Never)
+    pub fn push_byte(&mut self, byte: u8) -> void:
+        self.spare(1).write(byte)
+        self.len += 1
+
+    # The float writer appends ASCII backward, then reverses that suffix.
+    @inline(.Never)
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn reverse_bytes(&mut self, start: usize) -> void:
+        _ := self.spare(0)
+        address := string_bytes(self.room).address
+        let left = start
+        let right = self.len
+        while left + 1 < right:
+            right -= 1
+            byte := load_u8(address + left)
+            store_u8(address + left, load_u8(address + right))
+            store_u8(address + right, byte)
+            left += 1
+
+    pub fn take_text(&mut self) -> string:
+        room := self.room
+        size := self.len
+        self.room = ""
+        self.len = 0
+        string_prefix(room, 0, size)
+
+impl TextSink for TextRoom:
+    @inline(.Never)
+    fn append_text(&mut self, text: string) -> void:
+        size := bytes_len(text)
+        if size == 0:
+            return
+        destination := self.spare(size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
+        self.len += size
+
+    @inline(.Never)
+    fn append_signed(&mut self, value: i64) -> void:
+        destination := self.spare(20)
+        digits := format_signed(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.len += digits._1
+
+    @inline(.Never)
+    fn append_unsigned(&mut self, value: u64) -> void:
+        destination := self.spare(20)
+        digits := format_unsigned(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.len += digits._1
+
+# Capacity overflow is an impossible allocation in every build profile.
+pub fn collection_capacity_sum(left: usize, right: usize) -> usize:
+    # The runtime leaf has only primitive operations, not Integer methods.
+    if right > ~usize(0) - left:
+        panic_with("heap-exhausted", "collection capacity does not fit the address space")
+        return 0
+    left + right
 
 pub trait ByteBuffer < ?Copy & TextSink:
     fn push_byte(&mut self, byte: u8) -> void
@@ -202,11 +381,6 @@ pub fn host_upper(text: string) -> string:
 pub fn char_from_scalar(point: u32) -> char?:
     panic("intrinsic")
 
-## The scalar value of `value`: a `char` is its scalar value at run time.
-@intrinsic("char_scalar")
-pub fn char_scalar(value: char) -> u32:
-    panic("intrinsic")
-
 ## The checked runtime panic of `category`, such as `index-out-of-bounds`, showing `message`, or no message when it is empty; it does not return.
 @intrinsic("panic")
 pub fn panic_with(category: string, message: string) -> void:
@@ -246,16 +420,3 @@ pub fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usi
             return index
         index = index + 1
     size
-
-## The offset of the first position where `left` and `right` differ; when one is a prefix of the other, the shorter length, and when they are equal, their common length.
-@intrinsic("bytes_mismatch")
-pub fn bytes_mismatch(left: string, right: string) -> usize:
-    left_size := bytes_len(left)
-    right_size := bytes_len(right)
-    shorter := if left_size < right_size: left_size else: right_size
-    let index: usize = 0
-    while index < shorter:
-        if bytes_at(left, index) != bytes_at(right, index):
-            return index
-        index = index + 1
-    shorter

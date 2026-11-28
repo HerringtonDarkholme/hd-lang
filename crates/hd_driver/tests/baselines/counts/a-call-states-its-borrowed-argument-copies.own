@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: an ordinary owned ABI states each borrowed counted argument's copy; open parameters lower conditionally, while scalar and borrowed ABIs add no count.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 > app/main/store
@@ -185,7 +185,7 @@ fn length(value: string) -> usize:
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -206,7 +206,7 @@ fn lent(value: string) -> usize:
 >   %1 = Call app/main/length[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
 >   %3 = Read borrow [$0] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize

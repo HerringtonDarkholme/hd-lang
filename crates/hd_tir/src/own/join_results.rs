@@ -175,51 +175,17 @@ mod tests {
         let mut b = body(Tag::AwaitAll, Ty(43));
         state(&mut b);
         let i = result_packet(&b);
-        for info in [
+        let infos = [
             Info::new(At::FrameDrop, Part::Results, 2),
             Info::new(At::Operation, Part::Waker, 2),
             Info::new(At::Operation, Part::Results, 0),
-        ] {
-            let mut wrong = b.clone();
-            wrong.data[i][1] = info.write(&mut wrong);
-            assert!(!verify_owned(&wrong, &Facts).is_empty());
-        }
-        let mut wrong = b.clone();
-        wrong.tags[i] = Tag::Retain;
-        assert!(!verify_owned(&wrong, &Facts).is_empty());
-        let mut wrong = b.clone();
-        wrong.data[i][0] = wrong.sub_root[0];
-        assert!(!verify_owned(&wrong, &Facts).is_empty());
+        ];
+        crate::own::tests::assert_contract_enforced(&b, i, &infos, &Facts);
         let mut wrong = b.clone();
         let record = wrong.data[i][1] as usize;
         wrong.extra[record + 3] = 1;
         assert!(Info::read(&wrong, i).is_none());
         assert!(!verify_owned(&wrong, &Facts).is_empty());
-        for mode in 0..3 {
-            let mut wrong = b.clone();
-            let topo = Topology::new(&wrong);
-            let target = wrong.data[i][0] as usize;
-            let mut edits = splice::Tables::default();
-            if mode != 1 {
-                edits.remove(u32_of(i));
-            }
-            if mode != 0 {
-                edits.insert(
-                    topo.blk[target],
-                    if mode == 1 {
-                        topo.pos[i] + 1
-                    } else {
-                        topo.pos[target]
-                    },
-                    Tag::Release,
-                    wrong.data[i],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            }
-            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
-            assert!(!verify_owned(&wrong, &Facts).is_empty());
-        }
     }
 
     /// Two joins, then a call.
@@ -298,40 +264,8 @@ mod tests {
 
     #[test]
     fn a_missing_duplicate_or_nonadjacent_waker_contract_is_rejected() {
-        for mode in 0..3 {
-            let mut b = stated();
-            let topo = Topology::new(&b);
-            let release = b.tags.iter().position(|&t| t == Tag::Release).unwrap();
-            let point = b.data[release][0] as usize;
-            let mut edits = splice::Tables::default();
-            if mode == 0 {
-                edits.remove(u32_of(release));
-            } else if mode == 1 {
-                edits.insert(
-                    topo.blk[point],
-                    topo.pos[point] + 1,
-                    Tag::Release,
-                    b.data[release],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            } else {
-                let call = b.tags.iter().position(|&t| t == Tag::Call).unwrap();
-                edits.insert(
-                    topo.blk[point],
-                    topo.pos[point] + 1,
-                    Tag::Call,
-                    b.data[call],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            }
-            splice::apply(&mut b, &topo, &mut edits).unwrap();
-            let errors = verify_owned(&b, &Cx);
-            assert!(
-                errors.iter().any(|e| e.what.contains("absent or repeated")),
-                "{mode}: {errors:?}"
-            );
-        }
+        let b = stated();
+        let release = b.tags.iter().position(|&t| t == Tag::Release).unwrap();
+        crate::own::tests::assert_bundle_adjacent(&b, release);
     }
 }

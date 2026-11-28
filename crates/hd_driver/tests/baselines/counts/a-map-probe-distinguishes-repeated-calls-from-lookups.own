@@ -14,7 +14,7 @@ fn probes(items: &mut Map[string, i32], key: string) -> i32:
 >     uses $3: %14 -> %16 lend last
 >   %0 = Read borrow [$0] : &mut Map[string, i32]
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%0, %1, 0:i32) : &mut i32
+>   %2 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%0, %1, 0:i32) : &mut i32
 >   %3 = MakeUnique %2 Operation operand 0 #5 : ()
 >   %4 = Retain %2 Operation operand 1 #0 : ()
 >   %5 = Read copy [*%2] : i32
@@ -28,7 +28,7 @@ fn probes(items: &mut Map[string, i32], key: string) -> i32:
 >   %23 = Block %17 : i32
     second := *items.get_or_insert("other", +1)
 >   %8 = Read borrow [$0] : &mut Map[string, i32]
->   %9 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%8, "other", 1:i32) : &mut i32
+>   %9 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%8, "other", 1:i32) : &mut i32
 >   %10 = MakeUnique %9 Operation operand 0 #5 : ()
 >   %11 = Retain %9 Operation operand 1 #0 : ()
 >   %12 = Read copy [*%9] : i32

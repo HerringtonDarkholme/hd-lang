@@ -1,7 +1,7 @@
 # test: @derive uses only the template, so a trait with only a tuple template is not derivable
 # Spec 14 Tuple Templates: annot.template.tuple.separate.
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

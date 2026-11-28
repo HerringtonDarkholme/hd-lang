@@ -6,14 +6,29 @@
 struct Tally:
     n: i64
 
+# Awaiting a suspending closure is a suspension point, so `bump!` and
+# `direct!` keep their frames (#2419).
 fn bump!(t: &mut Tally) -> void:
-    t.n += 1
+    step := fn!() -> i64: 1
+> app/main/bump
+>   release counted reference (last use)
+> app/main/bump
+>   retain counted reference (stored)
 > app/main/bump
 >   release counted reference (by design)
 > app/main/bump
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/bump
 >   retain counted reference (by design)
+    t.n += step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i64 (cancelled)
+>   release Suspend[i64] (cancelled)
+>   release Suspend[i64] (last use)
+>   release fn!() -> i64 (last use)
 
 fn direct!() -> i64:
     let mut tally = Tally { n: 0 }

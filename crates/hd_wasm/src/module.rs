@@ -5,11 +5,14 @@
 //! first, then instances in content order, then helpers in their order,
 //! and encodes the module.
 
+// Keep Facts' instance index private while its child audits every field.
+#[path = "units.rs"]
+pub(super) mod units;
+
 use crate::op::{LabelListId, Op as Instruction};
 use hd_base::SliceSort as _;
-use std::cell::{Ref, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
-use std::rc::Rc;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use hd_base::{Hash128, NotImplemented, Stage, StageResult};
 use hd_types::Ty;
@@ -22,6 +25,8 @@ use wasm_encoder::{
 
 use crate::rt::Helper;
 
+pub(crate) mod wire;
+
 /// The exchange buffer `hd.x`, the host contract's memory
 /// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
 pub const BUF: u32 = 1;
@@ -29,9 +34,10 @@ pub const BUF: u32 = 1;
 /// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2).
 pub const HEAP: u32 = 0;
 
-/// The shared frame region: 1 MiB, over nine times the measured 114,480-byte
-/// peak of the wide dev frame case, preserving the previous stack capacity.
-pub const STACK_PAGES: u32 = 16;
+/// The shared frame region: 8 MiB (#2396), Rust's main-thread stack, over
+/// seventy times the measured 114,480-byte peak of the wide dev frame case.
+/// Its pages cost nothing until a frame touches them.
+pub const STACK_PAGES: u32 = 128;
 
 /// The first address of static data: addresses below it are never used,
 /// so 0 stays null.
@@ -149,6 +155,7 @@ pub struct DescriptorKey {
 }
 impl DescriptorKey {
     #[cfg(feature = "checked-report")]
+    #[must_use]
     pub fn checked(kind: u8) -> Self {
         Self { kind }
     }
@@ -177,6 +184,7 @@ pub enum Sym {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SymId(pub u32);
 impl SymId {
+    #[must_use]
     pub const fn idx(self) -> usize {
         self.0 as usize
     }
@@ -190,9 +198,105 @@ pub struct SigId(pub u32);
 pub struct GlobalId(pub u32);
 
 /// One shared name/signature arena for a module and its function builders.
+/// Interning takes its lock. Once the link freezes it ([`Symbols::freeze`]),
+/// a read of an entry made before then takes no lock, so the link cleans
+/// functions up on several threads (#2383); a later entry is read under
+/// the lock.
 #[derive(Clone, Debug, Default)]
-pub struct Symbols(Rc<RefCell<SymbolData>>);
+pub struct Symbols(Arc<Shared>);
 #[derive(Debug, Default)]
+struct Shared {
+    live: RwLock<SymbolData>,
+    /// The tables as they stood when the link froze them.
+    frozen: OnceLock<SymbolData>,
+    /// A local view's module table, which it reads through: the module's
+    /// own, for a unit the merge emits again in order. The view's own
+    /// entries take ids with [`LOCAL`] set.
+    base: Option<Symbols>,
+    /// A unit's own tables ([`Symbols::unit`]): every entry its emission
+    /// names, with [`LOCAL`] set, and no base.
+    unit: bool,
+}
+
+/// The bit of a local view's own ids ([`Symbols::local`]): one instance's
+/// emission numbers what it adds apart from the module, and the link
+/// renumbers it ([`Symbols::absorb`]).
+const LOCAL: u32 = 1 << 31;
+
+/// Entry `len` of a table: its id bits, `LOCAL` added in a local view.
+fn next_index(len: usize, local: u32) -> u32 {
+    let index = u32::try_from(len)
+        .ok()
+        .filter(|&i| i < LOCAL)
+        .expect("ruled out: a table holds under 2^31 entries, as Wasm index spaces do");
+    index | local
+}
+
+/// What [`Symbols::absorb`] gave a local view's entries: the module ids
+/// of its symbols, globals and signatures, by local index; and where the
+/// unit's static data landed ([`Module::place_statics`]).
+#[derive(Default)]
+pub(crate) struct Remap {
+    syms: Vec<SymId>,
+    globals: Vec<GlobalId>,
+    signatures: Vec<SigId>,
+    /// Each static request's local offset and its module address, in
+    /// request order, so in offset order.
+    statics: Vec<(u32, u32)>,
+}
+/// Id `id`, whose bits are `bits`: the module's own, or `table`'s entry.
+fn remapped<T: Copy>(table: &[T], bits: u32, id: T) -> T {
+    if bits & LOCAL == 0 {
+        id
+    } else {
+        table[(bits & !LOCAL) as usize]
+    }
+}
+impl Remap {
+    fn is_empty(&self) -> bool {
+        self.syms.is_empty()
+            && self.globals.is_empty()
+            && self.signatures.is_empty()
+            && self.statics.is_empty()
+    }
+    /// Static address `at`: the module's own, or one inside a unit
+    /// request, at the same offset in the request's module copy. Cost:
+    /// one binary search.
+    fn addr(&self, at: u32) -> u32 {
+        if at & LOCAL == 0 {
+            return at;
+        }
+        let off = at & !LOCAL;
+        // ruled out: the first request starts at local offset 0, and a
+        // unit's address is one a request of that unit returned.
+        let k = crate::emit::required(
+            self.statics
+                .partition_point(|&(start, _)| start <= off)
+                .checked_sub(1),
+            "a unit static address",
+        );
+        let (start, placed) = self.statics[k];
+        placed + (off - start)
+    }
+    fn sym(&self, id: SymId) -> SymId {
+        remapped(&self.syms, id.0, id)
+    }
+    /// Renumbers `ins` into the module's ids.
+    fn ins(&self, ins: &mut Ins) {
+        match ins {
+            Ins::Call(s, _)
+            | Ins::TableSlot(s)
+            | Ins::Glue(s)
+            | Ins::DrainGlue(s)
+            | Ins::Descriptor(s, _) => *s = self.sym(*s),
+            Ins::GlobalGet(g) | Ins::GlobalSet(g) => *g = remapped(&self.globals, g.0, *g),
+            Ins::CallIndirect(sig, _) => *sig = remapped(&self.signatures, sig.0, *sig),
+            Ins::Static(at) => *at = self.addr(*at),
+            Ins::Op(_) | Ins::VTable(_) | Ins::LoadAll | Ins::SpillBase => {}
+        }
+    }
+}
+#[derive(Clone, Debug, Default)]
 struct SymbolData {
     globals: Vec<Global>,
     global_ids: hd_base::HashMap<Global, GlobalId>,
@@ -201,60 +305,227 @@ struct SymbolData {
     signatures: Vec<(Vec<Val>, Vec<Val>)>,
     signature_ids: hd_base::HashMap<(Vec<Val>, Vec<Val>), SigId>,
 }
+
+/// An entry of [`Symbols`]: in the frozen tables, or read under the lock.
+pub struct Entry<'a, T> {
+    at: At<'a, T>,
+}
+enum At<'a, T> {
+    Frozen(&'a T),
+    Live(
+        std::sync::RwLockReadGuard<'a, SymbolData>,
+        for<'d> fn(&'d SymbolData) -> &'d [T],
+        usize,
+    ),
+}
+impl<T> std::ops::Deref for Entry<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        match &self.at {
+            At::Frozen(entry) => entry,
+            At::Live(data, of, i) => &of(data)[*i],
+        }
+    }
+}
+
 impl Symbols {
+    /// The live tables to read: reads nest, as a lookup inside another's
+    /// match does.
+    fn live(&self) -> std::sync::RwLockReadGuard<'_, SymbolData> {
+        self.0
+            .live
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    fn live_mut(&self) -> std::sync::RwLockWriteGuard<'_, SymbolData> {
+        self.0
+            .live
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+    /// Entry `id` of the table `of` picks: in a local view, the base's or
+    /// the view's own by its [`LOCAL`] bit; else the frozen one's when it
+    /// was made before the freeze, else the live one's under the lock.
+    fn entry<T>(&self, id: u32, of: for<'d> fn(&'d SymbolData) -> &'d [T]) -> Entry<'_, T> {
+        if self.0.unit || self.0.base.is_some() {
+            if let Some(base) = self.0.base.as_ref().filter(|_| id & LOCAL == 0) {
+                return base.entry(id, of);
+            }
+            // ruled out: a unit's tables number every id its emission
+            // names, so each has LOCAL set.
+            debug_assert!(id & LOCAL != 0, "a unit names a module id");
+            return Entry {
+                at: At::Live(self.live(), of, (id & !LOCAL) as usize),
+            };
+        }
+        let i = id as usize;
+        let frozen = self.0.frozen.get().and_then(|f| of(f).get(i));
+        Entry {
+            at: match frozen {
+                Some(entry) => At::Frozen(entry),
+                None => At::Live(self.live(), of, i),
+            },
+        }
+    }
+    /// [`LOCAL`] in a local view, else nothing.
+    fn local_bit(&self) -> u32 {
+        if self.is_local() { LOCAL } else { 0 }
+    }
+    /// What `look` finds in the tables: the frozen copy's, when there is
+    /// one, as a local view's base is frozen whole or not at all.
+    fn lookup<R>(&self, look: impl FnOnce(&SymbolData) -> R) -> R {
+        match self.0.frozen.get() {
+            Some(data) => look(data),
+            None => look(&self.live()),
+        }
+    }
+    /// A local view of `base` for one instance's emission against the
+    /// module, in order: it reads `base`, which stays as it is while the
+    /// view lives, and numbers what it adds with [`LOCAL`] set, in
+    /// first-use order. Cost: one empty table.
+    #[must_use]
+    pub(crate) fn local(base: &Self) -> Self {
+        Self(Arc::new(Shared {
+            base: Some(base.clone()),
+            ..Shared::default()
+        }))
+    }
+    /// A unit's own tables, apart from any module, as wasm-ld's object
+    /// file has its own symbol table: every symbol, global and signature
+    /// its emission names, with [`LOCAL`] set, in first-use order. Nothing
+    /// in them depends on the module or the run, so the unit can be stored
+    /// and merged into a later link. Cost: one empty table.
+    #[must_use]
+    pub(crate) fn unit() -> Self {
+        Self(Arc::new(Shared {
+            unit: true,
+            ..Shared::default()
+        }))
+    }
+    #[must_use]
+    pub(crate) fn is_local(&self) -> bool {
+        self.0.unit || self.0.base.is_some()
+    }
+    /// Interns local view `local`'s entries into this table in their
+    /// first-use order, as the emission would have interned them here:
+    /// an entry the module has keeps its id, and the others are added in
+    /// the order the emission first named them.
+    /// Cost: one intern per entry the view holds.
+    pub(crate) fn absorb(&self, local: &Self) -> Remap {
+        let added = std::mem::take(&mut *local.live_mut());
+        Remap {
+            statics: Vec::new(),
+            syms: added.names.into_iter().map(|s| self.intern(s)).collect(),
+            globals: added
+                .globals
+                .into_iter()
+                .map(|g| self.intern_global(g))
+                .collect(),
+            signatures: added
+                .signatures
+                .into_iter()
+                .map(|(p, r)| self.intern_signature(p, r))
+                .collect(),
+        }
+    }
+    /// Copies the tables as they stand, so reads of their entries take no
+    /// lock. Cost: one copy of the tables, once per module.
+    pub fn freeze(&self) {
+        let data = self.live().clone();
+        let _ = self.0.frozen.set(data);
+    }
+    #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
-        let mut data = self.0.borrow_mut();
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.lookup(|d| d.global_ids.get(&global).copied()))
+        {
+            return id;
+        }
+        let mut data = self.live_mut();
         if let Some(&id) = data.global_ids.get(&global) {
             return id;
         }
-        let id = GlobalId(u32::try_from(data.globals.len()).expect("globals"));
+        let id = GlobalId(next_index(data.globals.len(), self.local_bit()));
         data.globals.push(global);
         data.global_ids.insert(global, id);
         id
     }
+    #[must_use]
     pub fn global(&self, id: GlobalId) -> Global {
-        self.0.borrow().globals[id.0 as usize]
+        *self.entry(id.0, |d| &d.globals)
     }
+    #[must_use]
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::len_without_is_empty,
+            reason = "no caller asks whether it is empty"
+        )
+    )]
     pub fn len(&self) -> usize {
-        self.0.borrow().names.len()
+        self.live().names.len()
     }
+    #[must_use]
     pub fn intern(&self, symbol: Sym) -> SymId {
-        let mut data = self.0.borrow_mut();
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.lookup(|d| d.ids.get(&symbol).copied()))
+        {
+            return id;
+        }
+        let mut data = self.live_mut();
         if let Some(&id) = data.ids.get(&symbol) {
             return id;
         }
-        let id = SymId(u32::try_from(data.names.len()).expect("symbols"));
+        let id = SymId(next_index(data.names.len(), self.local_bit()));
         data.names.push(symbol.clone());
         data.ids.insert(symbol, id);
         id
     }
-    pub fn get(&self, id: SymId) -> Ref<'_, Sym> {
-        Ref::map(self.0.borrow(), |data| &data.names[id.idx()])
+    #[must_use]
+    pub fn get(&self, id: SymId) -> Entry<'_, Sym> {
+        self.entry(id.0, |d| &d.names)
     }
+    #[must_use]
     pub fn cmp(&self, a: SymId, b: SymId) -> std::cmp::Ordering {
-        let data = self.0.borrow();
+        let data = self.live();
         data.names[a.idx()].cmp(&data.names[b.idx()])
     }
+    #[must_use]
     pub fn intern_signature(&self, params: Vec<Val>, results: Vec<Val>) -> SigId {
-        let mut data = self.0.borrow_mut();
         let signature = (params, results);
+        if let Some(id) = self
+            .0
+            .base
+            .as_ref()
+            .and_then(|b| b.lookup(|d| d.signature_ids.get(&signature).copied()))
+        {
+            return id;
+        }
+        let mut data = self.live_mut();
         if let Some(&id) = data.signature_ids.get(&signature) {
             return id;
         }
-        let id = SigId(u32::try_from(data.signatures.len()).expect("signatures"));
+        let id = SigId(next_index(data.signatures.len(), self.local_bit()));
         data.signatures.push(signature.clone());
         data.signature_ids.insert(signature, id);
         id
     }
-    pub fn signature(&self, id: SigId) -> Ref<'_, (Vec<Val>, Vec<Val>)> {
-        Ref::map(self.0.borrow(), |data| &data.signatures[id.0 as usize])
+    #[must_use]
+    pub fn signature(&self, id: SigId) -> Entry<'_, (Vec<Val>, Vec<Val>)> {
+        self.entry(id.0, |d| &d.signatures)
     }
 
     /// Actual emitted signatures take precedence after wide lowering. A
     /// newly referenced helper still has its declared logical signature.
-    pub(crate) fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
-        self.0
-            .borrow()
+    #[must_use]
+    pub fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
+        self.live()
             .names
             .iter()
             .enumerate()
@@ -280,9 +551,9 @@ impl Symbols {
 
 /// Membership in a reachability walk, one bit per symbol.
 #[derive(Default)]
-struct Reached(Vec<u64>);
+pub struct Reached(Vec<u64>);
 impl Reached {
-    fn insert(&mut self, id: SymId) -> bool {
+    pub fn insert(&mut self, id: SymId) -> bool {
         let word = id.idx() / 64;
         self.0.resize(self.0.len().max(word + 1), 0);
         let mask = 1 << (id.0 % 64);
@@ -290,12 +561,13 @@ impl Reached {
         self.0[word] |= mask;
         fresh
     }
-    fn contains(&self, id: SymId) -> bool {
+    #[must_use]
+    pub fn contains(&self, id: SymId) -> bool {
         self.0
             .get(id.idx() / 64)
             .is_some_and(|w| w & (1 << (id.0 % 64)) != 0)
     }
-    fn iter(&self) -> impl Iterator<Item = SymId> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = SymId> + '_ {
         self.0.iter().enumerate().flat_map(|(word, &bits)| {
             let mut bits = bits;
             std::iter::from_fn(move || {
@@ -312,12 +584,13 @@ impl Reached {
 
 /// Dense optional numbering, preserving the semantic order chosen by linking.
 #[derive(Default)]
-struct Numbers(Vec<Option<u32>>);
+pub struct Numbers(Vec<Option<u32>>);
 impl Numbers {
-    fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
-    fn insert(&mut self, id: SymId, number: u32) {
+    pub fn insert(&mut self, id: SymId, number: u32) {
         self.0.resize(self.0.len().max(id.idx() + 1), None);
         self.0[id.idx()] = Some(number);
     }
@@ -554,13 +827,6 @@ pub enum Ins {
     DrainGlue(SymId),
     /// A descriptor alias: a distinct slot with the same release glue, keyed
     /// by checked-report allocation kind.
-    #[cfg_attr(
-        all(not(feature = "checked-report"), not(test)),
-        expect(
-            dead_code,
-            reason = "ruled out: only checked-report's allocation kinds make a descriptor alias"
-        )
-    )]
     Descriptor(SymId, DescriptorKey),
     /// `call_indirect` through the function table, with its source location.
     CallIndirect(SigId, Option<u32>),
@@ -576,6 +842,7 @@ pub enum Ins {
 impl Ins {
     /// Panic-frame source metadata travels with its call, like LLVM `DebugLoc`.
     /// No marker separates adjacent executable instructions during optimization.
+    #[must_use]
     pub fn call_anchor(self) -> Option<u32> {
         match self {
             Self::Call(_, anchor) | Self::CallIndirect(_, anchor) => anchor,
@@ -652,16 +919,20 @@ impl Func {
         }
     }
 
+    #[must_use]
     pub fn intern(&self, s: Sym) -> SymId {
         self.symbols.intern(s)
     }
+    #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
         self.symbols.intern_global(global)
     }
-    pub fn symbol(&self, id: SymId) -> Ref<'_, Sym> {
+    #[must_use]
+    pub fn symbol(&self, id: SymId) -> Entry<'_, Sym> {
         self.symbols.get(id)
     }
-    pub fn signature(&self, id: SigId) -> Ref<'_, (Vec<Val>, Vec<Val>)> {
+    #[must_use]
+    pub fn signature(&self, id: SigId) -> Entry<'_, (Vec<Val>, Vec<Val>)> {
         self.symbols.signature(id)
     }
     pub fn table_slot(&mut self, s: Sym) {
@@ -681,6 +952,7 @@ impl Func {
         self.labels.push(labels);
         id
     }
+    #[must_use]
     pub fn label_list(&self, id: LabelListId) -> &[u32] {
         &self.labels[id.0 as usize]
     }
@@ -698,6 +970,23 @@ impl Func {
             _ => None,
         }
     }
+    /// Moves this function, emitted against a local view of `symbols`,
+    /// into `symbols`' ids and the module's static addresses. Cost: one
+    /// pass over the body when the unit added any entry.
+    fn remap(&mut self, remap: &Remap, symbols: &Symbols) {
+        self.symbols = symbols.clone();
+        if !remap.is_empty() {
+            self.body.iter_mut().for_each(|ins| remap.ins(ins));
+        }
+        if !remap.statics.is_empty() {
+            self.data_refs
+                .iter_mut()
+                .for_each(|at| *at = remap.addr(*at));
+            if let Some(statics) = &mut self.statics {
+                *statics = statics.iter().map(|&at| remap.addr(at)).collect();
+            }
+        }
+    }
     pub fn rebuild_callees(&mut self) {
         self.callees.clear();
         self.callees
@@ -708,11 +997,13 @@ impl Func {
         self.count_origin_base = Some(u32::try_from(len).expect("TIR instructions"));
     }
 
+    #[must_use]
     pub fn source_origin(&self, origin: Option<u32>) -> Option<u32> {
         origin.and_then(|o| self.count_origin(o).map_or(Some(o), |n| n.origin))
     }
 
-    pub(crate) fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
+    #[must_use]
+    pub fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
         self.count_origins
             .get(origin.checked_sub(self.count_origin_base?)? as usize)
     }
@@ -1153,10 +1444,96 @@ fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
     h.finish()
 }
 
-/// The module under construction.
-pub struct Module {
-    /// Instantiated whole-key vtable graph, once per supplier (never per K).
-    pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
+/// A count shim emission request: its type, kind, portion, whether it
+/// takes its value by value, and its function key ([`Module::shim_key`]).
+pub type ShimRequest = (
+    hd_types::Ty,
+    hd_layout::shims::Shim,
+    hd_layout::shims::Portion,
+    bool,
+    Hash128,
+);
+
+/// What one instance's emission adds to the module's shared tables, kept
+/// apart from them, as rustc's codegen unit, until the link merges it in
+/// emission order ([`Module::merge`]).
+#[derive(Default)]
+struct Unit {
+    /// The functions it defined, by local symbol id.
+    defines: Vec<(SymId, Func)>,
+    /// The count shims it asked for that the module had not, as
+    /// [`Module::shims`] holds them, and in the order it asked, by shape.
+    shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
+    shim_queue: Vec<(Hash128, ShimRequest)>,
+    /// Its edits of the tables emission only writes, in order.
+    edits: Vec<Edit>,
+    /// Its static data requests, each at the local offset its address
+    /// names ([`LOCAL`] set), in request order.
+    statics: Vec<(u32, Static)>,
+    /// The local offset of its next static request.
+    static_len: u32,
+    /// Whether the merge emits it again in order ([`Module::in_order`]).
+    serial: bool,
+    /// The instances its emission looked up by key ([`Module::inst`]),
+    /// whose content a stored unit's reuse checks again.
+    reads: std::cell::RefCell<Vec<Hash128>>,
+}
+
+/// One instance's emission on a module of its own ([`Module::emit_unit`]):
+/// its local symbol view, its unit and its function.
+pub(crate) struct Emitted<E> {
+    symbols: Symbols,
+    unit: Unit,
+    f: Result<Func, E>,
+}
+
+impl<E> Emitted<E> {
+    /// The instances its emission looked up by key, in order.
+    pub(crate) fn take_reads(&self) -> Vec<Hash128> {
+        self.unit.reads.take()
+    }
+}
+
+/// A static data request of a unit, which the merge makes of the module
+/// in order ([`Module::place_statics`]).
+#[cfg_attr(feature = "testing", derive(Debug))]
+enum Static {
+    /// [`Module::static_bytes`].
+    Bytes(Vec<u8>, u32),
+    /// [`Module::static_record`], its pointer words still unit addresses.
+    Record(Vec<u8>, u32, Vec<u32>),
+    /// [`Module::static_slot`].
+    Slot(u32, u32),
+    /// [`Module::label_static`] of a unit address.
+    Label(String),
+}
+
+/// An edit of a table that emission writes and never reads, applied in
+/// emission order ([`Module::edit`]).
+#[cfg_attr(feature = "testing", derive(Debug))]
+pub(crate) enum Edit {
+    /// [`Module::stored`] gets this entry.
+    Stored(Hash128, Stored),
+    /// [`Module::storage_names`] gets this name, replacing one it holds
+    /// when `true`.
+    StorageName(Hash128, String, bool),
+    /// [`Module::frames`] gets this payload size.
+    Frame(Hash128, u32),
+    /// [`Module::frame_spills`] gets this layout.
+    FrameSpill(Hash128, crate::task::FrameSpill),
+    /// [`Module::package_contract`] records this host interface once
+    /// (`boundary::record_package_interface`).
+    PackageInterface(hd_host_abi::schema::Interface),
+    /// [`Module::c_tables`] records the C table of this C-bound root
+    /// interface once (`rt::c_vtable`).
+    CTable(hd_host_abi::c::Table),
+}
+
+/// What the link prepares before it emits the instances, which their
+/// emission reads and never writes: one copy, shared by the units that
+/// emit at once (#2383). [`Module`] reads it through `Deref`.
+#[derive(Clone)]
+pub struct Facts {
     pub track_origins: bool,
     #[cfg(feature = "checked-report")]
     pub count_audit: bool,
@@ -1169,17 +1546,106 @@ pub struct Module {
     pub init_insts: Vec<Hash128>,
     /// Initialized session interfaces can receive callers from later modules.
     pub open_world: bool,
+    /// The bang methods that some call awaits at once through a trait
+    /// value, whose vtables carry a drive slot (§23.39).
+    pub driven: hd_base::HashSet<hd_base::DefId>,
+    /// Methods synchronously consumed by `block_on`, with caller-local host storage.
+    pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
+    /// Closed-program methods whose dynamic calls all use drive slots.
+    /// Their vtables need no normal cold-constructor slot.
+    pub drive_only: hd_base::HashSet<hd_base::DefId>,
+    /// Ready bodies have no resume ABI; their cold frames only cancel before polling.
+    pub ready: hd_base::HashSet<Hash128>,
+    /// The std runtime every linked program provides to its helpers.
+    pub runtime: crate::Runtime,
+    /// Each instance by its key, for a caller to read how its callee takes
+    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25). Emission reads
+    /// it through [`Module::inst`], which records the read.
+    inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
+    /// Per instance, what its worker takes or gives by address, once
+    /// (`emit/indirect.rs`).
+    pub(crate) indirect_params: Vec<Option<crate::emit::IndirectParams>>,
+    /// The top-level bindings some reference refers to, by path hash:
+    /// each lives in a static slot at this address, not in Wasm globals
+    /// (`crates/hd_wasm/DESIGN.md` §23.20).
+    pub addressed: hd_base::HashMap<Hash128, Address>,
+    /// Those of them that are objects (`ref.excl.alias.global`): a binding
+    /// a reference reaches and a place writes. Its slot starts after a
+    /// header whose descriptor word holds the loans of references into
+    /// it, so an access from any function checks them.
+    pub objects: hd_base::HashSet<Hash128>,
+    /// New REPL bindings own these slots in this module's static segment.
+    pub binding_slots: hd_base::HashMap<Hash128, u32>,
+    /// A release build: its function names go in `hd.names`, not `name`
+    /// (`crates/hd_wasm/DESIGN.md` §15.9).
+    pub release: bool,
+    /// The optimized pipeline, including checked optimized builds.
+    pub optimized: bool,
+    /// The instances of `std.rt.cycle`, whose module init an acyclic
+    /// program does not run.
+    pub cycle_insts: BTreeSet<Hash128>,
+    /// The instances of the runtime modules, whose inits a thread's
+    /// instance runs too (`module.rt.thread.spawn`).
+    pub rt_insts: BTreeSet<Hash128>,
+    /// Every `std.*` instance, the runtime's included: the inits whose
+    /// releases of a binding's constant link drops before it looks for
+    /// quiet inits.
+    pub std_insts: BTreeSet<Hash128>,
+    /// The instances of `@cold` functions: [`Module::finish`] lowers each
+    /// direct call of one as [`Func::cold_helper`] lowers a helper's
+    /// (`annot.inline.cold`).
+    pub cold_insts: BTreeSet<Hash128>,
+    /// Whether [`Module::finish`] inlines the count fast paths
+    /// ([`crate::Input::inline_counts`]).
+    pub inline_counts: bool,
+    /// A reachable `thread_spawn`, which exports `hd.thread`: the heap is
+    /// then a shared memory the host gives (`module.rt.thread.heap`).
+    pub threads: bool,
+    /// The types whose objects a pointer loan may hold (model A,
+    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
+    /// access through a `*T` checks a borrow state.
+    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
+    /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
+    /// the instruction that takes the loan, and the dereference it lies at.
+    pub kept: hd_base::HashSet<crate::emit::LoanSite>,
+    /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
+    /// site keeps no loan lowers to nothing.
+    pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
+    /// The objects each access crosses, by instance and instruction
+    /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
+    /// emitter checks.
+    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), hd_tir::own::pointer::Crossed>,
+    /// The types of the objects a trait value of each trait may hold:
+    /// those the program converts to it or to a trait below it
+    /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
+    /// holds one of them.
+    pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
+}
+
+/// The module under construction.
+pub struct Module {
+    /// What the link prepares before emission and emission only reads,
+    /// shared by every unit's emission ([`Facts`]).
+    facts: Arc<Facts>,
+    /// Instantiated whole-key vtable graph, once per supplier (never per K).
+    pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
+    /// The C table of each C-bound root interface, by its import module,
+    /// written as the [`hd_host_abi::c::SECTION`].
+    pub c_tables: std::collections::BTreeMap<String, hd_host_abi::c::Table>,
     /// Interface lookup during construction; finish sorts the contract only
     /// after all recording is complete.
-    pub(crate) package_interface_at: hd_base::HashMap<String, usize>,
-    #[cfg(test)]
-    pub(crate) package_interface_probes: usize,
+    pub package_interface_at: hd_base::HashMap<String, usize>,
+    #[cfg(feature = "testing")]
+    pub package_interface_probes: usize,
     /// Defined functions by symbol. A helper is defined when
     /// [`Module::finish`] finds a body naming it.
-    symbols: Symbols,
+    pub symbols: Symbols,
     funcs: Vec<Option<Func>>,
+    /// What the instance being emitted adds to the shared tables
+    /// ([`Module::merge`]).
+    unit: Unit,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<SymId>,
     /// Static data from [`STATIC_BASE`], deduplicated by content.
@@ -1203,7 +1669,7 @@ pub struct Module {
     vtable_at: hd_base::HashMap<Hash128, usize>,
     /// The vtable contents [`Module::vtable_full`] compared, which the
     /// cost test counts.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub vtable_compares: usize,
     /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
     /// are still being built: no other table deduplicates into one.
@@ -1220,92 +1686,36 @@ pub struct Module {
     pub(crate) dyn_paths: std::cell::RefCell<hd_base::HashMap<Ty, hd_mono::dyn_graph::DynPaths>>,
     /// The recursive boundary types' codecs (`boundary::Named`, #1550).
     pub named_codecs: crate::boundary::Named,
-    /// The bang methods that some call awaits at once through a trait
-    /// value, whose vtables carry a drive slot (§23.39).
-    pub driven: hd_base::HashSet<hd_base::DefId>,
-    /// Methods synchronously consumed by `block_on`, with caller-local host storage.
-    pub blocking_driven: hd_base::HashSet<hd_base::DefId>,
-    /// Closed-program methods whose dynamic calls all use blocking drive slots.
-    /// Their host vtables need no normal cold-constructor slot.
-    pub blocking_only: hd_base::HashSet<hd_base::DefId>,
     exports: Vec<(String, SymId)>,
     /// Development fixture roots, independent of the public export ABI.
     retained: Vec<SymId>,
-    /// The std runtime every linked program provides to its helpers.
-    pub runtime: crate::Runtime,
-    /// Each instance by its key, for a caller to read how its callee takes
-    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
-    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
-    pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
-    /// Per instance, what its worker takes or gives by address, once
-    /// (`emit/indirect.rs`).
-    pub(crate) indirect_params:
-        hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
+    pub(crate) body_facts: hd_base::HashMap<hd_base::InstId, crate::emit::BodyFactCell>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     /// Each suspending instance's frame payload size.
     pub frames: hd_base::HashMap<Hash128, u32>,
     /// Deferred scalar layout for shared frame materialization.
     pub(crate) frame_spills: hd_base::HashMap<Hash128, crate::task::FrameSpill>,
-    /// The top-level bindings some reference refers to, by path hash:
-    /// each lives in a static slot at this address, not in Wasm globals
-    /// (`crates/hd_wasm/DESIGN.md` §23.20).
-    pub addressed: hd_base::HashMap<Hash128, Address>,
-    /// Those of them that are objects (`ref.excl.alias.global`): a binding
-    /// a reference reaches and a place writes. Its slot starts after a
-    /// header whose descriptor word holds the loans of references into
-    /// it, so an access from any function checks them.
-    pub objects: hd_base::HashSet<Hash128>,
-    /// New REPL bindings own these slots in this module's static segment.
-    pub binding_slots: hd_base::HashMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
-    /// A release build: its function names go in `hd.names`, not `name`
-    /// (`crates/hd_wasm/DESIGN.md` §15.9).
-    pub release: bool,
-    /// The optimized pipeline, including checked optimized builds.
-    pub optimized: bool,
     /// Set by [`Module::finish`] when no object of the program takes part
     /// in cycle collection: the helpers then call the runtime's releases
     /// without collector hooks and never collect, so `std.rt.cycle` is not
     /// linked (§23.28).
     pub acyclic: bool,
-    /// The instances of `std.rt.cycle`, whose module init an acyclic
-    /// program does not run.
-    pub cycle_insts: BTreeSet<Hash128>,
-    /// The instances of the runtime modules, whose inits a thread's
-    /// instance runs too (`module.rt.thread.spawn`).
-    pub rt_insts: BTreeSet<Hash128>,
-    /// Every `std.*` instance, the runtime's included: the inits whose
-    /// releases of a binding's constant link drops before it looks for
-    /// quiet inits.
-    pub std_insts: BTreeSet<Hash128>,
     /// The inits whose calls do nothing once [`crate::opt::constants`]
     /// took their constant stores: the entry helpers leave them out
     /// (#1423, #1719), such as `std.time`'s list of waiting clocks in a
     /// program that sleeps on no `ManualClock`, or a module that holds
     /// only constants.
     pub quiet_inits: BTreeSet<Hash128>,
-    /// The instances of `@cold` functions: [`Module::finish`] lowers each
-    /// direct call of one as [`Func::cold_helper`] lowers a helper's
-    /// (`annot.inline.cold`).
-    pub cold_insts: BTreeSet<Hash128>,
     /// Each count shim emission asked for (`emit::shims`), by shape and
     /// kind: its key. Types of one shape share it; each is queued once, the
     /// first type of its shape, so the drain ends.
     pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
-    pub shim_queue: Vec<(
-        hd_types::Ty,
-        hd_layout::shims::Shim,
-        hd_layout::shims::Portion,
-        bool,
-        Hash128,
-    )>,
-    /// Whether [`Module::finish`] inlines the count fast paths
-    /// ([`crate::Input::inline_counts`]).
-    pub inline_counts: bool,
+    pub shim_queue: Vec<ShimRequest>,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
     /// The release glue of the objects that take part in cycle collection,
@@ -1316,28 +1726,6 @@ pub struct Module {
     pub wakers: bool,
     /// A reachable idle hook: the drivers run it before they wait.
     pub idle: bool,
-    /// A reachable `thread_spawn`, which exports `hd.thread`: the heap is
-    /// then a shared memory the host gives (`module.rt.thread.heap`).
-    pub threads: bool,
-    /// The types whose objects a pointer loan may hold (model A,
-    /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
-    /// access through a `*T` checks a borrow state.
-    pub lent: hd_base::HashMap<hd_types::Ty, bool>,
-    /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
-    /// the instruction that takes the loan, and the dereference it lies at.
-    pub kept: hd_base::HashSet<crate::emit::LoanSite>,
-    /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
-    /// site keeps no loan lowers to nothing.
-    pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
-    /// The objects each access crosses, by instance and instruction
-    /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
-    /// emitter checks.
-    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), hd_tir::own::pointer::Crossed>,
-    /// The types of the objects a trait value of each trait may hold:
-    /// those the program converts to it or to a trait below it
-    /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
-    /// holds one of them.
-    pub dyn_types: hd_base::HashMap<hd_base::DefId, Vec<hd_types::Ty>>,
     /// Reachable program operations or exported entry hooks can cancel.
     /// Selected from the conservative reachable graph before specialization.
     pub cancellable: bool,
@@ -1350,22 +1738,50 @@ pub struct Module {
 }
 
 impl Module {
+    #[must_use]
     pub fn new(runtime: &crate::Runtime) -> Self {
         Self {
+            facts: Arc::new(Facts {
+                track_origins: Default::default(),
+                #[cfg(feature = "checked-report")]
+                count_audit: Default::default(),
+                #[cfg(feature = "checked-report")]
+                allocation_kind_reporting: true,
+                init_insts: Vec::default(),
+                open_world: Default::default(),
+                driven: hd_base::HashSet::default(),
+                blocking_driven: hd_base::HashSet::default(),
+                drive_only: hd_base::HashSet::default(),
+                ready: hd_base::HashSet::default(),
+                runtime: *runtime,
+                inst_of: hd_base::HashMap::default(),
+                indirect_params: Vec::new(),
+                addressed: hd_base::HashMap::default(),
+                objects: hd_base::HashSet::default(),
+                binding_slots: hd_base::HashMap::default(),
+                release: Default::default(),
+                optimized: Default::default(),
+                cycle_insts: BTreeSet::default(),
+                rt_insts: BTreeSet::default(),
+                std_insts: BTreeSet::default(),
+                cold_insts: BTreeSet::default(),
+                inline_counts: Default::default(),
+                threads: false,
+                lent: hd_base::HashMap::default(),
+                kept: hd_base::HashSet::default(),
+                kept_sites: hd_base::HashSet::default(),
+                crossed: hd_base::HashMap::default(),
+                dyn_types: hd_base::HashMap::default(),
+            }),
             row_key_graphs: hd_base::HashMap::default(),
-            track_origins: Default::default(),
-            #[cfg(feature = "checked-report")]
-            count_audit: Default::default(),
-            #[cfg(feature = "checked-report")]
-            allocation_kind_reporting: true,
-            init_insts: Vec::default(),
-            open_world: Default::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
+            c_tables: std::collections::BTreeMap::new(),
             package_interface_at: hd_base::HashMap::default(),
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             package_interface_probes: 0,
             symbols: Symbols::default(),
             funcs: Vec::default(),
+            unit: Unit::default(),
             inst_order: Vec::default(),
             data: Vec::default(),
             data_at: hd_base::HashMap::default(),
@@ -1375,49 +1791,27 @@ impl Module {
             data_roots: Vec::new(),
             vtables: Vec::default(),
             vtable_at: hd_base::HashMap::default(),
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             vtable_compares: Default::default(),
             reserved_vtables: hd_base::HashSet::default(),
             handle_vtables: hd_base::HashMap::default(),
             dyn_vtables: hd_base::HashMap::default(),
             dyn_paths: std::cell::RefCell::default(),
             named_codecs: crate::boundary::Named::default(),
-            driven: hd_base::HashSet::default(),
-            blocking_driven: hd_base::HashSet::default(),
-            blocking_only: hd_base::HashSet::default(),
             exports: Vec::default(),
             retained: Vec::default(),
-            runtime: *runtime,
-            inst_of: hd_base::HashMap::default(),
-            body_facts: Vec::default(),
-            indirect_params: hd_base::HashMap::default(),
+            body_facts: hd_base::HashMap::default(),
             frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
-            addressed: hd_base::HashMap::default(),
-            objects: hd_base::HashSet::default(),
-            binding_slots: hd_base::HashMap::default(),
             stored: BTreeMap::default(),
-            release: Default::default(),
-            optimized: Default::default(),
             acyclic: Default::default(),
-            cycle_insts: BTreeSet::default(),
-            rt_insts: BTreeSet::default(),
-            std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
-            cold_insts: BTreeSet::default(),
             shims: hd_base::HashMap::default(),
             shim_queue: Vec::new(),
-            inline_counts: Default::default(),
             fixed_allocations: Default::default(),
             drain_glues: Vec::default(),
             wakers: Default::default(),
             idle: Default::default(),
-            threads: false,
-            lent: hd_base::HashMap::default(),
-            kept: hd_base::HashSet::default(),
-            kept_sites: hd_base::HashSet::default(),
-            crossed: hd_base::HashMap::default(),
-            dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
             static_labels: hd_base::HashMap::default(),
             storage_names: hd_base::HashMap::default(),
@@ -1425,11 +1819,11 @@ impl Module {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "testing")]
 impl Default for Module {
     fn default() -> Self {
-        let mut module = Self::new(&crate::tests::runtime());
-        crate::tests::define_runtime(&mut module);
+        let mut module = Self::new(&crate::testing::runtime());
+        crate::testing::define_runtime(&mut module);
         module
     }
 }
@@ -1470,13 +1864,37 @@ fn cyclic_desc(f: &Func) -> bool {
     })
 }
 
+impl Facts {
+    /// Instance `key`, read for a unit's key, not by its emission.
+    #[must_use]
+    pub(crate) fn instance(&self, key: Hash128) -> Option<hd_base::InstId> {
+        self.inst_of.get(&key).copied()
+    }
+    /// Indexes instance `id` by its key `key` ([`Module::inst`]).
+    pub fn index_instance(&mut self, key: Hash128, id: hd_base::InstId) {
+        self.inst_of.insert(key, id);
+    }
+}
+
+impl std::ops::Deref for Module {
+    type Target = Facts;
+    fn deref(&self) -> &Facts {
+        &self.facts
+    }
+}
 impl Module {
+    /// The prepared facts to write: before emission, or after it, when
+    /// no unit shares them, so no copy is made.
+    pub fn facts_mut(&mut self) -> &mut Facts {
+        Arc::make_mut(&mut self.facts)
+    }
     pub fn func(&self, name: impl Into<String>, params: Vec<Val>, results: Vec<Val>) -> Func {
         Func::new(self.symbols.clone(), name, params, results)
     }
     /// Defines a symbol without moving its semantic ordering into the id.
     /// The function key of `t`'s `kind` shim, queued for the drain the
-    /// first time it is asked for.
+    /// first time it is asked for: in an instance's unit while it is
+    /// emitted, which the merge queues unless an earlier unit did.
     pub fn shim_key(
         &mut self,
         t: hd_types::Ty,
@@ -1485,7 +1903,12 @@ impl Module {
         portion: hd_layout::shims::Portion,
         by_value: bool,
     ) -> Hash128 {
-        if let Some(&key) = self.shims.get(&(shape, kind, by_value)) {
+        let local = self.symbols.is_local();
+        if let Some(&key) = self.shims.get(&(shape, kind, by_value)).or_else(|| {
+            local
+                .then(|| self.unit.shims.get(&(shape, kind, by_value)))
+                .flatten()
+        }) {
             return key;
         }
         let mut h = hd_base::StableHasher::new("count-shim");
@@ -1497,20 +1920,36 @@ impl Module {
         };
         h.u32(word | u32::from(by_value) << 1);
         let key = h.finish();
-        self.shims.insert((shape, kind, by_value), key);
-        self.shim_queue.push((t, kind, portion, by_value, key));
+        let request = (t, kind, portion, by_value, key);
+        if local {
+            self.unit.shims.insert((shape, kind, by_value), key);
+            self.unit.shim_queue.push((shape, request));
+        } else {
+            self.shims.insert((shape, kind, by_value), key);
+            self.shim_queue.push(request);
+        }
         key
     }
 
-    pub fn define(&mut self, s: Sym, mut f: Func) {
-        let instance = matches!(
-            s,
-            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
-        );
+    pub fn define(&mut self, s: Sym, f: Func) {
         let id = self.symbols.intern(s);
         assert!(
-            Rc::ptr_eq(&self.symbols.0, &f.symbols.0),
+            Arc::ptr_eq(&self.symbols.0, &f.symbols.0),
             "function belongs to module"
+        );
+        if self.symbols.is_local() {
+            // Its id is the local view's: the link places it once the
+            // view's entries have module ids ([`Module::merge`]).
+            self.unit.defines.push((id, f));
+        } else {
+            self.place(id, f);
+        }
+    }
+    /// Places function `f` at symbol `id`.
+    fn place(&mut self, id: SymId, mut f: Func) {
+        let instance = matches!(
+            &*self.symbols.get(id),
+            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
         );
         if instance {
             self.inst_order.push(id);
@@ -1519,6 +1958,189 @@ impl Module {
         self.funcs
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
+    }
+    /// Runs `emit`, instance `id`'s emission, on a module of its own: it
+    /// reads `facts`, numbers what it names in tables of its own
+    /// ([`Symbols::unit`]) and keeps what it adds in its [`Unit`] for
+    /// [`Module::merge`]. Units emit at once on the task's threads.
+    /// Cost: one empty module, and the cell of the instance's body facts.
+    pub(crate) fn emit_unit<E>(
+        facts: &Arc<Facts>,
+        cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
+        emit: impl FnOnce(&mut Self) -> Result<Func, E>,
+    ) -> Emitted<E> {
+        let mut unit = Self::new(&facts.runtime);
+        unit.facts = Arc::clone(facts);
+        unit.symbols = Symbols::unit();
+        unit.body_facts.extend(cell);
+        let f = emit(&mut unit);
+        Emitted {
+            symbols: unit.symbols,
+            unit: unit.unit,
+            f,
+        }
+    }
+    /// Merges one instance's emission into the module, in emission order:
+    /// interns what its view added in first-use order, places its static
+    /// data, queues its shims, applies its edits, renumbers what it made
+    /// into the module's ids and places the functions it defined, in the
+    /// order it defined them. The module ends as if the emission had
+    /// written straight into it. A unit that made a vtable or a named
+    /// boundary type, whose numbers and caches the module holds, is
+    /// emitted again by `emit` against the module, in order.
+    /// Cost: one intern per added entry, and one pass over each function
+    /// the emission made and over each vtable it added; a unit emitted
+    /// again costs its emission twice.
+    pub(crate) fn merge<E>(
+        &mut self,
+        emitted: Emitted<E>,
+        emit: impl FnOnce(&mut Self) -> Result<Func, E>,
+    ) -> Result<Func, E> {
+        let vtables = self.vtables.len();
+        let Emitted { symbols, unit, f } = if emitted.unit.serial {
+            // Its view reads the module as it stands, so a vtable entry
+            // takes the id an earlier unit gave its symbol and the table
+            // deduplicates as it would have.
+            let view = Symbols::local(&self.symbols);
+            let module = std::mem::replace(&mut self.symbols, view);
+            let f = emit(self);
+            Emitted {
+                symbols: std::mem::replace(&mut self.symbols, module),
+                unit: std::mem::take(&mut self.unit),
+                f,
+            }
+        } else {
+            emitted
+        };
+        let mut remap = self.symbols.absorb(&symbols);
+        // The merge's work, which the cost test counts: one intern per
+        // entry of the unit's tables, one step per static request and per
+        // instruction remapped.
+        let work = remap.syms.len() + remap.globals.len() + remap.signatures.len();
+        let work = work + unit.statics.len();
+        self.place_statics(unit.statics, &mut remap);
+        let mut f = f?;
+        let work = work
+            + f.body.len()
+            + unit
+                .defines
+                .iter()
+                .map(|(_, g)| g.body.len())
+                .sum::<usize>();
+        crate::work::merge(work);
+        // A shim another unit asked for first is already queued.
+        for (shape, request) in unit.shim_queue {
+            let (_, kind, _, by_value, key) = request;
+            if self.shims.insert((shape, kind, by_value), key).is_none() {
+                self.shim_queue.push(request);
+            }
+        }
+        for mut edit in unit.edits {
+            if let Edit::Stored(
+                _,
+                Stored {
+                    slot: Some((Address::Static(at), _)),
+                    ..
+                },
+            ) = &mut edit
+            {
+                *at = remap.addr(*at);
+            }
+            self.edit(edit);
+        }
+        for (id, mut g) in unit.defines {
+            g.remap(&remap, &self.symbols);
+            self.place(remap.sym(id), g);
+        }
+        if !remap.syms.is_empty() {
+            self.remap_vtables(vtables, &remap);
+        }
+        f.remap(&remap, &self.symbols);
+        Ok(f)
+    }
+    /// Instance `key`, whose body or facts emission is about to read: a
+    /// unit records the read ([`Unit::reads`]), so a stored unit is reused
+    /// only while that instance's content is unchanged.
+    #[must_use]
+    pub(crate) fn inst(&self, key: Hash128) -> Option<hd_base::InstId> {
+        if self.symbols.is_local() {
+            self.unit.reads.borrow_mut().push(key);
+        }
+        self.facts.inst_of.get(&key).copied()
+    }
+    /// The facts the units read, shared ([`Module::emit_unit`]).
+    #[must_use]
+    pub(crate) fn shared_facts(&self) -> Arc<Facts> {
+        Arc::clone(&self.facts)
+    }
+    /// Marks the unit being emitted as one the merge emits again in order
+    /// ([`Module::merge`]): it made an entry of a table the module numbers
+    /// and caches by content, the vtables or the named boundary types.
+    pub(crate) fn in_order(&mut self) {
+        self.unit.serial |= self.symbols.is_local();
+    }
+    /// Renumbers vtables `from..` into the module's ids, and their hash
+    /// entries with them. A table holding a local id holds a symbol no
+    /// earlier table holds, so it stays apart from them.
+    fn remap_vtables(&mut self, from: usize, remap: &Remap) {
+        for k in from..self.vtables.len() {
+            let v = &self.vtables[k];
+            if !v.0.iter().chain(&v.2).any(|s| s.0 & LOCAL != 0) {
+                continue;
+            }
+            let old = vtable_hash(v);
+            if self.vtable_at.get(&old) == Some(&k) {
+                self.vtable_at.remove(&old);
+            }
+            let v = &mut self.vtables[k];
+            v.0.iter_mut()
+                .chain(&mut v.2)
+                .for_each(|s| *s = remap.sym(*s));
+            let at = self
+                .vtable_at
+                .entry(vtable_hash(&self.vtables[k]))
+                .or_insert(k);
+            *at = (*at).min(k);
+        }
+    }
+    /// Applies `edit`: in the instance's unit while one is emitted, which
+    /// the merge applies in the order the emission made them.
+    pub(crate) fn edit(&mut self, edit: Edit) {
+        if self.symbols.is_local() {
+            self.unit.edits.push(edit);
+            return;
+        }
+        match edit {
+            Edit::Stored(key, stored) => {
+                self.stored.insert(key, stored);
+            }
+            Edit::StorageName(key, name, true) => {
+                self.storage_names.insert(key, name);
+            }
+            Edit::StorageName(key, name, false) => {
+                self.storage_names.entry(key).or_insert(name);
+            }
+            Edit::Frame(key, size) => {
+                self.frames.insert(key, size);
+            }
+            Edit::FrameSpill(key, spill) => {
+                self.frame_spills.insert(key, spill);
+            }
+            Edit::PackageInterface(interface) => {
+                crate::boundary::add_package_interface(self, interface);
+            }
+            Edit::CTable(table) => {
+                // ruled out: `rt::c_vtable` records a trait's table once
+                // per provider key, from the trait's own declaration.
+                debug_assert!(
+                    self.c_tables
+                        .get(&table.module)
+                        .is_none_or(|known| *known == table),
+                    "two C tables for one module"
+                );
+                self.c_tables.entry(table.module.clone()).or_insert(table);
+            }
+        }
     }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
         self.exports.push((name.into(), self.symbols.intern(s)));
@@ -1549,6 +2171,9 @@ impl Module {
     /// The heap address of `bytes` in static data, placed on first use
     /// and aligned to `align`.
     pub fn static_bytes(&mut self, bytes: &[u8], align: u32) -> u32 {
+        if self.symbols.is_local() {
+            return self.unit_static(bytes.len(), Static::Bytes(bytes.to_vec(), align));
+        }
         if let Some(at) = self.data_at.get(bytes) {
             return *at;
         }
@@ -1589,6 +2214,10 @@ impl Module {
         if pointers.is_empty() {
             return self.static_bytes(bytes, align);
         }
+        if self.symbols.is_local() {
+            let record = Static::Record(bytes.to_vec(), align, pointers.to_vec());
+            return self.unit_static(bytes.len(), record);
+        }
         if let Some(at) = self.record_at.get(bytes) {
             return *at;
         }
@@ -1612,7 +2241,11 @@ impl Module {
 
     /// Names static data address `at` for development tools.
     pub fn label_static(&mut self, at: u32, label: &str) {
-        if self.track_origins {
+        if self.track_origins && at & LOCAL != 0 && self.symbols.is_local() {
+            self.unit
+                .statics
+                .push((at & !LOCAL, Static::Label(label.to_owned())));
+        } else if self.track_origins {
             self.static_labels
                 .insert(at, crate::StaticData::Named(label.to_owned()));
         }
@@ -1621,6 +2254,9 @@ impl Module {
     /// The heap address of `size` new zero bytes of static data, aligned
     /// to `align`, which no other use shares: a slot the program writes.
     pub fn static_slot(&mut self, size: u32, align: u32) -> u32 {
+        if self.symbols.is_local() {
+            return self.unit_static(size as usize, Static::Slot(size, align));
+        }
         let align = align.max(1) as usize;
         while !self.data.len().is_multiple_of(align) {
             self.data.push(0);
@@ -1630,9 +2266,50 @@ impl Module {
         at
     }
 
+    /// Unit request `request` of `len` bytes, at a fresh unit address:
+    /// the merge places it ([`Module::place_statics`]).
+    fn unit_static(&mut self, len: usize, request: Static) -> u32 {
+        let at = self.unit.static_len;
+        // ruled out: one instance's static data is far below 2 GiB, as the
+        // module's is (`static_end`).
+        let len = crate::emit::required(u32::try_from(len.max(1)).ok(), "unit static data");
+        self.unit.static_len = crate::emit::required(
+            at.checked_add(len).filter(|end| end & LOCAL == 0),
+            "unit static data",
+        );
+        self.unit.statics.push((at, request));
+        at | LOCAL
+    }
+
+    /// Makes `unit`'s static requests of the module in their order, as
+    /// its emission would have made them, into `remap`. A record's
+    /// pointer words move to the module's addresses first, so it
+    /// deduplicates as it would have. Cost: the requests' own work.
+    fn place_statics(&mut self, statics: Vec<(u32, Static)>, remap: &mut Remap) {
+        for (start, request) in statics {
+            let placed = match request {
+                Static::Bytes(bytes, align) => self.static_bytes(&bytes, align),
+                Static::Record(mut bytes, align, pointers) => {
+                    for &p in &pointers {
+                        let word = &mut bytes[p as usize..p as usize + 4];
+                        let at = u32::from_le_bytes([word[0], word[1], word[2], word[3]]);
+                        word.copy_from_slice(&remap.addr(at).to_le_bytes());
+                    }
+                    self.static_record(&bytes, align, &pointers)
+                }
+                Static::Slot(size, align) => self.static_slot(size, align),
+                Static::Label(label) => {
+                    self.label_static(remap.addr(start | LOCAL), &label);
+                    continue;
+                }
+            };
+            remap.statics.push((start, placed));
+        }
+    }
+
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, one `i32` each; [`Ins::VTable`] names its address.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub fn vtable(&mut self, slots: Vec<Sym>) -> usize {
         self.vtable_with(slots, Vec::new())
     }
@@ -1640,7 +2317,7 @@ impl Module {
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, then the addresses of the vtables `parents`, one `i32`
     /// each.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub fn vtable_with(&mut self, slots: Vec<Sym>, parents: Vec<usize>) -> usize {
         self.vtable_full(slots, parents, Vec::new())
     }
@@ -1653,6 +2330,7 @@ impl Module {
     /// so n requests do O(n) work, as an interner does; a scan of every
     /// earlier table made it O(n²) (#1553).
     pub fn vtable_full(&mut self, slots: Vec<Sym>, parents: Vec<usize>, drives: Vec<Sym>) -> usize {
+        self.in_order();
         let v = (
             slots.into_iter().map(|s| self.symbols.intern(s)).collect(),
             parents,
@@ -1660,7 +2338,7 @@ impl Module {
         );
         let hash = vtable_hash(&v);
         if let Some(&k) = self.vtable_at.get(&hash) {
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             {
                 self.vtable_compares += 1;
             }
@@ -1678,6 +2356,7 @@ impl Module {
     /// A vtable index whose table [`ReservedVtable::fill`] supplies later,
     /// for a table whose own slots refer to it.
     pub fn vtable_reserve(&mut self) -> ReservedVtable {
+        self.in_order();
         self.vtables.push(Default::default());
         let k = self.vtables.len() - 1;
         self.reserved_vtables.insert(k);
@@ -1882,9 +2561,9 @@ impl Module {
         while let Some(mut id) = work.pop() {
             // `hd.poll` wraps its `EntryPoll`, a helper of its own.
             loop {
-                let Sym::Helper(h) = Sym::clone(&self.symbols.get(id)) else {
-                    break;
-                };
+                // A copy: the loop interns, which waits for every read to end.
+                let symbol = Sym::clone(&self.symbols.get(id));
+                let Sym::Helper(h) = symbol else { break };
                 let inits: Option<Vec<Hash128>> = match &h {
                     Helper::EntryInit { inits } => Some(inits.iter().map(|k| k.0).collect()),
                     // The walk names no init; its unit dispatch does.
@@ -1956,6 +2635,204 @@ impl Module {
         }
     }
 
+    /// The arity of each function, by symbol.
+    fn arities(&self) -> crate::opt::Arity {
+        let mut arity = vec![None; self.symbols.len()];
+        for (k, f) in self.funcs.iter().enumerate() {
+            if let Some(f) = f {
+                arity[k] = Some((f.params.len(), f.results.len()));
+            }
+        }
+        arity
+    }
+
+    /// Reads each top-level binding an init writes once with a constant as
+    /// that constant ([`crate::opt::constants`]); whether it folded one.
+    /// Every link runs it, dev too: a checked report's count hooks
+    /// (`count_audit`) run in the runtime's init dispatch, before
+    /// `std.rt.alloc`'s init, and its `block_of` divides by `PAGE`, which
+    /// holds 65536 only once that init ran or this fold made it a constant.
+    fn fold_init_constants(&mut self, session: bool, arity: &crate::opt::Arity) -> bool {
+        let inits = if session || self.open_world {
+            &[][..]
+        } else {
+            &self.facts.init_insts
+        };
+        crate::opt::constants(&mut self.funcs, &self.symbols, inits, arity)
+    }
+
+    /// The optimized pipeline's module-level rewrites after
+    /// [`Self::fold_init_constants`], which `folded` reports: the local
+    /// rules, count tests, block and loop cleanup, lookup tables.
+    fn optimize(&mut self, session: bool, folded: bool, arity: &crate::opt::Arity) {
+        if !session && !self.open_world {
+            // A std init's release of its binding's old value reads the
+            // constant the fold just gave it. Dropping a release of a
+            // value that holds no reference leaves its helper's writes
+            // unreached (#1423), and so can a fold itself: a branch on a
+            // folded binding that guarded the collector's only writes of
+            // another. Either way the fold runs once more, so what it
+            // finds does not hang on whether an init happened to release
+            // anything (#2328).
+            let mut dropped = false;
+            for key in self.init_insts.clone() {
+                if self.std_insts.contains(&key) {
+                    let init = self.symbols.intern(Sym::Inst(key));
+                    dropped |= self.drop_null_releases(init);
+                }
+            }
+            if dropped || folded {
+                self.reach();
+                crate::opt::constants(
+                    &mut self.funcs,
+                    &self.symbols,
+                    &self.facts.init_insts,
+                    arity,
+                );
+            }
+            self.skip_quiet_inits();
+        }
+        // Each function's cleanup reads only itself, the arities and the
+        // symbols, so the functions run on the task's threads (#2383).
+        self.symbols.freeze();
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::opt::fold_constant_branches(f);
+                crate::opt::locals(f, arity);
+            }
+        });
+        // Retained fixture roots are entered by the harness, and a suspending
+        // body can resume with frame-loaded arguments that no direct call site
+        // supplies. Neither is closed-world input to the static-value proof.
+        let static_params = crate::opt::static_values(
+            &self.funcs,
+            self.exports
+                .iter()
+                .map(|(_, id)| *id)
+                .chain(self.retained.iter().copied())
+                .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
+                    function.as_ref()?;
+                    // ruled out: these positions index interned u32 symbols.
+                    let id = SymId(u32::try_from(id).expect("symbols"));
+                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
+                }))
+                .chain(
+                    self.vtables
+                        .iter()
+                        .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
+                        .copied(),
+                ),
+            arity,
+        );
+        let retain = self.runtime.retain;
+        hd_sched::par_each_mut(&mut self.funcs, |id, f| {
+            if let Some(f) = f
+                && crate::opt::static_counts(f, retain, arity, &static_params[id])
+            {
+                crate::opt::locals(f, arity);
+            }
+        });
+        // A helper the folds above emptied leaves calls that do nothing.
+        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
+        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
+            if let Some(f) = f.as_mut().filter(|_| changed) {
+                crate::opt::locals(f, arity);
+            }
+        }
+        // Checked mode keeps every count a call, so its runtime audits them.
+        if self.inline_counts && self.runtime.checked.is_none() {
+            let mut inlined = false;
+            for f in self.funcs.iter_mut().flatten() {
+                if crate::opt::inline_counts(f, self.acyclic) {
+                    crate::opt::locals(f, arity);
+                    inlined = true;
+                }
+            }
+            if inlined {
+                for f in self.funcs.iter_mut().flatten() {
+                    f.rebuild_callees();
+                }
+                self.reach();
+            }
+        }
+        {
+            let r = self.runtime;
+            let counts = crate::count_tests::Counts {
+                retain: r.retain,
+                acyclic: self.acyclic,
+                known_inlined: self.inline_counts && r.checked.is_none(),
+                skipped: r.checked.map(|c| c.skipped_test),
+            };
+            // Glue, a helper, a count shim or a cell's release glue, keeps
+            // its counts plain calls: the runtime's count functions test
+            // null and static data, and a collection's trace hands each
+            // release to `visit` there. Each function reads only itself
+            // and the symbols, so they run on the task's threads (#2383).
+            // A lowering interns at most one new symbol (the checked
+            // build's `skipped`) and one new global (`Global::Tracing`),
+            // so each table's ids end the same at any thread count.
+            let symbols = &self.symbols;
+            hd_sched::par_each_mut(&mut self.funcs, |k, slot| {
+                let Some(f) = slot.as_mut() else { return };
+                // ruled out: every function was registered under a u32 SymId.
+                let id = SymId(crate::emit::required(
+                    u32::try_from(k).ok(),
+                    "function symbol fits u32",
+                ));
+                if !matches!(
+                    &*symbols.get(id),
+                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
+                ) && crate::count_tests::lower(f, counts)
+                {
+                    crate::opt::locals(f, arity);
+                    f.rebuild_callees();
+                }
+            });
+            self.reach();
+        }
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
+            // Branches and labels that only fall through split the
+            // straight-line runs the local rules read.
+            if crate::opt::blocks(f, arity) {
+                crate::opt::locals(f, arity);
+                // Forwarding can carry a constant into a branch test.
+                if crate::opt::fold_constant_branches(f) {
+                    crate::opt::locals(f, arity);
+                }
+            }
+            if crate::opt::fold_local_constants(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::blocks(f, arity);
+            }
+            if crate::opt::delete_empty_loops(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::blocks(f, arity);
+            }
+            crate::opt::coalesce(f);
+            if crate::opt::version_loop_bounds(f) {
+                crate::opt::locals(f, arity);
+                crate::opt::coalesce(f);
+            }
+            if crate::opt::drops(f) {
+                crate::opt::locals(f, arity);
+            }
+        });
+        if !session && !self.open_world {
+            for id in 0..self.funcs.len() {
+                let Some(mut f) = self.funcs[id].take() else {
+                    continue;
+                };
+                if crate::tables::lower(&mut f, |bytes, align| self.static_bytes(bytes, align)) {
+                    f.resolve_statics(None);
+                    crate::opt::locals(&mut f, arity);
+                    crate::opt::coalesce(&mut f);
+                }
+                self.funcs[id] = Some(f);
+            }
+        }
+    }
+
     fn finish_link(
         mut self,
         session: bool,
@@ -1977,13 +2854,17 @@ impl Module {
         if let Some(c) = self.runtime.checked {
             self.retain_instances(&[c.skipped_test]);
         }
-        for f in self.funcs.iter_mut().flatten() {
+        // The per-function steps of the link below read only their function,
+        // the symbols and the static data, so they run on the task's threads
+        // (#2392); each leaves its function the same at any thread count.
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             f.origins_before_opt = f
                 .origins
                 .as_ref()
                 .map(|os| os.iter().map(|o| f.source_origin(*o)).collect())
                 .unwrap_or_default();
-        }
+        });
         let mut seen = self.reached();
         self.cancellable = session
             || seen.iter().any(|s| {
@@ -2043,14 +2924,15 @@ impl Module {
             }
         }
         self.drain_glues = glues;
-        for f in self.funcs.iter_mut().flatten() {
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             for k in (0..f.body.len()).rev() {
                 if matches!(f.body[k], Ins::DrainGlue(_)) {
                     f.remove(k);
                 }
             }
             f.rebuild_callees();
-        }
+        });
         if self.fixed_allocations || self.wakers || self.idle || !self.drain_glues.is_empty() {
             self.keep(|_, s| !matches!(s, Sym::Helper(_)));
         }
@@ -2059,7 +2941,7 @@ impl Module {
             // No allocation takes part in cycle collection: build the
             // helpers again over the runtime's releases without hooks.
             self.acyclic = true;
-            self.runtime = crate::Runtime {
+            self.facts_mut().runtime = crate::Runtime {
                 free: r.acyclic.free,
                 release: r.acyclic.release,
                 release_known: r.acyclic.release_known,
@@ -2074,7 +2956,7 @@ impl Module {
                 .iter()
                 .any(|k| seen.contains(self.symbols.intern(Sym::Inst(*k))))
             {
-                self.cycle_insts.clear();
+                self.facts_mut().cycle_insts.clear();
                 self.keep(|_, s| !matches!(s, Sym::Helper(_)));
             }
         }
@@ -2100,7 +2982,9 @@ impl Module {
                 })
             })
             .collect();
-        for f in self.funcs.iter_mut().flatten() {
+        let (symbols, cancellable) = (&self.symbols, self.cancellable);
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            let Some(f) = f else { return };
             let body = std::mem::take(&mut f.body);
             let origins = f.origins.as_mut().map(std::mem::take);
             let outer = f.origin_at;
@@ -2114,7 +2998,7 @@ impl Module {
                     continue;
                 }
                 let helper = match ins {
-                    Ins::Call(id, _) => match &*self.symbols.get(id) {
+                    Ins::Call(id, _) => match &*symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
                         Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
@@ -2122,19 +3006,24 @@ impl Module {
                     _ => 0,
                 };
                 match helper {
-                    3 => f.i32(i32::from(self.cancellable)),
+                    3 => f.i32(i32::from(cancellable)),
                     4 => {}
                     _ => f.push(ins),
                 }
             }
             f.origin_at = outer;
             f.rebuild_callees();
-        }
+        });
         self.reach();
         let init_keys: hd_base::HashSet<_> = self.init_insts.iter().copied().collect();
-        for (id, f) in self.funcs.iter_mut().enumerate() {
+        let base = previous.map(|_| Global::SessionData);
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                f.resolve_statics(base);
+            }
+        });
+        for (id, f) in self.funcs.iter().enumerate() {
             let Some(f) = f else { continue };
-            f.resolve_statics(previous.map(|_| Global::SessionData));
             // Constant storage can forward an init's address to another
             // function and delete the init. Keep its literal dependencies.
             // ruled out: every function was registered under a u32 SymId.
@@ -2143,188 +3032,43 @@ impl Module {
                 self.data_roots.extend_from_slice(&f.data_refs);
             }
         }
-        let mut arity = vec![None; self.symbols.len()];
-        for (k, f) in self.funcs.iter().enumerate() {
-            if let Some(f) = f {
-                arity[k] = Some((f.params.len(), f.results.len()));
-            }
-        }
-        let inits = if session || self.open_world {
-            &[][..]
+        // Dev skips the optional rewrites, as Cranelift's `opt_level=none`
+        // skips its egraph pass (`Context::optimize`). It still shares
+        // locals: an engine frame holds each one, and without that a
+        // recursion 2,310 calls deep exhausts V8's stack.
+        let arity = self.arities();
+        let folded = self.fold_init_constants(session, &arity);
+        if self.optimized {
+            self.optimize(session, folded, &arity);
         } else {
-            &self.init_insts
-        };
-        crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
-        if !session && !self.open_world {
-            // A std init's release of its binding's old value reads the
-            // constant the fold just gave it. Dropping a release of a
-            // value that holds no reference leaves its helper's writes
-            // unreached, so the fold runs once more (#1423).
-            let mut dropped = false;
-            for key in self.init_insts.clone() {
-                if self.std_insts.contains(&key) {
-                    let init = self.symbols.intern(Sym::Inst(key));
-                    dropped |= self.drop_null_releases(init);
-                }
-            }
-            if dropped {
-                self.reach();
-                crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, &arity);
-            }
-            self.skip_quiet_inits();
-        }
-        for f in self.funcs.iter_mut().flatten() {
-            crate::opt::fold_constant_branches(f);
-            crate::opt::locals(f, &arity);
-        }
-        // Retained fixture roots are entered by the harness, and a suspending
-        // body can resume with frame-loaded arguments that no direct call site
-        // supplies. Neither is closed-world input to the static-value proof.
-        let static_params = crate::opt::static_values(
-            &self.funcs,
-            self.exports
-                .iter()
-                .map(|(_, id)| *id)
-                .chain(self.retained.iter().copied())
-                .chain(self.funcs.iter().enumerate().filter_map(|(id, function)| {
-                    function.as_ref()?;
-                    let id = SymId(u32::try_from(id).expect("symbols"));
-                    matches!(&*self.symbols.get(id), Sym::Part(_, Part::Body)).then_some(id)
-                }))
-                .chain(
-                    self.vtables
-                        .iter()
-                        .flat_map(|(slots, _, drives)| slots.iter().chain(drives))
-                        .copied(),
-                ),
-            &arity,
-        );
-        for (id, f) in self
-            .funcs
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(id, f)| Some((id, f.as_mut()?)))
-        {
-            {
-                let r = self.runtime;
-                let constant = crate::opt::static_counts(f, r.retain, &arity, &static_params[id]);
-                if constant {
-                    crate::opt::locals(f, &arity);
-                }
-            }
-        }
-        // A helper the folds above emptied leaves calls that do nothing.
-        let quiet = crate::opt::effect_free_calls(&mut self.funcs, &self.symbols);
-        for (f, changed) in self.funcs.iter_mut().zip(quiet) {
-            if let Some(f) = f.as_mut().filter(|_| changed) {
-                crate::opt::locals(f, &arity);
-            }
-        }
-        // Checked mode keeps every count a call, so its runtime audits them.
-        if self.inline_counts && self.runtime.checked.is_none() {
-            let mut inlined = false;
-            for f in self.funcs.iter_mut().flatten() {
-                if crate::opt::inline_counts(f, self.acyclic) {
-                    crate::opt::locals(f, &arity);
-                    inlined = true;
-                }
-            }
-            if inlined {
-                for f in self.funcs.iter_mut().flatten() {
-                    f.rebuild_callees();
-                }
-                self.reach();
-            }
-        }
-        {
-            let r = self.runtime;
-            let counts = crate::count_tests::Counts {
-                retain: r.retain,
-                acyclic: self.acyclic,
-                known_inlined: self.inline_counts && r.checked.is_none(),
-                skipped: r.checked.map(|c| c.skipped_test),
-            };
-            // Glue, a helper, a count shim or a cell's release glue, keeps
-            // its counts plain calls: the runtime's count functions test
-            // null and static data, and a collection's trace hands each
-            // release to `visit` there.
-            for (k, slot) in self.funcs.iter_mut().enumerate() {
-                let id = SymId(u32::try_from(k).expect("symbols"));
-                if let Some(f) = slot.as_mut()
-                    && !matches!(
-                        &*self.symbols.get(id),
-                        Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
-                    )
-                    && crate::count_tests::lower(f, counts)
-                {
-                    crate::opt::locals(f, &arity);
-                    f.rebuild_callees();
-                }
-            }
-            self.reach();
-        }
-        for f in self.funcs.iter_mut().flatten() {
-            // Branches and labels that only fall through split the
-            // straight-line runs the local rules read.
-            if crate::opt::blocks(f, &arity) {
-                crate::opt::locals(f, &arity);
-                // Forwarding can carry a constant into a branch test.
-                if crate::opt::fold_constant_branches(f) {
-                    crate::opt::locals(f, &arity);
-                }
-            }
-            if crate::opt::fold_local_constants(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::blocks(f, &arity);
-            }
-            if crate::opt::delete_empty_loops(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::blocks(f, &arity);
-            }
-            crate::opt::coalesce(f);
-            if self.optimized && crate::opt::version_loop_bounds(f) {
-                crate::opt::locals(f, &arity);
-                crate::opt::coalesce(f);
-            }
-            if crate::opt::drops(f) {
-                crate::opt::locals(f, &arity);
-            }
-        }
-        if !session && !self.open_world {
-            for id in 0..self.funcs.len() {
-                let Some(mut f) = self.funcs[id].take() else {
-                    continue;
-                };
-                if crate::tables::lower(&mut f, |bytes, align| self.static_bytes(bytes, align)) {
-                    f.resolve_statics(None);
-                    crate::opt::locals(&mut f, &arity);
-                    crate::opt::coalesce(&mut f);
-                }
-                self.funcs[id] = Some(f);
-            }
-        }
-        for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f, |at, len| {
-                if session {
-                    None
-                } else {
-                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
+            hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+                if let Some(f) = f {
+                    crate::opt::coalesce(f);
                 }
             });
         }
+        let (data, chunks) = (&self.data, &self.data_chunks);
+        let static_bytes = |at, len| {
+            if session {
+                None
+            } else {
+                crate::static_data::bytes(data, chunks, at, len)
+            }
+        };
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::bulk::lower(f, static_bytes);
+            }
+        });
         crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
         // Wide storage introduces a frame fill after the ordinary lowering.
         // Its only new scalar scratch is bounded; all earlier scratch locals
         // participate in wide lowering with the body's other locals.
-        for f in self.funcs.iter_mut().flatten() {
-            crate::bulk::lower(f, |at, len| {
-                if session {
-                    None
-                } else {
-                    crate::static_data::bytes(&self.data, &self.data_chunks, at, len)
-                }
-            });
-        }
+        hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+            if let Some(f) = f {
+                crate::bulk::lower(f, static_bytes);
+            }
+        });
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();
         #[cfg(feature = "checked-report")]
@@ -2345,10 +3089,14 @@ impl Module {
             self.import_session(previous)?;
         }
         // Wide lowering can change signatures and add helpers: read the
-        // final ones for the stack heights of rule 18.
-        let arity = self.symbols.call_arities(&self.funcs);
-        for f in self.funcs.iter_mut().flatten() {
-            crate::opt::blocks(f, &arity);
+        // final ones for the stack heights of rule 18, an optional rewrite.
+        if self.optimized {
+            let arity = self.symbols.call_arities(&self.funcs);
+            hd_sched::par_each_mut(&mut self.funcs, |_, f| {
+                if let Some(f) = f {
+                    crate::opt::blocks(f, &arity);
+                }
+            });
         }
         // Wide lowering rebuilds each body's callees from its final code.
         // Calls removed by local/count optimization no longer keep helpers.
@@ -2701,6 +3449,12 @@ impl Module {
         let mut taken: hd_base::HashMap<&str, u32> = hd_base::HashMap::default();
         let mut own: Vec<(u32, String)> = Vec::new();
         for (s, f) in &defined {
+            // A release helper delegates its caller's already-counted operation.
+            // Explicit internal ownership sites and other actions stay visible.
+            let release_wrapper = self.track_origins
+                && matches!(&*self.symbols.get(*s), Sym::Helper(_))
+                && crate::views::helper_count_action(&self.symbols.get(*s))
+                    == Some(crate::views::CountAction::Release);
             let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
                 let k = taken.entry(f.name.as_str()).or_default();
                 *k += 1;
@@ -2758,6 +3512,9 @@ impl Module {
                         _ => None,
                     };
                     if let Some(action) = action
+                        && !(release_wrapper
+                            && action == crate::views::CountAction::Release
+                            && note.is_none())
                         && note.is_none_or(|n| count_sites.insert(n.site))
                     {
                         mapped_counts.push(crate::views::CountOperation {
@@ -3009,8 +3766,13 @@ impl Module {
             exports.export("hd.all_polls", ExportKind::Global, *index);
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
+        // A C provider's host reads its pointer arguments in the heap
+        // (`module.host.package.c-references`), as the count audit does.
         #[cfg(feature = "checked-report")]
-        if self.runtime.report().is_some() {
+        let report = self.runtime.report().is_some();
+        #[cfg(not(feature = "checked-report"))]
+        let report = false;
+        if report || !self.c_tables.is_empty() {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
         let mut manifest = previous.cloned().unwrap_or_default();
@@ -3094,6 +3856,10 @@ impl Module {
             crate::static_data::section(&self.data, &self.data_chunks, &mut || {})
         };
         let mut module = wasm_encoder::Module::new();
+        module.section(&wasm_encoder::CustomSection {
+            name: hd_host_abi::schema::BUILD_SECTION.into(),
+            data: std::borrow::Cow::Borrowed(if self.optimized { &[1, 1] } else { &[1, 0] }),
+        });
         if !self.package_contract.interfaces.is_empty() {
             self.package_contract
                 .interfaces
@@ -3104,6 +3870,13 @@ impl Module {
             module.section(&wasm_encoder::CustomSection {
                 name: hd_host_abi::schema::SECTION.into(),
                 data: self.package_contract.encode().into(),
+            });
+        }
+        if !self.c_tables.is_empty() {
+            let tables: Vec<_> = self.c_tables.values().cloned().collect();
+            module.section(&wasm_encoder::CustomSection {
+                name: hd_host_abi::c::SECTION.into(),
+                data: hd_host_abi::c::encode(&tables).into(),
             });
         }
         if session {
@@ -3429,7 +4202,7 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     }
 }
 
-fn descriptor_slot(
+pub fn descriptor_slot(
     s: SymId,
     key: DescriptorKey,
     table_start: u32,
@@ -3448,249 +4221,4 @@ fn descriptor_slot(
     slots.push(f);
     ids.insert(pair, k);
     Ok(k)
-}
-
-#[cfg(all(test, feature = "checked-report"))]
-mod checked_descriptor_tests {
-    use super::*;
-    #[test]
-    fn kinds_alias_one_release_function_in_distinct_slots() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            0
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(2),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            1
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            0
-        );
-        assert_eq!(slots, [7, 7]);
-    }
-
-    #[test]
-    fn extension_descriptors_follow_the_initialized_table_prefix() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            41
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(2),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            42
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            41
-        );
-        assert_eq!(slots, [7, 7]);
-    }
-}
-
-#[cfg(test)]
-mod dense_symbol_tests {
-    #[test]
-    fn emitted_wide_signature_wins_over_logical_helper_metadata() {
-        let symbols = super::Symbols::default();
-        let target = symbols.intern(super::Sym::Helper(crate::rt::Helper::DynTrap {
-            params: vec![super::Val::I32; 64],
-            results: vec![super::Val::I32; 65],
-        }));
-        assert_eq!(symbols.call_arities(&[])[target.idx()], Some((64, 65)));
-        let physical = super::Func {
-            params: vec![super::Val::I32; 65],
-            ..super::Func::default()
-        };
-        let functions = vec![Some(physical)];
-        // Wide results add one frame address even when the parameter
-        // count was exactly the threshold; do not lower it a second time.
-        assert_eq!(
-            symbols.call_arities(&functions)[target.idx()],
-            Some((65, 0))
-        );
-    }
-
-    use super::*;
-
-    fn encoded(reverse_interning: bool) -> Vec<u8> {
-        let mut m = Module::default();
-        let a = Sym::Import(Import::new("test", "a", &[], &[Val::I32]));
-        let b = Sym::Import(Import::new("test", "b", &[], &[Val::I32]));
-        if reverse_interning {
-            m.symbols.intern(b.clone());
-            m.symbols.intern(a.clone());
-            m.symbols.intern_global(Global::HashSeed);
-        } else {
-            m.symbols.intern(a.clone());
-            m.symbols.intern(b.clone());
-            m.symbols.intern_global(Global::Forbid);
-        }
-        let leaf = Sym::Inst(Hash128(1));
-        let root = Sym::Inst(Hash128(2));
-        let mut f = m.func("leaf", vec![], vec![Val::I32]);
-        f.u32(7);
-        m.define(leaf.clone(), f);
-        let mut f = m.func("root", vec![], vec![Val::I32]);
-        f.global_get(Global::Forbid);
-        f.op(Instruction::Drop);
-        f.global_get(Global::HashSeed);
-        f.op(Instruction::Drop);
-        f.call(b);
-        f.op(Instruction::Drop);
-        f.table_slot(leaf);
-        f.call_indirect(vec![], vec![Val::I32]);
-        f.op(Instruction::Drop);
-        f.op(Instruction::Block(wasm_encoder::BlockType::Empty));
-        f.u32(0);
-        f.br_table(vec![0, 0], 0);
-        f.op(Instruction::End);
-        f.call(a);
-        m.define(root.clone(), f);
-        m.export("root", root);
-        m.finish().expect("module encodes")
-    }
-
-    #[test]
-    fn arena_insertion_order_does_not_change_wasm_numbering() {
-        let a = encoded(false);
-        let b = encoded(true);
-        assert_eq!(a, b);
-        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-            .validate_all(&a)
-            .expect("valid Wasm");
-    }
-
-    #[test]
-    fn reachability_bits_cross_word_boundaries() {
-        let mut reached = Reached::default();
-        for id in [0, 63, 64, 130] {
-            assert!(reached.insert(SymId(id)));
-            assert!(!reached.insert(SymId(id)));
-        }
-        assert!(!reached.contains(SymId(62)));
-        assert_eq!(
-            reached.iter().map(|id| id.0).collect::<Vec<_>>(),
-            [0, 63, 64, 130]
-        );
-    }
-
-    #[test]
-    fn cancellation_fact_is_specialized_and_markers_are_not_linked() {
-        for explicit in [false, true] {
-            let mut m = Module::default();
-            let root = Sym::Inst(Hash128(42));
-            let mut f = m.func("probe", vec![], vec![Val::I32]);
-            if explicit {
-                f.helper(crate::rt::Helper::CancellationRoot);
-            }
-            f.helper(crate::rt::Helper::CanCancel);
-            m.define(root.clone(), f);
-            m.export("probe", root);
-            let wasm = m.finish().expect("module encodes");
-            wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-                .validate_all(&wasm)
-                .expect("valid Wasm");
-            let bodies: Vec<_> = wasmparser::Parser::new(0)
-                .parse_all(&wasm)
-                .filter_map(|p| match p.expect("payload") {
-                    wasmparser::Payload::CodeSectionEntry(body) => Some(body),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(bodies.len(), 1, "link-time helpers disappear");
-            let ops: Vec<_> = bodies[0]
-                .get_operators_reader()
-                .expect("operators")
-                .into_iter()
-                .collect::<Result<_, _>>()
-                .expect("valid operators");
-            assert!(
-                matches!(ops.as_slice(), [wasmparser::Operator::I32Const { value }, wasmparser::Operator::End] if *value == i32::from(explicit))
-            );
-        }
-    }
-
-    #[test]
-    fn final_reachability_removes_a_call_folded_out_of_the_body() {
-        let mut m = Module::default();
-        let dead = Sym::Inst(Hash128(1));
-        let root = Sym::Inst(Hash128(2));
-        let f = m.func("dead_after_fold", vec![], vec![]);
-        m.define(dead.clone(), f);
-        let mut f = m.func("root", vec![], vec![]);
-        f.i32(0);
-        f.op(Instruction::If(wasm_encoder::BlockType::Empty));
-        f.call(dead);
-        f.op(Instruction::End);
-        m.define(root.clone(), f);
-        m.export("root", root);
-        let wasm = m.finish().expect("module encodes");
-        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-            .validate_all(&wasm)
-            .expect("valid Wasm");
-        let functions = wasmparser::Parser::new(0)
-            .parse_all(&wasm)
-            .filter(|p| matches!(p, Ok(wasmparser::Payload::CodeSectionEntry(_))))
-            .count();
-        assert_eq!(functions, 1, "only the exported root is still linked");
-    }
 }

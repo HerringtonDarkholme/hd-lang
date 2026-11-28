@@ -21,18 +21,21 @@ impl Gate:
         item := Link { gate: other }
 > app/main/impl Gate.admit
 >   release app.main.Link (last use)
+>   release *mut app.main.Gate (last use)
         (self.keep)(&item)
 
 pub fn main() -> void $ Console:
     let g: *mut Gate = box(Gate { keep: fn(l): true })
-    alias := g
 > app/main/main
+>   release string (last use)
+    alias := g
 >   retain *mut app.main.Gate (stored)
     tag := "kept-" + "z".repeat(40)
 >   release string (last use)
     g.keep = fn(l):
 > app/main/main
 >   retain string (stored)
+>   release string (last use)
 >   retain counted reference (stored)
 >   release string (last use)
 >   release counted reference (overwritten)

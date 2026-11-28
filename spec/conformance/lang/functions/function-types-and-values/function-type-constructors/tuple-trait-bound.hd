@@ -1,6 +1,6 @@
 # test: every tuple type implements Tuple, and an arity-generic Fn input is written Args < Tuple
 # expect: accept
-use std.function.{Fn, SuspendFn, Tuple}
+use std.ops.{Fn, SuspendFn, Tuple}
 
 trait Describe:
     fn describe(self) -> string

@@ -1,0 +1,10 @@
+# `Random` draws from the host's source: the bytes asked for, eight draws that
+# differ, and a roll in its range. A flag that denies it refuses to start.
+run: hd main.hd
+stdout: 16 100000 0
+stdout: 8
+stdout: true
+run: hd --cap Random=false main.hd
+exit: 101
+stdout-json: []
+stderr: error: denied-capability: the program needs Random, which `--cap Random=false` denies, so it does not start

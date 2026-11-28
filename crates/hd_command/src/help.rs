@@ -39,6 +39,10 @@ const CLEANUP_LIMIT: (&str, &str) = (
     "--cleanup-limit DURATION",
     "how long a Ctrl-C waits for the program's cleanup before it abandons it; the default is 10s",
 );
+const SAMPLING: (&str, &str) = (
+    "--profile[=FILE]",
+    "record Wasmtime guest samples as Firefox profiler JSON; default profile.json",
+);
 const ENGINE: (&str, &str) = (
     "--engine NAME",
     "run on the engine NAME; the default is HD_ENGINE, else the implementation's own",
@@ -57,7 +61,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
@@ -65,6 +69,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            SAMPLING,
             CAP,
             TIME_LIMIT,
             CLEANUP_LIMIT,
@@ -75,11 +80,23 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
-        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
+        usage: "hd [--engine NAME] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
         about: &[
             "Run a module that hd build wrote. Package host providers also need the app manifest above the module.",
+            "The module records its optimization level; older modules use dev. --release is not accepted for this form.",
         ],
-        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+        flags: &[ENGINE, SAMPLING, CAP, TIME_LIMIT, CLEANUP_LIMIT],
+    },
+    Command {
+        name: "FILE.cwasm",
+        summary: "run a native release artifact that hd build wrote",
+        usage: "hd [--engine wasmtime] [--profile[=FILE]] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.cwasm [-- ARGS]",
+        about: &[
+            "Run a native release artifact with Wasmtime, without translating Wasm.",
+            "Rebuild incompatible artifacts with hd build --release; use --format wasm for portable output.",
+            "--release is not accepted for an already built artifact.",
+        ],
+        flags: &[ENGINE, SAMPLING, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
         name: "--repl",
@@ -95,20 +112,31 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "build",
         summary: "build the package's executables, or the module of one FILE in the package",
-        usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",
+        usage: "hd build [--release] [--engine NAME] [--format wasm] [-p NAME] [FILE]",
         about: &[
             "Build each executable NAME of the package to build/debug/NAME.wasm, or to",
             "build/release/ with --release. With FILE, a file of the package, build its module",
             "to build/debug/files/STEM.wasm, or to build/release/files/ with --release.",
-            "A package with no executable is checked, and no .wasm file is written.",
+            "Release Wasmtime builds use .cwasm; --format wasm requests portable output.",
+            "Dev and Node builds use .wasm. A package without an executable is only checked.",
             "Outside a package, hd build is an error.",
         ],
-        flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS],
+        flags: &[
+            RELEASE,
+            ENGINE,
+            PACKAGE,
+            FORMAT,
+            JOBS,
+            (
+                "--format wasm",
+                "write portable Wasm, including for release Wasmtime builds",
+            ),
+        ],
     },
     Command {
         name: "run",
         summary: "run the package's executable, or the executable or task named NAME",
-        usage: "hd run [--release] [--engine NAME] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
+        usage: "hd run [--release] [--engine NAME] [--profile[=FILE]] [-p NAME] [--cap NAME=VALUE] [NAME] [-- ARGS]",
         about: &[
             "Run the package's executable, or the executable or task named NAME.",
             "",
@@ -119,6 +147,7 @@ const COMMANDS: &[Command] = &[
         flags: &[
             RELEASE,
             ENGINE,
+            SAMPLING,
             PACKAGE,
             CAP,
             TIME_LIMIT,
@@ -294,13 +323,19 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "install",
         summary: "install a package's executables as commands on PATH",
-        usage: "hd install [--root DIR] [--deny CAP]... SOURCE | hd install [--root DIR] --list",
+        usage: "hd install [--root DIR] [--engine NAME] [--format wasm] [--deny CAP]... SOURCE | hd install [--root DIR] --list",
         about: &[
-            "Build every executable as release Wasm and install a launcher using hd from PATH.",
+            "Build each executable for release and install a launcher using hd from PATH.",
+            "Wasmtime uses .cwasm; Node or --format wasm uses portable .wasm.",
             "SOURCE uses hd add's path, git and version-query syntax; repeating it updates the same source.",
             "Use ~/.hd/bin, or --root then HD_INSTALL_ROOT. Print PATH guidance without editing shell files.",
         ],
         flags: &[
+            ENGINE,
+            (
+                "--format wasm",
+                "install portable Wasm instead of a native artifact",
+            ),
             ("--root DIR", "override the installation root"),
             (
                 "--deny CAP",
@@ -353,6 +388,13 @@ const COMMANDS: &[Command] = &[
             "size cap, and print its size before and after. The cap is 10 GiB, or",
             "HD_CACHE_MAX_SIZE as a SIZE. Works anywhere; reads no manifest.",
         ],
+        flags: &[],
+    },
+    Command {
+        name: "--version",
+        summary: "print the compiler version",
+        usage: "hd --version",
+        about: &["Print the compiler release version and exit."],
         flags: &[],
     },
     Command {

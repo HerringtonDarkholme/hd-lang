@@ -152,8 +152,7 @@ fn unknown_registration_hint(cx: &BodyCx<'_>, s: NodeRef<'_>) -> hd_resolve::ifa
     {
         return hd_resolve::iface::ImportHint::default();
     }
-    let mut import =
-        hd_resolve::iface::std_import_hint(&cx.names, cx.lookup.ifaces.iter().copied(), name);
+    let mut import = cx.lookup.import_hint(name);
     import.text = format!("; `{name}` is unknown or not imported{}", import.text);
     import
 }

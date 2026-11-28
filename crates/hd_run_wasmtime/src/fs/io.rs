@@ -9,9 +9,13 @@ use std::time::Instant;
 use super::api::{Failure, check_deadline};
 use super::sandbox::{Place, below_a_file};
 
-/// The whole file.
-pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
-    let mut file = open(place, false, false, deadline)?;
+/// The file at `place`, opened for reading, with its metadata: a
+/// directory is `IsADirectory`, as its read would be.
+pub(crate) fn open_read(
+    place: &Place,
+    deadline: Option<Instant>,
+) -> Result<(File, std::fs::Metadata), Failure> {
+    let file = open(place, false, false, deadline)?;
     check_deadline(deadline)?;
     let st = file.metadata().map_err(|err| Failure::new("fstat", err))?;
     if st.is_dir() {
@@ -19,6 +23,12 @@ pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, 
         // OS is asked, so every OS reports the same `IsADirectory`.
         return Err(Failure::new("read", ErrorKind::IsADirectory.into()));
     }
+    Ok((file, st))
+}
+
+/// The whole file.
+pub(crate) fn read(place: &Place, deadline: Option<Instant>) -> Result<Vec<u8>, Failure> {
+    let (mut file, st) = open_read(place, deadline)?;
     if st.is_file() && st.len() > 0x7fff_ffff {
         return Err(Failure::Message(format!(
             "File size ({}) is greater than 2 GiB",
@@ -77,7 +87,8 @@ pub(crate) fn open(
 /// A path in the Windows device namespace, where named pipes and other
 /// devices live: `\\.\pipe\name` and its spellings, and a UNC pipe share.
 #[cfg(windows)]
-pub(crate) fn device_path(path: &str) -> bool {
+#[must_use]
+pub fn device_path(path: &str) -> bool {
     let normalized = path.replace('/', "\\");
     let path = normalized.to_ascii_lowercase();
     if path.starts_with(r"\\.\")
@@ -92,71 +103,4 @@ pub(crate) fn device_path(path: &str) -> bool {
         .or_else(|| path.strip_prefix(r"\\"));
     unc.and_then(|rest| rest.split_once('\\'))
         .is_some_and(|(server, share)| !server.is_empty() && share.starts_with(r"pipe\"))
-}
-
-#[cfg(all(test, windows))]
-mod tests {
-    use crate::fs::api::{Failure, failure};
-    use crate::fs::test_support::error;
-
-    #[test]
-    fn device_namespace_detection_preserves_ordinary_files() {
-        for path in [
-            r"\\.\pipe\hd-test",
-            r"\\?\PIPE\hd-test",
-            "//./pipe/hd-test",
-            r"\\localhost\pipe\hd-test",
-            r"\\?\UNC\host\pipe\hd-test",
-            r"\\?\GLOBALROOT\Device\NamedPipe\hd-test",
-            r"\\.\NUL",
-        ] {
-            assert!(super::device_path(path), "{path}");
-        }
-        for path in [
-            r"C:\pipe\hd-test",
-            r"\\host\share\pipe\hd-test",
-            r"\\host\pipeline\hd-test",
-            r"\\?\C:\pipe\hd-test",
-            "pipe/hd-test",
-        ] {
-            assert!(!super::device_path(path), "{path}");
-        }
-    }
-    #[test]
-    fn windows_errors_use_rust_error_categories_and_native_messages() {
-        use std::io::ErrorKind;
-        use windows_sys::Win32::Foundation::{
-            ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_DIRECTORY,
-            ERROR_DIRECTORY_NOT_SUPPORTED, ERROR_FILE_NOT_FOUND, ERROR_INVALID_NAME, ERROR_NO_DATA,
-            ERROR_SHARING_VIOLATION,
-        };
-        // Rust std's Windows decode_error_kind, not libuv's translation.
-        for (code, kind, variant) in [
-            (ERROR_ACCESS_DENIED, ErrorKind::PermissionDenied, 1),
-            (ERROR_ALREADY_EXISTS, ErrorKind::AlreadyExists, 3),
-            (ERROR_FILE_NOT_FOUND, ErrorKind::NotFound, 0),
-            (ERROR_DIRECTORY, ErrorKind::NotADirectory, 4),
-            (ERROR_DIRECTORY_NOT_SUPPORTED, ErrorKind::IsADirectory, 5),
-            (ERROR_INVALID_NAME, ErrorKind::InvalidFilename, 7),
-            (ERROR_NO_DATA, ErrorKind::BrokenPipe, 7),
-        ] {
-            let native = std::io::Error::from_raw_os_error(i32::try_from(code).unwrap());
-            assert_eq!(native.kind(), kind);
-            let message = format!("open \"to\": {native}");
-            let refused = Failure::new("open", native);
-            assert_eq!(
-                failure("to", "read_text", "to", &refused).done(),
-                error(if variant == 7 { &message } else { "to" }, variant).done()
-            );
-        }
-        // Unclassified platform errors remain informative Other values.
-        let native =
-            std::io::Error::from_raw_os_error(i32::try_from(ERROR_SHARING_VIOLATION).unwrap());
-        let message = format!("open \"to\": {native}");
-        let refused = Failure::new("open", native);
-        assert_eq!(
-            failure("to", "read_text", "to", &refused).done(),
-            error(&message, 7).done()
-        );
-    }
 }

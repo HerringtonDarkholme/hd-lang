@@ -10,7 +10,7 @@ fn wait_now() -> i32:
         .Completed(value) => value
         _ => 0
 
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Style:
     prefix: string = ""

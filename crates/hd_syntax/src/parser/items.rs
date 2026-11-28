@@ -101,10 +101,12 @@ impl Parser<'_> {
             && !self.nth_line_first(1)
             && self.at_word("newtype")
         {
-            self.error_at(
-                Code::SyntaxError,
-                self.pos() + 1,
-                "a newtype is declared with 'type': write 'type Name(Base)'",
+            let (lo, hi) = self.token_span(self.pos());
+            let message = "a newtype is declared with 'type': write 'type Name(Base)'";
+            self.error_fixed(
+                (Code::SyntaxError, self.pos() + 1, message),
+                "replace `newtype` with `type`",
+                &[(lo, hi, "type")],
             );
         }
         if self.at(TokenKind::KwTests) {
@@ -194,12 +196,42 @@ impl Parser<'_> {
                 self.impl_decl(marker);
             }
             Some(TokenKind::KwType) => self.type_decl(marker, decorated),
+            Some(TokenKind::KwLet) if public => self.pub_let(marker),
             _ => {
                 self.expected("a declaration");
                 self.recover_line();
                 self.complete(marker, SyntaxKind::Error);
             }
         }
+    }
+
+    /// `pub let NAME: T = value` (`module.vis.pub.binding`): a `LetStmt`
+    /// that `pub` opens, of one name with its written type, never `mut`,
+    /// which other modules read. The type is the header an importer
+    /// checks against, as rustc's parser requires a `const` item's.
+    fn pub_let(&mut self, marker: Marker) {
+        let at = self.pos() + 1;
+        match self.nth(1) {
+            Some(TokenKind::KwMut) => self.error_at(
+                Code::PubMutableBinding,
+                at,
+                "a public binding cannot be 'mut': other modules only read it; expose a function that changes it",
+            ),
+            Some(TokenKind::Ident | TokenKind::RawIdent) if self.nth(2) == Some(TokenKind::Colon) => {}
+            Some(TokenKind::Ident | TokenKind::RawIdent) if self.nth(2) == Some(TokenKind::Eq) => {
+                self.error_at(
+                    Code::MissingBindingType,
+                    at,
+                    "a public binding writes its type, which other modules read: write 'pub let NAME: T = value'",
+                );
+            }
+            _ => self.error_at(
+                Code::SyntaxError,
+                at,
+                "'pub let' binds one name: write 'pub let NAME = value'",
+            ),
+        }
+        self.let_rest(marker, Ctx::Stmt);
     }
 
     /// Decorator lines, each `@ closed_expression NEWLINE`. True if any.
@@ -267,12 +299,22 @@ impl Parser<'_> {
             self.expect_name("an import alias");
         }
         if public && !grouped {
-            // grammar: `pub use` takes a group.
+            // grammar: `pub use` takes a group: `pub use m.Name` is `pub use m.{Name}`.
             let at = self.pos().saturating_sub(1);
-            self.error_at(
-                Code::SyntaxError,
-                at,
-                "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
+            let (lo, hi) = self.token_span(at);
+            let named = at > 0
+                && self.toks.kind[at - 1] == TokenKind::Dot
+                && matches!(self.toks.kind[at], TokenKind::Ident | TokenKind::RawIdent);
+            let edits: &[(u32, u32, &str)] = if named {
+                &[(lo, lo, "{"), (hi, hi, "}")]
+            } else {
+                &[]
+            };
+            let message = "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'";
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "group the imported name",
+                edits,
             );
         }
         self.complete(marker, SyntaxKind::UseDecl);
@@ -750,7 +792,7 @@ impl Parser<'_> {
             self.complete(marker, SyntaxKind::EmbeddedField);
             return;
         }
-        self.expected("a data field name");
+        self.expected_name("a data field name");
         self.recover_line();
         self.complete(marker, SyntaxKind::Error);
     }
@@ -900,12 +942,34 @@ impl Parser<'_> {
                 self.member_block(false, Self::trait_member);
             } else {
                 // grammar.trait.supertrait: `:` opens the body.
-                self.expected("a line ending after the trait header");
+                if !self.empty_declaration_pass() {
+                    self.expected("a line ending after the trait header");
+                }
                 self.recover_line();
             }
         }
         self.enclosing_generics = around;
         self.complete(marker, SyntaxKind::TraitDecl);
+    }
+
+    /// Empty traits and impls omit the body; struct `: pass` remains valid.
+    fn empty_declaration_pass(&mut self) -> bool {
+        // Before opening an impl suite, do not peek the layout cursor:
+        // doing so would prepare a newline before its block is registered.
+        if self.nth_line_first(0) || self.toks.kind.get(self.pos()) != Some(&TokenKind::KwPass) {
+            return false;
+        }
+        let error = self.errors.len();
+        self.error(
+            Code::SyntaxError,
+            "an empty trait or impl omits its body; remove `: pass`",
+        );
+        if self.nth(1).is_none() || self.nth_line_first(1) {
+            let (lo, _) = self.token_span(self.pos() - 1);
+            let (_, hi) = self.token_span(self.pos());
+            self.fix_error(error, "omit the empty declaration body", &[(lo, hi, "")]);
+        }
+        true
     }
 
     fn trait_member(&mut self) {
@@ -1002,7 +1066,11 @@ impl Parser<'_> {
         };
         let around = std::mem::replace(&mut self.enclosing_generics, enclosing);
         if self.eat(TokenKind::Colon) {
-            self.member_block(false, |p| p.impl_member(owner));
+            if self.empty_declaration_pass() {
+                self.recover_line();
+            } else {
+                self.member_block(false, |p| p.impl_member(owner));
+            }
         }
         self.enclosing_generics = around;
         self.complete(marker, SyntaxKind::ImplDecl);

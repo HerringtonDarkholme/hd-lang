@@ -5,7 +5,7 @@
 # Function-value Copy inputs borrow and an owning closure copies at entry.
 # An owning call copies a live input; a returned-argument field read borrows its source.
 # Capture loading is separate from the creator's argument transfer.
-use std.annotation.cold
+use std.meta.cold
 use std.collections.UniqList
 
 struct Named:

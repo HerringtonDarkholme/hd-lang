@@ -1,7 +1,7 @@
 # test: a closure that needs no key runs where an FnMut bound's row is provided
 # Spec 07 Functions: fn.trait.bound-closure.
 # expect-stdout: 4
-use std.function.FnMut
+use std.ops.FnMut
 
 trait Mutate:
     fn poke(&mut self) -> void

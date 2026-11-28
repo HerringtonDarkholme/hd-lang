@@ -72,7 +72,7 @@ enum InterpolationPiece {
 }
 
 #[derive(Clone, Copy)]
-enum InterpolationBuilder {
+pub(crate) enum InterpolationBuilder {
     Local(hd_base::LocalId),
     Existing(Ref),
 }
@@ -184,7 +184,7 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 }
 
 /// The approved builder owns one byte buffer, initialized through its constructor.
-fn interpolation_buffer_field(item: Option<&Item>) -> StageResult<Ty> {
+pub fn interpolation_buffer_field(item: Option<&Item>) -> StageResult<Ty> {
     if let Some(ItemData::Struct(fields, _)) = item.map(|item| &item.data)
         && let [field] = fields.as_slice()
     {
@@ -696,8 +696,21 @@ impl Ck<'_, '_> {
                         };
                         let Some((r, ty, held)) = read else {
                             if !self.is_poison_name(&name) {
-                                let msg = format!("`{name}` is not defined");
-                                self.err(Code::UnknownName, n, &msg);
+                                let best = self.value_typo(&name, crate::call::NameUse::Binding);
+                                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                                self.err(
+                                    Code::UnknownName,
+                                    n,
+                                    &format!("`{name}` is not defined{did}"),
+                                );
+                                // `$name`: the name follows the `$`.
+                                if let (Ok(lo), Ok(hi)) = (
+                                    u32::try_from(token.lo as usize + prefix + range.start + 1),
+                                    u32::try_from(token.lo as usize + prefix + range.end),
+                                ) {
+                                    let span = hd_base::Span { lo, hi, ..token };
+                                    self.diags.add_typo_fix(span, best.as_deref());
+                                }
                             }
                             continue;
                         };
@@ -798,7 +811,10 @@ impl Ck<'_, '_> {
     }
 
     /// Makes an empty local builder through its byte field's constructor.
-    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> StageResult<InterpolationBuilder> {
+    pub(crate) fn new_interpolation_builder(
+        &mut self,
+        n: NodeRef<'_>,
+    ) -> StageResult<InterpolationBuilder> {
         let pool = self.pool();
         let def = self.cx.names.known.string_builder;
         let buffer_ty = interpolation_buffer_field(self.cx.lookup.item(def))?;
@@ -855,7 +871,7 @@ impl Ck<'_, '_> {
     }
 
     /// A required std method, preserving the selected constructor's type arguments.
-    fn interpolation_inherent(
+    pub(crate) fn interpolation_inherent(
         &mut self,
         receiver: Ty,
         name: &str,
@@ -1246,11 +1262,12 @@ impl Ck<'_, '_> {
                 .infer
                 .kind_of(pool, t)
                 .is_some_and(|k| k != VarKind::General),
-            TyData::Param(_) => self.env.clauses_of(t).iter().any(|&i| {
+            TyData::Param(_) => {
                 let known = self.cx.names.known;
                 [known.num, known.integer, known.float]
-                    .contains(&self.env.clause_trait()[i as usize])
-            }),
+                    .iter()
+                    .any(|&bound| self.env.first_clause(t, bound).is_some())
+            }
             TyData::Never | TyData::Poison => true,
             _ => false,
         }
@@ -2796,8 +2813,7 @@ impl Ck<'_, '_> {
             let msg = format!("no method `{name}` on {}", self.show(bt));
             self.err(Code::UnknownMethod, n, &msg);
         } else {
-            let msg = format!("no field `{name}` on {}", self.show(bt));
-            self.err(Code::UnknownField, n, &msg);
+            self.unknown_field(bt, &name, n);
         }
         Ok((Ref(NONE), Ty::POISON))
     }
@@ -3541,6 +3557,30 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// `unknown-field` for the field `fname` that the literal field `a` of
+    /// struct `def` names, with the visible field it misspells. A shorthand
+    /// field also names the value, so only a `name: value` takes the fix.
+    fn unknown_literal_field(
+        &mut self,
+        def: hd_base::DefId,
+        fields: &[hd_resolve::Field],
+        fname: hd_base::Symbol,
+        a: NodeRef<'_>,
+    ) {
+        let name = self.cx.names.text(fname);
+        let visible = fields
+            .iter()
+            .filter(|f| self.member_visible(def, f.public || f.embedded))
+            .map(|f| self.cx.names.text(f.name));
+        let best = hd_diag::suggest::best_match(name, visible, |_| true);
+        let did = hd_diag::suggest::did_you_mean(best);
+        self.err(Code::UnknownField, a, &format!("no field `{name}`{did}"));
+        if a.children().next().is_some() {
+            let first = self.cx.src.first(a);
+            self.diags.add_typo_fix(self.cx.src.token_span(first), best);
+        }
+    }
+
     /// `Name { field: value, ... }`, with `Name::[T]` or inferred arguments.
     fn data_expr(
         &mut self,
@@ -3570,13 +3610,30 @@ impl Ck<'_, '_> {
                 })
                 .flatten()
         }) else {
+            // Through a module in scope, a private or missing declaration
+            // is `private-import` or `unknown-import`
+            // (`expr.name.qualified.private`), as in a type (#2349).
+            if let (Some(crate::ty::Named::Module(m)), [_, name]) =
+                (self.scope_name(&segs[0]), segs.as_slice())
+            {
+                self.missing_export(m, name, name_node);
+                return Ok((Ref(NONE), Ty::POISON));
+            }
             let hint = match segs.as_slice() {
                 [name] => self.import_hint(name),
                 _ => hd_resolve::iface::ImportHint::default(),
             };
-            let msg = format!("no type named `{}`{}", segs.join("."), hint.text);
+            let best = match segs.as_slice() {
+                [name] if hint.text.is_empty() => self.type_typo(None, name),
+                _ => None,
+            };
+            let did = hd_diag::suggest::did_you_mean(best.as_deref());
+            let msg = format!("no type named `{}`{}{did}", segs.join("."), hint.text);
             self.err(Code::UnknownType, name_node, &msg);
             hint.add_fix(&self.cx.src, self.diags);
+            let first = self.cx.src.first(path_node);
+            self.diags
+                .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
             return Ok((Ref(NONE), Ty::POISON));
         };
         let item = self.cx.lookup.item(def);
@@ -3683,8 +3740,7 @@ impl Ck<'_, '_> {
             }
             let fname = self.sym_of(*a);
             let Some(i) = index.get(&fname).map(|&i| i as usize) else {
-                let msg = format!("no field `{}`", self.cx.names.text(fname));
-                self.err(Code::UnknownField, *a, &msg);
+                self.unknown_literal_field(def, &fields, fname, *a);
                 failed = true;
                 continue;
             };
@@ -4577,7 +4633,7 @@ impl Ck<'_, '_> {
     }
 
     /// The slot-entry operation for the fixed key/value pair a map loop yields.
-    fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
+    pub(crate) fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
         let pool = self.pool();
         let TyData::Adt(AdtId::Product { rest: false }, elems) = pool.get(item_ty) else {
             return Err(invalid_map_loop_item());
@@ -4826,6 +4882,14 @@ impl Ck<'_, '_> {
                 step,
                 "write `_` where the piped value goes",
             );
+            // A call with no argument has one place for it: `f()` is `f(_)`.
+            if step.kind() == SyntaxKind::CallExpr
+                && let Some(list) = Src::child(step, SyntaxKind::ArgumentList)
+                && list.children().next().is_none()
+            {
+                let at = self.cx.src.token_span(list.last_token()).lo;
+                self.insert_fix("pass the piped value as `_`", at, "_");
+            }
             return Ok((Ref(NONE), Ty::POISON));
         }
         let saved = self.placeholder.replace(v);
@@ -5366,6 +5430,8 @@ impl Ck<'_, '_> {
                     Some(crate::local_rows::LocalRows::Discover(_))
                 ))
             .then(|| self.checkpoint());
+            let _result_scope = (n.kind() == SyntaxKind::FnDecl || parts.ret.is_some())
+                .then(|| crate::results::local_scope(self.cx, n, parts.ret.is_none(), ret));
             crate::work::local_body(self, n.index());
             let first = self.b.body().len();
             let mark = self.b.open_sub(&params);
@@ -6134,227 +6200,4 @@ pub(crate) struct ClosureParts<'t> {
     /// A local function's parameter names and default closures, kept for
     /// its calls (`fn.default.omit`, named arguments).
     pub form: Option<crate::local::LocalForm>,
-}
-
-#[cfg(test)]
-mod interpolation_metadata_tests {
-    use super::interpolation_buffer_field;
-    use hd_base::{DefId, Stage, Symbol};
-    use hd_resolve::{Field, Item, ItemData, TypeAttrs};
-    use hd_types::Ty;
-
-    fn item(data: ItemData) -> Item {
-        Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data)
-    }
-
-    fn field(ty: Ty) -> Field {
-        Field {
-            name: Symbol::from_raw(2),
-            ty,
-            public: false,
-            has_default: false,
-            embedded: false,
-            lifetimes: Vec::new(),
-            fn_lifetimes: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn a_buffer_field_keeps_its_resolved_type() {
-        for ty in [Ty::I32, Ty::STRING] {
-            let declaration = item(ItemData::Struct(vec![field(ty)], TypeAttrs::default()));
-            assert_eq!(
-                interpolation_buffer_field(Some(&declaration)).expect("buffer"),
-                ty
-            );
-        }
-    }
-
-    #[test]
-    fn missing_or_wrong_builder_shapes_are_internal_errors() {
-        let builtin = item(ItemData::Builtin);
-        let empty = item(ItemData::Struct(vec![], TypeAttrs::default()));
-        let extra = item(ItemData::Struct(
-            vec![field(Ty::I32), field(Ty::STRING)],
-            TypeAttrs::default(),
-        ));
-        let enum_item = item(ItemData::Enum {
-            shared: vec![field(Ty::I32)],
-            variants: vec![],
-            attrs: TypeAttrs::default(),
-        });
-        for selected in [
-            None,
-            Some(&builtin),
-            Some(&empty),
-            Some(&extra),
-            Some(&enum_item),
-        ] {
-            let error = interpolation_buffer_field(selected).expect_err("invalid shape");
-            assert_eq!(error.stage, Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-        }
-    }
-
-    #[test]
-    fn missing_runtime_selections_propagate_without_emitting_tir() {
-        for has_builder in [false, true] {
-            crate::body::with_checker_items(
-                |names| {
-                    if has_builder {
-                        vec![Item::new(
-                            names.known.string_builder,
-                            names.syms.intern("StringBuilder"),
-                            false,
-                            ItemData::Struct(vec![field(Ty::I32)], TypeAttrs::default()),
-                        )]
-                    } else {
-                        Vec::new()
-                    }
-                },
-                |ck| {
-                    let node = ck.cx.src.parse.tree.root();
-                    let before = (
-                        ck.b.body().len(),
-                        ck.b.body().extra.len(),
-                        ck.b.body().local_ty.len(),
-                    );
-                    let results = [
-                        (
-                            if has_builder { "new" } else { "StringBuilder" },
-                            ck.new_interpolation_builder(node).map(|_| ()),
-                        ),
-                        (
-                            "value_new",
-                            ck.string_builder_helper("value_new").map(|_| ()),
-                        ),
-                        ("build", ck.builder_call("build", &[], node).map(|_| ())),
-                        ("new", ck.interpolation_inherent(Ty::I32, "new").map(|_| ())),
-                    ];
-                    for (needed, result) in results {
-                        let error = result.expect_err("missing runtime selection");
-                        assert_eq!(error.stage, Stage::Body);
-                        assert!(error.bug);
-                        assert!(!error.out_of_fuel);
-                        assert!(error.what.contains(needed), "{}", error.what);
-                    }
-                    assert_eq!(
-                        (
-                            ck.b.body().len(),
-                            ck.b.body().extra.len(),
-                            ck.b.body().local_ty.len()
-                        ),
-                        before,
-                    );
-                },
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod map_loop_metadata_tests {
-    use hd_base::Stage;
-    use hd_tir::ir::{IntrinsicOp, NONE, Ref};
-    use hd_types::{Ty, TyData};
-
-    #[test]
-    fn map_pair_selects_the_existing_entry_operation() {
-        crate::body::with_checker(|ck| {
-            let pool = ck.pool();
-            for value in [Ty::I32, Ty::STRING] {
-                for (field, expected) in [
-                    (value, IntrinsicOp::MapSlotEntry),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: false,
-                            counted: false,
-                        }),
-                        IntrinsicOp::MapSlotEntry,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: true,
-                            counted: false,
-                        }),
-                        IntrinsicOp::MapSlotEntryMut,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: false,
-                            counted: true,
-                        }),
-                        IntrinsicOp::MapSlotEntry,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: true,
-                            counted: true,
-                        }),
-                        IntrinsicOp::MapSlotEntryMut,
-                    ),
-                ] {
-                    let pair = pool.product(pool.list(&[Ty::I32, field]), None);
-                    assert_eq!(ck.map_loop_entry(pair).expect("map pair"), expected);
-                }
-            }
-        });
-    }
-
-    #[test]
-    fn malformed_map_pair_fails_before_loop_state_or_callback() {
-        crate::body::with_checker(|ck| {
-            let pool = ck.pool();
-            let node = ck.cx.src.parse.tree.root();
-            let mut invalid = vec![Ty::I32, Ty::POISON];
-            for fields in [&[][..], &[Ty::I32][..], &[Ty::I32, Ty::I32, Ty::I32][..]] {
-                invalid.push(pool.product(pool.list(fields), None));
-            }
-            invalid.push(pool.product(pool.list(&[Ty::I32, Ty::STRING]), Some(Ty::I32)));
-            let before = (
-                ck.b.body().len(),
-                ck.b.body().extra.len(),
-                ck.b.body().local_ty.len(),
-                ck.scopes.depth(),
-                ck.loops.len(),
-                ck.infer.var_count(),
-            );
-            let mut calls = 0;
-            for item in invalid {
-                let error = ck
-                    .collection_loop(
-                        node,
-                        (Ref(NONE), Ty::POISON, item, true),
-                        (None, None),
-                        node,
-                        &mut |_| {
-                            calls += 1;
-                            Ok(())
-                        },
-                    )
-                    .expect_err("malformed map item");
-                assert_eq!(error.stage, Stage::Body);
-                assert!(error.bug);
-                assert!(!error.out_of_fuel);
-                assert_eq!(error.what, "map loop requires a fixed key/value pair item");
-                assert_eq!(
-                    (
-                        ck.b.body().len(),
-                        ck.b.body().extra.len(),
-                        ck.b.body().local_ty.len(),
-                        ck.scopes.depth(),
-                        ck.loops.len(),
-                        ck.infer.var_count()
-                    ),
-                    before
-                );
-            }
-            assert_eq!(calls, 0);
-        });
-    }
 }

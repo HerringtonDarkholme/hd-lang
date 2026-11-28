@@ -96,13 +96,137 @@ impl<'a> Providers<'a> {
     }
 }
 
+/// Why no provider was selected, with the refusal's diagnostic code.
+pub(crate) struct Refusal(Option<hd_diag::Code>, String);
+
+impl Refusal {
+    /// The refusal as the diagnostic `hd` reports.
+    pub(crate) fn diag(&self) -> crate::report::Diag {
+        crate::report::Diag::error(self.0, &self.1)
+    }
+}
+
+impl From<String> for Refusal {
+    fn from(message: String) -> Self {
+        Self(None, message)
+    }
+}
+
+/// The library of one C-bound root trait, selected from its declaring
+/// package's `native/<target-triple>/` folder (`cli.host.c.file`).
+#[derive(Clone, Debug)]
+// A build without Wasmtime selects them only to refuse a missing file.
+#[cfg_attr(not(feature = "wasmtime"), allow(dead_code))]
+pub struct CLibrary {
+    pub module: String,
+    pub path: PathBuf,
+    /// The `c` of the trait's `[host]` entry.
+    pub name: String,
+    /// The declaring package, as its manifest names it.
+    pub package: String,
+    pub triple: String,
+}
+
+/// The target triple this `hd` runs on, whose folder holds a C provider.
+pub(crate) const TARGET_TRIPLE: &str = env!("HD_TARGET_TRIPLE");
+
+/// The file name of the C library `name` on this target: `libNAME.so`,
+/// `libNAME.dylib` or `NAME.dll` (`cli.host.c.file`).
+pub(crate) fn c_file(name: &str) -> String {
+    if cfg!(windows) {
+        format!("{name}.dll")
+    } else if cfg!(target_vendor = "apple") {
+        format!("lib{name}.dylib")
+    } else {
+        format!("lib{name}.so")
+    }
+}
+
+/// The libraries of the module's C-bound root traits, selected after the
+/// root manifest's consent, from each declaring package's
+/// `native/<target-triple>/` folder (`cli.host.c.file`). A missing file
+/// refuses the run before the guest starts, naming the package, the triple
+/// and the trait (`cli.host.c.target-missing`). Nothing is loaded here.
+/// Cost: as [`manifest_providers`], one lookup per C-bound root.
+pub(crate) fn manifest_c_libraries(
+    contract: Option<&hd_host_abi::schema::Contract>,
+    tables: &[hd_host_abi::c::Table],
+    program: Option<&crate::disk::Program>,
+    grants: &Grants,
+) -> Result<Vec<CLibrary>, Refusal> {
+    let Some(contract) = contract.filter(|_| !tables.is_empty()) else {
+        return Ok(Vec::new());
+    };
+    let c: std::collections::BTreeSet<&str> = tables.iter().map(|t| t.module.as_str()).collect();
+    let providers = Providers::new(program.map_or(&[][..], |p| &p.host_packages[..]));
+    let mut selected = Vec::new();
+    for interface in contract
+        .interfaces
+        .iter()
+        .filter(|i| !i.handle && c.contains(i.module.as_str()))
+    {
+        let name = interface.identity.to_string();
+        grants
+            .consent
+            .package(interface)
+            .map_err(|why| why.message(interface))?;
+        let identity = &interface.identity;
+        let package = providers.package(identity).ok_or_else(|| {
+            format!(
+                "no selected package manifest provides {name}; run this program in its app package"
+            )
+        })?;
+        let root = program
+            .and_then(|p| p.package_directory(package.package))
+            .ok_or_else(|| format!("no package directory provides {name}"))?;
+        let entry = providers
+            .entry(package, &identity.trait_path)
+            .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
+        let Some(library) = &entry.c else {
+            return Err(format!(
+                "{}:{}: {name} was built for a C provider, and its `[host]` entry names none; rebuild the program",
+                package.manifest, entry.line
+            )
+            .into());
+        };
+        let package_name = crate::disk::package_name(root).unwrap_or_default();
+        let root = hd_run::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
+        let file = root
+            .join("native")
+            .join(TARGET_TRIPLE)
+            .join(c_file(library));
+        let path = hd_run::canonicalize(&file)
+            .ok()
+            .filter(|path| path.starts_with(&root) && path.is_file())
+            .ok_or_else(|| {
+                Refusal(
+                    Some(hd_diag::Code::NativeProviderMissing),
+                    format!(
+                        "package `{package_name}` has no C provider `{library}` for target `{TARGET_TRIPLE}`: {name} needs the file native/{TARGET_TRIPLE}/{} inside the package",
+                        c_file(library)
+                    ),
+                )
+            })?;
+        selected.push(CLibrary {
+            module: interface.module.clone(),
+            path,
+            name: library.clone(),
+            package: package_name,
+            triple: TARGET_TRIPLE.to_owned(),
+        });
+    }
+    Ok(selected)
+}
+
 /// Resolve only reachable package providers. A CLI flag cannot supply the
-/// missing manifest consent, and no provider module is imported here.
+/// missing manifest consent, and no provider module is imported here. A
+/// trait whose `[host]` entry names only a C library has no provider on a
+/// JavaScript host (`cli.host.c.engine`): `native-provider-missing`.
 pub(crate) fn manifest_providers(
     contract: Option<&hd_host_abi::schema::Contract>,
     program: Option<&crate::disk::Program>,
     grants: &Grants,
-) -> Result<Vec<HostProvider>, String> {
+) -> Result<Vec<HostProvider>, Refusal> {
     let Some(contract) = contract else {
         return Ok(Vec::new());
     };
@@ -127,12 +251,25 @@ pub(crate) fn manifest_providers(
         let entry = providers
             .entry(package, &identity.trait_path)
             .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
-        let file = entry.path.as_ref().ok_or_else(|| {
-            format!(
+        // A C-only trait has no provider a JavaScript host can load
+        // (`cli.host.c.engine`); a `{ c, js }` trait's `js` provider takes
+        // the C arguments through the generated glue.
+        if let (None, Some(library)) = (&entry.path, &entry.c) {
+            return Err(Refusal(
+                Some(hd_diag::Code::NativeProviderMissing),
+                format!(
+                    "{}:{}: {name} has only the C provider `{library}`, which a JavaScript host cannot load; add a `js` provider to its `[host]` entry",
+                    package.manifest, entry.line
+                ),
+            ));
+        }
+        let Some(file) = &entry.path else {
+            return Err(format!(
                 "{}:{}: provider for {name} must name a file",
                 package.manifest, entry.line
             )
-        })?;
+            .into());
+        };
         let root = hd_run::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
         let wanted = root.join(file);
         let path = hd_run::canonicalize(&wanted).map_err(|e| {
@@ -145,7 +282,8 @@ pub(crate) fn manifest_providers(
             return Err(format!(
                 "{}:{}: provider `{file}` for {name} must be a file inside its declaring package",
                 package.manifest, entry.line
-            ));
+            )
+            .into());
         }
         selected.push(HostProvider {
             module: interface.module.clone(),
@@ -297,6 +435,11 @@ impl NodeInstance {
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
         let killed = dir.0.join("status.txt");
+        #[cfg(unix)]
+        let relay = match SignalRelay::new(dir.0.join("signals.bin")) {
+            Ok(relay) => relay,
+            Err(error) => return Outcome::Internal(error),
+        };
         let text = run_config(
             &self.program,
             &self.grants,
@@ -304,22 +447,46 @@ impl NodeInstance {
             Some((&frames, &killed)),
             &self.host_providers,
         );
+        #[cfg(unix)]
+        let text = {
+            let mut text = text;
+            text.pop();
+            let _ = write!(
+                text,
+                ",\"signalFile\":{}}}",
+                quote(&relay.path.to_string_lossy())
+            );
+            text
+        };
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
         let _ = std::io::stdout().flush();
         // cost: one Node process per program run.
-        let status = Command::new(node_program())
+        let status = node_command()
             .arg(dir.0.join("run.js"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
             .args(&self.args)
             .spawn()
             .and_then(|mut child| {
-                RUN_CHILD.store(child.id(), Ordering::Relaxed);
-                let status = child.wait();
-                RUN_CHILD.store(0, Ordering::Relaxed);
-                status
+                #[cfg(unix)]
+                let _foreground = match hd_run::foreground::Foreground::give_to(child.id()) {
+                    Ok(guard) => guard,
+                    Err(error) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(error);
+                    }
+                };
+                #[cfg(unix)]
+                {
+                    relay.wait(&mut child)
+                }
+                #[cfg(not(unix))]
+                {
+                    child.wait()
+                }
             });
         if let Ok(text) = std::fs::read_to_string(&frames)
             && let Some((raw, _)) = json_frames(&text)
@@ -332,14 +499,24 @@ impl NodeInstance {
         {
             return Outcome::Exit(code);
         }
+        #[cfg(unix)]
+        if let Some(error) = relay.error() {
+            return Outcome::Internal(error);
+        }
         match status {
             Ok(s) if s.success() => Outcome::Exit(0),
             // A Ctrl-C while Wasm ran ended Node with SIGINT's default
             // action, since its host listens only while it waits
-            // (`run.ts`): the program was stopped (`cli.cancel.computing`).
+            // (`run.ts`): the program was stopped (`cli.cancel.unhandled-computing`).
             Ok(s) if interrupted(s) => {
-                eprintln!("stopped");
-                Outcome::Exit(crate::engine::CANCEL_STATUS)
+                #[cfg(unix)]
+                let code = relay.stopped_status(s);
+                #[cfg(not(unix))]
+                let code = crate::engine::CANCEL_STATUS;
+                if code == crate::engine::CANCEL_STATUS {
+                    eprintln!("stopped");
+                }
+                Outcome::Exit(code)
             }
             Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
             // Nothing ran: name the engine that is missing, which `hd` may
@@ -353,38 +530,138 @@ impl NodeInstance {
     }
 }
 
-/// The process id of the Node child that runs the program, while it runs,
-/// else 0.
-static RUN_CHILD: AtomicU32 = AtomicU32::new(0);
-
-/// The signal that is a Ctrl-C to the Node child on Unix
-/// (`cli.cancel.forward`). It is not SIGINT: a terminal's Ctrl-C reaches
-/// the child by its process group as well as `hd`, so the child ignores
-/// SIGINT and hears the interrupt once, from `hd`.
+/// SIGUSR2 only announces new bytes; the queue retains each original kind.
 #[cfg(unix)]
 const FORWARD: nix::sys::signal::Signal = nix::sys::signal::Signal::SIGUSR2;
 
-/// Passes an interrupt that `hd` heard on to the Node child, if one runs
-/// (`cli.cancel.forward`). Windows has nothing to pass: the console
-/// delivers a Ctrl-C to the child itself (`cli.cancel.windows`).
-pub(crate) fn forward_interrupt() {
-    #[cfg(unix)]
-    if let Ok(pid) = i32::try_from(RUN_CHILD.load(Ordering::Relaxed))
-        && pid != 0
-    {
-        // The child may have just ended; a signal then has no one to reach.
-        let _ = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), FORWARD);
+#[cfg(unix)]
+struct SignalRelay {
+    state: std::sync::Arc<std::sync::Mutex<SignalRelayState>>,
+    _subscriptions: Vec<hd_run::signals::Subscription>,
+    path: PathBuf,
+}
+#[cfg(unix)]
+struct SignalRelayState {
+    pid: Option<nix::unistd::Pid>,
+    file: std::fs::File,
+    last: Option<hd_run::signals::Kind>,
+    error: Option<String>,
+}
+#[cfg(unix)]
+impl SignalRelay {
+    fn new(path: PathBuf) -> Result<Self, String> {
+        use std::sync::{Arc, Mutex, PoisonError};
+        let file = std::fs::File::create(&path).map_err(|error| error.to_string())?;
+        let state = Arc::new(Mutex::new(SignalRelayState {
+            pid: None,
+            file,
+            last: None,
+            error: None,
+        }));
+        let target = Arc::clone(&state);
+        let subscriptions = hd_run::signals::forward(&hd_run::signals::Kind::ALL, move |kind| {
+            let mut state = target.lock().unwrap_or_else(PoisonError::into_inner);
+            // cost: append only this notification; the child reads new bytes
+            // from its offset, never rescanning the signal history.
+            if let Err(error) = state.file.write_all(&[kind as u8]) {
+                state.error = Some(format!("signal relay: {error}"));
+                if let Some(pid) = state.pid {
+                    let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
+                }
+                return;
+            }
+            state.last = Some(kind);
+            if let Some(pid) = state.pid {
+                let _ = nix::sys::signal::kill(pid, FORWARD);
+            }
+        })?;
+        Ok(Self {
+            state,
+            _subscriptions: subscriptions,
+            path,
+        })
+    }
+    fn wait(&self, child: &mut std::process::Child) -> std::io::Result<std::process::ExitStatus> {
+        use std::sync::PoisonError;
+        let raw = i32::try_from(child.id()).map_err(std::io::Error::other)?;
+        {
+            let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            let pid = nix::unistd::Pid::from_raw(raw);
+            state.pid = Some(pid);
+            if state.last.is_some() {
+                let _ = nix::sys::signal::kill(pid, FORWARD);
+            }
+        }
+        // Keep the PID waitable until forwarding is disabled. This prevents a
+        // late broker callback from signalling a reused PID after reaping.
+        let id = rustix::process::Pid::from_child(child);
+        loop {
+            match rustix::process::waitid(
+                rustix::process::WaitId::Pid(id),
+                rustix::process::WaitIdOptions::EXITED | rustix::process::WaitIdOptions::NOWAIT,
+            ) {
+                Ok(_) => break,
+                Err(rustix::io::Errno::INTR) => {
+                    // A signal interrupted the wait; retry without reaping.
+                }
+                Err(error) => {
+                    self.state
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .pid = None;
+                    return Err(error.into());
+                }
+            }
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pid = None;
+        child.wait()
+    }
+    fn error(&self) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .error
+            .clone()
+    }
+    fn stopped_status(&self, status: std::process::ExitStatus) -> u8 {
+        use hd_run::signals::Kind;
+        use std::os::unix::process::ExitStatusExt as _;
+        let original = status
+            .signal()
+            .filter(|signal| *signal != FORWARD as i32)
+            .and_then(|signal| {
+                Kind::ALL
+                    .into_iter()
+                    .find(|kind| kind.os_number() == signal)
+            })
+            .or_else(|| {
+                self.state
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .last
+            });
+        match original {
+            Some(Kind::Hangup) => u8::try_from(128 + Kind::Hangup.os_number()).unwrap_or(1),
+            _ => crate::engine::CANCEL_STATUS,
+        }
     }
 }
 
-/// Whether a Ctrl-C ended a process: the forwarded signal on Unix (the
-/// child ignores SIGINT), and on Windows the status
-/// `STATUS_CONTROL_C_EXIT` of a console process that has no handler.
+/// Whether an unhandled portable signal ended the child: its original
+/// kind or the relay wake on Unix, and `STATUS_CONTROL_C_EXIT` on Windows.
 fn interrupted(status: std::process::ExitStatus) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt as _;
-        status.signal() == Some(FORWARD as i32)
+        status.signal().is_some_and(|signal| {
+            signal == FORWARD as i32
+                || hd_run::signals::Kind::ALL
+                    .into_iter()
+                    .any(|kind| kind.os_number() == signal)
+        })
     }
     #[cfg(windows)]
     {
@@ -646,10 +923,10 @@ impl Programs {
     }
 }
 
-/// Windows Node processes receive the launcher explicitly; the standalone
+/// Node process groups and Jobs receive the launcher explicitly; the standalone
 /// JS host never searches PATH or compiler caches for one.
 fn process_launcher() -> String {
-    #[cfg(windows)]
+    #[cfg(any(unix, windows))]
     if let Ok(executable) = std::env::current_exe() {
         return format!(
             ",\"processLauncher\":{}",
@@ -674,8 +951,6 @@ fn run_config(
     let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
     if let Some(ms) = cleanup_ms {
         let _ = write!(limit, ",\"cleanupMs\":{ms}");
-        #[cfg(unix)]
-        let _ = write!(limit, ",\"interruptSignal\":\"{}\"", FORWARD.as_str());
     }
     let files = files.map_or(String::new(), |(frames, status)| {
         format!(
@@ -735,6 +1010,61 @@ fn grants_json(g: &Grants) -> String {
 /// The Node every host process starts: `node` from PATH; in `hd_command`'s own
 /// unit tests, the version `.node-version` pins, so an older PATH Node
 /// fails them once at setup (`hd_testkit::node`, #2059).
+/// V8's stack in KiB for the program's Wasm on Node's main thread: 16 MiB,
+/// as wasmtime's `max_wasm_stack` and a worker thread's (`host/run-support.ts`
+/// `PROGRAM_STACK`, #2396). V8 trusts the flag, so the thread must be larger:
+/// [`node_command`] raises the stack limit Node's process starts with to
+/// twice this, and passes the flag only when it could.
+const NODE_STACK_KIB: u64 = 16 << 10;
+
+/// `node` with the program's stack ([`NODE_STACK_KIB`]).
+pub(crate) fn node_command() -> Command {
+    // cost: one getrlimit and at most one setrlimit per `hd` process.
+    let mut command = Command::new(node_program());
+    // A host must never inherit ownership of its caller's process group.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt as _;
+        command.process_group(0);
+    }
+    if node_stack_raised() {
+        command.arg(format!("--stack-size={NODE_STACK_KIB}"));
+    }
+    command
+}
+
+/// Whether this process's stack limit, which Node's main thread inherits,
+/// is at least twice [`NODE_STACK_KIB`], raised once if the hard limit
+/// allows. Unlimited counts as enough.
+#[cfg(unix)]
+fn node_stack_raised() -> bool {
+    use rustix::process::{Resource, Rlimit, getrlimit, setrlimit};
+    static RAISED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *RAISED.get_or_init(|| {
+        let want = (2 * NODE_STACK_KIB) << 10;
+        let now = getrlimit(Resource::Stack);
+        if now.current.is_none_or(|current| current >= want) {
+            return true;
+        }
+        now.maximum.is_none_or(|maximum| maximum >= want)
+            && setrlimit(
+                Resource::Stack,
+                Rlimit {
+                    current: Some(want),
+                    maximum: now.maximum,
+                },
+            )
+            .is_ok()
+    })
+}
+
+/// Elsewhere Node keeps V8's own stack: the main thread's size is fixed
+/// when `node` is linked.
+#[cfg(not(unix))]
+fn node_stack_raised() -> bool {
+    false
+}
+
 pub(crate) fn node_program() -> &'static std::ffi::OsStr {
     #[cfg(test)]
     {
@@ -814,7 +1144,7 @@ pub(crate) fn run_batch(
     let config = dir.0.join("batch.json");
     std::fs::write(&config, manifest).map_err(|error| format!("{}: {error}", config.display()))?;
     // cost: one Node process per hd test command (see below).
-    let mut child = Command::new(node_program())
+    let mut child = node_command()
         .arg(dir.0.join("test.js"))
         .arg("--batch")
         .arg(config)
@@ -918,7 +1248,7 @@ fn run_host(
     std::fs::write(&config, host_config(env, cases, node))
         .map_err(|e| format!("{}: {e}", config.display()))?;
     // cost: one Node process per test program, which runs its cases.
-    let mut command = Command::new(node_program());
+    let mut command = node_command();
     command
         .arg(dir.0.join("test.js"))
         .arg(dir.0.join("main.wasm"))
@@ -1123,6 +1453,56 @@ pub(crate) fn json_str(s: &str) -> Option<(String, &str)> {
 
 #[cfg(test)]
 mod tests {
+
+    #[cfg(unix)]
+    #[test]
+    fn node_hosts_own_their_process_groups() -> Result<(), Box<dyn std::error::Error>> {
+        use std::os::unix::process::{CommandExt as _, ExitStatusExt as _};
+        const GUARD: &str = "HD_NODE_GROUP_TEST_GUARD";
+        if std::env::var_os(GUARD).is_some() {
+            for mut node in [super::node_command(), hd_testkit::node::command()] {
+                let mut child = node
+                    .args([
+                        "-e",
+                        "require('node:fs').readFileSync(0); process.kill(0, 'SIGKILL')",
+                    ])
+                    .stdin(std::process::Stdio::piped())
+                    // cost: one child for each of two fixed constructors.
+                    .spawn()?;
+                let pid = nix::unistd::Pid::from_raw(i32::try_from(child.id())?);
+                let group = nix::unistd::getpgid(Some(pid))?;
+                if group != pid {
+                    child.kill()?;
+                    child.wait()?;
+                }
+                assert_eq!(group, pid, "Node did not create its own process group");
+                drop(child.stdin.take());
+                assert_eq!(child.wait()?.signal(), Some(9));
+            }
+            println!("Node host caller survived");
+        } else {
+            // The disposable outer group contains a regression too: a
+            // broken Node constructor kills this child, never our harness.
+            // cost: one disposable test process, running one named test.
+            let output = std::process::Command::new(std::env::current_exe()?)
+                .args([
+                    "--exact",
+                    "node::tests::node_hosts_own_their_process_groups",
+                    "--nocapture",
+                ])
+                .env(GUARD, "1")
+                .process_group(0)
+                .output()?;
+            assert!(
+                output.status.success(),
+                "a Node host did not preserve its caller: {}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(String::from_utf8(output.stdout)?.contains("Node host caller survived"));
+        }
+        Ok(())
+    }
     use super::read_batch_results;
     use std::fmt::Write as _;
     use std::path::{Path, PathBuf};
@@ -1130,7 +1510,8 @@ mod tests {
     use hd_run::{Grants, Limit};
 
     use super::{
-        HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, quote, read_results, run_host,
+        HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, process_launcher, read_results,
+        run_host,
     };
 
     /// The embedded host is plain JavaScript (#1697): its entry points are
@@ -1295,14 +1676,7 @@ mod tests {
         // `Path::join` writes the platform separator after the root, so
         // Windows has `/pkg\__snapshots__` (JSON-escaped below).
         let sep = if cfg!(windows) { r"\\" } else { "/" };
-        let launcher = if cfg!(windows) {
-            format!(
-                ",\"processLauncher\":{}",
-                quote(&std::env::current_exe().unwrap().to_string_lossy())
-            )
-        } else {
-            String::new()
-        };
+        let launcher = process_launcher();
         assert_eq!(
             host_config(&env, &cases, "26.13.1"),
             format!(
@@ -1406,6 +1780,7 @@ mod tests {
             assert!(!reporter.diags(&crate::report::from_output(&out, None)));
             let built = crate::Compiled {
                 wasm: out.wasm.ok_or("compiled fixture")?,
+                native: None,
                 frames: None,
                 stored: None,
             };
@@ -1424,6 +1799,7 @@ mod tests {
                         wall_ms: Some(2000),
                         cleanup_ms: None,
                     },
+                    None,
                 ),
                 &mut reporter,
             );

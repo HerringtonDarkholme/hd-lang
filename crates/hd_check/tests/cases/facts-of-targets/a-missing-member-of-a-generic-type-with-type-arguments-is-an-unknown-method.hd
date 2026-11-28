@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # `annot.facts-of.target.unresolved`: `Box::[i32]::missing` names nothing,
 # so it reports what the same path reports as a value.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Box[T]:
     item: T

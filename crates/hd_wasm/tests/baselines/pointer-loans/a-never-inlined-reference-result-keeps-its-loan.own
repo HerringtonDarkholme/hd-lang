@@ -2,7 +2,7 @@
 # @dump: own wat
 # expected: the never-inlined call forwards the element loan to its result;
 # the aliasing grow must panic borrow-conflict before any element read (#2120).
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -96,70 +96,64 @@ fn through_call(p: *mut Slots, alias: *mut Slots) -> string:
 >   local $0 p: *mut Slots [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 alias: *mut Slots [param read] value
->     uses $1: entry -> %33 lend last
+>     uses $1: entry -> %30 lend last
 >   local $2 r: &string [:= read assigned] value
->     uses $2: %32 -> %38 lend last
+>     uses $2: %29 -> %35 lend last
 >   local $3 self: &string? [read] value
->     uses $3: %5 -> %7 lend last
+>     uses $3: %4 -> %6 lend last
 >   local $4 message: string [read] value
->     uses $4: %6 -> %11 lend last
+>     uses $4: %5 -> %10 lend last
 >   local $5 value: &string [read assigned] value
->     uses $5: %15 -> %8 consume last
+>     uses $5: %14 -> %7 consume last
 >   %0 = Read borrow [$0] : *mut Slots
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Coerce %0 [Weaken -] : *Slots
 >   %3 = Call app/main/impl Slots.get_ref[] (%2) : &string?
->   %4 = LoanBegin %3 #4 : ()
->   %5 = Store [$3] %3 : ()
->   %6 = Store [$4] "slot" : ()
->   %7 = Read borrow [$3] : &string?
->   %8 = Read copy [$5] : &string
->   %9 = Retain %8 Value #0 : ()
->   %10 = Block %8 : &string
->   %11 = Read borrow [$4] : string
->   %12 = Call std/core/panic[] (%11) : never
->   %13 = Block - : never
->   %14 = Read borrow [%7 as #1 .0] : &string
->   %15 = Store [$5] %14 : ()
->   %17 = Block - : never
->   %20 = SwitchTag %7 [#1 %17 %19] : never
->   %21 = Block - : never
->   %22 = Match %7 [%21 %10 %13] : &string
->   %23 = Break L0 %22 : never
->   %24 = Block - : &string
->   %25 = Scope %24 [] : &string
->   %26 = Drop [$4] : ()
->   %27 = Drop [$3] : ()
->   %28 = LoanBegin %25 #4 : ()
->   %29 = Call app/main/keep[] (%25) : &string
->   %30 = Drop [%25] : ()
->   %31 = LoanBegin %29 #4 : ()
->   %32 = Store [$2] %29 : ()
->   %45 = Intrinsic ParamOwned [0:i32] : bool
->   %46 = Drop [$0] : ()
->   %47 = Block - : ()
->   %48 = If %45 [%47 -] : ()
->   %49 = Release %55 Exit local $0 #2 : ()
->   %50 = Intrinsic ParamOwned [1:i32] : bool
->   %51 = Drop [$1] : ()
->   %52 = Block - : ()
->   %53 = If %50 [%52 -] : ()
->   %54 = Release %55 Exit local $1 #2 : ()
->   %55 = Block %38 : string
+>   %4 = Store [$3] %3 : ()
+>   %5 = Store [$4] "slot" : ()
+>   %6 = Read borrow [$3] : &string?
+>   %7 = Read copy [$5] : &string
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Block %7 : &string
+>   %10 = Read borrow [$4] : string
+>   %11 = Call std/core/panic[] (%10) : never
+>   %12 = Block - : never
+>   %13 = Read borrow [%6 as #1 .0] : &string
+>   %14 = Store [$5] %13 : ()
+>   %16 = Block - : never
+>   %19 = SwitchTag %6 [#1 %16 %18] : never
+>   %20 = Block - : never
+>   %21 = Match %6 [%20 %9 %12] : &string
+>   %22 = Break L0 %21 : never
+>   %23 = Block - : &string
+>   %24 = Scope %23 [] : &string
+>   %25 = Drop [$4] : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Call app/main/keep[] (%24) : &string
+>   %28 = Drop [%24] : ()
+>   %29 = Store [$2] %27 : ()
+>   %39 = Intrinsic ParamOwned [0:i32] : bool
+>   %40 = Drop [$0] : ()
+>   %41 = Block - : ()
+>   %42 = If %39 [%41 -] : ()
+>   %43 = Release %49 Exit local $0 #2 : ()
+>   %44 = Intrinsic ParamOwned [1:i32] : bool
+>   %45 = Drop [$1] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Release %49 Exit local $1 #2 : ()
+>   %49 = Block %35 : string
     alias.push()
->   %33 = Read borrow [$1] : *mut Slots
->   %34 = LoanBegin %33 #0 : ()
->   %35 = LoanBegin %33 #2 : ()
->   %36 = Call app/main/impl Slots.push[] (%33) : ()
->   %37 = LoanClose %34 : ()
+>   %30 = Read borrow [$1] : *mut Slots
+>   %31 = LoanBegin %30 #0 : ()
+>   %32 = LoanBegin %30 #2 : ()
+>   %33 = Call app/main/impl Slots.push[] (%30) : ()
+>   %34 = LoanClose %31 : ()
     *r
->   %38 = Read copy [*$2] : string
->   %39 = Retain %38 Value #0 : ()
->   %40 = LoanClose %1 : ()
->   %41 = LoanClose %4 : ()
->   %42 = LoanClose %28 : ()
->   %43 = LoanClose %31 : ()
->   %44 = Drop [$2] : ()
+>   %35 = Read copy [*$2] : string
+>   %36 = Retain %35 Value #0 : ()
+>   %37 = LoanClose %1 : ()
+>   %38 = Drop [$2] : ()
 
 fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
     r := fwd(p.get_ref().expect("slot"))
@@ -167,76 +161,70 @@ fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 >   local $0 p: *mut Slots [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 alias: *mut Slots [param read] value
->     uses $1: entry -> %37 lend last
+>     uses $1: entry -> %34 lend last
 >   local $2 r: &string [:= read assigned] value
->     uses $2: %36 -> %42 lend last
+>     uses $2: %33 -> %39 lend last
 >   local $3 value: &string [read] value
->     uses $3: %29 -> %30 consume last
+>     uses $3: %27 -> %28 consume last
 >   local $4 self: &string? [read] value
->     uses $4: %5 -> %7 lend last
+>     uses $4: %4 -> %6 lend last
 >   local $5 message: string [read] value
->     uses $5: %6 -> %11 lend last
+>     uses $5: %5 -> %10 lend last
 >   local $6 value: &string [read assigned] value
->     uses $6: %15 -> %8 consume last
+>     uses $6: %14 -> %7 consume last
 >   %0 = Read borrow [$0] : *mut Slots
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Coerce %0 [Weaken -] : *Slots
 >   %3 = Call app/main/impl Slots.get_ref[] (%2) : &string?
->   %4 = LoanBegin %3 #4 : ()
->   %5 = Store [$4] %3 : ()
->   %6 = Store [$5] "slot" : ()
->   %7 = Read borrow [$4] : &string?
->   %8 = Read copy [$6] : &string
->   %9 = Retain %8 Value #0 : ()
->   %10 = Block %8 : &string
->   %11 = Read borrow [$5] : string
->   %12 = Call std/core/panic[] (%11) : never
->   %13 = Block - : never
->   %14 = Read borrow [%7 as #1 .0] : &string
->   %15 = Store [$6] %14 : ()
->   %17 = Block - : never
->   %20 = SwitchTag %7 [#1 %17 %19] : never
->   %21 = Block - : never
->   %22 = Match %7 [%21 %10 %13] : &string
->   %23 = Break L1 %22 : never
->   %24 = Block - : &string
->   %25 = Scope %24 [] : &string
->   %26 = Drop [$5] : ()
->   %27 = Drop [$4] : ()
->   %28 = LoanBegin %25 #4 : ()
->   %29 = Store [$3] %25 : ()
->   %30 = Read move [$3] : &string
->   %31 = Intrinsic Empty [] : ()
->   %32 = Break L0 %30 : never
->   %33 = Block - : &string
->   %34 = Scope %33 [] : &string
->   %35 = LoanBegin %34 #4 : ()
->   %36 = Store [$2] %34 : ()
->   %49 = Intrinsic ParamOwned [0:i32] : bool
->   %50 = Drop [$0] : ()
->   %51 = Block - : ()
->   %52 = If %49 [%51 -] : ()
->   %53 = Release %59 Exit local $0 #2 : ()
->   %54 = Intrinsic ParamOwned [1:i32] : bool
->   %55 = Drop [$1] : ()
->   %56 = Block - : ()
->   %57 = If %54 [%56 -] : ()
->   %58 = Release %59 Exit local $1 #2 : ()
->   %59 = Block %42 : string
+>   %4 = Store [$4] %3 : ()
+>   %5 = Store [$5] "slot" : ()
+>   %6 = Read borrow [$4] : &string?
+>   %7 = Read copy [$6] : &string
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Block %7 : &string
+>   %10 = Read borrow [$5] : string
+>   %11 = Call std/core/panic[] (%10) : never
+>   %12 = Block - : never
+>   %13 = Read borrow [%6 as #1 .0] : &string
+>   %14 = Store [$6] %13 : ()
+>   %16 = Block - : never
+>   %19 = SwitchTag %6 [#1 %16 %18] : never
+>   %20 = Block - : never
+>   %21 = Match %6 [%20 %9 %12] : &string
+>   %22 = Break L1 %21 : never
+>   %23 = Block - : &string
+>   %24 = Scope %23 [] : &string
+>   %25 = Drop [$5] : ()
+>   %26 = Drop [$4] : ()
+>   %27 = Store [$3] %24 : ()
+>   %28 = Read move [$3] : &string
+>   %29 = Intrinsic Empty [] : ()
+>   %30 = Break L0 %28 : never
+>   %31 = Block - : &string
+>   %32 = Scope %31 [] : &string
+>   %33 = Store [$2] %32 : ()
+>   %43 = Intrinsic ParamOwned [0:i32] : bool
+>   %44 = Drop [$0] : ()
+>   %45 = Block - : ()
+>   %46 = If %43 [%45 -] : ()
+>   %47 = Release %53 Exit local $0 #2 : ()
+>   %48 = Intrinsic ParamOwned [1:i32] : bool
+>   %49 = Drop [$1] : ()
+>   %50 = Block - : ()
+>   %51 = If %48 [%50 -] : ()
+>   %52 = Release %53 Exit local $1 #2 : ()
+>   %53 = Block %39 : string
     alias.push()
->   %37 = Read borrow [$1] : *mut Slots
->   %38 = LoanBegin %37 #0 : ()
->   %39 = LoanBegin %37 #2 : ()
->   %40 = Call app/main/impl Slots.push[] (%37) : ()
->   %41 = LoanClose %38 : ()
+>   %34 = Read borrow [$1] : *mut Slots
+>   %35 = LoanBegin %34 #0 : ()
+>   %36 = LoanBegin %34 #2 : ()
+>   %37 = Call app/main/impl Slots.push[] (%34) : ()
+>   %38 = LoanClose %35 : ()
     *r
->   %42 = Read copy [*$2] : string
->   %43 = Retain %42 Value #0 : ()
->   %44 = LoanClose %1 : ()
->   %45 = LoanClose %4 : ()
->   %46 = LoanClose %28 : ()
->   %47 = LoanClose %35 : ()
->   %48 = Drop [$2] : ()
+>   %39 = Read copy [*$2] : string
+>   %40 = Retain %39 Value #0 : ()
+>   %41 = LoanClose %1 : ()
+>   %42 = Drop [$2] : ()
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["original-" + "z".repeat(40)] })

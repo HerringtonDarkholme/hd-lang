@@ -208,20 +208,25 @@ pub(crate) fn command() -> ExitCode {
     // prompt the line editor reads it as a key. The handler stops or
     // cancels the input that runs and never ends the process; a stop while
     // none runs is dropped when the next input starts.
-    let on_start = |stopper: SessionStopper| {
-        if let Err(e) = ctrlc::set_handler(move || stopper.stop()) {
-            eprintln!("warning: Ctrl-C cannot stop an input: {e}");
-        }
+    let mut signal_subscription = Vec::new();
+    let on_start = |stopper: SessionStopper| match hd_run::signals::fallback(
+        &[hd_run::signals::Kind::Interrupt],
+        move |_| stopper.stop(),
+    ) {
+        Ok(subscription) => signal_subscription = subscription,
+        Err(error) => eprintln!("warning: Ctrl-C cannot stop an input: {error}"),
     };
     let bounds = Bounds::default();
-    match run(
+    let result = run(
         &mut Editor(editor),
         &cwd,
         program,
         streams,
         bounds,
         on_start,
-    ) {
+    );
+    drop(signal_subscription);
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => crate::fail(&e),
     }

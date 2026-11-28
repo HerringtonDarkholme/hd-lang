@@ -1,0 +1,11 @@
+# @dump: diagnostics fixed
+# The repair borrows without requiring either generic payload to be Copy.
+fn shared[T < ?Copy, E < ?Copy](value: &Result[T, E]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false
+
+fn writable[T < ?Copy, E < ?Copy](value: &mut Result[T, E]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false

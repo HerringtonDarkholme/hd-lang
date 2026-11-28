@@ -32,24 +32,56 @@ fn holder() -> Holder $ Store:
 >   summary kept [] writes
 
 fn fetch!() -> usize $ Store:
-    $.use(Store).get().len()
+    pause!()
 > app/main/fetch
->   local $1 self: string [read] value
->     uses $1: %8 -> %9 lend last
->   %0 = Retain %15 Cold row #0 : ()
->   %1 = Retain %15 Materialize row #0 : ()
->   %2 = Release %15 FrameDrop row #2 : ()
->   %3 = ProviderGet #0 : Store
->   %4 = Coerce %3 [ProviderAsRef -] : &dyn Store
->   %5 = Read borrow [*%4] : Store
->   %6 = Drop [%4] : ()
->   %7 = Call app/main/Store.get for Store [] via TraitValue (%5) : string
->   %8 = Store [$1] %7 : ()
->   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Drop [$1] : ()
->   %15 = Block %13 : usize
+>   local $0 $ref: string [read assigned captured captured-assigned] place
+>   %0 = Retain %17 Cold row #0 : ()
+>   %1 = Retain %17 Materialize row #0 : ()
+>   %2 = Release %17 FrameDrop row #2 : ()
+>   %3 = Release %17 FrameDrop child #2 : ()
+>   %4 = Await app/main/pause[] () : ()
+>   %5 = Release %4 Operation child #2 : ()
+>   %11 = Box #0 #1 : ()
+>   %17 = Block %14 : usize
+>   %18 = Return - #2 : never
+    $.use(Store).get().len()
+>   %6 = ProviderGet #8 : Store
+>   %7 = Coerce %6 [ProviderAsRef -] : &dyn Store
+>   %8 = Read borrow [*%7] : Store
+>   %9 = Drop [%7] : ()
+>   %10 = Call app/main/Store.get for Store [] via TraitValue (%8) : string
+>   %12 = Store [$0] %10 : ()
+>   %13 = Ref local [$0] : &string
+>   %14 = Call std/text/impl string.len[] (%13) : usize
+>   %15 = LoanEnd [%13] : ()
+>   %16 = Drop [$0] : ()
+>   storage sub 0: $0 cell
 >   summary none
+>   cancel %4 releases [%4294967295]
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

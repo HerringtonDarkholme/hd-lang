@@ -1,0 +1,12 @@
+# @dump: own wat
+# #2402: a nested pattern matched through `&x` roots each payload at the
+# payload above it, which is rooted at the scrutinee's place, so no place
+# grows with the depth; rustc's MIR spells each leaf's whole projection
+# (`((((*_2).1).1).1).0`).
+fn last(x: (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, (string, string))))))))))))) -> string:
+    match &x:
+        (a0, (a1, (a2, (a3, (a4, (a5, (a6, (a7, (a8, (a9, (a10, (a11, z)))))))))))) => z
+
+pub fn main() -> void $ Console:
+    t := "s"
+    println(last((t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, (t, t))))))))))))))

@@ -1,0 +1,28 @@
+# @dump: own wat
+# #2402, from `std/regex/lower`: `bounds` is a payload of `inst`, a
+# binding of a `program` element. A walk that stopped at the element
+# lost that the element is in a buffer the loop's `push` may write while
+# `bounds` lives (invariant 23: "a borrow of [$0 [%44]] lives across
+# `Store`"). The payload's source folds the element's in, so `bounds`
+# keeps its own count and the element borrows.
+use std.collections.UniqList
+
+enum Inst:
+    Char(i32)
+    Class(List[i32], bool)
+    Done
+
+fn lower(program: List[Inst]) -> UniqList[i32]:
+    let mut ranges = UniqList::[i32].new()
+    for inst in program:
+        match inst:
+            .Char(value) => ranges.push(value)
+            .Class(bounds, negated) =>
+                for bound in bounds:
+                    ranges.push(bound)
+            .Done => ranges.push(+0)
+    ranges
+
+pub fn main() -> void $ Console:
+    r := lower([Inst.Char(+1), Inst.Class([+1, +2], false), Inst.Done])
+    println(r.len())

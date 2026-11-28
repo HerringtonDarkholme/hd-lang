@@ -1,0 +1,6 @@
+use pkg.total
+use std.testing.assert_equal
+
+it("prints and sums"):
+    println("checking")
+    assert_equal(total(), 3, reason="the total")

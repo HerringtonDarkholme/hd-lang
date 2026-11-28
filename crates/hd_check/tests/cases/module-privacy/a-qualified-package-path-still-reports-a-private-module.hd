@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @package: qualified-package-path-still-reports-a-private-module
+# @main: src/main.hd
+use pkg as root
+
+pub fn probe(value: root.api.hidden.Marker) -> i32:
+    +0
+# @file: src/lib.hd
+pub struct RootMarker: pass
+# @file: src/api/mod.hd
+pub use self.hidden.{Marker}
+# @file: src/api/hidden.hd
+pub struct Marker: pass

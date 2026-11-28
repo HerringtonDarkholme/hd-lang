@@ -1,7 +1,7 @@
 # test: enum tagging views are matched to their own enum among several, with a no-trait block as the declaration
 # Rule: std-serde.enum-tagging.declaration-fact.
-use std.serde.{Deserialize, Serialize, tag}
-use std.structure.Structure
+use std.encoding.{Deserialize, Serialize, tag}
+use std.meta.Structure
 
 enum First:
     A(value: i32)

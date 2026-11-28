@@ -8,8 +8,16 @@ repository.workspace = true
 include.workspace = true
 description = "The linear-memory backend: reference-counted values in Wasm linear memory, emitted from TIR and collection output (hd compiler internals, no stable API; install `hd-lang`)"
 
+# The unit tests are `tests/unit`, over the `testing` facade (src/testing.rs):
+# a test build then compiles this library once, not again in test mode.
+[lib]
+test = false
+
 [features]
 checked-report = []
+# What `tests/unit` reaches inside the backend, and the work counters its
+# cost tests read; the dev-dependency on itself below turns it on.
+testing = []
 # The decision ledger (`src/ledger.rs`, `scripts/ledger.ts`): counts each
 # emitter decision as it fires. Off in every shipped, web and test build.
 ledger = []
@@ -22,6 +30,7 @@ hd_opt = { workspace = true }
 hd_mono = { workspace = true }
 hd_layout = { workspace = true }
 hd_host_abi = { workspace = true }
+hd_sched = { workspace = true }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -31,6 +40,7 @@ hashbrown = { version = "0.17.1", default-features = false }
 hashbrown = { version = "0.17.1", default-features = false, features = ["inline-more"] }
 
 [dev-dependencies]
+hd_wasm = { path = ".", features = ["testing"] }
 hd_testkit = { path = "../hd_testkit" }
 wasmparser = { version = "0.261.0", default-features = false, features = ["std", "validate", "features"] }
 

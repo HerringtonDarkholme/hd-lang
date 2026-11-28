@@ -1,7 +1,7 @@
 # test: encode_pretty writes the pretty text of to_json(value), the same keys, order and escapes as encode, for data, lists, maps, and enum variants nested in each other
 # Spec std/json Encode And Decode, Pretty Text: std-json.encode-pretty, std-json.import.pretty, std-json.pretty.layout, std-json.pretty.separator, std-json.pretty.empty, std-json.derive.to-json.included-enum-form, std-json.derive.to-json.unit-form (issue 371).
-use std.json.{encode, encode_pretty, to_json, parse}
-use std.serde.Serialize
+use std.encoding.json.{encode, encode_pretty, to_json, parse}
+use std.encoding.Serialize
 
 @derive(Serialize)
 struct Point:

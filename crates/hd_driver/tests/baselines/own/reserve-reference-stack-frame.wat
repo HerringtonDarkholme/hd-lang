@@ -3,14 +3,13 @@
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $reserved (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $index i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $reserved (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 19 |     let mut output = List::[usize].with_capacity(count)
     i32.const 80 ;; &empty-buffer
-    local.tee $items
-    local.set $index
+    local.set $items
     local.get $count
     if
-      local.get $index
+      i32.const 80 ;; &empty-buffer
       local.get $count
       call $rt:list_reserve
       local.set $items

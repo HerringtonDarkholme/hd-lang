@@ -5,10 +5,14 @@
 //! paths. Unlike rustc's segmented vtable, hd keeps its direct-parent ABI.
 //! <https://github.com/rust-lang/rust/blob/main/compiler/rustc_trait_selection/src/traits/vtable.rs>
 
-use hd_base::{DefId, HashMap, HashSet, NotImplemented, Stage, StageResult};
+use hd_base::{DefId, HashMap, HashSet};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
-use crate::{ProgramEnv, slot_methods, subst};
+use crate::{Collected, ProgramEnv, subst};
+
+// A trait's two direct declaration lists fit Wasm32 even at the source
+// limit. Changing that language limit must recheck the offset proof below.
+const _: () = assert!(hd_base::limits::FILE_SIZE <= u32::MAX / 8);
 
 /// Direct supertraits in declaration order, with `Self` and arguments filled.
 /// One substitution per edge; consumers retain this list while walking it.
@@ -45,7 +49,10 @@ pub struct DynPaths {
 }
 
 impl DynPaths {
-    pub fn new(pool: &InternPool, env: &dyn ProgramEnv, root: Ty) -> StageResult<Self> {
+    /// A table's parent pointers follow the slots its trait keeps in
+    /// `program` ([`Collected::slots`]).
+    #[must_use]
+    pub fn new(pool: &InternPool, env: &dyn ProgramEnv, program: &Collected, root: Ty) -> Self {
         let mut out = Self::default();
         let mut seen = HashSet::default();
         let mut stack = vec![(root, None)];
@@ -70,28 +77,22 @@ impl DynPaths {
                 .entry((def, args))
                 .or_insert_with(|| bindings.into_iter().collect());
             out.fallback.entry(def).or_insert(index);
-            let own = slot_methods(env, def).len();
+            let own = program.slots(env, def).len();
             let supers = direct_supers(pool, env, def, args, at);
             crate::work::dyn_path(supers.len());
             // Push rightmost first so popping visits declared parents leftmost
             // first, exactly as the old recursive path query did.
             for (k, sup) in supers.into_iter().enumerate().rev() {
-                // Parent addresses are Wasm32 byte offsets, not an arbitrary
-                // inheritance limit. Propagate an unrepresentable layout.
-                let offset = own
-                    .checked_add(k)
-                    .and_then(|slot| u32::try_from(slot).ok())
-                    .and_then(|slot| slot.checked_mul(4))
-                    .ok_or_else(|| {
-                        NotImplemented::bug(
-                            Stage::Emit,
-                            "a vtable parent offset exceeds Wasm32 memory",
-                        )
-                    })?;
+                // ruled out: overflow. A trait's own methods and direct
+                // parents each come from one declaration in a source file
+                // of at most limits::FILE_SIZE (16 MiB) bytes. Even one entry
+                // per byte in both lists needs at most 128 MiB of offsets,
+                // within Wasm32. slot_methods removes entries; it adds none.
+                let offset = hd_tir::ir::u32_of((own + k) * 4);
                 stack.push((sup, Some((index, offset))));
             }
         }
-        Ok(out)
+        out
     }
 
     /// A checked whole key, without the legacy definition-only fallback.
@@ -101,8 +102,10 @@ impl DynPaths {
     }
 
     /// Whole arguments and every requested associated binding must match.
-    /// A row may omit an associated binding it never uses; weakening that
-    /// constraint does not change a vtable's parent path. Valid trait
+    /// A supertrait's binding to `Self` counts as bound but stays implicit
+    /// in an erased key (`trait.dyn.binding.self-fixed`). An explicitly
+    /// bound supplier may therefore serve that implicit form. Weakening
+    /// the constraint does not change its vtable path. Valid trait
     /// declarations cannot give one trait instance contradictory bindings.
     #[must_use]
     pub fn key_path(&self, pool: &InternPool, to: Ty) -> Option<Vec<u32>> {

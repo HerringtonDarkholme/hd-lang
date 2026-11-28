@@ -14,7 +14,12 @@ impl Em<'_, '_, '_> {
             return Ok(Vec::new());
         }
         if !self.m.row_key_graphs.contains_key(&supplier) {
-            let graph = hd_mono::dyn_graph::DynPaths::new(self.pool(), self.env(), supplier)?;
+            let graph = hd_mono::dyn_graph::DynPaths::new(
+                self.pool(),
+                self.env(),
+                self.input.collected,
+                supplier,
+            );
             self.m.row_key_graphs.insert(supplier, graph);
         }
         self.m.row_key_graphs[&supplier]

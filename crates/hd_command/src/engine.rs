@@ -4,7 +4,7 @@
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
 //! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
 //! package host trait selects Node before startup unless `--engine` names
-//! Wasmtime, which needs an embedding native provider. Tests use shared
+//! Wasmtime, or every one has a C provider, which selects Wasmtime. Tests use shared
 //! prepared programs and typed named children on Wasmtime, while Node
 //! keeps its existing subprocess protocol.
 //!
@@ -14,7 +14,8 @@
 //! `wasmtime.rs` has it; a build without the feature compiles
 //! `no_wasmtime.rs` in its place, and naming the engine is an error.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 
 use hd_driver::{EngineTarget, OptLevel};
 use hd_run::journal::End;
@@ -39,6 +40,9 @@ pub(crate) struct TestProgram {
     pub(crate) wasm: Vec<u8>,
     pub(crate) grants: hd_run::Grants,
     pub(crate) providers: Vec<crate::node::HostProvider>,
+    /// The libraries of its C-bound root traits, when it runs on Wasmtime.
+    #[cfg_attr(not(feature = "wasmtime"), allow(dead_code))]
+    pub(crate) c: Vec<crate::node::CLibrary>,
     #[cfg(feature = "wasmtime")]
     pub(crate) engine: EngineKind,
 }
@@ -272,7 +276,7 @@ impl EngineKind {
     }
 }
 
-fn parse(name: &str) -> Result<EngineKind, String> {
+pub(crate) fn parse(name: &str) -> Result<EngineKind, String> {
     match name {
         "node" => Ok(EngineKind::Node),
         "wasmtime" => match wasmtime::UNAVAILABLE {
@@ -304,7 +308,7 @@ pub(crate) fn engine_flag(
 
 /// The engine a command's words chose, and whether an `--engine` flag
 /// named it. Only a named engine is kept for a module that needs a
-/// package host trait (`cli.host.package.native-cli-node`).
+/// package host trait (`cli.host.package.native-cli-choice`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Choice {
     pub(crate) kind: EngineKind,
@@ -324,30 +328,45 @@ impl Choice {
 
     /// The engine that runs a module whose package host contract is
     /// `contract`, decided once before the module loads
-    /// (`cli.host.package.native-cli-startup`). `hd` registers no native
-    /// provider, so a module with a root host interface runs on Node unless
-    /// `--engine` named Wasmtime, which is refused, naming the trait
-    /// (`native-cli`, `native-cli-explicit`). Cost: one pass over the
-    /// contract's interfaces, which the caller decoded once for the run.
+    /// (`cli.host.package.native-cli-startup`); `c` holds the import
+    /// modules of its C-bound root interfaces (`hd_host_abi::c`). With no
+    /// `--engine`, a module whose every root interface has a C provider
+    /// runs on Wasmtime, in a build that has it, and any other module with
+    /// a root interface on Node (`native-cli-choice`). A named Wasmtime
+    /// refuses a root interface no C provider serves, naming the trait:
+    /// `hd` registers no other native provider (`native-cli-binds-c`,
+    /// `native-cli-named`). Cost: one pass over the contract's
+    /// interfaces, which the caller decoded once for the run, with one
+    /// probe of `c` each.
     pub(crate) fn for_module(
         self,
         contract: Option<&hd_host_abi::schema::Contract>,
+        c: &std::collections::BTreeSet<String>,
     ) -> Result<EngineKind, String> {
-        if self.kind == EngineKind::Node {
-            return Ok(EngineKind::Node);
-        }
-        let Some(root) = contract.and_then(|c| c.interfaces.iter().find(|i| !i.handle)) else {
+        let mut roots = contract
+            .into_iter()
+            .flat_map(|c| &c.interfaces)
+            .filter(|i| !i.handle)
+            .peekable();
+        if roots.peek().is_none() {
             return Ok(self.kind);
-        };
-        if !self.named {
-            return Ok(EngineKind::Node);
         }
-        Err(format!(
-            "no native provider registered for package host trait {:?}: `hd` registers none, \
-             so `--engine wasmtime` cannot run this program; a native provider needs a Rust \
-             program that embeds `hd_run_wasmtime`, and without `--engine`, `hd` runs it on Node",
-            root.identity.to_string()
-        ))
+        let uncovered = roots.find(|i| !c.contains(&i.module));
+        if !self.named {
+            return Ok(match uncovered {
+                None if cfg!(feature = "wasmtime") => EngineKind::Wasmtime,
+                _ => EngineKind::Node,
+            });
+        }
+        match (self.kind, uncovered) {
+            (EngineKind::Node, _) | (EngineKind::Wasmtime, None) => Ok(self.kind),
+            (EngineKind::Wasmtime, Some(root)) => Err(format!(
+                "no native provider registered for package host trait {:?}: it has no C provider, \
+                 so `--engine wasmtime` cannot run this program; another native provider needs a Rust \
+                 program that embeds `hd_run_wasmtime`, and without `--engine`, `hd` runs it on Node",
+                root.identity.to_string()
+            )),
+        }
     }
 }
 
@@ -365,22 +384,26 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 /// options.
 ///
 /// A run with a cleanup bound (`Limits::cleanup_ms`) hears Ctrl-C
-/// (`cli.cancel.ctrl-c`): on wasmtime the handler asks the run to cancel
+/// (`cli.cancel.unhandled-ctrl-c`): on wasmtime the handler asks the run to cancel
 /// its entry; on Node the program's own process hears the same Ctrl-C from
 /// the terminal, so `hd` passes each interrupt on to it
 /// (`cli.cancel.forward`) and keeps itself alive until it ends.
 pub(crate) fn run(
     kind: EngineKind,
     level: OptLevel,
-    wasm: &[u8],
+    image: hd_run::artifact::Image<'_>,
     host: &HostSetup,
-    providers: &[crate::node::HostProvider],
+    (providers, c): (&[crate::node::HostProvider], &[crate::node::CLibrary]),
+    sampling: Option<&Path>,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
-            if host.limits.cleanup_ms.is_some() {
-                on_ctrl_c(crate::node::forward_interrupt);
+            if sampling.is_some() {
+                return Err("guest profiling requires `--engine wasmtime`".into());
             }
+            let hd_run::artifact::Image::Wasm(wasm) = image else {
+                return Err("a .cwasm module requires wasmtime; build `--format wasm` for a portable module".into());
+            };
             let store = crate::disk_store();
             let node = crate::node::NodeEngine {
                 host_providers: providers.to_vec(),
@@ -391,35 +414,59 @@ pub(crate) fn run(
             Ok((outcome, frames))
         }
         EngineKind::Wasmtime => {
-            // The native engine refuses reachable package traits before guest start.
-            wasmtime::run_program(level, wasm, host)
+            // The native engine binds the C providers `c` and refuses any
+            // other reachable package trait before guest start.
+            wasmtime::run_program(level, image, host, c, sampling)
         }
     }
 }
 
-/// Calls `handler` on each interrupt from now on, in place of ending `hd`:
-/// a Ctrl-C, and on Unix a SIGTERM too (`cli.cancel.signals`). One that
-/// cannot be installed leaves the default action, and says so.
-#[cfg(unix)]
-pub(crate) fn on_ctrl_c(mut handler: impl FnMut() + Send + 'static) {
-    use signal_hook::consts::{SIGINT, SIGTERM};
-    let installed = signal_hook::iterator::Signals::new([SIGINT, SIGTERM])
-        .and_then(|mut signals| {
-            std::thread::Builder::new()
-                .name("interrupt".into())
-                .spawn(move || signals.forever().for_each(|_| handler()))
-        })
-        .map(drop);
-    if let Err(e) = installed {
-        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
+/// `--profile[=FILE]`: an optional joined path, without consuming a task
+/// name or a guest argument. Native path bytes are preserved.
+pub(crate) fn sampling_flag(argument: &OsStr) -> Option<Result<PathBuf, String>> {
+    if argument == "--profile" {
+        return Some(Ok(PathBuf::from("profile.json")));
     }
+    let bytes = argument.as_encoded_bytes();
+    let suffix = bytes.strip_prefix(b"--profile=")?;
+    if suffix.is_empty() {
+        return Some(Err("`--profile=FILE` needs a nonempty FILE".into()));
+    }
+    #[cfg(unix)]
+    let path = {
+        use std::os::unix::ffi::OsStrExt as _;
+        PathBuf::from(OsStr::from_bytes(suffix))
+    };
+    #[cfg(windows)]
+    let path = {
+        use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+        PathBuf::from(OsString::from_wide(
+            &argument
+                .encode_wide()
+                .skip(b"--profile=".len())
+                .collect::<Vec<_>>(),
+        ))
+    };
+    #[cfg(not(any(unix, windows)))]
+    let path = match std::str::from_utf8(suffix) {
+        Ok(path) => PathBuf::from(path),
+        Err(error) => return Some(Err(format!("invalid profile path: {error}"))),
+    };
+    Some(Ok(path))
 }
 
-/// As on Unix, for the console's Ctrl-C and Ctrl-Break.
-#[cfg(not(unix))]
-pub(crate) fn on_ctrl_c(handler: impl FnMut() + Send + 'static) {
-    if let Err(e) = ctrlc::set_handler(handler) {
-        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
+/// Scoped cancellation when no program wait owns the delivered kind.
+#[cfg(feature = "wasmtime")]
+pub(crate) fn on_ctrl_c(
+    handler: impl Fn(hd_run::signals::Kind) + Send + Sync + 'static,
+) -> Vec<hd_run::signals::Subscription> {
+    use hd_run::signals::Kind;
+    match hd_run::signals::fallback(&[Kind::Interrupt, Kind::Terminate], handler) {
+        Ok(subscriptions) => subscriptions,
+        Err(error) => {
+            eprintln!("warning: Ctrl-C cannot cancel the program: {error}");
+            Vec::new()
+        }
     }
 }
 
@@ -640,10 +687,10 @@ pub(crate) struct NodeSession {
 
 impl NodeSession {
     fn new(io: HostIo, cwd: &std::path::Path) -> Result<Self, String> {
-        use std::process::{Command, Stdio};
+        use std::process::Stdio;
         let scratch = crate::node::Scratch::new(&[])?;
         // cost: one Node process per session.
-        let mut child = Command::new(crate::node::node_program())
+        let mut child = crate::node::node_command()
             .args(["--input-type=module", "--eval", "import { pathToFileURL } from 'node:url'; const { driveNodeSession } = await import(pathToFileURL(process.argv[1])); await driveNodeSession(); process.exit(0);"])
             .arg(scratch.0.join("node.js"))
             .current_dir(cwd)
@@ -708,25 +755,46 @@ impl NodeSession {
                     .write_all(text.as_bytes())
                     .and_then(|()| self.io.err.flush())
                     .map_err(|error| error.to_string())?;
+            } else if let Some(max) = row.strip_prefix("bytes\t") {
+                let max: usize = max
+                    .parse::<u32>()
+                    .map_err(|error| format!("invalid session input size: {error}"))?
+                    as usize;
+                // BufRead's fill/consume pair shares unread bytes with the
+                // text reads, without allocating the guest's requested max.
+                let value = match self.io.input.as_mut() {
+                    None => "[]".into(),
+                    Some(input) => match input.fill_buf() {
+                        Ok(bytes) => {
+                            let count = max.min(bytes.len());
+                            let value = serde_json::to_string(&bytes[..count])
+                                .map_err(|error| error.to_string())?;
+                            input.consume(count);
+                            value
+                        }
+                        Err(_) => "false".into(),
+                    },
+                };
+                self.send(&format!("{{\"value\":{value}}}"))?;
             } else if matches!(row, "input" | "all") {
-                let mut text = String::new();
+                let mut bytes = Vec::new();
                 let value = match self.io.input.as_mut() {
                     None if row == "all" => crate::report::quote(""),
                     None => "null".into(),
-                    Some(input) if row == "all" => match input.read_to_string(&mut text) {
-                        Ok(_) => crate::report::quote(&text.replace("\r\n", "\n")),
+                    Some(input) if row == "all" => match input.read_to_end(&mut bytes) {
+                        Ok(_) => crate::report::quote(&String::from_utf8_lossy(&bytes)),
                         Err(_) => "false".into(),
                     },
-                    Some(input) => match input.read_line(&mut text) {
+                    Some(input) => match input.read_until(b'\n', &mut bytes) {
                         Ok(0) => "null".into(),
                         Ok(_) => {
-                            if text.ends_with('\n') {
-                                text.pop();
-                                if text.ends_with('\r') {
-                                    text.pop();
+                            if bytes.last() == Some(&b'\n') {
+                                bytes.pop();
+                                if bytes.last() == Some(&b'\r') {
+                                    bytes.pop();
                                 }
                             }
-                            crate::report::quote(&text)
+                            crate::report::quote(&String::from_utf8_lossy(&bytes))
                         }
                         Err(_) => "false".into(),
                     },
@@ -851,11 +919,47 @@ impl Drop for NodeSession {
     }
 }
 
+pub(crate) fn native_key() -> Result<hd_base::Hash128, String> {
+    wasmtime::native_key()
+}
+pub(crate) fn precompile(wasm: &[u8]) -> Result<Vec<u8>, String> {
+    wasmtime::precompile(wasm)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{EngineKind, ProgramLimits, parse_duration, parse_size, time_limit_flag};
     use hd_run::Limits;
     use std::ffi::OsString;
+
+    #[test]
+    fn sampling_flag_keeps_task_and_guest_arguments_separate() {
+        use std::ffi::OsStr;
+        use std::path::PathBuf;
+        assert_eq!(
+            super::sampling_flag(OsStr::new("--profile")),
+            Some(Ok(PathBuf::from("profile.json")))
+        );
+        assert_eq!(
+            super::sampling_flag(OsStr::new("--profile=cpu samples.json")),
+            Some(Ok(PathBuf::from("cpu samples.json")))
+        );
+        assert!(matches!(
+            super::sampling_flag(OsStr::new("--profile=")),
+            Some(Err(_))
+        ));
+        assert_eq!(super::sampling_flag(OsStr::new("--profiled")), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sampling_flag_preserves_native_path_bytes() -> Result<(), Box<dyn std::error::Error>> {
+        use std::os::unix::ffi::OsStrExt;
+        let argument = std::ffi::OsStr::from_bytes(b"--profile=samples-\xff.json");
+        let path = super::sampling_flag(argument).ok_or("profile flag")??;
+        assert_eq!(path.as_os_str().as_bytes(), b"samples-\xff.json");
+        Ok(())
+    }
 
     #[cfg(all(feature = "dist", not(debug_assertions)))]
     #[test]
@@ -880,6 +984,7 @@ mod tests {
             wasm: vec![0, 97, 115, 109],
             grants: grants.clone(),
             providers: Vec::new(),
+            c: Vec::new(),
             engine: EngineKind::Wasmtime,
         }];
         let programs = TestPrograms::new(
@@ -898,7 +1003,7 @@ mod tests {
         assert_eq!(list[0].2, grants);
     }
 
-    /// `cli.host.package.native-cli-node`, `-explicit`: every engine source
+    /// `cli.host.package.native-cli-choice`, `native-cli-named`: every engine source
     /// against a module with no contract, a handle-only contract and a
     /// root interface.
     #[test]
@@ -924,28 +1029,55 @@ mod tests {
         };
         let env = |kind| Choice { kind, named: false };
         let named = Choice::named;
+        let none = std::collections::BTreeSet::new();
         for choice in [env(EngineKind::Wasmtime), named(EngineKind::Wasmtime)] {
-            assert_eq!(choice.for_module(None), Ok(EngineKind::Wasmtime));
-            assert_eq!(choice.for_module(Some(&handles)), Ok(EngineKind::Wasmtime));
+            assert_eq!(choice.for_module(None, &none), Ok(EngineKind::Wasmtime));
+            assert_eq!(
+                choice.for_module(Some(&handles), &none),
+                Ok(EngineKind::Wasmtime)
+            );
         }
         for choice in [env(EngineKind::Node), named(EngineKind::Node)] {
-            assert_eq!(choice.for_module(None), Ok(EngineKind::Node));
-            assert_eq!(choice.for_module(Some(&rooted)), Ok(EngineKind::Node));
+            assert_eq!(choice.for_module(None, &none), Ok(EngineKind::Node));
+            assert_eq!(
+                choice.for_module(Some(&rooted), &none),
+                Ok(EngineKind::Node)
+            );
         }
         // Unnamed: Node, decided from the contract alone.
         assert_eq!(
-            env(EngineKind::Wasmtime).for_module(Some(&rooted)),
+            env(EngineKind::Wasmtime).for_module(Some(&rooted), &none),
             Ok(EngineKind::Node)
         );
         // Named: refused, naming the root trait and how to provide it.
         let error = named(EngineKind::Wasmtime)
-            .for_module(Some(&rooted))
+            .for_module(Some(&rooted), &none)
             .unwrap_err();
         assert!(error.contains("\"sdk@1.2.0/Server\""), "{error}");
         assert!(error.contains("embeds `hd_run_wasmtime`"), "{error}");
         assert_eq!(Choice::default(), env(EngineKind::default()));
         assert_eq!(
-            Choice::default().for_module(Some(&rooted)),
+            Choice::default().for_module(Some(&rooted), &none),
+            Ok(EngineKind::Node)
+        );
+        // `native-cli-choice`, as decision 7 revises it: unnamed, a module whose
+        // every root has a C provider runs on Wasmtime in a build that has
+        // it, whatever `HD_ENGINE` says; a named Wasmtime runs it too.
+        let c: std::collections::BTreeSet<String> = ["pkg:Server".to_owned()].into();
+        let wasmtime = if cfg!(feature = "wasmtime") {
+            EngineKind::Wasmtime
+        } else {
+            EngineKind::Node
+        };
+        for kind in [EngineKind::Node, EngineKind::Wasmtime] {
+            assert_eq!(env(kind).for_module(Some(&rooted), &c), Ok(wasmtime));
+        }
+        assert_eq!(
+            named(EngineKind::Wasmtime).for_module(Some(&rooted), &c),
+            Ok(EngineKind::Wasmtime)
+        );
+        assert_eq!(
+            named(EngineKind::Node).for_module(Some(&rooted), &c),
             Ok(EngineKind::Node)
         );
     }

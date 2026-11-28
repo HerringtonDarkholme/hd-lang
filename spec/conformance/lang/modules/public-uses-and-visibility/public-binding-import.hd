@@ -1,0 +1,11 @@
+# test: another module imports and reads public bindings by their written types
+# Spec 10 Public Bindings: module.vis.pub.binding. The tree's src/codes.hd declares them.
+# fixture-package-tree: public-bindings/src/main.hd
+use pkg.codes.{EXIT_OK, EXIT_USAGE}
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads both bindings"):
+        assert_equal(EXIT_OK + 1, 1, reason="EXIT_OK is 0")
+        assert_equal(EXIT_USAGE, 2i64, reason="EXIT_USAGE is 2")

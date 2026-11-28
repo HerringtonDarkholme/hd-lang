@@ -1,5 +1,5 @@
-use std.structure.Structure
-use std.serde.Serialize
+use std.meta.Structure
+use std.encoding.Serialize
 
 struct Session:
     id: i64

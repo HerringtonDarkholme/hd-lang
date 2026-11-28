@@ -314,7 +314,15 @@ pub fn plan(
             for (k, l) in super::cold::locals(b, sub).into_iter().enumerate() {
                 let l = l as usize;
                 let ty = b.local_ty[l];
-                if framed && (cx.cold_parameter_transfers(b.item, ty) || cx.copies_collection(ty)) {
+                // A framed body's lent parameter ends with its frame, whose
+                // glue only releases counts (`hd_wasm` `susp`): a `Drop`
+                // value's hook and the storage it alone frees (a `UniqList`'s
+                // buffer and elements) would leak, so the body owns it.
+                if framed
+                    && (cx.cold_parameter_transfers(b.item, ty)
+                        || cx.copies_collection(ty)
+                        || cx.holds_drop(ty) != super::Tri::No)
+                {
                     continue;
                 }
                 let mode = cx.parameter_mode(ty, sub != 0);

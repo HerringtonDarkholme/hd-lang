@@ -8,9 +8,18 @@ repository.workspace = true
 include.workspace = true
 description = "Body checking, trait solving, exhaustiveness, facts, coherence and initialization (hd compiler internals, no stable API; install `hd-lang`)"
 
+# The unit tests are `tests/unit`, over the `testing` facade (src/testing.rs):
+# a test build then compiles this library once, not again in test mode.
+[lib]
+test = false
+
+[features]
+testing = ["hd_resolve/testing", "hd_types/testing"]
+
 [dependencies]
 hd_base = { workspace = true }
 hd_diag = { workspace = true }
+hd_host_abi = { workspace = true }
 hd_intern = { workspace = true }
 hd_project = { workspace = true }
 hd_resolve = { workspace = true }
@@ -20,6 +29,8 @@ hd_tir = { workspace = true }
 hd_types = { workspace = true }
 
 [dev-dependencies]
+# Itself with `testing`, so its test targets turn the feature on unasked.
+hd_check = { path = ".", features = ["testing"] }
 hd_testkit = { path = "../hd_testkit" }
 
 [lints]

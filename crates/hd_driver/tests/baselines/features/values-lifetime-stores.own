@@ -90,7 +90,7 @@ fn total(a: User, b: User) -> usize:
 >   %26 = LoanBegin %25 #0 : ()
 >   %27 = Store [$5] %25 : ()
 >   %28 = Read borrow [$5] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %29 = Call std/core/bytes_len[] (%28) : usize
 >   %30 = Break L1 %29 : never
 >   %31 = Block - : usize
 >   %32 = Scope %31 [] : usize
@@ -99,7 +99,7 @@ fn total(a: User, b: User) -> usize:
 >   %35 = LoanBegin %34 #0 : ()
 >   %36 = Store [$4] %34 : ()
 >   %37 = Read borrow [$4] : string
->   %38 = Call std/rt.bytes/bytes_len[] (%37) : usize
+>   %38 = Call std/core/bytes_len[] (%37) : usize
 >   %39 = Break L0 %38 : never
 >   %40 = Block - : usize
 >   %41 = Scope %40 [] : usize

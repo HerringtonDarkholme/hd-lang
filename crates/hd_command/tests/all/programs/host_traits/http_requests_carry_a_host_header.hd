@@ -1,0 +1,11 @@
+use std.http.{Http, Request, Url, get}
+use std.cli.{Args, args}
+
+pub fn main!() -> void $ Console + Http + Args:
+    base := args()[0]
+    match get!("${base}/host"):
+        .Ok(r) => println(r.text().expect("body"))
+        .Err(e) => println(debug(e))
+    match Request::get(Url::parse("${base}/host").expect("URL")).set_header(.Host, "example.test").send!():
+        .Ok(r) => println(r.text().expect("body"))
+        .Err(e) => println(debug(e))

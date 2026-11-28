@@ -1,0 +1,14 @@
+use std.console.{ConsoleInput, stdin}
+use std.io.BufReader
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    let mut lines = BufReader::with_capacity(3, stdin()).lines()
+    while true:
+        match lines.next!():
+            .Some(.Ok(line)) => println(debug(line.to_utf8()))
+            .Some(.Err(error)) =>
+                println("error: $error")
+                break
+            .None =>
+                println("end")
+                break

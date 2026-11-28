@@ -1,5 +1,5 @@
 # test: an ordinary function named annotate attaches a fact rather than being consumed by spelling
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Note: pass
 

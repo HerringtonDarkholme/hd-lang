@@ -131,7 +131,7 @@ fn session_on(
     on_start: impl FnOnce(crate::engine::SessionStopper),
     stdout: Option<&Buffer>,
     bounds: Bounds,
-    input: Option<&str>,
+    input: Option<&[u8]>,
 ) -> Transcript {
     let err = Buffer::default();
     let out = stdout.cloned().unwrap_or_else(|| err.clone());
@@ -140,8 +140,7 @@ fn session_on(
             out: Box::new(out.clone()),
             err: Box::new(err.clone()),
             input: input.map(|text| {
-                Box::new(std::io::Cursor::new(text.as_bytes().to_vec()))
-                    as Box<dyn std::io::BufRead + Send>
+                Box::new(std::io::Cursor::new(text.to_vec())) as Box<dyn std::io::BufRead + Send>
             }),
         },
         diags: Box::new(err.clone()),
@@ -316,7 +315,7 @@ fn unused_binding_advice_is_absent_across_rebuilds() {
 
 #[test]
 fn a_second_impl_is_an_error() {
-    let named = "trait Named:\n    fn name(self) -> string\n\nstruct Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
+    let named = include_str!("tests/programs/repl_tests/a_second_impl_is_an_error.hd");
     let dir = package("repl-impl", &[("src/lib.hd", named)]);
     let script = Script::of(&[
         "impl Named for Tag:",
@@ -326,13 +325,20 @@ fn a_second_impl_is_an_error() {
     ]);
     let t = session_in(&dir, script, |_| {});
     let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.len(), 2, "{}", t.out);
+    assert_eq!(lines.len(), 3, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#1:1:1: overlapping-impl: "),
+        lines[0].starts_with(
+            "error: repl#1:1:1: overlapping-impl: conflicting `Named` implementations for "
+        ),
         "{}",
         t.out
     );
-    assert_eq!(lines[1], "\"lib\" : string");
+    assert!(
+        lines[1].ends_with(": conflicting implementation"),
+        "{}",
+        t.out
+    );
+    assert_eq!(lines[2], "\"lib\" : string");
     let t = session(&[
         "trait Named:",
         "    fn name(self) -> string",
@@ -347,13 +353,16 @@ fn a_second_impl_is_an_error() {
         "Tag { x: +1 }.name()",
     ]);
     let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.len(), 2, "{}", t.out);
+    assert_eq!(lines.len(), 3, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#2:1:1: overlapping-impl: "),
+        lines[0].starts_with(
+            "error: repl#2:1:1: overlapping-impl: conflicting `Named` implementations for "
+        ),
         "{}",
         t.out
     );
-    assert_eq!(lines[1], "\"first\" : string");
+    assert_eq!(lines[1], "    note: repl#1:5:1: conflicting implementation");
+    assert_eq!(lines[2], "\"first\" : string");
 }
 
 /// A session is one module for derivation blocks too
@@ -367,7 +376,7 @@ fn a_later_input_derives_for_an_earlier_type() {
         "    pub x: i32",
         "    pub y: i32",
         "",
-        "use std.structure.Structure",
+        "use std.meta.Structure",
         "",
         "impl Debug for Point by Structure",
         "",
@@ -379,39 +388,7 @@ fn a_later_input_derives_for_an_earlier_type() {
 /// `src/lib.hd` for the member-line tests: a `Column` fact and a
 /// `Columns` template whose walker writes each member's column name (its
 /// `Column` fact or else its own name) and how many facts it has.
-const COLUMNS_LIB: &str = r#"use std.structure.{Structure, Field, Variant, Walker}
-
-struct Column:
-    name: string
-
-fn column(name: string) -> Column:
-    Column { name: name }
-
-trait Columns:
-    fn columns(self) -> string
-
-struct Header:
-    out: string
-
-impl[S] Walker[S] for Header:
-    type Error = never
-
-    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok(())
-
-    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
-        name := match h.info.facts.find::[Column]():
-            .Some(c) => c.name
-            .None => h.info.name
-        self.out = "${self.out}${name}/${h.info.facts.items.len()};"
-        .Ok(())
-
-impl[T] Columns for T by Structure:
-    fn columns(self) -> string:
-        let mut w = Header { out: "" }
-        _ := Structure::walk(&self, &mut w)
-        w.out
-"#;
+const COLUMNS_LIB: &str = include_str!("tests/programs/repl_tests/columns_lib.hd");
 
 /// The member-line session: input 1 declares `Row`, input 3 is a block
 /// with no trait for it, input 4 a derivation block with member lines.
@@ -423,7 +400,7 @@ const MEMBER_LINES: &[&str] = &[
     "    total: i32",
     "    cache: i32 = +0",
     "",
-    "use std.structure.Structure",
+    "use std.meta.Structure",
     "",
     "impl Row by Structure:",
     "    total += [column(\"sum_total\")]",
@@ -476,7 +453,7 @@ impl[T] Columns2 for T by Structure:
             &[("src/lib.hd", &lib)],
         );
         let script = Script::of(&[
-            "use std.structure.Structure",
+            "use std.meta.Structure",
             "struct Row:",
             "    id: i32",
             "    total: i32",
@@ -537,7 +514,9 @@ fn member_lines_survive_a_rebuild() {
 /// type, and a generic function of the library finds that implementation.
 #[test]
 fn a_library_function_finds_an_input_s_implementation() {
-    let lib = "trait Named:\n    fn name(self) -> string\n\nfn greet[T < Named](x: T) -> string:\n    \"hi ${x.name()}\"\n";
+    let lib = include_str!(
+        "tests/programs/repl_tests/a_library_function_finds_an_input_s_implementation.hd"
+    );
     let dir = package("repl-impl-lib", &[("src/lib.hd", lib)]);
     let script = Script::of(&[
         "struct Cat:",
@@ -661,7 +640,9 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     // 1 once the waiting input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
     let mut script = Script::of(&[
-        "use std.time.{sleep, Duration}\nuse std.ops.defer",
+        include_str!(
+            "tests/programs/repl_tests/a_waiting_input_is_cancelled_and_the_session_goes_on.hd"
+        ),
         "let mut log: List[string] = []",
         "fn nap!() -> void:",
         "    defer(fn() -> void: log.push(\"cleanup\"))",
@@ -822,7 +803,9 @@ fn a_package_without_lib_uses_its_modules_but_not_main() {
         &[
             (
                 "src/main.hd",
-                "pub fn main() -> void $ Console:\n    println(42)\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_package_without_lib_uses_its_modules_but_not_main.hd"
+                ),
             ),
             ("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n"),
         ],
@@ -846,12 +829,16 @@ fn a_broken_file_the_session_never_reaches_stops_no_input() {
         &[
             (
                 "src/lib.hd",
-                "use self.util.{double}\n\nfn bonus() -> i32: double(+7)\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_broken_file_the_session_never_reaches_stops_no_input.hd"
+                ),
             ),
             ("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n"),
             (
                 "src/main.hd",
-                "pub fn main() -> void $ Console:\n    let n: i32 = \"no\"\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_broken_file_the_session_never_reaches_stops_no_input_2.hd"
+                ),
             ),
             ("src/junk.hd", "pub fn junk() -> i32: \"no\"\n"),
             ("src/broken/mod.hd", "fn (\n"),
@@ -1347,12 +1334,58 @@ fn node_session_keeps_guest_stdin_separate_from_control() {
         |_| {},
         None,
         Bounds::default(),
-        Some("out\t\"not a frame\"\n{\"op\":\"close\"}\n"),
+        Some(b"out\t\"not a frame\"\n{\"op\":\"close\"}\n"),
     );
     assert_eq!(
         t.out,
         "\"out\\t\\\"not a frame\\\"\" : string\n\"{\\\"op\\\":\\\"close\\\"}\" : string\n7 : i32\n"
     );
+}
+
+/// std-console.stdin.exact: the framed Node reader shares raw bytes with
+/// line/all reads. A reload replays those results without consuming input.
+#[test]
+fn node_session_preserves_stdin_bytes_and_mixed_reads() {
+    let dir = Scratch::new(SCRATCH, "node-session-raw-input");
+    let script = Script::of(
+        &include_str!("tests/programs/repl_tests/stdin_bytes.in")
+            .lines()
+            .collect::<Vec<_>>(),
+    );
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds::default(),
+        Some(b"a\r\n\xff\0\r\nline\xff\r\nb\xff\r\nc\r"),
+    );
+    assert_eq!(
+        t.out,
+        "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nreloaded: 4 inputs replayed\n7 : i32\n"
+    );
+}
+
+/// An explicitly closed REPL stdin remains EOF for byte and text reads.
+#[test]
+fn node_session_closed_stdin_is_eof() {
+    let dir = Scratch::new(SCRATCH, "node-session-closed-input");
+    let script = Script::of(
+        &include_str!("tests/programs/repl_tests/stdin_closed.in")
+            .lines()
+            .collect::<Vec<_>>(),
+    );
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds::default(),
+        None,
+    );
+    assert_eq!(t.out, "true\ntrue\ntrue\n");
 }
 
 /// Every Node input and an explicit rebuild use journaled host results.
@@ -1396,10 +1429,16 @@ fn a_saved_provider_supports_later_blocking_async_and_stored_calls() {
         let script = Script::of(&[
             "use std.task.block_on",
             "use std.time.{Clock, ms}",
-            "let clock: *mut dyn Clock = if true:\n    let provider: *mut dyn Clock = $.use(Clock)\n    _ := block_on(provider.sleep(ms(1)))\n    println(\"first\")\n    provider\nelse:\n    $.use(Clock)",
-            "clock.sleep!(ms(1))\nprintln(\"second\")",
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls.hd"
+            ),
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls_2.hd"
+            ),
             "let pending: Suspend[void] = clock.sleep(ms(1))",
-            "_ := block_on(pending)\nprintln(\"third\")",
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls_3.hd"
+            ),
         ]);
         let t = session_on(engine, &dir, script, |_| {}, None, Bounds::default(), None);
         assert_eq!(t.out, "first\nsecond\nthird\n");

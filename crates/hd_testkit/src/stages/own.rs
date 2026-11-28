@@ -122,6 +122,9 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     out.finish()
 }
 
-/// Where a `std` build puts the case: a std module of its own folder, which
+/// Where a `std` build puts the case: a std module of its own unit, which
 /// may use the runtime modules and the root std modules alike.
 pub(super) const STD_CASE: &str = "rt_tests/stage_case.hd";
+
+/// The module path of [`STD_CASE`], the entry of a `std` build's program.
+pub(super) const STD_CASE_MODULE: &str = "rt_tests.stage_case";

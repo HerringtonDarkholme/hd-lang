@@ -1,0 +1,14 @@
+# Node calls a `{ c, js }` trait's `js` provider with the C arguments: a string's text, typed-array views of `&List[T]` and `&T`, written in place for `&mut`, and 64-bit and unsigned scalars.
+run: hd run --engine node
+stdout: write 533, at 17
+stdout: fill true, into -5 1, kept 0
+stdout: take 2 9
+# The companion glue `hd build` writes describes the same C arguments, and the prebuilt module runs with it.
+run: hd build --engine node
+file: build/debug/host_c_engines.wasm
+file: build/debug/host_c_engines.host.mjs
+file: native/include/host_c_engines.h
+run: hd build/debug/host_c_engines.wasm --engine node
+stdout: write 533, at 17
+stdout: fill true, into -5 1, kept 0
+stdout: take 2 9

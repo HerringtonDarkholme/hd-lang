@@ -3,9 +3,79 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
+  (func $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]" (param $t0 i32) (param $t5 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32)
+    ;; (no span)
+    local.get $t0
+    i32.load $heap offset=8
+    local.set $t1
+    local.get $t0
+    i32.load $heap
+    local.set $t0
+    block
+      loop
+        local.get $t2
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t2
+        local.get $t1
+        local.get $t2
+        i32.sub
+        i32.const 1
+        i32.shr_u
+        i32.add
+        local.tee $t3
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap
+        local.set $t4
+        local.get $t5
+        i32.load $heap
+        local.set $t6
+        i32.const 1
+        local.get $t4
+        local.get $t6
+        i32.gt_u
+        i32.add
+        local.get $t4
+        local.get $t6
+        i32.lt_u
+        i32.sub
+        local.set $t4
+        block
+          block
+            block
+              block
+                local.get $t4
+                br_table 0 2 1 2
+                unreachable
+              end
+              local.get $t3
+              i32.const 1
+              i32.add
+              local.set $t2
+              br 2
+            end
+            local.get $t3
+            local.set $t1
+            br 1
+          end
+          i32.const 0
+          local.get $t3
+          return
+        end
+        br 0
+      end
+    end
+    i32.const 1
+    local.get $t2
+  )
   (func $run (param $xs i32) (param $t1 i32) (result i32) (local $x i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     xs.binary_search(&x).is_ok()
+    ;; 10 |     xs.binary_search(&x).is_ok()
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -52,74 +122,5 @@
     i32.const 16
     i32.add
     global.set $stack
-  )
-  (func $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]" (param $t0 i32) (param $t5 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32)
-    ;; (no span)
-    local.get $t0
-    i32.load $heap offset=8
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $t1
-        local.get $t2
-        i32.sub
-        i32.const 1
-        i32.shr_u
-        i32.add
-        local.set $t3
-        local.get $t0
-        i32.load $heap
-        local.get $t3
-        i32.const 4
-        i32.mul
-        i32.add
-        i32.load $heap
-        local.set $t4
-        local.get $t5
-        i32.load $heap
-        local.set $t6
-        i32.const 1
-        local.get $t4
-        local.get $t6
-        i32.gt_u
-        i32.add
-        local.get $t4
-        local.get $t6
-        i32.lt_u
-        i32.sub
-        local.set $t4
-        block
-          block
-            block
-              block
-                local.get $t4
-                br_table 0 2 1 2
-                unreachable
-              end
-              local.get $t3
-              i32.const 1
-              i32.add
-              local.set $t2
-              br 2
-            end
-            local.get $t3
-            local.set $t1
-            br 1
-          end
-          i32.const 0
-          local.get $t3
-          return
-        end
-        br 0
-      end
-    end
-    i32.const 1
-    local.get $t2
   )
 )

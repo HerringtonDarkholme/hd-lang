@@ -1,8 +1,8 @@
 # test: Copies and local references share a single body claim, including failed reads.
 # Spec: std-http.body.shared-state, std-http.body.claim-before-decode.
 use std.http.{Body, BodyError}
-use std.json.JsonError
-use std.serde.Deserialize
+use std.encoding.json.JsonError
+use std.encoding.Deserialize
 
 @derive(Deserialize, Debug, Eq)
 struct Payload:

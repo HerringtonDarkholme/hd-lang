@@ -291,10 +291,24 @@ impl Parser<'_> {
                 let marker = self.start();
                 self.bump();
                 if self.at(TokenKind::KwMut) {
-                    // grammar.type.dyn.mut
-                    self.error(
-                        Code::SyntaxError,
-                        "'mut' goes before 'dyn': write '&mut dyn Trait'",
+                    // grammar.type.dyn.mut: `&dyn mut T` is `&mut dyn T`.
+                    let at = self.pos();
+                    let (dyn_lo, _) = self.token_span(at - 1);
+                    let (_, mut_hi) = self.token_span(at);
+                    let amp = at >= 2 && self.toks.kind[at - 2] == TokenKind::Amp;
+                    let edits: &[(u32, u32, &str)] = if amp {
+                        &[(dyn_lo, mut_hi, "mut dyn")]
+                    } else {
+                        &[]
+                    };
+                    self.error_fixed(
+                        (
+                            Code::SyntaxError,
+                            at,
+                            "'mut' goes before 'dyn': write '&mut dyn Trait'",
+                        ),
+                        "write `mut dyn`",
+                        edits,
                     );
                     self.bump();
                 }
@@ -362,9 +376,14 @@ impl Parser<'_> {
     pub(crate) fn ty_bound_trait(&mut self, bindings: bool) -> Done {
         if self.at(TokenKind::KwMut) {
             // grammar.type.row.no-mut-key and friends.
-            self.error(
-                Code::SyntaxError,
-                "a requirement key or bound takes no 'mut' prefix",
+            let at = self.pos();
+            let (lo, _) = self.token_span(at);
+            let next = self.token_span(at + 1).0;
+            let message = "a requirement key or bound takes no 'mut' prefix";
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "remove `mut`",
+                &[(lo, next, "")],
             );
             self.bump();
         }
@@ -433,7 +452,7 @@ impl Parser<'_> {
                     // grammar.generic.binding.trait-type-only
                     self.error(
                         Code::SyntaxError,
-                        "a trait type takes no associated-type binding here",
+                        "set an associated type with `type Item = T` in the impl body; bindings in type arguments belong to `dyn Trait[Item = T]`",
                     );
                 }
                 saw_binding = true;
@@ -661,10 +680,22 @@ impl Parser<'_> {
         }
         if rest_seen && !comma {
             // `(T...)`: a rest element alone keeps the comma.
-            self.error(
-                Code::SyntaxError,
-                "a lone rest element keeps its trailing comma: write '(T...,)'",
+            let at = self.pos();
+            let lo = self.token_span(at).0;
+            let message = "a lone rest element keeps its trailing comma: write '(T...,)'";
+            let edits: &[(u32, u32, &str)] = if self.at(TokenKind::RParen) {
+                &[(lo, lo, ",")]
+            } else {
+                &[]
+            };
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "add the trailing comma",
+                edits,
             );
+        }
+        if self.at(TokenKind::Dollar) {
+            self.error(Code::SyntaxError, "a row belongs to the function type; group the whole type as `(fn(...) -> T $ Row)`");
         }
         self.expect_token(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
@@ -742,12 +773,15 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // $
         if self.at(TokenKind::LParen) {
+            let open = self.token_span(self.pos());
             self.bump();
+            let mut error = None;
             if !self.at(TokenKind::RParen) {
                 self.ty_bound_trait(true);
                 loop {
                     if self.at(TokenKind::Plus) {
                         // grammar.type.row.no-parentheses
+                        error.get_or_insert(self.errors.len());
                         self.error(
                             Code::SyntaxError,
                             "parentheses never surround a requirement row: write '$ A + B'",
@@ -758,6 +792,11 @@ impl Parser<'_> {
                     }
                     self.ty_bound_trait(true);
                 }
+            }
+            if let Some(error) = error.filter(|_| self.at(TokenKind::RParen)) {
+                let close = self.token_span(self.pos());
+                let edits = [(open.0, open.1, ""), (close.0, close.1, "")];
+                self.fix_error(error, "remove the parentheses", &edits);
             }
             self.expect_token(TokenKind::RParen, "')'");
         } else {

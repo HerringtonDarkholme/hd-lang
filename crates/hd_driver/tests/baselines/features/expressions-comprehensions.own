@@ -56,12 +56,12 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %24 = Prim Add [%23 1:usize] : usize
 >   %25 = Store [$10] %24 : ()
 >   %26 = Read borrow [$7] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
+>   %27 = Call std/core/bytes_len[] (%26) : usize
 >   %28 = Break L3 %27 : never
 >   %29 = Block - : usize
 >   %30 = Scope %29 [] : usize
 >   %31 = Read borrow [$12] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
+>   %32 = Call std/core/bytes_len[] (%31) : usize
 >   %33 = Break L2 %32 : never
 >   %34 = Block - : usize
 >   %35 = Scope %34 [] : usize
@@ -261,7 +261,7 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %14 = Read borrow [$6 .name] : string
 >   %15 = Store [$8] %14 : ()
 >   %16 = Read borrow [$8] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L1 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize

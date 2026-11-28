@@ -1,0 +1,44 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Associated calls find factories only in their local trait's lexical extent.
+struct Item:
+    n: i32
+
+struct Other:
+    n: i32
+
+fn first() -> i32:
+    trait Factory:
+        fn make() -> Self
+
+    impl Factory for Item:
+        fn make() -> Item:
+            Item { n: 7 }
+
+    Item::make().n
+
+fn second(nested: bool) -> i32:
+    trait Factory:
+        fn make() -> Self
+
+    impl Factory for Item:
+        fn make() -> Item:
+            Item { n: 9 }
+
+    inner := if nested:
+        trait Inner:
+            fn make() -> Self
+
+        impl Inner for Other:
+            fn make() -> Other:
+                Other { n: 11 }
+
+        Item::make().n + Other::make().n
+    else:
+        Item::make().n
+    inner + Item::make().n
+
+pub fn main() -> void $ Console:
+    println(first())
+    println(second(true))
+    println(second(false))

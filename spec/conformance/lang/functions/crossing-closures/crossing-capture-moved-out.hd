@@ -1,6 +1,6 @@
 # test: a crossing closure runs once, so it may move a capture that is not Copy out of itself
 # Spec 07 Crossing Closures: fn.crossing.move-out, fn.crossing.mode.move.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32

@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# expected: trait signature errors point to grouping the returned function and row
+trait Factory:
+    fn make(self) -> (fn() -> i32 $ Console)
+struct Value: pass
+impl Factory for Value:
+    fn make(self) -> fn() -> i32 $ Console:
+        fn() -> i32 $ Console: +1

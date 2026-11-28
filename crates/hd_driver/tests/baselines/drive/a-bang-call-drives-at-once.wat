@@ -4,7 +4,7 @@
   (import "fixture" "rt:frame_ensure" (func $rt:frame_ensure (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $relay (param $frame i32) (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; ...
@@ -16,6 +16,7 @@
           if
             ;; ...
     ;; 10 |     s.put!(text)
+            local.get $text.1
             local.get $t0
             local.get $text.0
             i32.store $heap offset=20
@@ -25,11 +26,7 @@
             i32.store $heap offset=16
             local.get $t0
             i32.load $heap offset=16
-            local.tee $text.0
-            if
-              local.get $text.0
-              call $retain
-            end
+            call $retain
             local.get $t0
             i32.load $heap
             local.get $t0
@@ -42,11 +39,15 @@
             local.get $t0
             local.get $text.0
             i32.store $heap offset=24
-            local.get $t0
             i32.const 0
+            local.set $text.0
+            local.get $t0
+            local.get $text.0
             i32.store $heap
-            local.get $t0
             i32.const 0
+            local.set $text.0
+            local.get $t0
+            local.get $text.0
             i32.store $heap offset=4
           end
           block
@@ -67,9 +68,10 @@
               if
                 local.get $frame
                 i32.load $heap offset=16
-                local.tee $provider0
+                local.set $provider0
                 i32.const 1
                 local.set $t1
+                local.get $provider0
                 local.get $provider0
                 i32.load $heap
                 call_indirect $table0 (param i32) (result i32 i32)
@@ -87,15 +89,20 @@
                 i32.load $heap offset=4
                 call_indirect $table0 (param i32 i32 i32) (result i32 i32)
                 local.set $provider0.vtable
-                local.tee $provider0
-                local.get $t0
+                local.set $provider0
                 i32.const 0
+                local.set $text.0
+                local.get $t0
+                local.get $text.0
                 i32.store $heap offset=24
-                local.get $t0
                 i32.const 0
+                local.set $text.0
+                local.get $t0
+                local.get $text.0
                 i32.store $heap offset=28
                 i32.const 0
                 local.set $t1
+                local.get $provider0
                 i32.eqz
                 local.set $text.1
               end
@@ -113,7 +120,8 @@
                   i32.const 1
                   call $rt:frame_ensure
                   drop
-                  local.tee $frame
+                  local.set $frame
+                  local.get $frame
                   i32.const 24
                   i32.add
                   local.set $t0
@@ -140,19 +148,20 @@
                   i32.const 0
                   i32.store $heap offset=16
                   local.get $provider0
-                  if
-                    local.get $provider0
-                    call $rt:release_ref
-                  end
+                  call $rt:release_ref
                 end
               end
+              i32.const 0
+              local.set $t1
               br 1
             end
             local.get $frame
             call $rt:cancel_child
+            local.set $text.1
             local.get $frame
             i32.load $heap offset=16
             local.set $provider0
+            local.get $text.1
             if
               i32.const 1
               local.set $text.1
@@ -164,31 +173,26 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $provider0
-              if
-                local.get $provider0
-                call $rt:release_ref
-              end
-            end
-            local.get $t0
-            i32.load $heap offset=16
-            local.tee $provider0.vtable
-            if
-              local.get $provider0.vtable
               call $rt:release_ref
             end
-            local.get $t0
             i32.const 0
+            local.set $t1
+            local.get $t0
+            i32.load $heap offset=16
+            call $rt:release_ref
+            i32.const 0
+            local.set $text.0
+            local.get $t0
+            local.get $text.0
             i32.store $heap offset=16
-            local.get $t0
             i32.const 0
+            local.set $text.0
+            local.get $t0
+            local.get $text.0
             i32.store $heap offset=20
             local.get $t0
             i32.load $heap
-            local.tee $provider0.vtable
-            if
-              local.get $provider0.vtable
-              call $rt:release_ref
-            end
+            call $rt:release_ref
             i32.const 0
             local.set $provider0.vtable
             i32.const 1

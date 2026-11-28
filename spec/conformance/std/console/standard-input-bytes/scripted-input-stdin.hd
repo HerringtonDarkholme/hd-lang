@@ -1,0 +1,24 @@
+# test: ScriptedInput's stdin takes its unread lines as bytes, each ended by \n
+# Spec std/console Standard Input Bytes: std-console.stdin.decl, std-console.stdin.handle, std-console.scripted.stdin.
+use std.console.{ConsoleInput, ScriptedInput, read_line, stdin}
+use std.io.Read
+
+fn bytes!() -> List[List[u8]] $ ConsoleInput:
+    let mut input = stdin()
+    let mut chunks: List[List[u8]] = []
+    while true:
+        chunk := input.read!(3).expect("a scripted read")
+        if chunk.len() == 0:
+            break
+        chunks.push(chunk)
+    chunks
+
+tests:
+    use std.testing.assert_equal
+
+    it("reads the lines left after a read_line!"):
+        input := ScriptedInput::new(["one", "é", ""])
+        $.with(ConsoleInput=input):
+            assert_equal(read_line!(), .Ok(.Some("one")), reason="the first line")
+            assert_equal(bytes!(), [[195, 169, 10], [10]], reason="the rest as UTF-8 bytes")
+            assert_equal(read_line!(), .Ok(.None), reason="stdin took every line")

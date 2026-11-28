@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# Expecting success must not require Display on the original error.
+struct Failure:
+    code: i32
+
+fn step() -> Result[i32, Failure]:
+    .Err(Failure { code: +7 })
+
+fn run() -> void:
+    step()?

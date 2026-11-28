@@ -4,17 +4,32 @@
 # @build: dev | checked | release | release checked
 # Addressable cells force own_frame before an all-Ready exit. Tuple results
 # must be loaded before that frame is freed, on explicit and tail returns.
-use std.annotation.inline
+use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -70,17 +85,32 @@ pub fn main!() -> void $ Console:
 # @build: dev | checked | release | release checked
 # Addressable cells force own_frame before an all-Ready exit. Tuple results
 # must be loaded before that frame is freed, on explicit and tail returns.
-use std.annotation.inline
+use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -136,17 +166,32 @@ pub fn main!() -> void $ Console:
 # @build: dev | checked | release | release checked
 # Addressable cells force own_frame before an all-Ready exit. Tuple results
 # must be loaded before that frame is freed, on explicit and tail returns.
-use std.annotation.inline
+use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -172,7 +217,6 @@ pub fn main!() -> void $ Console:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
->   release counted reference (last use)
 >   release string (last use)
 > app/main/main
 >   release counted reference (last use)
@@ -184,13 +228,10 @@ pub fn main!() -> void $ Console:
     let (b, second) = ready!(false)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release counted reference (last use)
 >   release string (last use)
     println("$a $first $b $second")
->   release counted reference (last use)
 >   retain string (conservative: copy read)
 >   release string (last use)
->   release counted reference (last use)
 >   retain string (conservative: copy read)
 >   release string (last use)
 >   release string (last use)
@@ -203,17 +244,32 @@ pub fn main!() -> void $ Console:
 # @build: dev | checked | release | release checked
 # Addressable cells force own_frame before an all-Ready exit. Tuple results
 # must be loaded before that frame is freed, on explicit and tail returns.
-use std.annotation.inline
+use std.meta.inline
 
+# Awaiting a suspending closure is a suspension point, so `read!` and
+# `ready!` keep their frames though every await is Ready (#2419).
 @inline(.Never)
 fn read!(value: &i32) -> i32:
-    *value
+    pause := fn!() -> i32: 0
 > app/main/read
 >   release counted reference (by design)
 > app/main/read
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/read
 >   retain counted reference (by design)
+> app/main/read
+>   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
+    pause!() + *value
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> i32 (cancelled)
+>   release Suspend[i32] (cancelled)
+>   release Suspend[i32] (last use)
+>   release fn!() -> i32 (last use)
 
 fn ready!(early: bool) -> (i32, string):
     let value = +40
@@ -239,7 +295,6 @@ pub fn main!() -> void $ Console:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
->   release counted reference (last use)
 >   release string (last use)
 > app/main/main
 >   release counted reference (last use)
@@ -251,13 +306,10 @@ pub fn main!() -> void $ Console:
     let (b, second) = ready!(false)
 >   release counted reference (last use)
 >   release counted reference (last use)
->   release counted reference (last use)
 >   release string (last use)
     println("$a $first $b $second")
->   release counted reference (last use)
 >   retain string (conservative: copy read)
 >   release string (last use)
->   release counted reference (last use)
 >   retain string (conservative: copy read)
 >   release string (last use)
 >   release string (last use)

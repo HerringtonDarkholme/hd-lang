@@ -1,0 +1,9 @@
+# @dump: own wat
+# #2402: a column bound whole (`w`) and used after the pattern is stored
+# into its own local, a sound move of the column's part.
+fn whole(s: string) -> List[string]:
+    let x = (s, (s, (s, s)))
+    let (a0, (a1, w)) = x
+    #^^^^^^^^^^^^^^^^^^^^
+    let (p, q) = w
+    [a0, a1, p, q, w._0]

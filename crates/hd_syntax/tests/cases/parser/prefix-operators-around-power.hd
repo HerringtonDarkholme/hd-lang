@@ -1,0 +1,11 @@
+# @dump: tree
+# ref.prec.deref: `*` binds tighter than `**`; any other prefix operator
+# takes the whole power as its operand.
+# subject
+fn f(a: i32, b: i32) -> void:
+    negated := -a ** b
+    read := *a ** b
+    read_twice := * *a ** b
+    read_negated := *-a ** b
+    negated_exponent := a ** -b ** a
+    read_exponent := a ** *b ** a

@@ -124,14 +124,27 @@ fn struct_chain_module_grows_linearly() {
 
 #[test]
 fn counted_struct_chain_module_grows_linearly() {
+    counted_chain_linear(false);
+}
+
+/// The same, built for release (#2399): `get{i}` lends its parameter
+/// there, and a lent one passes by address too, so the inliner's copy of
+/// it names the caller's place instead of taking its leaves. Before, each
+/// `get{i}` took O(i) values: 87,473 -> 1,460,077 B at K = 50 -> 200.
+#[test]
+fn release_counted_struct_chain_module_grows_linearly() {
+    counted_chain_linear(true);
+}
+
+fn counted_chain_linear(release: bool) {
     let worker = std::thread::Builder::new()
         .stack_size(hd_sched::pool::WORKER_STACK)
-        .spawn(|| {
-            let (small, large) = (
-                build_bytes(&counted_program(50)),
-                build_bytes(&counted_program(200)),
+        .spawn(move || {
+            let bytes = |k| build_wasm_profile(&counted_program(k), release).len();
+            let (small, large) = (bytes(50), bytes(200));
+            eprintln!(
+                "counted struct chain module bytes (release {release}): K=50 {small}, K=200 {large}"
             );
-            eprintln!("counted struct chain module bytes: K=50 {small}, K=200 {large}");
             assert!(small > 0);
             assert!(large * 2 <= small * 9, "K=50 {small}, K=200 {large}");
         });
@@ -302,8 +315,9 @@ fn without_drop(source: &str) -> String {
 }
 
 /// [`build_bytes`] of `source` as std's module `rt_tests.chain`, a
-/// program from its `main`, so the linker drops unused wrappers.
-fn std_build_bytes(source: &str) -> usize {
+/// program from its `main`, so the linker drops unused wrappers; built
+/// optimized for release when `release`.
+fn std_build_bytes_at(source: &str, release: bool) -> usize {
     let mut sources = hd_driver::std_sources();
     sources.insert("rt_tests/chain.hd", source);
     let store = crate::warm_store();
@@ -317,6 +331,16 @@ fn std_build_bytes(source: &str) -> usize {
     let packages = Packages {
         target: EngineTarget::V8,
         std_leaf: Some("rt_tests/chain.hd"),
+        level: if release {
+            hd_driver::OptLevel::Optimized
+        } else {
+            hd_driver::OptLevel::Dev
+        },
+        build_profile: if release {
+            hd_base::BuildProfile::Release
+        } else {
+            hd_base::BuildProfile::default()
+        },
         ..Packages::default()
     };
     let output = build_packages(
@@ -333,15 +357,25 @@ fn std_build_bytes(source: &str) -> usize {
 
 #[test]
 fn drop_struct_chain_module_grows_linearly() {
+    drop_chain_linear(false);
+}
+
+/// The same, built for release (#2399).
+#[test]
+fn release_drop_struct_chain_module_grows_linearly() {
+    drop_chain_linear(true);
+}
+
+fn drop_chain_linear(release: bool) {
     // #2069: constrain the complete std modules too, not only the
     // hooks' contribution after subtracting a quadratic no-Drop module.
     let worker = std::thread::Builder::new()
         .stack_size(hd_sched::pool::WORKER_STACK)
-        .spawn(|| {
+        .spawn(move || {
             let sizes = |k: usize| {
-                let with = std_build_bytes(&drop_program(k));
-                let without = std_build_bytes(&without_drop(&drop_program(k)));
-                eprintln!("drop struct chain K={k}: {with} B, {without} B without hooks");
+                let with = std_build_bytes_at(&drop_program(k), release);
+                let without = std_build_bytes_at(&without_drop(&drop_program(k)), release);
+                eprintln!("drop struct chain K={k} (release {release}): {with} B, {without} B without hooks");
                 (with, without)
             };
             let (small, large) = (sizes(50), sizes(200));

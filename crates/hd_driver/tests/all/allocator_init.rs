@@ -1,14 +1,15 @@
 //! A runtime init whose bindings no reached code writes does nothing once
 //! link folds its constant stores, so `hd.init` leaves it out and the
 //! module drops it (#1423). A program that allocates keeps the allocator's
-//! init, called from `hd.init`.
+//! init, called from `hd.init`. Leaving out a quiet init is the optimized
+//! link's rewrite, so these programs build optimized.
 
 use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// The debug names of the module's functions, and its global count, for
-/// program `main` built in dev (`checked` off) or checked mode.
+/// program `main` built optimized, unchecked or checked.
 fn linked(main: &str, checked: bool) -> (Vec<String>, u32) {
     let mut src = MemorySources::default();
     src.insert("main.hd", main);
@@ -22,6 +23,7 @@ fn linked(main: &str, checked: bool) -> (Vec<String>, u32) {
     };
     let packages = Packages {
         checked,
+        level: hd_driver::OptLevel::Optimized,
         ..Packages::default()
     };
     let out = build_packages(
@@ -58,7 +60,7 @@ const INIT: &str = "std/rt.alloc/init.init#0";
 
 #[test]
 fn a_program_that_never_allocates_runs_no_allocator_init() {
-    let (names, globals) = linked("fn helper() -> i32:\n    1\n", false);
+    let (names, globals) = linked(include_str!("programs/allocator_init/helper.hd"), false);
     assert!(!names.iter().any(|n| n == INIT), "{names:?}");
     assert!(!names.iter().any(|n| n.starts_with("std/rt.")), "{names:?}");
     // Nor the allocator's bindings, nor the forbidden-context depth its
@@ -68,17 +70,14 @@ fn a_program_that_never_allocates_runs_no_allocator_init() {
 
 #[test]
 fn a_program_that_allocates_in_a_std_call_runs_the_allocator_init() {
-    let (names, globals) = linked(
-        "pub fn main() -> void $ Console:\n    println(\"ab\".repeat(3))\n",
-        false,
-    );
+    let (names, globals) = linked(include_str!("programs/allocator_init/repeat.hd"), false);
     assert!(names.iter().any(|n| n == INIT), "{names:?}");
     assert!(globals > 0, "{names:?}");
 }
 
 #[test]
 fn a_checked_program_keeps_the_allocator_init_its_audit_needs() {
-    let (names, _) = linked("fn helper() -> i32:\n    1\n", true);
+    let (names, _) = linked(include_str!("programs/allocator_init/helper.hd"), true);
     assert!(names.iter().any(|n| n == INIT), "{names:?}");
 }
 

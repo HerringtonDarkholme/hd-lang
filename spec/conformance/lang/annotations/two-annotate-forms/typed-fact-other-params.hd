@@ -1,6 +1,6 @@
 # test: a typed fact type's other type parameters are inferred from the value, as a `_` slot is
 # Spec 14 Member-Typed Facts: annot.typed-fact.check.other-params; `@range(0, 100, "percent")` on `level: i32` solves `G = string` (batch 40, 2026-10-01).
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Field)
 struct Range[F, G]:

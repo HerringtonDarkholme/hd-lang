@@ -2,7 +2,7 @@
 == @build: dev
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -35,6 +35,7 @@ fn carried(p: *mut Slots, alias: *mut Slots) -> string:
     held := keep(Carrier { value: p.first() })
 > app/main/carried
 >   release *mut app.main.Slots (last use)
+>   release *mut app.main.Slots (last use)
     maybe_change(alias, false)
     *held.value
 >   retain string (stored)
@@ -52,7 +53,7 @@ pub fn main() -> void $ Console:
 == @build: release
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]

@@ -1,0 +1,4 @@
+use pkg.shop.cart.{total}
+
+pub fn twice() -> i32:
+    total() * 2

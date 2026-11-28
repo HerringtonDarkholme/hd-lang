@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# Short template holes resolve package bindings; an absent name reports once.
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn numbers(value: Template[i32]) -> List[i32]:
+    value.values
+
+let global_number: i32 = 7
+
+fn present() -> List[i32]:
+    numbers"$global_number"
+
+fn absent() -> List[i32]:
+    numbers"$unknown_number"

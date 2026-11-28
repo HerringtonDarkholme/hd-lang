@@ -1,0 +1,5 @@
+[package]
+name = "edits"
+
+[capabilities]
+Console = true

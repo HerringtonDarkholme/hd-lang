@@ -13,7 +13,7 @@ each job the way you would do it, with real output.
 $ cargo install hd-lang
 ```
 
-This puts `hd` in `~/.cargo/bin`. `hd help` lists every command.
+This puts `hd` in `~/.cargo/bin`. `hd help` lists every command. `hd --version` prints the installed compiler release version.
 
 ## Start A Project
 
@@ -34,7 +34,8 @@ orders/src/main.hd
 orders/tests/orders.hd
 ```
 
-The manifest names the package; everything else is convention:
+Package names may contain hyphens, but not dots: `.` separates modules.
+Dependency keys also reject dots. The manifest names the package:
 
 ```toml
 [package]
@@ -70,7 +71,8 @@ An implementation may offer more than one engine to run programs on.
 `hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
 `HD_ENGINE` gives the name when the flag is absent. The released binary
 defaults to Wasmtime in process; developer and test builds default to Node.
-A package that needs its own host trait selects Node before startup.
+A package that needs its own host trait selects Node before startup,
+unless every such trait has a C provider, which selects Wasmtime.
 Explicit `--engine node` works in the released binary too. A program behaves the same
 on each; only speed and memory use differ. One difference is security:
 the `wasmtime` engine opens files relative to each granted directory, so
@@ -104,7 +106,7 @@ Save this as `volume.hd`:
 
 ```hd
 use std.cli.{Arg, ArgParser}
-use std.host.Args
+use std.cli.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
@@ -153,8 +155,13 @@ The outputs land in `build/debug/` and `build/release/`:
 
 ```sh
 build/debug/orders.wasm
-build/release/orders.wasm
+build/release/orders.cwasm   # Wasmtime; Node and --format wasm produce .wasm
 ```
+
+Release Wasmtime builds and installs produce native `.cwasm` artifacts that start without translating Wasm.
+Use `--format wasm` for portable output; dev and Node builds also use `.wasm`.
+Portable modules record their optimization level; older modules without that metadata use dev engine optimization.
+Run a native artifact with `hd FILE.cwasm`; `hd run --release` reuses it while its inputs are unchanged.
 
 Read next: [Building And Checking](../../spec/cli/command-line.md#building-and-checking).
 
@@ -350,3 +357,19 @@ diagnostic. Read next:
   a suspending function: `fn!`, or `main!`.
 
 Each message names its code, and the rule IDs it cites are in the specification.
+
+## Profile A Program
+
+On Wasmtime, `--profile[=FILE]` writes guest stack samples as Firefox
+profiler JSON, with hd function names. It defaults to `profile.json` in
+the working directory. Release and prebuilt `.cwasm` programs keep names.
+
+```sh
+hd run --release --engine wasmtime --profile=cpu.json -- -n 'reduce range(1000000) as $i (0; . + $i)'
+hd src/main.hd --engine wasmtime --profile
+hd build/release/app.cwasm --engine wasmtime --profile=cpu.json
+```
+
+Load the JSON into Firefox Profiler to inspect sampled stacks. Sampling
+uses the existing 10 ms guest epoch checks; very short runs may have no
+samples. Node reports an error pointing to `--engine wasmtime`.

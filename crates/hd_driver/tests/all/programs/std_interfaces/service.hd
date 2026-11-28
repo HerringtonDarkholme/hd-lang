@@ -1,0 +1,4 @@
+use pkg.user.types.{User}
+
+pub fn load() -> User:
+    User { name: 1 }

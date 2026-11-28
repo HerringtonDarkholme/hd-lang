@@ -10,39 +10,32 @@
   )
   (func $set (param $xs i32) (param $i i32) (param $v i32)
     ;; 8 |     match xs.get_mut(i):
-    local.get $i
-    local.get $xs
-    i32.load $heap offset=8
-    i32.ge_u
-    if (result i32)
-      i32.const 0
-    else
-      local.get $xs
-      i32.load $heap
-      local.get $i
-      i32.const 4
-      i32.mul
-      i32.add
-    end
-    local.set $xs
     block
       block
         block
-    ;; 9 |         .Some(r) => *r = v
+          local.get $i
           local.get $xs
-          i32.eqz
-          br_if 1
-          br 0
-    ;; 8 |     match xs.get_mut(i):
-          unreachable
+          i32.load $heap offset=8
+          i32.ge_u
+          br_if 2
+          local.get $xs
+          i32.load $heap
+          local.get $i
+          i32.const 4
+          i32.mul
+          i32.add
+          local.set $xs
+          br 1
         end
-    ;; 9 |         .Some(r) => *r = v
-        local.get $xs
-        local.get $v
-        i32.store $heap
-    ;; 8 |     match xs.get_mut(i):
-        return
       end
+    ;; 9 |         .Some(r) => *r = v
+      local.get $xs
+      local.get $v
+      i32.store $heap
+    ;; 8 |     match xs.get_mut(i):
+      return
+    end
+    block
     ;; 10 |         .None => panic("index")
       i32.const 65 ;; &"index"
       i32.const 5

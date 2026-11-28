@@ -1,0 +1,24 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# A non-inlined callback chain retains an escaping nested closure.
+use std.meta.inline
+
+@inline(.Never)
+fn leaf(callback: fn() -> i32) -> i32:
+    callback()
+
+@inline(.Never)
+fn invoke(callback: fn() -> i32) -> i32:
+    callback()
+
+@inline(.Never)
+fn middle(callback: fn() -> i32) -> i32:
+    work := fn() -> i32: callback() + leaf(callback)
+    invoke(work)
+
+@inline(.Never)
+fn outer(callback: fn() -> i32) -> i32:
+    callback() + middle(callback)
+
+pub fn main() -> void $ Console:
+    println(outer(fn() -> i32: +7))

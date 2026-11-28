@@ -7,15 +7,16 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $"impl Parser.expression" (param $self i32) (result i32 i32)
+  (func $"impl Parser.expression" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 19 |         self.whitespace()
     local.get $self
     call $"impl Parser.whitespace"
     ;; 20 |         if self.at < self.chars.len():
     local.get $self
     i32.load $heap offset=4
+    local.tee $t0
     local.get $self
     i32.load $heap
     i32.load $heap offset=4
@@ -23,8 +24,7 @@
     if
     ;; 21 |             self.at += 1
       local.get $self
-      local.get $self
-      i32.load $heap offset=4
+      local.get $t0
       i32.const 1
       i32.add
       i32.store $heap offset=4
@@ -45,12 +45,13 @@
     i32.const 0
     local.get $self
   )
-  (func $"impl Parser.whitespace" (param $self i32) (local $point i32) (local $t0 i32)
+  (func $"impl Parser.whitespace" (param $self i32) (local $t0 i32) (local $point i32)
     ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
     block
       loop
         local.get $self
         i32.load $heap offset=4
+        local.tee $t0
         local.get $self
         i32.load $heap
         i32.load $heap offset=4
@@ -58,11 +59,9 @@
         i32.eqz
         br_if 1
         local.get $self
-        i32.load $heap offset=4
-        local.get $self
         i32.load $heap
         local.set $point
-        local.tee $t0
+        local.get $t0
         local.get $point
         i32.load $heap offset=4
         i32.ge_u
@@ -100,7 +99,7 @@
             else
               i32.const 1
             end
-            local.set $t0
+            local.set $point
             br 1
           end
           local.get $point
@@ -126,7 +125,7 @@
             else
               i32.const 1
             end
-            local.set $t0
+            local.set $point
             br 1
           end
           local.get $point
@@ -172,15 +171,14 @@
           else
             i32.const 1
           end
-          local.set $t0
+          local.set $point
         end
-        local.get $t0
+        local.get $point
         i32.eqz
         br_if 1
     ;; 15 |             self.at += 1
         local.get $self
-        local.get $self
-        i32.load $heap offset=4
+        local.get $t0
         i32.const 1
         i32.add
         i32.store $heap offset=4
@@ -281,7 +279,6 @@
     i32.eqz
     if
     else
-      local.get $t0
       local.get $text.1
       if
         local.get $text.1
@@ -293,6 +290,7 @@
           call $rt:release_ref
         end
       end
+      local.get $t0
       local.get $text.0
       return
     end

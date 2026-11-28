@@ -1,0 +1,10 @@
+# @dump: diagnostics
+pub use pkg.source.{value}
+pub use pkg.source.{value}
+
+pub fn main() -> void:
+    _ := value()
+
+# @file: src/source.hd
+pub fn value() -> i32:
+    7

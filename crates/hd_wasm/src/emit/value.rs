@@ -267,19 +267,66 @@ impl Em<'_, '_, '_> {
         }
         // A struct literal names a struct, whose values are in locals.
         let tys = self.struct_fields(t);
-        // Construction consumes its parts (§23.25).
-        let srcs = if self.b.is_borrowed_coercion(i) {
-            fields.iter().copied().map(Src::Ref).collect()
-        } else {
-            self.count_refs(&fields, &tys)?
-        };
-        for (s, ft) in srcs.iter().zip(&tys) {
-            for k in 0..self.vals(*ft)?.len() {
-                self.src(s, k)?;
+        self.new_in_locals(i, &fields, &tys)
+    }
+
+    /// Value `i`, a struct or tuple whose values are in locals, made of
+    /// `parts` of types `tys`. Construction consumes its parts (§23.25),
+    /// and their counts are the new value's. A part moved in here keeps
+    /// its locals as that part of `i`'s, with nothing emitted, as rustc's
+    /// `DestinationPropagation` makes `_2` the place `_3.1` for
+    /// `_3 = (_1, move _2)`: a nest of `k` literals then copies each leaf
+    /// once, not once per level above it (#2402). Any other part is pushed
+    /// and stored in fresh locals. Not in a suspending body, whose cancel
+    /// block reads a moved part's zeroed locals ([`Em::settle`]). A moved
+    /// part's locals are set once, where it is made, and nothing reads or
+    /// releases it again ([`Em::names_part`]).
+    /// Cost: O(values of `i`).
+    pub(super) fn new_in_locals(&mut self, i: u32, parts: &[u32], tys: &[Ty]) -> StageResult<()> {
+        let borrowed = self.b.is_borrowed_coercion(i);
+        let adopt = self.susp.is_none()
+            && !borrowed
+            && !self.vals.contains_key(&i)
+            && !self.input_transferred.contains_key(&i);
+        let mut srcs = Vec::with_capacity(parts.len());
+        for &r in parts {
+            srcs.push(if borrowed {
+                (Src::Ref(r), false)
+            } else if self.take(r) {
+                (Src::Ref(r), adopt)
+            } else {
+                (self.retain_ref(r)?, false)
+            });
+        }
+        if !srcs.iter().any(|&(_, kept)| kept) {
+            for ((s, _), t) in srcs.iter().zip(tys) {
+                for k in 0..self.vals(*t)?.len() {
+                    self.src(s, k)?;
+                }
+            }
+            return self.store(i);
+        }
+        let mut ls = Vec::new();
+        let mut fresh = Vec::new();
+        for ((s, kept), t) in srcs.iter().zip(tys) {
+            match s {
+                Src::Ref(r) if *kept => ls.extend(self.computed(*r)),
+                _ => {
+                    for (k, v) in self.vals(*t)?.into_iter().enumerate() {
+                        self.src(s, k)?;
+                        let l = self.f.local(v);
+                        ls.push(l);
+                        fresh.push(l);
+                    }
+                }
             }
         }
-        // The parts' counts are the new value's.
-        self.store(i)
+        for l in fresh.iter().rev() {
+            self.f.set(*l);
+        }
+        self.f.stack_values |= ls.len() > crate::wide::WIDTH;
+        self.vals.insert(i, ls);
+        Ok(())
     }
 
     /// The parts `srcs`, of types `tys`, of a new value, each moved in or a
@@ -289,12 +336,6 @@ impl Em<'_, '_, '_> {
             .zip(tys)
             .map(|(s, t)| self.retain_src(s, *t))
             .collect()
-    }
-
-    /// The parts `rs`, of types `tys`, of a new value ([`Em::count_parts`]).
-    fn count_refs(&mut self, rs: &[u32], tys: &[Ty]) -> StageResult<Vec<Src>> {
-        let srcs: Vec<Src> = rs.iter().map(|r| Src::Ref(*r)).collect();
-        self.count_parts(&srcs, tys)
     }
 
     /// Pushes every value of `s`.
@@ -424,6 +465,19 @@ impl Em<'_, '_, '_> {
         // A field read of a value reads a struct's field; one through a
         // reference is a `DerefField` step.
         let p = crate::layout::members(self.pool(), self.env(), t)?.parts[idx as usize];
+        self.part_read(i, a, p)
+    }
+
+    /// Read `i` of part `p` of `a`'s values: those of its locals
+    /// ([`Em::names_part`]), else a copy of them.
+    fn part_read(&mut self, i: u32, a: u32, p: crate::layout::Part) -> StageResult<()> {
+        if let Some(ls) = self.vals.get(&a)
+            && self.names_part(i, a)
+        {
+            let ls = ls[p.first..p.first + p.count].to_vec();
+            self.vals.insert(i, ls);
+            return Ok(());
+        }
         for k in p.first..p.first + p.count {
             self.comp(a, k)?;
         }
@@ -446,10 +500,7 @@ impl Em<'_, '_, '_> {
     /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let p = crate::layout::members(self.pool(), self.env(), self.ty_of(a))?.parts[idx as usize];
-        for k in p.first..p.first + p.count {
-            self.comp(a, k)?;
-        }
-        self.store(i)
+        self.part_read(i, a, p)
     }
 
     /// `a is b` (`expr.is.*`): two values refer to the same object.
@@ -604,75 +655,5 @@ impl Em<'_, '_, '_> {
             self.run_steps(&steps, &mut leaf)?;
         }
         self.store(i)
-    }
-}
-
-#[cfg(test)]
-mod object_glue_tests {
-    use super::*;
-    use crate::module::{Ins, Module};
-    use crate::rt::{Counted, ShimSyms};
-    use hd_base::Hash128;
-
-    fn calls(f: &crate::module::Func) -> Vec<Sym> {
-        f.body
-            .iter()
-            .filter_map(|ins| match ins {
-                Ins::Call(id, _) => Some(f.symbol(*id).clone()),
-                _ => None,
-            })
-            .collect()
-    }
-
-    /// An object's release glue counts each part through its type: a
-    /// part with a hook calls its release shim, which runs the hook, on
-    /// that part's values; a known address releases with no shim.
-    #[test]
-    fn object_glue_counts_each_part_through_its_type() {
-        let word = |offset| Leaf {
-            val: Val::I32,
-            offset,
-            bytes: 4,
-            signed: false,
-        };
-        let leaves = vec![word(0), word(4), word(8)];
-        let mut module = Module::default();
-        let hooked = Helper::DropParts {
-            leaves: leaves.clone(),
-            parts: vec![(
-                1,
-                Counted::Shims(Box::new(ShimSyms {
-                    retain: Hash128(1),
-                    release: Hash128(2),
-                    retain_value: Hash128(1),
-                    release_value: Hash128(2),
-                    width: 2,
-                    hooked: true,
-                    release_at: false,
-                    retain_at: false,
-                    in_place: None,
-                    small: None,
-                })),
-            )],
-        };
-        let f = crate::rt::helper(&hooked, &mut module);
-        assert_eq!(calls(&f), [Sym::Shim(Hash128(2), false, 2, true)]);
-        let address = Helper::DropParts {
-            leaves,
-            parts: vec![(
-                2,
-                Counted::Address {
-                    index: 0,
-                    known: true,
-                },
-            )],
-        };
-        let f = crate::rt::helper(&address, &mut module);
-        assert!(calls(&f).iter().all(|s| !matches!(s, Sym::Shim(..))));
-        assert!(
-            f.body
-                .iter()
-                .any(|ins| matches!(ins, Ins::Op(I::I32Load(a)) if a.offset == 8))
-        );
     }
 }

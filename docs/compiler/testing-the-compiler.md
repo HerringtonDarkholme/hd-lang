@@ -68,25 +68,25 @@ The edit vocabulary:
 | Edit | Expected recheck (for `recheck-precision`) |
 | --- | --- |
 | private function body | that module only |
-| private header (signature, new private item) | that module; its folder's interface is rebuilt with the same deep hash |
-| public signature | the folder's modules and every module whose key includes a changed deep hash |
+| private header (signature, new private item) | that module; its unit's interface is rebuilt with the same deep hash |
+| public signature | the unit's modules and every module whose key includes a changed deep hash |
 | field type of a type reached only through a used signature (`service.load_user().name`) | the reader of `.name`, through the deep hash |
 | add, remove or redirect a `pub use` in a chain | every module that uses the re-exported name |
 | add or remove an impl for a public type; a blanket impl | dependents, and that trait's coherence |
 | add or remove an impl for a private type | that module and the trait's coherence; no dependent |
-| add an argument-owned impl, `impl Pick[Product] for Receiver`, in a folder that module A reaches only through another folder's body uses | A, whose `Instantiations` answer gains the impl; not module B, whose closure lacks the folder |
+| add an argument-owned impl, `impl Pick[Product] for Receiver`, in a unit that module A reaches only through another unit's body uses | A, whose `Instantiations` answer gains the impl; not module B, whose closure lacks the unit |
 | swap two overlapping impls of one trait, so that the other one ranks later | that trait's coherence reruns, and its report names the new later impl, as a clean run does |
 | add or remove `@derive`, edit a template body in another package | the modules that derive the trait |
 | edit a body in a template's module that no template reads | that module only |
-| inside a kept template body, move a statement out of an `if` to after it | the trait's folder gets a new api text hash; every module that derives the trait rechecks and matches a clean run |
+| inside a kept template body, move a statement out of an `if` to after it | the trait's unit gets a new api text hash; every module that derives the trait rechecks and matches a clean run |
 | change a template body's indentation width throughout | that module only; layout tokens are relative, so the api text hash is unchanged |
-| edit a top-level statement read in a multi-module init group | that module and the folder's init order |
+| edit a top-level statement read in a multi-module init group | that module and the unit's init order |
 | edit a doc comment or a comment | that module rechecks under its new source hash; no dependent rechecks |
 | delete a file, then restore it | the right modules both times |
 | insert blank lines before a declaration that has a header or overlap diagnostic | that module only; every printed line is the new one |
 | rename the package, or change a manifest field that selects executables | everything; a manifest error stops before any cache lookup |
 | update a dependency without editing local files, then `hd test --affected` | the tests of programs that reach the dependency |
-| move `x.hd` to `x/mod.hd` | the folder's and its dependents' modules |
+| move `x.hd` to `x/mod.hd` | the unit's and its dependents' modules |
 | change a dependency version in `hd.toml`; change the std version | dependents of that package; everything |
 | check from a second checkout path | nothing (all keys equal) |
 

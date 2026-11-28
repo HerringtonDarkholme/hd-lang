@@ -9,24 +9,29 @@ use std.task.{join, race}
 fn label!(s: string) -> string:
 > app/main/label
 >   local $0 s: string [param read] value
->     uses $0: entry -> %2 lend last
->   %0 = Retain %7 Cold local $0 #0 : ()
->   %1 = Retain %7 Entry local $0 #0 : ()
-    s + "!"
->   %2 = Read move [$0] : string
->   %3 = Intrinsic Empty [] : ()
->   %4 = Intrinsic StrConcat [%2 "!"] : string
->   %5 = Drop [%2] : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %4 : string
->   %8 = Intrinsic ParamOwned [0:i32] : bool
+>     uses $0: entry -> %5 lend last
+>   %0 = Retain %10 Cold local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
+    pause!()
+>   %2 = Release %10 FrameDrop child #2 : ()
+>   %3 = Await app/main/pause[] () : ()
+>   %4 = Release %3 Operation child #2 : ()
 >   %9 = Drop [$0] : ()
->   %10 = Block - : ()
->   %11 = If %8 [%10 -] : ()
->   %12 = Block - : ()
+>   %10 = Block %7 : string
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block - : ()
+    s + "!"
+>   %5 = Read move [$0] : string
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = Intrinsic StrConcat [%5 "!"] : string
+>   %8 = Drop [%5] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %7 releases [%16 %8]
+>   cancel %3 releases [%2147483648 %4294967295]
+>   cancel %10 releases [%16 %14]
 
 fn one!(s: string) -> usize:
 > app/main/one
@@ -168,3 +173,31 @@ fn either!(a: string, b: string) -> usize:
 >   summary none
 >   cancel %12 releases [%2147483648 %2147483649 %4294967295]
 >   cancel %22 releases [%16 %27 %16 %31]
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

@@ -1,0 +1,42 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# An arena held by a node that is a cycle candidate while a collection
+# runs. The collector traces the node's release glue to mark and scan,
+# and that glue calls the arena's `Drop` (`module.rt.drop.trace`). While
+# the collector marks, the hook keeps its chunks and its drop list, so
+# `first` still reads its own value after the filler strings.
+use std.arena.Arena
+
+struct Item:
+    name: string
+    n: i64
+
+struct Node:
+    arena: Arena
+    next: (*mut Node)?
+
+# A copy released again leaves the node's count above zero: a candidate.
+fn touch(n: *mut Node) -> void:
+    copy := n
+    _ := copy
+
+# 10,100 one-node rings, each a candidate: past the collection threshold.
+fn churn() -> void:
+    let mut i = 0
+    while i < 10100:
+        x := box(Node { arena: Arena::new(), next: .None })
+        x.next = .Some(x)
+        i += 1
+
+pub fn main() -> void $ Console:
+    n := box(Node { arena: Arena::new(), next: .None })
+    touch(n)
+    first := n.arena.alloc(Item { name: "hello" + "!", n: 42 })
+    churn()
+    let mut keep: List[string] = []
+    let mut i = 0
+    while i < 2000:
+        keep.push("filler-" + "$i")
+        i += 1
+    second := n.arena.alloc(Item { name: "again" + "?", n: 43 })
+    println("${first.n} ${second.name} ${second.n}")

@@ -5,12 +5,13 @@
     ;; ...
     if
     ;; 13 |         for k in 0..3usize:
-      i32.const 3
+      local.get $b
+      i32.load $heap
       local.set $t0
       block
         loop
           local.get $t1
-          local.get $t0
+          i32.const 3
           i32.lt_u
           i32.eqz
           br_if 1
@@ -24,8 +25,7 @@
           local.get $y
           local.get $k
           i32.add
-          local.get $b
-          i32.load $heap
+          local.get $t0
           i32.load $heap offset=4
           i32.const 1
           i32.sub

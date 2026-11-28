@@ -4,13 +4,19 @@
 # expected: cold closure parameters borrow string and List inputs, taking
 # their own copies at Cold or fresh Entry; the caller retains its owners.
 fn fetch!(key: string) -> string:
-    key + "?"
+    pause!()
 > app/main/fetch
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release string (last use)
+>   release string (last use)
 >   release string (last use)
 > app/main/fetch
 >   release string (cancelled)
 > app/main/fetch
 >   release string (cancelled)
+>   release counted reference (last use)
+    key + "?"
 
 fn stored!(key: string, keys: List[string]) -> usize:
     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
@@ -130,3 +136,23 @@ fn live!(key: string, keys: List[string]) -> usize:
     size + key.len() + keys.len()
 >   release counted reference (last use)
 >   release List[string] (last use)
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

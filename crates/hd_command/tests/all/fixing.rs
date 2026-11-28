@@ -48,7 +48,7 @@ fn modified(dir: &Scratch) -> SystemTime {
         .expect("mtime")
 }
 
-const GREET: &str = "pub trait Greet:\n    fn greet(self) -> string\n\npub fn twice(g: Greet) -> string:\n    g.greet() + g.greet()\n";
+const GREET: &str = include_str!("programs/fixing/greet.hd");
 
 /// `cli.check.fix.whole-package`, `cli.check.fix.report`, `cli.check.fix.status`: the `dyn` of
 /// `types.trait.value.dyn-required.reference-values` is written, the change is printed with
@@ -85,11 +85,11 @@ fn a_fix_that_adds_a_diagnostic_is_not_applied() {
     for (name, source) in [
         (
             "hd-fix-unsafe-assoc",
-            "pub trait Supplier:\n    type Item\n    fn get(self) -> Self::Item\n\npub fn drain(source: Supplier) -> void:\n    pass\n",
+            include_str!("programs/fixing/a_fix_that_adds_a_diagnostic_is_not_applied.hd"),
         ),
         (
             "hd-fix-unsafe-private",
-            "trait Greet:\n    fn greet(self) -> string\n\npub fn twice(g: Greet) -> string:\n    g.greet()\n",
+            include_str!("programs/fixing/a_fix_that_adds_a_diagnostic_is_not_applied_2.hd"),
         ),
     ] {
         let dir = package(name, source);
@@ -113,7 +113,8 @@ fn a_fix_that_adds_a_diagnostic_is_not_applied() {
 /// 101 and the remaining diagnostic follows the changes.
 #[test]
 fn applies_every_safe_fix_and_fails_while_an_error_remains() {
-    let source = "pub trait Greet:\n    fn greet(self) -> string\n\npub fn twice(g: Greet) -> string:\n    g.greet()\n\npub fn run[R](job: fn() -> void $ R) -> void $ R:\n    job()\n\npub fn count() -> i32:\n    \"one\"\n";
+    let source =
+        include_str!("programs/fixing/applies_every_safe_fix_and_fails_while_an_error_remains.hd");
     let dir = package("hd-fix-remaining", source);
     let r = hd(&dir, &dir, &["check", "--fix"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
@@ -136,10 +137,14 @@ fn applies_every_safe_fix_and_fails_while_an_error_remains() {
 #[test]
 fn writes_nothing_without_a_fix() {
     for (name, source, code) in [
-        ("hd-fix-clean", "pub fn one() -> i32:\n    +1\n", 0),
+        (
+            "hd-fix-clean",
+            include_str!("programs/fixing/writes_nothing_without_a_fix.hd"),
+            0,
+        ),
         (
             "hd-fix-unfixable",
-            "pub fn one() -> i32:\n    \"one\"\n",
+            include_str!("programs/fixing/writes_nothing_without_a_fix_2.hd"),
             101,
         ),
     ] {
@@ -199,8 +204,7 @@ fn a_warm_cache_keeps_fix_its_where_their_code_moved() {
 /// `hd lint --fix` applies only a lint fix proven behavior-preserving.
 #[test]
 fn lint_fix_removes_redundant_mut() {
-    let source =
-        "pub fn count() -> i32:\n    let mut counter = +0\n    counter += +1\n    counter\n";
+    let source = include_str!("programs/fixing/lint_fix_removes_redundant_mut.hd");
     let dir = package("hd-lint-fix-redundant-mut", source);
     let r = hd(&dir, &dir, &["lint", "--fix"]);
     assert_eq!(r.code, Some(0), "{}", r.err);

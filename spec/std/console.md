@@ -102,9 +102,10 @@ pub trait ConsoleInput:
 
 1. r[std-console.input.decl] `std.console` declares the host capability trait `ConsoleInput` with the method above. Code imports it, as in `use std.console.ConsoleInput`.
 2. r[std-console.input.read-line] `read_line!` returns the next line of input without its line ending, or `.None` at the end of input.
-3. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
-4. r[std-console.input.mut-ref.reference-values] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance through its input.
-5. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
+3. r[std-console.input.line-ending-lf-crlf] The removed ending is one LF and its immediately preceding CR, if present; a lone CR remains in the returned text.
+4. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
+5. r[std-console.input.mut-ref.reference-values] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance through its input.
+6. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
 
 ```text
 use std.console.{ConsoleInput, read_line}
@@ -127,13 +128,52 @@ fn whole_input!() -> string $ ConsoleInput:
         .Err(_) => ""
 ```
 
-6. r[std-console.input.read-all-ref] `ConsoleInput` also declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, a bang call that takes `&mut self` as `read_line!` does. It returns the rest of the input as one string with the line structure of the text, as Go's `io.ReadAll`, Rust's `read_to_string` and Python's `read()` do: `"a\nb\n"` gives `"a\nb\n"`, `"a\nb"` gives `"a\nb"`, and `"\n"` gives `"\n"`. A `\r\n` is read as `\n`, as `read_line!` reads it. The result is `""` when no input is left. After it, `read_line!` returns `.Ok(.None)`.
-7. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
-8. r[std-console.input.read-all-host-coded-error] The host's `ConsoleInput` provider overrides `read_all!` with one read of the rest of standard input. Its result is the input as read, with each `\r\n` read as `\n` and nothing else changed; bytes that are not UTF-8 become U+FFFD. A host read failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
-9. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
+7. r[std-console.input.read-all-preserves-text] `ConsoleInput` declares `fn read_all!(&mut self) -> Result[string, ConsoleError]`, returning the remaining input without newline translation.
+8. r[std-console.input.read-all-end] It returns `""` when no input remains, after which `read_line!` returns `.Ok(.None)`.
+9. r[std-console.input.read-all-default] `read_all!` has a default body, so a provider need not define it. The body calls `read_line!` until it returns `.Ok(.None)`, appends each line and a `\n` to one `StringBuilder`, and returns the first `.Err` that `read_line!` returns. Since `read_line!` drops each line ending, the body cannot tell whether the last line had one: it approximates by ending every line with `\n`.
+10. r[std-console.input.read-all-host-preserves-bytes] The host's `ConsoleInput` provider overrides `read_all!` to preserve all remaining standard-input bytes, including CRLF and lone CR, except malformed UTF-8.
+11. r[std-console.input.read-all-host-lossy] Malformed UTF-8 is replaced as [`string::from_utf8_lossy`](text.md#r-std-text.utf8.from-utf8-lossy) specifies.
+12. r[std-console.input.read-all-host-read-error] A host read failure returns `.Err(ConsoleError.Other(code))` with the signed host error code.
+13. r[std-console.input.read-all-helper] `std.console` declares `pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput`, which calls `read_all!` on the `ConsoleInput` provider that covers the call. A typed read is `decode::[T](read_all!()?)`.
 
 > **Why.** Input is its own trait, apart from `Console`, so a program
 > that only prints gains no authority to read.
+
+## Standard Input Bytes
+
+`stdin()` reads standard input as bytes, a chunk at a time, as they
+arrive:
+
+```text
+use std.console.{ConsoleInput, stdin}
+use std.io.Read
+
+fn first_chunk!() -> List[u8] $ ConsoleInput:
+    let mut input = stdin()
+    input.read!(4096).unwrap_or([])
+```
+
+```text
+pub trait StdinHandle < Read
+
+pub struct Stdin:
+    handle: *mut dyn StdinHandle
+
+pub fn stdin() -> Stdin $ ConsoleInput
+```
+
+1. r[std-console.stdin.decl] `std.console` declares `Stdin`, with private fields, which implements [`Read`](io.md#reading-in-chunks), and `pub fn stdin() -> Stdin $ ConsoleInput`, which returns the covering provider's `stdin()`. Code imports them, as in `use std.console.{Stdin, stdin}`.
+2. r[std-console.stdin.handle] `ConsoleInput` declares `fn stdin(&mut self) -> *mut dyn StdinHandle`, and `std.console` declares the handle trait `StdinHandle < Read`. A provider defines `stdin`; it has no default body.
+3. r[std-console.stdin.exact] A host `Stdin` returns the input's bytes exactly as read: a `\r\n` stays two bytes, and bytes that are not UTF-8 stay as they are.
+4. r[std-console.stdin.chunks] Each `read!(max)` of the host's `Stdin` is one host call. It returns the bytes that have arrived, at most `max`, as soon as there is one, and an empty list at the end of input.
+5. r[std-console.stdin.shared] The host's `Stdin`, `read_line!`, and `read_all!` read one buffered input, so each byte goes to exactly one of them, in the order the calls ask.
+6. r[std-console.stdin.not-disposable] A `Stdin` is not a closable handle: standard input belongs to the process, not to the code that reads it, so nothing disposes it, and every `stdin()` reads the same input.
+
+> **Why.** A line read decodes text and drops line endings. A filter that
+> copies its input, or a decoder that frames values its own way, needs
+> the bytes as they are. A file is disposed where its scope ends
+> ([Reading Files In Chunks](fs.md#reading-files-in-chunks)); standard input
+> is not, as Rust's `Stdin` has no `close`.
 
 ## Console Errors
 
@@ -169,7 +209,7 @@ tests:
         assert_equal(console.output(), ["hello, Ada", "\n"], reason="text and newline writes")
 ```
 
-1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
+1. r[std-console.buffer.recording-provider] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private recording fields. Code imports it, as in `use std.console.MemoryConsole`.
 2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> *mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-counted`](../lang/11-requirements-and-suspension.md#r-req.ref.install-counted), and the code that installed it reads what was written.
 3. r[std-console.buffer.output-text-sync] `c.output() -> List[string]` returns each `write_sync` text unchanged, in call order, including any newline supplied by the caller.
 4. r[std-console.buffer.error-text-sync] `c.error_output() -> List[string]` returns each `write_error_sync` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error_sync`, so error lines are not in `output()`.
@@ -204,9 +244,20 @@ tests:
 4. r[std-console.scripted.end] Once every line is read, `read_line!` returns `.Ok(.None)`, on every later call too.
 5. r[std-console.scripted.read-all] `ScriptedInput` overrides `read_all!`: it returns each unread line followed by `\n`, then has read every line. A scripted line has no ending of its own, so this is the text a host gives for input whose every line ends.
 6. r[std-console.scripted.no-host] A `ScriptedInput` reads nothing from the host's standard input.
+7. r[std-console.scripted.stdin] `ScriptedInput`'s `stdin` takes every unread line: its handle reads each line followed by `\n`, as UTF-8 bytes, and later reads of lines return `.Ok(.None)`.
 
 > **Why.** Every host capability trait has a deterministic provider
 > beside it, so a test never touches the host.
 
 See also: [Console](../lang/10-modules.md#console),
 [Host Capabilities](../cli/command-line.md#host-capabilities).
+
+## Terminal streams
+
+1. r[std-console.terminal.query] `pub fn is_terminal(stream: ConsoleStream) -> bool $ Console` calls the covering provider's `is_terminal(&self, stream: ConsoleStream) -> bool` method.
+2. r[std-console.terminal.default] The default `Console.is_terminal` body returns `false`.
+3. r[std-console.terminal.host] A host provider returns whether the named standard stream is a terminal; the browser returns `false`.
+4. r[std-console.terminal.memory] `MemoryConsole` exposes `stdout_is_terminal`, `stderr_is_terminal`, and `stdin_is_terminal` as public `bool` fields, initially `false`, and answers from the named field.
+
+> **Why.** Programs select colors for terminals and plain text for pipes;
+> Rust's `std::io::IsTerminal` asks the same question without changing the device.

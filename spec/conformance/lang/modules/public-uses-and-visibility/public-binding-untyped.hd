@@ -1,0 +1,3 @@
+# test: a public binding writes its type
+# Spec 10 Public Bindings: module.vis.pub.binding.type.
+pub let ANSWER = 42 # diagnostic: missing-binding-type

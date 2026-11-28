@@ -1,7 +1,7 @@
 //! Impl universes (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §14.2 memo invariance): two
 //! modules ask the same open goal, `Receiver: Pick[?]`, with the same
 //! traits in scope but different closures. Only `a`'s closure holds
-//! `impl Pick[Product] for Receiver`, which its folder owns only through
+//! `impl Pick[Product] for Receiver`, which its unit owns only through
 //! the trait argument, so `a` finds it through the candidate directory and
 //! `b` does not, whichever body runs first and on any thread count.
 //! A misplaced impl is left out of the program, so no closure holds an
@@ -11,47 +11,20 @@ use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const BASE: &str = "\
-pub trait Pick[T]:
-    fn pick(self) -> T
+const BASE: &str = include_str!("programs/impl_universe/base.hd");
 
-pub struct Receiver:
-    pub n: i32
-";
+const PROD: &str = include_str!("programs/impl_universe/prod.hd");
 
-const PROD: &str = "\
-use pkg.base.defs.{Pick, Receiver}
+const A: &str = include_str!("programs/impl_universe/a.hd");
 
-pub struct Product:
-    pub id: i32
-
-impl Pick[Product] for Receiver:
-    fn pick(self) -> Product:
-        Product { id: self.n }
-";
-
-const A: &str = "\
-use pkg.base.defs.{Pick, Receiver}
-use pkg.prod.defs.{Product}
-
-pub fn first(r: Receiver) -> i32:
-    let p: Product = r.pick()
-    p.id
-";
-
-const B: &str = "\
-use pkg.base.defs.{Pick, Receiver}
-
-pub fn second(r: Receiver) -> i32:
-    r.pick()
-";
+const B: &str = include_str!("programs/impl_universe/b.hd");
 
 /// The rendered diagnostics of one analysis.
 fn analyze(executor: Executor, a_first: bool) -> String {
     let mut src = MemorySources::default();
     src.insert("base/defs.hd", BASE);
     src.insert("prod/defs.hd", PROD);
-    // File order decides module and folder order; swapping the folder
+    // File order decides module and unit order; swapping the unit
     // names swaps which body is checked first.
     let (fa, fb) = if a_first {
         ("a/main.hd", "b/main.hd")
@@ -60,6 +33,7 @@ fn analyze(executor: Executor, a_first: bool) -> String {
     };
     src.insert(fa, A);
     src.insert(fb, B);
+    crate::add_facades(&mut src);
     let store = crate::warm_store();
     let host = Host {
         render_tir: &[],

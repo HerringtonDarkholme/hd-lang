@@ -1,0 +1,102 @@
+# test: each member directory has its own id, the same at every use
+# Rules: annot.structure.members.id.
+# expect-stdout: two structs differ: true
+# expect-stdout: two variants differ: true
+# expect-stdout: struct and variant differ: true
+# expect-stdout: two instances differ: true
+# expect-stdout: two tuples differ: true
+# expect-stdout: same struct, two builds: true
+# expect-stdout: same struct, two templates: true
+# expect-stdout: same variant, two templates: true
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
+
+# Picks variant `pick`, records the id of the directory it is offered,
+# and names no member, so the build stops at the first missing one.
+struct Recorder:
+    pick: usize
+    ids: List[usize]
+
+impl[S] Source[S] for Recorder:
+    type Error = string
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+        .Ok(choices[self.pick])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, string]:
+        self.ids.push(members.id())
+        .Ok(.None)
+
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+        .Err("unread")
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
+        .Err("missing " + h.info.name)
+
+trait IdA:
+    fn id_a(pick: usize) -> usize
+
+trait IdB:
+    fn id_b(pick: usize) -> usize
+
+impl[T] IdA for T by Structure:
+    fn id_a(pick: usize) -> usize:
+        let mut source = Recorder { pick: pick, ids: [] }
+        match T::build(&mut source):
+            .Ok(_) => panic("built")
+            .Err(_) => source.ids[0]
+
+impl[T] IdB for T by Structure:
+    fn id_b(pick: usize) -> usize:
+        let mut source = Recorder { pick: pick, ids: [] }
+        match T::build(&mut source):
+            .Ok(_) => panic("built")
+            .Err(_) => source.ids[0]
+
+@derive(IdA, IdB)
+struct Order:
+    id: i64
+    label: string
+
+@derive(IdA, IdB)
+struct Line:
+    id: i64
+    label: string
+
+@derive(IdA, IdB)
+enum Shape:
+    Circle(radius: i64)
+    Rect(w: i64, h: i64)
+
+struct Box[T]:
+    value: T
+
+impl[T] IdA for Box[T] by Structure
+
+# Tuples take the compiler's supplied `Structure`.
+trait IdT:
+    fn id_t() -> usize
+
+impl[T < Tuple] IdT for T by Structure:
+    fn id_t() -> usize:
+        let mut source = Recorder { pick: 0, ids: [] }
+        match T::build(&mut source):
+            .Ok(_) => panic("built")
+            .Err(_) => source.ids[0]
+
+fn first_id[T < IdT]() -> usize:
+    T::id_t()
+
+fn again() -> usize:
+    Order::id_a(0)
+
+pub fn main() -> void $ Console:
+    order := Order::id_a(0)
+    println("two structs differ: ${order != Line::id_a(0)}")
+    println("two variants differ: ${Shape::id_a(0) != Shape::id_a(1)}")
+    println("struct and variant differ: ${order != Shape::id_a(0)}")
+    println("two instances differ: ${Box::[i64]::id_a(0) != Box::[string]::id_a(0)}")
+    println("two tuples differ: ${first_id::[(i64, string)]() != first_id::[(i64, i64, i64)]()}")
+    println("same struct, two builds: ${order == again()}")
+    println("same struct, two templates: ${order == Order::id_b(0)}")
+    println("same variant, two templates: ${Shape::id_a(1) == Shape::id_b(1)}")

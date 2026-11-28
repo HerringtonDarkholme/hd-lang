@@ -1,6 +1,6 @@
 # test: a crossing parameter is called at most once: the first call moves it
 # Spec 07 Crossing Closures: fn.crossing.once.
-use std.marker.Wire
+use std.meta.Wire
 
 fn twice(code: fn() -> i32 + Wire) -> i32:
     first := code()

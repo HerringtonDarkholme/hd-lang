@@ -1,0 +1,4 @@
+use pkg.stats.calc.{total}
+
+pub fn main() -> void $ Console:
+    println(total(3, 4))

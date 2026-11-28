@@ -1,0 +1,12 @@
+# test: `reset` while an `alloc` result is still used is a conflicting access, since the result holds the arena shared
+# Spec std Arena: std-arena.alloc.lent, std-arena.reset.
+use std.arena.Arena
+
+struct Account:
+    balance: i64
+
+fn reset_live() -> i64:
+    let mut bank = Arena::new()
+    a := bank.alloc(Account { balance: 1 })
+    bank.reset() # diagnostic: conflicting-access
+    a.balance

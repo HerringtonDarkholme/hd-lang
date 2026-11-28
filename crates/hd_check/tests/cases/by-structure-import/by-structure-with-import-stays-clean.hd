@@ -1,5 +1,5 @@
 # @dump: diagnostics
-use std.structure.Structure
+use std.meta.Structure
 
 trait Show:
     fn show(self) -> string

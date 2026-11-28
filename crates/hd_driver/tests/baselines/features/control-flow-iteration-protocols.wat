@@ -9,7 +9,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $twice (param $xs i32) (result i32) (local $n i32) (local $x.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 26 |     let n: usize = 0
     global.get $stack
@@ -266,6 +266,7 @@
     ;; 14 |         if self.at >= self.items.len():
     local.get $self
     i32.load $heap offset=4
+    local.tee $t0
     local.get $self
     i32.load $heap
     i32.load $heap offset=4
@@ -279,8 +280,7 @@
     end
     ;; 16 |         self.at += 1
     local.get $self
-    local.get $self
-    i32.load $heap offset=4
+    local.get $t0
     i32.const 1
     i32.add
     i32.store $heap offset=4

@@ -1,0 +1,4 @@
+use pkg.tax
+
+pub fn total(price: i32) -> i32:
+    price + tax.of(price)

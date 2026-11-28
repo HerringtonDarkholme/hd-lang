@@ -7,7 +7,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $labeled (param $name.0 i32) (param $name.1 i32) (param $suffix.0 i32) (param $suffix.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 19 |     name + suffix
@@ -245,35 +245,33 @@
     i32.add
     global.set $stack
   )
-  (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $use_label (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 22 |     labeled(s)
     i32.const 108 ;; &"!"
-    i32.const 1
     local.set $t0
-    local.set $t1
     local.get $s.1
     i32.const 1
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.eqz
     if (result i32)
       i32.const 16
     else
-      local.get $t2
+      local.get $t1
       call $rt:str
     end
+    local.tee $t2
     local.tee $t3
-    local.tee $t4
     local.get $s.0
     local.get $s.1
     call $rt:memory_copy/0/0
-    local.get $t4
+    local.get $t3
     local.get $s.1
     i32.add
-    local.get $t1
     local.get $t0
-    call $rt:memory_copy/0/0
-    local.get $t3
+    i32.load8_u $heap
+    i32.store8 $heap
     local.get $t2
+    local.get $t1
   )
 )

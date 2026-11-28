@@ -2,7 +2,7 @@
 # Spec 04 Collection Values: types.coll.value.
 # expect-stdout: saved 9 9 3; items 9 9 9
 
-use std.annotation.inline
+use std.meta.inline
 
 struct Bag:
     items: List[i64]

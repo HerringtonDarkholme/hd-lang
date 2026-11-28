@@ -228,7 +228,7 @@ fn pointer_write_screen_distinguishes_own_borrowed_and_foreign_storage() {
 
 #[test]
 fn pointer_write_screen_follows_a_renamed_drop_import() {
-    let source = "use std.rt.Drop as Release\nstruct Resource:\n    target: * mut Counter\nimpl Release for Resource:\n    fn drop(&mut self) -> void:\n        self.target.value += 1\n";
+    let source = include_str!("programs/std_drop_invariant/renamed_import.hd");
     let checked = screen(source);
     assert_eq!(checked.hooks, 1);
     assert_eq!(checked.findings.len(), 1);

@@ -4,7 +4,7 @@
 # expect-stdout: {"a":true}
 # expect-stdout: 10 "v3" 10 "again" k3
 # expect-stdout: null
-use std.json.{Json, JsonObject}
+use std.encoding.json.{Json, JsonObject}
 
 fn shown(value: Json?) -> string:
     match value:

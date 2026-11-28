@@ -13,6 +13,7 @@ if (mode !== "descendant") {
   });
   child.unref();
   writeFileSync(root + ".parent", String(process.pid));
+  writeFileSync(root + ".helper", String(process.ppid));
   if (mode === "running") {
     setTimeout(() => process.exit(99), 30_000);
   }

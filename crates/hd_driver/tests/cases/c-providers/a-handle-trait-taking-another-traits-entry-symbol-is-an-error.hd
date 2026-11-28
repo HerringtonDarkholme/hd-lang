@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @c-host: main.Disk=hd_disk main.Walker=hd_disk
+# A library exports one entry symbol per trait (cli.host.c.handle-entry):
+# a handle trait whose `LIBRARY_TRAIT` another C-bound trait of the
+# package takes is an error, naming both.
+use pkg.other.{Walker as Step}
+
+@host
+pub trait Disk:
+    fn open(&mut self) -> *mut dyn Step
+
+@host
+pub trait Walker:
+    fn count(&self) -> i32
+# @file: other.hd
+pub trait Walker:
+    fn next(&mut self) -> i32

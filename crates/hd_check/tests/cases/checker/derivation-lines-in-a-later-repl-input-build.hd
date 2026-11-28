@@ -11,7 +11,7 @@ impl Probe for Point by Structure:
 
 Point { x: 1, y: 2 }.probe()
 # @input: 1
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

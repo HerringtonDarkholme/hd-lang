@@ -117,7 +117,7 @@ pub(super) fn value_arms(f: &mut Func, np: u32, sites: &[(usize, Option<usize>, 
     true
 }
 
-pub(super) fn run(f: &mut Func, sites: &[(usize, Option<usize>, usize)]) -> bool {
+pub fn run(f: &mut Func, sites: &[(usize, Option<usize>, usize)]) -> bool {
     let plans: Vec<_> = sites
         .iter()
         .filter_map(|&(start, otherwise, end)| {

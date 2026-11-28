@@ -1,0 +1,9 @@
+# @dump: wat
+# @repl: 2
+# A later input that assigns an earlier input's binding releases the value
+# it replaces; the binding the input declares itself starts empty, so its
+# store releases nothing (#2328).
+name = "second"
+let other = "own"
+# @input: 1
+let name = "first"

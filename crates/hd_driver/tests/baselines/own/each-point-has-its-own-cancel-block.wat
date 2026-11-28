@@ -22,7 +22,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $scoped'1 (param $frame i32) (param $first i64) (param $second i64) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 28 |     defer(fn() -> void: println("cleanup"))
     global.get $stack
@@ -617,8 +617,6 @@
             local.get $provider0
             call $rt:release_ref'1
           end
-          i32.const 0
-          local.set $provider0
           global.get $forbid
           i32.const -1
           i32.add
@@ -639,7 +637,7 @@
             end
           end
           local.get $t1
-          local.get $provider0
+          i32.const 0
           i32.store $heap offset=32
           local.get $t1
           i32.load $heap offset=32

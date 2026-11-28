@@ -13,7 +13,6 @@ export const KEYWORDS: ReadonlySet<string> = new Set([
   "Self",
   "break",
   "continue",
-  "data",
   "dyn",
   "else",
   "enum",

@@ -176,7 +176,7 @@ fn a_warm_rebuild_of_shared_types_links_the_same_module() {
 }
 
 /// A generic call cycle across two files whose type argument grows by
-/// one `List` each round: the folder's joined summaries stop it at check
+/// one `List` each round: the unit's joined summaries stop it at check
 /// time (`types.generic.polymorphic-recursion`).
 const CYCLE_A: &str = "\
 use pkg.b.{eat}
@@ -200,7 +200,7 @@ pub fn main() -> void:
     _ := bite([1], 3)
 ";
 
-fn check_folder_cycle(store: &MemoryStore, a: &str, b: &str, order: SerialOrder) -> Output {
+fn check_unit_cycle(store: &MemoryStore, a: &str, b: &str, order: SerialOrder) -> Output {
     let mut src = MemorySources::default();
     src.insert("main.hd", CYCLE_MAIN);
     src.insert("a.hd", a);
@@ -215,7 +215,7 @@ fn check_folder_cycle(store: &MemoryStore, a: &str, b: &str, order: SerialOrder)
     build(&host, "app", &Goal::Analyze)
 }
 
-fn growing_folder_call(out: &Output, file: &str, text: &str, call: &str) {
+fn growing_unit_call(out: &Output, file: &str, text: &str, call: &str) {
     assert_eq!(codes(out), ["instantiation-too-deep"], "{}", out.render());
     let at = text.find(call).expect("the growing call");
     let rendered = out.render();
@@ -229,9 +229,9 @@ fn growing_folder_call(out: &Output, file: &str, text: &str, call: &str) {
 fn a_check_accepts_a_same_shape_call_cycle_across_files() {
     let a = CYCLE_A.replace("eat([xs]", "eat(xs");
     let store = MemoryStore::default();
-    let cold = check_folder_cycle(&store, &a, CYCLE_B, SerialOrder::Priority);
+    let cold = check_unit_cycle(&store, &a, CYCLE_B, SerialOrder::Priority);
     assert!(cold.diags.is_empty(), "{}", cold.render());
-    let warm = check_folder_cycle(&store, &a, CYCLE_B, SerialOrder::Shuffled(41));
+    let warm = check_unit_cycle(&store, &a, CYCLE_B, SerialOrder::Shuffled(41));
     assert!(warm.diags.is_empty(), "{}", warm.render());
     assert!(warm.counters.modules_checked.is_empty());
     assert!(warm.counters.tir_decoded.is_empty());
@@ -239,11 +239,11 @@ fn a_check_accepts_a_same_shape_call_cycle_across_files() {
 }
 
 #[test]
-fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
+fn a_unit_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
     let plain_a = CYCLE_A.replace("eat([xs]", "eat(xs");
     let growing_b = CYCLE_B.replace("bite(xs", "bite([xs]");
     let store = MemoryStore::default();
-    let base = check_folder_cycle(&store, &plain_a, CYCLE_B, SerialOrder::Priority);
+    let base = check_unit_cycle(&store, &plain_a, CYCLE_B, SerialOrder::Priority);
     assert!(base.diags.is_empty(), "{}", base.render());
     for (a, b, module, file, call) in [
         (CYCLE_A, CYCLE_B, "app.a", "a.hd", "eat([xs]"),
@@ -255,17 +255,17 @@ fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
             "bite([xs]",
         ),
     ] {
-        let bad = check_folder_cycle(&store, a, b, SerialOrder::Shuffled(29));
-        growing_folder_call(&bad, file, if file == "a.hd" { a } else { b }, call);
+        let bad = check_unit_cycle(&store, a, b, SerialOrder::Shuffled(29));
+        growing_unit_call(&bad, file, if file == "a.hd" { a } else { b }, call);
         assert_eq!(bad.counters.modules_checked, [module]);
-        let warm = check_folder_cycle(&store, a, b, SerialOrder::Shuffled(7));
-        growing_folder_call(&warm, file, if file == "a.hd" { a } else { b }, call);
+        let warm = check_unit_cycle(&store, a, b, SerialOrder::Shuffled(7));
+        growing_unit_call(&warm, file, if file == "a.hd" { a } else { b }, call);
         assert!(warm.counters.modules_checked.is_empty());
         // Comments move the diagnostic while the summary and bodies stay hot.
         let shifted_a = format!("# shifted\n\n{a}");
         let shifted_b = format!("# shifted\n\n{b}");
-        let shifted = check_folder_cycle(&store, &shifted_a, &shifted_b, SerialOrder::Shuffled(53));
-        growing_folder_call(
+        let shifted = check_unit_cycle(&store, &shifted_a, &shifted_b, SerialOrder::Shuffled(53));
+        growing_unit_call(
             &shifted,
             file,
             if file == "a.hd" {
@@ -276,7 +276,7 @@ fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
             call,
         );
         assert!(shifted.counters.modules_checked.is_empty());
-        let fixed = check_folder_cycle(&store, &plain_a, CYCLE_B, SerialOrder::Shuffled(17));
+        let fixed = check_unit_cycle(&store, &plain_a, CYCLE_B, SerialOrder::Shuffled(17));
         assert!(fixed.diags.is_empty(), "{}", fixed.render());
         assert!(fixed.counters.modules_checked.is_empty());
         assert!(fixed.counters.tir_decoded.is_empty());
@@ -333,4 +333,33 @@ fn declarations_over_a_doubling_type_visit_each_type_once() {
         small > 0 && large <= 10 * small + 100,
         "13 levels: {small}, 130 levels: {large}"
     );
+}
+
+/// The ownership walk owns a body's callees before collection reaches
+/// them, in dev and release: it enters no instance past the depth limit,
+/// so a cycle whose type grows stops at collection's report instead of
+/// growing without end.
+#[test]
+fn the_ownership_walk_stops_at_the_depth_limit_in_each_profile() {
+    let text = include_str!(
+        "../cases/instantiation-depth/growth-through-a-bound-stops-at-the-depth-limit.hd"
+    );
+    let release = hd_driver::Packages {
+        level: hd_driver::OptLevel::Optimized,
+        build_profile: hd_driver::BuildProfile::Release,
+        ..hd_driver::Packages::default()
+    };
+    for packages in [hd_driver::Packages::default(), release] {
+        let mut src = MemorySources::default();
+        src.insert("main.hd", text);
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &MemoryStore::default(),
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let out = hd_driver::build_packages(&host, "app", &packages, &whole_program());
+        assert_eq!(codes(&out), ["instantiation-too-deep"], "{}", out.render());
+    }
 }

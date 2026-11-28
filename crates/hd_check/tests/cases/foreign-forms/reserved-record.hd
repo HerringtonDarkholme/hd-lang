@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+struct Value:
+    `type`: i32
+fn make() -> Value: Value { type: +1 }

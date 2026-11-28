@@ -68,13 +68,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $key.0
     i32.const 12
     i32.mul
     i32.add
-    i32.load $heap offset=8
+    i32.load $heap offset=40
     i32.const 1
     i32.add
     local.set $key.1
@@ -91,13 +89,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $key.0
     i32.const 12
     i32.mul
     i32.add
     local.get $key.1
-    i32.store $heap offset=8
+    i32.store $heap offset=40
   )
 )

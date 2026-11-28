@@ -1,6 +1,6 @@
 # test: handle_call! serves a root of a generic remote trait, and a root type parameter
 # Spec 10 Remote Built-Ins: module.remote.handle-call, module.remote.handle-call.root.
-use std.marker.Wire
+use std.meta.Wire
 use std.remote.{CrossError, Home, Remote, Rooted, handle_call}
 
 enum StoreError:

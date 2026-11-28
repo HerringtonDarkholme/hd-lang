@@ -11,6 +11,7 @@
 //! hosts' codecs and method descriptors: the JS host's `host/gen/abi.ts`
 //! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
+pub mod c;
 pub mod javascript;
 #[cfg(feature = "native-rust")]
 pub mod native_rust;
@@ -83,7 +84,7 @@ pub struct ProviderBridge {
 
 pub static PROVIDER_BRIDGES: &[ProviderBridge] = &[ProviderBridge {
     public_path: "std.http.Http",
-    wire_path: "std.http_wire.Http",
+    wire_path: "std.http.WireHttp",
     adapter: "std.http.host_provider",
 }];
 
@@ -141,6 +142,13 @@ pub static TABLE: &[HostTrait] = &[
                 Wait::Never,
                 None,
             ),
+            m(
+                "is_terminal",
+                &[B("ConsoleStream")],
+                B("bool"),
+                Wait::Never,
+                None,
+            ),
         ],
     },
     HostTrait {
@@ -161,6 +169,7 @@ pub static TABLE: &[HostTrait] = &[
                 Wait::May,
                 None,
             ),
+            m("stdin", &[], B("StdinHandle"), Wait::Never, None),
         ],
     },
     HostTrait {
@@ -201,6 +210,13 @@ pub static TABLE: &[HostTrait] = &[
                 "stat",
                 &[B("Path")],
                 B("Result[Entry?, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
+                "open",
+                &[B("Path")],
+                B("Result[File, FsError]"),
                 Wait::May,
                 Some(ResourceArg::Path),
             ),
@@ -271,7 +287,7 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Http",
-        std_path: "std.http_wire.Http",
+        std_path: "std.http.WireHttp",
         methods: &[m(
             "send",
             &[B("WireRequest")],
@@ -328,13 +344,22 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Process",
         std_path: "std.process.Process",
-        methods: &[m(
-            "run",
-            &[B("Command")],
-            B("Result[ProcessOutput, ProcessError]"),
-            Wait::May,
-            Some(ResourceArg::Program),
-        )],
+        methods: &[
+            m(
+                "run",
+                &[B("Command")],
+                B("Result[ProcessOutput, ProcessError]"),
+                Wait::May,
+                Some(ResourceArg::Program),
+            ),
+            m(
+                "status",
+                &[B("Command")],
+                B("Result[i32, ProcessError]"),
+                Wait::May,
+                Some(ResourceArg::Program),
+            ),
+        ],
     },
     HostTrait {
         key: "Sys",
@@ -371,6 +396,11 @@ pub static TABLE: &[HostTrait] = &[
         ],
     },
     HostTrait {
+        key: "Signals",
+        std_path: "std.host.Signals",
+        methods: &[m("wait", &[B("Signal")], V, Wait::May, None)],
+    },
+    HostTrait {
         key: "Env",
         std_path: "std.host.Env",
         methods: &[
@@ -386,7 +416,7 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Args",
-        std_path: "std.host.Args",
+        std_path: "std.cli.Args",
         methods: &[
             m("program", &[], B("string"), Wait::Never, None),
             m("list", &[], B("List[string]"), Wait::Never, None),
@@ -448,6 +478,31 @@ pub static RUNNERS: &[HostTrait] = &[
 /// supertrait's methods are the handle trait's too, as `TcpStream.dispose`
 /// for `std.ops.AsyncDisposable`.
 pub static HANDLES: &[HostTrait] = &[
+    HostTrait {
+        key: "FsRead",
+        std_path: "std.fs.File",
+        methods: &[
+            m(
+                "File.read",
+                &[S(Scalar::I32), S(Scalar::I32)],
+                B("Result[List[u8], IoError]"),
+                Wait::May,
+                None,
+            ),
+            m("File.dispose", &[S(Scalar::I32)], V, Wait::May, None),
+        ],
+    },
+    HostTrait {
+        key: "ConsoleInput",
+        std_path: "std.console.StdinHandle",
+        methods: &[m(
+            "StdinHandle.read",
+            &[S(Scalar::I32), S(Scalar::I32)],
+            B("Result[List[u8], IoError]"),
+            Wait::May,
+            None,
+        )],
+    },
     HostTrait {
         key: "Net",
         std_path: "std.net.TcpStream",

@@ -1,5 +1,5 @@
 //! Slice 2's exit test (`f1c55020:future-work/compiler/build-order.md` §9) with std as a program's
-//! dependency: std's folder interfaces build with no diagnostic, blobs
+//! dependency: std's unit interfaces build with no diagnostic, blobs
 //! decode to equal interfaces, blob bytes are equal across shuffled serial
 //! orders, and a deep-hash edit reaches a dependent's key.
 
@@ -39,10 +39,7 @@ fn run(src: &MemorySources) -> Output {
 
 fn hello() -> MemorySources {
     let mut s = MemorySources::default();
-    s.insert(
-        "main.hd",
-        "pub fn main() -> void $ Console:\n    println(42)\n",
-    );
+    s.insert("main.hd", include_str!("programs/std_interfaces/hello.hd"));
     s
 }
 
@@ -66,7 +63,7 @@ fn std_interfaces_build_with_no_diagnostic() {
     let out = run(&hello());
     assert!(out.diags.is_empty(), "{}", out.render());
     assert!(out.wasm.is_some(), "hello world links");
-    for st in [Stage::FolderIface, Stage::HeaderCheck, Stage::Coherence] {
+    for st in [Stage::UnitIface, Stage::HeaderCheck, Stage::Coherence] {
         let t = out.report.tally(st);
         assert_eq!(
             (t.not_implemented, t.blocked),
@@ -75,36 +72,52 @@ fn std_interfaces_build_with_no_diagnostic() {
             out.report.render()
         );
     }
-    let folders: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
+    let units: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(
-        folders,
+        units,
+        // Only real-use SCCs and fixed implicit providers are built.
         [
-            "app",
-            "std",
-            "std.core",
-            "std.f32",
-            "std.f64",
-            "std.prelude",
-            "std.rt",
+            "app.main",
+            "std.cmp",
+            "std.crypto",
+            "std.crypto.sha256",
+            "std.encoding.base64",
+            "std.encoding.hex",
+            "std.encoding.json",
+            "std.host",
+            "std.http",
+            "std.option",
+            "std.path",
+            "std.process",
+            "std.random",
+            "std.remote",
+            "std.result",
             "std.rt.checked",
-            "std.rt.checked_report",
+            "std.rt.crossing",
             "std.rt.entry",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 11);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 19);
 }
 
 #[test]
 fn the_prelude_module_reexports_the_prelude_table() {
-    let out = run(&hello());
-    let (_, blob) = out
-        .ifaces
-        .iter()
-        .find(|f| f.0 == "std.prelude")
-        .expect("std.prelude");
+    let mut sources = MemorySources::default();
+    sources.insert(
+        "main.hd",
+        include_str!("programs/std_interfaces/prelude.hd"),
+    );
+    let out = run(&sources);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    // An unused facade no longer joins every program's implicit layer.
+    // This program uses it explicitly; find its actual SCC by its exports.
     fresh(|n| {
-        let (_, exports) = decode_items(n, blob).expect("decode");
+        let exports: Vec<_> = out
+            .ifaces
+            .iter()
+            .flat_map(|(_, blob)| decode_items(n, blob).expect("decode").1)
+            .collect();
         // A row's name is declared in its origin module, or in `std.core`
         // when the origin re-exports it (`module.core.re-exports`).
         let mut got: Vec<(String, String)> = exports
@@ -129,11 +142,11 @@ fn the_prelude_module_reexports_the_prelude_table() {
 #[test]
 fn std_interfaces_hold_no_poison_type() {
     let out = run(&hello());
-    for (folder, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
+    for (unit, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
         fresh(|n| {
-            let (items, exports) = decode_items(n, blob).expect("decode");
-            // The entry glue's items are all private.
-            assert!(!exports.is_empty() || folder == "std.rt.entry", "{folder}");
+            let (items, _) = decode_items(n, blob).expect("decode");
+            // A real SCC can hold only inherent impls or namespace exports;
+            // neither requires a public item export. Check its types directly.
             let mut bad = Vec::new();
             for it in &items {
                 let mut tys: Vec<hd_types::Ty> = it
@@ -164,7 +177,9 @@ fn std_interfaces_hold_no_poison_type() {
                         tys.extend(assoc.iter().map(|a| a.1));
                     }
                     ItemData::AssocType { .. } => {}
-                    ItemData::Alias { body, .. } | ItemData::Newtype(body, _) => tys.push(*body),
+                    ItemData::Alias { body, .. }
+                    | ItemData::Newtype(body, _)
+                    | ItemData::Binding(body) => tys.push(*body),
                     ItemData::Builtin => {}
                 }
                 if tys.iter().any(|t| n.pool.has_poison(*t)) {
@@ -173,7 +188,7 @@ fn std_interfaces_hold_no_poison_type() {
             }
             assert!(
                 bad.is_empty(),
-                "{folder}: {} items with poison: {:#?}",
+                "{unit}: {} items with poison: {:#?}",
                 bad.len(),
                 &bad[..bad.len().min(10)]
             );
@@ -185,23 +200,23 @@ fn std_interfaces_hold_no_poison_type() {
 fn blobs_decode_to_equal_interfaces() {
     let out = run(&hello());
     assert!(!out.ifaces.is_empty());
-    for (folder, blob) in &out.ifaces {
+    for (unit, blob) in &out.ifaces {
         let again = fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
             let (items2, exports2) = decode_items(n, blob).expect("decode twice");
-            assert_eq!((&items, &exports), (&items2, &exports2), "{folder}");
+            assert_eq!((&items, &exports), (&items2, &exports2), "{unit}");
             encode_items(n, &items, &exports).expect("encode")
         });
         assert_eq!(
             &again[..],
             &blob[..],
-            "{folder}: re-encoding changed the bytes"
+            "{unit}: re-encoding changed the bytes"
         );
         let third = fresh(|n| {
             let (items, exports) = decode_items(n, &again).expect("decode");
             encode_items(n, &items, &exports).expect("encode")
         });
-        assert_eq!(third, again, "{folder}");
+        assert_eq!(third, again, "{unit}");
     }
 }
 
@@ -215,7 +230,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 11);
+    assert_eq!(base.len(), 19);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -229,13 +244,14 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
 #[test]
 fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     let types = |field: &str| format!("pub struct User:\n    pub name: {field}\n");
-    let service = "use pkg.user.types.{User}\n\npub fn load() -> User:\n    User { name: 1 }\n";
-    let main = "use pkg.service.load.{load}\n\npub fn main() -> void $ Console:\n    println(load().name)\n";
+    let service = include_str!("programs/std_interfaces/service.hd");
+    let main = include_str!("programs/std_interfaces/service_main.hd");
     let program = |field: &str| {
         let mut s = MemorySources::default();
         s.insert("main.hd", main);
         s.insert("service/load.hd", service);
         s.insert("user/types.hd", &types(field));
+        crate::add_facades(&mut s);
         s
     };
     let store = MemoryStore::default();
@@ -243,26 +259,32 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     assert!(a.diags.is_empty(), "{}", a.render());
     let b = run_with(&program("i64"), &store, SerialOrder::Priority);
     let deep = |o: &Output, f: &str| o.counters.deep_hashes.get(f).copied();
-    assert_ne!(deep(&a, "app.user"), deep(&b, "app.user"));
+    assert_ne!(deep(&a, "app.user.types"), deep(&b, "app.user.types"));
     // `service` did not change, but its signature names `User`.
-    assert_ne!(deep(&a, "app.service"), deep(&b, "app.service"));
-    // `main` names neither `User` nor its folder.
+    assert_ne!(deep(&a, "app.service.load"), deep(&b, "app.service.load"));
+    // `main` names neither `User` nor its unit.
     assert_ne!(
         a.counters.check_keys.get("app.main"),
         b.counters.check_keys.get("app.main")
     );
-    assert!(b.counters.ifaces_built.contains(&"app.service".to_owned()));
-    assert!(!b.counters.ifaces_built.contains(&"std".to_owned()));
+    assert!(
+        b.counters
+            .ifaces_built
+            .contains(&"app.service.load".to_owned())
+    );
+    assert!(
+        b.counters
+            .ifaces_built
+            .iter()
+            .all(|m| !m.starts_with("std."))
+    );
 }
 
 #[test]
 fn every_program_shares_stds_check_entries_under_one_profile() {
     let run = |package: &str, profile: Option<Vec<String>>| {
         let mut sources = MemorySources::default();
-        sources.insert(
-            "main.hd",
-            "pub fn main() -> void $ Console:\n    println(1)\n",
-        );
+        sources.insert("main.hd", include_str!("programs/std_interfaces/one.hd"));
         let store = MemoryStore::default();
         let host = Host {
             render_tir: &[],
@@ -298,26 +320,7 @@ fn every_program_shares_stds_check_entries_under_one_profile() {
     assert_ne!(std_keys(&a), std_keys(&console));
 }
 
-const STATS: &str = "\
-use std.cmp.Ordering
-
-pub struct Point:
-    pub x: i32
-    pub y: i32
-
-impl Eq for Point:
-    fn eq(&self, other: &Point) -> bool:
-        self.x == other.x
-
-pub fn count(xs: List[i32], fallback: i32?) -> i32:
-    3
-
-pub fn rank(o: Ordering, seen: Map[string, List[i32]]) -> Result[i32, string]?:
-    .None
-
-pub fn total(a: i32, b: i32) -> i32:
-    a + b
-";
+const STATS: &str = include_str!("programs/std_interfaces/stats.hd");
 
 #[test]
 fn std_typed_signatures_compile_through_headers() {
@@ -325,12 +328,13 @@ fn std_typed_signatures_compile_through_headers() {
     s.insert("stats/calc.hd", STATS);
     s.insert(
         "main.hd",
-        "use pkg.stats.calc.{total}\n\npub fn main() -> void $ Console:\n    println(total(3, 4))\n",
+        include_str!("programs/std_interfaces/stats_main.hd"),
     );
+    crate::add_facades(&mut s);
     let out = run(&s);
-    let t = out.report.tally(Stage::FolderIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
+    let t = out.report.tally(Stage::UnitIface);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (20, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 20);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(
@@ -348,12 +352,7 @@ fn written_lifetimes_map_reference_slots() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "struct User:\n    name: string\n\n\
-         pub fn choose['a](a: &'a User, b: &User, c: (&'a User, &User)) -> &'a User:\n    a\n\n\
-         pub fn plain(a: &User) -> &User:\n    a\n\n\
-         struct Pair[T]:\n    left: T\n\n\
-         impl[T, 's] Pair[T]:\n    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:\n        x\n\n\
-         pub fn main() -> void:\n    pass\n",
+        include_str!("programs/std_interfaces/lifetimes.hd"),
     );
     let out = run(&s);
     assert!(
@@ -390,4 +389,64 @@ fn written_lifetimes_map_reference_slots() {
             ]
         );
     });
+}
+
+/// Unused std files are not implicit interface/body roots (#2363).
+/// Count actual work at tenfold width and depth20, not elapsed time.
+#[test]
+fn unreachable_std_growth_does_not_expand_parsing_or_checking() {
+    let mut before = None;
+    for (width, depth) in [(100, 2), (1000, 20)] {
+        let mut sources = hd_driver::std_sources();
+        sources.insert(
+            "conformance/probe.hd",
+            include_str!("programs/std_interfaces/hello.hd"),
+        );
+        for item in 0..width {
+            let mut path = format!("unrelated_{item}");
+            for _ in 1..depth {
+                path.push_str("/nested");
+            }
+            path.push_str("/leaf.hd");
+            sources.insert(&path, include_str!("programs/std_interfaces/one.hd"));
+        }
+        let store = MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Shuffled(7)),
+        };
+        let (out, hint_work) = hd_resolve::work::count_hint_work(|| {
+            build_packages(
+                &host,
+                "std",
+                &Packages::default(),
+                &Goal::Program {
+                    entry: "conformance.probe".to_owned(),
+                },
+            )
+        });
+        assert_eq!(hint_work, 0, "valid code never asks the std advice index");
+        assert!(out.diags.is_empty(), "{}", out.render());
+        assert!(out.wasm.is_some(), "std-root probe links");
+        assert!(
+            out.counters
+                .parsed
+                .iter()
+                .all(|m| !m.starts_with("std.unrelated_"))
+        );
+        let work = (
+            out.counters.parsed.len(),
+            out.counters.ifaces_built.len(),
+            out.counters.modules_checked.len(),
+            out.report.tally(Stage::HeaderCheck).ok,
+        );
+        if let Some(before) = before {
+            assert_eq!(work, before, "width{width}/depth{depth}");
+        } else {
+            before = Some(work);
+        }
+    }
 }

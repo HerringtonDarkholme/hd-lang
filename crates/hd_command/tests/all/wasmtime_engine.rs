@@ -98,6 +98,191 @@ fn program(name: &str, source: &str) -> Scratch {
 }
 
 #[test]
+fn single_module_compilers_obey_the_job_budget() {
+    let dir = work("compiler-jobs");
+    std::fs::create_dir_all(dir.join("src")).expect("source directory");
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-run-built/hd.toml"),
+    )
+    .expect("manifest");
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-run-built/src/main.hd"),
+    )
+    .expect("program");
+    let mut builder = hd(&dir);
+    builder.env("HD_ENGINE", "wasmtime");
+    let built = run(builder, &["build"], "");
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    for jobs in ["1", "2"] {
+        for (name, args) in [
+            ("program", vec!["run"]),
+            ("artifact", vec!["build/debug/greeter.wasm"]),
+        ] {
+            let trace = dir.join(format!("{name}-{jobs}.json"));
+            let mut command = hd(&dir);
+            command
+                .env("HD_TRACE", &trace)
+                .env("HD_ENGINE", "wasmtime")
+                .env("HD_JOBS", jobs);
+            let out = run(command, &args, "");
+            assert!(out.status.success(), "{}", text(&out.stderr));
+            assert_eq!(text(&out.stdout), "hello\n");
+            assert_compile_jobs(&trace, jobs);
+        }
+        let test_dir = work(&format!("compiler-test-jobs-{jobs}"));
+        std::fs::write(
+            test_dir.join("main.hd"),
+            include_str!("../../../../spec/conformance/cli/release-test-checked/main.hd"),
+        )
+        .expect("test source");
+        let trace = test_dir.join("trace.json");
+        let mut command = hd(&test_dir);
+        command
+            .env("HD_TRACE", &trace)
+            .env("HD_ENGINE", "wasmtime")
+            .env("HD_JOBS", jobs);
+        let out = run(command, &["test", "--release", "main.hd"], "");
+        assert_eq!(
+            out.status.code(),
+            Some(1),
+            "the fixture tests checked overflow: {}{}",
+            text(&out.stdout),
+            text(&out.stderr)
+        );
+        assert!(
+            text(&out.stdout).contains("integer-overflow"),
+            "{}{}",
+            text(&out.stdout),
+            text(&out.stderr)
+        );
+        assert_compile_jobs(&trace, jobs);
+    }
+}
+
+fn assert_compile_jobs(trace: &Path, jobs: &str) {
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(trace).expect("trace")).expect("json");
+    let events = json["traceEvents"].as_array().expect("events");
+    assert!(
+        events
+            .iter()
+            .any(|event| event["name"] == format!("wasmtime compile jobs={jobs}")),
+        "trace {}: {json}",
+        trace.display()
+    );
+}
+
+#[test]
+fn native_artifacts_load_without_translation_and_reuse_the_build()
+-> Result<(), Box<dyn std::error::Error>> {
+    use object::{Object as _, ObjectSection as _};
+    let dir = work("native-artifacts");
+    std::fs::create_dir_all(dir.join("src"))?;
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/hd.toml"),
+    )?;
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/src/main.hd"),
+    )?;
+    let command = || {
+        let mut command = hd(&dir);
+        command.env("HD_ENGINE", "wasmtime").env("HD_JOBS", "2");
+        command
+    };
+    let built = run(command(), &["build", "--release"], "");
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    let native_path = dir.join("build/release/profile.cwasm");
+    assert!(native_path.is_file());
+    assert!(!dir.join("build/release/profile.wasm").exists());
+    let before = std::fs::metadata(&native_path)?.modified()?;
+    for (name, args) in [
+        ("file", vec!["build/release/profile.cwasm"]),
+        ("run", vec!["run", "--release"]),
+    ] {
+        let trace = dir.join(format!("{name}.json"));
+        let mut c = command();
+        c.env("HD_TRACE", &trace);
+        let out = run(c, &args, "");
+        assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "module profile\n");
+        let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+        let events = trace["traceEvents"]
+            .as_array()
+            .ok_or("missing trace events")?;
+        assert!(
+            events
+                .iter()
+                .any(|event| event["name"] == "wasmtime deserialize native image"),
+            "{trace}"
+        );
+        assert!(
+            !events
+                .iter()
+                .filter_map(|event| event["name"].as_str())
+                .any(|name| name.starts_with("wasmtime compile")
+                    || name.starts_with("wasmtime precompile")),
+            "{trace}"
+        );
+    }
+    assert_eq!(
+        std::fs::metadata(&native_path)?.modified()?,
+        before,
+        "a current native image is not rewritten"
+    );
+    // Editing the source invalidates the output identity even if only a comment changed.
+    let mut source = std::fs::read_to_string(dir.join("src/main.hd"))?;
+    source.push_str("\n# changed source\n");
+    std::fs::write(dir.join("src/main.hd"), source)?;
+    let trace = dir.join("edited.json");
+    let mut c = command();
+    c.env("HD_TRACE", &trace);
+    let out = run(c, &["run", "--release"], "");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+    assert!(
+        trace["traceEvents"]
+            .as_array()
+            .ok_or("events")?
+            .iter()
+            .filter_map(|event| event["name"].as_str())
+            .any(|name| name.starts_with("wasmtime precompile")),
+        "{trace}"
+    );
+    // Keep code intact and change only Wasmtime's documented version field.
+    let mut foreign = std::fs::read(&native_path)?;
+    let version_offset = {
+        let image = object::File::parse(foreign.as_slice())?;
+        let section = image
+            .section_by_name(".wasmtime.engine")
+            .ok_or("engine section")?;
+        let (offset, size) = section.file_range().ok_or("engine section range")?;
+        assert!(size > 2);
+        usize::try_from(offset)? + 2
+    };
+    *foreign.get_mut(version_offset).ok_or("version offset")? = b'!';
+    std::fs::write(dir.join("foreign.cwasm"), foreign)?;
+    let out = run(command(), &["foreign.cwasm"], "");
+    assert!(!out.status.success());
+    let error = text(&out.stderr);
+    assert!(error.contains("incompatible version"), "{error}");
+    assert!(
+        error.contains("rebuild with `hd build --release`"),
+        "{error}"
+    );
+    assert!(error.contains("--format wasm"), "{error}");
+    // A standalone artifact runs with the sources absent.
+    std::fs::rename(dir.join("src"), dir.join("hidden-src"))?;
+    let out = run(command(), &["build/release/profile.cwasm"], "");
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(text(&out.stdout), "module profile\n");
+    Ok(())
+}
+
+#[test]
 fn samples_agree() {
     for sample in [
         "hello/hello.hd",
@@ -283,7 +468,7 @@ fn fold_cycle(lines: Vec<String>, cycle: &[&str]) -> Vec<String> {
 fn args_and_program() {
     let dir = program(
         "args",
-        "use std.host.{Args, args}\n\npub fn main() -> void $ Console + Args:\n    \
+        "use std.cli.{Args, args}\n\npub fn main() -> void $ Console + Args:\n    \
          println($.use(Args).program())\n    for word in args():\n        println(\"[${word}]\")\n",
     );
     let out = both(&dir, &["main.hd", "--", "a", "b c", ""]);
@@ -419,8 +604,8 @@ pub fn main!() -> void $ Console + ConsoleInput:
 }
 
 /// `read_all!` reads the rest of standard input whole, on both engines,
-/// as read, with `\r\n` read as `\n`
-/// (`std-console.input.read-all-host-coded-error`).
+/// without newline translation
+/// (`std-console.input.read-all-host-preserves-bytes`).
 #[test]
 fn console_input_reads_all() {
     let dir = program(
@@ -443,10 +628,10 @@ pub fn main!() -> void $ Console + ConsoleInput:
 ",
     );
     for (input, want) in [
-        // A final newline is kept, and `\r\n` is read as `\n`.
+        // Every remaining line ending is kept byte for byte.
         (
             "one\r\ntwo\r\n\nlast\r\n",
-            "[one]\n<two\n\nlast\n>\n<>\nend\n",
+            "[one]\n<two\r\n\nlast\r\n>\n<>\nend\n",
         ),
         ("one\ntwo\nlast\n", "[one]\n<two\nlast\n>\n<>\nend\n"),
         ("one\ntwo\nlast", "[one]\n<two\nlast>\n<>\nend\n"),
@@ -455,6 +640,315 @@ pub fn main!() -> void $ Console + ConsoleInput:
     ] {
         let out = both_with(&dir, &["main.hd"], input, &[]);
         assert_eq!(text(&out.stdout), want, "{input:?}");
+    }
+}
+
+/// `stdin()` reads standard input as bytes, on both engines, exactly as
+/// they arrive: a read returns the first chunk before the writer sends the
+/// second, and `\r\n` stays two bytes (`std-console.stdin.chunks`,
+/// `std-console.stdin.exact`).
+#[test]
+fn stdin_reads_bytes_as_they_arrive() {
+    use std::io::{BufRead as _, BufReader};
+    let dir = program(
+        "stdin-bytes",
+        include_str!("programs/wasmtime_engine/stdin_reads_bytes_as_they_arrive.hd"),
+    );
+    let mut outputs = Vec::new();
+    for engine in ["node", "wasmtime"] {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = c.spawn().expect("run hd");
+        let mut stdin = child.stdin.take().expect("stdin");
+        let mut lines = BufReader::new(child.stdout.take().expect("stdout"));
+        stdin.write_all(b"a\r\n").expect("first chunk");
+        stdin.flush().expect("flush");
+        // The program prints the first chunk while its input is still open.
+        let mut first = String::new();
+        lines.read_line(&mut first).expect("first line");
+        stdin.write_all(b"b\xff").expect("second chunk");
+        drop(stdin);
+        let mut rest = String::new();
+        std::io::Read::read_to_string(&mut lines, &mut rest).expect("rest");
+        let out = child.wait_with_output().expect("wait");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        outputs.push(format!("{first}{rest}"));
+    }
+    assert_eq!(outputs[0], "[97, 13, 10]\n[98, 255]\nend\n");
+    assert_eq!(outputs[0], outputs[1], "node and wasmtime");
+}
+
+/// `decode_stream` over `stdin()` decodes each JSON value as soon as its
+/// bytes arrive, on both engines: the first is printed while the writer
+/// still holds the pipe open, and a value the input ends inside is its
+/// error at the input's length (`std-json.stream.next`,
+/// `std-json.stream.position`).
+#[test]
+fn stdin_json_values_arrive_one_at_a_time() {
+    use std::io::{BufRead as _, BufReader};
+    let dir = program(
+        "stdin-json",
+        include_str!("programs/wasmtime_engine/stdin_json_values_arrive_one_at_a_time.hd"),
+    );
+    let mut outputs = Vec::new();
+    for engine in ["node", "wasmtime"] {
+        let mut c = hd(&dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = c.spawn().expect("run hd");
+        let mut stdin = child.stdin.take().expect("stdin");
+        let mut lines = BufReader::new(child.stdout.take().expect("stdout"));
+        stdin
+            .write_all(b"{\"a\": [1, \"]\"]}")
+            .expect("first value");
+        stdin.flush().expect("flush");
+        let mut first = String::new();
+        lines.read_line(&mut first).expect("first line");
+        stdin.write_all(b"\r\n2 [3").expect("the rest");
+        drop(stdin);
+        let mut rest = String::new();
+        std::io::Read::read_to_string(&mut lines, &mut rest).expect("rest");
+        let out = child.wait_with_output().expect("wait");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        outputs.push(format!("{first}{rest}"));
+    }
+    assert_eq!(
+        outputs[0],
+        "value {\"a\":[1,\"]\"]}\nvalue 2\nerror: unexpected end of text at position 21\n"
+    );
+    assert_eq!(outputs[0], outputs[1], "node and wasmtime");
+}
+
+/// `BufReader::lines` over `stdin()` keeps each line ending exactly as
+/// read, on both engines, across a 3-byte buffer: `\r\n` stays two bytes
+/// and a last line with no ending keeps its `\r` (`std-io.buf-reader.lines`,
+/// `std-console.stdin.exact`).
+#[test]
+fn stdin_lines_keep_their_endings() {
+    let dir = program(
+        "stdin-lines",
+        include_str!("programs/wasmtime_engine/stdin_lines_keep_their_endings.hd"),
+    );
+    let out = both_with(&dir, &["main.hd"], "ab\r\ncdefg\n\nlast\r", &[]);
+    assert_eq!(
+        text(&out.stdout),
+        "[97, 98, 13, 10]\n[99, 100, 101, 102, 103, 10]\n[10]\n[108, 97, 115, 116, 13]\nend\n"
+    );
+}
+
+/// `open!` reads a file larger than any whole read may be, 3 GiB, one
+/// chunk at a time, and stops after 1 MiB and 16 bytes: those are the
+/// only bytes that cross into the program, so its memory stays O(chunk)
+/// while `read_bytes!` of the same file is refused (`std-fs.open.chunks`,
+/// `std-io.read.one-call`).
+#[test]
+fn open_stops_early_on_a_large_file() {
+    let dir = program(
+        "open-large",
+        include_str!("programs/wasmtime_engine/open_stops_early_on_a_large_file.hd"),
+    );
+    std::fs::File::create(dir.join("big.bin"))
+        .and_then(|f| f.set_len(3 << 30))
+        .expect("sparse file");
+    let out = both(&dir, &["main.hd"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(
+        text(&out.stdout),
+        "read 1048592 bytes in 17 calls\nwhole read refused\n"
+    );
+}
+
+/// A `using!` binding's dispose closes its `File`, on both engines: under
+/// a limit of 128 descriptors the program opens a file 2048 times
+/// (`std-fs.open.dispose`).
+#[cfg(unix)]
+#[test]
+fn disposed_files_release_their_descriptors() {
+    let dir = program(
+        "open-release",
+        include_str!("programs/wasmtime_engine/disposed_files_release_their_descriptors.hd"),
+    );
+    std::fs::write(dir.join("one.txt"), "x").expect("seed");
+    let hd_bin = env!("CARGO_BIN_EXE_hd");
+    for engine in ["node", "wasmtime"] {
+        let c = hd(&dir);
+        // The limit applies to the hd process alone, through `sh`.
+        let mut limited = Command::new("sh");
+        limited
+            .current_dir(&dir)
+            .envs(c.get_envs().filter_map(|(k, v)| Some((k, v?))))
+            .env("HD_ENGINE", engine)
+            .args(["-c", "ulimit -n 128 && exec \"$0\" main.hd", hd_bin]);
+        let out = limited.output().expect("run hd");
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "read 2048\n", "{engine}");
+    }
+}
+
+/// `main.hd` running on `engine` with a fresh FIFO `pipe` in `dir`. The
+/// test drives the FIFO's writer from the program's standard output,
+/// line by line, so what the program printed while it waited is known.
+#[cfg(unix)]
+struct FifoRun {
+    child: std::process::Child,
+    lines: std::sync::mpsc::Receiver<String>,
+    seen: Vec<String>,
+    pipe: PathBuf,
+}
+
+#[cfg(unix)]
+impl FifoRun {
+    fn start(dir: &Path, engine: &str) -> Self {
+        let pipe = dir.join("pipe");
+        let _ = std::fs::remove_file(&pipe);
+        let made = Command::new("mkfifo").arg(&pipe).status().expect("mkfifo");
+        assert!(made.success(), "mkfifo {}", pipe.display());
+        let mut c = hd(dir);
+        c.env("HD_ENGINE", engine)
+            .arg("main.hd")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit());
+        let mut child = c.spawn().expect("run hd");
+        let stdout = child.stdout.take().expect("stdout");
+        let (send, lines) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            use std::io::BufRead as _;
+            for line in std::io::BufReader::new(stdout).lines() {
+                let Ok(line) = line else { break };
+                if send.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        Self {
+            child,
+            lines,
+            seen: Vec::new(),
+            pipe,
+        }
+    }
+
+    /// The program's next line; a program that stops printing fails.
+    fn next(&mut self) -> String {
+        let line = self
+            .lines
+            .recv_timeout(std::time::Duration::from_secs(30))
+            .unwrap_or_else(|_| panic!("no line after {:?}", self.seen));
+        self.seen.push(line.clone());
+        line
+    }
+
+    /// Reads lines up to `line`.
+    fn until(&mut self, line: &str) {
+        while self.next() != line {}
+    }
+
+    /// Opens the FIFO's write end once the program's open is reading it.
+    fn writer(&self) -> std::fs::File {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            // A write end opened without O_NONBLOCK would wait for a
+            // reader forever if the program never opened the FIFO.
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(&self.pipe)
+            {
+                Ok(file) => return file,
+                Err(error) if error.raw_os_error() == Some(libc::ENXIO) => {
+                    assert!(std::time::Instant::now() < deadline, "no reader opened");
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(error) => panic!("open the FIFO's write end: {error}"),
+            }
+        }
+    }
+
+    /// Every line, after the program ended with status 0.
+    fn finish(mut self) -> Vec<String> {
+        while let Ok(line) = self.lines.recv_timeout(std::time::Duration::from_secs(30)) {
+            self.seen.push(line);
+        }
+        let status = self.child.wait().expect("hd status");
+        assert!(status.success(), "{status}: {:?}", self.seen);
+        std::mem::take(&mut self.seen)
+    }
+}
+
+#[cfg(unix)]
+impl Drop for FifoRun {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// #2414 (`std-fs.special-file`): `open!` of a FIFO with no writer and a
+/// `read!` with nothing written wait off the program thread, on both
+/// engines, so a ticking task prints during each wait. The writer opens
+/// only after a tick, and writes only after another tick.
+#[cfg(unix)]
+#[test]
+fn a_fifo_read_lets_other_tasks_run() {
+    let dir = program(
+        "fifo-ticks",
+        include_str!("programs/wasmtime_engine/a_fifo_read_lets_other_tasks_run.hd"),
+    );
+    for engine in ["node", "wasmtime"] {
+        let mut run = FifoRun::start(&dir, engine);
+        assert_eq!(run.next(), "tick", "{engine}: a tick while the open waits");
+        let mut writer = run.writer();
+        run.until("opened");
+        assert_eq!(run.next(), "tick", "{engine}: a tick while the read waits");
+        writer.write_all(b"hello").expect("write the FIFO");
+        run.until("read 5");
+        drop(writer);
+        let lines = run.finish();
+        assert_eq!(lines.last().map(String::as_str), Some("done"), "{engine}");
+    }
+}
+
+/// #2421 (`std-io.read.pending-closed`): a task disposes the file while
+/// another's read of the FIFO waits; the read answers `Closed` on both
+/// engines, and the bytes written after the dispose never reach the
+/// program.
+#[cfg(unix)]
+#[test]
+fn disposing_a_fifo_answers_its_pending_read_closed() {
+    let dir = program(
+        "fifo-dispose",
+        include_str!(
+            "programs/wasmtime_engine/disposing_a_fifo_answers_its_pending_read_closed.hd"
+        ),
+    );
+    for engine in ["node", "wasmtime"] {
+        let mut run = FifoRun::start(&dir, engine);
+        let mut writer = run.writer();
+        assert_eq!(run.next(), "opened", "{engine}");
+        assert_eq!(run.next(), "disposed", "{engine}");
+        // No reader may be left, or one that is left drops these bytes.
+        let _ = writer.write_all(b"late");
+        drop(writer);
+        assert_eq!(
+            run.finish(),
+            [
+                "opened",
+                "disposed",
+                "dispose returned",
+                "read failed: the reader is closed",
+                "then: the reader is closed",
+            ],
+            "{engine}"
+        );
     }
 }
 
@@ -593,7 +1087,7 @@ fn stack_exhaustion_is_a_panic() {
 fn a_host_raised_panic_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-stack",
-        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.meta.facts_of\n\nstruct Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(hd(&dir), &["--engine", "wasmtime", "main.hd"], "");
     assert_eq!(out.status.code(), Some(3));
@@ -611,7 +1105,7 @@ fn a_host_raised_panic_in_a_fact_is_wrapped() {
 fn a_time_limit_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-spin",
-        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.meta.facts_of\n\nstruct Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(
         hd(&dir),
@@ -656,7 +1150,7 @@ fn hd_build_takes_the_wasmtime_engine() {
     }
     for (engine, module) in [
         ("wasmtime", "build/debug/shop.wasm"),
-        ("wasmtime", "build/release/shop.wasm"),
+        ("wasmtime", "build/release/shop.cwasm"),
         ("node", "build/debug/shop.wasm"),
     ] {
         let out = run(hd(&dir), &["--engine", engine, module], "");
@@ -894,4 +1388,83 @@ pub fn main!() -> void $ Console + Net:
          Result.Ok([])\n"
     );
     assert_eq!(out.status.code(), Some(0));
+}
+
+/// Read the configuration selected by the CLI, rather than measuring runtime.
+#[test]
+fn prebuilt_modules_use_their_recorded_cranelift_level() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = work("prebuilt-profile");
+    std::fs::create_dir_all(dir.join("src"))?;
+    std::fs::write(
+        dir.join("hd.toml"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/hd.toml"),
+    )?;
+    std::fs::write(
+        dir.join("src/main.hd"),
+        include_str!("../../../../spec/conformance/cli/wasm-build-profile/src/main.hd"),
+    )?;
+    let check = |module: &Path, expected: &str| -> Result<(), Box<dyn std::error::Error>> {
+        let trace = module.with_extension("trace.json");
+        let mut command = hd(&dir);
+        command.env("HD_TRACE", &trace);
+        let out = run(
+            command,
+            &["--engine=wasmtime", &module.to_string_lossy()],
+            "",
+        );
+        assert!(out.status.success(), "{}", text(&out.stderr));
+        assert_eq!(text(&out.stdout), "module profile\n");
+        let trace: serde_json::Value = serde_json::from_slice(&std::fs::read(trace)?)?;
+        let events = trace["traceEvents"]
+            .as_array()
+            .ok_or("trace events are missing")?;
+        assert!(
+            events
+                .iter()
+                .any(|event| event["name"].as_str() == Some(expected)),
+            "{trace}"
+        );
+        Ok(())
+    };
+    for (flags, folder, expected) in [
+        (
+            vec!["build", "--engine=node"],
+            "debug",
+            "wasmtime OptLevel::None",
+        ),
+        (
+            vec!["build", "--engine=node", "--release"],
+            "release",
+            "wasmtime OptLevel::Speed",
+        ),
+    ] {
+        let out = run(hd(&dir), &flags, "");
+        assert!(out.status.success(), "{}", text(&out.stderr));
+        check(
+            &dir.join("build").join(folder).join("profile.wasm"),
+            expected,
+        )?;
+    }
+    let renamed = dir.join("renamed.wasm");
+    std::fs::copy(dir.join("build/release/profile.wasm"), &renamed)?;
+    check(&renamed, "wasmtime OptLevel::Speed")?;
+    // An unknown custom name is equivalent to an older module without hd.build.
+    // Keep all byte offsets and payloads unchanged, including debug metadata.
+    let mut legacy = std::fs::read(dir.join("build/release/profile.wasm"))?;
+    let mut offset = None;
+    for payload in wasmparser::Parser::new(0).parse_all(&legacy) {
+        if let wasmparser::Payload::CustomSection(section) = payload?
+            && section.name() == hd_host_abi::schema::BUILD_SECTION
+        {
+            offset = usize::try_from(section.data_offset())?.checked_sub(section.name().len());
+            break;
+        }
+    }
+    *legacy
+        .get_mut(offset.ok_or("built module has no build section")?)
+        .ok_or("invalid section offset")? = b'x';
+    let path = dir.join("legacy.wasm");
+    std::fs::write(&path, legacy)?;
+    check(&path, "wasmtime OptLevel::None")?;
+    Ok(())
 }

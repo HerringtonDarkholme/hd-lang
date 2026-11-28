@@ -24,7 +24,7 @@ fn unwrap(o: string?) -> usize:
 >   %22 = Block %16 : usize
         .Some(s) => s.len()
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -41,24 +41,23 @@ fn question(o: string?) -> string?:
 > app/main/question
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %1 lend last
->   %0 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     s := o?
 >   %1 = Read move [$0] : string?
 >   %2 = Intrinsic Empty [] : ()
 >   %3 = Read move [%1 as #1 .0] : string
->   %4 = Intrinsic Empty [] : ()
->   %5 = Block %3 : string
->   %6 = NewVariant #0 [] : string?
->   %7 = Drop [$0] : ()
->   %8 = Return %6 : never
->   %9 = Block - : never
->   %10 = SwitchTag %1 [#1 %5 %9] : string
->   %14 = Drop [$0] : ()
->   %15 = Block %13 : string?
+>   %4 = Block %3 : string
+>   %5 = NewVariant #0 [] : string?
+>   %6 = Drop [$0] : ()
+>   %7 = Return %5 : never
+>   %8 = Block - : never
+>   %9 = SwitchTag %1 [#1 %4 %8] : string
+>   %13 = Drop [$0] : ()
+>   %14 = Block %12 : string?
     .Some(s + "!")
->   %11 = Intrinsic StrConcat [%10 "!"] : string
->   %12 = Drop [%10] : ()
->   %13 = NewVariant #1 [%11] : string?
+>   %10 = Intrinsic StrConcat [%9 "!"] : string
+>   %11 = Drop [%9] : ()
+>   %12 = NewVariant #1 [%10] : string?
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

@@ -23,10 +23,10 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 84 funcref))
+  (import "fixture" "heap" (memory $heap 129))
+  (import "fixture" "table0" (table $table0 89 funcref))
   (func $answer'1 (param $frame'1 i32) (param $home i32) (param $rooted i32) (param $frame'2 i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -402,7 +402,7 @@
     global.set $stack
   )
   (func $answer.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     local.get $t0
     call $rt:poll_check
     if
@@ -447,7 +447,7 @@
     return
   )
   (func $answer.cancel (param $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     call $rt:cancel_enter
     local.set $t0
     block
@@ -501,7 +501,7 @@
     call $rt:cancel_leave
   )
   (func $answer.drop (param $t0 i32) (local $t1 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     local.get $t0
     i32.load $heap offset=12
     i32.const 64
@@ -551,7 +551,7 @@
     end
   )
   (func $answer.lent (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -565,7 +565,7 @@
     local.get $t0
   )
   (func $answer'2 (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     call $rt:frame'1
     local.tee $t0
     local.get $t1
@@ -2058,7 +2058,7 @@
     end
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32 i32)
-    ;; 33 |     handle_call!(home, rooted, frame)
+    ;; 39 |     handle_call!(home, rooted, frame)
     local.get $t0
     i32.eqz
     if

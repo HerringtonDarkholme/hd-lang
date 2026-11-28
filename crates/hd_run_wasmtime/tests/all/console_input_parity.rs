@@ -316,7 +316,8 @@ fn check_sibling(mut command: Command, engine: &str, harness_prefix: bool, all: 
     } else {
         ""
     };
-    let text = if all { "Ada\nlast" } else { "Ada" };
+    // read_all keeps CRLF; only read_line removes its ending.
+    let text = if all { "Ada\r\nlast" } else { "Ada" };
     assert_eq!(
         output.join().unwrap(),
         format!("{prefix}sibling progressed\ninput={text}\n").as_bytes(),

@@ -16,10 +16,12 @@
     ;; 11 |     1.000000059604644775390625f32
     f32.const 0x1p+0
   )
-  (func $dynamic_narrow (param $value f64) (result f32)
+  (func $dynamic_narrow (param $value f64) (result f32) (local $t0 f32)
     ;; 26 |     f32(value)
     local.get $value
     f32.demote_f64
+    local.set $t0
+    local.get $t0
   )
   (func $wide (result f64)
     ;; 23 |     1.5

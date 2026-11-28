@@ -15,6 +15,12 @@ use std::process::Command;
 const LISTING: &str = "ship-host.txt";
 
 fn main() {
+    // The target triple whose `native/<target-triple>/` folder a C provider's
+    // library is found in (`cli.host.c.file`).
+    println!(
+        "cargo::rustc-env=HD_TARGET_TRIPLE={}",
+        std::env::var("TARGET").expect("TARGET")
+    );
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     // A published package holds the host already stripped, as `host/`:
     // `scripts/publish-crates.ts` stages it, so `cargo install hd-lang` needs

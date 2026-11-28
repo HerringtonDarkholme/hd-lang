@@ -30,7 +30,7 @@ A `Body` is a value whose copies share private consumption state.
 6. r[std-http.body.claim-before-decode] Every reader claims the body before decoding; a decoding failure leaves it used.
 7. r[std-http.body.empty-claim] Reading an empty body also claims it.
 8. r[std-http.body.text] `text(&self) -> Result[string, BodyError]` reads UTF-8, replacing malformed sequences with U+FFFD.
-9. r[std-http.body.json] `json[T < Deserialize](&self) -> Result[T, BodyError]` decodes the body's text through `std.json`.
+9. r[std-http.body.json] `json[T < Deserialize](&self) -> Result[T, BodyError]` decodes the body's text through `std.encoding.json`.
 10. r[std-http.body.json-error] A JSON decoding failure returns `BodyError.Json` containing the decoder's error.
 11. r[std-http.body.form] `form[T < Deserialize](&self) -> Result[T, BodyError]` decodes a URL-encoded form using [Typed Query And Form Values](#typed-query-and-form-values).
 12. r[std-http.body.form-error] A form decoding failure returns `BodyError.Form` containing its `FormError`.
@@ -345,7 +345,7 @@ Message writers return changed values for chaining; readers borrow locally.
 3. r[std-http.request.post-value] `Request::post(url: Url) -> Request` returns `Request::new(.Post, url)`.
 4. r[std-http.message.writer-value] Every `set_*` message writer takes `mut self` and returns the changed message value.
 5. r[std-http.message.writer-detach] Replacing a message's body creates a fresh unread body without changing copies of the earlier message.
-6. r[std-http.message.set-json] Request and response `set_json[T < Serialize]` replace the body with UTF-8 bytes from `std.json.encode(value)`.
+6. r[std-http.message.set-json] Request and response `set_json[T < Serialize]` replace the body with UTF-8 bytes from `std.encoding.json.encode(value)`.
 7. r[std-http.message.json-once] `set_json` serializes its value once.
 8. r[std-http.message.json-content-type] `set_json` replaces `Content-Type` with `application/json`.
 9. r[std-http.message.set-text] Request and response `set_text(text: string)` replace the body with the text's UTF-8 bytes.
@@ -861,7 +861,7 @@ error; the free `get!` calls it automatically:
 ```text
 use std.error.Error
 use std.http.{Http, HttpError, Request, Url, get}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize)
 struct NewUser:
@@ -1001,7 +1001,7 @@ The host supplies the raw transport through a public trait over wire
 messages. The ordinary HTTP adapter translates its responses and errors.
 
 ```hd
-use std.http_wire.{Http as WireHttp, WireHttpError, WireRequest, WireResponse}
+use std.http.{WireHttp, WireHttpError, WireRequest, WireResponse}
 
 struct ExampleHost:
     calls: usize
@@ -1012,13 +1012,13 @@ impl WireHttp for ExampleHost:
         .Ok(WireResponse { status: 200, headers: request.headers, body: request.body, url: request.url })
 ```
 
-1. r[std-http.wire.host] `std.http_wire.Http` is a public `@host` trait whose host-supplied method exchanges wire messages with the signature below.
+1. r[std-http.wire.host] `std.http.WireHttp` is a public `@host` trait whose host-supplied method exchanges wire messages with the signature below.
 
 | Method | Parameter | Result |
 | --- | --- | --- |
 | `send!(&mut self, request)` | `request: WireRequest` | `Result[WireResponse, WireHttpError]` |
 
-2. r[std-http.wire.error] `std.http_wire.WireHttpError` carries the transport failures and payloads in the following table.
+2. r[std-http.wire.error] `std.http.WireHttpError` carries the transport failures and payloads in the following table.
 
 | Variant | Payload |
 | --- | --- |
@@ -1052,7 +1052,7 @@ Conversions use the public `std.http` message types.
 
 ```hd
 use std.http.{Response, request_from_wire, response_to_wire}
-use std.http_wire.WireRequest
+use std.http.WireRequest
 
 pub fn main() -> void:
     wire := WireRequest { method: .Get, url: "https://example.test/" }
@@ -1061,8 +1061,8 @@ pub fn main() -> void:
     _ := response_to_wire(&response).expect("valid response with an unread body")
 ```
 
-1. r[std-http.wire.identity] `std.http_wire.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
-2. r[std-http.wire.request] `std.http_wire.WireRequest` has the public fields in the following table, with the listed defaults.
+1. r[std-http.wire.identity] `std.http.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
+2. r[std-http.wire.request] `std.http.WireRequest` has the public fields in the following table, with the listed defaults.
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -1079,7 +1079,7 @@ pub fn main() -> void:
 | `response_header_timeout` | `std.time.Duration?` | `.None` |
 | `body_read_timeout` | `std.time.Duration?` | `.None` |
 
-3. r[std-http.wire.response] `std.http_wire.WireResponse` has the public fields in the following table, with the listed defaults.
+3. r[std-http.wire.response] `std.http.WireResponse` has the public fields in the following table, with the listed defaults.
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -1092,8 +1092,8 @@ The conversion functions are in `std.http`, with these signatures.
 
 | Function | Parameter | Result |
 | --- | --- | --- |
-| `request_from_wire` | `request: std.http_wire.WireRequest` | `Result[Request, HttpError]` |
-| `response_to_wire` | `response: &Response` | `Result[std.http_wire.WireResponse, HttpError]` |
+| `request_from_wire` | `request: std.http.WireRequest` | `Result[Request, HttpError]` |
+| `response_to_wire` | `response: &Response` | `Result[std.http.WireResponse, HttpError]` |
 
 4. r[std-http.wire.request-from] `request_from_wire` parses the wire URL with `Url::parse` and preserves the method, header pairs, and body bytes.
 5. r[std-http.wire.response-to] `response_to_wire` validates headers before reading the shared body once, returning any header or body error.

@@ -1,0 +1,6 @@
+# test: map inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl[K, V] Map[K, V]: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass

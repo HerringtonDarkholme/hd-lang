@@ -5,32 +5,30 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $trailing (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     measure("t"):
-    i32.const 1
-    local.set $t0
     local.get $s.1
     i32.const 1
     i32.add
-    local.tee $t1
+    local.tee $t0
     call $rt:str
+    local.tee $t1
     local.tee $t2
-    local.tee $t3
     local.get $s.0
     local.get $s.1
     call $rt:memory_copy/0/0
-    local.get $t3
+    local.get $t2
     local.get $s.1
     i32.add
     i32.const 33
     i32.store8 $heap
-    local.get $t2
+    local.get $t1
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref
     end
+    i32.const 1
     local.get $t0
-    local.get $t1
     i32.add
   )
   (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)

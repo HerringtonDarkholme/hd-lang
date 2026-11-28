@@ -1,0 +1,2 @@
+pub fn sample(n: i32) -> i32:
+    10 * n

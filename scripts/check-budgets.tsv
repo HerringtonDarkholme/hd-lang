@@ -1,7 +1,9 @@
 step	seconds	basis
+check:bench-packages	10	Three packages: 0.75 s locally with dev hd and cold HD_CACHE; fail at 30 s, each command times out at 10 s
 spec/check.sh	30	Spec check step: 8-12 s in Test runs 45208908571-45226371211 on main (2026-11-23); fails at 90 s
 check:types	8	part of the Lint and format JS/TS step, 6-11 s in total over the same runs; fails at 24 s
 check:host-sources	8	same step
 check:spec-sync	8	same step
 check:cost	8	same step
 check:typescript-sources	8	same step
+test	90	Node tests step: 44 s locally on Node 26 at --test-concurrency=2 (2026-11-27), no CI run yet; fails at 270 s

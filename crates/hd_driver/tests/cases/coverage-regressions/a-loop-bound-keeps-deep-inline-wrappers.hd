@@ -1,0 +1,58 @@
+# @dump: wat
+# @build: wasmtime release
+use std.collections.UniqList
+use std.meta.inline
+
+@inline(.Always)
+fn length0(xs: &UniqList[i64]) -> usize:
+    xs.len()
+
+@inline(.Always)
+fn length1(xs: &UniqList[i64]) -> usize:
+    length0(xs)
+
+@inline(.Always)
+fn length2(xs: &UniqList[i64]) -> usize:
+    length1(xs)
+
+@inline(.Always)
+fn length3(xs: &UniqList[i64]) -> usize:
+    length2(xs)
+
+@inline(.Always)
+fn length4(xs: &UniqList[i64]) -> usize:
+    length3(xs)
+
+@inline(.Always)
+fn length5(xs: &UniqList[i64]) -> usize:
+    length4(xs)
+
+@inline(.Always)
+fn length6(xs: &UniqList[i64]) -> usize:
+    length5(xs)
+
+@inline(.Always)
+fn length7(xs: &UniqList[i64]) -> usize:
+    length6(xs)
+
+@inline(.Always)
+fn length8(xs: &UniqList[i64]) -> usize:
+    length7(xs)
+
+@inline(.Always)
+fn length9(xs: &UniqList[i64]) -> usize:
+    length8(xs)
+
+@inline(.Always)
+fn length10(xs: &UniqList[i64]) -> usize:
+    length9(xs)
+
+# subject
+pub fn sum(xs: &UniqList[i64]) -> i64:
+    let total: i64 = 0
+    for index in 0..length10(xs):
+        total += xs[index]
+    total
+
+# expected: following one-exit bounds through deeply inlined calls should remove the redundant guard.
+# The current proof stops after eight scopes; this records the missed optimization, not a language limit.

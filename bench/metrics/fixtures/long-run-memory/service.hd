@@ -1,8 +1,8 @@
 # A simulated JSON service with bounded state: each request is encoded,
 # decoded, counted in a map of 500 sessions and answered. It runs until
 # stopped and prints a progress line every 2,000 requests.
-use std.json.{decode, encode}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize)
 struct Request:

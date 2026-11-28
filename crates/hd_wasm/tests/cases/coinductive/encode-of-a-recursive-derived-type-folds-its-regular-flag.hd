@@ -3,10 +3,10 @@
 # A recursive type's derived `regular()` asks its own again through
 # `List[Node]` (annot.bound.recursive.flag). A release build solves that
 # cycle at compile time (#1542): both flags are `true`. `entry` branches
-# as `std.json.encode` does, so only the direct arm is left: no
+# as `std.encoding.json.encode` does, so only the direct arm is left: no
 # `regular` call, no evaluating flag, and no tree path (`to_json`).
-use std.json.{encode, to_json}
-use std.serde.Serialize
+use std.encoding.json.{encode, to_json}
+use std.encoding.Serialize
 
 @derive(Serialize)
 struct Node:

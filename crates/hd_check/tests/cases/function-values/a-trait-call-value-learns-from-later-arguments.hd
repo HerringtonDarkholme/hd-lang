@@ -1,7 +1,7 @@
 # @dump: tir
 # fn.type.generic.argument.sources: Fn::call's pending implementation
 # learns its result and row after the other arguments fix the function.
-use std.function.Fn
+use std.ops.Fn
 
 fn invoke[F, T, R](call: fn(&F, (T,)) -> R, f: F, value: T) -> R:
     call(&f, (value,))

@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: an empty map is {}
+fn value() -> Map[i32, i32]:
+    [:]

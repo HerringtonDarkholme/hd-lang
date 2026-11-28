@@ -1,0 +1,4 @@
+_ := fill(4096).len()
+alias.value += 1
+if counter.value != EXPECTED:
+    panic("checkpoint lost a counter update")

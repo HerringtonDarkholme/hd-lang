@@ -11,6 +11,7 @@ mod all_wakes;
 mod allocator_init;
 mod ascii_case_work;
 mod block_decorator;
+mod c_tables;
 mod checker;
 mod claim_order;
 mod closure_exit_rows;
@@ -21,6 +22,7 @@ mod dbg_release;
 mod derive_members;
 mod derive_run;
 mod dyn_diamond_work;
+mod emitted_unit_edit;
 mod entry_point;
 mod exit;
 mod fixture_roots;
@@ -90,8 +92,98 @@ mod unlowered_intrinsic;
 mod validate_pattern;
 mod warm_source_reads;
 
+/// The facade each test package's bare folder needs: `(module, mod.hd,
+/// text)` for a module that a program uses from outside its folder. A
+/// folder without `mod.hd` re-exports nothing (`module.vis.parent.root`),
+/// so its parent's `mod.hd` names what other modules may use.
+const FACADES: &[(&str, &str, &str)] = &[
+    (
+        "lib/defs.hd",
+        "lib/mod.hd",
+        include_str!("programs/facades/lib_defs.hd"),
+    ),
+    (
+        "prod/defs.hd",
+        "prod/mod.hd",
+        include_str!("programs/facades/prod_defs.hd"),
+    ),
+    (
+        "base/defs.hd",
+        "base/mod.hd",
+        include_str!("programs/facades/base_defs.hd"),
+    ),
+    (
+        "geo/shapes.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_shapes.hd"),
+    ),
+    (
+        "geo/records.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_records.hd"),
+    ),
+    (
+        "shop/catalog.hd",
+        "shop/mod.hd",
+        include_str!("programs/facades/shop_catalog.hd"),
+    ),
+    (
+        "ring/a.hd",
+        "ring/mod.hd",
+        include_str!("programs/facades/ring_a.hd"),
+    ),
+    (
+        "mix/b.hd",
+        "mix/mod.hd",
+        include_str!("programs/facades/mix_b.hd"),
+    ),
+    (
+        "shop/a.hd",
+        "shop/mod.hd",
+        include_str!("programs/facades/shop_a.hd"),
+    ),
+    (
+        "geo/keys.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_keys.hd"),
+    ),
+    (
+        "shapes/options.hd",
+        "shapes/mod.hd",
+        include_str!("programs/facades/shapes_options.hd"),
+    ),
+    (
+        "service/load.hd",
+        "service/mod.hd",
+        include_str!("programs/facades/service_load.hd"),
+    ),
+    (
+        "user/types.hd",
+        "user/mod.hd",
+        include_str!("programs/facades/user_types.hd"),
+    ),
+    (
+        "stats/calc.hd",
+        "stats/mod.hd",
+        include_str!("programs/facades/stats_calc.hd"),
+    ),
+];
+
+/// Adds to `src` the facade of each module of [`FACADES`] it holds.
+pub fn add_facades(src: &mut hd_project::MemorySources) {
+    use hd_project::SourceSet as _;
+    for (module, facade, text) in FACADES {
+        if src.read(module).is_some() {
+            src.insert(facade, text);
+        }
+    }
+}
+
 /// One content-addressed store shared by every test that only checks what
-/// a build produces: std compiles once for the process.
+/// a build produces: std compiles once for the process. It keeps no
+/// emitted unit (#2423): the tests that count emission work measure the
+/// emission of their own build, which a unit another test stored would
+/// skip; `emitted_unit_edit` tests the unit store with stores of its own.
 pub struct Shared(&'static hd_cache::MemoryStore);
 
 pub fn warm_store() -> Shared {
@@ -112,10 +204,15 @@ impl hd_cache::CacheStore for Shared {
         kind: hd_cache::EntryKind,
         key: &hd_base::Hash128,
     ) -> Option<std::sync::Arc<[u8]>> {
+        if kind == hd_cache::EntryKind::Unit {
+            return None;
+        }
         self.0.get(kind, key)
     }
     fn put(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128, bytes: &[u8]) {
-        self.0.put(kind, key, bytes);
+        if kind != hd_cache::EntryKind::Unit {
+            self.0.put(kind, key, bytes);
+        }
     }
     fn touch(&self, kind: hd_cache::EntryKind, key: &hd_base::Hash128) {
         self.0.touch(kind, key);

@@ -1,0 +1,24 @@
+use std.a # note
+pub use std.b.{c}
+use std.g.{
+    h,
+    i,
+}
+user := 1
+use := 2
+use
+foo(1)
+fn f() -> void:
+    use self.d as e
+    s := """
+use std.in_string
+"""
+tests:
+    use pkg.t
+    use std.u.{v}
+    s := """
+use pkg.in_string
+"""
+    test "x":
+        assert(true)
+use std.after

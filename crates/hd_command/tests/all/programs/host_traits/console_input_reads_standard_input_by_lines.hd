@@ -1,0 +1,16 @@
+use std.console.{ConsoleInput, read_line}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    let more = true
+    while more:
+        match read_line!():
+            .Ok(.Some(line)) => println("[${line}]")
+            .Ok(.None) =>
+                println("end")
+                more = false
+            .Err(_) =>
+                println("closed")
+                more = false
+    match read_line!():
+        .Ok(.None) => println("still end")
+        _ => println("not end")

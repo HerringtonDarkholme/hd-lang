@@ -3,7 +3,7 @@
 //! A std rename leaves a known path resolving to nothing declared, and
 //! every recognition site compares ids, so the check it backs silently
 //! turns off. This test builds a hello program (which joins all of std)
-//! through the driver harness, decodes every folder interface with its
+//! through the driver harness, decodes every unit interface with its
 //! own table, and asserts each known field resolves to a declared item,
 //! naming the field on failure.
 //!
@@ -61,9 +61,9 @@ fn every_known_item_is_declared() {
     };
     let mut defs = HashSet::default();
     let mut modules = HashSet::default();
-    for (folder, blob) in &out.ifaces {
+    for (unit, blob) in &out.ifaces {
         let (items, exports) = hd_resolve::decode_items(&names, blob)
-            .unwrap_or_else(|| panic!("undecodable interface for folder {folder}"));
+            .unwrap_or_else(|| panic!("undecodable interface for unit {unit}"));
         defs.extend(items.iter().map(|item| item.def));
         modules.extend(exports.iter().map(|export| export.module.clone()));
     }
@@ -157,10 +157,71 @@ fn every_known_item_is_declared() {
             "known item `{name}` names no declared std item (renamed?)"
         );
     }
-    for module in ["std.function", "std.testing"] {
+    for module in ["std.ops", "std.testing"] {
         assert!(
             modules.contains(module),
             "known module `{module}` names no declared std module (renamed?)"
         );
+    }
+}
+
+#[test]
+fn builtin_homes_are_complete_unique_and_enforced() {
+    use hd_resolve::known::{BUILTIN_HOMES, BuiltinHome};
+    use hd_types::{AdtId, Prim, Ty, TyData, TyList};
+    let pool = InternPool::new();
+    let paths = PathTable::new();
+    let syms = ShardedInterner::default();
+    let known = KnownItems::new(&paths);
+    let names = Names {
+        pool: &pool,
+        paths: &paths,
+        syms: &syms,
+        known: &known,
+    };
+    let expected = Prim::ALL
+        .into_iter()
+        .map(BuiltinHome::Primitive)
+        .chain([
+            BuiltinHome::List,
+            BuiltinHome::Map,
+            BuiltinHome::Option,
+            BuiltinHome::Result,
+        ])
+        .collect::<Vec<_>>();
+    assert_eq!(BUILTIN_HOMES.len(), expected.len());
+    for key in expected {
+        let entries = BUILTIN_HOMES
+            .iter()
+            .filter(|(other, _)| *other == key)
+            .collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1, "{key:?}");
+        let home = entries[0].1;
+        let adt =
+            |def, args: &[Ty]| pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(args)));
+        let ty = match key {
+            BuiltinHome::Primitive(p) => Ty::prim(p),
+            BuiltinHome::List => adt(known.list, &[Ty::I32]),
+            BuiltinHome::Map => adt(known.map, &[Ty::I32, Ty::BOOL]),
+            BuiltinHome::Option => adt(known.option, &[Ty::I32]),
+            BuiltinHome::Result => adt(known.result, &[Ty::I32, Ty::BOOL]),
+        };
+        assert_eq!(known.inherent_home(&pool, ty), Some(home));
+        let placement = |module| {
+            hd_resolve::lower::impl_placement(
+                &names,
+                (module, &[]),
+                (DefId::NONE, TyList::EMPTY, ty),
+                hd_resolve::ImplKind::Written,
+                false,
+            )
+        };
+        assert_eq!(placement(home), None, "{key:?}");
+        assert_eq!(
+            placement("std.unrelated"),
+            Some(hd_diag::Code::NonlocalImpl),
+            "{key:?}"
+        );
+        assert_eq!(placement("app"), Some(hd_diag::Code::OrphanImpl), "{key:?}");
     }
 }

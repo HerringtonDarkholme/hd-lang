@@ -1,0 +1,146 @@
+# std.io: `Read`, the trait of every byte source read in chunks, its error
+# `IoError`, and `Cursor`, the in-memory source (spec/std/io.md). A file
+# (`std.fs.File`) and standard input (`std.console.Stdin`) implement `Read`.
+
+## The error of a read from a byte source: closed, not granted, invalid UTF-8 text, or another failure.
+## See [std-io.error.decl](../../spec/std/io.md#r-std-io.error.decl).
+@error
+@derive(Debug, Eq)
+pub enum IoError:
+    @error("the reader is closed")
+    Closed
+    @error("access to ${subject} is not granted")
+    NotGranted(subject: string)
+    @error("invalid UTF-8")
+    InvalidUtf8
+    @error("$message")
+    Other(message: string)
+
+# One call reads one chunk: a host source makes one host call per `read!`
+# (r-std-io.read.one-call).
+## A source of bytes read in chunks: `read!` returns at most `max` bytes, at least one before the end, and an empty list at the end of input.
+## See [std-io.read.decl](../../spec/std/io.md#r-std-io.read.decl).
+pub trait Read:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]
+
+## The `Read` source over bytes in memory: each `read!` returns the next bytes, at most `max`, then an empty list.
+## See [std-io.cursor.decl](../../spec/std/io.md#r-std-io.cursor.decl).
+@derive(Debug)
+pub struct Cursor:
+    bytes: List[u8]
+    at: usize
+
+impl Cursor:
+    ## Returns the source that reads `bytes` from the start.
+    ## See [std-io.cursor.decl](../../spec/std/io.md#r-std-io.cursor.decl).
+    pub fn new(bytes: List[u8]) -> Cursor:
+        Cursor { bytes: bytes, at: 0 }
+
+    ## The number of bytes read so far.
+    ## See [std-io.cursor.position](../../spec/std/io.md#r-std-io.cursor.position).
+    pub fn position(&self) -> usize:
+        self.at
+
+# cost: O(the chunk) per call; the source's bytes are shared, never copied whole.
+impl Read for Cursor:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        size := self.bytes.len()
+        end := if size - self.at < max: size else: self.at + max
+        chunk := self.bytes.slice(self.at, end)
+        self.at = end
+        .Ok(chunk)
+
+# The buffer holds the chunk last read from `inner`; `at` is its first
+# unread byte. cost: one `inner.read!` per `capacity` bytes, and each byte
+# is scanned once for a line ending and copied once into its line.
+## A `Read` source with a buffer: it reads `inner` a chunk at a time and hands out lines, line endings kept, or bytes.
+## See [std-io.buf-reader.decl](../../spec/std/io.md#r-std-io.buf-reader.decl).
+pub struct BufReader[R < Read]:
+    inner: R
+    buffer: List[u8]
+    at: usize
+    capacity: usize
+
+impl[R < Read] BufReader[R]:
+    ## Returns a reader over `inner` that reads 8 KiB at a time.
+    ## See [std-io.buf-reader.decl](../../spec/std/io.md#r-std-io.buf-reader.decl).
+    pub fn new(inner: R) -> BufReader[R]:
+        BufReader::with_capacity(8192, inner)
+
+    ## Returns a reader over `inner` that reads at most `capacity` bytes at a time.
+    ## See [std-io.buf-reader.capacity](../../spec/std/io.md#r-std-io.buf-reader.capacity).
+    pub fn with_capacity(capacity: usize, inner: R) -> BufReader[R]:
+        BufReader { inner: inner, buffer: [], at: 0, capacity: if capacity == 0: 1 else: capacity }
+
+    # Refills the buffer once it is all read: false at the end of input.
+    fn fill!(&mut self) -> Result[bool, IoError]:
+        if self.at < self.buffer.len():
+            return .Ok(true)
+        self.buffer = self.inner.read!(self.capacity)?
+        self.at = 0
+        .Ok(self.buffer.len() > 0)
+
+    ## Returns the next line with its line ending as read, `\n` or `\r\n`, or `.None` at the end of input.
+    ## See [std-io.buf-reader.read-line](../../spec/std/io.md#r-std-io.buf-reader.read-line).
+    pub fn read_line!(&mut self) -> Result[string?, IoError]:
+        let mut line: List[u8] = []
+        while self.fill!()?:
+            size := self.buffer.len()
+            let end = self.at
+            while end < size && self.buffer[end] != 10:
+                end = end + 1
+            found := end < size
+            stop := if found: end + 1 else: size
+            if line.len() == 0 && found:
+                line = self.buffer.slice(self.at, stop)
+            else:
+                line.extend(self.buffer.slice(self.at, stop))
+            self.at = stop
+            if found:
+                break
+        if line.len() == 0:
+            return .Ok(.None)
+        match string::from_utf8(line):
+            .Ok(text) => .Ok(.Some(text))
+            .Err(_) => .Err(IoError.InvalidUtf8)
+
+    ## Returns the cursor over the remaining lines, each with its line ending, as `read_line!` reads them.
+    ## See [std-io.buf-reader.lines](../../spec/std/io.md#r-std-io.buf-reader.lines).
+    pub fn lines(self) -> Lines[R]:
+        Lines { reader: self }
+
+    ## Returns the reader `inner`; bytes still in the buffer are dropped.
+    ## See [std-io.buf-reader.into-inner](../../spec/std/io.md#r-std-io.buf-reader.into-inner).
+    pub fn into_inner(self) -> R:
+        self.inner
+
+# A read the buffer cannot answer and that asks for a whole buffer or more
+# goes straight to `inner`, as Rust's `BufReader` does, so a large read
+# copies once.
+impl[R < Read] Read for BufReader[R]:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        if max == 0:
+            return .Ok([])
+        if self.at >= self.buffer.len() && max >= self.capacity:
+            return self.inner.read!(max)
+        if !self.fill!()?:
+            return .Ok([])
+        size := self.buffer.len()
+        end := if size - self.at < max: size else: self.at + max
+        chunk := self.buffer.slice(self.at, end)
+        self.at = end
+        .Ok(chunk)
+
+## The lines of a `BufReader`, each with its line ending: `next!` returns the next one, or `.None` at the end of input.
+## See [std-io.buf-reader.lines](../../spec/std/io.md#r-std-io.buf-reader.lines).
+pub struct Lines[R < Read]:
+    reader: BufReader[R]
+
+impl[R < Read] Lines[R]:
+    ## Returns the next line, its failure, or `.None` at the end of input.
+    ## See [std-io.buf-reader.lines](../../spec/std/io.md#r-std-io.buf-reader.lines).
+    pub fn next!(&mut self) -> Result[string, IoError]?:
+        match self.reader.read_line!():
+            .Ok(.Some(line)) => .Some(.Ok(line))
+            .Ok(.None) => .None
+            .Err(error) => .Some(.Err(error))

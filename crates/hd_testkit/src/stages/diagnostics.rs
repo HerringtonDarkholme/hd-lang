@@ -26,8 +26,7 @@ fn span(out: &hd_driver::Output, s: Span) -> String {
 /// Every diagnostic of `out` as `severity: file:line:column: code:
 /// message`, in content order, each followed by its fix-its (`fix
 /// (exact|suggestion): title`, then each edit as `edit SPAN:
-/// "replacement"`). Labels are not shown: no stage of the compiler adds
-/// one today, so a case could never reach them. Each message and fix
+/// "replacement"`). Secondary source labels follow their diagnostic. Each message and fix
 /// title is the user's text (`Output::user_text`), as `hd check` prints
 /// it: a package by its name, never its internal `money$2` root, and test
 /// code by its file. Edits stay as written.

@@ -1,7 +1,7 @@
 # test: Serializer.member borrows Member metadata instead of taking its value
 # Spec std/serde Data Model: std-serde.model.member-args.local-ref.
-use std.serde.Serializer
-use std.structure.{Facts, VariantInfo, Member}
+use std.encoding.Serializer
+use std.meta.{Facts, VariantInfo, Member}
 
 struct Count:
     n: i32

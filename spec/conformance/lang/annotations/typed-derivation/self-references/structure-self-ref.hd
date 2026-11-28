@@ -4,9 +4,9 @@
 # annot.self-ref.needs.compound, annot.self-ref.needs.stop,
 # annot.self-ref.needs.only, annot.self-ref.member, annot.self-ref.variant,
 # annot.self-ref.variant.empty.
-# The std.structure Module: annot.structure.self-ref-enum,
+# The std.meta Module: annot.structure.self-ref-enum,
 # annot.structure.self-ref-field (SR1, owner decision 2026-09-30).
-use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.meta.{Structure, Field, Variant, Describer, SelfRef}
 trait Shape:
     fn shape() -> string
 

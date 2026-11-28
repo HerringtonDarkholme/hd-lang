@@ -8,22 +8,27 @@ use std.task.join
 fn ready!(value: string) -> string:
 > app/main/ready
 >   local $0 value: string [param read] value
->     uses $0: entry -> %2 consume last
->   %0 = Retain %5 Cold local $0 #0 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
-    value
->   %2 = Read move [$0] : string
->   %3 = Intrinsic Empty [] : ()
->   %4 = Drop [$0] : ()
->   %5 = Block %2 : string
->   %6 = Intrinsic ParamOwned [0:i32] : bool
+>     uses $0: entry -> %5 consume last
+>   %0 = Retain %8 Cold local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
+    pause!()
+>   %2 = Release %8 FrameDrop child #2 : ()
+>   %3 = Await app/main/pause[] () : ()
+>   %4 = Release %3 Operation child #2 : ()
 >   %7 = Drop [$0] : ()
->   %8 = Block - : ()
->   %9 = If %6 [%8 -] : ()
->   %10 = Block - : ()
+>   %8 = Block %5 : string
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Block - : ()
+    value
+>   %5 = Read move [$0] : string
+>   %6 = Intrinsic Empty [] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %5 releases [%16 %6]
+>   cancel %3 releases [%2147483648 %4294967295]
+>   cancel %8 releases [%16 %12]
 
 fn sequential!(left: string, right: string) -> string:
 > app/main/sequential
@@ -116,3 +121,30 @@ fn sequential!(left: string, right: string) -> string:
 >   cancel %10 releases [%6 %9 %2147483648 %2147483649 %2147483650 %4294967295]
 >   cancel %31 releases [%27 %30 %2147483648 %2147483649 %2147483650 %4294967295]
 >   cancel %61 releases [%16 %76 %16 %80]
+
+# Keep the frame path live: the stored closure can wait.
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   local $0 step: fn!() -> () [:= read assigned] value
+>     uses $0: %6 -> %7 lend last
+>   %0 = Retain %4 Cold row #0 : ()
+>   %1 = Retain %4 Materialize row #0 : ()
+>   %2 = Release %4 FrameDrop row #2 : ()
+>   %3 = Release %15 FrameDrop child #2 : ()
+>   %4 = Block - : ()
+>   %5 = Closure #1 : fn!() -> ()
+>   %6 = Store [$0] %5 : ()
+>   %15 = Block - : ()
+    step!()
+>   %7 = Read move [$0] : fn!() -> ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = CallValue %7 [] : Suspend[()]
+>   %10 = AwaitValue %9 : ()
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Retain %10 Operation child #0 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%7] : ()
+>   %18 = Return - #2 : never
+>   summary none
+>   cancel %10 releases [%7 %9 %4294967295]

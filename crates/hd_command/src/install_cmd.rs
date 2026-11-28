@@ -74,6 +74,8 @@ fn valid_name(name: &str) -> bool {
 #[derive(Default)]
 struct Options {
     root: Option<PathBuf>,
+    engine: Option<engine::EngineKind>,
+    portable: bool,
     operand: Option<String>,
     deny: Vec<String>,
     list: bool,
@@ -100,6 +102,23 @@ fn options(args: &[OsString], remove: bool) -> Result<Options, String> {
             break;
         }
         match word.to_str() {
+            Some("--engine") if !remove => {
+                let name = words
+                    .next()
+                    .ok_or("`--engine` needs NAME")?
+                    .to_string_lossy();
+                result.engine = Some(engine::parse(&name)?);
+            }
+            Some(text) if !remove && text.starts_with("--engine=") => {
+                result.engine = Some(engine::parse(&text["--engine=".len()..])?);
+            }
+            Some("--format") if !remove => {
+                if words.next().is_none_or(|value| value != "wasm") {
+                    return Err("`hd install --format` takes `wasm`".into());
+                }
+                result.portable = true;
+            }
+            Some("--format=wasm") if !remove => result.portable = true,
             Some("--root") => {
                 if result.root.is_some() {
                     return Err("--root is repeated".into());
@@ -193,17 +212,8 @@ fn registry(root: &Path) -> Result<Value, String> {
 }
 
 fn save(root: &Path, value: &Value) -> Result<(), String> {
-    let pending = root.join(format!("installed/.registry.{}.tmp", std::process::id()));
-    fs::write(
-        &pending,
-        serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?,
-    )
-    .map_err(io)?;
-    let result = fs::rename(&pending, root.join("installed/registry.json")).map_err(io);
-    if result.is_err() {
-        let _ = fs::remove_file(pending);
-    }
-    result
+    let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
+    crate::publish(&root.join("installed/registry.json"), &bytes)
 }
 
 fn bin(root: &Path, name: &str) -> PathBuf {
@@ -415,6 +425,15 @@ fn table(record: &Value) -> Result<Vec<(String, Grant)>, String> {
         .collect()
 }
 
+fn artifact_format(record: &Value) -> Result<&str, String> {
+    match record.get("format") {
+        None => Ok("wasm"),
+        Some(Value::String(format)) if format == "wasm" => Ok("wasm"),
+        Some(Value::String(format)) if format == "cwasm" => Ok("cwasm"),
+        Some(_) => Err("invalid installed artifact format".into()),
+    }
+}
+
 fn payload(root: &Path, record: &Value) -> Result<PathBuf, String> {
     let generation = field(record, "generation")?;
     let name = field(record, "name")?;
@@ -427,7 +446,7 @@ fn payload(root: &Path, record: &Value) -> Result<PathBuf, String> {
     Ok(root
         .join("installed")
         .join(generation)
-        .join(format!("{name}.wasm")))
+        .join(format!("{name}.{}", artifact_format(record)?)))
 }
 
 fn collect_old(root: &Path, before: &Value, after: &Value) {
@@ -488,6 +507,12 @@ fn do_install(options: Options, rep: &mut Reporter) -> Result<(), ExitCode> {
         }
         return Ok(());
     }
+    let kind = match options.engine {
+        Some(kind) => kind,
+        None => engine::from_env().map_err(|e| rep.fail(&e))?,
+    };
+    let native = kind == engine::EngineKind::Wasmtime && !options.portable;
+    let extension = if native { "cwasm" } else { "wasm" };
     let word = options.operand.expect("source was checked");
     let selected = source(&word).map_err(|e| rep.fail(&e))?;
     if !disk::declares_package(&selected.directory).map_err(|e| rep.fail(&e))? {
@@ -531,10 +556,7 @@ fn do_install(options: Options, rep: &mut Reporter) -> Result<(), ExitCode> {
         program.only_program(&executable.file);
         let (wasm, _) = crate::compile_standalone(
             &program,
-            (
-                hd_driver::BuildProfile::Release,
-                Pipeline::of(engine::EngineKind::Node, true),
-            ),
+            (hd_driver::BuildProfile::Release, Pipeline::of(kind, true)),
             rep,
         )?;
         if let Some(artifacts) = hd_driver::host_artifacts(&wasm).map_err(|e| rep.fail(e))?
@@ -545,9 +567,16 @@ fn do_install(options: Options, rep: &mut Reporter) -> Result<(), ExitCode> {
                 provider.identity.package, provider.identity.trait_path
             )));
         }
+        let bytes = if native {
+            engine::precompile(&wasm)
+                .and_then(|image| hd_run::artifact::encode(image, &wasm, hd_base::Hash128(0)))
+                .map_err(|e| rep.fail(&e))?
+        } else {
+            wasm
+        };
         built.push((
             executable.name,
-            wasm,
+            bytes,
             grants(&program.capabilities, &selected.directory),
         ));
     }
@@ -591,12 +620,12 @@ fn do_install(options: Options, rep: &mut Reporter) -> Result<(), ExitCode> {
     let prepare = (|| -> Result<(), String> {
         let commands = next["commands"].as_object_mut().expect("checked registry");
         for (name, wasm, capabilities) in &built {
-            fs::write(directory.join(format!("{name}.wasm")), wasm).map_err(io)?;
+            fs::write(directory.join(format!("{name}.{extension}")), wasm).map_err(io)?;
             if !bin(&root, name).exists() {
                 write_launcher(&root, name)?;
                 created.push(name.clone());
             }
-            commands.insert(name.clone(),json!({"name":name,"source":selected.owner,"reinstall":selected.reinstall,"revision":selected.revision,"generation":generation,"abi":hd_host_abi::RUNTIME_ABI_REVISION,"sha256":hash(wasm),"capabilities":capabilities}));
+            commands.insert(name.clone(),json!({"name":name,"source":selected.owner,"reinstall":selected.reinstall,"revision":selected.revision,"generation":generation,"abi":hd_host_abi::RUNTIME_ABI_REVISION,"sha256":hash(wasm),"format":extension,"capabilities":capabilities}));
         }
         for name in &removed {
             commands.remove(name);
@@ -699,30 +728,44 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
                 "incompatible installed Wasm/runtime ABI; {reinstall}"
             ));
         }
-        let wasm = fs::read(payload(root, record)?).map_err(io)?;
-        if hash(&wasm) != field(record, "sha256")? {
+        let path = payload(root, record)?;
+        let native = if artifact_format(record)? == "cwasm" {
+            Some(hd_run::artifact::Native::open(&path)?)
+        } else {
+            None
+        };
+        let bytes = fs::read(&path).map_err(io)?;
+        if hash(&bytes) != field(record, "sha256")? {
             return Err(format!("installed artifact hash mismatch; {reinstall}"));
         }
+        let wasm = native
+            .as_ref()
+            .map_or(bytes, |native| native.metadata.clone());
         if hd_driver::host_artifacts(&wasm)
             .map_err(str::to_owned)?
             .is_some()
         {
             return Err("installation of package providers is not supported yet".into());
         }
-        Ok((wasm, table(record)?, name.to_owned(), words))
+        Ok((wasm, native, table(record)?, name.to_owned(), words))
     })();
-    let (wasm, table, name, words) = match result {
+    let (wasm, native, table, name, words) = match result {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
-    let engine = match engine::Choice::from_env() {
-        Ok(e) => e,
-        Err(e) => return fail(&e),
+    let engine = if native.is_some() {
+        engine::Choice::named(engine::EngineKind::Wasmtime)
+    } else {
+        match engine::Choice::from_env() {
+            Ok(e) => e,
+            Err(e) => return fail(&e),
+        }
     };
     let mut rep = Reporter::stderr(false);
     crate::execute(
         &Compiled {
             wasm,
+            native,
             frames: None,
             stored: None,
         },
@@ -736,6 +779,7 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
             engine,
             hd_driver::OptLevel::Optimized,
             engine::ProgramLimits::default(),
+            None,
         ),
         &mut rep,
     )

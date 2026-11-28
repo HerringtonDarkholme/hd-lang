@@ -1,0 +1,40 @@
+# @dump: diagnostics fixed
+# A misspelt name, type, field, variant or method that one candidate in
+# scope is closest to says "did you mean" and carries the exact fix-it
+# that writes it; the fixed module checks clean.
+struct Point:
+    x: i32
+    yval: i32
+
+enum Cell:
+    Full(value: i32)
+    Empty
+
+# A type in a signature, a type parameter, and a builtin type by case.
+fn origin[Item](item: Itme) -> Pont:
+    let label: strng = "origin"
+    Point { x: 0, yvl: 0 }
+
+# A local, an interpolated local, an assignment target, and a function.
+fn names(count: i32) -> string:
+    let mut total = cuont
+    totl += 1
+    "$totla"
+
+fn twice(n: i32) -> i32: n + n
+
+fn call(n: i32) -> i32: twcie(n)
+
+# A field read, write and pattern; a variant and its field; a method.
+fn members(mut p: Point, c: Cell, xs: List[i32]) -> usize:
+    p.yvl = p.x
+    let Point { x, yvl: y } = p
+    match c:
+        .Full(valu=v) => v + x + y
+        .Emtpy => 0
+    xs.lenn()
+
+fn variant(c: Cell) -> Cell:
+    match c:
+        .Ful(value=v) => Cell.Emtpy
+        .Empty => c

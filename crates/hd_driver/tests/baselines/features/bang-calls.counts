@@ -7,13 +7,19 @@
 use std.task.{join, race}
 
 fn label!(s: string) -> string:
-    s + "!"
+    pause!()
 > app/main/label
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release string (last use)
+>   release string (last use)
 >   release string (last use)
 > app/main/label
 >   release string (cancelled)
 > app/main/label
 >   release string (cancelled)
+>   release counted reference (last use)
+    s + "!"
 
 fn one!(s: string) -> usize:
     label!(s).len()
@@ -64,3 +70,23 @@ fn either!(a: string, b: string) -> usize:
 >   release string (cancelled)
 >   release string (cancelled)
 >   release counted reference (last use)
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+> app/main/pause
+>   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
+> app/main/pause
+>   release Suspend[()] (last use)
+>   release fn!() -> () (last use)
+> app/main/pause
+>   release counted reference (last use)
+    step!()
+>   retain counted reference (stored)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release fn!() -> () (cancelled)
+>   release Suspend[()] (cancelled)

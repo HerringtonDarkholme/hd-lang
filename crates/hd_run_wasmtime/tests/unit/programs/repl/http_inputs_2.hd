@@ -1,0 +1,4 @@
+fn fetch!(url: string) -> string $ Http:
+    match get!(url):
+        .Ok(r) => "status ${r.status.code()}"
+        .Err(e) => "${e}"

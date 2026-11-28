@@ -10,7 +10,7 @@ ordinary hd over the language tier:
 - the splitting and padding methods `split_once`, `split_whitespace`,
   `pad_start`, `pad_end`, and `count`;
 - the `char` classification methods and `to_digit`;
-- the UTF-8 conversions `to_utf8` and `string::from_utf8`, and
+- the UTF-8 conversions `to_utf8`, `string::from_utf8` and `string::from_utf8_lossy`, and
   `Utf8Error`;
 - the `Parse` trait, `string.parse::[T]()`, and the `Parse` impls of
   `bool`, `char`, and `string`;
@@ -152,6 +152,7 @@ fn uppercase(c: char) -> bool:
 4. r[std-text.char.to-digit.ascii-only] Every other `char` gives `.None`, so `'٣'.to_digit(10)` is `.None`, though `'٣'.is_alphanumeric()` is `true`.
 5. r[std-text.char.to-digit.radix] A `radix` below 2 or above 36 panics. Panic: `explicit-panic`.
 6. r[std-text.char.uppercase.cost] `is_uppercase` allocates nothing, uses constant temporary state, and takes at most logarithmic time in the Unicode property range count.
+7. r[std-text.char.try-from-u32] `char` implements `std.convert.TryFrom[u32]`, returning `.Ok` for Unicode scalar values and `.Err(std.convert.CharTryFromError {})` for surrogates or values above U+10FFFF.
 
 > **Why.** The names and results are Rust's, so agents and readers
 > already know them. `to_digit` reads ASCII only, so a number parser
@@ -175,9 +176,11 @@ fn decode(bytes: List[u8]) -> string:
         .Err(Utf8Error.Truncated(position)) => "cut short at $position"
 ```
 
+`string::from_utf8_lossy` replaces malformed input with U+FFFD instead of returning an error.
+
 | Receiver | Methods |
 | --- | --- |
-| `string` | `to_utf8(self) -> List[u8]`; the associated function `string::from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]` |
+| `string` | `to_utf8(self) -> List[u8]`; the associated functions `from_utf8(bytes: List[u8]) -> Result[string, Utf8Error]` and `from_utf8_lossy(bytes: List[u8]) -> string` |
 
 1. r[std-text.utf8.to-utf8] `to_utf8` returns a new list of the string's bytes, in order.
 2. r[std-text.utf8.from-utf8] `string::from_utf8(bytes)` returns `.Ok` of the string whose bytes are `bytes` when they are well-formed UTF-8, and `.Err` otherwise.
@@ -188,6 +191,11 @@ fn decode(bytes: List[u8]) -> string:
 7. r[std-text.utf8.error.truncated-position] It is `Truncated(position)` when the bytes end before that sequence has the length its first byte gives, where `position` is the byte offset at which that sequence starts. That holds only when each byte of it after the first is a continuation byte, `0x80` to `0xBF`.
 8. r[std-text.utf8.error.invalid] Otherwise it is `InvalidSequence(position)`, where `position` is the byte offset at which that sequence starts.
 9. r[std-text.utf8.error.traits] `Utf8Error` implements `Eq`, `Debug`, and `Display`. Two errors are equal when they are the same variant with the same position.
+10. r[std-text.utf8.from-utf8-lossy] `string::from_utf8_lossy(bytes)` preserves well-formed UTF-8 and replaces each maximal subpart of malformed UTF-8 with U+FFFD, as Rust's `String::from_utf8_lossy` does.
+11. r[std-text.utf8.lossy-subpart] A replacement consumes the longest prefix that could begin a well-formed scalar encoding, or one byte when no such prefix exists.
+
+> **Why.** A truncated `[0xE2, 0x82]` gives one replacement, while the overlong `[0xC0, 0xAF]` gives two.
+> Lossy decoding preserves valid text around malformed sequences without dropping an offending byte that begins the next character.
 
 | Rule | Error | Display text |
 | --- | --- | --- |
@@ -349,7 +357,7 @@ fn report(names: List[string]) -> string:
     out.build()
 ```
 
-1. r[std-text.join.display-list] `std.text` gives `List[T < Display]` the method `join(&self, separator: string) -> string`, requiring no import.
+1. r[std-text.join.list-home] `std.collections.list` gives `List[T < Display]` the method `join(&self, separator: string) -> string`, requiring no import.
 2. r[std-text.join.display-result] `join` returns each element's `Display.write` text in list order, separated by `separator`, with no leading or trailing separator.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.

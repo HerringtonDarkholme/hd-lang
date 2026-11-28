@@ -1,6 +1,6 @@
 # test: impl T by Structure without a trait parses as a derivation block with no trait
 # expect: parse
-use std.structure.Structure
+use std.meta.Structure
 
 struct Point:
     x: i32

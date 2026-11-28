@@ -299,7 +299,7 @@ sum(items...)
 5. r[fn.vararg.no-auto-spread] A tuple argument is never spread automatically: it is one element of the collected tuple.
 
 ```text
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn add2(a: i32, b: i32) -> i32: a + b
 fn neg(a: i32) -> i32: -a
@@ -346,7 +346,7 @@ fn main() -> usize:
 Here `f` has type `fn(List[i32]...) -> usize`.
 
 ```text
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
 fn count(values...: i32) -> i32: values                       # error: type-mismatch
@@ -384,7 +384,7 @@ fn!(UserId) -> Result[User, DbError] $ Database
 ### Function Type Constructors
 
 Every function type is exact sugar for one of two standard constructors that
-`std.function` declares:
+`std.ops` declares:
 
 | Sugar | Constructor form |
 | --- | --- |
@@ -394,7 +394,7 @@ Every function type is exact sugar for one of two standard constructors that
 | `fn() -> O $ Db + Cache` | `Fn[(), O, $ Db + Cache]` |
 
 ```text
-use std.function.{Fn, SuspendFn}
+use std.ops.{Fn, SuspendFn}
 
 trait Database
 
@@ -417,22 +417,22 @@ fn invoke_tuple[F < Fn[(i32,), i32, $()]](f: F, value: i32) -> i32:
     f.call((value,))
 ```
 
-1. r[fn.type.ctor.decl.contextual] In type positions, `std.function` declares `Fn[I, O, $R]` and `SuspendFn[I, O, $R]` as plain and suspending function type constructors.
+1. r[fn.type.ctor.decl.contextual] In type positions, `std.ops` declares `Fn[I, O, $R]` and `SuspendFn[I, O, $R]` as plain and suspending function type constructors.
 2. r[fn.type.ctor.inputs] The inputs argument is one tuple type whose elements are the parameter types, such as `()`, `(A,)`, or `(A, B)`. It may also be a type parameter bounded by `Tuple`.
 3. r[fn.type.ctor.no-flatten] A tuple is never flattened into parameters: `Fn[((A, B),), O, $ R]` takes one pair, and `Fn[(A, B), O, $ R]` takes two values.
 4. r[fn.type.ctor.row] The row argument is row-kinded. A function type without a requirement clause has the empty row `$()`, and several keys are joined with `+`, as in `$ Db + Cache`.
 5. r[fn.type.ctor.row.dollar] The row argument is a [row slot](11-requirements-and-suspension.md#row-slots), so one key or a row alias is written after `$` too, as in `Fn[(), O, $ Db]` and `Fn[(), O, $ AppRow]`. A bare one is an error. Error: `generic-kind-mismatch`.
-6. r[fn.type.ctor.tuple-trait] `std.function` also declares `Tuple`, an empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
+6. r[fn.type.ctor.tuple-trait] `std.ops` also declares `Tuple`, an empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
 7. r[fn.type.ctor.tuple-trait.rest] A tuple type with a [rest element](04-type-system.md#rest-elements) is a tuple type and implements `Tuple`, so `Args` may be `(i32, List[i32]...)`.
 8. r[fn.type.ctor.inputs-tuple] An inputs argument that is not a tuple type or a type parameter bounded by `Tuple` is an error. Examples are `Fn[i32, i32, $()]`, and `Fn[Args, O, $ R]` with an unbounded `Args`. Error: `generic-kind-mismatch`.
 9. r[fn.type.ctor.sugar] `fn(A) -> O $ R` and `Fn[(A,), O, $ R]` denote the same type, and so do `fn!(A) -> O $ R` and `SuspendFn[(A,), O, $ R]`.
 10. r[fn.type.ctor.anywhere] Either spelling is valid anywhere a type may appear, including implementation targets.
 11. r[fn.type.ctor.diagnostics] Diagnostics print a function type in its sugar form, as they print `T?` for `Option[T]`.
-12. r[fn.type.ctor.imports] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Tuple` are imported where they are written, as in `use std.function.Fn`.
+12. r[fn.type.ctor.imports] The sugar needs no import. The names `Fn`, `SuspendFn`, and `Tuple` are imported where they are written, as in `use std.ops.Fn`.
 13. r[fn.type.ctor.opaque-sources] The constructors have no fields and no construction syntax. Function values come only from function names, closures, one-payload variant constructors, instantiated generic functions, and [method references](#method-references).
 
 ```text
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 trait Describe:
     fn describe(self) -> string
@@ -449,7 +449,7 @@ fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # error: generi
 The `Fn` trait describes the exact plain function type that a generic value
 may hold and call.
 
-1. r[fn.trait.decl] `std.function` declares `trait Fn[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call(&self, args: I) -> O $R`.
+1. r[fn.trait.decl] `std.ops` declares `trait Fn[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call(&self, args: I) -> O $R`.
 2. r[fn.trait.function-values-read-only] A plain function value implements `Fn` for its exact inputs tuple, output type, and requirement row, except where [`fn.trait.read-only`](#r-fn.trait.read-only) and the rules after it make it implement only `FnMut`.
 3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
 4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
@@ -470,7 +470,7 @@ The `FnMut` trait describes a generic function value whose calls may change
 its captures, as Rust's `FnMut` does.
 
 ```text
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn twice[F < FnMut(i32) -> void](mut f: F) -> void:
     f(1)
@@ -483,7 +483,7 @@ fn stuck[F < FnMut(i32) -> void](f: F) -> void:
     f(1)  # error: not-writable
 ```
 
-1. r[fn.trait.mut.decl] `std.function` declares `trait FnMut[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call_mut(&mut self, args: I) -> O $R`.
+1. r[fn.trait.mut.decl] `std.ops` declares `trait FnMut[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call_mut(&mut self, args: I) -> O $R`.
 2. r[fn.trait.mut.supertrait] `Fn[I, O, $R]` has the supertrait `FnMut[I, O, $R]`, so a value whose bound is `Fn` meets an `FnMut` bound of the same arguments.
 3. r[fn.trait.mut.function-values] Every plain function value implements `FnMut` for its exact inputs tuple, output type, and requirement row.
 4. r[fn.trait.mut.sugar] `FnMut(A, B) -> O $R` denotes `FnMut[(A, B), O, $R]`, and the bound rules for `Fn` above apply to `FnMut` alike.
@@ -500,7 +500,7 @@ A value passed or stored for a type parameter bounded by `Fn` may not change
 its captures, as Rust's `Fn` closures may not.
 
 ```text
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn check[F < Fn() -> bool](condition: F) -> bool:
     condition()
@@ -1104,7 +1104,7 @@ for it is a **crossing closure**, which runs in another
 [execution domain](10-modules.md#execution-domains):
 
 ```text
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32
@@ -1159,10 +1159,10 @@ the closure. The mode is never written:
 1. r[fn.crossing.fn-value] A function value that is not the crossing closure itself is neither `Send` nor `Wire`. A crossing closure that captures one, or a struct, list or `&T` that holds one, is an error. Error: `unsatisfied-trait-bound`.
 2. r[fn.crossing.global] Every top-level binding that a crossing closure reaches, directly or through a callee, must be immutable. Error: `crossing-top-level-binding`.
 3. r[fn.crossing.global.send] For the marker `Send`, every such binding must also be `Send` and [`Sync`](10-modules.md#r-module.marker.sync), since every thread reads it at once. Error: `crossing-top-level-binding`.
-4. r[fn.crossing.global.runtime] The storage of the runtime modules, by [`module.rt.leaf`](10-modules.md#r-module.rt.leaf), is not such a binding: it is the instance's own, not the program's.
+4. r[fn.crossing.global.runtime] The storage of the [runtime modules](10-modules.md#r-module.rt.modules) is not such a binding: it is the instance's own, not the program's.
 
 ```text
-use std.marker.{Send, Wire}
+use std.meta.{Send, Wire}
 
 fn run[T < Wire](code: fn() -> T + Wire) -> T:
     code()
@@ -1544,10 +1544,10 @@ pub fn main() -> void:
 ## Call-Site Locations
 
 A `@track_caller` function knows where it was called. Two accessors on
-`std.debug.Location` read that call site:
+`std.meta.Location` read that call site:
 
 ```hd
-use std.debug.Location
+use std.meta.Location
 
 @track_caller
 fn check_positive(value: i32) -> void:
@@ -1568,9 +1568,9 @@ pub fn main() -> void:
 7. r[fn.caller.record.args] A record holds argument texts only when its callee calls `Location::caller_args()`, directly or through a chain of `@track_caller` functions.
 8. r[fn.caller.chain] Inside a `@track_caller` function, a direct call of another `@track_caller` function passes the outer call's record on. So both accessors describe the outermost call.
 9. r[fn.caller.value] A `@track_caller` function used as a value binds the record of the place where the value is created, with no argument texts. A call through a function value passes no hidden argument.
-10. r[fn.caller.accessor.location] `std.debug` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
+10. r[fn.caller.accessor.location] `std.meta` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
 11. r[fn.caller.location] A `Location` holds the file as diagnostics name it, and the 1-based line and column where the call begins. The column counts characters.
-12. r[fn.caller.accessor.args] `std.debug` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
+12. r[fn.caller.accessor.args] `std.meta` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
 13. r[fn.caller.accessor.args.complete] The argument texts are known for a call with no spread and no trailing block, its named arguments included. For any other call, the list is empty.
 14. r[fn.caller.accessor.args.name] The list holds the call's arguments in source order, positional and named. A `CallArg`'s `name` is the parameter name of a named argument, and none for a positional one. Its text and span are the argument's value, without the name.
 15. r[fn.caller.accessor.args.end] A `CallArg`'s `end` is the location just after the argument's last character.
@@ -1579,7 +1579,7 @@ pub fn main() -> void:
 18. r[fn.caller.frames] A panic report's frame list leaves out each frame in the body of a `@track_caller` function, the closures it contains included. So the list names the caller where the function was called.
 
 ```hd
-use std.debug.Location
+use std.meta.Location
 
 fn plain() -> u32:
     Location::caller().line  # error: caller-outside-track-caller

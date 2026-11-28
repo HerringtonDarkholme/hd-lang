@@ -19,10 +19,10 @@ in each crate's `Cargo.toml`.
 | `hd_diag` | Diagnostic codes and records | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
 | `hd_syntax` | Lexer, layout, parser, green tree, and skeletons | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
 | `hd_fmt` | Green-tree formatter | [`hd fmt` and fixing](hd_command/DESIGN.md) |
-| `hd_project` | Manifests, source discovery, modules, folders, package graph | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
+| `hd_project` | Manifests, source discovery, modules, units, package graph | [Discovery and units](hd_resolve/DESIGN.md#47-discovery-module-identity-and-units) |
 | `hd_types` | Type storage, inference primitives, rows, solver data | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md) |
 | `hd_host_abi` | Host import and ABI descriptions | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |
-| `hd_resolve` | Names, folder interfaces, hashes, ownership, visibility | [Resolution and interfaces](hd_resolve/DESIGN.md) |
+| `hd_resolve` | Names, unit interfaces, hashes, ownership, visibility | [Resolution and interfaces](hd_resolve/DESIGN.md) |
 | `hd_tir` | Typed IR, builder, verifier, printer, wire form | [TIR](hd_tir/DESIGN.md#41311-the-typed-ir-tir), [TIR storage](../docs/compiler/data-structures.md#318-tir) |
 | `hd_structure` | The compiler-supplied `Structure` generator for derivations and tuples | [Type checking](hd_check/DESIGN.md) |
 | `hd_check` | Body checking, trait solving, exhaustiveness, facts, coherence, initialization | [Body checking](hd_tir/DESIGN.md#413-body-checking), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |
@@ -68,7 +68,8 @@ selects it as the optimized binary's default. Explicit `--engine node`
 still works. The measured macOS arm64 binary is 26,193,872 bytes
 (25.0 MiB), including Wasmtime and the embedded Node host. Package host
 traits select Node before startup unless an
-explicit `--engine` names an engine.
+explicit `--engine` names an engine, or every one has a C provider, which
+selects Wasmtime.
 
 Developer and test builds default to Node, including optimized builds
 with only the `wasmtime` feature and debug builds with all features.
@@ -119,52 +120,30 @@ HD_CONFORMANCE_ENGINE=wasmtime cargo test --features wasmtime -p hd_driver --tes
 
 ## Publishing
 
-`cargo install hd-lang` builds the `hd-lang` crate from crates.io. It is a
-`main` over `hd_command::main` and exists for its feature set:
-`cargo install` takes a crate's default features, and `hd-lang` turns on
-`hd_command`'s `dist`, while `hd_command`'s own defaults stay Wasmtime-free
-for developer builds. `hd-lang` is outside `default-members`, like
-`hd_run_wasmtime`.
+The version-cut command, binary workflow, draft validation and recovery
+procedure are in [RELEASING.md](../RELEASING.md).
 
-crates.io takes a dependency by name and version, so every crate `hd-lang`
-is built from is published too, as wasmtime-cli and typst-cli publish
-theirs. The others (`hd_web`, `hd_wat`, `hd_testkit`) say
-`publish = false`.
+`cargo install hd-lang` builds the `hd-lang` wrapper over `hd_command`.
+It enables `dist`, including Wasmtime, and is outside `default-members`.
+Every published crate shares `[workspace.package].version`; exact
+`=X.Y.Z` internal dependencies name one compiler source set.
 
-| Rule | Where |
-| --- | --- |
-| One version for all published crates | `[workspace.package] version` in the root manifest |
-| Internal dependencies are exact (`=0.0.1`) | `[workspace.dependencies]` in the root manifest |
-| A dev-dependency names a path only, so cargo drops it from the published manifest | each crate's `[dev-dependencies]` |
-| A package holds `src/` and `build.rs`, not tests or baselines | `include` in the root manifest |
-
-A package cannot read outside its own directory, and two crates do in a
-checkout. `scripts/publish-crates.ts` stages a copy of the workspace under
-`target/publish/stage` and adds what they read:
-
-| Crate | Checkout | Package |
-| --- | --- | --- |
-| `hd_driver` | embeds `lib/std`; build id hashes every crate's sources | embeds its staged `std/`; build id is its version |
-| `hd_command` | runs Node to strip `host/*.ts` | embeds its staged `host/`, so the build needs no Node |
+`scripts/publish-crates.ts` stages packages under `target/publish/`.
+It embeds `lib/std` inside hd_driver and the stripped Node host inside
+hd_command, because registry packages cannot read sibling directories.
+It packages every crate, builds from the unpacked packages, and runs the
+packaged hd on Wasmtime without Node. No source checkout is rewritten.
 
 ```sh
-node scripts/publish-crates.ts             # stage, package, build each package, run the packaged hd
-node scripts/publish-crates.ts --publish   # the same, then upload to crates.io
+node scripts/publish-crates.ts             # package and verify, without upload
+node scripts/publish-crates.ts --publish   # verify, then upload in dependency order
 ```
 
-The dry run builds each package against the other packages, never against
-workspace paths, then runs the packaged `hd` on Wasmtime with an empty
-`PATH`. Each run builds from nothing, in its own cargo home under
-`target/publish`: cargo takes a package of one version as never changing,
-so kept state would check new packages against old ones. `--publish` needs a clean tree and a crates.io token
-(`cargo login`). It uploads in dependency order and skips a version
-crates.io already has, so a stopped run resumes. crates.io limits new crate
-names to a burst of 5 and then one every 10 minutes; the script waits and
-retries.
-
-To release: set `[workspace.package] version` and the versions in
-`[workspace.dependencies]` to the new number, commit, and run the script
-with `--publish`.
+Publishing requires crates.io authentication. Existing crate versions are
+skipped so interrupted uploads can resume. A first publication can wait
+for crates.io's new-name limit; later releases reuse those crate names.
+The release workflow uses the owner-provided `CARGO_REGISTRY_TOKEN` secret
+and skips registry publication with a notice when it is absent.
 
 ## Inspection Examples
 
@@ -198,7 +177,14 @@ verification bypasses the whole-result cache and uses distinct module
 check keys, so it cannot reuse an unchecked result.
 
 - Unit tests live beside each crate's source. Integration tests live under
-  `crates/*/tests/`.
+  `crates/*/tests/`. A large crate keeps its unit tests in `tests/unit`
+  instead, so a test build compiles the library once, not again in test
+  mode: `[lib] test = false`, and a `testing` feature, which the crate's
+  dev-dependency on itself turns on, exports what they reach
+  (`hd_check/src/testing.rs`, `hd_driver/src/testing.rs`,
+  `hd_wasm/src/testing.rs`, and `hd_run_wasmtime/src/internals.rs`, whose
+  crate already has a public `testing` module). Run them with
+  `cargo test -p <crate> --test unit`.
 - Compiler output is tested with stage cases: a plain `.hd` file under
   `crates/<crate>/tests/cases/<topic>/` with its generated output under
   `tests/baselines/<topic>/`. `hd_syntax` (tokens, tree), `hd_check` (tir),
@@ -294,3 +280,11 @@ runs, make the target unambiguous:
 HD_CACHE=/private/tmp/hd-cache ./target/debug/hd examples/hello/hello.hd
 rm -rf /private/tmp/hd-cache/obj
 ```
+
+A diagnostic stage case with `# @build: std` can add
+`# @std-module: num.hd` to prepend its declarations to an existing std
+module. This preserves the case's source offsets while testing inherent
+implementations in their required home. The directive requires only the
+`diagnostics` view and std builds; other std cases keep the isolated
+`std.rt_tests.stage_case` module. Additional `# @file:` sections in a
+`@std-module` case prepend declarations to those existing std files too.

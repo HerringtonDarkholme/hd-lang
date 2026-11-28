@@ -1,0 +1,20 @@
+# @dump: functions
+# @build: dev | release
+# The issue's program: `MemoryFile.read!` and `MemoryFile.dispose!`
+# never wait, so their calls through `*mut dyn File` (a `read!` and the
+# `using!` binding's `dispose!`) make no frame and link no `.poll`,
+# `.cancel` or `.drop` of either (#2419).
+use std.fs.{FsRead, FsWrite, MemoryFs, open, write_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console:
+    files := MemoryFs::new()
+    $.with(FsRead=files, FsWrite=files):
+        _ := write_text!(Path("a.txt"), "hello")
+        match open!(Path("a.txt")):
+            .Ok(file) =>
+                using! f = file
+                match f.read!(16):
+                    .Ok(bytes) => println("${bytes.len()}")
+                    .Err(_) => println("read error")
+            .Err(_) => println("error")

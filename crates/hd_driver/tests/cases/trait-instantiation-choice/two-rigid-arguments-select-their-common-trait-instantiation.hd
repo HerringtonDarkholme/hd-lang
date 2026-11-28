@@ -1,0 +1,32 @@
+# @dump: stdout
+# expected: each call selects the candidate matching both rigid argument heads
+trait Pick[A, B]:
+    fn pick(self, a: A, b: B) -> i32
+
+struct Switch: pass
+
+impl Pick[i32, string] for Switch:
+    fn pick(self, a: i32, b: string) -> i32:
+        +11
+
+impl Pick[i32, i32] for Switch:
+    fn pick(self, a: i32, b: i32) -> i32:
+        +22
+
+impl Pick[string, string] for Switch:
+    fn pick(self, a: string, b: string) -> i32:
+        +33
+
+fn mixed(a: i32, b: string) -> i32:
+    Switch {}.pick(a, b)
+
+fn numbers(a: i32, b: i32) -> i32:
+    Switch {}.pick(a, b)
+
+fn words(a: string, b: string) -> i32:
+    Switch {}.pick(a, b)
+
+pub fn main() -> void $ Console:
+    println(mixed(+1, "a"))
+    println(numbers(+1, +2))
+    println(words("a", "b"))

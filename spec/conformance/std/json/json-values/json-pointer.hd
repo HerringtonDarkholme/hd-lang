@@ -1,6 +1,6 @@
 # test: pointer follows RFC 6901: "" is the value itself, each /token steps into an object key or an array index, ~1 and ~0 are / and ~, and any miss is .None
 # Spec std/json JSON Pointer: std-json.pointer, std-json.pointer.syntax, std-json.pointer.escapes, std-json.pointer.step, std-json.pointer.index (issue 371).
-use std.json.{parse, Json}
+use std.encoding.json.{parse, Json}
 
 fn read(text: string) -> Json:
     match parse(text):

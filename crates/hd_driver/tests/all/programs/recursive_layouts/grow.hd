@@ -1,0 +1,14 @@
+enum Grow[T]:
+    More(inner: *Grow[T?])
+    Done(value: T)
+
+fn depth[T](g: Grow[T]) -> i32:
+    match g:
+        .More(_inner) => 1
+        .Done(_value) => 0
+
+pub fn main() -> void $ Console:
+    let g: Grow[i32] = Grow.More(box(Grow.Done(.Some(+3))))
+    println(depth(g))
+    let d: Grow[i32] = Grow.Done(+3)
+    println(depth(d))

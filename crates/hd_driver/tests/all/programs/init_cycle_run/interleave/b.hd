@@ -1,0 +1,13 @@
+use pkg.mix.a.{get_z}
+use pkg.log.{record}
+
+let y = +1
+record("b y ${y}")
+let w = get_z() + 1
+record("b w ${w}")
+
+pub fn get_y() -> i32:
+    y
+
+pub fn get_w() -> i32:
+    w

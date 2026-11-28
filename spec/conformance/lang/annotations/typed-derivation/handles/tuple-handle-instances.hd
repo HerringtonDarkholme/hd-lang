@@ -1,8 +1,8 @@
 # test: tuple traversals preserve exact owner types and member positions across walkers and generic instances
 # Spec 14 Handles and Tuple Structure: annot.handle.shared-target, annot.template.tuple.instance,
 # annot.tuple.members, annot.tuple.rest, annot.tuple.build, annot.structure.protocol-ref.
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
 
 trait Sample:
     fn render(self) -> string

@@ -1,0 +1,4 @@
+fn make(value: usize) -> fn() -> usize:
+    fn() -> usize: value
+kept = make(7)
+panic("retained code")

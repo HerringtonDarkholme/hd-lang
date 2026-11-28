@@ -1,11 +1,8 @@
-# std.console: `println`, `eprintln`, console input, and the recording
-# `MemoryConsole`.
-# `Console`, `ConsoleError`, and `println`
-# are prelude names (spec/lang/10-modules.md#console), all declared here.
-# The checker still also knows `ConsoleError` by name. The default profile
-# binds a host `ConsoleInput` to standard input. `println` calls the
-# covering provider's `write_sync` directly, so a `MemoryConsole` records
-# `println` lines too.
+# std.console: `println`, `eprintln`, console input, `stdin()`, and the recording
+# `MemoryConsole`. `Console`, `ConsoleError` and `println` are prelude names
+# (spec/lang/10-modules.md#console), declared here; the checker knows `ConsoleError`
+# by name. The default profile binds a host `ConsoleInput` to standard input, and
+# `println` calls the provider's `write_sync`, so a `MemoryConsole` records it too.
 use std.text.StringBuilder
 
 # The host console capability; `write_sync` takes `&mut self`, so it is a
@@ -16,6 +13,11 @@ use std.text.StringBuilder
 ## The host capability to write unchanged output text and error text.
 ## See [module.console.host-trait](../../spec/lang/10-modules.md#r-module.console.host-trait).
 pub trait Console:
+    ## Whether this stream is a terminal; custom providers default to false.
+    ## See [std-console.terminal.query](../../spec/std/console.md#r-std-console.terminal.query).
+    fn is_terminal(&self, stream: ConsoleStream) -> bool:
+        false
+
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]
 
     # Error text. A provider that does not override it
@@ -35,8 +37,8 @@ pub trait ConsoleInput:
     # line had an ending, so it ends every line with `\n`
     # (spec/std/console.md#r-std-console.input.read-all-default).
     # The host's provider overrides it with one read of standard input,
-    # which keeps the text as it was, with `\r\n` read as `\n`
-    # (spec/std/console.md#r-std-console.input.read-all-host-coded-error).
+    # which keeps the text without newline translation
+    # (spec/std/console.md#r-std-console.input.read-all-host-preserves-bytes).
     fn read_all!(&mut self) -> Result[string, ConsoleError]:
         out := StringBuilder::new()
         while true:
@@ -46,6 +48,9 @@ pub trait ConsoleInput:
                     out.push("\n")
                 .None => break
         .Ok(out.build())
+
+    # Its bytes as `Read` chunks (spec/std/console.md#r-std-console.stdin.handle).
+    fn stdin(&mut self) -> *mut dyn StdinHandle
 
 # The next line of the covering provider's input
 # (spec/std/console.md#r-std-console.input.helper).
@@ -58,7 +63,7 @@ pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput:
 # The rest of the covering provider's input, as one string
 # with the line structure of the text
 # (spec/std/console.md#r-std-console.input.read-all-helper).
-## Returns all the input that is left, as text, with `\r\n` read as `\n`.
+## Returns all remaining input as text without newline translation.
 ## See [std-console.input.read-all-helper](../../spec/std/console.md#r-std-console.input.read-all-helper).
 pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
     input := $.use(ConsoleInput)
@@ -69,11 +74,14 @@ pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
 # box: `new` returns `*mut MemoryConsole`, so the test that installs it reads
 # the lines it recorded (r-std-console.buffer.install-ref).
 ## The recording `Console` provider: it keeps exact text chunks for a test to read.
-## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
+## See [std-console.buffer.recording-provider](../../spec/std/console.md#r-std-console.buffer.recording-provider).
 @derive(Debug)
 pub struct MemoryConsole:
     lines: List[string]
     error_lines: List[string]
+    pub stdout_is_terminal: bool = false
+    pub stderr_is_terminal: bool = false
+    pub stdin_is_terminal: bool = false
 
 impl MemoryConsole:
     ## Returns an empty recording provider.
@@ -98,6 +106,12 @@ impl MemoryConsole:
 # The `*mut MemoryConsole` that `new` returns, installed as the provider,
 # records into this object (r-req.ref.install-counted).
 impl Console for MemoryConsole:
+    fn is_terminal(&self, stream: ConsoleStream) -> bool:
+        match stream:
+            .Stdout => self.stdout_is_terminal
+            .Stderr => self.stderr_is_terminal
+            .Stdin => self.stdin_is_terminal
+
     fn write_sync(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
@@ -166,6 +180,17 @@ impl ConsoleInput for ScriptedInput:
             self.next = self.next + 1
         .Ok(out.build())
 
+    # The remaining lines' bytes, each ended by `\n`; the lines are taken
+    # (spec/std/console.md#r-std-console.scripted.stdin).
+    fn stdin(&mut self) -> *mut dyn StdinHandle:
+        let mut bytes: List[u8] = []
+        while self.next < self.lines.len():
+            bytes.extend(self.lines[self.next].to_utf8())
+            bytes.push(10)
+            self.next = self.next + 1
+        # Boxed because the returned handle outlives this call.
+        box(Cursor::new(bytes))
+
 # A console stream named by an access error.
 ## The standard output, standard error, and standard input streams.
 ## See [module.console.error.not-granted-stream](../../spec/lang/10-modules.md#r-module.console.error.not-granted-stream).
@@ -196,3 +221,35 @@ pub enum ConsoleError:
     Other(code: i32)
 
 # Equality compares the error variant and its payload (r-std-console.error.traits).
+
+# Standard input as bytes (spec/std/console.md#standard-input-bytes).
+use std.io.{Cursor, IoError, Read}
+
+# The host's handle is a host handle (hd_host_abi::HANDLES): each `read!`
+# is one host call that takes the next bytes the input has, at most `max`.
+## The input's byte reader, as a provider's `stdin` returns it.
+## See [std-console.stdin.handle](../../spec/std/console.md#r-std-console.stdin.handle).
+pub trait StdinHandle < Read
+
+impl StdinHandle for Cursor
+
+## Standard input as a `Read` source, returned by `stdin()`.
+## See [std-console.stdin.decl](../../spec/std/console.md#r-std-console.stdin.decl).
+pub struct Stdin:
+    handle: *mut dyn StdinHandle
+
+impl Read for Stdin:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        self.handle.read!(max)
+
+## Returns the covering provider's input as a `Read` source of its exact bytes.
+## See [std-console.stdin.decl](../../spec/std/console.md#r-std-console.stdin.decl).
+pub fn stdin() -> Stdin $ ConsoleInput:
+    input := $.use(ConsoleInput)
+    Stdin { handle: input.stdin() }
+
+## Whether the covering console stream is a terminal.
+## See [std-console.terminal.query](../../spec/std/console.md#r-std-console.terminal.query).
+pub fn is_terminal(stream: ConsoleStream) -> bool $ Console:
+    console := $.use(Console)
+    console.is_terminal(stream)

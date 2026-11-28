@@ -1,0 +1,6 @@
+# @dump: diagnostics
+trait Plain:
+    fn number(&self) -> i32
+
+fn run(value: &mut dyn Plain) -> void:
+    using resource = value

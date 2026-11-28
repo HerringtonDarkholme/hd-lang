@@ -1,0 +1,4 @@
+# A test module may use a helper module that uses its own parent: test code
+# makes no module edge, so there is no cycle.
+run: hd check --tests
+stderr: check result: ok.

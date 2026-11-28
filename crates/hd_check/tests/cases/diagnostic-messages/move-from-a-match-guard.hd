@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> bool:
+    photo.width > 3
+
+fn pick(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if keep(photo) => 1 # diagnostic: move-out-of-place
+        .Some(photo) => photo.width
+        _ => 0

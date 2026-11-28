@@ -1,0 +1,4 @@
+# Resolver input: one public prelude export, one private, and two absent.
+pub trait Eq
+
+trait Ord

@@ -1,0 +1,10 @@
+# The modules of a cycle resolve together: the cycle is one error, the uses
+# across it still resolve, and a body error in one of them is still found.
+run: hd check
+exit: 101
+stderr: error: src/b/y.hd:1:1: module-cycle: modules that are not siblings use each other
+stderr:   src/a/x.hd:1:1: use pkg.b.y.{two}
+stderr:   src/b/y.hd:1:1: use pkg.a.x.{one}
+stderr: loop of 2 modules; only sibling modules may use each other in a loop
+stderr: help: move `one` out of `a.x`, into a module both use
+stderr: error: src/b/y.hd:4:13: unknown-name: `missing` is not defined

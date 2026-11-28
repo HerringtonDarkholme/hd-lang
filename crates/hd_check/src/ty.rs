@@ -152,7 +152,11 @@ impl Ck<'_, '_> {
         )
     }
 
-    /// `module.name` through the module's export.
+    /// `module.name` through the module's export. A declaration of the
+    /// body's own unit has no export yet, so it is found by its path,
+    /// and only when it is `pub` or declared in the body's module
+    /// (`module.vis.private-default`): an interface also carries the
+    /// private types its headers reach, for markers and `Copy` only (#2349).
     pub(crate) fn export(&self, module: u32, name: &str) -> Option<DefId> {
         let m = self.cx.scope_at(self.at).modules.get(module as usize)?;
         let sym = self.cx.names.syms.intern(name);
@@ -164,7 +168,8 @@ impl Ck<'_, '_> {
             .map(|e| e.def)
             .or_else(|| {
                 let d = self.cx.names.item(m, name);
-                self.cx.lookup.item(d).map(|_| d)
+                let item = self.cx.lookup.item(d)?;
+                (item.public || self.declared_here(d)).then_some(d)
             })
     }
 
@@ -343,11 +348,19 @@ impl Ck<'_, '_> {
         if name == "Self" {
             return self.self_ty;
         }
-        self.gens
-            .iter()
-            .rev()
-            .find(|(s, _)| self.cx.names.text(*s) == name)
-            .map(|(_, t)| *t)
+        let symbol = self.cx.names.syms.find(name)?;
+        self.gens.last(symbol).map(|(_, ty)| *ty)
+    }
+
+    /// [`hd_resolve::iface::type_typo`] in this body's scope.
+    pub(crate) fn type_typo(
+        &self,
+        params: Option<&[hd_base::Symbol]>,
+        name: &str,
+    ) -> Option<String> {
+        let scope = (self.cx.scope_at(self.at), self.cx.locals, self.at);
+        let kind = |d| self.kind_of_item(d);
+        hd_resolve::iface::type_typo(&self.cx.names, scope, params, name, kind).map(str::to_owned)
     }
 
     pub(crate) fn kind_of_item(&self, d: DefId) -> Option<HeadKind> {
@@ -422,7 +435,7 @@ impl Ck<'_, '_> {
                 // own `Self` is the local type.
                 let name = self.cx.names.text(g.name);
                 (name == "Self")
-                    .then(|| self.gens.iter().rev().find(|(s, _)| *s == g.name))
+                    .then(|| self.gens.last(g.name))
                     .flatten()
                     .map(|(_, t)| *t)
                     .or_else(|| self.type_param(name))
@@ -698,8 +711,27 @@ impl Ck<'_, '_> {
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
                 };
                 let hint = self.import_hint(name);
-                self.err(code, n, &format!("no {what} named `{name}`{}", hint.text));
+                let best = if hint.text.is_empty() && role != NameRole::Trait {
+                    let params: Vec<hd_base::Symbol> = self.gens.iter().map(|g| g.0).collect();
+                    self.type_typo(Some(&params), name)
+                } else {
+                    None
+                };
+                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                let numeric = if code == Code::UnknownType && hint.text.is_empty() {
+                    hd_resolve::iface::numeric_type_hint(name)
+                } else {
+                    ""
+                };
+                self.err(
+                    code,
+                    n,
+                    &format!("no {what} named `{name}`{}{did}{numeric}", hint.text),
+                );
                 hint.add_fix(&self.cx.src, self.diags);
+                let first = self.cx.src.first(n);
+                self.diags
+                    .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
                 return Ok(Ty::POISON);
             }
             // `names.type.qualified`: through a module in scope, a missing
@@ -716,7 +748,7 @@ impl Ck<'_, '_> {
         if self
             .cx
             .names
-            .declared_in(def, self.cx.names.known.function_module)
+            .declared_in(def, self.cx.names.known.ops_module)
         {
             let name = self
                 .cx

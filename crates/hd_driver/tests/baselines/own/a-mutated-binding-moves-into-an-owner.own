@@ -5,7 +5,7 @@
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string
@@ -140,7 +140,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -160,7 +160,7 @@ fn make_owner(text: string) -> Owner:
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string
@@ -295,7 +295,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -315,7 +315,7 @@ fn make_owner(text: string) -> Owner:
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string
@@ -342,59 +342,63 @@ impl Record:
         size := self.size
 > std/rt_tests.stage_case/impl Record.mutate
 >   local $0 self: &mut Record [param read] value
->     uses $0: entry -> %0 lend, %2 lend, %7 lend, %38 lend last
+>     uses $0: entry -> %0 lend, %2 lend, %4 lend, %40 lend last
 >   local $1 size: usize [:= read assigned] value
->     uses $1: %1 -> %5 lend
+>     uses $1: %1 -> %7 lend
 >   local $2 index: usize [read assigned mutated] place
 >   local $3 byte: u8 [:= read assigned] value
->     uses $3: %10 -> %11 lend, %13 lend, %17 lend, %21 lend last
+>     uses $3: %12 -> %13 lend, %15 lend, %19 lend, %23 lend last
+>   local $4 $load: string [read assigned] value
+>     uses $4: entry -> %9 lend
 >   %0 = Read copy [*$0 .size] : usize
 >   %1 = Store [$1] %0 : ()
->   %39 = Block - : ()
+>   %41 = Block - : ()
         let index = self.at
 >   %2 = Read copy [*$0 .at] : usize
 >   %3 = Store [$2] %2 : ()
         while index < size:
->   %4 = Read copy [$2] : usize
->   %5 = Read copy [$1] : usize
->   %6 = Prim Lt [%4 %5] : bool
->   %32 = Break L0 - : never
->   %33 = Block - : ()
->   %34 = If %6 [%31 %33] : ()
+>   %4 = Read borrow [*$0 .text] : string
+>   %5 = Store [$4] %4 : ()
+>   %6 = Read copy [$2] : usize
+>   %7 = Read copy [$1] : usize
+>   %8 = Prim Lt [%6 %7] : bool
+>   %34 = Break L0 - : never
 >   %35 = Block - : ()
->   %36 = Loop %35 - : ()
+>   %36 = If %8 [%33 %35] : ()
+>   %37 = Block - : ()
+>   %38 = Loop %37 - : ()
             byte := bytes_at(self.text, index)
->   %7 = Read borrow [*$0 .text] : string
->   %8 = Read copy [$2] : usize
->   %9 = Call std/rt.bytes/bytes_at[] (%7, %8) : u8
->   %10 = Store [$3] %9 : ()
->   %31 = Block - : ()
+>   %9 = Read borrow [$4] : string
+>   %10 = Read copy [$2] : usize
+>   %11 = Call std/rt.bytes/bytes_at[] (%9, %10) : u8
+>   %12 = Store [$3] %11 : ()
+>   %33 = Block - : ()
             if byte != 32 && byte != 9 && byte != 10 && byte != 13:
->   %11 = Read copy [$3] : u8
->   %12 = Prim Ne [%11 32:u8] : bool
 >   %13 = Read copy [$3] : u8
->   %14 = Prim Ne [%13 9:u8] : bool
->   %15 = Block %14 : bool
->   %16 = And %12 %15 : bool
->   %17 = Read copy [$3] : u8
->   %18 = Prim Ne [%17 10:u8] : bool
->   %19 = Block %18 : bool
->   %20 = And %16 %19 : bool
->   %21 = Read copy [$3] : u8
->   %22 = Prim Ne [%21 13:u8] : bool
->   %23 = Block %22 : bool
->   %24 = And %20 %23 : bool
->   %27 = If %24 [%26 -] : ()
+>   %14 = Prim Ne [%13 32:u8] : bool
+>   %15 = Read copy [$3] : u8
+>   %16 = Prim Ne [%15 9:u8] : bool
+>   %17 = Block %16 : bool
+>   %18 = And %14 %17 : bool
+>   %19 = Read copy [$3] : u8
+>   %20 = Prim Ne [%19 10:u8] : bool
+>   %21 = Block %20 : bool
+>   %22 = And %18 %21 : bool
+>   %23 = Read copy [$3] : u8
+>   %24 = Prim Ne [%23 13:u8] : bool
+>   %25 = Block %24 : bool
+>   %26 = And %22 %25 : bool
+>   %29 = If %26 [%28 -] : ()
                 break
->   %25 = Break L0 - : never
->   %26 = Block - : never
+>   %27 = Break L0 - : never
+>   %28 = Block - : never
             index = index + 1
->   %28 = Read copy [$2] : usize
->   %29 = Prim Add [%28 1:usize] : usize
->   %30 = Store [$2] %29 : ()
+>   %30 = Read copy [$2] : usize
+>   %31 = Prim Add [%30 1:usize] : usize
+>   %32 = Store [$2] %31 : ()
         self.at = index
->   %37 = Read copy [$2] : usize
->   %38 = Store [*$0 .at] %37 : ()
+>   %39 = Read copy [$2] : usize
+>   %40 = Store [*$0 .at] %39 : ()
 >   summary kept [] writes
 
 fn own_after_mutation(p: Record, root: usize) -> Owner:
@@ -402,92 +406,88 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $0 p: Record [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 root: usize [param read] value
->     uses $1: entry -> %53 consume last
+>     uses $1: entry -> %50 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
 >   local $5 size: usize [:= read assigned] value
->     uses $5: %8 -> %12 lend
+>     uses $5: %6 -> %10 lend
 >   local $6 index: usize [read assigned mutated] place
 >   local $7 byte: u8 [:= read assigned] value
->     uses $7: %17 -> %18 lend, %20 lend, %24 lend, %28 lend last
->   %0 = Retain %61 Entry local $0 #0 : ()
+>     uses $7: %15 -> %16 lend, %18 lend, %22 lend, %26 lend last
+>   %0 = Retain %58 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Intrinsic Empty [] : ()
->   %3 = Box #2 #0 : ()
->   %4 = Store [$2] %1 : ()
->   %60 = Drop [$0] : ()
->   %61 = Block %59 : Owner
+>   %3 = Store [$2] %1 : ()
+>   %57 = Drop [$0] : ()
+>   %58 = Block %56 : Owner
     s.at = 0
->   %5 = Store [$2 .at] 0:usize : ()
+>   %4 = Store [$2 .at] 0:usize : ()
     s.mutate()
->   %6 = Ref mut local frame [$2] : &mut Record
->   %7 = Read copy [*%6 .size] : usize
->   %8 = Store [$5] %7 : ()
->   %9 = Read copy [*%6 .at] : usize
->   %10 = Store [$6] %9 : ()
->   %11 = Read copy [$6] : usize
->   %12 = Read copy [$5] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read borrow [*%6 .text] : string
->   %15 = Read copy [$6] : usize
->   %16 = Call std/rt.bytes/bytes_at[] (%14, %15) : u8
->   %17 = Store [$7] %16 : ()
+>   %5 = Read copy [$2 .size] : usize
+>   %6 = Store [$5] %5 : ()
+>   %7 = Read copy [$2 .at] : usize
+>   %8 = Store [$6] %7 : ()
+>   %9 = Read copy [$6] : usize
+>   %10 = Read copy [$5] : usize
+>   %11 = Prim Lt [%9 %10] : bool
+>   %12 = Read borrow [$2 .text] : string
+>   %13 = Read copy [$6] : usize
+>   %14 = Call std/rt.bytes/bytes_at[] (%12, %13) : u8
+>   %15 = Store [$7] %14 : ()
+>   %16 = Read copy [$7] : u8
+>   %17 = Prim Ne [%16 32:u8] : bool
 >   %18 = Read copy [$7] : u8
->   %19 = Prim Ne [%18 32:u8] : bool
->   %20 = Read copy [$7] : u8
->   %21 = Prim Ne [%20 9:u8] : bool
->   %22 = Block %21 : bool
->   %23 = And %19 %22 : bool
->   %24 = Read copy [$7] : u8
->   %25 = Prim Ne [%24 10:u8] : bool
->   %26 = Block %25 : bool
->   %27 = And %23 %26 : bool
->   %28 = Read copy [$7] : u8
->   %29 = Prim Ne [%28 13:u8] : bool
->   %30 = Block %29 : bool
->   %31 = And %27 %30 : bool
->   %32 = Break L0 - : never
->   %33 = Block - : never
->   %34 = If %31 [%33 -] : ()
->   %35 = Read copy [$6] : usize
->   %36 = Prim Add [%35 1:usize] : usize
->   %37 = Store [$6] %36 : ()
+>   %19 = Prim Ne [%18 9:u8] : bool
+>   %20 = Block %19 : bool
+>   %21 = And %17 %20 : bool
+>   %22 = Read copy [$7] : u8
+>   %23 = Prim Ne [%22 10:u8] : bool
+>   %24 = Block %23 : bool
+>   %25 = And %21 %24 : bool
+>   %26 = Read copy [$7] : u8
+>   %27 = Prim Ne [%26 13:u8] : bool
+>   %28 = Block %27 : bool
+>   %29 = And %25 %28 : bool
+>   %30 = Break L0 - : never
+>   %31 = Block - : never
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Read copy [$6] : usize
+>   %34 = Prim Add [%33 1:usize] : usize
+>   %35 = Store [$6] %34 : ()
+>   %36 = Block - : ()
+>   %37 = Break L0 - : never
 >   %38 = Block - : ()
->   %39 = Break L0 - : never
+>   %39 = If %11 [%36 %38] : ()
 >   %40 = Block - : ()
->   %41 = If %13 [%38 %40] : ()
->   %42 = Block - : ()
->   %43 = Loop %42 - : ()
->   %44 = Read copy [$6] : usize
->   %45 = Store [*%6 .at] %44 : ()
->   %46 = Break L1 - : never
->   %47 = Block - : ()
->   %48 = Scope %47 [] : ()
->   %49 = LoanEnd [%6] : ()
+>   %41 = Loop %40 - : ()
+>   %42 = Read copy [$6] : usize
+>   %43 = Store [$2 .at] %42 : ()
+>   %44 = Break L1 - : never
+>   %45 = Block - : ()
+>   %46 = Scope %45 [] : ()
     start := s.at
->   %50 = Read copy [$2 .at] : usize
+>   %47 = Read copy [$2 .at] : usize
     Owner {
->   %59 = NewStruct [%51 %50 %53 1:bool 0:usize %54 %55 0:usize %56 %58] : Owner
+>   %56 = NewStruct [%48 %47 %50 1:bool 0:usize %51 %52 0:usize %53 %55] : Owner
         inner: s,
->   %51 = Read move [$2] : Record
->   %52 = Intrinsic Empty [] : ()
+>   %48 = Read move [$2] : Record
+>   %49 = Intrinsic Empty [] : ()
         at: start,
         entry: root,
->   %53 = Read copy [$1] : usize
+>   %50 = Read copy [$1] : usize
         present: true,
         depth: 0,
         steps: [],
->   %54 = NewList - [] : List[i64]
+>   %51 = NewList - [] : List[i64]
         names: [],
->   %55 = NewList - [] : List[string]
+>   %52 = NewList - [] : List[string]
         open: 0,
         frames: [],
->   %56 = NewList - [] : List[usize]
+>   %53 = NewList - [] : List[usize]
         facts: Facts { items: [] },
->   %57 = NewList - [] : List[*dyn Inspectable]
->   %58 = NewStruct [%57] : Facts
+>   %54 = NewList - [] : List[*dyn Inspectable]
+>   %55 = NewStruct [%54] : Facts
 >   exit sub 0 drops [$0]
->   storage sub 0: $2 slot
 >   summary kept [$0]
     }
 
@@ -498,7 +498,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize

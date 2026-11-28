@@ -1,0 +1,5 @@
+pub trait Pick[T]:
+    fn pick(self) -> T
+
+pub struct Receiver:
+    pub n: i32

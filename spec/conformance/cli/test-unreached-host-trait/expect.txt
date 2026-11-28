@@ -1,0 +1,4 @@
+# An integration test that uses nothing from the package runs without the
+# package's mapped host trait: testing never loads the provider.
+run: hd test
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored

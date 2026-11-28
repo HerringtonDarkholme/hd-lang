@@ -43,6 +43,10 @@ struct Elab<'a> {
     b: &'a mut Body,
     /// The parts drop elaboration opens ([`OwnCx::drop_parts`]).
     parts: &'a Parts<'a>,
+    /// Whether a cell's node of a type has drop slots under it
+    /// ([`OwnCx::counted`]): one with no counted or local reference and
+    /// no hook is one slot, as `hd_wasm`'s cell layout lays it out.
+    opens: &'a dyn Fn(Ty) -> bool,
     flags: HashMap<Key, Paths>,
     /// Per local, whether it lives in a cell (`drop_flags::cells`).
     cells: Vec<bool>,
@@ -241,7 +245,11 @@ impl Elab<'_> {
             Ty::BOOL,
         );
         let leaf = self.row(Tag::Drop, [word, self.reason], Ty::VOID);
-        let parts = Some(self.below(steps, ty, true)?).filter(|p| !p.is_empty());
+        let parts = if (self.opens)(ty) {
+            Some(self.below(steps, ty, true)?).filter(|p| !p.is_empty())
+        } else {
+            None
+        };
         Ok(vec![c, self.when(c, [Some(vec![leaf]), parts])])
     }
 
@@ -264,11 +272,18 @@ impl Elab<'_> {
 /// A flag under a part that does not open, or a refused renumbering.
 pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     // Each move leaves its place empty, a statement after its counts
-    // (`owned::lowered`, L3).
+    // (`owned::lowered`, L3), but a move out of a value read only by
+    // parts, which nothing reads again (`drop_flags::part_read_only`).
     let (topo, mut edits) = (Topology::new(b), super::splice::Tables::default());
+    let mut by_parts = Vec::new();
+    super::drop_flags::part_read_only(b, &mut by_parts);
     for i in 0..b.len() {
         let read = b.tags[i] == Tag::Read && topo.blk[i] != NONE;
-        if read && b.data[i][1] == ReadMode::Move as u32 && key_of(b, b.data[i][0]).is_some() {
+        if read
+            && b.data[i][1] == ReadMode::Move as u32
+            && key_of(b, b.data[i][0]).is_some()
+            && !super::drop_flags::leaves_no_place(b, &by_parts, i)
+        {
             let (blk, pos) = super::drop_flags::after(b, &topo, i);
             let args = b.push_record(&[]);
             let data = [IntrinsicOp::Empty as u32, args];
@@ -345,6 +360,7 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         *c &= cx.holds_drop(b.local_ty[l]) != super::Tri::No && read(b, cx, Key::Local(u32_of(l)));
     }
     let parts = |t, v, out: &mut Vec<Ty>| cx.drop_parts(t, v, out);
+    let opens = |t| cx.counted(t);
     // A parameter with an exit count: its ownership is a link-time fact.
     let mut param_of = vec![NONE; b.local_ty.len()];
     for (s, members) in exit.iter().enumerate() {
@@ -355,6 +371,7 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     let mut e = Elab {
         b,
         parts: &parts,
+        opens: &opens,
         flags,
         cells,
         out,
@@ -480,13 +497,20 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
 ///
 /// # Errors
 /// None today: a cell's open drop opens only parts `parts` names.
-pub fn cell_drop(b: &mut Body, x: u32, ty: Ty, parts: &Parts) -> Result<u32, String> {
+pub fn cell_drop(
+    b: &mut Body,
+    x: u32,
+    ty: Ty,
+    parts: &Parts,
+    opens: &dyn Fn(Ty) -> bool,
+) -> Result<u32, String> {
     let (key, syn) = (Key::Local(x), NodeIdx::NONE);
     let cells = Vec::new();
     let (flags, out, paths) = (HashMap::default(), Vec::new(), Vec::new());
     let mut e = Elab {
         b,
         parts,
+        opens,
         flags,
         cells,
         out,

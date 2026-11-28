@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# expected: a header miss uses the complete immutable std advice index too.
+fn header(value: StringBuilder) -> void:
+    pass

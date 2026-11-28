@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @build: std
+# @std-module: num.hd
+use std.num.{Integer, Float}
+
+impl[N < Integer & Copy] N:
+    fn copied_numeric_probe(self) -> bool:
+        true
+
+impl[N < Float & Copy] N:
+    fn copied_numeric_probe(self) -> bool:
+        false

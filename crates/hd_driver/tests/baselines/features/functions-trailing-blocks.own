@@ -15,7 +15,7 @@ fn measure(label: string, body: fn() -> string) -> usize:
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %7 -> %8 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -23,7 +23,7 @@ fn measure(label: string, body: fn() -> string) -> usize:
 >   %6 = CallValue %5 [] : string
 >   %7 = Store [$2] %6 : ()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -53,7 +53,7 @@ fn trailing(s: string) -> usize:
 >     uses $2: %14 -> %15 lend last
 >   %0 = Store [$1] "t" : ()
 >   %1 = Read borrow [$1] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L3 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -67,7 +67,7 @@ fn trailing(s: string) -> usize:
 >   %13 = Scope %12 [] : string
 >   %14 = Store [$2] %13 : ()
 >   %15 = Read borrow [$2] : string
->   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %16 = Call std/core/bytes_len[] (%15) : usize
 >   %17 = Break L2 %16 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
@@ -110,7 +110,7 @@ fn no_args(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %5 lend, %11 lend, %16 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -121,7 +121,7 @@ fn no_args(s: string) -> usize:
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
 >   %11 = Read borrow [$0] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L2 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize

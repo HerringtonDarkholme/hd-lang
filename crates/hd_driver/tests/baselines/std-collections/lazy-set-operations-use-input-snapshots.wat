@@ -3,10 +3,10 @@
   (import "fixture" "impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (func $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < Eq & Hash] Set[T].union[i32]" (func $"impl[T < Eq & Hash] Set[T].union[i32]" (param i32 i32) (result i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.Union[i32], i32]" (func $"Iterator.count[std.collections.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "Iterator.count[std.collections.set.Union[i32], i32]" (func $"Iterator.count[std.collections.set.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < Eq & Hash] Set[T].intersection[i32]" (func $"impl[T < Eq & Hash] Set[T].intersection[i32]" (param i32 i32) (result i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.Intersection[i32], i32]" (func $"Iterator.count[std.collections.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "Iterator.count[std.collections.set.Intersection[i32], i32]" (func $"Iterator.count[std.collections.set.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl[T < Eq & Hash] Iterator[T] for Union[T].next[i32]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     block
     ;; (no span)
@@ -70,13 +70,11 @@
               i32.const 14
               i32.mul
               i32.add
-              i32.const 32
-              i32.add
               local.get $t3
               i32.const 8
               i32.mul
               i32.add
-              i32.load8_u $heap offset=4
+              i32.load8_u $heap offset=36
             else
               i32.const 2
             end
@@ -153,13 +151,11 @@
               i32.const 14
               i32.mul
               i32.add
-              i32.const 32
-              i32.add
               local.get $t3
               i32.const 8
               i32.mul
               i32.add
-              i32.load8_u $heap offset=4
+              i32.load8_u $heap offset=36
             else
               i32.const 2
             end
@@ -205,13 +201,13 @@
     local.get $left
     local.get $right
     call $"impl[T < Eq & Hash] Set[T].union[i32]"
-    call $"Iterator.count[std.collections.Union[i32], i32]"
+    call $"Iterator.count[std.collections.set.Union[i32], i32]"
   )
   (func $shared_count (param $left i32) (param $right i32) (result i32)
     ;; 12 |     left.intersection(right).count()
     local.get $left
     local.get $right
     call $"impl[T < Eq & Hash] Set[T].intersection[i32]"
-    call $"Iterator.count[std.collections.Intersection[i32], i32]"
+    call $"Iterator.count[std.collections.set.Intersection[i32], i32]"
   )
 )

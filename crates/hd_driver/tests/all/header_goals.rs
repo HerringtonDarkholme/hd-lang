@@ -1,7 +1,7 @@
 //! `HeaderCheck(F)` asks its goals through the solver (`crates/hd_check/DESIGN.md` (trait solver)
 //! §1.1, §3.7; `crates/hd_resolve/DESIGN.md` §4.10.1): a supertrait that
 //! holds through a bounded blanket impl, one whose blanket impl's bound
-//! fails, and answers that depend on the folder's closure (§3.2).
+//! fails, and answers that depend on the unit's closure (§3.2).
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -14,6 +14,7 @@ fn analyze(files: &[(&str, &str)], executor: Executor, file: &str) -> Vec<String
     for (path, text) in files {
         src.insert(path, text);
     }
+    crate::add_facades(&mut src);
     let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],
@@ -30,59 +31,20 @@ fn analyze(files: &[(&str, &str)], executor: Executor, file: &str) -> Vec<String
         .collect()
 }
 
-const LIB: &str = "\
-pub trait Tag:
-    fn tag(self) -> i32
-
-pub trait Pick[T]:
-    fn pick(self) -> T
-
-pub struct Receiver:
-    pub n: i32
-
-pub struct Tagged[T < Tag]:
-    pub v: T
-";
+const LIB: &str = include_str!("programs/header_goals/lib.hd");
 
 /// Owns `Product`, and so `impl Pick[Product] for Receiver` through the
 /// trait argument and `impl Tag for Product` through the target.
-const PROD: &str = "\
-use pkg.lib.defs.{Pick, Receiver, Tag}
-
-pub struct Product:
-    pub id: i32
-
-impl Pick[Product] for Receiver:
-    fn pick(self) -> Product:
-        Product { id: self.n }
-
-impl Tag for Product:
-    fn tag(self) -> i32:
-        self.id
-";
+const PROD: &str = include_str!("programs/header_goals/prod.hd");
 
 /// Sees `prod`: both impls answer its header goals.
-const WITH: &str = "\
-use pkg.lib.defs.{Pick, Receiver, Tagged}
-use pkg.prod.defs.{Product}
-
-pub struct Picks[T < Pick[Product]]:
-    pub v: T
-
-pub fn first(p: Picks[Receiver], t: Tagged[Product]) -> i32:
-    1
-";
+const WITH: &str = include_str!("programs/header_goals/with.hd");
 
 /// Does not see `prod`, and `string: Tag` fails in every closure.
-const WITHOUT: &str = "\
-use pkg.lib.defs.{Tagged}
-
-pub fn second(t: Tagged[string]) -> i32:
-    1
-";
+const WITHOUT: &str = include_str!("programs/header_goals/without.hd");
 
 #[test]
-fn header_answers_follow_the_folder_closure_on_any_executor() {
+fn header_answers_follow_the_unit_closure_on_any_executor() {
     let files = [
         ("lib/defs.hd", LIB),
         ("prod/defs.hd", PROD),
@@ -126,6 +88,7 @@ fn analyze_in(
     for (path, text) in files {
         src.insert(path, text);
     }
+    crate::add_facades(&mut src);
     let host = Host {
         render_tir: &[],
         sources: &src,
@@ -158,7 +121,7 @@ fn a_dependency_impl_head_edit_invalidates_the_cached_header_findings() {
     let (warm, hits, misses) = analyze_in(&store, &files, "with/main.hd");
     assert_eq!(warm, cold);
     assert_eq!(misses, 0, "a warm run misses nothing");
-    assert!(hits >= 4, "every folder's findings hit: {hits}");
+    assert!(hits >= 4, "every unit's findings hit: {hits}");
     // `prod` no longer owns `Pick[Product] for Receiver`: its impl head
     // changes, and so does the answer for `with`.
     let edited = PROD.replace(

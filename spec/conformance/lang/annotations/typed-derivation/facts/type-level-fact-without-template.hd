@@ -2,7 +2,7 @@
 # Spec 14 Facts: annot.fact.type-level-decorator,
 # annot.typed-fact.untyped.no-annotate, annot.derive.facts-only;
 # dead-fact warnings are parked.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

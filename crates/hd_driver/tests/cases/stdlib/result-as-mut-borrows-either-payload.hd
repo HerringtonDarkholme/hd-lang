@@ -1,0 +1,12 @@
+# @dump: wat counts
+# @helper: std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].as_mut
+# @build: dev | checked | release | release checked
+# expected: the result lends a writable payload; no retain or release acquires it.
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn view(value: &mut Result[Item, Item]) -> Result[&mut Item, &mut Item]:
+    # subject
+    value.as_mut()

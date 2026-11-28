@@ -1,0 +1,9 @@
+[package]
+name = "web"
+
+[capabilities]
+Console = true
+
+[[executable]]
+name = "serve"
+module = "serve"

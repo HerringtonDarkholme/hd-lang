@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# An application header can repair its missing public std type import.
+struct Holder:
+    value: StringBuilder

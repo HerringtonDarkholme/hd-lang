@@ -3,10 +3,11 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T < ?Copy] Buffer[T].capacity[u8]" (func $"impl[T < ?Copy] Buffer[T].capacity[u8]" (param i32) (result i32)))
   (import "fixture" "release_value[std.rt.memory.Buffer[u8]]" (func $"release_value[std.rt.memory.Buffer[u8]]" (param i32)))
+  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $transfer (param $room.address i32) (param $room.capacity i32) (param $size i32) (result i32 i32) (local $bytes i32) (local $t0 i32) (local $t1 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $transfer (param $room.ptr i32) (param $room.capacity i32) (param $size i32) (result i32 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $bytes i32) (local $t0 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 9 |     .Some(string_from_buffer(room, size))
     global.get $stack
     global.get $stack_limit
@@ -22,59 +23,100 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $bytes
-    local.get $room.address
-    i32.store $heap
-    local.get $bytes
-    local.get $room.capacity
-    i32.store $heap offset=4
-    local.get $bytes
-    i32.const 1
-    i32.store $heap offset=8
-    local.get $bytes
-    i32.const 1
-    i32.store $heap offset=12
-    local.get $bytes
-    i32.const 1
-    i32.store $heap offset=16
-    i32.const 1
-    local.set $room.address
-    local.get $bytes
-    call $"impl[T < ?Copy] Buffer[T].capacity[u8]"
-    i32.eqz
-    if (result i32)
-      i32.const 16 ;; &"heap-exhausted"
-    else
+    block
+      i32.const 1
+      local.set $t1
+      local.get $room.ptr
+      local.get $room.capacity
+      local.set $t2
+      local.set $t3
       i32.const 0
-      local.set $room.address
-      local.get $bytes
-      i32.load $heap
-      local.get $bytes
+      local.set $room.ptr
       i32.const 0
+      local.set $room.capacity
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.set $bytes
+      local.get $bytes
+      local.get $t3
       i32.store $heap
       local.get $bytes
-      i32.const 0
+      local.get $t2
       i32.store $heap offset=4
-      local.get $size
-      local.set $t1
-    end
-    local.set $room.capacity
-    local.get $room.address
-    if
       local.get $bytes
+      i32.const 1
+      i32.store $heap offset=8
+      local.get $bytes
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $bytes
+      i32.const 1
+      i32.store $heap offset=16
+      i32.const 1
+      local.set $t2
+      block
+        block
+          local.get $bytes
+          local.set $t3
+          local.get $t3
+          call $"impl[T < ?Copy] Buffer[T].capacity[u8]"
+          local.set $t4
+          i32.const 0
+          local.set $t3
+          local.get $t4
+          i32.const 0
+          i32.eq
+          local.set $t3
+          local.get $t3
+          if
+            i32.const 16 ;; &"heap-exhausted"
+            i32.const 0
+            local.set $size
+            local.set $t3
+          else
+            i32.const 0
+            local.set $t2
+            local.get $bytes
+            i32.load $heap
+            local.set $t3
+            local.get $bytes
+            i32.load $heap offset=4
+            local.set $t4
+            local.get $bytes
+            local.get $t5
+            i32.store $heap
+            local.get $bytes
+            local.get $t6
+            i32.store $heap offset=4
+          end
+          br 0
+        end
+      end
+      local.get $t2
       if
         local.get $bytes
-        call $"release_value[std.rt.memory.Buffer[u8]]"
+        if
+          local.get $bytes
+          call $"release_value[std.rt.memory.Buffer[u8]]"
+        end
+        i32.const 0
+        local.set $bytes
+      end
+      local.get $t1
+      if
+        local.get $room.ptr
+        local.get $room.capacity
+        call $rt:release_spilled
       end
     end
-    local.get $room.capacity
-    local.get $t1
+    local.get $t3
+    local.get $size
     local.get $t0
     i32.const 32
     i32.add

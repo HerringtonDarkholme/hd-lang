@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn a_method_name_is_a_function_name_but_not_a_top_level_one() {
-        let text = "use std.cmp.{max as most}\n\ntrait Shape:\n    fn area(self) -> f64\n\nfn bonus() -> i32:\n    +1\n\nrate := +3\n";
+        let text = include_str!("names_declared.hd");
         assert_eq!(top_level_names(text), ["most", "Shape", "bonus", "rate"]);
         assert_eq!(function_names(text), ["area", "bonus"]);
     }

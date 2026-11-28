@@ -25,6 +25,7 @@ pub struct Settled {
 pub(super) fn boundary_inputs(
     input: &Input<'_>,
     b: &Body,
+    calls: &HashMap<u32, Target>,
     item: hd_base::DefId,
     cold: bool,
     lends: u64,
@@ -39,12 +40,7 @@ pub(super) fn boundary_inputs(
         .map(|sub| {
             let closure = closures[sub];
             let suspending = closure.map_or_else(
-                || {
-                    !cold
-                        && input.env.suspends(item)
-                        && !(input.entry.root(item)
-                            && super::susp::plan(b, b.sub_root[sub]).0.is_empty())
-                },
+                || !cold && input.env.suspends(item) && !plain_root(input, b, calls, item),
                 |ci| input.own_cx.function_suspends(b.ty[ci]),
             );
             hd_tir::own::boundary::Input {
@@ -56,6 +52,25 @@ pub(super) fn boundary_inputs(
             }
         })
         .collect()
+}
+
+/// Whether `item`, of body `b` with call targets `calls`, is an entry
+/// root that never waits: a suspending root with no suspension point is
+/// plain, as one whose bang calls all complete at once (#2419). A runtime
+/// scenario's held root keeps its frame, whose polls it holds.
+pub(super) fn plain_root(
+    input: &Input<'_>,
+    b: &Body,
+    calls: &HashMap<u32, Target>,
+    item: hd_base::DefId,
+) -> bool {
+    input.entry.root(item)
+        && input.entry.held(item).is_none()
+        && super::susp::plan(b, b.sub_root[0], &|i| {
+            super::susp::waits(input, calls, b, i)
+        })
+        .0
+        .is_empty()
 }
 
 /// Each instance body whose storage collection's choices change, with
@@ -91,9 +106,10 @@ pub fn settled(input: &Input<'_>) -> Settled {
     }
     let mut out = Settled::default();
     for (b, item, insts) in groups {
-        // A suspending entry root with no suspension point is plain.
-        let plain = !env.suspends(item)
-            || input.entry.root(item) && super::susp::plan(b, b.sub_root[0]).0.is_empty();
+        let root = insts.first().copied().flatten();
+        let none = HashMap::default();
+        let calls = root.map_or(&none, |id| &input.collected.calls[id.idx()]);
+        let plain = !env.suspends(item) || plain_root(input, b, calls, item);
         let (mut args, mut ops, mut counted) = (Vec::new(), Vec::new(), Vec::new());
         let mut census = None;
         let topo = hd_tir::ir::Topology::new(b);
@@ -102,7 +118,7 @@ pub fn settled(input: &Input<'_>) -> Settled {
                 continue;
             };
             let target = match input.collected.calls[id.idx()].get(&hd_tir::ir::u32_of(i)) {
-                Some(Target::Call(ct)) => Some(ct),
+                Some(Target::Call(ct) | Target::CrossingNumber { call: ct, .. }) => Some(ct),
                 _ => None,
             };
             let instance = target.filter(|ct| ct.kind == TargetKind::Instance);
@@ -163,7 +179,7 @@ pub fn settled(input: &Input<'_>) -> Settled {
             input.env.lends(item, t.args[id.idx()])
                 | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()])
         });
-        let inputs = boundary_inputs(input, body, item, false, lends);
+        let inputs = boundary_inputs(input, body, calls, item, false, lends);
         let mut boundary = hd_tir::own::boundary::plan(
             body,
             &topo,
@@ -213,7 +229,7 @@ pub(super) fn short_loans(
 /// Both sides of a call read them as lent: the caller passes its local's
 /// value with no count, and the copy owns none.
 pub(super) fn promoted_params(input: &Input<'_>, m: &Module, key: hd_base::Hash128) -> u64 {
-    m.inst_of.get(&key).map_or(0, |id| {
+    m.inst(key).map_or(0, |id| {
         hd_mono::defaults::promoted_mask(&input.collected.table.defaults[id.idx()])
     })
 }

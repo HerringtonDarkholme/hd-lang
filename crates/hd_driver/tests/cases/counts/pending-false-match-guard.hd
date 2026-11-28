@@ -9,6 +9,7 @@ fn message(seed: string) -> Message:
     .Word(seed + "!")
 
 fn reject!(text: string) -> bool $ Console:
+    pause!()
     _ := $.use(Console).write_sync("${text}\n")
     false
 
@@ -19,3 +20,9 @@ pub fn main!() -> void $ Console:
         .Word(text) => text
         .Empty => "empty"
     println("kept $kept")
+
+# A suspension point: awaiting a suspending closure, so a caller of
+# `pause!` keeps its frame and child (#2419).
+fn pause!() -> void:
+    step := fn!() -> void: pass
+    step!()

@@ -3,7 +3,7 @@
 # fn.trait.bound-sugar: a body-local generic function's bound may write the
 # function traits as `Fn(A) -> R $ Row`, as a header does; the input,
 # the output and the row become the trait's arguments.
-use std.function.Fn
+use std.ops.Fn
 
 fn top[F < Fn(i32) -> i32](f: F) -> i32:
     f(+1)

@@ -3,8 +3,8 @@
 # and `AnyVal` (a newtype over a primitive), a user trait with `AnyRef`
 # as its supertrait, `Tuple`, and `Inspectable`, whose coercion to a trait
 # value selects the compiler-supplied impl.
-use std.inspect.Inspectable
-use std.function.Tuple
+use std.meta.Inspectable
+use std.ops.Tuple
 
 type Mile(i32)
 

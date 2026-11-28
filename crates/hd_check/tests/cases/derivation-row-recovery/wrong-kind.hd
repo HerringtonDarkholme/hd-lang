@@ -1,0 +1,7 @@
+# @dump: diagnostics
+use std.meta.Structure
+
+struct Holder[$ R]:
+    action: fn() -> void $ R
+
+impl[$ R] Holder[i32] by Structure

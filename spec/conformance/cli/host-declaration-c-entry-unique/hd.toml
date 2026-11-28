@@ -1,0 +1,7 @@
+[package]
+name = "host_c_entry"
+
+[host]
+"a.Disk" = { c = "hd_x" }
+"b.Disk" = { c = "hd_x" }
+"b.Net" = { c = "hd_y" }

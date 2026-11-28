@@ -5,11 +5,16 @@
 //! (`docs/compiler/live-execution.md` §4). No engine lives here: wasmtime is in
 //! `hd_run_wasmtime`, the browser's in `hd_web`.
 
+pub mod artifact;
+#[cfg(unix)]
+pub mod foreground;
 pub mod frames;
 mod grant;
 mod imports;
 pub mod journal;
 pub mod replay;
+#[cfg(any(unix, windows))]
+pub mod signals;
 pub mod tests_model;
 
 pub use grant::{
@@ -17,7 +22,7 @@ pub use grant::{
     resolve_path,
 };
 pub use hd_base::path::{canonicalize, plain_path};
-pub use imports::{module_exports, module_imports, needs, unknown_import};
+pub use imports::{metadata_projection, module_exports, module_imports, needs, unknown_import};
 
 use std::task::Poll;
 

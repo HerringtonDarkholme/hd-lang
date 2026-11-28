@@ -1,5 +1,5 @@
 # test: an inherent method may share a sealed member name
-use std.inspect.TypeId
+use std.meta.TypeId
 
 struct User:
     name: string

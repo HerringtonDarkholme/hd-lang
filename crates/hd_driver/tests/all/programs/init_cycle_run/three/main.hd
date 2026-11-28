@@ -1,0 +1,7 @@
+use pkg.ring.a.{a_value}
+use pkg.log.{recorded}
+
+pub fn main() -> void $ Console:
+    println(a_value())
+    for line in recorded():
+        println(line)

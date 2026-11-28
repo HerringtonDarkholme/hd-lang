@@ -24,7 +24,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 20 funcref))
   (func $dynamic'1 (param $frame i32) (param $reader.0 i32) (param $reader.1 i32) (param $values i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 22 |     reader.measure!(values)
@@ -722,7 +722,7 @@
     call $rt:forbid_check
     i32.const 0
     local.get $reader
-    i32.const 540 ;; &vtable[rt:dyn_slot, rt:drive]
+    i32.const 540 ;; &vtable[rt:dyn_trap, rt:drive]
     local.get $t4
     local.get $provider0
     local.get $provider0.vtable

@@ -1,0 +1,147 @@
+# std.arena: values of any types that live and die together
+# (spec/std/arena.md), as Rust's bumpalo `Bump`. `alloc` moves a value
+# into the newest chunk at its type's alignment and lends it writable for
+# as long as the arena is lent; no value is counted. `reset` and the
+# arena's drop drop every value newest first: a value whose type has drop
+# work (`needs_drop`) gets an entry on a list in the arena, and a glue-free
+# one writes nothing. Results stay disjoint because each `alloc` hands out
+# bytes no earlier result covers (`module.rt.ptr.as-ref`), so a `&self`
+# call's `&mut` result keeps the arena shared (`ref.excl.call`).
+use std.meta.inline
+use std.rt.{Drop}
+use std.rt.{marking}
+use std.rt.{Ptr, align_of, free_room, needs_drop, room, size_of}
+
+# A chunk is one buffer room (`std.rt.memory.room`), so the collector and
+# a checked build's audit treat it as a buffer's: the previous chunk's
+# address, then values. Its block is the room's 8-byte header and the
+# room; the block sizes are size classes of std.rt.alloc.
+HEADER := usize(8)
+ROOM := usize(8)
+FIRST := usize(4096)
+LARGEST := usize(1048576)
+
+# The bump state, which `alloc` changes through a shared arena: the next
+# free byte, the end of the newest chunk, the newest chunk, and the newest
+# drop entry (0 for none). An empty arena's `next` is past its `end`, so
+# its first `alloc`, even of a value with no bytes, takes a chunk.
+struct State:
+    next: usize
+    end: usize
+    chunk: usize
+    drops: usize
+
+# A value with drop work: the entry before it, the value's address, and
+# the function that drops a value of its type there.
+struct DropEntry:
+    before: usize
+    at: usize
+    drop: fn(usize) -> void
+
+## Values of any types that live and die together: each `alloc` result
+## lives while the arena is lent, and `reset` or the arena's drop drops
+## them all at once. The arena is neither `Send` nor `Sync`.
+## See [std-arena.type](../../spec/std/arena.md#r-std-arena.type).
+pub struct Arena:
+    state: *mut State
+
+impl !Copy for Arena
+
+impl Arena:
+    ## An empty arena; its first chunk is taken by the first `alloc`.
+    ## See [std-arena.new](../../spec/std/arena.md#r-std-arena.new).
+    pub fn new() -> Arena:
+        Arena { state: box(State { next: 1, end: 0, chunk: 0, drops: 0 }) }
+
+    ## Moves `val` into the arena and lends it writable while the arena is
+    ## lent. Each call lends a value no other result shares.
+    ## See [std-arena.alloc](../../spec/std/arena.md#r-std-arena.alloc).
+    @inline(.Always)
+    pub fn alloc[T < ?Copy](&self, val: T) -> &mut T:
+        at := Ptr::[T] { address: self.bump(size_of::[T](), align_of::[T]()) }
+        at.write(val)
+        if needs_drop::[T]():
+            e := self.bump(size_of::[DropEntry](), align_of::[DropEntry]())
+            entry := DropEntry { before: self.state.drops, at: at.address, drop: drop_at::[T] }
+            Ptr::[DropEntry] { address: e }.write(entry)
+            self.state.drops = e
+        at.as_mut()
+
+    ## Drops every value, newest first, and frees every chunk but the
+    ## newest, which the next values reuse.
+    ## See [std-arena.reset](../../spec/std/arena.md#r-std-arena.reset).
+    pub fn reset(&mut self) -> void:
+        self.drop_values()
+        chunk := self.state.chunk
+        if chunk == 0:
+            return
+        free_chunks(Ptr::[usize] { address: chunk }.read())
+        Ptr::[usize] { address: chunk }.write(0)
+        self.state.next = chunk + HEADER
+
+    # The address of `size` free bytes at alignment `align`, from the
+    # newest chunk, or from a new one (`refill`). Cost: O(1).
+    @inline(.Always)
+    fn bump(&self, size: usize, align: usize) -> usize:
+        at := round_up(self.state.next, align)
+        if at + size <= self.state.end:
+            self.state.next = at + size
+            return at
+        self.refill(size, align)
+
+    # A new chunk with room for `size` bytes at `align`: the newest
+    # chunk's block size doubled up to `LARGEST`, or one larger value's.
+    @inline(.Never)
+    fn refill(&self, size: usize, align: usize) -> usize:
+        last := self.state.chunk
+        let mut bytes = if last == 0: FIRST else: (self.state.end - last + ROOM) * 2
+        if bytes > LARGEST:
+            bytes = LARGEST
+        if bytes < ROOM + HEADER + size + align:
+            bytes = ROOM + HEADER + size + align
+        chunk := room(bytes - ROOM, 1)
+        Ptr::[usize] { address: chunk }.write(last)
+        self.state.chunk = chunk
+        self.state.end = chunk + bytes - ROOM
+        start := round_up(chunk + HEADER, align)
+        self.state.next = start + size
+        start
+
+    # Runs each drop entry, newest first, and empties the list. While the
+    # collector marks or scans a holder (`module.rt.drop.trace`), the list
+    # stays: each entry reads its value out, which leaves the bytes for the
+    # next pass, and the value's drop releases only to the collector.
+    fn drop_values(&self) -> void:
+        let mut e = self.state.drops
+        if !marking():
+            self.state.drops = 0
+        while e != 0:
+            entry := Ptr::[DropEntry] { address: e }.read()
+            e = entry.before
+            run := entry.drop
+            run(entry.at)
+
+impl Drop for Arena:
+    # module.rt.drop.caller-read: every `alloc` result borrows the arena, so
+    # none is live while it drops, and no caller reads the chunks freed here.
+    fn drop(&mut self) -> void:
+        self.drop_values()
+        newest := self.state.chunk
+        free_chunks(newest)
+
+# Frees `chunk` and every chunk before it, as a buffer frees its room:
+# while the collector traces the arena's holder, it keeps each chunk.
+fn free_chunks(chunk: usize) -> void:
+    let mut c = chunk
+    while c != 0:
+        before := Ptr::[usize] { address: c }.read()
+        free_room(c)
+        c = before
+
+# Drops the value of `T` at `address`: reading it out moves it here, and
+# its drop runs at this function's end.
+fn drop_at[T < ?Copy](address: usize) -> void:
+    _ := Ptr::[T] { address: address }.read()
+
+fn round_up(n: usize, align: usize) -> usize:
+    (n + align - 1) & ~(align - 1)

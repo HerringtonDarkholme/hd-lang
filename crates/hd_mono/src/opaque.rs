@@ -195,11 +195,19 @@ fn result_facts_walk(
     popped
 }
 
+/// Only an opaque equation enters the active stack. Keep its diagnostic
+/// identity at entry, rather than decoding and filtering its key on error.
+struct ActiveOpaque {
+    key: Ty,
+    owner: DefId,
+    site: u32,
+}
+
 struct Reveal<'a> {
     pool: &'a InternPool,
     hidden: &'a dyn Fn(DefId, u32, TyList) -> Option<HiddenResult>,
     selection_prefix: &'a dyn Fn(DefId, u32) -> usize,
-    stack: Vec<Ty>,
+    stack: Vec<ActiveOpaque>,
     memo: HashMap<Ty, Ty>,
     depth: u32,
 }
@@ -233,13 +241,9 @@ impl Reveal<'_> {
             return Ok(done);
         }
         if self.depth >= crate::layout::MAX_CHAIN {
-            return Err(Error::TooComplex(self.stack.last().map_or(
-                DefId::NONE,
-                |&t| match self.pool.get(t) {
-                    TyData::Opaque { owner, .. } => owner,
-                    _ => DefId::NONE,
-                },
-            )));
+            return Err(Error::TooComplex(
+                self.stack.last().map_or(DefId::NONE, |frame| frame.owner),
+            ));
         }
         self.depth += 1;
         let result = self.inner(ty);
@@ -256,17 +260,18 @@ impl Reveal<'_> {
             TyData::Opaque {
                 owner, site, args, ..
             } => {
-                if let Some(start) = self.stack.iter().position(|&key| key == ty) {
+                if let Some(start) = self.stack.iter().position(|frame| frame.key == ty) {
                     let cycle = self.stack[start..]
                         .iter()
-                        .filter_map(|&t| match pool.get(t) {
-                            TyData::Opaque { owner, site, .. } => Some((owner, site)),
-                            _ => None,
-                        })
+                        .map(|frame| (frame.owner, frame.site))
                         .collect();
                     return Err(Error::Recursive(cycle));
                 }
-                self.stack.push(ty);
+                self.stack.push(ActiveOpaque {
+                    key: ty,
+                    owner,
+                    site,
+                });
                 // Selecting a trait implementation needs its concrete Self and
                 // trait arguments. Other arguments stay lazy: an unused method
                 // parameter must not create a recursive hidden representation.
@@ -432,6 +437,25 @@ mod tests {
             Err(Error::Recursive(vec![(f, 0), (g, 0)]))
         );
         assert_eq!(reveal(&pool, a, &|_, _| None), Err(Error::Missing(f)));
+        // Distinct opaque occurrences of one declaration retain their sites.
+        let at_site = |site| {
+            pool.intern_ty(&TyData::Opaque {
+                owner: f,
+                site,
+                borrows: false,
+                args: TyList::EMPTY,
+                bound: Ty::BOOL,
+            })
+        };
+        let first = at_site(3);
+        let second = at_site(9);
+        assert_eq!(
+            reveal(&pool, first, &|_, site| Some((
+                TyList::EMPTY,
+                if site == 3 { second } else { first }
+            ))),
+            Err(Error::Recursive(vec![(f, 3), (f, 9)]))
+        );
         // An argument unused by the hidden result is not recursively revealed.
         let unused = make(f, pool.list(&[a]));
         assert_eq!(
@@ -461,7 +485,10 @@ mod tests {
                 },
             ))
         });
-        assert!(matches!(out, Err(Error::TooComplex(_))));
+        assert_eq!(
+            out,
+            Err(Error::TooComplex(DefId::from_raw(crate::layout::MAX_CHAIN)))
+        );
     }
 
     #[test]

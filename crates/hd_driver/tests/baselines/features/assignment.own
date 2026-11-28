@@ -33,7 +33,7 @@ fn assign(a: string, b: string) -> usize:
     s.len()
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read borrow [$3] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize

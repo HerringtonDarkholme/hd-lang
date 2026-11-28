@@ -8,8 +8,8 @@
 # answer is the one the runtime rule gives: `A` negates its own re-entry,
 # so it is `false`; `B` and `C` negate each other, so each is `true` when
 # asked first. A recursive derived type is regular unless a member is not.
-use std.json.encode
-use std.serde.{Serialize, rename}
+use std.encoding.json.encode
+use std.encoding.{Serialize, rename}
 
 trait On:
     fn on() -> bool

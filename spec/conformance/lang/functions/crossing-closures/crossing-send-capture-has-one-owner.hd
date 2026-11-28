@@ -6,7 +6,7 @@
 # expect-stdout: 2 1 2 0 2 2
 # expect-stdout: 0
 use std.collections.UniqList
-use std.marker.Send
+use std.meta.Send
 use std.sync.Arc
 
 fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
@@ -19,6 +19,14 @@ fn names(n: usize) -> UniqList[string]:
     let mut out: UniqList[string] = UniqList::new()
     for i in 0..n:
         out.push("n".repeat(i + 1))
+    out
+
+# An `Arc` crosses only with a `Sync` payload (`module.marker.sync`): a
+# `UniqList[string]` is not `Sync`, since each string's count is not atomic.
+fn numbers(n: usize) -> UniqList[i32]:
+    let mut out: UniqList[i32] = UniqList::new()
+    for i in 0..n:
+        out.push(i32(i))
     out
 
 struct Bag:
@@ -47,12 +55,12 @@ pub fn main() -> void $ Console:
     let kept: UniqList[string]? = .Some(names(1))
     taken := run(fn() -> UniqList[string]?: kept)
     println("${items.len()} $k $size ${taken.is_some()}")
-    shared := Arc::new(names(2))
+    shared := Arc::new(numbers(2))
     reader := shared.clone()
     read := run(fn() -> usize: reader.get().len())
     after_read := Arc::strong_count(&shared)
     mover := shared.clone()
-    held := run(fn() -> Arc[UniqList[string]]: mover)
+    held := run(fn() -> Arc[UniqList[i32]]: mover)
     after_move := Arc::strong_count(&shared)
     unused := shared.clone()
     skipped := skip(fn() -> usize: unused.get().len())

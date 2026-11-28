@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn `step`(n: i32):
+        if n == 0: +0 else: step(n - 1)
+    _ := step(+3)

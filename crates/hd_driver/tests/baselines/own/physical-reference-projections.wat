@@ -10,7 +10,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $"impl Probes.same" (param $a i32) (param $b i32) (result i32)
     ;; 25 |         a is b
     local.get $a
@@ -71,7 +71,7 @@
   )
   (func $"impl Probes.captured_copy" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 53 |         fn() -> usize:
-    i32.const 5
+    i32.const 4
     i32.const 8
     i32.const 1
     call $rt:new/class-1

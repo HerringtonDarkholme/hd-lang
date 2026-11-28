@@ -1,0 +1,6 @@
+# test: generic local omitted result self recursion
+# Rule: fn.decl.omitted-recursion.
+fn outer() -> void:
+    fn repeat[T](value: T): # diagnostic: recursive-function-needs-result-type
+        repeat(value)
+    let _ = repeat(+1)

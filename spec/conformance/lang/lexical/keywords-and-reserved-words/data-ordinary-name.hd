@@ -1,0 +1,17 @@
+# test: data is not a reserved word, so it names a local, a function, a field and a parameter
+# Spec 01 Keywords And Reserved Words: lex.keyword.reserved-words.v2.
+# expect: test
+
+struct Packet:
+    data: i32
+
+fn data(data: i32) -> Packet:
+    Packet { data: data }
+
+tests:
+    use std.testing.assert_equal
+
+    it("data names a local, a function, a field and a parameter"):
+        assert_equal(data(7).data, 7, reason="a function, a parameter and a field")
+        data := 3
+        assert_equal(data, 3, reason="a local")

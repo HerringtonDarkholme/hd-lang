@@ -1,0 +1,55 @@
+# std.ops: one line per public item, NAME  SIGNATURE  -- SUMMARY
+# Generated from `hd doc std.ops` by scripts/gen-std-api.mjs. For one item's full
+# text and examples, run `hd doc std.ops.NAME` inside any package.
+std.ops.NumSuffix  pub struct NumSuffix[F]
+std.ops.num_suffix  pub fn num_suffix[N < Num, R, $ Q]() -> NumSuffix[fn(N) -> R $ Q]  -- Returns the `@num_suffix` marker for a suffix function of that signature.
+std.ops.StrPrefix  pub struct StrPrefix[F]
+std.ops.str_prefix  pub fn str_prefix[T, R, $ Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]  -- Returns the `@str_prefix` marker for a prefix function of that signature.
+std.ops.Template  pub struct Template[T]  -- The pieces of a string prefix's literal: the raw parts and the values between them, which the compiler recognizes by its qualified name.
+std.ops.Template.raw_parts  pub raw_parts: List[string]  -- The literal's raw text pieces, in order.
+std.ops.Template.values  pub values: List[T]  -- The interpolated values between the raw parts, in order.
+std.ops.Add  pub trait Add[Rhs = Self]  -- The trait of the `+` operator: `a + b` is the call `Add::add(a, b)`.
+std.ops.Sub  pub trait Sub[Rhs = Self]  -- The trait of the binary `-` operator: `a - b` is the call `Sub::sub(a, b)`.
+std.ops.Mul  pub trait Mul[Rhs = Self]  -- The trait of the `*` operator: `a * b` is the call `Mul::mul(a, b)`.
+std.ops.Div  pub trait Div[Rhs = Self]  -- The trait of the `/` operator: `a / b` is the call `Div::div(a, b)`.
+std.ops.Rem  pub trait Rem[Rhs = Self]  -- The trait of the `%` operator: `a % b` is the call `Rem::rem(a, b)`.
+std.ops.Neg  pub trait Neg  -- The trait of the unary `-` operator: `-a` is the call `Neg::neg(a)`.
+std.ops.BitAnd  pub trait BitAnd[Rhs = Self]  -- The trait of the `&` operator: `a & b` is the call `BitAnd::bitand(a, b)`.
+std.ops.BitOr  pub trait BitOr[Rhs = Self]  -- The trait of the `|` operator: `a | b` is the call `BitOr::bitor(a, b)`.
+std.ops.BitXor  pub trait BitXor[Rhs = Self]  -- The trait of the `^` operator: `a ^ b` is the call `BitXor::bitxor(a, b)`.
+std.ops.Not  pub trait Not  -- The trait of the `!` operator: `!a` is the call `Not::not(a)`.
+std.ops.Shl  pub trait Shl[Rhs = Self]  -- The trait of the `<<` operator: `a << b` is the call `Shl::shl(a, b)`.
+std.ops.Shr  pub trait Shr[Rhs = Self]  -- The trait of the `>>` operator: `a >> b` is the call `Shr::shr(a, b)`.
+std.ops.Index  pub trait Index[K] < ?Copy  -- Lends the element place of `r[k]`. Reading copies its value; `&r[k]` borrows it.
+std.ops.IndexMut  pub trait IndexMut[K] < ?Copy & Index[K]  -- Lends a mutable element place for `&mut r[k]`, field writes, and compound assignment.
+std.ops.IndexSet  pub trait IndexSet[K, V < ?Copy] < ?Copy  -- The trait of assigning `r[k] = v`: it is the call `IndexSet::[K, V]::index_set(r, k, v)`.
+std.ops.Apply  pub trait Apply  -- The trait of calling a value: `v()` is the call `Apply::apply(v)`.
+std.ops.Update  pub trait Update[V]  -- The trait of assigning to a call: `v() = x` is the call `Update::[V]::update(v, x)`.
+std.ops.Disposable  pub trait Disposable[$ R = $()]  -- A value that releases what it holds synchronously when a `using` binding of it ends. `dispose` is best-effort and reports nothing. Its cleanup may require the row `R`, which defaults to the empty row.
+std.ops.AsyncDisposable  pub trait AsyncDisposable[$ R = $()]  -- A value that releases what it holds when a `using!` binding of it ends. `dispose!` may suspend, is best-effort, and reports nothing. Its cleanup may require the row `R`, which defaults to the empty row.
+std.ops.AutoClosing  pub trait AutoClosing  -- Marks a guard-like value that an `@auto_closing` call registers immediately. The type also implements `Disposable` or `AsyncDisposable` to select its cleanup protocol.
+std.ops.DeferGuard  pub struct DeferGuard[F < FnMut() -> void $ R & 'a, $ R, 'a]  -- A guard registered by `defer`; its action runs when the calling scope exits.
+std.ops.defer  pub fn defer[F < FnMut() -> void $ R & 'a, $ R, 'a](action: F) -> DeferGuard[F, $ R, 'a]  -- Registers `action` to run when the calling scope exits.
+std.ops.ScopeGuard  pub struct ScopeGuard[F < FnMut() -> void $ R & 'a, $ R, 'a]  -- A guard that runs `action` when a `using` binding of it ends. The action may require `R` and may capture references of lifetime `'a`.
+std.ops.on_exit  pub fn on_exit[F < FnMut() -> void $ R & 'a, $ R, 'a](action: F) -> ScopeGuard[F, $ R, 'a]  -- Builds a scope guard whose cleanup runs `action`.
+std.ops.Range  pub struct Range[T]  -- The range `a..b` or `a..=b`: a lower and an upper bound.
+std.ops.Range.start  pub start: T  -- The range's lower bound.
+std.ops.Range.end  pub end: T  -- The range's upper bound.
+std.ops.Range.inclusive  pub inclusive: bool  -- True for the `..=` form, false for the `..` form.
+std.ops.RangeFrom  pub struct RangeFrom[T]  -- The range `a..`: a lower bound and no end.
+std.ops.RangeFrom.start  pub start: T  -- The range's lower bound.
+std.ops.RangeTo  pub struct RangeTo[T]  -- The range `..b` or `..=b`: an upper bound and no start.
+std.ops.RangeTo.end  pub end: T  -- The range's upper bound.
+std.ops.RangeTo.inclusive  pub inclusive: bool  -- True for the `..=` form, false for the `..` form.
+std.ops.RangeFull  pub struct RangeFull  -- The range `..`: the whole extent.
+std.ops.RangeIter  pub struct RangeIter[T]  -- The cursor of a range's `iter`: the integers from its start up to its end.
+std.ops.RangeIter.rev  pub fn rev(self) -> Rev[Self, T]  -- Reverses the remaining sequence without advancing or buffering it.
+std.ops.RangeFromIter  pub struct RangeFromIter[T]  -- The cursor of an `a..` range's `iter`: the integers from its start on, with no end.
+std.ops.Default  pub trait Default  -- A type's default value, which `T::default()` returns.
+std.ops.DefaultVariant  pub struct DefaultVariant
+std.ops.default  pub fn default() -> DefaultVariant  -- The marker function of `@default`: it attaches a `DefaultVariant` fact to the variant.
+std.ops.Tuple  pub trait Tuple < ?Copy  -- The empty sealed marker trait that every tuple type implements, `()` and `(A,)` included.
+std.ops.FnMut  pub trait FnMut[I < ?Copy & Tuple, O < ?Copy, $ R = $()]  -- The static-dispatch trait implemented by every function value, for a callee that may change its captures.
+std.ops.FnMut.call_mut  fn call_mut(&mut self, args: I) -> O $ R  -- Calls this function with the parameter tuple `args`; the call may change its captures.
+std.ops.Fn  pub trait Fn[I < ?Copy & Tuple, O < ?Copy, $ R = $()] < FnMut[I, O, $ R]  -- The static-dispatch trait for a function value that changes none of its captures; it extends `FnMut`.
+std.ops.Fn.call  fn call(&self, args: I) -> O $ R  -- Calls this function with the parameter tuple `args`.

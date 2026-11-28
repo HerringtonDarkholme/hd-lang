@@ -1,0 +1,18 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# A known callback is captured through two nested closure bodies.
+use std.meta.inline
+
+@inline(.Never)
+fn invoke(callback: fn() -> i32) -> i32:
+    callback()
+
+@inline(.Never)
+fn middle(callback: fn() -> i32) -> i32:
+    work := fn() -> i32:
+        nested := fn() -> i32: callback() + callback()
+        invoke(nested)
+    invoke(work)
+
+pub fn main() -> void $ Console:
+    println(middle(fn() -> i32: +7))

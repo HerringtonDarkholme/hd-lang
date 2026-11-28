@@ -1,0 +1,26 @@
+# test: a tree linked after allocation: each child is pushed into its parent while both are live (a DOM builder, as dodrio and html5ever build into bumpalo)
+# Spec std Arena: std-arena.alloc.disjoint, std-arena.alloc.lent.
+# expect-stdout: 4
+use std.arena.Arena
+
+pub struct Element['a]:
+    pub tag: string
+    pub children: List[&'a Element['a]]
+
+pub fn list['a](arena: &'a Arena, items: &List[string]) -> &'a Element['a]:
+    ul := arena.alloc(Element { tag: "ul", children: [] })
+    for item in items:
+        li := arena.alloc(Element { tag: "li $item", children: [] })
+        ul.children.push(li)
+    ul
+
+pub fn count(e: &Element) -> usize:
+    let mut n: usize = 1
+    for c in e.children:
+        n += count(c)
+    n
+
+pub fn main() -> void $ Console:
+    arena := Arena::new()
+    items := ["a", "b", "c"]
+    println(count(list(&arena, &items)))

@@ -1,0 +1,88 @@
+use std.collections.list.list_reserve
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+use std.ops.Index
+use std.rt.{panic_with}
+
+# A read-only window on a run of a list's elements
+# (spec/std/collections.md#views). It holds a copy-on-write snapshot of the
+# list value (r-std-collections.view.snapshot): later writes to the list do
+# not show through, and a kept view keeps the whole storage alive.
+## A read-only window on a run of a list's elements. It holds a snapshot of the list, so later writes to the list do not show through; a kept view keeps the whole storage alive, so copy it with `to_list()`.
+## See [std-collections.view.type](../../../spec/std/collections.md#r-std-collections.view.type).
+@derive(Debug)
+pub struct ListView[T]:
+    items: List[T]
+    start: usize
+    end: usize
+
+impl[T] ListView[T]:
+    ## Returns the number of elements in the view.
+    ## See [std-collections.view.len](../../../spec/std/collections.md#r-std-collections.view.len).
+    pub fn len(&self) -> usize:
+        self.end - self.start
+
+    ## Returns a new list that holds the view's elements in order.
+    ## See [std-collections.view.to-list-value](../../../spec/std/collections.md#r-std-collections.view.to-list-value).
+    pub fn to_list(&self) -> List[T]:
+        let mut copy: List[T] = []
+        list_reserve(&mut copy, self.len())
+        let index = self.start
+        while index < self.end:
+            copy.push(self.items[index])
+            index = index + 1
+        copy
+
+impl[T] Index[usize] for ListView[T]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        len := self.end - self.start
+        if key >= len:
+            panic_with(
+                "index-out-of-bounds",
+                "list view index ${key} out of bounds for length ${len}",
+            )
+        &self.items[self.start + key]
+
+impl[T] Iterable[T] for ListView[T]:
+    type IntoIter = ListViewIter[T]
+    fn iter(self) -> ListViewIter[T]:
+        ListViewIter { view: self, at: self.start, end: self.end }
+
+## The cursor of a view's `iter`: the view's elements in order, each read from the snapshot.
+## See [std-collections.view.iter](../../../spec/std/collections.md#r-std-collections.view.iter).
+pub struct ListViewIter[T]:
+    view: ListView[T]
+    at: usize
+    end: usize
+
+impl[T] Iterator[T] for ListViewIter[T]:
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.at = self.at + 1
+        .Some(self.view.items[self.at - 1])
+
+impl[T] DoubleEndedIterator[T] for ListViewIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.view.items[self.end])
+
+impl[T] ExactSizeIterator[T] for ListViewIter[T]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T] ListViewIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+pub fn list_view[T](items: &List[T], start: usize, end: usize) -> ListView[T]:
+    if end > items.len() || start > end:
+        panic_with(
+            "index-out-of-bounds",
+            "list view start $start end $end out of bounds for length ${items.len()}",
+        )
+    ListView::[T] { items: *items, start: start, end: end }

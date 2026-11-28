@@ -4,7 +4,7 @@
   (import "fixture" "impl Iterator[i64] for Upto.next" (func $"impl Iterator[i64] for Upto.next" (param i32) (result i32 i64)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 129))
   (func $total (param $items.at i64) (param $items.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $t1 i32)
     ;; 20 |     let mut cursor = items
     global.get $stack

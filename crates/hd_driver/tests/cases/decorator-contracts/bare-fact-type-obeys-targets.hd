@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # annot.target.limit.kind-error: metadata checks the declared fact type as well as a factory result.
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Field)
 struct FieldOnly: pass

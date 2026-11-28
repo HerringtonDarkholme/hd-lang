@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# A read-only loop over `&mut` elements has its list's `IsUnique` hoisted
+# right before it, and the check may replace the list's buffer. A load
+# hoisted out of the loop would be read before the check, so the
+# header load through `xs` stays in the loop.
+fn first_over(xs: &mut List[i32], limit: i32) -> i32:
+    # subject
+    for x in &mut *xs:
+        if *x > limit:
+            return *x
+    0

@@ -1,6 +1,6 @@
 # test: a Send crossing closure may reach an immutable top-level Arc of a Send and Sync value, but not one of a list
 # Spec std/sync: std-sync.arc.send. Spec lang/07 Crossing Closures: fn.crossing.global.send. Spec lang/10 Markers: module.marker.explicit.only.
-use std.marker.Send
+use std.meta.Send
 use std.sync.Arc
 
 fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:

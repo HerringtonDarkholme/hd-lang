@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
-//! `hd_resolve`: use resolution, the folder interface builder, derived
+//! `hd_resolve`: use resolution, the unit interface builder, derived
 //! heads, orphan and visibility checks, and interface validation
 //! (`crates/hd_resolve/DESIGN.md` §4.9, §4.10, §4.12; `docs/compiler/data-structures.md`
 //! §3.15): module scopes over the full parser's tree, header lowering to
-//! `hd_types` types, folder interfaces and their blobs, impl tables for
+//! `hd_types` types, unit interfaces and their blobs, impl tables for
 //! the solver, and the overlap check.
 
 use std::sync::{Arc, Mutex};
@@ -30,26 +30,27 @@ pub mod variance;
 pub mod view;
 pub mod work;
 
+pub use generic_scope::{Entry as GenericScopeEntry, Scoped as GenericScope};
 pub use header::Universe;
 pub use iface::{
-    AliasUse, CallAttrs, Crossing, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind,
-    ImplKind, Item, ItemData, Items, Lookup, LookupDecls, Names, ResultPath, STATIC_LIFETIME,
-    ShowAlias, TraitData, TypeAttrs, Variant, declares_assoc_function, decode_items, decode_lazy,
-    decode_lazy_in, decode_module_uses, decode_private_names, deep_hash, encode_docs, encode_items,
-    encode_module_uses, encode_private_names, fill_trait_args, fill_type_args, folder_iface,
-    generic_kind_mismatch, header_parts, impl_table, instantiate_alias, interface_items,
-    lifetime_arg, mentioned_defs, params_owner, private_impl_items, show_ty, show_ty_full,
-    show_ty_full_in, show_ty_in, show_ty_rows_in, ty_parts,
+    AliasUse, CallAttrs, Crossing, Export, Field, FnAttrs, FnSig, Generic, HeadKind, ImplKind,
+    Item, ItemData, ItemFingerprint, Items, Lookup, LookupDecls, Names, ResultPath,
+    STATIC_LIFETIME, ShowAlias, TraitData, TypeAttrs, UnitIface, Variant, declares_assoc_function,
+    decode_items, decode_lazy, decode_lazy_in, decode_module_uses, decode_private_names, deep_hash,
+    encode_docs, encode_items, encode_module_uses, encode_private_names, fill_trait_args,
+    fill_type_args, generic_kind_mismatch, header_parts, impl_table, instantiate_alias,
+    interface_items, item_fingerprint, lifetime_arg, mentioned_defs, params_owner,
+    private_impl_items, show_ty, show_ty_full, show_ty_full_in, show_ty_in, show_ty_rows_in,
+    ty_parts, unit_iface,
 };
 pub use known::KnownItems;
 pub use locals::{Innermost, Locals};
 pub use lower::{
-    Cx, EnclosingParams, FolderOut, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, NameRole,
-    PRELUDE, Reads, Recorded, SessionScope, TopBindings, USE_CODES, UseDecl, World,
-    bare_in_row_slot, body_nodes, build_folder, head_name_span, heads, inputs_tuple,
-    is_prelude_name, is_test_prelude_name, local_items, prelude_modules, prelude_rows, row_slot,
-    runtime_module, test_prelude_item, test_use_decls, tests_items, traitless_block, ty_form,
-    use_decls, use_diags,
+    Cx, EnclosingParams, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, NameRole, PRELUDE,
+    Reads, Recorded, SessionScope, TopBindings, USE_CODES, UnitOut, UseDecl, World,
+    bare_in_row_slot, body_nodes, build_unit, head_name_span, heads, inputs_tuple, is_prelude_name,
+    is_test_prelude_name, local_items, prelude_rows, row_slot, runtime_module, test_prelude_item,
+    test_use_decls, tests_items, traitless_block, ty_form, use_decls, use_diags,
 };
 pub use view::Src;
 
@@ -94,7 +95,7 @@ pub struct ModuleScope {
     pub def: Vec<DefId>,
     /// Module paths that `Module` bindings name, by binding value.
     pub modules: Vec<String>,
-    /// The names looked up so far, while a folder's interface is built
+    /// The names looked up so far, while a unit's interface is built
     /// ([`ModuleScope::track`]): only a use whose name a lookup consulted
     /// counts among the reads that key the interface (#248).
     pub looked_up: Option<Arc<Mutex<HashSet<Symbol>>>>,
@@ -242,16 +243,6 @@ impl ModuleScope {
             })
             .collect()
     }
-}
-
-/// The use worklist's state per export (§3.15).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ExportState {
-    Resolved,
-    Pending,
-    Visiting,
-    Loop,
 }
 
 #[cfg(test)]

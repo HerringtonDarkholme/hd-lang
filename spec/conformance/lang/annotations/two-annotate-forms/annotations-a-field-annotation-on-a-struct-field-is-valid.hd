@@ -1,5 +1,5 @@
 # test: annotations a field annotation on a struct field is valid
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Field)
 struct MaxLen:

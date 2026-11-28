@@ -1,0 +1,28 @@
+# test: a call assignment through a user Update keeps a local reference whose source outlives the callee
+# Spec 13 Generic Locality: ref.generic.store, ref.dep.scope; Spec 5: expr.call.apply.write-ref.
+# expect-stdout: c1 zzzzzz9
+use std.ops.Apply
+use std.ops.Update
+
+struct P:
+    name: string
+
+struct Cell[T]:
+    v: T
+
+impl[T] Apply for Cell[T]:
+    type Out = T
+    fn apply(self) -> T:
+        self.v
+
+impl[T] Update[T] for Cell[T]:
+    fn update(&mut self, value: T) -> void:
+        self.v = value
+
+pub fn main() -> void $ Console:
+    a := P { name: "a" }
+    c := P { name: "c${1}" }
+    let mut k = Cell { v: &a }
+    k() = &c
+    junk := "zzzzzz${9}"
+    println("${k.v.name} $junk")

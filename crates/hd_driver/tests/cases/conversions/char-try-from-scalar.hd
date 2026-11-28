@@ -1,0 +1,7 @@
+# @dump: wat
+# @build: dev | release
+# expected: scalar validation and the invalid-scalar result niche, without allocation, UTF-8 encoding, or a trait call.
+use std.convert.{TryFrom, CharTryFromError}
+
+pub fn scalar(value: u32) -> Result[char, CharTryFromError]:
+    char::try_from(value)

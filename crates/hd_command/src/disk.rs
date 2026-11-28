@@ -351,6 +351,10 @@ pub type Requires = Vec<(String, u16)>;
 
 pub struct Program {
     pub host_packages: Vec<hd_driver::HostPackage>,
+    /// Whether its build gives the C tables of the root's C-bound host
+    /// traits (`Output::c_tables`), for the header `hd build` writes
+    /// (`cli.host.c.header`).
+    pub c_tables: bool,
     pub sources: DiskSources,
     pub package: String,
     /// The entry module below the package, as `main`.
@@ -424,6 +428,8 @@ impl Program {
                 )
                 .collect(),
             entry_capabilities: true,
+            // Only `hd build` of a package with a C provider asks for them.
+            c_tables: self.c_tables,
             // `HD_WAT` names every function of the module's text.
             instruction_origins: crate::wat::requested(),
             std_leaf: None,
@@ -876,21 +882,20 @@ pub fn package_name(root: &Path) -> Result<String, String> {
     }
 }
 
-/// The package name of a single-file program in `dir`, and the problem
-/// of a manifest there that names `std` (`cli.name.std.manifest`), at its
-/// path below `written`, the directory as the command line wrote it. The
-/// name `std` would make the file std itself, so the program takes the
-/// prefixed name a directory named `std` takes (`default_name`), and the
-/// problem stops the command before any check.
+/// A single file uses its directory's manifest name when valid. A reserved
+/// or dotted name stops the command at the manifest's name line, before
+/// checking; use a safe directory-derived identity while reporting it.
 fn single_file_package(dir: &Path, written: &Path) -> Result<(String, Vec<Diag>), String> {
-    let package = package_name(dir)?;
-    if package != "std" {
-        return Ok((package, Vec::new()));
+    let Some(manifest) = manifest_of(dir)? else {
+        return Ok((default_name(dir), Vec::new()));
+    };
+    if let Some(problem) = hd_project::package_name_problem(&manifest) {
+        let file = written.join("hd.toml").to_string_lossy().replace('\\', "/");
+        let d = Diag::error(problem.code, &problem.message)
+            .at(&file, problem.line.map(|line| line as usize));
+        return Ok((default_name(dir), vec![d]));
     }
-    let line = manifest_of(dir)?.map(|m| m.name_line as usize);
-    let file = written.join("hd.toml").to_string_lossy().replace('\\', "/");
-    let d = Diag::error(Some(Code::InvalidManifest), hd_project::STD_NAME).at(&file, line);
-    Ok(("pstd".to_owned(), vec![d]))
+    Ok((manifest.name, Vec::new()))
 }
 
 /// The sources and the package name of a root directory. A package with a
@@ -1009,6 +1014,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
         h.finish()
     });
     Ok(Program {
+        c_tables: false,
         sources: DiskSources {
             root: root.to_path_buf(),
             files,
@@ -1059,6 +1065,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
     };
     sources.add_synthetic("main.hd", text);
     Ok(Program {
+        c_tables: false,
         sources,
         package,
         entry: module_below("main.hd"),
@@ -1088,6 +1095,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
         return load_package(&root, "src/lib.hd");
     }
     Ok(Program {
+        c_tables: false,
         sources: DiskSources {
             root: cwd.to_path_buf(),
             files: Vec::new(),
@@ -1126,6 +1134,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
         // Nothing else of the package can be read: the program has no
         // sources, and its one problem stops the command.
         return Ok(Program {
+            c_tables: false,
             sources: DiskSources {
                 root: root.to_path_buf(),
                 files: Vec::new(),
@@ -1204,6 +1213,7 @@ fn loaded_package(
         .map(|e| module_below(&e.file))
         .collect();
     Ok(Program {
+        c_tables: false,
         sources,
         package,
         host_packages,
@@ -1566,7 +1576,7 @@ mod host_declaration_tests {
         ).unwrap();
         std::fs::write(
             app.join("src/main.hd"),
-            "pub fn main() -> void:\n    pass\n",
+            include_str!("tests/programs/disk/same_named_packages_keep_separate_host_declarations_without_overriding_grants.hd"),
         )
         .unwrap();
         for name in ["left", "right"] {
@@ -1574,7 +1584,7 @@ mod host_declaration_tests {
                 "[package]\nname = \"same-sdk\"\n[host]\nServer = \"provider.mjs\"\n[capabilities]\nProcess = true\n").unwrap();
             std::fs::write(
                 root.0.join(name).join("src/lib.hd"),
-                "@host\npub trait Server:\n    fn next!(&mut self) -> string\n",
+                include_str!("tests/programs/disk/same_named_packages_keep_separate_host_declarations_without_overriding_grants_2.hd"),
             )
             .unwrap();
         }
@@ -1691,20 +1701,24 @@ mod stamp_tests {
             .expect("toml");
             std::fs::write(
                 root.join("src/main.hd"),
-                "use std.console.Console\n\npub fn main() -> void $ Console:\n    println(\"hi\")\n",
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed.hd"
+                ),
             )
             .expect("main");
             for i in 0..n {
                 std::fs::create_dir_all(root.join(format!("src/f{i}"))).expect("folder");
                 std::fs::write(
-                    root.join(format!("src/f{i}/m.hd")),
+                    root.join(format!("src/f{i}/mod.hd")),
                     format!("## Doc.\npub fn value() -> i32: {i}\n"),
                 )
                 .expect("module");
             }
             std::fs::write(
                 root.join("tests/t.hd"),
-                "use pkg.f0.m.{value}\nuse std.testing.{assert_equal}\n\nit(\"value\"):\n    assert_equal(value(), 0)\n",
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed_2.hd"
+                ),
             )
             .expect("test");
             std::thread::sleep(SETTLE + std::time::Duration::from_millis(200));
@@ -1714,8 +1728,10 @@ mod stamp_tests {
             assert!(plan <= files, "{plan} plan reads, {n} modules");
             assert_eq!(reads(&root, &store), (0, 0), "warm, {n} modules");
             std::fs::write(
-                root.join("src/f1/m.hd"),
-                "## Doc.\npub fn value() -> i32: 99\n",
+                root.join("src/f1/mod.hd"),
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed_3.hd"
+                ),
             )
             .expect("edit");
             // A recent edit is not settled: read on every run until it is.

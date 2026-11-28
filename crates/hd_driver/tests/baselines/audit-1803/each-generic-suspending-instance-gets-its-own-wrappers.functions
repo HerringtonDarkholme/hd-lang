@@ -92,8 +92,7 @@ rt:str
 rt:release_ref#0
 rt:release_drain
 rt:release_ref#1
-rt:dyn_trap#0
-rt:dyn_trap#1
+rt:dyn_trap
 rt:forbid_check
 rt:hd:Clock/sleep
 rt:hd:Clock/sleep.poll

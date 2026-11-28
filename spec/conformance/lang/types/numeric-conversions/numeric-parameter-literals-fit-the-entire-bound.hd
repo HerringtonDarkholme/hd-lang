@@ -1,0 +1,40 @@
+# test: numeric parameter literals fit the entire bound
+# Rule: types.cast.family.
+# expect-stdout: 127
+# expect-stdout: 127
+# expect-stdout: 16777216.0
+# expect-stdout: -16777216.0
+# expect-stdout: 127.0
+use std.num.{Integer, Float, Num}
+use std.testing.assert_equal
+
+fn small[T < Integer]() -> T:
+    T((+127))
+
+fn exact[T < Float]() -> T:
+    T(16777216)
+
+fn negative[T < Float]() -> T:
+    T(-16777216)
+
+fn large[T < Float]() -> T:
+    T(18446744073709551616)
+
+fn hexadecimal[T < Integer]() -> T:
+    T(0x7f)
+
+fn binary[T < Num]() -> T:
+    T(0b0111_1111)
+
+fn number[T < Num]() -> T:
+    T(127)
+
+pub fn main() -> void $ Console:
+    assert_equal(large::[f64](), 18446744073709551616.0)
+    assert_equal(hexadecimal::[u8](), 127)
+    assert_equal(binary::[i8](), +127)
+    println(small::[i8]())
+    println(small::[u64]())
+    println(exact::[f32]())
+    println(negative::[f64]())
+    println(number::[f64]())

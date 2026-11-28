@@ -54,7 +54,7 @@ test("Console input preserves UTF-8, CRLF and the final unterminated line", asyn
     Buffer.concat([Buffer.from("A\r\né\nbad"), Buffer.from([255]), Buffer.from("\r\nlast\r")]),
   );
   assert.deepEqual(await input.read(), { ok: "A" });
-  assert.deepEqual(await input.read("all"), { ok: "é\nbad�\nlast\r" });
+  assert.deepEqual(await input.read("all"), { ok: "é\nbad�\r\nlast\r" });
   assert.deepEqual(await input.read(), { ok: null });
   assert.deepEqual(await input.read("all"), { ok: "" });
 });
@@ -77,7 +77,7 @@ for (const reverse of [false, true]) {
 test("Console read_all abort restores bytes after readiness", async (testContext) => {
   const input = inputWorker(testContext, "one\r\ntwo");
   const operation = input.start("all");
-  assert.deepEqual(await input.ready(operation), { ok: "one\ntwo" });
+  assert.deepEqual(await input.ready(operation), { ok: "one\r\ntwo" });
   input.call({ op: "wait_abort", operation });
   input.call({ op: "wait_abort", operation });
   assert.deepEqual(await input.read(), { ok: "one" });

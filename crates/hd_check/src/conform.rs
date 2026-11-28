@@ -24,7 +24,7 @@ type SigMaps<'x> = (&'x dyn Fn(Ty) -> Ty, &'x dyn Fn(Ty) -> Option<Ty>);
 /// reference, a type's or a trait value's arguments, a tuple, a function
 /// type) must be `g`'s form, so `&Self::Out` never matches `i32`. One pass
 /// over `w`'s forms down to its projections, with an explicit stack.
-fn same_but_projections(
+pub(crate) fn same_but_projections(
     pool: Types<'_>,
     (w, g): (Ty, Ty),
     bound: &dyn Fn(Ty) -> Option<Ty>,
@@ -37,8 +37,8 @@ fn same_but_projections(
     let mut stack = vec![(w, g)];
     let mut seen = hd_base::HashSet::default();
     while let Some((w, g)) = stack.pop() {
-        #[cfg(test)]
-        comparison_tests::visit();
+        #[cfg(feature = "testing")]
+        crate::testing::projection_pair_visited();
         if w == g {
             continue;
         }
@@ -351,6 +351,17 @@ impl Ck<'_, '_> {
                 "`{}` differs from the trait's declaration: {why}",
                 self.cx.names.text(it.name)
             );
+            let function_rows_differ = match (pool.get(tsig.ret), pool.get(checked.ret)) {
+                (TyData::Fn { row: want, .. }, TyData::Fn { row: got, .. }) => want != got,
+                _ => false,
+            };
+            if (why == "the requirement row" && matches!(pool.get(sig.ret), TyData::Fn { .. }))
+                || (why == "the result type" && function_rows_differ)
+            {
+                msg.push_str(
+                    "; `(fn(...) -> T $ Row)` keeps a returned function's row inside its type",
+                );
+            }
             if trait_ == known.index_set && why == "a parameter type" {
                 let params = self.cx.lookup.item(trait_).map_or_else(Vec::new, |t| {
                     t.generics
@@ -504,50 +515,5 @@ impl Ck<'_, '_> {
             return Some("a parameter default, which only the trait declares");
         }
         None
-    }
-}
-
-#[cfg(test)]
-mod comparison_tests {
-    use super::*;
-    use std::cell::Cell;
-
-    thread_local! { static VISITS: Cell<usize> = const { Cell::new(0) }; }
-
-    pub(super) fn visit() {
-        VISITS.set(VISITS.get() + 1);
-    }
-
-    #[test]
-    fn nested_impl_projection_comparison_visits_shared_pairs_once() {
-        let pool = hd_types::InternPool::new();
-        let projection = pool.intern_ty(&TyData::Assoc {
-            assoc: DefId::from_raw(1),
-            trait_: DefId::from_raw(2),
-            self_ty: Ty::I32,
-            args: TyList::EMPTY,
-        });
-        let pair = |values: &[Ty]| pool.product(pool.list(values), None);
-        let bound = |ty| (ty == projection).then_some(Ty::I32);
-        let mut work = Vec::new();
-        for width in [100, 1_000] {
-            let (mut want, mut got) = (Ty::I32, projection);
-            for _ in 0..20 {
-                want = pair(&[want, want]);
-                got = pair(&[got, got]);
-            }
-            want = pair(&vec![want; width]);
-            got = pair(&vec![got; width]);
-            VISITS.set(0);
-            assert!(same_but_projections(pool.types(), (got, want), &bound));
-            work.push(VISITS.get());
-        }
-        assert!(work[0] > 100);
-        assert!(work[1] <= work[0] * 10);
-        assert!(!same_but_projections(
-            pool.types(),
-            (Ty::BOOL, projection),
-            &bound
-        ));
     }
 }

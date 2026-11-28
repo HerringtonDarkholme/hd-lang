@@ -1,0 +1,8 @@
+# @dump: diagnostics spans
+# @build: std
+# trait.impl.intrinsic.shape: `task_all_frame` declared without its task
+# list is one `invalid-intrinsic` on the declaration's decorator, whose
+# message prints the signature the intrinsic has.
+@intrinsic("task_all_frame")
+pub fn unlowered() -> void:
+    panic("intrinsic")

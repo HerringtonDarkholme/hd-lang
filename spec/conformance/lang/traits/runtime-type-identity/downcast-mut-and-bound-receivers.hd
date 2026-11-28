@@ -34,7 +34,7 @@ impl Display for FsError:
 
 impl Error for FsError
 
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct Counter:
     count: i32

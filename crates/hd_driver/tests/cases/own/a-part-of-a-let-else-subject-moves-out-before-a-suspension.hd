@@ -1,0 +1,27 @@
+# @dump: own
+# `extract` destructured by `let ... else` from the moved parameter is a
+# part of a value, not a frame slot of the parameter: no borrow of it lives
+# across `add!`'s suspension (#2432).
+struct Query:
+    n: i64
+
+enum Body:
+    Bind(r: *mut Query)
+    Each(update: *mut Query, extract: (*mut Query)?)
+
+struct C:
+    total: i64
+
+impl C:
+    fn add!(&mut self, q: *mut Query) -> Result[void, string]:
+        self.total += q.n
+        .Ok(())
+
+    fn body!(&mut self, body: Body) -> Result[void, string]:
+        let .Each(update, extract) = body else:
+            return .Ok(())
+        self.add!(update)?
+        let .Some(x) = extract else:
+            return .Ok(())
+        self.add!(x)?
+        .Ok(())

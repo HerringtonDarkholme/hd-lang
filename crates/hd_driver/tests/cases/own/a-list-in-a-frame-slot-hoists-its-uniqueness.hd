@@ -6,7 +6,7 @@
 # Wasm local, and the loop runs no check (`IsUnique hoisted`; the counts
 # view names the loop's line either way). In `touch_each` the reference
 # is taken in the loop, so the push keeps its check there.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn touch(xs: &mut List[u32]) -> void:

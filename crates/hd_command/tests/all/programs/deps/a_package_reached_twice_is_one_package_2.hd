@@ -1,0 +1,4 @@
+use dep.money.{Coin}
+
+pub fn make() -> Coin:
+    Coin { cents: 5 }

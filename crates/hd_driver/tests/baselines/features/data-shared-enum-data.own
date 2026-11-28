@@ -18,24 +18,21 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 >   %0 = Store [$0] 200:i32 : ()
 >   %1 = Store [$1] "OK" : ()
 >   %2 = Drop [$1] : ()
->   %7 = Store [$2] 404:i32 : ()
->   %8 = Store [$3] "Not Found" : ()
->   %9 = Drop [$3] : ()
+>   %6 = Store [$2] 404:i32 : ()
+>   %7 = Store [$3] "Not Found" : ()
+>   %8 = Drop [$3] : ()
     Ok -> HttpStatus(200, phrase="OK")
 >   %3 = Store [@app/main/HttpStatus.Ok.code] 200:i32 : ()
 >   %4 = Store [@app/main/HttpStatus.Ok.phrase] "OK" : ()
->   %5 = Release %4 Operation #3 : ()
->   %6 = Store [@app/main/HttpStatus.Ok.retryable] 0:bool : ()
+>   %5 = Store [@app/main/HttpStatus.Ok.retryable] 0:bool : ()
     NotFound -> HttpStatus(404, phrase="Not Found")
->   %10 = Store [@app/main/HttpStatus.NotFound.code] 404:i32 : ()
->   %11 = Store [@app/main/HttpStatus.NotFound.phrase] "Not Found" : ()
->   %12 = Release %11 Operation #3 : ()
->   %13 = Store [@app/main/HttpStatus.NotFound.retryable] 0:bool : ()
+>   %9 = Store [@app/main/HttpStatus.NotFound.code] 404:i32 : ()
+>   %10 = Store [@app/main/HttpStatus.NotFound.phrase] "Not Found" : ()
+>   %11 = Store [@app/main/HttpStatus.NotFound.retryable] 0:bool : ()
     Busy -> HttpStatus(503, phrase="Busy", retryable=true)
->   %14 = Store [@app/main/HttpStatus.Busy.code] 503:i32 : ()
->   %15 = Store [@app/main/HttpStatus.Busy.phrase] "Busy" : ()
->   %16 = Release %15 Operation #3 : ()
->   %17 = Store [@app/main/HttpStatus.Busy.retryable] 1:bool : ()
+>   %12 = Store [@app/main/HttpStatus.Busy.code] 503:i32 : ()
+>   %13 = Store [@app/main/HttpStatus.Busy.phrase] "Busy" : ()
+>   %14 = Store [@app/main/HttpStatus.Busy.retryable] 1:bool : ()
 
 fn phrase_len(s: HttpStatus) -> usize:
     s.phrase.len()
@@ -59,7 +56,7 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   %12 = SwitchTag %0 [#0 %3 %11] : string
 >   %13 = Store [$1] %12 : ()
 >   %14 = Read borrow [$1] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize

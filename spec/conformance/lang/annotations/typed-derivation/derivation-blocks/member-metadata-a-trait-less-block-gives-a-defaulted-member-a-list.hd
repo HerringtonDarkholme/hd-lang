@@ -1,5 +1,5 @@
 # test: member metadata a trait less block gives a defaulted member a list
-use std.structure.Structure
+use std.meta.Structure
 
 struct Token:
     text: string = ""

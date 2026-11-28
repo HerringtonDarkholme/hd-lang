@@ -1,0 +1,4 @@
+use pkg.text.{Builder}
+
+pub struct Writer:
+    pub builder: Builder

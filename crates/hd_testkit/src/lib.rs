@@ -5,17 +5,69 @@
 //! `node` finds the Node the repository pins (`.node-version`).
 //! `known_failures` reads the root `KNOWN_FAILURES.tsv` for the conformance
 //! tiers. `stages` runs the stage fixtures under each crate's
-//! `tests/cases/` (#675).
+//! `tests/cases/` (#675). [`CountingStore`] counts a warm run's cache
+//! lookups for the cost tests. `cdylib` builds a test's C-ABI library with
+//! an installed toolchain's `rustc`, never a rustup proxy.
 
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use hd_base::Hash128;
+use hd_cache::{CacheStore, EntryKind, MemoryStore};
 use hd_driver::Executor;
 use hd_sched::SerialOrder;
 
+pub mod cdylib;
 pub mod known_failures;
 pub mod node;
 pub mod stages;
+
+/// A [`MemoryStore`] that counts its lookups and the bytes they returned
+/// (Cost Model: a warm run's lookups do not grow with the program).
+#[derive(Default)]
+pub struct CountingStore {
+    store: MemoryStore,
+    gets: AtomicUsize,
+    bytes: AtomicUsize,
+}
+
+impl CountingStore {
+    /// Starts both counts again from zero.
+    pub fn reset(&self) {
+        self.gets.store(0, Ordering::Relaxed);
+        self.bytes.store(0, Ordering::Relaxed);
+    }
+
+    /// The lookups since the last [`reset`](Self::reset).
+    #[must_use]
+    pub fn gets(&self) -> usize {
+        self.gets.load(Ordering::Relaxed)
+    }
+
+    /// The bytes those lookups returned.
+    #[must_use]
+    pub fn bytes(&self) -> usize {
+        self.bytes.load(Ordering::Relaxed)
+    }
+}
+
+impl CacheStore for CountingStore {
+    fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
+        let got = self.store.get(kind, key);
+        self.gets.fetch_add(1, Ordering::Relaxed);
+        self.bytes
+            .fetch_add(got.as_ref().map_or(0, |b| b.len()), Ordering::Relaxed);
+        got
+    }
+    fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]) {
+        self.store.put(kind, key, bytes);
+    }
+    fn touch(&self, kind: EntryKind, key: &Hash128) {
+        self.store.touch(kind, key);
+    }
+}
 
 /// The host capability traits of conformance runtime profile `name`
 /// (`spec/conformance/README.md` "Runtime Profiles"), as a build receives

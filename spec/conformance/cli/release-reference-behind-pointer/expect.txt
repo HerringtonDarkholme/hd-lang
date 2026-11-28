@@ -3,7 +3,18 @@
 # (`ref.excl.alias.call-loan`). Replacing the `Holder`'s child through
 # another alias inside the callee writes an object the loan holds, so it
 # panics borrow-conflict (`ref.excl.alias.conflict`) before anything prints.
-run: hd run --release
+# Native inlining can omit caller frames; portable forms retain them.
+run: hd run --engine wasmtime --release
+exit: 3
+stderr: panic: borrow-conflict: a `alias.main.Holder` a live reference borrows was written through another `*T`
+stderr:     src/main.hd:8 alias.main.replace_then_read
+run: hd run --engine node --release
+exit: 3
+stderr: panic: borrow-conflict: a `alias.main.Holder` a live reference borrows was written through another `*T`
+stderr:     src/main.hd:8 alias.main.replace_then_read
+stderr:     src/main.hd:18 alias.main.main
+run: hd build --engine wasmtime --release --format wasm
+run: hd --engine wasmtime build/release/alias.wasm
 exit: 3
 stderr: panic: borrow-conflict: a `alias.main.Holder` a live reference borrows was written through another `*T`
 stderr:     src/main.hd:8 alias.main.replace_then_read

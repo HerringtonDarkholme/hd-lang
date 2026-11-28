@@ -1,10 +1,10 @@
 # test: an argument-position impl Trait may outlive a declared lifetime
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     n: i32
 
-fn first['a](counter: &'a Counter, action: impl Fn() -> i32&'a) -> &'a Counter:
+fn first['a](counter: &'a Counter, action: impl Fn() -> i32 & 'a) -> &'a Counter:
     action()
     counter
 

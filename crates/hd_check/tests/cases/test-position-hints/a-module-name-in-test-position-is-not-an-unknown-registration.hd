@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# @build: tests
+# A known module is not a registration function and needs no import hint.
+use std.text
+
+tests:
+    text()

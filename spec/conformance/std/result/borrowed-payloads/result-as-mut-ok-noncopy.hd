@@ -1,0 +1,23 @@
+# test: as_mut writes the ok payload in place without copying either side
+# Spec std Result: std-result.as-mut, std-result.as-mut.in-place.
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn increment(value: &mut Result[Item, Item]):
+    let view: Result[&mut Item, &mut Item] = value.as_mut()
+    match view:
+        .Ok(item) => item.n += 1
+        .Err(item) => item.n += 1
+
+tests:
+    use std.testing.assert_equal
+
+    it("writes the borrowed ok payload in its owner"):
+        let mut value: Result[Item, Item] = .Ok(Item { n: 7 })
+        increment(&mut value)
+        let actual = match value:
+            .Ok(item) => item.n
+            .Err(item) => item.n
+        assert_equal(actual, 8)

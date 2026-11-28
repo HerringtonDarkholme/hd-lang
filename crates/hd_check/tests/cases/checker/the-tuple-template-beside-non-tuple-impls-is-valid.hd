@@ -1,7 +1,7 @@
 # @dump: tir
 # Migrated from #658 sample: the_tuple_template_beside_non_tuple_impls_is_valid (#684).
-use std.function.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.ops.Tuple
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+# A misspelt local constructor uses the visible local struct, not a nearby alias.
+fn construct() -> void:
+    struct Packet: pass
+    type Packex = i32
+    _ := Packetq {}

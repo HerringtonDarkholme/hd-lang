@@ -1,0 +1,10 @@
+# test: a flat parent file src/shop.hd and its child module may use each other: they are siblings
+# Spec 10 Module Graph: module.cycle.sibling-group, module.cycle.sibling-group.siblings.
+# fixture-package-tree: parent-file/src/shop.hd
+use pkg.shop.item.{Item}
+
+pub struct Cart:
+    pub count: i32
+
+pub fn wrap(item: Item) -> Cart:
+    Cart { count: item.count }

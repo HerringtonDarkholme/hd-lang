@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: std
 # expected: moving a placed local states cleanup of its cell owner independently of the payload; generic string and scalar heap cells release once, while actual stack slots and unplaced locals add no cell release.
-use std.annotation.cold
+use std.meta.cold
 use std.time.{Clock, ms, sleep}
 
 @cold
@@ -54,6 +54,8 @@ fn stack[T](value: T) -> T:
 @cold
 fn direct[T](value: T) -> T:
     value
+> std/rt_tests.stage_case/direct
+>   release string (last use)
 
 pub fn main!() -> void $ Console + Clock:
     println(take!("text"))

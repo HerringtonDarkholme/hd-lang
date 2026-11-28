@@ -1,0 +1,23 @@
+fn depth(n: i32) -> i32:
+    if n == 0:
+        panic("bottom")
+    depth(n - 1) + 1
+
+fn forever(n: i32) -> i32:
+    forever(n + 1) + 1
+
+fn ping(n: i32) -> i32:
+    pong(n + 1) + 1
+
+fn pong(n: i32) -> i32:
+    ping(n + 1) + 1
+
+tests:
+    it("goes five deep"):
+        depth(+5)
+
+    it("never stops"):
+        forever(+0)
+
+    it("plays ping pong"):
+        ping(+0)

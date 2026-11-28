@@ -39,8 +39,8 @@ match decode::[Order](text):
 Then it prints the order's debug text.
 
 ```hd
-use std.json.decode
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.decode
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Eq, Debug, Serialize, Deserialize)
 struct Order:

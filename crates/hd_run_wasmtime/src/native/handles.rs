@@ -7,7 +7,10 @@
 //! entries: the instance is the owner, as its reactor's inbox is the
 //! owner of its pending calls (#2081). An entry records the contract
 //! interface of its generated handle trait, that trait's dispatch, and the
-//! trait object.
+//! trait object. The host's own handles that a std handle trait names
+//! (`hd_host_abi::HANDLES` rows, as `std.fs.File`) live here too, under
+//! an interface number no contract issues and with no dispatch: their
+//! methods are host methods, which reach the value with [`Handles::host`].
 //!
 //! The table follows slotmap's `SlotMap`: a vector of slots, each with a
 //! generation, and a free list of the vacant ones. A handle number is the
@@ -31,16 +34,16 @@ use super::{Dispatch, HostError};
 
 /// Slots: the last slot index stays unused, so the largest number, plus
 /// one, is still a positive `i32`.
-const SLOTS: u32 = (1 << Handle::SLOT_BITS) - 1;
+pub(crate) const SLOTS: u32 = (1 << Handle::SLOT_BITS) - 1;
 /// Generations per slot; a slot whose generations are spent retires.
-const GENERATIONS: u32 = 1 << Handle::GEN_BITS;
+pub(crate) const GENERATIONS: u32 = 1 << Handle::GEN_BITS;
 
-/// A live entry: its generated handle trait, that trait's dispatch, and
-/// its trait object, which is out of its slot while one of its methods
-/// runs.
+/// A live entry: its generated handle trait, that trait's dispatch (none
+/// for a host handle), and its trait object, which is out of its slot
+/// while one of its methods runs.
 struct Entry {
     interface: u32,
-    dispatch: Dispatch,
+    dispatch: Option<Dispatch>,
     value: Option<Box<dyn Any>>,
 }
 
@@ -65,15 +68,37 @@ pub(crate) struct Lent {
     pub(crate) value: Box<dyn Any>,
 }
 
-fn fail(message: &str) -> HostError {
+pub(crate) fn fail(message: &str) -> HostError {
     HostError(format!("package host: {message}"))
 }
 
 impl Handles {
     /// The live entries, counted for a test.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub(crate) fn len(&self) -> usize {
         self.slots.iter().filter(|s| s.entry.is_some()).count()
+    }
+
+    /// The slots issued so far, live or not, for a test.
+    #[cfg(feature = "testing")]
+    pub(crate) fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Fills the table to `count` slots with vacant ones at `generation`,
+    /// none of them free, for a test.
+    #[cfg(feature = "testing")]
+    pub(crate) fn fill_vacant(&mut self, count: usize, generation: u32) {
+        self.slots.resize_with(count, || Slot {
+            generation,
+            entry: None,
+        });
+    }
+
+    /// Marks `slot` free for reuse, for a test.
+    #[cfg(feature = "testing")]
+    pub(crate) fn free_slot(&mut self, slot: u32) {
+        self.free.push(slot);
     }
 
     /// Issues a number for `value`, a trait object of the handle trait at
@@ -82,6 +107,36 @@ impl Handles {
         &mut self,
         interface: u32,
         dispatch: Dispatch,
+        value: Box<dyn Any>,
+    ) -> Result<u32, HostError> {
+        self.issue(interface, Some(dispatch), value)
+    }
+
+    /// Issues a number for a host handle's `value`, under `interface`,
+    /// one of the host's numbers above every contract's interfaces.
+    pub(crate) fn insert_host(
+        &mut self,
+        interface: u32,
+        value: Box<dyn Any>,
+    ) -> Result<u32, HostError> {
+        self.issue(interface, None, value)
+    }
+
+    /// The value of the live host handle `number` of `interface`, if it is
+    /// one and holds a `T`.
+    pub(crate) fn host<T: 'static>(&mut self, number: u32, interface: u32) -> Option<&mut T> {
+        self.entry(number, interface)?
+            .entry
+            .as_mut()?
+            .value
+            .as_mut()?
+            .downcast_mut::<T>()
+    }
+
+    fn issue(
+        &mut self,
+        interface: u32,
+        dispatch: Option<Dispatch>,
         value: Box<dyn Any>,
     ) -> Result<u32, HostError> {
         let entry = Entry {
@@ -134,12 +189,15 @@ impl Handles {
             .entry(number, interface)
             .and_then(|slot| slot.entry.as_mut())
             .ok_or_else(invalid)?;
+        // A host handle has no dispatch: its interface is the host's, so
+        // no contract method names it; refused rather than assumed.
+        let dispatch = entry.dispatch.ok_or_else(invalid)?;
         // ruled out: no guest code runs while a method is lent, so no call
         // reaches a lent handle; refused rather than assumed.
         let value = entry.value.take().ok_or_else(invalid)?;
         Ok(Lent {
             number,
-            dispatch: entry.dispatch,
+            dispatch,
             value,
         })
     }
@@ -166,91 +224,5 @@ impl Handles {
         }
         drop(entry);
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::native::{Answer, Dispatched};
-
-    #[allow(clippy::unnecessary_wraps)]
-    fn none(_: &mut dyn Any, _: usize, _: &[u8], _: &mut Handles) -> Dispatched {
-        Ok(Answer::Ready(Vec::new()))
-    }
-
-    #[test]
-    fn a_released_number_never_resolves_again_after_its_slot_is_reused() {
-        let mut h = Handles::default();
-        let a = h.insert(0, none, Box::new(1u8)).unwrap();
-        h.release(a, 0).unwrap();
-        let b = h.insert(0, none, Box::new(2u8)).unwrap();
-        assert_ne!(a, b, "the reused slot issues a new number");
-        assert_eq!(
-            Handle(a - 1).slot(),
-            Handle(b - 1).slot(),
-            "the slot is reused"
-        );
-        assert!(h.lend(a, 0).is_err());
-        assert!(h.release(a, 0).is_err());
-        let lent = h.lend(b, 0).unwrap();
-        assert_eq!(lent.value.downcast_ref::<u8>(), Some(&2));
-        h.restore(lent);
-        assert_eq!(h.len(), 1);
-    }
-
-    #[test]
-    fn a_forged_zero_or_wrong_trait_number_resolves_nothing() {
-        let mut h = Handles::default();
-        let a = h.insert(3, none, Box::new(())).unwrap();
-        for forged in [0, a + 1, u32::MAX, a + (1 << Handle::SLOT_BITS)] {
-            assert_eq!(
-                h.lend(forged, 3).err(),
-                Some(fail("call of an invalid handle"))
-            );
-        }
-        assert_eq!(
-            h.release(a, 4).err(),
-            Some(fail("release of an invalid handle"))
-        );
-        // A lent handle is not callable again until restored.
-        let lent = h.lend(a, 3).unwrap();
-        assert!(h.lend(a, 3).is_err());
-        h.restore(lent);
-        h.release(a, 3).unwrap();
-        assert_eq!(h.len(), 0);
-    }
-
-    #[test]
-    fn a_slot_whose_generations_are_spent_is_retired() {
-        let mut h = Handles::default();
-        let mut seen = hd_base::HashSet::default();
-        for _ in 0..GENERATIONS {
-            let n = h.insert(0, none, Box::new(())).unwrap();
-            assert!(n > 0 && i32::try_from(n).is_ok());
-            assert!(seen.insert(n), "number {n} issued twice");
-            h.release(n, 0).unwrap();
-        }
-        assert_eq!(h.slots.len(), 1);
-        let n = h.insert(0, none, Box::new(())).unwrap();
-        assert_eq!(h.slots.len(), 2, "the spent slot is not reused");
-        assert!(seen.insert(n));
-    }
-
-    #[test]
-    fn the_table_is_bounded_by_its_slots() {
-        let mut h = Handles::default();
-        h.slots.resize_with(SLOTS as usize, || Slot {
-            generation: GENERATIONS - 1,
-            entry: None,
-        });
-        assert_eq!(
-            h.insert(0, none, Box::new(())).err(),
-            Some(fail("handle space exhausted"))
-        );
-        // The largest number fits a positive i32.
-        h.free.push(SLOTS - 1);
-        let n = h.insert(0, none, Box::new(())).unwrap();
-        assert_eq!(n, i32::MAX as u32);
     }
 }

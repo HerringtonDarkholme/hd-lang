@@ -1,0 +1,4 @@
+use std.prelude
+
+pub fn main() -> void:
+    pass

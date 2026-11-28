@@ -16,6 +16,8 @@ use crate::{cache, limits};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EngineConfig {
     pub cranelift_opt: OptLevel,
+    /// Compiler workers for one module; fixture pools leave this at one.
+    pub compilation_jobs: usize,
     /// `Config::max_wasm_stack`: the profile's stack limit.
     pub max_wasm_stack: usize,
 }
@@ -40,7 +42,10 @@ impl EngineConfig {
                 hd_base::OptLevel::Dev => OptLevel::None,
                 hd_base::OptLevel::Optimized => OptLevel::Speed,
             },
-            max_wasm_stack: 4 << 20,
+            compilation_jobs: 1,
+            // 16 MiB (#2396): reserved address space, touched only as
+            // frames grow, so deep recursion costs nothing until it runs.
+            max_wasm_stack: 16 << 20,
         }
     }
 }
@@ -86,6 +91,24 @@ impl WasmtimeEngine {
         })
     }
 
+    pub(crate) fn package(&self, wasm: &[u8]) -> Result<Option<Arc<package::Package>>, LoadError> {
+        // The package imports the contract describes are resolved at
+        // instantiation, against the embedder's registry, if any.
+        let metadata = hd_host_abi::schema::module_metadata(wasm)
+            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?;
+        let c_tables = metadata.c_tables;
+        let package = metadata
+            .contract
+            .map(|contract| Arc::new(package::Package::new(contract, c_tables)));
+        let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
+        if let Some((m, n)) = imports.iter().find(|(m, n)| {
+            !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
+        }) {
+            return Err(LoadError::Engine(unsupported_message(m, n)));
+        }
+        Ok(package)
+    }
+
     /// Instantiates `m` with its standard streams on `io`.
     pub fn instantiate_with(
         &self,
@@ -121,33 +144,39 @@ impl WasmtimeEngine {
 
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
     /// through `interrupt` (`cancel.rs`), with the cleanup bound `bound`.
-    pub(crate) fn instantiate_cancellable(
+    pub(crate) fn instantiate_run(
         &self,
         m: &Module,
         setup: &HostSetup,
         io: HostIo,
-        interrupt: &crate::HostInterrupt,
-        bound: std::time::Duration,
+        cancel: Option<(&crate::HostInterrupt, std::time::Duration)>,
+        sampling: Option<crate::sampling::Collector>,
+        c: &[crate::native::c::Library],
     ) -> Result<WasmtimeInstance, StartError> {
         let mut host = host_of(setup, io);
-        host.interrupt = Some(Arc::clone(&interrupt.flag));
-        let mut inst = self.instantiate_host(m, host)?;
-        *interrupt
-            .waker
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) =
-            Some(inst.store.data().reactor.waker());
-        // A request made before the reactor had a waker set the flag only.
-        if interrupt.flag.load(std::sync::atomic::Ordering::Relaxed) {
-            interrupt.request();
+        host.sampling = sampling;
+        host.c_libraries = Arc::from(c);
+        if let Some((interrupt, _)) = cancel {
+            host.interrupt = Some(Arc::clone(&interrupt.flag));
         }
-        inst.host_cancel = Some(crate::cancel::HostCancel::new(bound));
+        let mut inst = self.instantiate_host(m, host)?;
+        if let Some((interrupt, bound)) = cancel {
+            *interrupt
+                .waker
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some(inst.store.data().reactor.waker());
+            if interrupt.flag.load(std::sync::atomic::Ordering::Relaxed) {
+                interrupt.request();
+            }
+            inst.host_cancel = Some(crate::cancel::HostCancel::new(bound));
+        }
         Ok(inst)
     }
 
     /// Instantiates `m` with no native package provider: a module whose
     /// contract requires a root trait is refused before the guest starts
-    /// (`cli.host.package.native-cli`).
+    /// (`cli.host.package.native-cli-binds-c`).
     pub(crate) fn instantiate_host(
         &self,
         m: &Module,
@@ -183,6 +212,10 @@ impl WasmtimeEngine {
         });
         let package = m.2.as_deref();
         host.natives = package::preflight(package, bindings, &host.grants.consent)?;
+        let c = package::c_preflight(package, &host.c_libraries, &host.grants.consent)?;
+        host.c_providers = c.providers;
+        host.c_handles = c.handles;
+        let c_bound = host.c_providers.iter().any(Option::is_some);
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
         let mut defined = HashSet::default();
@@ -201,6 +234,10 @@ impl WasmtimeEngine {
             }
             Err(error) => return Err(StartError::Engine(error.to_string())),
         };
+        if c_bound {
+            // A C call's pointer arguments address the guest heap.
+            store.data_mut().c_heap = instance.get_export(&mut store, "hd.heap");
+        }
         let mut run = WasmtimeInstance::from_instance(
             store,
             Arc::clone(&self.engine),
@@ -224,7 +261,8 @@ fn host_of(setup: &HostSetup, io: HostIo) -> Host {
     )
 }
 
-pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
+#[must_use]
+pub fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     let mut c = wasmtime::Config::new();
     c.wasm_gc(false)
         .wasm_multi_value(true)
@@ -254,10 +292,9 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
         // No fiber runs Wasm (no async support); wasmtime still checks
         // the Wasm stack against this size.
         .async_stack_size(config.max_wasm_stack)
-        // Single-threaded compilation: the `parallel-compilation` cargo
-        // feature (rayon) is off, so every module compiles on one thread.
-        // Fixture modules are kilobytes; pool spin-up costs more than it
-        // saves, and the suite compiles about a thousand of them.
+        // Single-program callers opt in within their job budget; fixture
+        // pools already parallelize across modules and stay serial here.
+        .parallel_compilation(config.compilation_jobs > 1)
         .cranelift_opt_level(match config.cranelift_opt {
             OptLevel::None => wasmtime::OptLevel::None,
             OptLevel::Speed => wasmtime::OptLevel::Speed,
@@ -301,7 +338,9 @@ pub(crate) fn new_store(
     let mut store = Store::try_new(engine, host).map_err(|error| {
         StartError::Engine(format!("cannot create the wasmtime store: {error:#}"))
     })?;
-    if store.data().deadline().is_some() || store.data().interrupt.is_some() {
+    if let Some(samples) = store.data().sampling.clone() {
+        crate::sampling::attach(engine, &mut store, samples).map_err(StartError::Engine)?;
+    } else if store.data().deadline().is_some() || store.data().interrupt.is_some() {
         epochs::register(engine).map_err(StartError::Engine)?;
         store.epoch_deadline_callback(|cx| {
             cx.data().check_deadline()?;
@@ -330,17 +369,7 @@ impl Engine for WasmtimeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
-        // The package imports the contract describes are resolved at
-        // instantiation, against the embedder's registry, if any.
-        let package = hd_host_abi::schema::from_wasm(wasm)
-            .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
-            .map(|contract| Arc::new(package::Package::new(contract)));
-        let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
-        if let Some((m, n)) = imports.iter().find(|(m, n)| {
-            !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
-        }) {
-            return Err(LoadError::Engine(unsupported_message(m, n)));
-        }
+        let package = self.package(wasm)?;
         let shared = cache::ondemand(&self.config).map_err(LoadError::Engine)?;
         shared
             .cache
@@ -356,7 +385,3 @@ impl Engine for WasmtimeEngine {
         )?))
     }
 }
-
-#[cfg(test)]
-#[path = "package_tests.rs"]
-mod package_tests;

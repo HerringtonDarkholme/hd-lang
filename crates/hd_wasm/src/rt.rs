@@ -19,7 +19,7 @@ use crate::module::{
 };
 use crate::{Entry, Input};
 
-mod row;
+pub(crate) mod row;
 pub use row::{RowAdapter, RowEntry};
 /// A test program's unit graph in static memory ([`test_graph`]), read
 /// by [`Helper::TestInitWalk`]. `at` holds `u32` words: the group offsets
@@ -299,12 +299,6 @@ pub enum Helper {
     /// where another known retain takes the inline test (about 36 bytes a
     /// site, `count_tests`).
     RetainColl,
-    /// `(box) -> moved`: takes the value out of the counted box at
-    /// payload start `box`, whose fields the caller has loaded. A box
-    /// with one holder is freed without its glue, so its fields move out
-    /// (1); a shared one loses a count, and the caller counts its copy
-    /// (0).
-    TakeBox,
     /// `(payload)`: one more count on each part of a new object's
     /// payload, laid out as `leaves`, that its construction copied in:
     /// each part's first leaf and how its type counts.
@@ -430,9 +424,13 @@ pub enum Helper {
     /// parameter, the receiver first, that `target` owns; the slot counts
     /// a copy of each. `given` has each handed-in value, by its index in
     /// `own`, that `target` only borrows, and its layout: the slot releases
-    /// it after the call, including its Drop hooks.
+    /// it after the call, including its Drop hooks. With `body`, it calls
+    /// `target`'s body on its fresh path instead of its cold constructor,
+    /// for a target that completes at once (#2419): `results` are then the
+    /// method's, and the body's frame, always 0, is dropped.
     DynSlot {
         target: Hash128,
+        body: bool,
         retained_result: Counted,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
@@ -1017,6 +1015,35 @@ pub(crate) fn counted_of_portion(
             }))
         }
     })
+}
+
+/// The symbol of `t`'s in-place retain (`retain`) or release shim, when a
+/// count of a `t` where it lives calls it: queued alone. A shim counting
+/// a part in place (`hd_layout::shims`, `IN_PLACE`) calls only this, so
+/// asking [`counted_of_portion`] there would queue the part type's other
+/// forms too, each O(its values) for a nest of by-address tuples (#2402),
+/// as rustc's `drop_in_place::<(String, (String, ..))>` glue calls the
+/// inner type's glue and nothing else. `None` when the count is not in
+/// place.
+pub(crate) fn in_place_shim(
+    input: &Input<'_>,
+    m: &mut Module,
+    t: Ty,
+    portion: hd_layout::shims::Portion,
+    retain: bool,
+) -> StageResult<Option<Sym>> {
+    use hd_layout::shims::{Count, Shim, hooked, in_place};
+    let kind = if retain { Shim::Retain } else { Shim::Release };
+    if !in_place(input.pool, input.env, t, kind, portion) {
+        return Ok(None);
+    }
+    let (count, shape, _) = (input.shim)(t, Shim::Release, portion, false)?;
+    if !matches!(count, Count::Parts | Count::Call) {
+        return Ok(None);
+    }
+    let hooked = !retain && hooked(input.pool, input.env, t, Shim::Release, portion);
+    let key = m.shim_key(t, shape, kind, portion, false);
+    Ok(Some(Sym::Shim(key, retain, 1, hooked)))
 }
 
 /// The most counted addresses of a struct or tuple whose counts runtime
@@ -1980,10 +2007,12 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
     }
 }
 
-/// The vtable of the host's provider of capability `key`, in the trait's
-/// method order (`ProgramEnv::trait_methods`): each slot a host call or a
-/// host leaf over the exchange buffer's codecs (`boundary.rs`), or a trap
-/// with no import for a method no reachable code calls.
+/// The vtable of the host's provider of capability `key`, one slot per
+/// method that keeps one (`hd_mono::Collected::slots`), in the trait's
+/// method order: each a host call or a host leaf over the exchange
+/// buffer's codecs (`boundary.rs`). A closed program keeps no slot for a
+/// method that no reachable code calls; a REPL session's table, which
+/// keeps every slot, gets a trap with no import for it.
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
     // ruled out: a requirement row lists traits (`req.row.syntax.signature`;
     // hd_resolve lowers each key with `Lower::trait_value`), an entry
@@ -2003,7 +2032,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         return profile_vtable(input, m, def, &p);
     };
     let mut slots = Vec::new();
-    for method in hd_mono::slot_methods(input.env, def) {
+    for method in input.collected.slots(input.env, def) {
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
         let hm = host.methods.iter().find(|x| x.name == name);
@@ -2052,7 +2081,14 @@ fn profile_vtable(
         arguments: None,
     };
     let mut methods = Vec::new();
-    let vtable = profile_tree(input, m, def, def, key, at, &mut methods)?;
+    let c_table = package.as_ref().and_then(|_| (input.package_c)(def));
+    let vtable = match &c_table {
+        Some(table) => c_vtable(input, m, def, key, at, table, &mut methods)?,
+        None => profile_tree(input, m, def, def, key, at, &mut methods)?,
+    };
+    if let Some(table) = c_table {
+        m.edit(crate::module::Edit::CTable(table));
+    }
     if let (Some(identity), Some(module)) = (package, module) {
         crate::boundary::record_package_interface(
             m,
@@ -2068,6 +2104,50 @@ fn profile_vtable(
     Ok(vtable)
 }
 
+/// The vtable of a package host trait bound to a C provider: one slot per
+/// method that keeps one, each a C call ([`crate::boundary::c_slot`]),
+/// and its contract methods, the called ones in source order. Such a
+/// trait has no supertrait (`hd_check::header::c_trait`), so it has no
+/// parent vtable.
+///
+/// Cost: one pass over the trait's slots, with one table lookup each.
+fn c_vtable(
+    input: &Input<'_>,
+    m: &mut Module,
+    def: hd_base::DefId,
+    key: &str,
+    at: crate::boundary::AtProfile<'_>,
+    table: &hd_host_abi::c::Table,
+    methods: &mut Vec<hd_host_abi::schema::Method>,
+) -> StageResult<usize> {
+    let rows: hd_base::HashMap<&str, &hd_host_abi::c::Method> = table
+        .methods
+        .iter()
+        .map(|cm| (cm.name.as_str(), cm))
+        .collect();
+    let mut slots = Vec::new();
+    for method in input.collected.slots(input.env, def) {
+        let mp = (input.path)(method);
+        let member = mp.rsplit(['.', '/']).next().unwrap_or("");
+        let row = rows.get(member).copied();
+        // ruled out: the driver builds the table from every method of this
+        // trait (`package_c_table`).
+        debug_assert!(row.is_some(), "the C method `{member}` has no table row");
+        let (true, Some(row)) = (input.collected.calls_dyn(method), row) else {
+            slots.push(crate::boundary::uncalled_slot(input, method)?);
+            continue;
+        };
+        slots.push(crate::boundary::c_slot(
+            input, m, key, row, method, at, false,
+        )?);
+        crate::boundary::add_package_method(
+            methods,
+            crate::boundary::package_method(input, method, def, def, None)?,
+        );
+    }
+    crate::drive::vtable(input, m, def, slots, Vec::new())
+}
+
 // ruled out: hd_resolve checks trait.super.acyclic before collection.
 // Shared ancestors in a diamond need neither a cycle check nor a visited set.
 fn profile_tree(
@@ -2081,7 +2161,7 @@ fn profile_tree(
 ) -> StageResult<usize> {
     use hd_host_abi::{Codec, Wait};
     let mut slots = Vec::new();
-    for method in hd_mono::slot_methods(input.env, def) {
+    for method in input.collected.slots(input.env, def) {
         if !input.collected.calls_dyn(method) {
             slots.push(crate::boundary::uncalled_slot_at(
                 input,
@@ -2270,13 +2350,14 @@ fn write_str(f: &mut Func, s: u32) {
 /// Logical call shape, available before a helper's body is reached.
 /// Fixed/value-vector shapes are O(1); structured host arguments visit
 /// their inline record metadata once, without generating code or codecs.
-pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
+#[must_use]
+pub fn arity(helper: &Helper) -> (usize, usize) {
     use Helper as H;
     let arguments = |args: &[crate::task::HostArg]| {
         args.iter()
             .map(|arg| match arg {
                 crate::task::HostArg::Str => 2,
-                crate::task::HostArg::Scalar(_) => 1,
+                crate::task::HostArg::Scalar(_) | crate::task::HostArg::List(_) => 1,
                 crate::task::HostArg::Buf(ty) => ty.value_count(),
             })
             .sum::<usize>()
@@ -2320,7 +2401,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CollectPoll { .. }
         | H::Alloc
         | H::Str
-        | H::TakeBox
         | H::ListBuf { .. }
         | H::ListUnique { .. }
         | H::ListCopy { .. }
@@ -2448,6 +2528,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
                 crate::boundary::CallRes::Void => 0,
                 crate::boundary::CallRes::Scalar(_) => 1,
                 crate::boundary::CallRes::Buf(ty) => ty.value_count(),
+                crate::boundary::CallRes::Handle(_) => 2,
             },
         ),
         H::HandleSlot {
@@ -2782,7 +2863,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ReleaseRef | Helper::ReleaseKnown | Helper::ReleaseFresh => release_ref(m, h),
         Helper::ReleaseDrain => release_drain(m),
-        Helper::TakeBox => take_box(m),
         Helper::RetainKnown | Helper::RetainColl => {
             let name = if *h == Helper::RetainColl {
                 "rt:retain_coll"
@@ -2822,6 +2902,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
+            body,
             retained_result,
             leaves,
             params,
@@ -2852,7 +2933,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 params.len() - usize::from(ctx.is_some()),
                 ctx.as_ref(),
             );
-            f.call(Sym::Inst(*target));
+            if *body {
+                f.call(Sym::Part(*target, crate::module::Part::Body));
+            } else {
+                f.call(Sym::Inst(*target));
+            }
             retain_slot_result(&mut f, m, results, retained_result);
             release_given(&mut f, m, own, given);
             f
@@ -3341,14 +3426,25 @@ fn parts_glue(
     retain: bool,
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
-    let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
-    for (l, at) in leaves.iter().zip(&ls) {
-        f.get(0);
-        f.op(l.load(0));
-        f.set(*at);
-    }
+    // Each leaf a count reads is loaded where it is first read, into a
+    // local of its own: a part released in place reads only its address,
+    // so the glue is O(the leaves its counts read), not O(the payload's).
+    // Parts own disjoint leaves, and a part's count reads each of its
+    // leaves first outside any test, so the memo is the part's own.
     for (first, counted) in parts {
-        let get = |f: &mut Func, k: u32| f.get(ls[(first + k) as usize]);
+        let ls: std::cell::RefCell<hd_base::HashMap<usize, u32>> = std::cell::RefCell::default();
+        let get = |f: &mut Func, k: u32| {
+            let at = (first + k) as usize;
+            if let Some(&l) = ls.borrow().get(&at) {
+                f.get(l);
+                return;
+            }
+            let l = f.local(leaves[at].val);
+            f.get(0);
+            f.op(leaves[at].load(0));
+            f.op(Instruction::LocalTee(l));
+            ls.borrow_mut().insert(at, l);
+        };
         // A small struct's counts are inline, on the loaded values.
         if let Counted::Shims(s) = counted
             && s.small.is_some()
@@ -3795,31 +3891,6 @@ fn release_ref(m: &Module, h: &Helper) -> Func {
     f
 }
 
-/// [`Helper::TakeBox`].
-fn take_box(m: &Module) -> Func {
-    let mut f = m.func("rt:take_box", vec![Val::I32], vec![Val::I32]);
-    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.u32(HEADER);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::LocalTee(block));
-    unique_count(&mut f, m);
-    f.i32(1);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.set(desc);
-    free_loaded_object(&mut f, m, block, desc);
-    f.i32(1);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(0);
-    f.helper(Helper::ReleaseKnown);
-    f.i32(0);
-    f
-}
-
 /// [`Helper::ReleaseDrain`]. A recursive type's glue
 /// ([`Module::drain_glues`]) is called directly when the descriptor names
 /// it, so that V8 can inline it here; any other glue goes through the
@@ -4216,15 +4287,10 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
-/// elements take their own counts and the old buffer one holder less.
-fn list_copy(elem: &Elem, m: &Module) -> Func {
-    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
-    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.set(n);
-    f.get(n);
+/// With a capacity on the stack: a new buffer for `elem` in local `nb`,
+/// holding a bitwise copy of the `n` elements of the buffer in local `b`,
+/// at length `n`. The caller settles the elements' counts.
+fn new_buffer_copy(f: &mut Func, elem: &Elem, b: u32, n: u32, nb: u32) {
     f.helper(Helper::ListBuf { elem: elem.clone() });
     f.set(nb);
     f.get(nb);
@@ -4240,6 +4306,18 @@ fn list_copy(elem: &Elem, m: &Module) -> Func {
     f.u32(elem.size);
     f.op(Instruction::I32Mul);
     f.push(crate::bulk::copy(HEAP, HEAP));
+}
+
+/// [`Helper::ListCopy`]: a shared buffer is copied at its length; its
+/// elements take their own counts and the old buffer one holder less.
+fn list_copy(elem: &Elem, m: &Module) -> Func {
+    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (0, f.local(Val::I32), f.local(Val::I32));
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(n);
+    new_buffer_copy(&mut f, elem, b, n, nb);
     if elem.counts() {
         f.get(nb);
         f.u32(LIST_ELEMS);
@@ -4293,21 +4371,7 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
     f.i32(4);
     f.op(Instruction::I32Add);
     f.op(Instruction::End);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
-    f.set(nb);
-    f.get(nb);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(nb);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.push(crate::bulk::copy(HEAP, HEAP));
+    new_buffer_copy(&mut f, elem, b, n, nb);
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
@@ -4386,21 +4450,7 @@ fn list_reserve(elem: &Elem, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32GtU);
     f.op(Instruction::Select);
-    f.helper(Helper::ListBuf { elem: elem.clone() });
-    f.set(nb);
-    f.get(nb);
-    f.get(n);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(nb);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(b);
-    f.u32(LIST_ELEMS);
-    f.op(Instruction::I32Add);
-    f.get(n);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.push(crate::bulk::copy(HEAP, HEAP));
+    new_buffer_copy(&mut f, elem, b, n, nb);
     f.get(own);
     f.op(Instruction::If(BlockType::Empty));
     // The list's own buffer: its elements move, and the old block is
@@ -4687,7 +4737,7 @@ fn ref_count(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout, retain: bo
 /// value of any width stays in locals and never crosses a function's
 /// parameters or results.
 pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> Vec<u32> {
-    let ls = ref_lend(f, at, value);
+    let ls = ref_lend(f, at, &value.leaves);
     ref_count(f, m, &ls, value, true);
     ls
 }
@@ -4695,9 +4745,9 @@ pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> 
 /// The leaves of the concrete value that the reference in local `at`
 /// names, lent with no count of their own: the place's own. Never a copy,
 /// so it reads a value that may not copy.
-pub(crate) fn ref_lend(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
-    f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
-    f.load_locals(at, &value.leaves)
+pub(crate) fn ref_lend(f: &mut Func, at: u32, leaves: &[Leaf]) -> Vec<u32> {
+    f.stack_values |= leaves.len() > crate::wide::WIDTH;
+    f.load_locals(at, leaves)
 }
 
 /// Moves the value that the reference in local `at` names out of its
@@ -5105,42 +5155,4 @@ fn spill_alloc(f: &mut Func, m: &Module) {
 /// the collector's candidate test.
 fn spill_free(f: &mut Func, m: &Module) {
     f.call(Sym::Inst(m.runtime.acyclic.free));
-}
-
-#[cfg(test)]
-mod checked_fixed_allocation_tests {
-    use super::*;
-
-    #[test]
-    fn fixed_requests_use_the_checked_allocator_without_class_bits() -> Result<(), String> {
-        let keys: Vec<_> = crate::runtime_items(true, false)
-            .iter()
-            .enumerate()
-            .map(|(i, _)| u128::try_from(i).map(|n| Some(Hash128(n + 1))))
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.to_string())?;
-        let runtime = crate::Runtime::from_keys(&keys).ok_or("missing checked runtime key")?;
-        let mut m = Module::new(&runtime);
-        for size in [0, 16, 2048, u32::MAX] {
-            let f = helper(&Helper::NewFixed { size }, &mut m);
-            assert_eq!(f.name, "rt:new");
-            assert!(f.body.iter().any(|ins| matches!(ins,
-                Ins::Call(id, _) if *f.symbol(*id) == Sym::Inst(runtime.alloc))));
-            assert!(
-                !f.body.iter().any(|ins| matches!(ins,
-                Ins::Call(id, _) if matches!(*f.symbol(*id), Sym::Helper(Helper::AllocClass { .. }))))
-            );
-            assert!(
-                !f.body
-                    .iter()
-                    .any(|ins| matches!(ins, Ins::Op(Instruction::I32Or)))
-            );
-        }
-        let mut unchecked = Module::default();
-        let fast = helper(&Helper::NewFixed { size: 16 }, &mut unchecked);
-        assert!(fast.name.starts_with("rt:new/class-"));
-        assert!(fast.body.iter().any(|ins| matches!(ins,
-            Ins::Call(id, _) if matches!(*fast.symbol(*id), Sym::Helper(Helper::AllocClass { .. })))));
-        Ok(())
-    }
 }

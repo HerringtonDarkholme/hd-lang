@@ -212,6 +212,11 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
     let Some(name) = dir.file_name().map(|n| n.to_string_lossy().into_owned()) else {
         return fail("`hd new` needs a directory with a name");
     };
+    if name.contains('.') {
+        return fail(&format!(
+            "the package name `{name}` contains `.`; a dot separates modules, so choose another name"
+        ));
+    }
     if !valid_name(&name) {
         return fail(&format!(
             "`{name}` is no package name: it holds letters, digits, `_` and `-`, and starts with a letter or `_`"

@@ -3,7 +3,7 @@
 # expect-stdout: true true true
 # expect-stdout: true true false
 # expect-stdout: true true false
-use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+use std.meta.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
 struct Keeper:
     pub variants: List[VariantInfo]
@@ -49,8 +49,8 @@ impl[T] Listed for T by Structure:
         _ := T::describe(&mut k)
         k
 
-use std.json.encode
-use std.serde.Serialize
+use std.encoding.json.encode
+use std.encoding.Serialize
 
 @derive(Seen, Listed, Serialize)
 struct Order:

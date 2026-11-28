@@ -1,0 +1,7 @@
+use std.process.{Command, Process}
+
+pub fn main!() -> void $ Console + Process:
+    println("started")
+    match Command::new("sleep").arg("30").run!():
+        .Ok(_) => println("ran")
+        .Err(e) => println("${e}")

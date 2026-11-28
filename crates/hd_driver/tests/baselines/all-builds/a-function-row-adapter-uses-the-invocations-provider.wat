@@ -2,131 +2,278 @@
 == @build: dev
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "invoke" (func $invoke (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $callback.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
-    local.tee $callback.0
-    i32.const 4
-    i32.const 0
-    call $rt:new/class-1
-    local.tee $t0
+    block
+      i32.const 3
+      i32.const 0
+      local.set $callback.1
+      local.set $callback.0
+      i32.const 4
+      local.set $callback.0
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 4
-    i32.store $heap
-    ;; 31 |         println(invoke(callback))
-    i32.const 0
+      i32.const 4
+      local.set $t0
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t1
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    local.get $t0
-    i32.const 304 ;; &vtable[rt:dyn_slot]
-    ;; 31 |         println(invoke(callback))
-    call $invoke
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
-    local.get $t0
-    if
+      local.get $t1
       local.get $t0
-      call $rt:release_ref
-    end
-    ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
-    i32.const 0
-    call $rt:new/class-1
-    local.tee $t0
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 6
-    i32.store $heap
-    local.get $t0
-    local.set $t1
-    ;; 33 |         println(invoke(callback))
-    local.get $callback.0
-    i32.const 0
-    local.get $t1
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 304 ;; &vtable[rt:dyn_slot]
-    ;; 33 |         println(invoke(callback))
-    call $invoke
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 29 |     let callback: fn() -> i32 $ Named = original
-    local.get $t0
-    if
+      i32.store $heap
+      local.get $t1
+      local.set $t0
+      i32.const 0
+      local.set $t1
       local.get $t0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      i32.const 304 ;; &vtable[]
+      local.set $t0
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $t0
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+      block
+    ;; 31 |         println(invoke(callback))
+        local.get $callback.1
+        call $rt:retain_known
+        local.get $callback.0
+        local.get $callback.1
+        local.get $t3
+        local.get $t1
+        call $invoke
+        local.set $t1
+        local.get $t1
+        local.get $provider0
+        local.get $provider0.vtable
+        call $"println[i32]"
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
+      end
+      local.get $t3
       call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      i32.const 6
+      local.set $t0
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1
+      local.set $t1
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      local.get $t1
+      local.get $t0
+      i32.store $heap
+      local.get $t1
+      local.set $t0
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      i32.const 304 ;; &vtable[]
+      local.set $t0
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $t0
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+      block
+    ;; 33 |         println(invoke(callback))
+        local.get $callback.0
+        local.get $callback.1
+        local.set $t0
+        local.set $t2
+        i32.const 0
+        local.set $callback.0
+        i32.const 0
+        local.set $callback.1
+        local.get $t2
+        local.get $t0
+        local.get $t3
+        local.get $t1
+        call $invoke
+        local.set $t1
+        local.get $t1
+        local.get $provider0
+        local.get $provider0.vtable
+        call $"println[i32]"
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      end
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
     end
   )
 )
 == @build: checked
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "invoke" (func $invoke (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32)
+  (import "fixture" "heap" (memory $heap 129))
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $callback.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
-    local.tee $callback.0
-    i32.const 4
-    i32.const 0
-    call $rt:new
-    local.tee $t0
+    block
+      i32.const 3
+      i32.const 0
+      local.set $callback.1
+      local.set $callback.0
+      i32.const 4
+      local.set $callback.0
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 4
-    i32.store $heap
-    ;; 31 |         println(invoke(callback))
-    i32.const 0
+      i32.const 4
+      local.set $t0
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      i32.const 4
+      i32.const 0
+      call $rt:new
+      local.set $t1
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    local.get $t0
-    i32.const 680 ;; &vtable[rt:dyn_slot]
-    ;; 31 |         println(invoke(callback))
-    call $invoke
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
-    local.get $t0
-    if
+      local.get $t1
       local.get $t0
-      call $rt:release_ref
-    else
-      call $skipped_test
-    end
-    ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
-    i32.const 0
-    call $rt:new
-    local.tee $t0
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 6
-    i32.store $heap
-    local.get $t0
-    local.set $t1
-    ;; 33 |         println(invoke(callback))
-    local.get $callback.0
-    i32.const 0
-    local.get $t1
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 680 ;; &vtable[rt:dyn_slot]
-    ;; 33 |         println(invoke(callback))
-    call $invoke
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[i32]"
-    ;; 29 |     let callback: fn() -> i32 $ Named = original
-    local.get $t0
-    if
+      i32.store $heap
+      local.get $t1
+      local.set $t0
+      i32.const 0
+      local.set $t1
       local.get $t0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      i32.const 680 ;; &vtable[]
+      local.set $t0
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $t0
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+      block
+    ;; 31 |         println(invoke(callback))
+        local.get $callback.1
+        call $rt:retain_known
+        local.get $callback.0
+        local.get $callback.1
+        local.get $t3
+        local.get $t1
+        call $invoke
+        local.set $t1
+        local.get $t1
+        local.get $provider0
+        local.get $provider0.vtable
+        call $"println[i32]"
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
+      end
+      local.get $t3
       call $rt:release_ref
-    else
-      call $skipped_test
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      i32.const 6
+      local.set $t0
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      i32.const 4
+      i32.const 0
+      call $rt:new
+      local.set $t1
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      local.get $t1
+      local.get $t0
+      i32.store $heap
+      local.get $t1
+      local.set $t0
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      local.set $t1
+      i32.const 0
+      local.set $t0
+      local.get $t1
+      i32.const 680 ;; &vtable[]
+      local.set $t0
+      local.set $t2
+      i32.const 0
+      local.set $t1
+      local.get $t2
+      local.get $t0
+      local.set $t1
+      local.set $t3
+      i32.const 0
+      local.set $t2
+      i32.const 0
+      local.set $t0
+      block
+    ;; 33 |         println(invoke(callback))
+        local.get $callback.0
+        local.get $callback.1
+        local.set $t0
+        local.set $t2
+        i32.const 0
+        local.set $callback.0
+        i32.const 0
+        local.set $callback.1
+        local.get $t2
+        local.get $t0
+        local.get $t3
+        local.get $t1
+        call $invoke
+        local.set $t1
+        local.get $t1
+        local.get $provider0
+        local.get $provider0.vtable
+        call $"println[i32]"
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
+      end
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
+      local.get $t3
+      call $rt:release_ref
+      i32.const 0
+      local.set $t3
+      i32.const 0
+      local.set $t1
     end
   )
 )
@@ -138,10 +285,10 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 11 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
+    i32.const 3
     local.set $callback.0
     i32.const 4
     i32.const 0
@@ -165,7 +312,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 304 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -213,7 +360,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 304 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -249,10 +396,10 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 12 funcref))
+  (import "fixture" "table0" (table $table0 11 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
-    i32.const 4
+    i32.const 3
     local.set $callback.0
     i32.const 4
     i32.const 0
@@ -276,7 +423,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 644 ;; &vtable[rt:dyn_slot]
+    i32.const 644 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -330,7 +477,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 644 ;; &vtable[rt:dyn_slot]
+    i32.const 644 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1

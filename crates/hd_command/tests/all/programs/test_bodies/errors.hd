@@ -1,0 +1,11 @@
+@error("disk full")
+pub struct DiskError:
+    free: i64
+
+@error
+pub enum SaveError:
+    @error("cannot save $path")
+    Write(path: string, @source error: DiskError)
+
+pub fn save(free: i64) -> Result[void, SaveError]:
+    if free > 0: .Ok(()) else: .Err(SaveError.Write("notes.txt", DiskError { free: free }))

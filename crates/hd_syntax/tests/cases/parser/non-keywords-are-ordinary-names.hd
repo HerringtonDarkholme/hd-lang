@@ -1,0 +1,23 @@
+# @dump: tree
+# `elif`, `const` and `as` are ordinary names: a binding, a callee, a
+# receiver, a generic callee and a function.
+fn called(n: bool):
+    if n: pass
+    elif(1)
+
+fn bound(n: bool):
+    if n: pass
+    elif := 1
+    elif
+
+fn receiver(n: bool):
+    if n: pass
+    elif.ready()
+
+fn generic(n: bool):
+    if n: pass
+    elif::[i32](1)
+
+fn const(x: i32): x
+fn as(x: i32): x
+fn f(): const(as(1))

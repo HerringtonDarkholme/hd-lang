@@ -4,19 +4,12 @@
 # `debug`, the standard `Debug` implementations, and `Debug`'s template
 # (Testing T48, T53, T54).
 
-use std.debug.Location
-use std.function.Tuple
+use std.meta.Location
+use std.ops.Tuple
 use std.num.Integer
-use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{
-    string_from_bytes,
-    string_prefix,
-    char_scalar,
-    TextSink,
-    bytes_index_set,
-    bytes_at,
-}
-use std.rt.memory.{Ptr, new_string, string_bytes}
+use std.meta.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.{string_from_bytes, string_prefix, char_scalar, TextSink, bytes_index_set, bytes_at}
+use std.rt.{Ptr, new_string, string_bytes}
 use std.text.StringBuilder
 
 # A value's text in string interpolation

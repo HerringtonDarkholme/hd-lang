@@ -1,6 +1,7 @@
 # test: read_all!() ends each remaining line of the covering ConsoleInput provider with \n
 # Spec std/console Console Input: std-console.input.read-all-default, std-console.input.read-all-helper, and std-console.scripted.read-all.
-use std.console.{ConsoleInput, ScriptedInput, read_all, read_line}
+use std.console.{ConsoleInput, StdinHandle, ScriptedInput, read_all, read_line}
+use std.io.Cursor
 struct Lines:
     lines: List[string]
     at: usize
@@ -12,6 +13,10 @@ impl ConsoleInput for Lines:
         line := self.lines[self.at]
         self.at = self.at + 1
         .Ok(.Some(line))
+
+    # This provider has no bytes of its own (std-console.stdin.handle).
+    fn stdin(&mut self) -> *mut dyn StdinHandle:
+        box(Cursor::new([]))
 
 fn whole_input!() -> string $ ConsoleInput:
     match read_all!():

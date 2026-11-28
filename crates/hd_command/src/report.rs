@@ -13,13 +13,18 @@ pub(crate) fn relocate(diags: &mut [Diag], display: impl Fn(&str) -> String) {
         if let Some(f) = &mut d.file {
             *f = display(f);
         }
+        for label in &mut d.labels {
+            if let Some(file) = &mut label.file {
+                *file = display(file);
+            }
+        }
         for e in d.fixes.iter_mut().flat_map(|f| &mut f.edits) {
             e.file = display(&e.file);
         }
     }
 }
 
-/// The counts of a JSON summary (`cli.json.summary.result.fields`).
+/// The counts of a JSON summary (`cli.json.summary.common-fields`).
 #[derive(Default)]
 pub(crate) struct Summary {
     pub(crate) errors: usize,
@@ -28,7 +33,8 @@ pub(crate) struct Summary {
     pub(crate) failed: usize,
     pub(crate) ignored: usize,
     pub(crate) status: u8,
-    /// `hd check` only (`cli.json.summary.modules-checked`).
+    /// Check/lint work count (`cli.json.summary.modules-checked`); its presence
+    /// also identifies summaries without test outcomes.
     pub(crate) modules_checked: Option<usize>,
 }
 
@@ -45,9 +51,17 @@ impl Summary {
 
     pub(crate) fn json(&self) -> String {
         let mut s = format!(
-            "{{\"kind\":\"summary\",\"errors\":{},\"warnings\":{},\"passed\":{},\"failed\":{},\"ignored\":{},\"status\":{}",
-            self.errors, self.warnings, self.passed, self.failed, self.ignored, self.status
+            "{{\"kind\":\"summary\",\"errors\":{},\"warnings\":{}",
+            self.errors, self.warnings
         );
+        if self.modules_checked.is_none() {
+            let _ = write!(
+                s,
+                ",\"passed\":{},\"failed\":{},\"ignored\":{}",
+                self.passed, self.failed, self.ignored
+            );
+        }
+        let _ = write!(s, ",\"status\":{}", self.status);
         if let Some(n) = self.modules_checked {
             let _ = write!(s, ",\"modules_checked\":{n}");
         }
@@ -142,7 +156,7 @@ impl Reporter {
     }
 
     /// The end of the command: in JSON mode its summary
-    /// (`cli.json.summary.result`), then `status`.
+    /// (`cli.json.summary.command-result`), then `status`.
     pub(crate) fn finish(&mut self, status: u8) -> std::process::ExitCode {
         self.finish_tests(status, 0, 0, 0)
     }
@@ -189,4 +203,27 @@ pub(crate) fn format_flag(
         "text" => Ok((false, used)),
         _ => Err(format!("`--format` takes `text` or `json`, not `{value}`")),
     })
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::*;
+
+    #[test]
+    fn relocation_updates_secondary_source_paths() {
+        let mut diag = Diag::error(None, "overlap").at("src/a.hd", Some(1));
+        diag.labels.push(hd_driver::diagnostics::Label {
+            message: "other implementation".into(),
+            file: Some("src/b.hd".into()),
+            line: Some(3),
+            column: Some(1),
+            end_line: Some(4),
+            end_column: Some(1),
+        });
+        let mut diags = vec![diag];
+        relocate(&mut diags, |file| format!("member/{file}"));
+        assert_eq!(diags[0].file.as_deref(), Some("member/src/a.hd"));
+        assert_eq!(diags[0].labels[0].file.as_deref(), Some("member/src/b.hd"));
+        assert_eq!(diags[0].labels[0].line, Some(3));
+    }
 }

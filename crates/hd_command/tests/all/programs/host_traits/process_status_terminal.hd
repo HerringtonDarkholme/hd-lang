@@ -1,0 +1,19 @@
+use std.cli.Args
+use std.console.{ConsoleInput, is_terminal, read_line}
+use std.process.{Command, Process, ProcessError}
+
+pub fn main!() -> Result[void, ProcessError] $ Args + Console + ConsoleInput + Process:
+    println("tty=${is_terminal(.Stdin)},${is_terminal(.Stdout)},${is_terminal(.Stderr)}")
+    node := $.use(Args).list()[0]
+    code := Command::new(node)
+        .args(
+            [
+                "-e",
+                "const fs=require('node:fs');process.stdout.write('READY');const b=Buffer.alloc(2);fs.readSync(0,b,0,2,null);const x=b[0];const fd=fs.openSync('/dev/tty','r');fs.readSync(fd,b,0,2,null);process.stdout.write('TTY='+String.fromCharCode(x)+','+String.fromCharCode(b[0]));process.exit(7)",
+            ],
+        )
+        .stdin("ignored")
+        .status!()?
+    println("STATUS=$code RESTORED")
+    println("parent=${read_line!().unwrap().unwrap()}")
+    .Ok(())

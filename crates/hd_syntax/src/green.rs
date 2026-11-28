@@ -298,15 +298,19 @@ macro_rules! typed_nodes {
                 (node.kind() == SyntaxKind::$name).then_some(Self(node))
             }
 
-            #[must_use]
-            pub fn node(self) -> NodeRef<'t> {
-                self.0
-            }
+
         }
     )+ };
 }
 
 typed_nodes!(Block, ImplDecl);
+
+impl<'t> Block<'t> {
+    #[must_use]
+    pub fn node(self) -> NodeRef<'t> {
+        self.0
+    }
+}
 
 /// Direct tokens of a node: its span minus its children's spans.
 pub struct DirectTokens<'t> {

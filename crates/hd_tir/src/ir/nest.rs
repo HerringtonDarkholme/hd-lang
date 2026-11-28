@@ -204,7 +204,8 @@ impl Nest {
 /// Instructions `0..n` grouped by `key` (an instruction, or `NONE` for
 /// none) by counting sort: group `k` is `items[at[k]..at[k + 1]]`, in
 /// index order. O(n).
-fn buckets(n: usize, key: impl Fn(usize) -> u32) -> (Vec<u32>, Vec<u32>) {
+#[must_use]
+pub fn buckets(n: usize, key: impl Fn(usize) -> u32) -> (Vec<u32>, Vec<u32>) {
     let mut at = vec![0u32; n + 1];
     for k in (0..n).map(&key).filter(|&k| (k as usize) < n) {
         at[k as usize + 1] += 1;

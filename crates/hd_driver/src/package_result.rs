@@ -73,6 +73,11 @@ pub(crate) fn key(
         // `Output::scopes` is not stored: only `hd lint`'s broken-link pass
         // reads it, and the CLI stores that command's whole result.
         && !packages.doc_scopes
+        // `Output::c_tables` is not stored either: only `hd build` of a
+        // package declaring a C provider asks for it. A caller key's
+        // caller stores what it derives, and the header it writes from the
+        // tables outlives the run.
+        && (caller || !packages.c_tables)
         && packages.session.is_none()
         && packages.reuse.is_none()
         && packages.inputs_from.is_none()
@@ -322,7 +327,7 @@ fn read_range(r: &mut Reader<'_>) -> Range32 {
 
 /// A buffer's columns as they are, so the replay renders, orders and
 /// deduplicates exactly as the run that stored it.
-fn write_diags(w: &mut Writer, d: &DiagBuf) {
+pub fn write_diags(w: &mut Writer, d: &DiagBuf) {
     w.str(&d.text);
     w.len_of(&d.code);
     for i in 0..d.code.len() {
@@ -331,6 +336,11 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
         write_span(w, d.primary[i]);
         write_range(w, d.message[i]);
         write_range(w, d.fixes[i]);
+        w.len_of(d.labels(i));
+        for (span, message) in d.labels(i) {
+            write_span(w, *span);
+            w.str(message);
+        }
         match d.root[i] {
             None => w.u8(u8::MAX),
             Some(root) => {
@@ -353,7 +363,7 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
     }
 }
 
-fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option<DiagBuf> {
+pub fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option<DiagBuf> {
     let mut d = DiagBuf::default();
     r.str().clone_into(&mut d.text);
     for _ in 0..r.count() {
@@ -366,6 +376,10 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
         d.primary.push(read_span(r));
         d.message.push(read_range(r));
         d.fixes.push(read_range(r));
+        for _ in 0..r.count() {
+            let span = read_span(r);
+            d.add_label(span, r.str());
+        }
         let cause = match r.u8() {
             u8::MAX => None,
             0 => Some(CauseKind::Type),

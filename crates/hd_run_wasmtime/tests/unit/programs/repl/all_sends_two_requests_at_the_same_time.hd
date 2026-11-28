@@ -1,0 +1,5 @@
+use std.http.{Request, Url}
+fn timed!() -> string $ Http:
+    match REQUEST.send!():
+        .Ok(r) => "status ${r.status.code()}"
+        .Err(e) => "${e}"

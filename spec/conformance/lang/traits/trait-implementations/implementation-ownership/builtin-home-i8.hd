@@ -1,0 +1,6 @@
+# test: i8 inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl i8: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass

@@ -53,26 +53,25 @@
       end
     ;; 27 |     @error("cannot read $path")
       i32.const 12
-      local.tee $t1
       local.get $self
       i32.add
       local.tee $t3
       i32.const 16 ;; &"cannot read "
-      local.set $t2
+      local.set $t1
       if
         local.get $t3
         call $rt:str
-        local.set $t2
+        local.set $t1
       end
-      local.get $t2
+      local.get $t1
       local.tee $t4
       i32.const 543449445
       i32.store $heap offset=8 align=1
       local.get $t4
       i64.const 8223700941521445219
       i64.store $heap align=1
-      local.get $t2
       local.get $t1
+      i32.const 12
       i32.add
       local.get $t0
       local.get $self
@@ -82,7 +81,7 @@
         local.get $t0
         call $rt:release_ref
       end
-      local.get $t2
+      local.get $t1
     else
     ;; 33 |     @error("bad config")
       local.get $t3
@@ -138,7 +137,7 @@
     ;; 25 | @error
     local.get $t3
   )
-  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
+  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 15 |         "bad yaml at line ${self.line}"
     local.get $self
     i64.load $heap
@@ -159,38 +158,37 @@
     i32.add
     local.set $self
     i32.const 17
-    local.tee $t1
     local.get $self
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t3
+    local.set $t2
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
-    local.tee $t4
+    local.get $t2
+    local.tee $t3
     i64.const 2334393380926157921
     i64.store $heap offset=9 align=1
-    local.get $t4
+    local.get $t3
     i64.const 2336362572109866081
     i64.store $heap offset=1 align=1
-    local.get $t4
+    local.get $t3
     i64.const 7308895158390776096
     i64.store $heap offset=8 align=1
-    local.get $t4
+    local.get $t3
     i64.const 7813008101420065122
     i64.store $heap align=1
     local.get $t0
-    local.get $t3
-    local.get $t1
+    local.get $t2
+    i32.const 17
     i32.add
     local.get $self
     call $write_signed_sized
-    local.get $t3
     local.get $t2
+    local.get $t1
   )
   (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i64)
     ;; 45 |     if text.len() > 3:
@@ -266,7 +264,7 @@
         call $rt:release_ref
       end
     ;; 30 |         @source
-      i32.const 468 ;; &vtable[rt:dyn_slot]
+      i32.const 352 ;; &vtable[]
     ;; 27 |     @error("cannot read $path")
       local.set $self
     else
@@ -295,7 +293,7 @@
           call $rt:release_ref
         end
     ;; 35 |         @from
-        i32.const 492 ;; &vtable[rt:dyn_slot]
+        i32.const 364 ;; &vtable[]
     ;; 33 |     @error("bad config")
         local.set $t3
       else
@@ -392,7 +390,7 @@
     i32.wrap_i64
     i32.const 0
   )
-  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
+  (func $"error Display for FsError.to_string" (param $self i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 19 | @error
     local.get $self
     i32.load $heap
@@ -410,29 +408,28 @@
       end
     ;; 21 |     @error("not found: $path")
       i32.const 11
-      local.tee $t1
       local.get $self
       i32.add
-      local.tee $t2
+      local.tee $t1
       i32.const 16
-      local.set $t3
+      local.set $t2
       if
-        local.get $t2
+        local.get $t1
         call $rt:str
-        local.set $t3
+        local.set $t2
       end
-      local.get $t3
-      local.tee $t4
+      local.get $t2
+      local.tee $t3
       i32.const 32
       i32.store8 $heap offset=10
-      local.get $t4
+      local.get $t3
       i32.const 14948
       i32.store16 $heap offset=8 align=1
-      local.get $t4
+      local.get $t3
       i64.const 7959390400869068654
       i64.store $heap align=1
-      local.get $t3
-      local.get $t1
+      local.get $t2
+      i32.const 11
       i32.add
       local.get $t0
       local.get $self
@@ -442,13 +439,13 @@
         local.get $t0
         call $rt:release_ref
       end
-      local.get $t3
+      local.get $t2
     else
       i32.const 49 ;; &"Busy"
       i32.const 4
-      local.set $t2
+      local.set $t1
     end
     ;; 19 | @error
-    local.get $t2
+    local.get $t1
   )
 )

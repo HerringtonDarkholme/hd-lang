@@ -1,0 +1,21 @@
+# test: a store through a `&mut T` a method returns from `&mut self` lands in the receiver, so a local reference cannot escape through it
+# Spec 13 Generic Locality: ref.generic.store, ref.dep.store.
+struct P:
+    name: string
+
+struct Holder[T]:
+    value: T
+
+impl[T] Holder[T]:
+    fn at(&mut self) -> &mut T:
+        &mut self.value
+
+fn keep(h: &mut Holder[&P]) -> void:
+    p := P { name: "x${1}" }
+    *h.at() = &p # diagnostic: local-reference-escapes
+
+pub fn main() -> void $ Console:
+    q := P { name: "q" }
+    let mut h = Holder { value: &q }
+    keep(&mut h)
+    println(h.value.name)

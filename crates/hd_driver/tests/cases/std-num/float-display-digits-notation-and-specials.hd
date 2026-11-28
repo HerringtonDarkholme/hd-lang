@@ -1,0 +1,59 @@
+# @dump: tests
+# `Display` of `f64` and `f32` through a program (`types.display.float`,
+# `types.display.notation`, `types.display.exponent`): the shortest digits
+# that read back, fixed notation from 1e-6 up to 1e21 and scientific outside
+# it, an `f32` printed with its own digits, and the special values. Every
+# case passes.
+use std.testing.assert_equal
+
+fn text[T < Display](value: T) -> string:
+    "$value"
+
+tests:
+    it("f64 digits and notation"):
+        assert_equal(text(1.5), "1.5", reason="plain")
+        assert_equal(text(1.0), "1.0", reason="whole")
+        assert_equal(text(0.1), "0.1", reason="shortest")
+        assert_equal(text(0.30000000000000004), "0.30000000000000004", reason="seventeen digits")
+        assert_equal(text(1e20), "100000000000000000000.0", reason="last fixed exponent")
+        assert_equal(text(1e21), "1e+21", reason="first scientific exponent")
+        assert_equal(text(1.5e300), "1.5e+300", reason="large")
+        assert_equal(text(1e-6), "0.000001", reason="last fixed small")
+        assert_equal(text(1.5e-7), "1.5e-7", reason="first scientific small")
+        assert_equal(text(5e-324), "5e-324", reason="smallest subnormal")
+        assert_equal(text(1.7976931348623157e308), "1.7976931348623157e+308", reason="largest")
+        assert_equal(text(-2.5), "-2.5", reason="negative")
+    it("f32 digits are the f32 digits"):
+        let tenth: f32 = 0.1
+        let big: f32 = 16777216.0
+        let max: f32 = 3.4028235e38
+        let tiny: f32 = 1e-45
+        let third: f32 = 0.33333334
+        assert_equal(text(tenth), "0.1", reason="f32 0.1")
+        let wide_tenth: f64 = 0.10000000149011612
+        assert_equal(text(wide_tenth), "0.10000000149011612", reason="the same value as f64")
+        assert_equal(text(big), "16777216.0", reason="whole")
+        assert_equal(text(max), "3.4028235e+38", reason="largest")
+        assert_equal(text(tiny), "1e-45", reason="smallest subnormal")
+        assert_equal(text(third), "0.33333334", reason="eight digits")
+        let wide_third: f64 = 0.3333333432674408
+        assert_equal(text(wide_third), "0.3333333432674408", reason="the same value as f64")
+    it("interpolation and to_string at the float type"):
+        let tenth: f32 = 0.1
+        wide := 0.1 + 0.2
+        assert_equal("${1.5}", "1.5", reason="literal")
+        assert_equal("$tenth", "0.1", reason="f32 value")
+        assert_equal("$wide", "0.30000000000000004", reason="f64 value")
+        assert_equal(tenth.to_string(), "0.1", reason="f32 to_string")
+        assert_equal(wide.to_string(), "0.30000000000000004", reason="f64 to_string")
+    it("specials"):
+        zero := 0.0
+        let nan = zero / zero
+        assert_equal(text(nan), "NaN", reason="NaN")
+        assert_equal(text(-nan), "NaN", reason="NaN has no sign")
+        assert_equal(text(1.0 / zero), "inf", reason="infinity")
+        assert_equal(text(-1.0 / zero), "-inf", reason="negative infinity")
+        assert_equal(text(-zero), "-0.0", reason="negative zero")
+        assert_equal(text(zero), "0.0", reason="zero")
+        let small: f32 = -0.0
+        assert_equal(text(small), "-0.0", reason="f32 negative zero")

@@ -21,29 +21,23 @@ fn device_of(error: *dyn Error) -> string:
 >   %0 = Read [$0] : *dyn Error
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : &DiskError?
->   %3 = LoanBegin %2 #4 : ()
->   %8 = LoanClose %1 : ()
->   %9 = LoanClose %3 : ()
->   %22 = Block - : never
->   %23 = Match %2 [%22 %7 %10] : string
->   %24 = LoanClose %1 : ()
->   %25 = LoanClose %3 : ()
->   %26 = Block %23 : string
+>   %6 = LoanClose %1 : ()
+>   %17 = Block - : never
+>   %18 = Match %2 [%17 %5 %7] : string
+>   %19 = LoanClose %1 : ()
+>   %20 = Block %18 : string
         .Some(found) => found.device
->   %4 = Read [*$1 .device] : string
->   %5 = LoanClose %1 : ()
->   %6 = LoanClose %3 : ()
->   %7 = Block %4 : string
->   %11 = Read [%2 as #1 .0] : &DiskError
->   %12 = Store [$1] %11 : ()
->   %14 = Block - : never
->   %15 = LoanClose %1 : ()
->   %16 = LoanClose %3 : ()
->   %19 = SwitchTag %2 [#1 %14 %18] : never
->   %20 = LoanClose %1 : ()
->   %21 = LoanClose %3 : ()
+>   %3 = Read [*$1 .device] : string
+>   %4 = LoanClose %1 : ()
+>   %5 = Block %3 : string
+>   %8 = Read [%2 as #1 .0] : &DiskError
+>   %9 = Store [$1] %8 : ()
+>   %11 = Block - : never
+>   %12 = LoanClose %1 : ()
+>   %15 = SwitchTag %2 [#1 %11 %14] : never
+>   %16 = LoanClose %1 : ()
         .None => "none"
->   %10 = Block "none" : string
+>   %7 = Block "none" : string
 
 pub fn main() -> void:
     pass

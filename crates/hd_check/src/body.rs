@@ -154,7 +154,7 @@ pub(crate) fn out_of_fuel<T>() -> StageResult<T> {
 /// The outcomes immediate and delayed `Implements` proofs consume.
 /// Candidate lists are not proofs; fuel exhaustion remains a stage error.
 #[derive(Debug)]
-enum ProofAnswer {
+pub(crate) enum ProofAnswer {
     Holds {
         evidence: Evidence,
         learned: Vec<(InferVar, Ty)>,
@@ -185,7 +185,8 @@ impl TryFrom<Answer> for ProofAnswer {
 }
 
 /// Whether a check stopped because its body's fuel ran out.
-pub(crate) fn is_out_of_fuel(e: &NotImplemented) -> bool {
+#[must_use]
+pub fn is_out_of_fuel(e: &NotImplemented) -> bool {
     e.stage == Stage::Body && e.out_of_fuel
 }
 
@@ -377,7 +378,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub opaque_annotation: Option<(u32, bool)>,
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
-    pub gens: Vec<(Symbol, Ty)>,
+    pub gens: hd_resolve::GenericScope<(Symbol, Ty)>,
     /// The const parameters among them, with their declared types
     /// (`types.generic.const.parameter`).
     pub const_gens: Vec<(Symbol, ParamRef, Prim)>,
@@ -884,7 +885,7 @@ pub(crate) fn new_ck<'a, 'c>(
         opaque_rets: vec![],
         opaque_annotation: None,
         recursive_returns: vec![],
-        gens: Vec::new(),
+        gens: hd_resolve::GenericScope::default(),
         const_gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
@@ -1110,6 +1111,7 @@ pub(crate) fn new_ck<'a, 'c>(
             | ItemData::AssocType { .. }
             | ItemData::Alias { .. }
             | ItemData::Newtype(..)
+            | ItemData::Binding(_)
             | ItemData::Builtin => {}
         }
     }
@@ -1571,14 +1573,14 @@ fn check_fn_body_as(
 /// The input of source-function checking, after body selection. The driver
 /// and derivation checker select a resolved callable with a source block;
 /// keep those facts together instead of asserting them at each use.
-struct SourceFunction<'i, 't> {
-    item: &'i Item,
-    sig: &'i FnSig,
-    body: NodeRef<'t>,
+pub(crate) struct SourceFunction<'i, 't> {
+    pub(crate) item: &'i Item,
+    pub(crate) sig: &'i FnSig,
+    pub(crate) body: NodeRef<'t>,
 }
 
 impl<'i, 't> SourceFunction<'i, 't> {
-    fn new(item: Option<&'i Item>, node: NodeRef<'t>) -> StageResult<Self> {
+    pub(crate) fn new(item: Option<&'i Item>, node: NodeRef<'t>) -> StageResult<Self> {
         let callable = item.and_then(|item| item.sig().map(|sig| (item, sig)));
         match (callable, Src::child(node, SyntaxKind::Block)) {
             (Some((item, sig)), Some(body)) => Ok(Self { item, sig, body }),
@@ -1708,6 +1710,7 @@ fn fn_body_steps(
         ck.public_ret = want.and_then(|raw| crate::remote::public_result(cx, ck.pool(), def, raw));
         let (tail, ret) = ck.join_site(want, |ck, ret| {
             *ck.rets.base_mut() = ret;
+            crate::results::live_result(cx, node.index(), ret);
             let (tail, _) = ck.block_value(body, Some(ret))?;
             ck.finish_tries(ret)?;
             Ok((tail, ret))
@@ -1825,6 +1828,19 @@ impl Ck<'_, '_> {
         self.diags.error(code, span, msg);
     }
 
+    /// Attaches to the diagnostic pushed last the exact fix-it `title`
+    /// that inserts `text` at byte `at` of this file.
+    pub(crate) fn insert_fix(&mut self, title: &str, at: u32, text: &str) {
+        let file = self.cx.src.file;
+        let span = hd_base::Span {
+            file,
+            lo: at,
+            hi: at,
+        };
+        self.diags
+            .add_fix(title, hd_diag::FixSafety::Exact, &[(span, text)]);
+    }
+
     /// `trait-resolution-depth` once per use, a span: a type past a depth
     /// limit fails each proof and each projection that reaches it, and
     /// the first of them tells the cause. A projection chain of n
@@ -1869,7 +1885,7 @@ impl Ck<'_, '_> {
         let o = outs.iter().find(|&&o| o != 0)?;
         let k = ins.iter().position(|x| x == o)?;
         Some(format!(
-            "; the found result borrows from input reference {}, which the expected result may not borrow from",
+            "; result borrows from input {}; change the result lifetime annotation",
             k + 1
         ))
     }
@@ -1887,7 +1903,7 @@ impl Ck<'_, '_> {
         };
         if w.trim_start_matches("mut ") == g.trim_start_matches("mut ") {
             let qualified = |t| {
-                hd_resolve::iface::show_ty_qualified_in(
+                hd_resolve::iface::show_ty_diagnostic_in(
                     &self.cx.names,
                     pool,
                     self.infer.resolve(pool, t),
@@ -1896,6 +1912,20 @@ impl Ck<'_, '_> {
             };
             let (qw, qg) = (qualified(want), qualified(got));
             // A view of the same item still has the same qualified name.
+            if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
+                return (qw, qg);
+            }
+            // Homonymous owners/types still need distinct paths. There are
+            // exactly two qualified forms, never a retry/fixpoint over types.
+            let full = |t| {
+                hd_resolve::iface::show_ty_qualified_in(
+                    &self.cx.names,
+                    pool,
+                    self.infer.resolve(pool, t),
+                    with_rows,
+                )
+            };
+            let (qw, qg) = (full(want), full(got));
             if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
                 return (qw, qg);
             }
@@ -2161,7 +2191,7 @@ impl Ck<'_, '_> {
         if self.local_generics.contains_key(&l) {
             return self.local_generic_value(l, &[], n);
         }
-        if !self.note_read(l, depth, n) {
+        if self.read_local_result(l) || !self.note_read(l, depth, n) {
             return self.poison_value(n);
         }
         // `fn.crossing.parameter.uses`: a crossing parameter is called or
@@ -2303,7 +2333,7 @@ impl Ck<'_, '_> {
     /// `names.type-param.no-redeclare`: a local value must not reuse an
     /// enclosing type parameter's name.
     pub(crate) fn check_local_name(&mut self, name: Symbol, at: NodeRef<'_>) {
-        if self.gens.iter().any(|(g, _)| *g == name) {
+        if self.gens.contains(name) {
             let msg = format!(
                 "`{}` is a type parameter in scope",
                 self.cx.names.text(name)
@@ -2649,7 +2679,7 @@ impl Ck<'_, '_> {
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
             let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!(
-                "in {what}: expected {want_s}, found {got_s}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row"
+                "in {what}: expected {want_s}, found {got_s}; convert the value explicitly"
             );
             self.err(Code::TypeMismatch, n, &msg);
         }
@@ -2966,7 +2996,7 @@ impl Ck<'_, '_> {
     ///
     /// It walks the types' structure, so it stops at
     /// `hd_base::limits::TYPE_DEPTH`, past which a type is `type-too-large`.
-    fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
+    pub(crate) fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
         enum Work {
             Repr(Ty, Ty, u32),
             Pair(Ty, Ty, bool, u32),
@@ -4749,6 +4779,9 @@ impl Ck<'_, '_> {
                         .map(crate::init::Global::binding)
                         .or_else(|| init.earlier.get(&name).copied())
                 };
+                if self.find_local(name).is_none() && self.imported_write(name, lhs) {
+                    return Ok(());
+                }
                 if self.find_local(name).is_none()
                     && let Some(crate::init::InputBinding { def, ty, short, .. }) = global
                 {
@@ -4777,8 +4810,7 @@ impl Ck<'_, '_> {
                 let Some((l, depth)) = self.find_local(name) else {
                     let text = self.cx.names.text(name).to_owned();
                     if !self.is_poison_name(&text) {
-                        let msg = format!("`{text}` is not defined");
-                        self.err(Code::UnknownName, lhs, &msg);
+                        self.unknown_name(&text, lhs, crate::call::NameUse::Binding);
                     }
                     return Ok(());
                 };
@@ -4799,11 +4831,14 @@ impl Ck<'_, '_> {
                 } else if flags & local_flags::PARAM != 0
                     && !self.mut_params.iter().any(|(p, _)| *p == l)
                 {
-                    let msg = format!(
-                        "parameter `{}` cannot be reassigned",
-                        self.cx.names.text(name)
-                    );
+                    let text = self.cx.names.text(name).to_owned();
+                    let msg = format!("parameter `{text}` cannot be reassigned");
                     self.err(Code::NonReassignableParameterBinding, lhs, &msg);
+                    // A parameter is the function's own copy: `mut` is the
+                    // one way to reassign it.
+                    let syn = self.b.body_mut().local_syn[l.idx()];
+                    self.writable_binding_fix(&text, false, true, syn);
+                    self.diags.exact_last_fix();
                 }
                 let lt = self.b.local_ty(l);
                 let v = match compound {
@@ -4874,8 +4909,7 @@ impl Ck<'_, '_> {
                 if self.is_struct_ty(bt) {
                     let (_, bt) = self.promote_base(br, bt, &fname, lhs);
                     if self.field_of(bt, &fname).is_none() {
-                        let msg = format!("no field `{fname}` on {}", self.show(bt));
-                        self.err(Code::UnknownField, lhs, &msg);
+                        self.unknown_field(bt, &fname, lhs);
                         return Ok(());
                     }
                     self.check_field_visible(bt, &fname, lhs);
@@ -4908,8 +4942,7 @@ impl Ck<'_, '_> {
                     self.err(Code::InvalidAssignmentTarget, lhs, &msg);
                     return Ok(());
                 }
-                let msg = format!("no field `{fname}` on {}", self.show(bt));
-                self.err(Code::UnknownField, lhs, &msg);
+                self.unknown_field(bt, &fname, lhs);
             }
             SyntaxKind::IndexExpr => {
                 let [base, key] = lhs.parts();
@@ -5437,6 +5470,10 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+        crate::results::finish_local_results(self.cx, self.diags);
+        // Queries over completed TIR are not reads by the enclosing body:
+        // the instruction's lexical result scope already recorded them.
+        let _result_scope = crate::results::finish_scope(self.cx);
         self.finish_bindings()?;
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
@@ -5918,329 +5955,5 @@ impl hd_types::TyMap for Zonk<'_, '_, '_> {
     }
     fn row(&mut self, r: RowId) -> RowId {
         self.0.zonk_row(r)
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn with_checker(run: impl FnOnce(&mut Ck<'_, '_>)) {
-    with_checker_items(|_| Vec::new(), run);
-}
-
-#[cfg(test)]
-pub(crate) fn with_checker_items(
-    items: impl FnOnce(hd_resolve::Names<'_>) -> Vec<hd_resolve::Item>,
-    run: impl FnOnce(&mut Ck<'_, '_>),
-) {
-    use crate::body::{BodyCx, new_ck};
-    use hd_base::{FileId, Fuel};
-    use hd_diag::DiagBuf;
-    use hd_intern::{PathTable, ShardedInterner};
-    use hd_resolve::{KnownItems, Locals, Lookup, ModuleScope, Names, Src};
-    use hd_types::lookup::{FolderSlots, Unseen};
-    use hd_types::solver::{
-        GlobalMemo, ImplUniverseId, ImplView, OwnerMap, TableSolver, UniverseImpls,
-    };
-    use hd_types::{InternPool, LocalPool, RowId};
-    use std::cell::{OnceCell, RefCell};
-    use std::sync::Arc;
-
-    let pool = InternPool::new();
-    let local = LocalPool::new();
-    let paths = PathTable::new();
-    let syms = ShardedInterner::default();
-    let known = KnownItems::new(&paths);
-    let names = Names {
-        pool: &pool,
-        paths: &paths,
-        syms: &syms,
-        known: &known,
-    };
-    let item = names.item("app.main", "test");
-    let parsed = hd_syntax::parse(b"");
-    let index = hd_resolve::iface::IfaceIndex::default();
-    let items = items(names);
-    let lookup = Lookup::new(&items, std::iter::empty(), &index);
-    let owners = OwnerMap::default();
-    let extra = UniverseImpls::default();
-    let impls = ImplView {
-        paths: &paths,
-        owners: &owners,
-        own: None,
-        folders: FolderSlots::default(),
-        universe: ImplUniverseId(0),
-        extra: &extra,
-        arity: &|_| 0,
-        hidden: Unseen::default(),
-        plans: None,
-    };
-    let global = GlobalMemo::default();
-    let scope = ModuleScope::default();
-    let locals = Locals::new(vec![]);
-    let cx = BodyCx {
-        names,
-        src: Src {
-            parse: &parsed,
-            text: "",
-            file: FileId::from_raw(0),
-        },
-        scope: &scope,
-        lookup: &lookup,
-        impls: &impls,
-        global: &global,
-        solver: &TableSolver,
-        methods: Arc::default(),
-        init: RefCell::default(),
-        results: RefCell::default(),
-        dbg_refs: RefCell::default(),
-        source_facts: None,
-        locals: &locals,
-        enclosing: OnceCell::default(),
-        instantiations: RefCell::default(),
-        traits_in_scope: Arc::default(),
-        file_name: "test.hd",
-        tests: None,
-        session: &[],
-        fuel: Fuel::BODY_DEFAULT,
-        verify_tir: false,
-    };
-    let mut diags = DiagBuf::default();
-    let mut ck = new_ck(
-        &cx,
-        &local,
-        item,
-        item,
-        hd_tir::BodyKind::Fn,
-        (Ty::VOID, RowId::EMPTY),
-        &mut diags,
-    );
-    run(&mut ck);
-}
-
-#[cfg(test)]
-mod representation_conversion_tests {
-    use super::*;
-    #[test]
-    fn representation_conversion_keeps_the_depth_rule_on_a_small_stack() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for generated function-result chains.
-            .spawn(|| {
-                with_checker(|ck| {
-                    let p = ck.pool();
-                    for depth in [20, 1_000] {
-                        let (mut got, mut want) = (Ty::I32, ck.optional(Ty::I32));
-                        let fun = |result| {
-                            p.intern_ty(&TyData::Fn {
-                                params: hd_types::TyList::EMPTY,
-                                result,
-                                row: hd_types::RowId::EMPTY,
-                                suspends: false,
-                                inputs: hd_types::Inputs::Fixed,
-                                deps: hd_types::FnDeps::NONE,
-                            })
-                        };
-                        for _ in 0..depth {
-                            got = fun(got);
-                            want = fun(want);
-                        }
-                        assert!(ck.repr_change(got, want, 0));
-                        assert!(!ck.repr_change(got, want, hd_base::limits::TYPE_DEPTH + 1));
-                    }
-                });
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-}
-
-#[cfg(test)]
-mod source_function_tests {
-    use super::{SourceFunction, Stage, SyntaxKind};
-    use hd_base::{DefId, Symbol};
-    use hd_resolve::{CallAttrs, FnAttrs, FnSig, Item, ItemData, Src};
-    use hd_types::Ty;
-
-    fn callable() -> Item {
-        Item::new(
-            DefId::from_raw(1),
-            Symbol::from_raw(1),
-            false,
-            ItemData::Fn(FnSig::simple(vec![], vec![], Ty::I32), FnAttrs::default()),
-        )
-    }
-
-    #[test]
-    fn selected_input_borrows_its_resolved_header_signature_and_block() {
-        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
-        let node = parsed
-            .tree
-            .root()
-            .children()
-            .find(|n| n.kind() == SyntaxKind::FnDecl)
-            .expect("function node");
-        let item = callable();
-        let selected = SourceFunction::new(Some(&item), node).expect("selected source function");
-        assert!(std::ptr::eq(selected.item, &raw const item));
-        assert_eq!(selected.sig.ret, Ty::I32);
-        assert_eq!(selected.body.kind(), SyntaxKind::Block);
-        assert_eq!(
-            Some(selected.body.index()),
-            Src::child(node, SyntaxKind::Block).map(hd_syntax::NodeRef::index)
-        );
-    }
-
-    #[test]
-    fn missing_or_non_callable_headers_report_the_selection_invariant() {
-        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
-        let node = parsed
-            .tree
-            .root()
-            .children()
-            .find(|n| n.kind() == SyntaxKind::FnDecl)
-            .expect("function node");
-        let non_callable = Item::new(
-            DefId::from_raw(1),
-            Symbol::from_raw(1),
-            false,
-            ItemData::Builtin,
-        );
-        for header in [None, Some(&non_callable)] {
-            let error = SourceFunction::new(header, node)
-                .err()
-                .expect("invalid selection");
-            assert_eq!(error.stage, Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-            assert!(error.what.starts_with("selected source function:"));
-        }
-    }
-
-    #[test]
-    fn a_bodyless_trait_method_cannot_be_selected_as_a_source_body() {
-        let parsed = hd_syntax::parse(b"trait Work:\n    fn act() -> void\n");
-        let declaration = parsed
-            .tree
-            .root()
-            .children()
-            .find(|n| n.kind() == SyntaxKind::TraitDecl)
-            .expect("trait");
-        let block = Src::child(declaration, SyntaxKind::Block).expect("trait body");
-        let method = block
-            .children()
-            .find(|n| n.kind() == SyntaxKind::FnDecl)
-            .expect("method");
-        assert!(Src::child(method, SyntaxKind::Block).is_none());
-        let item = Item::new(
-            DefId::from_raw(1),
-            Symbol::from_raw(1),
-            false,
-            ItemData::Method {
-                owner: DefId::from_raw(2),
-                sig: FnSig::simple(vec![], vec![], Ty::VOID),
-                has_body: false,
-                call: CallAttrs::default(),
-            },
-        );
-        let error = SourceFunction::new(Some(&item), method)
-            .err()
-            .expect("bodyless selection");
-        assert_eq!(error.stage, Stage::Body);
-        assert!(error.bug);
-    }
-}
-
-#[cfg(test)]
-mod proof_answer_tests {
-    use super::{ProofAnswer, is_out_of_fuel};
-    use hd_base::{DefId, InferVar, Stage};
-    use hd_types::solver::{Answer, CanonGoal, Evidence, FailInfo, FailReason, GoalKind};
-    use hd_types::{Ty, TyList};
-
-    #[test]
-    fn proof_success_moves_its_exact_evidence_and_learned_buffer() {
-        for evidence in [
-            Evidence::Poison,
-            Evidence::TraitValue {
-                trait_: DefId::from_raw(1),
-            },
-        ] {
-            let expected = evidence.clone();
-            let learned = vec![
-                (InferVar::from_raw(7), Ty::I32),
-                (InferVar::from_raw(11), Ty::STRING),
-            ];
-            let ptr = learned.as_ptr();
-            let capacity = learned.capacity();
-            let proof = ProofAnswer::try_from(Answer::Holds {
-                evidence,
-                learned,
-                obligations: hd_types::solver::RegionObligations::default(),
-            })
-            .expect("proof");
-            let ProofAnswer::Holds {
-                evidence, learned, ..
-            } = proof
-            else {
-                panic!("successful proof lost its outcome");
-            };
-            assert_eq!(evidence, expected);
-            assert_eq!(learned.as_ptr(), ptr);
-            assert_eq!(learned.capacity(), capacity);
-            assert_eq!(
-                learned,
-                [
-                    (InferVar::from_raw(7), Ty::I32),
-                    (InferVar::from_raw(11), Ty::STRING)
-                ]
-            );
-        }
-    }
-
-    #[test]
-    fn failure_stall_and_overflow_keep_their_proof_outcomes() {
-        let failure = Answer::Fails(Box::new(FailInfo {
-            leaf: CanonGoal {
-                kind: GoalKind::Implements,
-                mut_: false,
-                n_vars: 0,
-                trait_: DefId::from_raw(1),
-                self_ty: Ty::I32,
-                args: TyList::EMPTY,
-                extra: 0,
-            },
-            chain: Vec::new(),
-            reason: FailReason::NoImpl,
-            near: Vec::new(),
-        }));
-        assert!(matches!(
-            ProofAnswer::try_from(failure),
-            Ok(ProofAnswer::Fails)
-        ));
-        assert!(matches!(
-            ProofAnswer::try_from(Answer::Stalled {
-                on: vec![InferVar::from_raw(3), InferVar::from_raw(5)],
-            }),
-            Ok(ProofAnswer::Stalled)
-        ));
-        assert!(matches!(
-            ProofAnswer::try_from(Answer::Overflow),
-            Ok(ProofAnswer::Overflow)
-        ));
-    }
-
-    #[test]
-    fn fuel_exhaustion_and_wrong_goal_answers_are_distinct_errors() {
-        let fuel = ProofAnswer::try_from(Answer::OutOfFuel).expect_err("fuel exhaustion");
-        assert!(is_out_of_fuel(&fuel));
-        assert!(!fuel.bug);
-        let error = ProofAnswer::try_from(Answer::Candidates(Vec::new())).expect_err("not a proof");
-        assert_eq!(error.stage, Stage::Body);
-        assert!(error.bug);
-        assert!(!error.out_of_fuel);
-        assert_eq!(
-            error.what,
-            "Implements proof requires a proof outcome, not candidates"
-        );
     }
 }

@@ -47,6 +47,9 @@ mod static_data;
 pub mod suspension_work;
 mod tables;
 mod task;
+#[cfg(feature = "testing")]
+pub mod testing;
+use module::units;
 pub mod views;
 mod wide;
 pub mod work;
@@ -56,6 +59,7 @@ use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty};
 
+pub use boundary::package_module;
 #[cfg(feature = "checked-report")]
 pub use count_audit::resolve as resolve_count_audit;
 pub use emit::{Settled, settled};
@@ -213,24 +217,28 @@ pub type ShimFn<'a> = dyn Fn(
 #[derive(Clone)]
 pub struct Input<'a> {
     pub pool: &'a InternPool,
-    pub env: &'a dyn ProgramEnv,
+    pub env: &'a (dyn ProgramEnv + Sync),
     /// What counting a type takes, and its retain or release shim
     /// (`hd_layout::shims`), made once per run: `None` when it counts
     /// nothing or one address.
     pub shim: &'a ShimFn<'a>,
     /// An item's stable path, for function names.
-    pub path: &'a dyn Fn(DefId) -> String,
+    pub path: &'a (dyn Fn(DefId) -> String + Sync),
     /// Declared package host roots, and identities for their returned handles.
-    pub package_host: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
-    pub package_trait: &'a dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity>,
-    pub package_selectors: &'a dyn Fn(DefId) -> Vec<String>,
+    pub package_host: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
+    pub package_trait: &'a (dyn Fn(DefId) -> Option<hd_host_abi::schema::Identity> + Sync),
+    pub package_selectors: &'a (dyn Fn(DefId) -> Vec<String> + Sync),
+    /// The C table of a package host root bound to a C provider
+    /// (`module.host.package.c-types`), whose methods lower as C calls.
+    pub package_c: &'a (dyn Fn(DefId) -> Option<hd_host_abi::c::Table> + Sync),
     pub collected: &'a Collected,
     /// The instances in content order (`InstanceTable::content_order`).
     pub order: &'a [InstId],
     /// Each instance's TIR body, by instance: its instance body (a
     /// default argument's or a plan's), its supplied body, or its item's.
-    pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
-    pub boundary: &'a dyn Fn(InstId) -> Option<std::sync::Arc<hd_tir::own::boundary::Boundary>>,
+    pub body: &'a (dyn Fn(InstId) -> Option<&'a Body> + Sync),
+    pub boundary:
+        &'a (dyn Fn(InstId) -> Option<std::sync::Arc<hd_tir::own::boundary::Boundary>> + Sync),
     /// The private `std.num` implementations of floating power and
     /// remainder, which Wasm has no native instructions for.
     pub float_ops: FloatOps,
@@ -259,15 +267,66 @@ pub struct Input<'a> {
     /// (`docs/compiler/tir-v2.md`, "The ownership passes"); from these
     /// facts it learns
     /// which use consumes each value (`hd_tir::own::consumers`).
-    pub own_cx: &'a dyn hd_tir::own::OwnCx,
+    pub own_cx: &'a (dyn hd_tir::own::OwnCx + Sync),
     /// The whole-program scan (`hd_opt::whole::mutation_targets`): concrete
     /// types whose existing heap objects can be written, or `None` when any
     /// may. Called only for closed-world optimized release links.
-    pub mutation_targets: &'a dyn Fn() -> Option<hd_base::HashSet<Ty>>,
+    pub mutation_targets: &'a (dyn Fn() -> Option<hd_base::HashSet<Ty>> + Sync),
     /// The flag methods on a call cycle (`hd_opt::whole::coinductive_flags`,
     /// `annot.bound.recursive.flag`): each one's code answers a call made
     /// while the same instance is evaluating with `true`.
     pub coinductive_flags: &'a hd_base::HashSet<Hash128>,
+    /// The bang instances that complete at once
+    /// (`hd_opt::whole::completes_at_once`, #2419): a bang call of one is
+    /// a plain call of its body, not a suspension point.
+    pub ready: &'a hd_base::HashSet<Hash128>,
+    /// Closed-world drive methods for which every possible target completes at once.
+    pub ready_slots: &'a hd_base::HashSet<DefId>,
+    /// The store of emitted units a dev link reads and fills (#2423),
+    /// `None` where a link may not share one.
+    pub units: Option<&'a dyn UnitStore>,
+}
+
+/// The store of emitted units (#2423): what one instance's emission made,
+/// kept between links, as rustc keeps a codegen unit's work product. The
+/// driver offers it only to a dev link, whose emission reads no summary
+/// of another body: every input of a unit's emission is then in its key
+/// or in the reads it records (`crates/hd_wasm/DESIGN.md` §23.41).
+pub trait UnitStore: Sync {
+    /// What every unit's key holds of the run: the toolchain, the
+    /// pipeline and profile, and the root's settings. Not the program's
+    /// declarations: each unit is keyed on the ones it reaches
+    /// ([`UnitStore::decls`]).
+    fn fingerprint(&self) -> Hash128;
+    /// The hash of everything instance `id`'s body holds but its node
+    /// indices (`hd_tir::wire::content_hash`), as emission reads it, and
+    /// every declaration the body names, with its ancestors.
+    fn body_hash(&self, id: InstId) -> Option<(Hash128, Vec<DefId>)>;
+    /// The hash of every non-std declaration that `defs` and the
+    /// declarations `tys` name reach (each declaration's record, the
+    /// declarations it names, and the impls that name it), by stable
+    /// path: what a unit's emission can read of the program's
+    /// declarations. `None` when one has no record the store can hash.
+    fn decls(&self, defs: &[DefId], tys: &[Ty]) -> Option<Hash128>;
+    /// The unit stored under `key`: the reads it recorded, its types and
+    /// its bytes.
+    fn get(&self, key: Hash128) -> Option<StoredUnit>;
+    fn put(&self, key: Hash128, unit: &StoredUnit);
+    /// Whether each reused unit is emitted again and compared, as the
+    /// TIR verifier's policy says (rustc's `-Z incremental-verify-ich`).
+    fn verify(&self) -> bool;
+    /// What the link did: the item paths of the units it emitted, in
+    /// emission order, and how many it took from the store.
+    fn report(&self, emitted: Vec<String>, reused: usize);
+}
+
+/// One stored unit ([`UnitStore`]).
+pub struct StoredUnit {
+    /// Each other instance its emission read, by key, and that
+    /// instance's content hash then, sorted by key.
+    pub reads: Vec<(Hash128, Hash128)>,
+    pub tys: Vec<Ty>,
+    pub bytes: Vec<u8>,
 }
 
 /// The std module whose functions emitted code calls by key, and their
@@ -342,26 +401,19 @@ pub const CHECKED_METRICS_FNS: [&str; 5] = [
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
 pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "opaque", "visit", "marking"];
 
-/// The ordinary std functions that implement floating operators absent
-/// from Wasm. The driver roots them so emission can call them directly.
+/// The ordinary std implementations of floating operators absent from Wasm.
+/// Collection reaches each through a corresponding operator or source call.
 pub const FLOAT_MODULE: &str = "std.num";
-pub const FLOAT_FNS: [&str; 2] = ["float_pow_f64", "float_rem_f64"];
+pub const FLOAT_POW_F64: &str = "float_pow_f64";
+pub const FLOAT_REM_F64: &str = "float_rem_f64";
+pub const FLOAT_POW_F32: &str = "libm_powf";
 
-/// The instance keys of [`FLOAT_FNS`], in declaration order.
+/// Collected floating operators' instance keys; unused implementations are absent.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FloatOps {
-    pub pow: Hash128,
-    pub rem: Hash128,
-}
-
-impl FloatOps {
-    #[must_use]
-    pub fn from_keys(keys: [Option<Hash128>; 2]) -> Option<FloatOps> {
-        Some(FloatOps {
-            pow: keys[0]?,
-            rem: keys[1]?,
-        })
-    }
+    pub pow: Option<Hash128>,
+    pub rem: Option<Hash128>,
+    pub pow_f32: Option<Hash128>,
 }
 
 /// The runtime module a build links: the checked one in checked mode.
@@ -645,7 +697,62 @@ pub fn build_session_extension(
 }
 
 /// Every entry point runs this link with the same layout cache.
+#[cfg(not(feature = "testing"))]
+use link_prepared as link;
+
+#[cfg(feature = "testing")]
 fn link(
+    input: &Input<'_>,
+    track_origins: bool,
+    session: Option<&mut Session>,
+    previous: Option<&Session>,
+) -> StageResult<MappedModule> {
+    let Some(transformed) = testing::emit::transformed_bodies(input) else {
+        return link_prepared(input, track_origins, session, previous);
+    };
+    // Replace final TIR before shared body facts and its ownership boundary.
+    // The hook's local input keeps both consistent throughout emission.
+    let body = |id| transformed.get(&id).or_else(|| (input.body)(id));
+    let boundary = |id| {
+        if transformed.contains_key(&id) {
+            None
+        } else {
+            (input.boundary)(id)
+        }
+    };
+    let test_input = Input {
+        pool: input.pool,
+        env: input.env,
+        shim: input.shim,
+        path: input.path,
+        package_host: input.package_host,
+        package_trait: input.package_trait,
+        package_selectors: input.package_selectors,
+        package_c: input.package_c,
+        collected: input.collected,
+        order: input.order,
+        body: &body,
+        boundary: &boundary,
+        float_ops: input.float_ops,
+        entry: input.entry.clone(),
+        release: input.release,
+        optimized: input.optimized,
+        promote_args: input.promote_args,
+        runtime: input.runtime,
+        inline_counts: input.inline_counts,
+        host_refs: input.host_refs,
+        own_cx: input.own_cx,
+        mutation_targets: input.mutation_targets,
+        coinductive_flags: input.coinductive_flags,
+        ready: input.ready,
+        ready_slots: input.ready_slots,
+        // The store's body hashes are of the bodies before the hook.
+        units: None,
+    };
+    link_prepared(&test_input, track_origins, session, previous)
+}
+
+fn link_prepared(
     input: &Input<'_>,
     track_origins: bool,
     session: Option<&mut Session>,
@@ -658,41 +765,50 @@ fn link(
     });
     let input = prepared.as_ref().unwrap_or(input);
     let mut m = module::Module::new(&input.runtime);
+    let facts = m.facts_mut();
     #[cfg(feature = "checked-report")]
     {
-        m.allocation_kind_reporting =
+        facts.allocation_kind_reporting =
             input.runtime.report().is_some() && !matches!(input.entry, Entry::Fixture { .. });
-        m.count_audit = input.runtime.report().is_some()
+        facts.count_audit = input.runtime.report().is_some()
             && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
             && session.is_none()
             && previous.is_none();
-        m.track_origins = track_origins || m.count_audit;
+        facts.track_origins = track_origins || facts.count_audit;
     }
     #[cfg(not(feature = "checked-report"))]
     {
-        m.track_origins = track_origins;
+        facts.track_origins = track_origins;
     }
-    m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
-    m.init_insts.clone_from(&input.collected.inits);
-    m.threads = input.collected.threads;
-    m.release = input.release;
-    m.optimized = input.optimized;
-    m.inline_counts = input.inline_counts;
+    facts.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
+    facts.ready.clone_from(input.ready);
+    // ruled out: hd_driver collects every REPL input, the only open-world
+    // link, with all slots (`hd_mono::collect`'s `open_world`), so a later
+    // input's call finds every slot it numbers.
+    debug_assert!(
+        !facts.open_world || input.collected.all_slots,
+        "an open-world link of tables that dropped slots"
+    );
+    facts.init_insts.clone_from(&input.collected.inits);
+    facts.threads = input.collected.threads;
+    facts.release = input.release;
+    facts.optimized = input.optimized;
+    facts.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
-        m.inst_of.insert(key, *id);
+        facts.index_instance(key, *id);
         let item = input.collected.table.item[id.idx()];
         if (input.path)(item).starts_with("std/") {
-            m.std_insts.insert(key);
+            facts.std_insts.insert(key);
         }
         if (input.path)(item).starts_with("std/rt.cycle/") {
-            m.cycle_insts.insert(key);
+            facts.cycle_insts.insert(key);
         }
         if runtime_item(&(input.path)(item)) {
-            m.rt_insts.insert(key);
+            facts.rt_insts.insert(key);
         }
         if input.env.cold(item) {
-            m.cold_insts.insert(key);
+            facts.cold_insts.insert(key);
         }
     }
     let _acyclic = cycle::mutation_targets(
@@ -700,20 +816,105 @@ fn link(
             .then(|| (input.mutation_targets)())
             .flatten(),
     );
+    let span = hd_base::trace::span("phase", || "link: emit prepare".to_owned());
     address_globals(input, &mut m, session.is_some(), previous)?;
     drive::collect(input, &mut m);
     emit::collect_loans(input, &mut m);
     emit::prepare_body_facts(input, &mut m);
-    for id in input.order {
-        let f = emit::instance(input, &mut m, *id).map_err(|error| {
-            locate_layout_error(error, || {
-                input
-                    .env
-                    .source_span(input.collected.table.item[id.idx()], hd_base::NodeIdx::NONE)
+    emit::prepare_indirect(input, &mut m);
+    drop(span);
+    let span = hd_base::trace::span("phase", || "link: emit instances".to_owned());
+    // Each instance emits on a module of its own, on the task's threads;
+    // the merge, in order, numbers what they added as one serial
+    // emission would have (`Module::merge`), so the bytes do not depend
+    // on the thread count.
+    let facts = m.shared_facts();
+    let mut units: Vec<_> = input
+        .order
+        .iter()
+        .map(|&id| (id, m.body_facts.remove(&id), None, false))
+        .collect();
+    // A pool thread keeps one layout cache for this link's units, as
+    // the link's own thread has its own (`hd_layout::cached_for_run`).
+    let layouts = {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        1 << 63 | NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    };
+    // A dev link takes each unit whose key and reads are unchanged from
+    // the store, and stores each unit it emits (#2423, §23.41).
+    let keys = input
+        .units
+        .filter(|_| session.is_none() && previous.is_none())
+        .map(|store| units::Keys::new(input, store, &facts));
+    hd_sched::par_each_mut(&mut units, |_, (id, cell, out, reused)| {
+        let mut cell = cell.take().map(|cell| (*id, cell));
+        let mut emit = || {
+            hd_layout::cached_for_run(layouts, || {
+                module::Module::emit_unit(&facts, cell.take(), |m| emit::instance(input, m, *id))
             })
-        })?;
+        };
+        let Some((keys, key)) = keys.as_ref().and_then(|k| Some((k, k.key(*id)?))) else {
+            *out = Some(emit());
+            return;
+        };
+        if let Some(stored) = keys.store.get(key)
+            && keys.fresh(&facts, &stored.reads)
+            && let Some(unit) = module::wire::decode(&stored.bytes, &stored.tys)
+        {
+            if keys.store.verify() {
+                let again = module::wire::encode(&emit());
+                assert!(
+                    again.is_some_and(|(bytes, tys)| bytes == stored.bytes && tys == stored.tys),
+                    "a stored unit of {} differs from its emission again",
+                    (input.path)(input.collected.table.item[id.idx()])
+                );
+            }
+            *reused = true;
+            *out = Some(unit);
+            return;
+        }
+        let emitted = emit();
+        if let Some((bytes, tys)) = module::wire::encode(&emitted) {
+            let own = input.collected.table.key[id.idx()];
+            if let Some(reads) = keys.reads(&facts, own, emitted.take_reads()) {
+                keys.store.put(key, &StoredUnit { reads, tys, bytes });
+            }
+        }
+        *out = Some(emitted);
+    });
+    drop(facts);
+    if let Some(keys) = &keys {
+        let reused = units.iter().filter(|u| u.3).count();
+        let emitted = units.len() - reused;
+        drop(hd_base::trace::span("phase", || {
+            format!("link: units emitted {emitted}, reused {reused}")
+        }));
+        let t = &input.collected.table;
+        keys.store.report(
+            units
+                .iter()
+                .filter(|u| !u.3)
+                .map(|u| (input.path)(t.item[u.0.idx()]))
+                .collect(),
+            reused,
+        );
+    }
+    for (id, _, emitted, _) in units {
+        // ruled out: `par_each_mut` runs every unit.
+        let emitted = emit::required(emitted, "an emitted unit");
+        let f = m
+            .merge(emitted, |m| emit::instance(input, m, id))
+            .map_err(|error| {
+                locate_layout_error(error, || {
+                    input
+                        .env
+                        .source_span(input.collected.table.item[id.idx()], hd_base::NodeIdx::NONE)
+                })
+            })?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
+    drop(span);
+    let span = hd_base::trace::span("phase", || "link: entry, shims".to_owned());
     rt::entry(input, &mut m)?;
     emit::shims(input, &mut m)?;
     #[cfg(feature = "checked-report")]
@@ -758,6 +959,8 @@ fn link(
         *session = linked;
         return Ok(mapped);
     }
+    drop(span);
+    let _span = hd_base::trace::span("phase", || "link: finish".to_owned());
     if track_origins {
         m.finish_with_origins()
     } else {
@@ -809,37 +1012,6 @@ fn global_source_span(input: &Input<'_>, global: DefId) -> Option<hd_base::Span>
         }
     }
     input.env.source_span(global, hd_base::NodeIdx::NONE)
-}
-
-#[cfg(test)]
-mod layout_error_location_tests {
-    use super::locate_layout_error;
-    use hd_base::{FileId, NotImplemented, Span, Stage};
-
-    #[test]
-    fn layout_stops_use_available_context_and_preserve_inner_locations() {
-        let span = Span {
-            file: FileId::from_raw(3),
-            lo: 17,
-            hi: 24,
-        };
-        let error = NotImplemented::too_large(Stage::Emit, "large value");
-        assert_eq!(
-            locate_layout_error(error.clone(), || Some(span)),
-            error.clone().at(span)
-        );
-        assert_eq!(locate_layout_error(error.clone(), || None), error);
-        let located = error.at(span);
-        assert_eq!(
-            locate_layout_error(located.clone(), || panic!("already located")),
-            located
-        );
-        let bug = NotImplemented::bug(Stage::Emit, "internal check");
-        assert_eq!(
-            locate_layout_error(bug.clone(), || panic!("not a layout stop")),
-            bug
-        );
-    }
 }
 
 /// Gives each top-level binding that some reference refers to a static
@@ -928,7 +1100,7 @@ fn address_globals(
                         locate_layout_error(error, || global_source_span(input, def))
                     })?;
                     let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
-                    m.binding_slots.insert(h, at);
+                    m.facts_mut().binding_slots.insert(h, at);
                     m.label_static(at, &(input.path)(def));
                 }
                 module::Address::Binding(h)
@@ -941,9 +1113,9 @@ fn address_globals(
                 module::Address::Static(at)
             };
             if object {
-                m.objects.insert(h);
+                m.facts_mut().objects.insert(h);
             }
-            m.addressed.insert(h, address);
+            m.facts_mut().addressed.insert(h, address);
         }
     }
     Ok(())
@@ -976,6 +1148,3 @@ fn referenced_global(
         _ => emit::global_root(roots, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
     }
 }
-
-#[cfg(test)]
-mod tests;

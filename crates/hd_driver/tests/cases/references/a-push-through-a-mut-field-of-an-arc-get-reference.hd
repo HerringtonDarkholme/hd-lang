@@ -1,0 +1,22 @@
+# @dump: stdout
+# @build: dev | checked | release
+# A push through a `*mut` field of the value `get()` lends, directly and by
+# a `&self` method, with `get()` inlined, writes the list the `Arc` holds:
+# the reference keeps `a` as its origin through `block + VALUE`, so `a` is
+# not dropped before the method's push (#2328; before ae3d7df25 the method
+# read freed memory)
+use std.sync.Arc
+
+struct Node:
+    edges: *mut List[i32]
+
+impl Node:
+    fn add(&self, v: i32) -> void:
+        self.edges.push(v)
+
+pub fn main() -> void $ Console:
+    a := Arc::new(Node { edges: box([]) })
+    x := a.get()
+    x.edges.push(1)
+    x.add(2)
+    println("${x.edges.len()}")

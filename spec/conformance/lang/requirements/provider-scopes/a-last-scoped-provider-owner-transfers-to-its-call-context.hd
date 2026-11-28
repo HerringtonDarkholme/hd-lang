@@ -6,7 +6,7 @@
 # expect-stdout: stopped
 # expect-stdout: shared/shared
 # expect-stdout: external
-use std.annotation.cold
+use std.meta.cold
 use std.ops.defer
 
 trait Tag:

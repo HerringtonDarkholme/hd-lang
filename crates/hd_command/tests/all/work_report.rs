@@ -4,7 +4,7 @@
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "pub fn main() -> void $ Console:\n    println(\"ok\")\n";
+const MAIN: &str = include_str!("programs/work_report/main.hd");
 
 fn package(name: &str) -> Scratch {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
@@ -318,7 +318,7 @@ fn a_check_discovers_each_module_once() {
     let discovered = |n: usize| -> [u64; 2] {
         let dir = package(&format!("work-discover-{n}"));
         std::fs::create_dir_all(dir.join("tests")).expect("tests");
-        let smoke = "it(\"runs\"):\n    assert(true)\n";
+        let smoke = include_str!("programs/work_report/a_check_discovers_each_module_once.hd");
         std::fs::write(dir.join("tests/smoke.hd"), smoke).expect("write");
         let module = |k: usize, add: usize| format!("pub fn f{k}(x: i32) -> i32:\n    x + {add}\n");
         for k in 0..n {
@@ -355,7 +355,7 @@ fn a_check_discovers_each_module_once() {
 }
 
 /// #1802 draft 31: `HD_TRACE=FILE` writes Chrome trace-event JSON with one
-/// complete event per task, named by its module or folder, and per named
+/// complete event per task, named by its module or unit, and per named
 /// serial phase of the run.
 #[test]
 fn a_trace_names_each_task_and_the_serial_phases() {
@@ -365,7 +365,7 @@ fn a_trace_names_each_task_and_the_serial_phases() {
         .env("HD_CACHE", dir.cache())
         .env("HD_TRACE", &trace)
         .current_dir(&dir)
-        .arg("check")
+        .arg("build")
         .output()
         .expect("run hd");
     assert!(
@@ -382,6 +382,13 @@ fn a_trace_names_each_task_and_the_serial_phases() {
             .any(|e| e["ph"] == "X" && e["cat"] == cat && e["name"] == name && e["dur"].is_u64())
     };
     assert!(named("task", "ModulePrep shop.main"), "{json}");
+    assert!(
+        events.iter().any(|event| event["cat"] == "phase"
+            && event["name"].as_str().is_some_and(
+                |name| name.starts_with("link: units emitted ") && name.contains(", reused ")
+            )),
+        "{json}"
+    );
     for phase in [
         "load package",
         "result key",
@@ -389,6 +396,7 @@ fn a_trace_names_each_task_and_the_serial_phases() {
         "records",
         "publish",
         "settle",
+        "positions section",
     ] {
         assert!(named("phase", phase), "{phase}: {json}");
     }
@@ -397,7 +405,7 @@ fn a_trace_names_each_task_and_the_serial_phases() {
 /// #1802: a cold run reads, hashes and skims its files on the pool before
 /// the task graph starts. Each file's result is its own and taken in file
 /// order, so a cold check prints the same at `--jobs 1` as at `--jobs 8`:
-/// here 24 modules, some with errors, and a folder cycle.
+/// here 24 modules, some with errors, and a unit cycle.
 #[test]
 fn a_cold_check_prints_the_same_at_one_job_and_at_eight() {
     let dir = package("work-cold-jobs");
@@ -406,10 +414,10 @@ fn a_cold_check_prints_the_same_at_one_job_and_at_eight() {
         let text = format!("pub fn f{k}(x: i32) -> i32:\n    {body}\n");
         std::fs::write(dir.join(format!("src/m{k}.hd")), text).expect("write");
     }
-    for (folder, other) in [("a", "b"), ("b", "a")] {
-        std::fs::create_dir_all(dir.join(format!("src/{folder}"))).expect("dir");
+    for (unit, other) in [("a", "b"), ("b", "a")] {
+        std::fs::create_dir_all(dir.join(format!("src/{unit}"))).expect("dir");
         let text = format!("use pkg.{other}.x.{{g}}\n\npub fn g() -> i32:\n    1\n");
-        std::fs::write(dir.join(format!("src/{folder}/x.hd")), text).expect("write");
+        std::fs::write(dir.join(format!("src/{unit}/x.hd")), text).expect("write");
     }
     let run = |jobs: &str| {
         let cache = dir.join(format!("cache-{jobs}"));

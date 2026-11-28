@@ -128,6 +128,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/collections.md` | `std-collections` |
 | `std/console.md` | `std-console` |
 | `std/contract.md` | `std-contract` |
+| `std/convert.md` | `std-convert` |
 | `std/host.md` | `std-host` |
 | `std/fs.md` | `std-fs` |
 | `std/path.md` | `std-path` |
@@ -137,7 +138,11 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/num.md` | `std-num` |
 | `std/error.md` | `std-error` |
 | `std/encoding.md` | `std-encoding` |
-| `std/digest.md` | `std-digest` |
+| `std/crypto.md` | `std-crypto` |
+| `std/crypto-sha512.md` | `std-crypto-sha512` |
+| `std/crypto-aes.md` | `std-crypto-aes` |
+| `std/crypto-cipher.md` | `std-crypto-cipher` |
+| `std/crypto-rand.md` | `std-crypto-rand` |
 | `std/format.md` | `std-format` |
 | `std/hash.md` | `std-hash` |
 | `std/iter.md` | `std-iter` |
@@ -157,6 +162,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/task.md` | `std-task` |
 | `std/sync.md` | `std-sync` |
 | `std/thread.md` | `std-thread` |
+| `std/arena.md` | `std-arena` |
 | [Command Line](cli/command-line.md) | `cli` |
 
 A stdlib chapter's prefix is `std-` and its module name. The CLI tier's

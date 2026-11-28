@@ -171,6 +171,9 @@ impl Topology {
 /// [`Word::Block`]s, a block operand, a block list, a switch's arms, a
 /// `Defer`'s suite.
 pub(crate) fn for_blocks(b: &Body, i: usize, mut f: impl FnMut(u32)) {
+    if !super::slots::RUNS_BLOCKS[b.tags[i] as usize] {
+        return;
+    }
     slots(b, i, |_, x, s| {
         if s == Word::Block && b.tags.get(x as usize) == Some(&Tag::Block) {
             f(x);

@@ -1,7 +1,7 @@
 # test: generic recovery of a plain type works through local and counted erasure
 # Spec 09 Inspectable Types: trait.inspectable.declared, trait.inspectable.counted-reference-type.
 # Spec 09 Recovering A Concrete Type: trait.downcast.shared-local-reference, trait.downcast.copy-through-reference.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     count: i32

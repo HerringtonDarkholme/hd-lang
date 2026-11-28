@@ -8,7 +8,7 @@ import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { byteOrder, fileOperations, resolvePath } from "./node-files.ts";
-import { fixture, netHost } from "./node-test-support.ts";
+import { fixture, netHost, positivePid, signalProcess } from "./node-test-support.ts";
 import { Err, Ok } from "./wire.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
@@ -225,6 +225,155 @@ test("Fs metadata and namespace calls on FIFOs stay inline", fifoTest, (testCont
   assert.deepEqual(write.call("remove", moved), { result: Ok(undefined) });
 });
 
+// A writer that opens the FIFO at once and, on each `send`, writes the
+// bytes and answers "wrote", or the error code of a write that failed;
+// `close` closes its end.
+function fifoWriter(testContext: TestContext, path: string) {
+  const child = spawn(
+    process.execPath,
+    [
+      "-e",
+      `const fs = require('node:fs');
+       const fd = fs.openSync(process.argv[1], 'w');
+       require('node:readline').createInterface({ input: process.stdin }).on('line', (line) => {
+         if (line === 'close') { fs.closeSync(fd); process.exit(0); }
+         try { fs.writeSync(fd, line); console.log('wrote'); }
+         catch (error) { console.log(error.code); }
+       });`,
+      path,
+    ],
+    { stdio: ["pipe", "pipe", "inherit"] },
+  );
+  testContext.after(() => child.kill("SIGKILL"));
+  const answers = child.stdout.setEncoding("utf8")[Symbol.asyncIterator]();
+  let buffered = "";
+  const answer = async (): Promise<string> => {
+    while (!buffered.includes("\n")) {
+      const { value, done } = await answers.next();
+      assert.ok(!done, "the writer answers");
+      buffered += value;
+    }
+    const at = buffered.indexOf("\n");
+    const line = buffered.slice(0, at);
+    buffered = buffered.slice(at + 1);
+    return line;
+  };
+  return {
+    send: (text: string): Promise<string> => {
+      child.stdin.write(`${text}\n`);
+      return answer();
+    },
+    close: () => child.stdin.write("close\n"),
+  };
+}
+function openFifo(testContext: TestContext, api: Dynamic, path: string) {
+  const opening = api.call("open", path);
+  assert.ok(opening.operation, "the open of a FIFO with no writer is pending");
+  siblingClocks(api, [opening.operation]);
+  const writer = fifoWriter(testContext, path);
+  const opened = finishFile(api, "open", opening);
+  assert.equal(opened.ok, true);
+  return { handle: opened.value, writer };
+}
+const dispose = (api: Dynamic, handle: number): void => {
+  assert.deepEqual(api.host.imports["hd:FsRead"]["File.dispose.start"](handle), [0, 0]);
+};
+
+// #2414: `open!` and each `read!` of a FIFO wait off the program thread,
+// so a clock keeps running until the writer comes and until it writes.
+test(
+  "Fs open and File.read of a FIFO wait while sibling clocks advance",
+  fifoTest,
+  async (testContext) => {
+    const path = makeFifo(testContext);
+    const api = netHost(testContext, "hd:FsRead");
+    const { handle, writer } = openFifo(testContext, api, path);
+    const read = api.call("File.read", handle, 64);
+    assert.ok(read.operation, "a read with nothing written is pending");
+    siblingClocks(api, [read.operation]);
+    assert.equal(await writer.send("first chunk"), "wrote");
+    assert.deepEqual(
+      finishFile(api, "File.read", read),
+      Ok(new Uint8Array(Buffer.from("first chunk"))),
+    );
+    // A read asks for at most `max` bytes, and the rest stays in the FIFO.
+    assert.equal(await writer.send("abcdef"), "wrote");
+    const short = finishFile(api, "File.read", api.call("File.read", handle, 4));
+    assert.deepEqual(short, Ok(new Uint8Array(Buffer.from("abcd"))));
+    const rest = finishFile(api, "File.read", api.call("File.read", handle, 64));
+    assert.deepEqual(rest, Ok(new Uint8Array(Buffer.from("ef"))));
+    writer.close();
+    assert.deepEqual(
+      finishFile(api, "File.read", api.call("File.read", handle, 64)),
+      Ok(new Uint8Array()),
+    );
+    dispose(api, handle);
+  },
+);
+
+// #2421 (std-io.read.pending-closed): a dispose answers the pending read
+// `Closed` at once, the descriptor is released, so the writer's next
+// write finds no reader, and no byte reaches the program.
+test("Fs disposing a FIFO file answers its pending read Closed", fifoTest, async (testContext) => {
+  const path = makeFifo(testContext);
+  const api = netHost(testContext, "hd:FsRead");
+  const { handle, writer } = openFifo(testContext, api, path);
+  const read = api.call("File.read", handle, 64);
+  assert.ok(read.operation);
+  siblingClocks(api, [read.operation]);
+  dispose(api, handle);
+  assert.deepEqual(finishFile(api, "File.read", read), Err({ tag: "Closed" }));
+  assert.deepEqual(api.call("File.read", handle, 64), { result: Err({ tag: "Closed" }) });
+  // The helper that held the descriptor is killed; writes go into the
+  // FIFO's buffer until its exit closes the last read end.
+  const until = performance.now() + 5000;
+  let wrote = await writer.send("late");
+  while (wrote === "wrote" && performance.now() < until) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    wrote = await writer.send("late");
+  }
+  assert.equal(wrote, "EPIPE");
+});
+
+// A read the worker answered but the program has not taken is `Closed`
+// after a dispose, as a socket's is (std-net.close.pending-closed).
+test(
+  "Fs a FIFO read answered before a dispose is taken as Closed",
+  fifoTest,
+  async (testContext) => {
+    const path = makeFifo(testContext);
+    const api = netHost(testContext, "hd:FsRead");
+    const { handle, writer } = openFifo(testContext, api, path);
+    const read = api.call("File.read", handle, 64);
+    assert.equal(await writer.send("arrived"), "wrote");
+    while (!api.host.core.st.ops.get(read.operation).completed) {
+      api.host.imports["hd:rt"].block();
+    }
+    dispose(api, handle);
+    assert.deepEqual(api.take("File.read", read), Err({ tag: "Closed" }));
+  },
+);
+
+// An open whose result the program never takes leaves no file: its
+// helper is killed, so the writer's end finds no reader.
+test("Fs an aborted FIFO open leaves no reader behind", fifoTest, async (testContext) => {
+  const path = makeFifo(testContext);
+  const api = netHost(testContext, "hd:FsRead");
+  const opening = api.call("open", path);
+  const writer = fifoWriter(testContext, path);
+  while (!api.host.core.st.ops.get(opening.operation).completed) {
+    api.host.imports["hd:rt"].block();
+  }
+  api.host.imports["hd:rt"].abort(opening.operation);
+  const until = performance.now() + 5000;
+  let wrote = await writer.send("unread");
+  while (wrote === "wrote" && performance.now() < until) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    wrote = await writer.send("unread");
+  }
+  assert.equal(wrote, "EPIPE");
+});
+
 test(
   "Fs finished special-file results can be discarded before guest finish",
   fifoTest,
@@ -266,6 +415,7 @@ test(
         .filter(([, parent]) => parent === process.pid).map(([pid]) => pid);
       // Exclude the ps command itself: it has already exited now.
       const alive = children.filter(pid => {
+        if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error("invalid child pid");
         try { process.kill(pid, 0); return true; } catch { return false; }
       });
       console.log(JSON.stringify(alive));
@@ -288,13 +438,14 @@ test(
     const [code] = await once(child, "close");
     assert.equal(code, 0, Buffer.concat(errors).toString());
     const pids: number[] = JSON.parse(Buffer.concat(bytes).toString());
+    pids.forEach(positivePid);
     assert.equal(pids.length, 1, "one blocked file helper was started");
     // The old helper orphaned its synchronous FIFO open here. Clean up on
     // failure too, so a regression cannot leave a blocked process behind.
     const alive = () =>
       pids.filter((pid) => {
         try {
-          process.kill(pid, 0);
+          signalProcess(pid, 0);
           return true;
         } catch {
           return false;
@@ -302,7 +453,7 @@ test(
       });
     testContext.after(() => {
       for (const pid of alive()) {
-        process.kill(pid, "SIGKILL");
+        signalProcess(pid, "SIGKILL");
       }
     });
     const until = performance.now() + 3000;

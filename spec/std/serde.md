@@ -2,7 +2,7 @@
 
 Status: standard library specification draft.
 
-This chapter defines the part of `std.serde` that `lib/std` writes in
+This chapter defines the part of `std.encoding` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the data model: what each `Serializer` call writes, and what each
@@ -21,7 +21,7 @@ boundary reads the implementation's output, not the field tree
 A format sees one value as a tree of calls on its writer:
 
 ```text
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 
 fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[void, W::Error]:
     out.begin_list(2)?
@@ -91,7 +91,7 @@ A `Deserializer` reads the same tree, one call per value:
 6. r[std-serde.read.next-field.args] `next_field`'s `id` is the record's member directory id, [`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id), so every record of one type passes the same `id`. `guess` is the index of the member after the one the previous key named, or 0 before the first key.
 
 ```text
-use std.serde.Deserializer
+use std.encoding.Deserializer
 
 fn read_text_or_empty[R < Deserializer](input: &mut R) -> Result[string, R::Error]:
     match input.peek()?:
@@ -116,9 +116,9 @@ writer or reader with a value's members. For the `Session` of
 | --- | --- |
 | `Session { user: "ada", token: "t", expires_at: 9 }` | `begin_data`, `member` for `user`, `text("ada")`, `member` for `token`, `text("t")`, `member` for `expires_at`, `int(9)`, `end_data()` |
 
-1. r[std-serde.derive.serialize.template] `std.serde` declares the template of `Serialize`, which `@derive(Serialize)` instantiates.
+1. r[std-serde.derive.serialize.template] `std.encoding` declares the template of `Serialize`, which `@derive(Serialize)` instantiates.
 2. r[std-serde.derive.serialize.data-and-enum-forms] Derived `serialize` writes every included walked member in declaration order. A struct uses `begin_data`, `member(m)` before each value, and `end_data`. A unit, named, or mixed positional-and-named enum variant uses `begin_variant`, `member(m)` before each value, and `end_variant`. A pure positional variant uses this derivation's included positional-member count. Zero uses the unit record form, one uses `begin_newtype_variant`, and more uses `begin_tuple_variant` with that count. Every enum form ends with `end_variant`.
-3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
+3. r[std-serde.derive.deserialize.template] `std.encoding` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
 4. r[std-serde.derive.deserialize.data-and-enum-forms] Derived `deserialize` offers a struct's one variant to `begin_data`, reads every unskipped built member in declaration order through `member(m)`, and calls `end_data`. For an enum it offers every variant to `begin_variant`, selects the same included-member form as serialization, reads every unskipped built member in declaration order, and calls `end_variant`. Enum record forms call `member(m)` before each value, a newtype form reads its direct value, and a tuple form calls `next_item()` before each direct value.
 5. r[std-serde.derive.deserialize.keyed-order] When the reader's `keyed()` is `true`, a struct or an enum record form reads its unskipped built members in the order `next_field` names them, in place of declaration order and `member(m)`. After the last key it calls `absent_field(m, facts)` for each unskipped built member no key named, in declaration order, and then reads that member.
 6. r[std-serde.derive.deserialize.keyed-duplicate] When `next_field` names a member that an earlier key of the same record named, derived `deserialize` returns `duplicate_field()`'s error and reads nothing more.
@@ -128,8 +128,8 @@ writer or reader with a value's members. For the `Session` of
 10. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
 
 ```text
-use std.serde.{Serialize, Deserialize}
-use std.structure.Structure
+use std.encoding.{Serialize, Deserialize}
+use std.meta.Structure
 
 struct Cache:
     hits: i64
@@ -156,7 +156,7 @@ impl Deserialize for Session by Structure:
 A member's **wire name** is its name in a document format.
 For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
 
-1. r[std-serde.rename.fact] `std.serde` exports the field fact `Rename` with the public field `name: string`.
+1. r[std-serde.rename.fact] `std.encoding` exports the field fact `Rename` with the public field `name: string`.
 2. r[std-serde.rename.constructor] `rename(name: string) -> Rename` constructs a fact with that name.
 3. r[std-serde.member-name.precedence] A member's wire name uses its `Rename.name` first, its container's `RenameAll` style second, and its source name otherwise.
 4. r[std-serde.rename.metadata] `Member.name` retains the source member name, and document formats read `Rename` from `Member.facts`.
@@ -223,7 +223,7 @@ variants. With no fact, the format keeps its ordinary externally tagged form.
 `MapKey` converts a map key to and from a format-neutral scalar:
 
 ```text
-use std.serde.{MapKey, MapKeyValue}
+use std.encoding.{MapKey, MapKeyValue}
 
 struct Language:
     code: string
@@ -243,7 +243,7 @@ impl MapKey for Language:
 5. r[std-serde.map-key.reader-default] `Deserializer.next_map_key` defaults to wrapping `next_key`'s text in `MapKeyValue.Text`.
 6. r[std-serde.map-key.builtins] `string`, every integer type, `char`, and `bool` implement `MapKey` with their matching scalar kind.
 7. r[std-serde.map-key.user-text] A user implementation uses `Text` for its public text representation and accepts that representation from `Text`.
-8. r[std-serde.map-key.derive-template] `std.serde` declares the template of `MapKey`, which `@derive(MapKey)` instantiates.
+8. r[std-serde.map-key.derive-template] `std.encoding` declares the template of `MapKey`, which `@derive(MapKey)` instantiates.
 9. r[std-serde.map-key.derive-shapes] Derived `MapKey` accepts a payload-free enum or an empty struct and uses the selected variant or struct name as `Text`.
 10. r[std-serde.map-key.derive-payload-reject] Derived `MapKey` rejects an enum variant or struct that has a member.
 11. r[std-serde.map-key.no-standard-impl] Floats, lists, and other user data types have no standard `MapKey` implementation.
@@ -256,7 +256,7 @@ impl MapKey for Language:
 The typed `SkipNone` fact omits an optional member only when it is absent.
 For example, `@skip_none()` on `note: string?` omits the key for `.None`.
 
-1. r[std-serde.skip-none.fact.phantom] `std.serde` exports the member-typed field fact `SkipNone[F]` for the field type `F`. It has no value field; `F` records only which member type the fact may annotate.
+1. r[std-serde.skip-none.fact.phantom] `std.encoding` exports the member-typed field fact `SkipNone[F]` for the field type `F`. It has no value field; `F` records only which member type the fact may annotate.
 2. r[std-serde.skip-none.constructor] `skip_none[T]() -> SkipNone[T?]` constructs the fact for an optional field, checked by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check).
 3. r[std-serde.skip-none.absence.default] `Serialize` declares `is_absent(&self) -> bool`, whose default body returns `false`.
 4. r[std-serde.skip-none.absence.optional] The standard `Serialize` implementation for `T?` overrides `is_absent` to return `true` exactly for `.None`.
@@ -280,7 +280,7 @@ For example, `@skip_none()` on `note: string?` omits the key for `.None`.
 The `Skip` field fact omits a member from its serde view.
 For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 
-1. r[std-serde.skip.fact] `std.serde` exports the field fact `Skip` with no fields.
+1. r[std-serde.skip.fact] `std.encoding` exports the field fact `Skip` with no fields.
 2. r[std-serde.skip.constructor] `skip() -> Skip` constructs the fact.
 3. r[std-serde.skip.write] Derived serialization omits a member with `Skip` without calling its serializer or the format's `member` method for it.
 4. r[std-serde.skip.named-read-default] Derived deserialization fills a skipped named member from its declared default without positioning or decoding its input, even when a key is present.
@@ -303,7 +303,7 @@ A format can write a value directly when it knows the walk ahead of time.
 `Serialize.regular()` says so for a type:
 
 ```text
-use std.json.encode
+use std.encoding.json.encode
 
 @derive(Serialize)
 struct Point:
@@ -327,7 +327,7 @@ encode(Point { x: 1, y: 2 })   # Point::regular() is true: TextWriter alone writ
 
 ## Standard Implementations
 
-`std.serde` implements both traits for these types:
+`std.encoding` implements both traits for these types:
 
 | Rule | Type | `serialize` writes | `deserialize` reads, with `expected` |
 | --- | --- | --- | --- |
@@ -355,7 +355,7 @@ encode(Point { x: 1, y: 2 })   # Point::regular() is true: TextWriter alone writ
 8. r[std-serde.std.map-key-missing] Using a map key without `MapKey` where a serde trait is required is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
-use std.serde.Serialize
+use std.encoding.Serialize
 
 @derive(Eq, Hash)
 struct Point:

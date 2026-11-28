@@ -8,14 +8,18 @@ use hd_base::FileId;
 use hd_diag::{Code, DiagBuf};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_project::UseRoots;
-use hd_resolve::{Cx, FolderIface, KnownItems, ModIn, Names, Src, World, build_folder, show_ty};
+use hd_resolve::{Cx, KnownItems, ModIn, Names, Src, UnitIface, World, build_unit, show_ty};
 use hd_syntax::parse;
 use hd_types::{ConstValue, InternPool, ParamRef, Prim, TyData};
 
-struct OneFolder;
+struct OneUnit;
 
-impl World for OneFolder {
-    fn module_folder(&self, module: &str) -> Option<u32> {
+impl World for OneUnit {
+    fn import_hints(&self) -> hd_resolve::iface::ImportHints<'_> {
+        hd_resolve::iface::ImportHints::Index(&hd_resolve::iface::EMPTY_IMPORT_INDEX)
+    }
+
+    fn module_unit(&self, module: &str) -> Option<u32> {
         (module == "app").then_some(0)
     }
 
@@ -27,7 +31,11 @@ impl World for OneFolder {
         false
     }
 
-    fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+    fn published(&self, module: &str) -> Option<bool> {
+        self.usable(module).then_some(false)
+    }
+
+    fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
         None
     }
 }
@@ -50,8 +58,8 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
     };
     let cx = Cx {
         names,
-        folder: 0,
-        world: &OneFolder,
+        unit: 0,
+        world: &OneUnit,
     };
     let src = Src {
         parse: &parsed,
@@ -67,7 +75,7 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, &mut diags);
+    let out = build_unit(&cx, &[input], None, &mut diags);
     assert_eq!(
         diags
             .content_order()
@@ -116,8 +124,8 @@ fn resolve_with(
     assert!(parsed.is_ok());
     let cx = Cx {
         names,
-        folder: 0,
-        world: &OneFolder,
+        unit: 0,
+        world: &OneUnit,
     };
     let input = ModIn {
         path: "app".to_owned(),
@@ -132,7 +140,7 @@ fn resolve_with(
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, &mut diags);
+    let out = build_unit(&cx, &[input], None, &mut diags);
     let codes = diags
         .content_order()
         .into_iter()
@@ -217,8 +225,8 @@ fn header_const_arguments_classify_bad_names() {
     assert!(parsed.is_ok());
     let cx = Cx {
         names,
-        folder: 0,
-        world: &OneFolder,
+        unit: 0,
+        world: &OneUnit,
     };
     let input = ModIn {
         path: "app".to_owned(),
@@ -233,7 +241,7 @@ fn header_const_arguments_classify_bad_names() {
         session: None,
     };
     let mut diags = DiagBuf::default();
-    build_folder(&cx, &[input], None, &mut diags);
+    build_unit(&cx, &[input], None, &mut diags);
     let order = diags.content_order();
     assert_eq!(
         order
@@ -378,8 +386,8 @@ fn a_named_constant_chain_evaluates_at_any_length_and_a_cycle_names_its_binding(
     assert!(parsed.is_ok());
     let cx = Cx {
         names,
-        folder: 0,
-        world: &OneFolder,
+        unit: 0,
+        world: &OneUnit,
     };
     let input = ModIn {
         path: "app".to_owned(),
@@ -394,7 +402,7 @@ fn a_named_constant_chain_evaluates_at_any_length_and_a_cycle_names_its_binding(
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, &mut diags);
+    let out = build_unit(&cx, &[input], None, &mut diags);
     let order = diags.content_order();
     assert_eq!(
         order

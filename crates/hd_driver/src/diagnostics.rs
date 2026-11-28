@@ -32,6 +32,17 @@ pub struct Fix {
     pub exact: bool,
 }
 
+/// A secondary source span and its short label, separate from the message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Label {
+    pub message: String,
+    pub file: Option<String>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+}
+
 /// One diagnostic. A command-line error has no code; a diagnostic that no
 /// source text causes has no file (`cli.json.diagnostic.no-position`).
 /// Lines and columns are 1-based; a column counts characters. The end is
@@ -48,6 +59,7 @@ pub struct Diag {
     pub end_line: Option<usize>,
     pub end_column: Option<usize>,
     pub fixes: Vec<Fix>,
+    pub labels: Vec<Label>,
 }
 
 impl Diag {
@@ -68,6 +80,7 @@ impl Diag {
             end_line: None,
             end_column: None,
             fixes: Vec::new(),
+            labels: Vec::new(),
         }
     }
 
@@ -110,18 +123,29 @@ impl Diag {
             let _ = write!(s, "{}: ", code.as_str());
         }
         s.push_str(&self.message);
+        for label in &self.labels {
+            let _ = write!(s, "\n    note: ");
+            if let Some(file) = &label.file {
+                s.push_str(file);
+                if let Some(line) = label.line {
+                    let _ = write!(s, ":{line}:{}", label.column.unwrap_or(1));
+                }
+                s.push_str(": ");
+            }
+            s.push_str(&label.message);
+        }
         for f in &self.fixes {
             let _ = write!(s, "\n    fix: {}", f.message);
         }
         s
     }
 
-    /// The JSON line (`cli.json.diagnostic.fields`, `cli.json.diagnostic.fixes`).
+    /// The JSON line (`cli.json.diagnostic.fields`, `cli.json.diagnostic.nonempty-fixes`).
     #[must_use]
     pub fn json(&self) -> String {
         let opt_num = |n: Option<usize>| n.map_or_else(|| "null".to_owned(), |n| n.to_string());
         let mut s = format!(
-            "{{\"kind\":\"diagnostic\",\"code\":{},\"severity\":\"{}\",\"message\":{},\"file\":{},\"line\":{},\"column\":{},\"fixes\":[",
+            "{{\"kind\":\"diagnostic\",\"code\":{},\"severity\":\"{}\",\"message\":{},\"file\":{},\"line\":{},\"column\":{}",
             self.code
                 .map_or_else(|| "null".to_owned(), |c| quote(c.as_str())),
             self.severity_word(),
@@ -132,32 +156,58 @@ impl Diag {
             opt_num(self.line),
             opt_num(self.column),
         );
-        for (n, f) in self.fixes.iter().enumerate() {
-            if n > 0 {
-                s.push(',');
+        if !self.fixes.is_empty() {
+            s.push_str(",\"fixes\":[");
+            for (n, f) in self.fixes.iter().enumerate() {
+                if n > 0 {
+                    s.push(',');
+                }
+                let guess = !f.exact || self.fixes.len() > 1;
+                let _ = write!(
+                    s,
+                    "{{\"message\":{},\"guess\":{guess},\"edits\":[",
+                    quote(&f.message)
+                );
+                for (m, e) in f.edits.iter().enumerate() {
+                    if m > 0 {
+                        s.push(',');
+                    }
+                    let _ = write!(
+                        s,
+                        "{{\"file\":{},\"start\":{},\"end\":{},\"text\":{}}}",
+                        quote(&e.file),
+                        e.start,
+                        e.end,
+                        quote(&e.text)
+                    );
+                }
+                s.push_str("]}");
             }
-            let guess = !f.exact || self.fixes.len() > 1;
-            let _ = write!(
-                s,
-                "{{\"message\":{},\"guess\":{guess},\"edits\":[",
-                quote(&f.message)
-            );
-            for (m, e) in f.edits.iter().enumerate() {
-                if m > 0 {
+            s.push(']');
+        }
+        if !self.labels.is_empty() {
+            s.push_str(",\"labels\":[");
+            for (n, label) in self.labels.iter().enumerate() {
+                if n > 0 {
                     s.push(',');
                 }
                 let _ = write!(
                     s,
-                    "{{\"file\":{},\"start\":{},\"end\":{},\"text\":{}}}",
-                    quote(&e.file),
-                    e.start,
-                    e.end,
-                    quote(&e.text)
+                    "{{\"message\":{},\"file\":{},\"line\":{},\"column\":{},\"end_line\":{},\"end_column\":{}}}",
+                    quote(&label.message),
+                    label
+                        .file
+                        .as_deref()
+                        .map_or_else(|| "null".to_owned(), quote),
+                    opt_num(label.line),
+                    opt_num(label.column),
+                    opt_num(label.end_line),
+                    opt_num(label.end_column)
                 );
             }
-            s.push_str("]}");
+            s.push(']');
         }
-        s.push_str("]}");
+        s.push('}');
         s
     }
 }
@@ -233,6 +283,26 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
                 end_line: end.map(|p| p.0),
                 end_column: end.map(|p| p.1),
                 fixes,
+                labels: d
+                    .labels(i)
+                    .iter()
+                    .map(|(span, message)| {
+                        let file = file_of(*span);
+                        let (_, line, column) = out.locate(*span);
+                        let (_, end_line, end_column) = out.locate(Span {
+                            lo: span.hi,
+                            ..*span
+                        });
+                        Label {
+                            message: out.user_text(message),
+                            line: file.as_ref().map(|_| line),
+                            column: file.as_ref().map(|_| column),
+                            end_line: file.as_ref().map(|_| end_line),
+                            end_column: file.as_ref().map(|_| end_column),
+                            file,
+                        }
+                    })
+                    .collect(),
             }
         })
         .collect()
@@ -265,26 +335,7 @@ pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
     }
 }
 
-/// A JSON string literal.
-#[must_use]
-pub fn quote(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if u32::from(c) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", u32::from(c));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
+pub use hd_diag::quote;
 
 /// `diags` as bytes that [`decode`] reads back equal, for a caller that
 /// stores a report under a [`crate::ResultKey`].
@@ -324,6 +375,20 @@ pub fn encode(diags: &[Diag]) -> Vec<u8> {
                 w.u32(e.start);
                 w.u32(e.end);
                 w.str(&e.text);
+            }
+        }
+        w.len_of(&d.labels);
+        for label in &d.labels {
+            w.str(&label.message);
+            match &label.file {
+                None => w.u8(0),
+                Some(file) => {
+                    w.u8(1);
+                    w.str(file);
+                }
+            }
+            for value in [label.line, label.column, label.end_line, label.end_column] {
+                opt(&mut w, value);
             }
         }
     }
@@ -368,6 +433,16 @@ pub fn decode(bytes: &[u8]) -> Option<Vec<Diag>> {
                     .collect(),
             })
             .collect();
+        let labels = (0..r.count())
+            .map(|_| Label {
+                message: r.str().to_owned(),
+                file: (r.u8() != 0).then(|| r.str().to_owned()),
+                line: opt(&mut r),
+                column: opt(&mut r),
+                end_line: opt(&mut r),
+                end_column: opt(&mut r),
+            })
+            .collect();
         out.push(Diag {
             code,
             severity,
@@ -378,169 +453,8 @@ pub fn decode(bytes: &[u8]) -> Option<Vec<Diag>> {
             end_line,
             end_column,
             fixes,
+            labels,
         });
     }
     (r.ok() && r.at_end()).then_some(out)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Code, Edit, Fix, Severity};
-
-    #[test]
-    fn encoded_diagnostics_decode_equal() {
-        let mut warned = Diag::new(Some(Code::UnknownName), Severity::Warning, "w");
-        warned.file = Some("src/a.hd".to_owned());
-        (
-            warned.line,
-            warned.column,
-            warned.end_line,
-            warned.end_column,
-        ) = (Some(1), Some(2), Some(3), Some(4));
-        warned.fixes.push(Fix {
-            message: "fix".to_owned(),
-            exact: true,
-            edits: vec![Edit {
-                file: "src/a.hd".to_owned(),
-                start: 1,
-                end: 2,
-                text: "é".to_owned(),
-            }],
-        });
-        let diags = vec![warned, Diag::error(None, "no code")];
-        assert_eq!(super::decode(&super::encode(&diags)), Some(diags));
-        assert_eq!(super::decode(&[1, 0, 0]), None);
-    }
-
-    #[test]
-    fn json_marks_uncertain_and_ranked_repairs_as_guesses_after_cache_decode() {
-        let mut d = Diag::error(Some(Code::MixedSignedness), "choose an integer family");
-        let fix = |message: &str, exact| Fix {
-            message: message.into(),
-            exact,
-            edits: vec![Edit {
-                file: "main.hd".into(),
-                start: 0,
-                end: 0,
-                text: "i64(".into(),
-            }],
-        };
-        d.fixes.push(fix("unambiguous", true));
-        assert!(d.json().contains("\"guess\":false"));
-        d.fixes[0].exact = false;
-        assert!(d.json().contains("\"guess\":true"));
-        d.fixes[0].exact = true;
-        d.fixes.push(fix("alternative", true));
-        let encoded = super::encode(&[d.clone()]);
-        assert_eq!(super::decode(&encoded), Some(vec![d.clone()]));
-        assert_eq!(d.json().matches("\"guess\":true").count(), 2);
-        assert!(d.json().find("unambiguous") < d.json().find("alternative"));
-    }
-
-    use hd_base::{DefId, NodeIdx, NotImplemented, Stage};
-    use hd_diag::DiagBuf;
-    use hd_tir::ir::{BodyKind, TirBuilder, TirSink, VerifyError};
-    use hd_types::Ty;
-
-    use super::{Diag, report_stop};
-
-    /// A body whose reserved slot stays empty fails the TIR verifier; the
-    /// stop reads as a compiler bug with no code, never as `unsupported`.
-    #[test]
-    fn a_verifier_failure_reports_an_internal_error() {
-        let mut b = TirBuilder::new(DefId::from_raw(0), BodyKind::Fn);
-        let blk = b.open_block();
-        let slot = b.reserve();
-        let root = b.close_block(blk, Some(slot.as_ref()), Ty::VOID, NodeIdx::NONE);
-        let errs = b.finish(root, &[]).expect_err("an unfilled slot");
-        assert!(errs.iter().any(|e| e.invariant == 14), "{errs:?}");
-        let mut diags = DiagBuf::default();
-        let stop = VerifyError::bug(Stage::Body, "TIR verifier", &errs);
-        report_stop(&mut diags, Stage::Body, &stop);
-        assert!(diags.is_internal(0));
-        let text = Diag::error(diags.shown_code(0), diags.get_text(diags.message[0])).text();
-        assert!(
-            text.starts_with(
-                "error: internal-error: the compiler hit a bug in stage Body (TIR verifier: invariant 14 at %"
-            ),
-            "{text}"
-        );
-        assert!(text.ends_with("); please report it"), "{text}");
-        assert!(!text.contains("unsupported"), "{text}");
-        // A construct this build lacks still reads as `unsupported`.
-        report_stop(
-            &mut diags,
-            Stage::Emit,
-            &NotImplemented::new(Stage::Emit, "x"),
-        );
-        assert!(!diags.is_internal(1));
-    }
-
-    #[test]
-    fn a_std_instance_invariant_keeps_its_file_in_single_file_diagnostics() {
-        use hd_base::{FileId, Span};
-        use hd_project::MemorySources;
-        let mut sources = MemorySources::default();
-        sources.insert("param.hd", "pub fn main() -> void:\n    pass\n");
-        let store = crate::warm_std_store();
-        let host = crate::Host {
-            render_tir: &[],
-            sources: &sources,
-            store: &store,
-            clock: &crate::NoClock,
-            executor: crate::Executor::Serial(hd_sched::SerialOrder::Priority),
-        };
-        let mut out = crate::build(&host, "app", &crate::Goal::Analyze);
-        assert!(!out.diags.has_errors(), "{}", out.render());
-        let file = out.files.iter().position(|f| f == "<std>/ops.hd").unwrap();
-        let text = &out.texts[file];
-        let body = text.find("    fn default() -> bool:\n").unwrap();
-        let lo = body + text[body..].find("false").unwrap();
-        let span = Span {
-            file: FileId::from_raw(u32::try_from(file).unwrap()),
-            lo: u32::try_from(lo).unwrap(),
-            hi: u32::try_from(lo + 5).unwrap(),
-        };
-        let finding = VerifyError {
-            invariant: 24,
-            inst: 2,
-            what: "injected std instance finding".into(),
-        };
-        let stop = VerifyError::bug(Stage::Collect, "instance", &[finding]).at(span);
-        report_stop(&mut out.diags, Stage::Collect, &stop);
-        let user = Span {
-            file: FileId::from_raw(
-                u32::try_from(out.files.iter().position(|f| f == "param.hd").unwrap()).unwrap(),
-            ),
-            lo: 0,
-            hi: 3,
-        };
-        out.diags
-            .error(Code::TypeMismatch, user, "injected input finding");
-        out.diags.add_fix(
-            "cross-file edit",
-            hd_diag::FixSafety::Exact,
-            &[(span, "true")],
-        );
-        let reported = super::from_output(&out, Some("scratch/param.hd"));
-        let std = reported
-            .iter()
-            .find(|d| d.message.contains("invariant 24"))
-            .unwrap();
-        assert_eq!(std.file.as_deref(), Some("<std>/ops.hd"));
-        let (_, line, column) = out.locate(span);
-        assert!(line > 2);
-        assert_eq!((std.line, std.column), (Some(line), Some(column)));
-        assert!(std.json().contains("\"file\":\"<std>/ops.hd\""));
-        assert!(
-            std.text()
-                .contains(&format!("<std>/ops.hd:{line}:{column}"))
-        );
-        let input = reported
-            .iter()
-            .find(|d| d.message == "injected input finding")
-            .unwrap();
-        assert_eq!(input.file.as_deref(), Some("scratch/param.hd"));
-        assert_eq!(input.fixes[0].edits[0].file, "<std>/ops.hd");
-    }
 }

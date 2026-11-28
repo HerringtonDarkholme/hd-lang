@@ -1,0 +1,78 @@
+# test: a truncated or malformed value is its error at its position in the stream, and the stream ends after it
+# Spec std/json Decoding A Stream: std-json.stream.error, std-json.stream.position, std-json.stream.after-error, std-json.stream.read-error.
+use std.encoding.json.{Json, JsonError, Number, StreamError, decode_stream}
+use std.io.{Cursor, IoError, Read}
+
+# A source whose second read fails.
+struct Failing:
+    reads: usize
+
+impl Read for Failing:
+    fn read!(&mut self, max: usize) -> Result[List[u8], IoError]:
+        self.reads = self.reads + 1
+        if self.reads == 1:
+            return .Ok("[1] [".to_utf8())
+        .Err(IoError.Other(message="disk gone"))
+
+fn values![R < Read](source: R) -> List[Result[Json, StreamError]]:
+    let mut stream = decode_stream(source)
+    let mut found: List[Result[Json, StreamError]] = []
+    while true:
+        match stream.next!():
+            .Some(value) => found.push(value)
+            .None => break
+    found
+
+tests:
+    use std.testing.assert_equal
+
+    it("a value the source ends inside is UnexpectedEnd at the stream's length"):
+        text := "[1] {\"a\": [1, 2"
+        assert_equal(
+            values!(Cursor::new(text.to_utf8())),
+            [
+                .Ok(Json.Array([Json.Number(Number::from_i64(1))])),
+                .Err(StreamError.Json(JsonError.UnexpectedEnd(text.len()))),
+            ],
+            reason="the truncated object",
+        )
+
+    it("a malformed value is its error at its stream position, then the end"):
+        assert_equal(
+            values!(Cursor::new("true [1 2] 3".to_utf8())),
+            [.Ok(Json.Bool(true)), .Err(StreamError.Json(JsonError.UnexpectedCharacter(8)))],
+            reason="the second element has no comma",
+        )
+        assert_equal(
+            values!(Cursor::new("1 ] 2".to_utf8())),
+            [
+                .Ok(Json.Number(Number::from_i64(1))),
+                .Err(StreamError.Json(JsonError.UnexpectedCharacter(2))),
+            ],
+            reason="a bracket that opens nothing",
+        )
+        assert_equal(
+            values!(Cursor::new("nul".to_utf8())),
+            [.Err(StreamError.Json(JsonError.UnexpectedEnd(3)))],
+            reason="a truncated word",
+        )
+
+    it("bytes that are not UTF-8 are UnexpectedCharacter at the bad byte"):
+        assert_equal(
+            values!(Cursor::new([49, 32, 34, 255, 34])),
+            [
+                .Ok(Json.Number(Number::from_i64(1))),
+                .Err(StreamError.Json(JsonError.UnexpectedCharacter(3))),
+            ],
+            reason="0xFF inside a string",
+        )
+
+    it("a failed read is StreamError.Read, then the end"):
+        assert_equal(
+            values!(Failing { reads: 0 }),
+            [
+                .Ok(Json.Array([Json.Number(Number::from_i64(1))])),
+                .Err(StreamError.Read(IoError.Other(message="disk gone"))),
+            ],
+            reason="the second read fails",
+        )

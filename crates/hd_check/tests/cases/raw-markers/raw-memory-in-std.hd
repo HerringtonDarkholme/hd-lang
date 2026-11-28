@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# @build: std
+# A `Ptr[T]` holds the value of `T` at its address, and a `Buffer[T]` keeps
+# its room behind a `Ptr[T]` field, so a marker counts those values as
+# held (`module.marker.address`).
+use std.meta.{Send, Sync}
+use std.rt.memory.{Buffer, Ptr}
+
+fn need_send[T < ?Copy & Send]() -> void:
+    pass
+
+fn need_sync[T < ?Copy & Sync]() -> void:
+    pass
+
+fn held() -> void:
+    need_send::[Buffer[*mut i32]]()
+    need_sync::[Buffer[string]]()
+    need_send::[Ptr[*mut i32]]()
+    need_sync::[Ptr[string]]()
+
+fn plain() -> void:
+    need_send::[Buffer[i32]]()
+    need_sync::[Buffer[u8]]()
+    need_send::[Ptr[string]]()
+    need_sync::[Ptr[u64]]()

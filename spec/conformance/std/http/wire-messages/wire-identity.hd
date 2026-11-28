@@ -1,5 +1,5 @@
 # test: wire client identities are public records used by wire requests
-use std.http_wire.{WireIdentity, WireRequest}
+use std.http.{WireIdentity, WireRequest}
 
 tests:
     use std.testing.assert_equal

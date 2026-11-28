@@ -1,0 +1,40 @@
+# @dump: diagnostics
+# A typo with two equally close candidates, or none within
+# `max(len, 3) / 3` edits, gets no "did you mean" and no fix-it, for each
+# kind of name. A shorthand field names its binding too, so it gets the
+# hint but no fix-it.
+struct Pair:
+    ab: i32
+    ac: i32
+
+enum Two:
+    Ab
+    Ac
+
+struct Ax:
+    x: i32
+
+struct Ay:
+    x: i32
+
+impl Pair:
+    fn left(self) -> i32: self.ab
+    fn lift(self) -> i32: self.ac
+
+fn ties(ab: i32, ac: i32, p: Pair, t: Two) -> i32:
+    let q: Az = Ax { x: 1 }
+    let s = p.ad + p.lft()
+    match t:
+        .Ad => ad
+        .Ab => 0
+
+fn far(x: i32, f: f64) -> i32:
+    let m = x.nope() + i32::MAX + x.sin()
+    10.min(3)
+
+struct Solo:
+    yval: i32
+
+fn shorthand(s: Solo) -> i32:
+    let Solo { yvl } = s
+    Solo { yvl }.yval

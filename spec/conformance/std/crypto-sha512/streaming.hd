@@ -1,0 +1,38 @@
+# test: SHA-512 hashes empty, FIPS abc and split multi-block messages, retaining state after finish
+use std.crypto.sha512.{sha512, Sha512}
+
+fn checksum(message: List[u8]) -> string:
+    sha512(message).to_hex()
+
+fn chunks(first: List[u8], second: List[u8]) -> string:
+    Sha512::new().update(first).update(second).finish().to_hex()
+
+tests:
+    it("SHA-512 one-shot and streaming"):
+        assert_equal(
+            checksum([]),
+            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+            reason="empty",
+        )
+        assert_equal(
+            chunks([97], [98, 99]),
+            "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+            reason="FIPS abc",
+        )
+        message := [for index in 0..257 => u8(index)]
+        hasher := Sha512::new().update(message.slice(0, 112))
+        first := hasher.finish()
+        assert(first == hasher.finish(), reason="non-destructive finish")
+        hasher.update(message.slice(112, message.len()))
+        assert(hasher.finish() == sha512(message), reason="multi-block continuation")
+
+    it("HMAC-SHA512 accepts empty and overlong keys and streams"):
+        key := [for _ in 0..131 => u8(0xaa)]
+        let message: List[u8] = "Test Using Larger Than Block-Size Key - Hash Key First".bytes()
+            .collect()
+        expected := "80b24263c7c1a3ebb71493c1dd7be8b49b46d1f41b4aeec1121b013783f8f3526b56d037e05f2598bd0fd2215d6a1e5295e64f73f63f0aec8b915a985d786598"
+        hasher := Sha512::hmac(key).update(message.slice(0, 7))
+        hasher.update(message.slice(7, message.len()))
+        assert_equal(hasher.finish().to_hex(), expected, reason="RFC 4231 case 6")
+        assert_equal(hasher.finish().to_hex(), expected, reason="repeat keyed finish")
+        assert(Sha512::hmac([]).update([]).finish().bytes.len() == 64, reason="empty key/message")

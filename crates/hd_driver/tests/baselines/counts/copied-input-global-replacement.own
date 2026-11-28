@@ -8,7 +8,7 @@ app/main/replace_after_copy
   %3 = Store [@app/main/saved] "new" : ()
   %4 = Release %3 Operation #3 : ()
   %5 = Read borrow [$0] : string
-  %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+  %6 = Call std/core/bytes_len[] (%5) : usize
   %7 = Break L0 %6 : never
   %8 = Block - : usize
   %9 = Scope %8 [] : usize

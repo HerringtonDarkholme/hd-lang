@@ -31,7 +31,7 @@ use crate::body::Ck;
 /// happens a bounded number of times per site, so a value that leaves it
 /// unchanged costs a constant. An undo log lets a trial roll back.
 #[derive(Default)]
-pub(crate) struct Joins {
+pub struct Joins {
     sites: HashMap<Ty, Site>,
     log: Vec<Undo>,
 }
@@ -58,11 +58,11 @@ struct Joined {
 }
 
 #[derive(Clone, Copy)]
-struct DeferredTry {
-    operand: (Ref, Ty),
-    payload: Ty,
-    slot: Slot,
-    at: (NodeIdx, NodeIdx),
+pub struct DeferredTry {
+    pub operand: (Ref, Ty),
+    pub payload: Ty,
+    pub slot: Slot,
+    pub at: (NodeIdx, NodeIdx),
 }
 
 enum Undo {
@@ -80,7 +80,7 @@ impl Joins {
         self.sites.contains_key(&var)
     }
 
-    fn open(&mut self, var: Ty) {
+    pub fn open(&mut self, var: Ty) {
         self.sites.insert(var, Site::default());
         self.log.push(Undo::Open(var));
     }
@@ -111,14 +111,15 @@ impl Joins {
         }
     }
 
-    fn defer(&mut self, var: Ty, deferred: DeferredTry) {
+    pub fn defer(&mut self, var: Ty, deferred: DeferredTry) {
         if let Some(site) = self.sites.get_mut(&var) {
             site.deferred.push(deferred);
             self.log.push(Undo::Deferred(var));
         }
     }
 
-    fn deferred(&self, var: Ty) -> &[DeferredTry] {
+    #[must_use]
+    pub fn deferred(&self, var: Ty) -> &[DeferredTry] {
         self.sites.get(&var).map_or(&[], |site| &site.deferred)
     }
 
@@ -140,12 +141,13 @@ impl Joins {
     }
 
     /// A position in the log to roll back to.
-    pub(crate) fn mark(&self) -> usize {
+    #[must_use]
+    pub fn mark(&self) -> usize {
         self.log.len()
     }
 
     /// Undoes everything logged after `mark`.
-    pub(crate) fn rollback(&mut self, mark: usize) {
+    pub fn rollback(&mut self, mark: usize) {
         while self.log.len() > mark {
             match self.log.pop() {
                 Some(Undo::Open(v)) => {
@@ -526,7 +528,7 @@ impl Ck<'_, '_> {
     /// `types.lct.no-combine` rules out. A reference's own referent unifies
     /// too. The inference table shares its explicit pair walk and row
     /// invalidation memo with ordinary unification.
-    fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
+    pub(crate) fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
         let pool = self.pool();
         self.infer.unify_join(pool, a, b).is_ok()
     }
@@ -579,7 +581,7 @@ impl Ck<'_, '_> {
     /// values take the union of their rows
     /// (`types.lct.row-union-every-site`); below it rows are invariant
     /// (`types.variance.function`, `req.row.union.literal.direct`).
-    fn lct_meet(&self, a: Ty, b: Ty, top: bool) -> Option<Ty> {
+    pub(crate) fn lct_meet(&self, a: Ty, b: Ty, top: bool) -> Option<Ty> {
         enum Work {
             Enter(Ty, Ty, bool, usize),
             Product((Ty, Ty, bool), std::ops::Range<usize>, bool, usize),
@@ -741,7 +743,7 @@ impl Ck<'_, '_> {
     /// function's parameters and result must already agree: a variance
     /// step never carries a weakening (`types.lct.no-combine`). `top` lets
     /// a function value's row widen to the site's union row.
-    fn lct_converts(&self, s: Ty, t: Ty, top: bool) -> bool {
+    pub(crate) fn lct_converts(&self, s: Ty, t: Ty, top: bool) -> bool {
         let pool = self.pool();
         let (s, t) = (self.resolved(s), self.resolved(t));
         if s == t {
@@ -896,7 +898,7 @@ impl Ck<'_, '_> {
         };
         let shown = self.show(descriptor);
         let msg = format!(
-            "this argument would solve a type parameter to the bare trait descriptor `dyn {shown}`, which is never a type argument; pass a concrete type's reference, or write the type argument as a reference type, as in `f::[&dyn {shown}](...)`"
+            "pass a concrete reference, or write the reference type argument: `f::[&dyn {shown}](...)`"
         );
         self.err(Code::CannotInferType, n, &msg);
     }
@@ -984,229 +986,10 @@ impl Ck<'_, '_> {
         if self.infer_join_compatible(want, got) {
             return false;
         }
-        let msg = format!(
-            "in {what}: expected {}, found {}; the arguments for one type parameter may differ only by outer permission: write a conversion, as in `max(i64(small), large)`",
-            self.show(want),
-            self.show(got)
-        );
+        let (want, got) = self.show_pair(want, got);
+        let msg =
+            format!("in {what}: expected {want}, found {got}; convert the argument explicitly");
         self.err(Code::TypeMismatch, n, &msg);
         true
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use hd_tir::ir::{BodyKind, TirBuilder};
-
-    #[test]
-    fn join_shape_unification_at_depth_1000_shares_pairs_and_keeps_bindings() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated depth test.
-            .spawn(|| {
-                crate::body::with_checker(|ck| {
-                    let p = ck.pool();
-                    let reference = |inner, mutable| {
-                        p.intern_ty(&TyData::Ref {
-                            inner,
-                            mutable,
-                            counted: mutable,
-                        })
-                    };
-                    let tuple = |elems: &[Ty], rest| p.product(p.list(elems), rest);
-                    for depth in [100, 1000] {
-                        let x = ck.infer.fresh(p, VarKind::General);
-                        let (mut a, mut b) = (reference(x, true), reference(Ty::I32, false));
-                        for _ in 0..depth {
-                            a = tuple(&[a, a], None);
-                            b = tuple(&[b, b], None);
-                        }
-                        let snapshot = ck.infer.snapshot();
-                        assert_eq!(
-                            hd_types::work::count_type_nodes(|| ck.unify_join(a, b)),
-                            (true, depth + 1)
-                        );
-                        assert_eq!(ck.infer.shallow(p, x), Ty::I32);
-                        ck.infer.rollback(snapshot);
-                        assert_eq!(ck.infer.shallow(p, x), x);
-                    }
-                    let (a, b) = (reference(Ty::I32, true), reference(Ty::I32, false));
-                    let list = |t| {
-                        p.intern_ty(&TyData::Adt(
-                            AdtId::Declared(ck.cx.names.known.list),
-                            p.list(&[t]),
-                        ))
-                    };
-                    // A successful permission-ignoring pair cannot satisfy
-                    // the same pair's invariant query beneath List.
-                    assert!(!ck.unify_join(tuple(&[a, list(a)], None), tuple(&[b, list(b)], None)));
-                    let x = ck.infer.fresh(p, VarKind::General);
-                    let snapshot = ck.infer.snapshot();
-                    assert!(
-                        !ck.unify_join(tuple(&[x], Some(list(Ty::I32))), tuple(&[Ty::I32], None))
-                    );
-                    assert_eq!(
-                        ck.infer.shallow(p, x),
-                        Ty::I32,
-                        "fixed elements bind before a rest-presence mismatch"
-                    );
-                    ck.infer.rollback(snapshot);
-                    assert_eq!(ck.infer.shallow(p, x), x);
-                });
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn tuple_meets_and_conversions_at_depth_1000_share_pair_answers() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for both generated depth tests.
-            .spawn(|| {
-                crate::body::with_checker(|ck| {
-                    let p = ck.pool();
-                    for am in [false, true] {
-                        for ac in [false, true] {
-                            for bm in [false, true] {
-                                for bc in [false, true] {
-                                    let reference = |mutable, counted| {
-                                        p.intern_ty(&TyData::Ref {
-                                            inner: Ty::I32,
-                                            mutable,
-                                            counted,
-                                        })
-                                    };
-                                    for depth in [100, 1000] {
-                                        let (mut a, mut b, mut wanted) = (
-                                            reference(am, ac),
-                                            reference(bm, bc),
-                                            reference(am && bm, ac && bc),
-                                        );
-                                        for i in 0..depth {
-                                            let tuple = |t| {
-                                                p.product(
-                                                    p.list(&[t, t]),
-                                                    (i % 2 == 0).then_some(t),
-                                                )
-                                            };
-                                            a = tuple(a);
-                                            b = tuple(b);
-                                            wanted = tuple(wanted);
-                                        }
-                                        let work = if a == b { 0 } else { depth + 1 };
-                                        assert_eq!(
-                                            hd_types::work::count_type_nodes(
-                                                || ck.lct_meet(a, b, true)
-                                            ),
-                                            (Some(wanted), work)
-                                        );
-                                        assert_eq!(
-                                            hd_types::work::count_type_nodes(
-                                                || ck.lct_converts(a, b, true)
-                                            ),
-                                            ((am || !bm) && (ac || !bc), work)
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn lct_rows_join_only_at_the_top_and_arguments_stay_invariant() {
-        crate::body::with_checker(|ck| {
-            let p = ck.pool();
-            let key = |name| {
-                p.intern_ty(&TyData::TraitValue {
-                    def: ck.cx.names.item("app.main", name),
-                    args: hd_types::TyList::EMPTY,
-                    bindings: Vec::new(),
-                })
-            };
-            let row = |keys| {
-                p.row(&hd_types::RowData {
-                    keys,
-                    params: Vec::new(),
-                })
-            };
-            let left = row(vec![key("Left")]);
-            let right = row(vec![key("Right")]);
-            let union = row(vec![key("Left"), key("Right")]);
-            let function = |row| {
-                p.intern_ty(&TyData::Fn {
-                    params: p.list(&[Ty::I32]),
-                    result: Ty::I32,
-                    row,
-                    suspends: false,
-                    inputs: hd_types::Inputs::Fixed,
-                    deps: hd_types::FnDeps::NONE,
-                })
-            };
-            let (a, b) = (function(left), function(right));
-            assert_eq!(ck.lct_meet(a, b, true), Some(function(union)));
-            assert!(ck.lct_converts(a, b, true));
-            assert_eq!(ck.lct_meet(a, b, false), None);
-            assert!(!ck.lct_converts(a, b, false));
-            let tuple = |t, rest| p.product(p.list(&[t]), rest);
-            let adt = |t| {
-                p.intern_ty(&TyData::Adt(
-                    AdtId::Declared(ck.cx.names.known.list),
-                    p.list(&[t]),
-                ))
-            };
-            for (a, b) in [
-                (tuple(a, None), tuple(b, None)),
-                (adt(a), adt(b)),
-                (tuple(Ty::I32, Some(Ty::I32)), tuple(Ty::I32, None)),
-                (
-                    tuple(Ty::I32, None),
-                    p.product(hd_types::TyList::EMPTY, None),
-                ),
-            ] {
-                assert_eq!(ck.lct_meet(a, b, true), None);
-                assert!(!ck.lct_converts(a, b, true));
-            }
-        });
-    }
-
-    #[test]
-    fn deferred_tries_visit_only_their_return_site_and_roll_back() {
-        for unrelated in [100, 1000] {
-            let mut joins = Joins::default();
-            let mut builder = TirBuilder::new(DefId::NONE, BodyKind::Fn);
-            let deferred = DeferredTry {
-                operand: (Ref(NONE), Ty::VOID),
-                payload: Ty::VOID,
-                slot: builder.reserve(),
-                at: (NodeIdx::NONE, NodeIdx::NONE),
-            };
-            for i in 0..unrelated {
-                let var = Ty(i + 128);
-                joins.open(var);
-                joins.defer(var, deferred);
-            }
-            let target = Ty(5000);
-            joins.open(target);
-            joins.defer(target, deferred);
-            let mark = joins.mark();
-            joins.defer(target, deferred);
-            assert_eq!(joins.deferred(target).len(), 2);
-            joins.rollback(mark);
-            assert_eq!(joins.deferred(target).len(), 1);
-            let mut visited = 0;
-            for _ in joins.deferred(target) {
-                visited += 1;
-            }
-            assert_eq!(visited, 1, "unrelated state: {unrelated}");
-        }
     }
 }

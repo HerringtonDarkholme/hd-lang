@@ -31,6 +31,19 @@ fn read(m: &Module<'_>) -> Vec<Item> {
     items::items(m.text, &hd_syntax::parse(m.text.as_bytes()), false, true)
 }
 
+/// The items of module `m` and of the modules under it, in path order: a
+/// std module's child modules are its own (`module.path.mod-file`), and the
+/// reference documents them under the module, as `std.collections.List`
+/// for the `List` methods of `collections/list.hd`.
+fn read_tree(p: &Package<'_>, m: &Module<'_>) -> Vec<Item> {
+    let below = format!("{}.", m.path);
+    let mut out = read(m);
+    for c in p.std.iter().filter(|c| c.path.starts_with(&below)) {
+        out.extend(read(c));
+    }
+    out
+}
+
 /// The sections `item` names: `name` or `Type.name`, or else, with no
 /// such section, the members called `name` of any type.
 fn named<'a>(items: &'a [Item], item: &str) -> Vec<&'a Section> {
@@ -91,6 +104,7 @@ pub(crate) fn page(p: &Package<'_>, rest: &str) -> Result<String, Vec<String>> {
         return Ok(out);
     }
     let item = parts[k..].join(".");
+    let items = read_tree(p, m);
     let found = named(&items, &item);
     if found.is_empty() {
         let names = sections(&items).map(|s| format!("{shown}.{}", s.anchor));
@@ -117,7 +131,7 @@ pub(crate) fn page(p: &Package<'_>, rest: &str) -> Result<String, Vec<String>> {
 /// the link `hd doc std.MODULE.ITEM` prints. `path` is the full module path
 /// (`std.text`), `item` is `name` or `Type.name`.
 pub(crate) fn link(p: &Package<'_>, path: &str, item: &str) -> Option<String> {
-    let items = read(module(p, path)?);
+    let items = read_tree(p, module(p, path)?);
     let first = *named(&items, item).first()?;
     spec_link(&first.doc)
         .or_else(|| module_link(&items))

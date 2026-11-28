@@ -1,0 +1,8 @@
+# @dump: diagnostics
+use std.meta.Structure
+
+struct Pair[$ A, $ B]:
+    first: fn() -> void $ A
+    second: fn() -> void $ B
+
+impl[$ X, $ Y] Pair[$ Y, $ X] by Structure

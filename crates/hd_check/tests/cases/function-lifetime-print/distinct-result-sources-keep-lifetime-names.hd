@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn mismatch['a, 'b](
+    value: fn((&'a i32, &'a i32, &'a i32, &'b i32)) -> &'a i32,
+) -> fn((&'a i32, &'a i32, &'a i32, &'b i32)) -> &'b i32:
+    value

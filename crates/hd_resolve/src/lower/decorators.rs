@@ -3,7 +3,7 @@
 //! A header check: a decorator's fact type is the result type of the
 //! function it calls, which is in the function's signature, and the type's
 //! `@annotate(...)` line is declaration metadata. Neither needs a body, so
-//! the check runs once the folder's items are lowered, with no checker run.
+//! the check runs once the unit's items are lowered, with no checker run.
 
 use hd_base::HashMap;
 
@@ -116,7 +116,7 @@ impl Lower<'_, '_, '_> {
         self.annotate_line(n).map(|(mask, _)| mask)
     }
 
-    /// Whether the implementation `n` carries `std.structure`'s
+    /// Whether the implementation `n` carries `std.meta`'s
     /// `fills_defaults()` (`annot.impl-fact.fills-defaults.decl`): only
     /// std's own function counts, including through an alias or a
     /// qualified path.
@@ -127,7 +127,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// The fact types that the implementation `n` names with
-    /// `std.structure`'s `skips::[F]()` (`annot.impl-fact.skips.decl`),
+    /// `std.meta`'s `skips::[F]()` (`annot.impl-fact.skips.decl`),
     /// lowered among its parameters `gn`; std's own function only.
     pub(super) fn skips(&mut self, n: NodeRef<'_>, gn: &super::Gen) -> Vec<Ty> {
         let known = self.names.known.skips;
@@ -239,9 +239,8 @@ impl Lower<'_, '_, '_> {
 
     /// [`Self::target_allowed`] for an already resolved decorator.
     fn target_allowed_def(&self, def: DefId, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
-        // `std.core` declares `inline` and `cold` without an `@annotate`
-        // fact, since the leaf layer cannot import `std.annotation`; the
-        // compiler knows their targets (annot.inline.targets).
+        // The compiler knows the targets of the built-in `inline` and `cold`
+        // decorators without an `@annotate` fact (annot.inline.targets).
         if def == self.names.known.inline || def == self.names.known.cold {
             return kind & (self::kind::FN | self::kind::METHOD) != 0;
         }

@@ -545,7 +545,6 @@ embedded_field = named_type ;
 2. r[grammar.data.embedded] An embedded field must denote a struct type and must not include `mut`.
 3. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a struct body is an error. Error: `syntax-error`.
 4. r[grammar.data.default] Field default expressions have the requirement-free constraint specified in [Field Defaults](08-data-and-enums.md#field-defaults).
-5. r[grammar.data.struct-only] This declaration is written with `struct` and declares a struct ([Struct Declarations](08-data-and-enums.md#struct-declarations)). `data` is a reserved word that starts no declaration, so `data Point:` is an error. Error: `syntax-error`.
 
 ```text
 pub struct Base:
@@ -554,9 +553,6 @@ pub struct Base:
 pub struct Post:
     pub Base  # error: syntax-error
     pub title: string
-
-data Point:  # error: syntax-error
-    x: i32
 ```
 
 > **Why.** An embedded field is always public.

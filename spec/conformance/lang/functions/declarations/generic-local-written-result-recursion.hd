@@ -1,0 +1,6 @@
+# test: generic local written result recursion
+# Rule: fn.decl.omitted-cycle.resolve.
+fn outer() -> void:
+    fn repeat[T](value: T, n: i32) -> T:
+        if n == +0: value else: repeat(value, n - 1)
+    let _ = repeat(+1, +1)

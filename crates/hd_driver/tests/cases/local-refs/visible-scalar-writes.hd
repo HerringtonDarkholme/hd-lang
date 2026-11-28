@@ -2,7 +2,7 @@
 # @build: v8 release
 # expected: visible scalar reference aliases become direct field accesses;
 # no shadow-stack frame is needed. Observed addresses keep their storage.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 struct State:
     word: i32

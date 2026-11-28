@@ -1,0 +1,50 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Constructor calls remain lazy even for Auto; driven calls use ordinary parameter/result ownership.
+use std.meta.inline
+use std.task.block_on
+
+@inline(.Auto)
+fn work!(log: *mut List[string], text: string) -> string:
+    log.push(text)
+    text + "!"
+
+@inline(.Never)
+fn make(log: *mut List[string], text: string) -> Suspend[string]:
+    work(log, text)
+
+@inline(.Never)
+fn drive[T](job: Suspend[T]) -> T:
+    match block_on(job):
+        .Completed(value) => value
+        .Cancelled => panic("unexpected cancellation")
+        .Abandoned => panic("unexpected abandonment")
+
+fn identity![T](value: T) -> T:
+    value
+
+fn forwarded![T](value: T) -> T:
+    identity!(value)
+
+trait Count:
+    fn count!(self) -> i32
+
+impl Count for i32:
+    fn count!(self) -> i32:
+        self + 1
+
+fn bounded![T < Count](value: T) -> i32:
+    value.count!()
+
+pub fn main!() -> void $ Console:
+    log := box::[List[string]]([])
+    job := make(log, "cold")
+    println(log.len())
+    println(drive(job))
+    _ := make(log, "discarded")
+    println(log.join(","))
+    println(bounded!(7))
+    println(forwarded!(42))
+    println(forwarded!("text"))
+    let (n, f) = forwarded!((7i64, 2.5))
+    println("$n $f")

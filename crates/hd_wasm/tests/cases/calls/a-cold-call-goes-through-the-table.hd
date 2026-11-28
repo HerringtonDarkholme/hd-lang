@@ -1,7 +1,7 @@
 # @dump: wat
 # `@cold`: each direct call is a `call_indirect` through the function
 # table, which V8 does not inline, so the rare path stays out of `check`.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn report(at: usize) -> string:

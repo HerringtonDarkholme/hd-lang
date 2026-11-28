@@ -1,0 +1,110 @@
+# test: RE2 flags, ASCII boundaries, Unicode categories/scripts, scalar escapes and capture-name indexing
+# Spec std/regex: std-regex.flags.forms, std-regex.flags.clear, std-regex.flags.kinds, std-regex.flags.scope, std-regex.flags.fold, std-regex.flags.quantifier, std-regex.syntax.word-boundary, std-regex.syntax.anchor.modes, std-regex.find-all.anchor-context, std-regex.syntax.class.noncharacter-endpoints, std-regex.syntax.escape.rejected, std-regex.syntax.escape.hex, std-regex.syntax.escape.hex-valid, std-regex.syntax.escape.properties, std-regex.syntax.escape.property, std-regex.syntax.escape.property-negated, std-regex.regex.capture-names, std-regex.repeat.greediness-flags (issue #2393).
+# Selected syntax forms follow https://github.com/google/re2/blob/main/re2/testing/parse_test.cc
+# expect-stdout: ok
+use std.testing.assert_equal
+use std.regex.{Regex, RegexError}
+use std.text.r
+fn codepoint_offset(text: string) -> usize?:
+    found := Regex::new("é").expect("compiles").find(text)?
+    .Some(text.slice(0, found.start).chars().count())
+
+pub fn main() -> void $ Console:
+    for entry in [
+        (r"(?i)k", "K", true),
+        (r"(?i)s", "ſ", true),
+        (r"(?i)[^k]", "K", false),
+        (r"(?i)\W", "K", false),
+        (r"(?i)\p{Lu}", "a", true),
+        (r"(?i)\P{Lu}", "a", false),
+        (r"(?s:.)", "\n", true),
+        (r"(?m)^a$", "x\na\nb", true),
+        (r"\Aa\z", "a\n", false),
+        (r"\bword\b", "two word!", true),
+        (r"\B", "", true),
+        (r"\p{Greek}+", "βΩ", true),
+        (r"\pL", "é", true),
+        (r"\pN", "٣", true),
+        (r"\p{Cs}", "a", false),
+        (r"\P{Any}", "a", false),
+        (r"(?i)[a-z]", "K", true),
+        (r"(?i)[s]", "ſ", true),
+        (r"(?i)Σ", "ς", true),
+        (r"(?i)ß", "SS", false),
+        (r"(?i)ß", "ẞ", true),
+        (r"(?m)^a$", "a\r\n", false),
+        (r"\p{Han}", "\u{20000}", true),
+        (r"\P{^L}", "a", true),
+        (r"\p{Braille}", "\u{2800}", true),
+        (r"\P{Braille}", "a", true),
+        (r"\p{^Braille}", "\u{2800}", false),
+        (r"\P{^Braille}", "\u{2800}", true),
+        (r"\x00", "\u{0}", true),
+        (r"\x{10ffff}", "\u{10ffff}", true),
+        (r"\p{Inherited}", "\u{301}", true),
+        (r"(?i)\p{^Lu}", "a", false),
+        (r"(?m)\Aa", "x\na", false),
+        (r"(?m)a\z", "a\nx", false),
+        (r"\ba\b", "éaé", true),
+        (r"\Ba\B", "bab", true),
+        (r"[\x41-\x43]+", "ABC", true),
+        (r"[\p{Greek}]", "Ω", true),
+        (r"\x{263a}", "☺", true),
+        (r"\x41", "A", true),
+        (r"\a\f\v", "\u{7}\u{c}\u{b}", true),
+        (r"(?i:ab)|c", "C", false),
+        (r"a(?i)b|c", "C", true),
+        (r"(a(?i)b|c)d", "Cd", true),
+        (r"(a(?i)b|c)d", "CD", false),
+        (r"\s", "\u{3000}", false),
+        (r"\s", "\u{b}", false),
+    ]:
+        regex := Regex::new(entry._0).expect("pattern compiles")
+        assert_equal(regex.is_match(entry._1), entry._2, reason=entry._0)
+        assert_equal(regex.find(entry._1).is_some(), entry._2, reason=entry._0)
+    pattern := Regex::new(r"(?<x>a)(b)?(?P<y>c)?").unwrap()
+    assert_equal(pattern.capture_names(), [.None, .Some("x"), .None, .Some("y")])
+    captured := pattern.captures("a").unwrap()
+    assert_equal(captured.get(2), .None)
+    assert_equal(captured.name("y"), .None)
+    assert_equal(pattern.capture_names(), [.None, .Some("x"), .None, .Some("y")])
+    assert_equal(Regex::new("").unwrap().capture_names(), [.None])
+    assert_equal(Regex::new("(?m)^a$").unwrap().find_all("a\na").len(), 2)
+    assert_equal(Regex::new("(?m)^a$").unwrap().replace_all("a\na", "x"), "x\nx")
+    assert_equal(Regex::new("(?U)a*").unwrap().find("aaa").unwrap().text, "")
+    assert_equal(Regex::new("(?U)a?").unwrap().find("aaa").unwrap().text, "")
+    assert_equal(Regex::new("(?U)a{2,4}").unwrap().find("aaaaa").unwrap().text, "aa")
+    assert_equal(Regex::new("(?U)a+").unwrap().find("aaa").unwrap().text, "a")
+    assert_equal(Regex::new("(?U)a+?").unwrap().find("aaa").unwrap().text, "aaa")
+    assert_equal(Regex::new("(?i:a)b").unwrap().is_match("Ab"), true)
+    assert_equal(Regex::new("(?i:a)b").unwrap().is_match("AB"), false)
+    assert_equal(Regex::new("(?i)a(?-i)b").unwrap().is_match("Ab"), true)
+    for bad in [
+        r"\x",
+        r"\x{}",
+        r"\x0q",
+        r"\x{d800}",
+        r"\x{110000}",
+        r"\p{}",
+        r"\p{Letter}",
+        r"\p{NoSuchScript}",
+        r"\p{Unknown}",
+        r"\p{",
+        r"[\b]",
+        r"\0",
+        r"\1",
+        r"\u0041",
+    ]:
+        assert_equal(Regex::new(bad).is_err(), true, reason=bad)
+    for bad in ["(?-)", "(?i-)", "(?q)", "(?i--s)", "(?i", "(?=x)", "(?<=x)"]:
+        assert_equal(Regex::new(bad).is_err(), true, reason=bad)
+    assert_equal(Regex::new("(?i)*").err(), .Some(RegexError.NothingToRepeat(4)))
+    assert_equal(codepoint_offset("😀é"), .Some(1))
+    assert_equal(Regex::new("a(?U)+").unwrap().find("aaa").unwrap().text, "a")
+    assert_equal(Regex::new("a(?i)+").unwrap().is_match("A"), false)
+    assert_equal(Regex::new("a*(?i)*").unwrap().find("aaa").unwrap().text, "aaa")
+    assert_equal(Regex::new("a**").is_err(), true)
+    assert_equal(Regex::new("é\\x{110000}").err(), .Some(RegexError.BadEscape(2)))
+    assert_equal(Regex::new("é(?q)").err(), .Some(RegexError.UnsupportedGroup(2)))
+    assert_equal(Regex::new(r"[\pL-a]").err(), .Some(RegexError.BadRange(1)))
+    println("ok")
