@@ -143,7 +143,7 @@ impl Regex:
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(&self, text: string) -> bool:
-        vm := self.take(text, 0)
+        vm := self.take(text, 0, true)
         found := search(vm, 0, true)
         self.give(vm)
         found
@@ -153,7 +153,7 @@ impl Regex:
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(&self, text: string) -> Match?:
-        vm := self.take(text, 2)
+        vm := self.take(text, 2, true)
         let found: Match? = if locate(vm, 0): .Some(vm.whole()) else: .None
         self.give(vm)
         found
@@ -162,19 +162,18 @@ impl Regex:
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(&self, text: string) -> List[Match]:
-        vm := self.take(text, 2)
+        vm := self.take(text, 2, true)
         let mut found: List[Match] = []
         while advance(vm):
             found.push(vm.whole())
         self.give(vm)
         found
 
-    # The groups of the first match (r-std-regex.captures): the DFAs find
-    # its bounds and the Pike VM its groups (`locate`).
+    # The groups of the first match (r-std-regex.captures), on the Pike VM.
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(&self, text: string) -> Captures?:
-        vm := self.take(text, self.slot_count())
+        vm := self.take(text, self.slot_count(), false)
         let found: Captures? = if locate(vm, 0): .Some(vm.groups(self.names)) else: .None
         self.give(vm)
         found
@@ -187,11 +186,11 @@ impl Regex:
             .None => .Err(.NoMatch)
 
     # The groups of each match that `find_all` returns
-    # (r-std-regex.captures-all).
+    # (r-std-regex.captures-all), on the Pike VM.
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(&self, text: string) -> List[Captures]:
-        vm := self.take(text, self.slot_count())
+        vm := self.take(text, self.slot_count(), false)
         let mut found: List[Captures] = []
         while advance(vm):
             found.push(vm.groups(self.names))
@@ -204,7 +203,7 @@ impl Regex:
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(&self, text: string, replacement: string) -> string:
         template := Pattern::of(replacement)
-        vm := self.take(text, self.replace_slots(template))
+        vm := self.take(text, self.replace_slots(template), true)
         let replaced = text
         if locate(vm, 0):
             groups := self.groups_of(vm)
@@ -222,7 +221,7 @@ impl Regex:
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(&self, text: string, replacement: string) -> string:
         template := Pattern::of(replacement)
-        vm := self.take(text, self.replace_slots(template))
+        vm := self.take(text, self.replace_slots(template), true)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
         let mut pieces: List[string] = []
@@ -240,7 +239,7 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(&self, text: string) -> List[string]:
-        vm := self.take(text, 2)
+        vm := self.take(text, 2, true)
         let mut pieces: List[string] = []
         let last: usize = 0
         while advance(vm):
@@ -268,13 +267,14 @@ impl Regex:
     # this module, so no call starts while another runs today; a call that
     # did, from a task or a later callback, would get its own VM, since
     # `busy` stays set from `take` to `give`.
-    fn take(&self, text: string, slot_count: usize) -> *mut Vm:
+    fn take(&self, text: string, slot_count: usize, dfa: bool) -> *mut Vm:
         let vm = self.idle
         if vm.busy:
             # Boxed because a call holds its VM by reference, as it holds the shared one.
             vm = box(blank_vm(self.program, self.filter, self.forward, self.reverse))
         ready(vm, text, slot_count)
         vm.busy = true
+        vm.dfa = dfa
         vm
 
     # Hands the VM back, letting go of the text.
@@ -1195,10 +1195,6 @@ struct Program:
     points: UniqList[i32]
     ranges: UniqList[i32]
     contextual: bool
-    # Whether every match starts at byte 0: the pattern passes a `^` before
-    # it reads, ends or waits for the end (RE2's anchor_start,
-    # regex-automata's NFA::is_always_start_anchored).
-    anchored: bool
 
 fn lower(program: List[Inst]) -> Program:
     let mut ops = UniqList::[i32].new()
@@ -1242,17 +1238,14 @@ fn lower(program: List[Inst]) -> Program:
         left.push(first)
         right.push(second)
         points.push(point)
-    let mut lowered = Program {
+    Program {
         ops: ops,
         left: left,
         right: right,
         points: points,
         ranges: ranges,
         contextual: contextual,
-        anchored: false,
     }
-    lowered.anchored = !restarts(&lowered)
-    lowered
 
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
@@ -1336,7 +1329,7 @@ fn automaton(program: &Program) -> Automaton:
     # Past byte 0 a pattern that starts with `^` can start no match, and
     # the prefix would only read the rest of the text.
     edges.add(count, -1, -1, 0)
-    if !program.anchored:
+    if restarts(program):
         edges.add(count, -1, -1, count + 1)
     edges.add(count + 1, 0, 255, count)
     guards.push(+0)
@@ -1402,7 +1395,7 @@ fn graph(count: usize, edges: &Edges, reversed: bool, guards: List[i32]) -> Grap
 
 # Whether a match can start past byte 0: whether instruction 0 reaches,
 # without passing a `^`, one that reads a character, ends the match, or
-# waits for the end. A line or word assertion may hold past byte 0.
+# waits for the end.
 fn restarts(program: &Program) -> bool:
     ops := &program.ops
     let mut seen: List[bool] = []
@@ -1421,7 +1414,7 @@ fn restarts(program: &Program) -> bool:
             stack.push(program.right[pc])
         if op == 5 || op == 6:
             stack.push(program.left[pc])
-        else if op == 7 || op == 10:
+        else if op == 7:
             stack.push(pc + 1)
     false
 
@@ -2001,11 +1994,6 @@ struct Vm:
     stack: UniqList[i64]
     values: UniqList[i64]
     scratch: UniqList[i64]
-    # The backtracker's visited set, one bit per instruction and byte of
-    # the span it searches, and its trail: pairs of an instruction and the
-    # byte to try it at, or of -1 - s and the value to put back into slot s.
-    visited: UniqList[u64]
-    trail: UniqList[i64]
     # The slots of the match the last search found.
     found: UniqList[i64]
     # Where the next search of `advance` starts, where the last match
@@ -2026,8 +2014,10 @@ struct Vm:
     hit: i64
     near_from: i64
     near_until: i64
-    # Whether a call is using the VM.
+    # Whether a call is using the VM, and whether the call's searches run
+    # on the DFA (all but `captures` and `captures_all`).
     busy: bool
+    dfa: bool
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than width + 1.
@@ -2050,16 +2040,12 @@ fn blank_vm(program: *Program, filter: Prefilter, forward: *mut Dfa, reverse: *m
         stack: uniq_filled(width + 1),
         values: uniq_filled(width + 1),
         scratch: UniqList::[i64].new(),
-        visited: UniqList::[u64].new(),
-        trail: UniqList::[i64].new(),
         found: UniqList::[i64].new(),
         from: 0,
         last_end: -1,
         finished: false,
         filter: filter,
-        # A pattern anchored at byte 0 tries only there, so it has nothing
-        # to skip to.
-        filtered: !program.anchored && (bytes_len(filter.literal) > 0 || filter.firsts.len() > 0),
+        filtered: bytes_len(filter.literal) > 0 || filter.firsts.len() > 0,
         forward: forward,
         reverse: reverse,
         hit_from: 1,
@@ -2067,6 +2053,7 @@ fn blank_vm(program: *Program, filter: Prefilter, forward: *mut Dfa, reverse: *m
         near_from: 0,
         near_until: -1,
         busy: false,
+        dfa: true,
     }
 
 # Readies `vm` for a call on `text` with `slot_count` slots for each
@@ -2144,27 +2131,20 @@ fn advance(vm: &mut Vm) -> bool:
             return true
     false
 
-# The next match at byte `from` or later, its slots in `vm.found`. A call
-# that wants groups on a text short enough for the backtracker's visited
-# set runs it alone, as Go's regexp does for small inputs. Otherwise the
-# DFAs find the match's bounds; a call that wants groups gets them by running the
-# Pike VM over just those bounds, anchored at the match's start, which
-# finds the same match (`backtrack`, or the Pike VM when the span is too
-# long for its visited set): a thread it no longer starts before that byte
-# could reach no `Done`, or the match would start there, and a thread
-# alive past its end could reach no `Done`, or the match would end later.
-# regex-automata's meta engine narrows a capture search to the lazy DFA's
-# span the same way (meta/strategy.rs, search_slots_nofail), so the Pike
-# VM's slot copies run over the match only.
+# The next match at byte `from` or later, its slots in `vm.found`: on
+# the DFA, unless the call wants every group from the Pike VM. A
+# replacement that names groups gets them by running the Pike VM again
+# from the match's start, which finds the same match: a thread it no
+# longer starts before that byte could reach no `Done`, or the match
+# would start there (regex-automata's meta engine narrows a capture
+# search to the DFA's span the same way).
 fn locate(vm: &mut Vm, from: usize) -> bool:
-    if vm.slot_count > 2 && vm.program.ops.len() * (vm.size - from + 1) <= max_visited():
-        return backtrack(vm, from, vm.size, false)
-    if vm.program.contextual:
-        return run(vm, from, false, -1)
+    if !vm.dfa || vm.program.contextual:
+        return run(vm, from, false)
     if !search(vm, from, false):
         return false
     if vm.slot_count > 2:
-        _ := backtrack(vm, vm.start(), vm.end(), true)
+        _ := run(vm, vm.start(), false)
     true
 
 # The Pike VM (r-std-regex.find.leftmost-first): threads in priority
@@ -2173,12 +2153,8 @@ fn locate(vm: &mut Vm, from: usize) -> bool:
 # `vm.found`, slot 0 its start and slot 1 its end. With `earliest`, as
 # `is_match` asks, it returns true as soon as any thread reaches `Done`.
 # A new thread starts only where the prefilter lets a match start, and
-# when no thread is alive the search jumps to the next such byte. With an
-# `end` of 0 or more, the search knows the match starts at `from` and ends
-# at `end`, as `locate` does: it starts no thread past `from` and stops
-# at `end`. A pattern anchored at byte 0 starts no thread past it either
-# (Go's machine.match stops the same way on syntax.EmptyBeginText).
-fn run(vm: &mut Vm, from: usize, earliest: bool, end: i64) -> bool:
+# when no thread is alive the search jumps to the next such byte.
+fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     # A copy: the calls below change `vm` (r-ref.excl.write).
     program := vm.program
     ops := &program.ops
@@ -2190,10 +2166,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool, end: i64) -> bool:
     size := vm.size
     slot_count := vm.slot_count
     done := ops.len() - 1
-    if program.anchored && from > 0:
-        return false
-    anchored := program.anchored || end >= 0
-    filtered := vm.filtered && end < 0
+    filtered := vm.filtered
     # The sides of the current and the next thread list, and the length of
     # the current one.
     let current: usize = 0
@@ -2262,10 +2235,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool, end: i64) -> bool:
                 next_count = add_thread(vm, program, next, next_count, pc + 1, after)
                 if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
-        if at >= size || i64(at) == end:
+        if at >= size:
             break
         at = after
-        if !matched && !anchored:
+        if !matched:
             let seed = i64(at)
             if filtered:
                 seed = start_from(vm, at, next_count > 0)
@@ -2285,193 +2258,34 @@ fn run(vm: &mut Vm, from: usize, earliest: bool, end: i64) -> bool:
         count = next_count
     matched
 
-# The most visited bits the backtracker keeps, 32 KiB, as Go's
-# regexp/backtrack.go (maxBacktrackVector); a longer span goes to the
-# Pike VM.
-fn max_visited() -> usize:
-    262144
-
-# The groups of the next match from byte `from`, into `vm.found`, found by
-# a bounded backtracker (Go's regexp/backtrack.go, regex-automata's
-# BoundedBacktracker). With `exact` the match is known to start at `from`
-# and end at `end`, as the DFAs found it; otherwise it starts at the first
-# byte at or after `from` that the prefilter allows and where a match
-# starts, and `end` is the text's end. Go and regex-automata's meta engine
-# both prefer it to the Pike VM when its visited set is small enough. It
-# tries the threads depth first in priority order, so the first `Done` it
-# reaches is the leftmost-first match, and it tries each instruction at
-# each byte at most once: a pair that failed fails again, whatever the
-# slots. So it takes time linear in the program size times the span, like
-# the Pike VM, but a thread costs no copy of its slots: a `Save` puts the
-# old value on the trail and takes it back when the thread fails. No
-# thread reads past `end`: one that could match there would make the
-# match end later.
-fn backtrack(vm: &mut Vm, from: usize, end: usize, exact: bool) -> bool:
-    program := vm.program
-    ops := &program.ops
-    if ops.len() * (end - from + 1) > max_visited():
-        return run(vm, from, false, if exact: i64(end) else: -1)
-    if !exact && program.anchored && from > 0:
-        return false
-    # The visited set starts at the first byte a match may start at, so a
-    # text the prefilter rejects costs no clearing.
-    let start = from
-    if vm.filtered && !exact:
-        first := next_start(vm, from)
-        if first < 0:
-            return false
-        start = usize(first)
-    base := start
-    span := end - base + 1
-    bits := ops.len() * span
-    points := &program.points
-    ranges := &program.ranges
-    left := &program.left
-    right := &program.right
-    text := vm.text
-    size := vm.size
-    slot_count := vm.slot_count
-    words := (bits + 63) / 64
-    while vm.visited.len() < words:
-        vm.visited.push(0)
-    let word: usize = 0
-    while word < words:
-        vm.visited[word] = 0
-        word = word + 1
-    while true:
-        if vm.filtered && !exact && start > base:
-            next := next_start(vm, start)
-            if next < 0:
-                return false
-            start = usize(next)
-        restart(&mut vm.scratch, slot_count, start)
-        put(&mut vm.trail, 0, 0)
-        put(&mut vm.trail, 1, i64(start))
-        let top: usize = 2
-        while top > 0:
-            top = top - 2
-            entry := vm.trail[top]
-            value := vm.trail[top + 1]
-            if entry < 0:
-                vm.scratch[usize(-1 - entry)] = value
-                continue
-            let pc = usize(entry)
-            let at = usize(value)
-            while true:
-                key := pc * span + (at - base)
-                bit := u64(1) << u64(key % 64)
-                seen := vm.visited[key / 64]
-                if seen & bit != 0:
-                    break
-                vm.visited[key / 64] = seen | bit
-                op := ops[pc]
-                if op <= 3:
-                    if at >= end:
-                        break
-                    lead := bytes_at(text, at)
-                    let point = i32(lead)
-                    let after = at + 1
-                    if lead >= 128:
-                        after = at + scalar_width(lead)
-                        point = scalar_point(text, at, after, lead)
-                    let step = false
-                    if op == 0:
-                        step = point == points[pc]
-                    else if op == 1:
-                        step = point != 10
-                    else:
-                        let hit = false
-                        let bound = left[pc]
-                        limit := right[pc]
-                        while bound < limit:
-                            if point >= ranges[bound] && point <= ranges[bound + 1]:
-                                hit = true
-                                break
-                            bound = bound + 2
-                        step = hit != (op == 3)
-                    if !step:
-                        break
-                    pc = pc + 1
-                    at = after
-                else if op == 4:
-                    let slot: usize = 0
-                    while slot < slot_count:
-                        vm.found[slot] = vm.scratch[slot]
-                        slot = slot + 1
-                    if slot_count > 1:
-                        vm.found[1] = i64(at)
-                    return true
-                else if op == 5:
-                    put(&mut vm.trail, top, i64(right[pc]))
-                    put(&mut vm.trail, top + 1, i64(at))
-                    top = top + 2
-                    pc = left[pc]
-                else if op == 6:
-                    pc = left[pc]
-                else if op == 7:
-                    slot := left[pc]
-                    if slot < slot_count:
-                        put(&mut vm.trail, top, -1 - i64(slot))
-                        put(&mut vm.trail, top + 1, vm.scratch[slot])
-                        top = top + 2
-                        vm.scratch[slot] = i64(at)
-                    pc = pc + 1
-                else if op == 8:
-                    if at != 0:
-                        break
-                    pc = pc + 1
-                else if op == 9:
-                    if at != size:
-                        break
-                    pc = pc + 1
-                else:
-                    if !assertion(points[pc], text, at, size):
-                        break
-                    pc = pc + 1
-        # A pair visited from an earlier start failed and fails again from
-        # this one, so the visited set carries over (Go's backtrack does
-        # the same).
-        if exact || program.anchored || start >= end:
-            return false
-        start = start + scalar_width(bytes_at(text, start))
-    false
-
-# Sets entry `top` of a trail that holds at least `top` entries.
-fn put(trail: &mut UniqList[i64], top: usize, value: i64) -> void:
-    if top < trail.len():
-        trail[top] = value
-    else:
-        trail.push(value)
-
 # The first byte at or after `at` where the prefilter lets a match start,
 # or -1 when none can start there or later. `firsts` holds no UTF-8
 # continuation byte, and a literal starts at a scalar boundary, so every
 # byte this returns starts a scalar.
 fn next_start(vm: &mut Vm, at: usize) -> i64:
-    # The prefilter and the text are read in place: a copy of either would
-    # count its parts up and down again on every call, once per search.
+    filter := vm.filter
+    text := vm.text
     size := vm.size
-    width := bytes_len(vm.filter.literal)
-    lo := vm.filter.lo
-    hi := vm.filter.hi
+    width := bytes_len(filter.literal)
+    firsts := filter.firsts
     let position = at
     while true:
         if width > 0 && !literal_near(vm, position):
-            if position + lo + width > size || vm.hit < 0:
+            if position + filter.lo + width > size || vm.hit < 0:
                 return -1
             # The next literal is more than `hi` bytes ahead, and a match
             # starts at most that far before it: go there, backed up to
             # the first byte of a scalar.
-            let earliest = usize(vm.hit) - usize(hi)
-            while continuation(bytes_at(vm.text, earliest)):
+            let earliest = usize(vm.hit) - usize(filter.hi)
+            while continuation(bytes_at(text, earliest)):
                 earliest = earliest - 1
             position = earliest
-        if vm.filter.firsts.len() == 0:
+        if firsts.len() == 0:
             return i64(position)
         let next = position
         while next < size:
-            byte := bytes_at(vm.text, next)
-            if (vm.filter.firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 != 0:
+            byte := bytes_at(text, next)
+            if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 != 0:
                 break
             next = next + 1
         if next >= size:
@@ -2487,11 +2301,12 @@ fn next_start(vm: &mut Vm, at: usize) -> i64:
 fn start_from(vm: &mut Vm, at: usize, alive: bool) -> i64:
     if !alive:
         return next_start(vm, at)
-    if vm.filter.firsts.len() > 0:
+    firsts := vm.filter.firsts
+    if firsts.len() > 0:
         if at >= vm.size:
             return -1
         byte := bytes_at(vm.text, at)
-        if (vm.filter.firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 == 0:
+        if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 == 0:
             return -1
     # A literal with no bound on its place is tested only where the
     # search jumps: testing it at every byte costs more than the threads
@@ -3107,12 +2922,10 @@ fn reverse_start(vm: &mut Vm, from: usize, end: usize) -> i64:
 # and the Pike VM runs the search when either one's cache gives out.
 fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     if vm.program.contextual:
-        return run(vm, from, earliest, -1)
-    if vm.program.anchored && from > 0:
-        return false
+        return run(vm, from, earliest)
     end := forward_end(vm, from, earliest)
     if end == -2:
-        return run(vm, from, earliest, -1)
+        return run(vm, from, earliest)
     if end < 0:
         return false
     if earliest:
@@ -3121,7 +2934,7 @@ fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     if usize(end) > from:
         start = reverse_start(vm, from, usize(end))
         if start < 0:
-            return run(vm, from, earliest, -1)
+            return run(vm, from, earliest)
     vm.found[0] = start
     vm.found[1] = end
     true
