@@ -1,0 +1,185 @@
+use pkg.doc_files.ToolError
+use pkg.spec_rules.pattern
+use std.encoding.Deserialize
+use std.encoding.json.decode
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.text.r
+
+ALLOWLIST := "scripts/cost-allowlist.tsv"
+ABOVE := 3
+
+@derive(Deserialize)
+struct Start:
+    line: usize
+
+@derive(Deserialize)
+struct Range:
+    start: Start
+
+@derive(Deserialize)
+struct Site:
+    ruleId: string
+    file: string
+    message: string
+    range: Range
+
+struct Row:
+    rule: string
+    path: string
+    issue: string
+    code: string
+    line: usize
+
+fn rows(text: string) -> List[Row]:
+    lines := text.split("\n")
+    let mut result: List[Row] = []
+    for index in 1..lines.len():
+        if lines[index].trim().is_empty():
+            continue
+        fields := lines[index].split("\t")
+        result.push(
+            Row {
+                rule: fields.get(0).unwrap_or(""),
+                path: fields.get(1).unwrap_or(""),
+                issue: fields.get(2).unwrap_or(""),
+                code: fields.get(3).unwrap_or(""),
+                line: index + 1,
+            },
+        )
+    result
+
+fn key(rule: string, path: string, code: string) -> string:
+    "${rule}\t${path}\t${code}"
+
+## Check every non-sloppy scan hit, reading each hit file at most once.
+pub fn audit!(
+    root: Path,
+    scan: string,
+    allowlist: string,
+) -> Result[List[string], ToolError] $ FsRead:
+    matches := decode::[List[Site]](scan).map_err(fn(error): ToolError.Host("$error"))?
+    listed := rows(allowlist)
+    issue := pattern(r"^(#[0-9]+|untracked)\r?$")?
+    cost := pattern(r"(//|/\*|^\s*\*).*\bcost:")?
+    let mut failures: List[string] = []
+    let mut allowed: Map[string, List[Row]] = {}
+    let mut used: Map[string, usize] = {}
+    for row in listed:
+        if !issue.is_match(row.issue):
+            failures.push(
+                "${ALLOWLIST}:${row.line}: the issue column must be an issue number, as #1502, or untracked",
+            )
+        k := key(row.rule, row.path, row.code)
+        if allowed.contains_key(k):
+            allowed[k].push(row)
+        else:
+            allowed[k] = [row]
+    let mut texts: Map[string, List[string]] = {}
+    for site in matches:
+        if site.ruleId == "ban-unsupported" || site.ruleId.starts_with("sloppy-"):
+            continue
+        if !texts.contains_key(site.file):
+            # cost: one read per distinct hit file, cached for all its hits.
+            text := read_text!(root.join(site.file)).map_err(fn(error): ToolError.Host("$error"))?
+            texts[site.file] = text.split("\n")
+        lines := texts[site.file]
+        start := site.range.start.line
+        lower := if start > ABOVE: start - ABOVE else: 0
+        let stated = false
+        for line in lower..=start:
+            if line < lines.len() && cost.is_match(lines[line]):
+                stated = true
+                break
+        if stated:
+            continue
+        code := lines.get(start).unwrap_or("").trim()
+        k := key(site.ruleId, site.file, code)
+        consumed := used.get(k).unwrap_or(0)
+        match allowed.get(k):
+            .Some(group) =>
+                if consumed < group.len():
+                    # Consume by cursor, so duplicate rows do not shift a list.
+                    used[k] = consumed + 1
+                    continue
+            .None => pass
+        failures.push("${site.file}:${start + 1}: ${site.ruleId}: ${site.message}\n    ${code}")
+    for (k, group) in allowed:
+        for index in used.get(*k).unwrap_or(0)..group.len():
+            row := group[index]
+            failures.push(
+                "${ALLOWLIST}:${row.line}: ${row.rule} ${row.path} no longer matches an unstated hit; delete the row (${row.issue})",
+            )
+    .Ok(failures)
+
+pub fn failure_text(failures: List[string]) -> string:
+    if failures.is_empty():
+        return ""
+    plural := if failures.len() == 1: "" else: "s"
+    """check:cost: ${failures.len()} per-run cost${plural} not stated.
+Add a `cost:` comment (on the line or the ${ABOVE} above) saying what the run costs as a
+function of the change and of accumulated state, or fix the cost (Cost Model,
+.agents/skills/shared-rules.md).
+
+${failures.join("\n")}
+"""
+
+tests:
+    use std.fs.{FsWrite, MemoryFs, create_dir_all, write_text}
+
+    fn hit(rule: string, line: usize) -> string:
+        """{"ruleId":"${rule}","file":"scripts/a.ts","message":"state cost","range":{"start":{"line":${line}}}}"""
+
+    it("uses the preceding three lines and ignores sloppy-rule hits"):
+        fs := MemoryFs::new()
+        $.with(FsRead=fs, FsWrite=fs):
+            create_dir_all!(Path("repo/scripts")).expect("directory")
+            write_text!(Path("repo/scripts/a.ts"), "// cost: one pass\na\nb\ncall()\nlate()\n")
+                .expect("source")
+            scan := "[${hit("cost-ts-readdir", 3)},${hit("cost-ts-readdir", 4)},${hit("sloppy-unwrap", 99)},${hit("ban-unsupported", 99)}]"
+            failures := audit!(Path("repo"), scan, "rule\tpath\tissue\tcode\n").expect("audit")
+            assert_equal(failures, ["scripts/a.ts:5: cost-ts-readdir: state cost\n    late()"])
+
+    it("consumes duplicate allowlist rows once and reports stale groups in insertion order"):
+        fs := MemoryFs::new()
+        $.with(FsRead=fs, FsWrite=fs):
+            create_dir_all!(Path("repo/scripts")).expect("directory")
+            write_text!(Path("repo/scripts/a.ts"), "call()\ncall()\ncall()\n").expect("source")
+            allow := "rule\tpath\tissue\tcode\ncost-ts-readdir\tscripts/a.ts\t#12\tcall()\ncost-ts-readdir\tscripts/a.ts\tuntracked\tcall()\ncost-other\tscripts/b.ts\t#9\tgone()\n"
+            failures := audit!(Path("repo"), "[${hit("cost-ts-readdir", 0)}]", allow)
+                .expect("audit")
+            assert_equal(
+                failures,
+                [
+                    "scripts/cost-allowlist.tsv:3: cost-ts-readdir scripts/a.ts no longer matches an unstated hit; delete the row (untracked)",
+                    "scripts/cost-allowlist.tsv:4: cost-other scripts/b.ts no longer matches an unstated hit; delete the row (#9)",
+                ],
+            )
+            assert_equal(
+                audit!(
+                    Path("repo"),
+                    "[${hit("cost-ts-readdir", 0)},${hit("cost-ts-readdir", 1)},${hit("cost-ts-readdir", 2)}]",
+                    allow,
+                ).expect("audit")[
+                    0
+                ],
+                "scripts/a.ts:3: cost-ts-readdir: state cost\n    call()",
+            )
+
+    it("validates issue cells and preserves the exact failure report"):
+        fs := MemoryFs::new()
+        $.with(FsRead=fs):
+            failures := audit!(
+                Path("repo"),
+                "[]",
+                "rule\tpath\tissue\tcode\ncost-x\ta.ts\tbad\tcall()\n",
+            )
+                .expect("audit")
+            assert_equal(failures.len(), 2)
+            assert_equal(
+                failures[0],
+                "scripts/cost-allowlist.tsv:2: the issue column must be an issue number, as #1502, or untracked",
+            )
+        assert_equal(failure_text([]), "")
+        assert(failure_text(["one"]).starts_with("check:cost: 1 per-run cost not stated.\n"))
+        assert(failure_text(["one", "two"]).ends_with("one\ntwo\n"))

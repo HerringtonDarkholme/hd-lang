@@ -208,8 +208,9 @@ const planRule: Rule = (ctx) => [
   ...(has(ctx, /\.(rs|ts)$|^scripts\/cost-allowlist\.tsv$|^\.ast-grep\//)
     ? [
         step("cost", ".rs, .ts, allowlist or ast-grep rules changed", [
-          "node",
-          "scripts/check-cost.ts",
+          "bash",
+          "scripts/hd-tools.sh",
+          "check-cost",
         ]),
       ]
     : []),

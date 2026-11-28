@@ -1,0 +1,43 @@
+use pkg.cost.{audit, failure_text}
+use pkg.doc_files.{ToolError, repository_root}
+use std.cli.{Args, Cli}
+use std.console.eprintln
+use std.fs.{FsRead, read_text}
+use std.process.{Command, ExitCode, Process}
+
+@derive(Cli)
+struct Options:
+    pass
+
+fn run!() -> Result[ExitCode, ToolError] $ Console + Process + FsRead:
+    root := repository_root!()?
+    # cost: one ast-grep scan over the repository, as in the original checker.
+    command := Command::new("ast-grep")
+        .args(["scan", "--config", ".ast-grep/sgconfig.yml", "--json=compact"])
+        .current_dir(root)
+    scan := match command.run!():
+        .Ok(output) => output
+        .Err(error) =>
+            eprintln("check:cost needs ast-grep on PATH: $error")
+            return .Ok(ExitCode(2))
+    if scan.status != 0 && scan.status != 1:
+        eprintln("ast-grep scan failed (status ${scan.status}):\n${scan.stderr}")
+        return .Ok(ExitCode(2))
+    allowlist := read_text!(root.join("scripts/cost-allowlist.tsv"))
+        .map_err(fn(error): ToolError.Host("$error"))?
+    failures := audit!(root, scan.stdout, allowlist)?
+    message := failure_text(failures)
+    if !message.is_empty():
+        $.use(Console).write_error_sync(message).map_err(fn(error): ToolError.Host("$error"))?
+        return .Ok(ExitCode(1))
+    .Ok(ExitCode(0))
+
+pub fn main!() -> ExitCode $ Args + Console + Process + FsRead:
+    match Options::parse_args():
+        .Ok(_) => pass
+        .Err(error) => return error.exit()
+    match run!():
+        .Ok(code) => code
+        .Err(error) =>
+            eprintln("$error")
+            ExitCode(2)

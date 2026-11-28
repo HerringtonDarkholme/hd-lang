@@ -9,6 +9,7 @@ From the repository root:
 ```sh
 bash scripts/hd-tools.sh check-host-sources
 bash scripts/hd-tools.sh check-typescript-sources
+bash scripts/hd-tools.sh check-cost
 bash scripts/hd-tools.sh check-sloppy
 bash scripts/hd-tools.sh check-sloppy --update
 bash scripts/hd-tools.sh check-rule-citations

@@ -9,7 +9,7 @@
     "check:types": "tsc --noEmit && tsc --noEmit -p website/playground",
     "check:host-sources": "bash scripts/hd-tools.sh check-host-sources",
     "check:spec-sync": "bash scripts/hd-tools.sh check-rule-citations && bash scripts/hd-tools.sh check-removed-forms",
-    "check:cost": "node scripts/check-cost.ts && bash scripts/hd-tools.sh check-sloppy",
+    "check:cost": "bash scripts/hd-tools.sh check-cost && bash scripts/hd-tools.sh check-sloppy",
     "check:typescript-sources": "bash scripts/hd-tools.sh check-typescript-sources",
     "format": "oxfmt --write 'host/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
     "format:check": "oxfmt --check 'host/**/*.ts' 'spec/**/*.ts' 'bench/**/*.ts' 'scripts/**/*.js' 'scripts/**/*.ts' 'website/*.ts' 'website/src/**/*.ts' 'website/client/**/*.ts' 'website/test/**/*.ts' 'website/assets/**/*.js' 'website/playground/**/*.ts' package.json .oxfmtrc.json .oxlintrc.json",
