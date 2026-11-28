@@ -2,17 +2,15 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -130,14 +128,31 @@
     i32.add
     global.set $stack
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $k i32) (local $total i32) (local $width i32) (local $offset'1 i32) (local $value'1 i64) (local $value'2 i64) (local $t0 i64) (local $t1 i64) (local $offset'2 i32) (local $size i32) (local $result.0 i32) (local $offset'3 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $k i32) (local $total i32) (local $t0 i32) (local $offset'1 i32) (local $offset'2 i32) (local $value'1 i64) (local $value'2 i64) (local $t1 i64) (local $t2 i64) (local $size i32) (local $result.0 i32) (local $offset'3 i32)
     ;; 23 |     let k = +3
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $stack
     block
       i32.const 3
       local.set $k
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
       local.set $total
     ;; 24 |     let total = +0
       local.get $total
@@ -145,41 +160,39 @@
       i32.store $heap
     ;; 25 |     each([1, 2], fn(x): total += x)
       i32.const 2
-      local.set $width
-      local.get $width
-      call $rt:list_buf
       local.set $offset'1
       local.get $offset'1
-      local.get $width
-      i32.store $heap offset=4
+      call $rt:list_buf
+      local.set $offset'2
+      local.get $offset'2
       local.get $offset'1
-      local.set $width
-      local.get $width
+      i32.store $heap offset=4
+      local.get $offset'2
+      local.set $offset'1
+      local.get $offset'1
       i32.const 1
       i32.store $heap offset=16
-      local.get $width
+      local.get $offset'1
       i32.const 4
       i32.add
-      local.set $width
-      local.get $width
+      local.set $offset'1
+      local.get $offset'1
       i32.const 2
       i32.store $heap offset=16
-      local.get $width
+      local.get $offset'1
       i32.const 4
       i32.add
-      local.set $width
-      local.get $total
-      call $rt:retain_known
+      local.set $offset'1
       i32.const 2
-      local.set $width
+      local.set $offset'1
+      local.get $offset'2
       local.get $offset'1
-      local.get $width
       local.get $total
       call $"each[main#closure1]"
     ;; 26 |     println("${apply(fn(x): x * k, 4)} $total")
       i32.const 3
-      local.set $width
-      local.get $width
+      local.set $offset'1
+      local.get $offset'1
       local.get $k
       i32.const 4
       call $"apply[main#closure2]"
@@ -200,23 +213,23 @@
               local.get $value'1
               i64.const 0
               i64.lt_s
-              local.set $width
-              local.get $width
+              local.set $offset'1
+              local.get $offset'1
               if
                 i32.const 1
-                local.set $width
+                local.set $offset'1
               else
                 i32.const 0
-                local.set $width
+                local.set $offset'1
               end
               local.get $k
               i64.extend_i32_u
               local.set $value'2
-              local.get $width
+              local.get $offset'1
               i64.extend_i32_u
-              local.set $t0
+              local.set $t1
               local.get $value'2
-              local.get $t0
+              local.get $t1
               i64.add
               local.set $value'2
               local.get $value'2
@@ -236,17 +249,13 @@
         end
       end
       local.get $total
-      local.set $width
-      local.get $width
       i32.load $heap
       local.set $offset'1
       i32.const 0
-      local.set $width
+      local.set $total
       local.get $offset'1
       i64.extend_i32_s
       local.set $value'2
-      local.get $total
-      call $rt:release_ref'1
       i32.const 0
       local.set $total
       block
@@ -255,10 +264,10 @@
             block
               local.get $value'2
               call $signed_magnitude
-              local.set $t0
-              local.get $t0
+              local.set $t1
+              local.get $t1
               call $unsigned_width
-              local.set $width
+              local.set $total
               local.get $value'2
               i64.const 0
               i64.lt_s
@@ -271,26 +280,26 @@
                 i32.const 0
                 local.set $offset'1
               end
-              local.get $width
-              i64.extend_i32_u
-              local.set $t0
-              local.get $offset'1
+              local.get $total
               i64.extend_i32_u
               local.set $t1
-              local.get $t0
+              local.get $offset'1
+              i64.extend_i32_u
+              local.set $t2
               local.get $t1
+              local.get $t2
               i64.add
-              local.set $t0
-              local.get $t0
+              local.set $t1
+              local.get $t1
               i64.const 4294967295
               i64.gt_u
               if
                 call $rt:panic'1
                 unreachable
               end
-              local.get $t0
+              local.get $t1
               i32.wrap_i64
-              local.set $width
+              local.set $total
               br 0
             end
           end
@@ -314,22 +323,22 @@
       local.set $offset'2
       local.get $offset'2
       i64.extend_i32_u
-      local.set $t0
-      local.get $width
-      i64.extend_i32_u
       local.set $t1
-      local.get $t0
+      local.get $total
+      i64.extend_i32_u
+      local.set $t2
       local.get $t1
+      local.get $t2
       i64.add
-      local.set $t0
-      local.get $t0
+      local.set $t1
+      local.get $t1
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic'1
         unreachable
       end
-      local.get $t0
+      local.get $t1
       i32.wrap_i64
       local.set $size
       block
@@ -373,9 +382,9 @@
           local.set $value'1
           local.get $offset'1
           i64.extend_i32_u
-          local.set $t0
+          local.set $t1
           local.get $value'1
-          local.get $t0
+          local.get $t1
           i64.add
           local.set $value'1
           local.get $value'1
@@ -396,7 +405,7 @@
         end
       end
       local.get $offset'3
-      call $rt:release_ref'2
+      call $rt:release_ref'1
       i32.const 0
       local.set $offset'3
       i32.const 0
@@ -411,7 +420,7 @@
           local.set $k
           local.get $value'2
           local.get $k
-          local.get $width
+          local.get $total
           call $write_signed_sized
           br 0
         end
@@ -422,9 +431,11 @@
       local.get $provider0.vtable
       call $"println[string]"
     ;; 23 |     let k = +3
-      local.get $total
-      call $rt:release_ref'1
     end
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
   )
   (func $"each[main#closure1]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t1 i32) (local $t2 i32) (local $x i32) (local $t0 i32) (local $t3 i32)
     ;; 19 |     for x in xs:
@@ -503,9 +514,7 @@
         end
       end
       local.get $xs
-      call $rt:release_ref'1
-      local.get $f.1
-      call $rt:release_ref'1
+      call $rt:release_ref'2
     end
     local.get $t0
     i32.const 16

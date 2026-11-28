@@ -505,6 +505,63 @@ impl hd_opt::prove::Cx for Env<'_> {
     }
 }
 
+impl Env<'_> {
+    /// Whether argument `k` of a call of `callee` leaves the call with
+    /// nothing keeping it (#1449): its parameter is a bare type parameter
+    /// of the callee's own that no lifetime bounds and no other parameter
+    /// and no result names. Such a value, a closure among them, may hold
+    /// local references (`ref.generic.outlives.argument`), so the callee
+    /// can keep it nowhere: a place that outlives the call asks `'static`
+    /// (`ref.generic.static.capture`). A suspending callee's frame and an
+    /// intrinsic's code keep their arguments. Cost: one walk of the
+    /// callee's signature.
+    fn leaves_with_nothing(&self, callee: &Callee, k: usize) -> bool {
+        let Callee::Item { def, .. } = *callee else {
+            return false;
+        };
+        if self.intrinsic(def).is_some() || ProgramEnv::suspends(self, def) {
+            return false;
+        }
+        let Some(sig) = self.sig(def) else {
+            return false;
+        };
+        let pool = self.run.pool.types();
+        let Some(&(_, p)) = sig.params.get(k) else {
+            return false;
+        };
+        let TyData::Param(param) = pool.get(p) else {
+            return false;
+        };
+        let static_bound = self.run.known.static_bound;
+        let bounded = sig.generics.get(usize::from(param.index)).is_none_or(|g| {
+            g.outlives != 0
+                || g.bounds
+                    .iter()
+                    .any(|&b| pool.trait_value(b).is_some_and(|(d, _)| d == static_bound))
+        });
+        if param.owner != def || bounded {
+            return false;
+        }
+        let names = |t: Ty| {
+            let mut stack = vec![t];
+            let mut parts = Vec::new();
+            while let Some(u) = stack.pop() {
+                if !pool.has_param(u) {
+                    continue;
+                }
+                if pool.get(u) == TyData::Param(param) {
+                    return true;
+                }
+                parts.clear();
+                pool.children(u, &mut parts);
+                stack.extend_from_slice(&parts);
+            }
+            false
+        };
+        !(sig.params.iter().enumerate()).any(|(j, &(_, t))| j != k && names(t)) && !names(sig.ret)
+    }
+}
+
 impl OwnCx for Env<'_> {
     fn declares_binding(&self, init: DefId, global: DefId) -> bool {
         let names = self.run.names();
@@ -1026,6 +1083,9 @@ impl OwnCx for Env<'_> {
     }
 
     fn keeps(&self, callee: &Callee, k: usize, _: usize) -> bool {
+        if self.leaves_with_nothing(callee, k) {
+            return false;
+        }
         // Release: a parameter the callee's summary lends, which it never
         // stores, captures or returns, unless the compiler supplies the
         // call's code (an intrinsic) or the callee suspends, whose frame

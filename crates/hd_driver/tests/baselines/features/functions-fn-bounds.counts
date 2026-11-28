@@ -27,7 +27,4 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
     each(xs, fn(x: string) -> void: n += x.len())
-> app/main/fn_mut
->   retain *mut usize (stored)
->   release app.main.fn_mut#closure1 [1] (last use)
     n

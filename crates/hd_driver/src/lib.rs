@@ -14269,7 +14269,8 @@ impl LayoutEnv for Env<'_> {
     /// The closure's `Closure` instruction in its item's body after the
     /// ownership passes, which add captures (a pointer's loan counter):
     /// each capture's type at the closure's arguments, a shared one's cell
-    /// as `*mut T`, after an `i32` for the code's table slot. While that
+    /// as `*mut T` and a frame cell's slot as `&mut T`, after an `i32` for
+    /// the code's table slot. While that
     /// body is being owned, its passes see the signature's function value,
     /// which counts as the tuple does; nothing is kept until it is owned.
     /// Cost: one pass over the body per closure type, memoized.
@@ -14295,15 +14296,16 @@ impl LayoutEnv for Env<'_> {
             let mut fields = vec![Ty::I32];
             for c in start..start + n {
                 let ty = hd_mono::subst(pool, self, item, args, b.local_ty[b.cap_local[c].idx()]);
-                let shared = b.cap_mode.get(c).is_some_and(|m| m.shares());
-                fields.push(if shared {
-                    pool.intern_ty(&TyData::Ref {
+                let mode = b.cap_mode.get(c).copied();
+                fields.push(match mode {
+                    // A frame cell (#1449) is a slot of the creator's frame,
+                    // which outlives the value: its address counts nothing.
+                    Some(m) if m.shares() => pool.intern_ty(&TyData::Ref {
                         inner: ty,
                         mutable: true,
-                        counted: true,
-                    })
-                } else {
-                    ty
+                        counted: m != hd_tir::ir::CaptureMode::Frame,
+                    }),
+                    _ => ty,
                 });
             }
             Some(pool.intern_ty(&TyData::Adt(

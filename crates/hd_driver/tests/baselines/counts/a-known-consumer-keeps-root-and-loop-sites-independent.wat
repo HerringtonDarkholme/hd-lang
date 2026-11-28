@@ -4,7 +4,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -114,63 +113,19 @@
         i32.add
         local.set $t1
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
-        local.get $total
-        if
-          local.get $total
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $total
-            call $rt:retain_known
-          end
-        end
         local.get $xs
         i32.const 2
         local.get $total
         call $"each[mixed#closure1]"
-        local.get $total
     ;; 13 |     for _ in 0..3:
-        if
-          local.get $total
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $total
-            call $rt:release_ref'1
-          end
-        end
         br 0
       end
     end
     ;; 15 |     each(xs, fn(x: string) -> void: total += x.len())
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:retain_known
-      end
-    end
     local.get $xs
     i32.const 3
     local.get $total
     call $"each[mixed#closure2]"
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:release_ref'1
-      end
-    end
     ;; 16 |     total
     local.get $total
     i32.load $heap

@@ -18,13 +18,8 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 fn mixed(xs: List[string]) -> usize:
     let total: usize = 0
     for _ in 0..3:
-> app/main/mixed
->   release app.main.mixed#closure1 [1] (last use)
         each(xs, fn(x: string) -> void: total += x.len())
->   retain *mut usize (stored)
     each(xs, fn(x: string) -> void: total += x.len())
->   retain *mut usize (stored)
->   release app.main.mixed#closure2 [1] (last use)
     total
 
 pub fn main() -> void $ Console:

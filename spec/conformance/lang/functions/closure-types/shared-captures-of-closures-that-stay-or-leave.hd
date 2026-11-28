@@ -1,0 +1,57 @@
+# test: a closure type's shared let captures keep their values whether the closure stays in its call or leaves it in a result, a list or a struct
+# Spec 07 Closure Types: fn.closure.type.
+# expect-stdout: 6 6 2 5 5 6
+use std.ops.{Fn, FnMut}
+
+struct Holder[F < FnMut() -> void]:
+    run: F
+
+fn each[F < FnMut(i32) -> void](xs: List[i32], mut f: F) -> void:
+    for x in xs:
+        f(x)
+
+fn keep[F < FnMut() -> void](f: F) -> Holder[F]:
+    Holder { run: f }
+
+fn store[F < FnMut() -> void](fs: &mut List[F], f: F) -> void:
+    fs.push(f)
+
+fn twice[F < FnMut() -> void](mut f: F) -> void:
+    f()
+    f()
+
+fn totals() -> (i32, i32):
+    let total = +0
+    each([1, 2, 3], fn(x): total += x)
+    let rounds = +0
+    for x in [1, 2, 3]:
+        let local = +0
+        each([x, x], fn(y): local += y)
+        rounds += local / 2
+    (total, rounds)
+
+fn escaping() -> i32:
+    let count = +0
+    let mut held = keep(fn(): count += 1)
+    (held.run)()
+    (held.run)()
+    count
+
+fn stored() -> i32:
+    let count = +0
+    let mut fs = []
+    store(&mut fs, fn(): count += 1)
+    for f in fs:
+        let mut g = f
+        g()
+    let n = +0
+    twice(fn():
+        let inner = +0
+        twice(fn(): inner += 1)
+        n += inner
+    )
+    count + n
+
+pub fn main() -> void $ Console:
+    let (total, rounds) = totals()
+    println("$total $rounds ${escaping()} ${stored()} ${stored()} ${stored() + 1}")

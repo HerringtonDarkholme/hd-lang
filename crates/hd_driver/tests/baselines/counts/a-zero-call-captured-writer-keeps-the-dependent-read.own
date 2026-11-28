@@ -72,6 +72,7 @@ fn element() -> string:
 > app/main/element
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 ps: List[*mut P] [read assigned captured] place
+>     frame cell [$1]
 >   local $2 change: fn() -> () [:= read assigned] value
 >     uses $2: %20 -> %27 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
@@ -82,7 +83,7 @@ fn element() -> string:
 >   %2 = Store [$0] %0 : ()
 >   %3 = Ref take mut [$0] : *mut P
 >   %4 = NewList - [%3] : List[*mut P]
->   %5 = Box #1 #1 : ()
+>   %5 = Box #1 #0 : ()
 >   %6 = Store [$1] %4 : ()
 >   %35 = Drop [$1] : ()
 >   %36 = Block %30 : string
@@ -112,7 +113,6 @@ fn element() -> string:
 >   %27 = Read move [$2] : fn() -> ()
 >   %28 = Intrinsic Empty [] : ()
 >   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
->   %29 keeps %27
     *d
 >   %30 = Read copy [*$4] : string
 >   %31 = Retain %30 Value #0 : ()
@@ -121,7 +121,7 @@ fn element() -> string:
 >   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
->   storage sub 0: $0 cell, $1 cell, $3 cell
+>   storage sub 0: $0 cell, $1 slot, $3 cell
 >   storage sub 1: $0 cell, $1 cell, $3 cell
 
 fn field() -> string:
@@ -129,6 +129,7 @@ fn field() -> string:
 > app/main/field
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 h: Holder [read assigned captured captured-assigned] place
+>     frame cell [$1]
 >   local $2 change: fn() -> () [:= read assigned] value
 >     uses $2: %21 -> %27 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
@@ -140,7 +141,7 @@ fn field() -> string:
 >   %3 = Ref take mut [$0] : *mut P
 >   %4 = Coerce %3 [Weaken -] : *P
 >   %5 = NewStruct [%4] : Holder
->   %6 = Box #1 #1 : ()
+>   %6 = Box #1 #0 : ()
 >   %7 = Store [$1] %5 : ()
 >   %35 = Drop [$1] : ()
 >   %36 = Block %30 : string
@@ -169,7 +170,6 @@ fn field() -> string:
 >   %27 = Read move [$2] : fn() -> ()
 >   %28 = Intrinsic Empty [] : ()
 >   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
->   %29 keeps %27
     *d
 >   %30 = Read copy [*$4] : string
 >   %31 = Retain %30 Value #0 : ()
@@ -178,7 +178,7 @@ fn field() -> string:
 >   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
->   storage sub 0: $0 cell, $1 cell, $3 cell
+>   storage sub 0: $0 cell, $1 slot, $3 cell
 >   storage sub 1: $0 cell, $1 cell, $3 cell
 
 pub fn main() -> void $ Console:

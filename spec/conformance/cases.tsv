@@ -7509,6 +7509,7 @@ lang/functions/closure-types/a-closure-capturing-only-copies-is-copy.hd	runtime	
 lang/functions/closure-types/a-closure-capturing-a-mut-reference-moves.hd	type	reject:use-of-moved-value	lang/07-functions.md#r-fn.closure.copy
 lang/functions/closure-types/a-closure-value-goes-where-its-signature-is-expected.hd	runtime	accept	lang/07-functions.md#r-fn.closure.coerce
 lang/functions/closure-types/an-fn-bounded-parameter-takes-a-closure-that-is-not-copy.hd	runtime	accept	lang/13-values-and-references.md#r-ref.copy.generic.fn
+lang/functions/closure-types/shared-captures-of-closures-that-stay-or-leave.hd	runtime	accept	lang/07-functions.md#r-fn.closure.type
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

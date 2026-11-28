@@ -2,9 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -99,7 +97,7 @@
         local.get $x.0
         if
           local.get $x.0
-          call $rt:release_ref'1
+          call $rt:release_ref
         end
         br 0
       end
@@ -135,32 +133,10 @@
     i32.const 0
     i32.store $heap
     ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
-    local.get $n
-    if
-      local.get $n
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $n
-        call $rt:retain_known
-      end
-    end
     local.get $xs
     i32.const 0
     local.get $n
     call $"each[fn_mut#closure1]"
-    local.get $n
-    if
-      local.get $n
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $n
-        call $rt:release_ref'2
-      end
-    end
     ;; 26 |     n
     local.get $n
     i32.load $heap

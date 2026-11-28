@@ -3,10 +3,9 @@
 (module
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (func $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (param i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -35,7 +34,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -66,42 +65,15 @@
     local.set $t1
     local.get $values
     i32.const 0
-    local.set $values
-    local.set $t2
-    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:retain_known
-      end
-    end
-    i32.const 0
-    local.set $t3
-    ;; 10 |     values.iter()
-    local.get $t2
-    local.get $values
     local.get $t1
+    ;; 11 |         .filter_map(fn(value: i32) -> i32?:
+    i32.const 0
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
     i32.const 1
-    local.get $t3
     local.get $total
+    ;; 10 |     values.iter()
     i32.const 0
     call $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]"
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:release_ref
-      end
-    end
     ;; 15 |     total
     local.get $total
     i32.load $heap
@@ -198,11 +170,10 @@
 (module
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (func $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]" (param i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, matching#closure1, {open row}]" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -231,7 +202,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -262,50 +233,15 @@
     local.set $t1
     local.get $values
     i32.const 0
-    local.set $values
-    local.set $t2
-    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:retain_known
-      else
-        call $skipped_test
-      end
-    else
-      call $skipped_test
-    end
-    i32.const 1
-    local.set $t3
-    ;; 10 |     values.iter()
-    local.get $t2
-    local.get $values
     local.get $t1
+    ;; 11 |         .filter_map(fn(value: i32) -> i32?:
+    i32.const 1
+    ;; 14 |         .for_each(fn(value: i32) -> void: total += value)
     i32.const 2
-    local.get $t3
     local.get $total
+    ;; 10 |     values.iter()
     i32.const 0
     call $"Iterator.for_each[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, sum_positive#closure1], i32, sum_positive#closure2, {open row}]"
-    local.get $total
-    if
-      local.get $total
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $total
-        call $rt:release_ref
-      else
-        call $skipped_test
-      end
-    else
-      call $skipped_test
-    end
     ;; 15 |     total
     local.get $total
     i32.load $heap
