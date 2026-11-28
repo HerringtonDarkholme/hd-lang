@@ -4,6 +4,8 @@
 # never wait, so their calls through `*mut dyn File` (a `read!` and the
 # `using!` binding's `dispose!`) make no frame and link no `.poll`,
 # `.cancel` or `.drop` of either (#2419).
+# Without temp_dir!, MemoryFs keeps its original representation and links no
+# temporary-directory-only allocator or map-table instance (#2462).
 use std.fs.{FsRead, FsWrite, MemoryFs, open, write_text}
 use std.path.Path
 

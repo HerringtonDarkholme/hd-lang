@@ -424,8 +424,6 @@ pub struct MemoryFs:
     files: Map[string, List[u8]]
     modified: Map[string, Timestamp]
     dirs: List[string]
-    directory_index: Map[string, bool] = {}
-    next_temp: u64 = 0
 
 # Lexical keys only: no host access, symlinks or parent-component resolution.
 fn memory_key(path: Path) -> string:
@@ -471,7 +469,10 @@ impl MemoryFs:
     fn dir_at(&self, key: string) -> bool:
         if key == "." || key == "/":
             return true
-        self.directory_index.get(key).is_some()
+        for made in self.dirs:
+            if made == key:
+                return true
+        false
 
     # Whether a file's key is a directory above `key`.
     fn file_above(&self, key: string) -> bool:
@@ -586,17 +587,26 @@ impl FsRead for MemoryFs:
 fn memory_in_tree(name: &string, root: &string, prefix: &string) -> bool:
     if *root == ".": !name.starts_with("/") else: *name == *root || name.starts_with(*prefix)
 
+# Only the temporary-directory operation builds this scratch index. The fake's
+# original representation and ordinary read/write paths remain unchanged.
+# Cost: O(D + C) probes and O(D) temporary entries for D directories and C
+# occupied candidate names, plus existing directory creation's O(D) scan.
+fn memory_temp_path(files: &MemoryFs, prefix: string) -> (Path, usize):
+    let mut occupied: Map[string, bool] = {}
+    for directory in files.dirs:
+        occupied[directory] = true
+    let candidate: usize = 0
+    let path = Path("/tmp/$prefix$candidate")
+    while files.files.contains_key(memory_key(path)) || occupied.contains_key(memory_key(path)):
+        candidate += 1
+        path = Path("/tmp/$prefix$candidate")
+    (path, candidate + 1)
+
 impl FsWrite for MemoryFs:
     fn create_temp_dir!(&mut self, prefix: string) -> Result[Path, FsError]:
         if prefix.contains("/") || prefix.to_utf8().contains(&0u8):
             return .Err(.Other("temporary-directory prefix contains a path separator or NUL"))
-        # Indexed directory membership makes each collision check constant-time;
-        # each occupied candidate advances the counter once, never rescanning dirs.
-        let path = Path("/tmp/$prefix${self.next_temp}")
-        self.next_temp = self.next_temp.wrapping_add(1)
-        while self.file_at(memory_key(path)).is_some() || self.dir_at(memory_key(path)):
-            path = Path("/tmp/$prefix${self.next_temp}")
-            self.next_temp = self.next_temp.wrapping_add(1)
+        let (path, _) = memory_temp_path(self, prefix)
         self.create_dir_all!(path)?
         .Ok(path)
 
@@ -623,8 +633,6 @@ impl FsWrite for MemoryFs:
         for directory in self.dirs:
             if !memory_in_tree(&directory, &key, &prefix):
                 directories.push(directory)
-            else:
-                _ := self.directory_index.remove(directory)
         self.dirs = directories
         .Ok(())
 
@@ -676,7 +684,6 @@ impl FsWrite for MemoryFs:
             level = if index == 0: parts[0] else: "${level}/${parts[index]}"
             if level != "" && !self.dir_at(level):
                 self.dirs.push(level)
-                self.directory_index[level] = true
             index = index + 1
         .Ok(())
 
@@ -697,7 +704,6 @@ impl FsWrite for MemoryFs:
             if made != key:
                 kept.push(made)
         self.dirs = kept
-        _ := self.directory_index.remove(key)
         _ := self.modified.remove(key)
         .Ok(())
 
@@ -751,9 +757,6 @@ impl FsWrite for MemoryFs:
             else:
                 renamed.push(made)
         self.dirs = renamed
-        self.directory_index = {}
-        for directory in self.dirs:
-            self.directory_index[directory] = true
         for (stored, time) in times:
             self.modified["${target}${stored.slice(source.len(), stored.len())}"] = time
         .Ok(())
@@ -763,7 +766,7 @@ tests:
         files := MemoryFs::new()
         for index in 0..1000:
             files.create_dir_all!(Path("/tmp/occupied-$index")).expect("seed directory")
-        directory := files.create_temp_dir!("occupied-").expect("fresh candidate")
+        let (directory, probes) = memory_temp_path(&*files, "occupied-")
         assert_equal(directory, Path("/tmp/occupied-1000"))
-        assert_equal(files.next_temp, 1001u64)
-        assert_equal(files.directory_index.len(), 1002)
+        assert_equal(probes, 1001)
+        assert_equal(files.create_temp_dir!("occupied-").ok(), .Some(directory))
