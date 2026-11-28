@@ -143,7 +143,7 @@ impl Regex:
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(&self, text: string) -> bool:
-        vm := self.take(text, 0, true)
+        vm := self.take(text, 0)
         found := search(vm, 0, true)
         self.give(vm)
         found
@@ -153,7 +153,7 @@ impl Regex:
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(&self, text: string) -> Match?:
-        vm := self.take(text, 2, true)
+        vm := self.take(text, 2)
         let found: Match? = if locate(vm, 0): .Some(vm.whole()) else: .None
         self.give(vm)
         found
@@ -162,18 +162,19 @@ impl Regex:
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(&self, text: string) -> List[Match]:
-        vm := self.take(text, 2, true)
+        vm := self.take(text, 2)
         let mut found: List[Match] = []
         while advance(vm):
             found.push(vm.whole())
         self.give(vm)
         found
 
-    # The groups of the first match (r-std-regex.captures), on the Pike VM.
+    # The groups of the first match (r-std-regex.captures): the DFAs find
+    # its bounds and the Pike VM its groups (`locate`).
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(&self, text: string) -> Captures?:
-        vm := self.take(text, self.slot_count(), false)
+        vm := self.take(text, self.slot_count())
         let found: Captures? = if locate(vm, 0): .Some(vm.groups(self.names)) else: .None
         self.give(vm)
         found
@@ -186,11 +187,11 @@ impl Regex:
             .None => .Err(.NoMatch)
 
     # The groups of each match that `find_all` returns
-    # (r-std-regex.captures-all), on the Pike VM.
+    # (r-std-regex.captures-all).
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(&self, text: string) -> List[Captures]:
-        vm := self.take(text, self.slot_count(), false)
+        vm := self.take(text, self.slot_count())
         let mut found: List[Captures] = []
         while advance(vm):
             found.push(vm.groups(self.names))
@@ -203,7 +204,7 @@ impl Regex:
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(&self, text: string, replacement: string) -> string:
         template := Pattern::of(replacement)
-        vm := self.take(text, self.replace_slots(template), true)
+        vm := self.take(text, self.replace_slots(template))
         let replaced = text
         if locate(vm, 0):
             groups := self.groups_of(vm)
@@ -221,7 +222,7 @@ impl Regex:
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(&self, text: string, replacement: string) -> string:
         template := Pattern::of(replacement)
-        vm := self.take(text, self.replace_slots(template), true)
+        vm := self.take(text, self.replace_slots(template))
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
         let mut pieces: List[string] = []
@@ -239,7 +240,7 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(&self, text: string) -> List[string]:
-        vm := self.take(text, 2, true)
+        vm := self.take(text, 2)
         let mut pieces: List[string] = []
         let last: usize = 0
         while advance(vm):
@@ -267,14 +268,13 @@ impl Regex:
     # this module, so no call starts while another runs today; a call that
     # did, from a task or a later callback, would get its own VM, since
     # `busy` stays set from `take` to `give`.
-    fn take(&self, text: string, slot_count: usize, dfa: bool) -> *mut Vm:
+    fn take(&self, text: string, slot_count: usize) -> *mut Vm:
         let vm = self.idle
         if vm.busy:
             # Boxed because a call holds its VM by reference, as it holds the shared one.
             vm = box(blank_vm(self.program, self.filter, self.forward, self.reverse))
         ready(vm, text, slot_count)
         vm.busy = true
-        vm.dfa = dfa
         vm
 
     # Hands the VM back, letting go of the text.
@@ -1195,6 +1195,10 @@ struct Program:
     points: UniqList[i32]
     ranges: UniqList[i32]
     contextual: bool
+    # Whether every match starts at byte 0: the pattern passes a `^` before
+    # it reads, ends or waits for the end (RE2's anchor_start,
+    # regex-automata's NFA::is_always_start_anchored).
+    anchored: bool
 
 fn lower(program: List[Inst]) -> Program:
     let mut ops = UniqList::[i32].new()
@@ -1238,14 +1242,17 @@ fn lower(program: List[Inst]) -> Program:
         left.push(first)
         right.push(second)
         points.push(point)
-    Program {
+    let mut lowered = Program {
         ops: ops,
         left: left,
         right: right,
         points: points,
         ranges: ranges,
         contextual: contextual,
+        anchored: false,
     }
+    lowered.anchored = !restarts(&lowered)
+    lowered
 
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
@@ -1329,7 +1336,7 @@ fn automaton(program: &Program) -> Automaton:
     # Past byte 0 a pattern that starts with `^` can start no match, and
     # the prefix would only read the rest of the text.
     edges.add(count, -1, -1, 0)
-    if restarts(program):
+    if !program.anchored:
         edges.add(count, -1, -1, count + 1)
     edges.add(count + 1, 0, 255, count)
     guards.push(+0)
@@ -1395,7 +1402,7 @@ fn graph(count: usize, edges: &Edges, reversed: bool, guards: List[i32]) -> Grap
 
 # Whether a match can start past byte 0: whether instruction 0 reaches,
 # without passing a `^`, one that reads a character, ends the match, or
-# waits for the end.
+# waits for the end. A line or word assertion may hold past byte 0.
 fn restarts(program: &Program) -> bool:
     ops := &program.ops
     let mut seen: List[bool] = []
@@ -1414,7 +1421,7 @@ fn restarts(program: &Program) -> bool:
             stack.push(program.right[pc])
         if op == 5 || op == 6:
             stack.push(program.left[pc])
-        else if op == 7:
+        else if op == 7 || op == 10:
             stack.push(pc + 1)
     false
 
@@ -2014,10 +2021,8 @@ struct Vm:
     hit: i64
     near_from: i64
     near_until: i64
-    # Whether a call is using the VM, and whether the call's searches run
-    # on the DFA (all but `captures` and `captures_all`).
+    # Whether a call is using the VM.
     busy: bool
-    dfa: bool
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than width + 1.
@@ -2045,7 +2050,9 @@ fn blank_vm(program: *Program, filter: Prefilter, forward: *mut Dfa, reverse: *m
         last_end: -1,
         finished: false,
         filter: filter,
-        filtered: bytes_len(filter.literal) > 0 || filter.firsts.len() > 0,
+        # A pattern anchored at byte 0 tries only there, so it has nothing
+        # to skip to.
+        filtered: !program.anchored && (bytes_len(filter.literal) > 0 || filter.firsts.len() > 0),
         forward: forward,
         reverse: reverse,
         hit_from: 1,
@@ -2053,7 +2060,6 @@ fn blank_vm(program: *Program, filter: Prefilter, forward: *mut Dfa, reverse: *m
         near_from: 0,
         near_until: -1,
         busy: false,
-        dfa: true,
     }
 
 # Readies `vm` for a call on `text` with `slot_count` slots for each
@@ -2131,20 +2137,22 @@ fn advance(vm: &mut Vm) -> bool:
             return true
     false
 
-# The next match at byte `from` or later, its slots in `vm.found`: on
-# the DFA, unless the call wants every group from the Pike VM. A
-# replacement that names groups gets them by running the Pike VM again
-# from the match's start, which finds the same match: a thread it no
-# longer starts before that byte could reach no `Done`, or the match
-# would start there (regex-automata's meta engine narrows a capture
-# search to the DFA's span the same way).
+# The next match at byte `from` or later, its slots in `vm.found`. The
+# DFAs find its bounds; a call that wants groups gets them by running the
+# Pike VM over just those bounds, anchored at the match's start, which
+# finds the same match: a thread it no longer starts before that byte
+# could reach no `Done`, or the match would start there, and a thread
+# alive past its end could reach no `Done`, or the match would end later.
+# regex-automata's meta engine narrows a capture search to the lazy DFA's
+# span the same way (meta/strategy.rs, search_slots_nofail), so the Pike
+# VM's slot copies run over the match only.
 fn locate(vm: &mut Vm, from: usize) -> bool:
-    if !vm.dfa || vm.program.contextual:
-        return run(vm, from, false)
+    if vm.program.contextual:
+        return run(vm, from, false, -1)
     if !search(vm, from, false):
         return false
     if vm.slot_count > 2:
-        _ := run(vm, vm.start(), false)
+        _ := run(vm, vm.start(), false, i64(vm.end()))
     true
 
 # The Pike VM (r-std-regex.find.leftmost-first): threads in priority
@@ -2153,8 +2161,12 @@ fn locate(vm: &mut Vm, from: usize) -> bool:
 # `vm.found`, slot 0 its start and slot 1 its end. With `earliest`, as
 # `is_match` asks, it returns true as soon as any thread reaches `Done`.
 # A new thread starts only where the prefilter lets a match start, and
-# when no thread is alive the search jumps to the next such byte.
-fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
+# when no thread is alive the search jumps to the next such byte. With an
+# `end` of 0 or more, the search knows the match starts at `from` and ends
+# at `end`, as `locate` does: it starts no thread past `from` and stops
+# at `end`. A pattern anchored at byte 0 starts no thread past it either
+# (Go's machine.match stops the same way on syntax.EmptyBeginText).
+fn run(vm: &mut Vm, from: usize, earliest: bool, end: i64) -> bool:
     # A copy: the calls below change `vm` (r-ref.excl.write).
     program := vm.program
     ops := &program.ops
@@ -2166,7 +2178,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     size := vm.size
     slot_count := vm.slot_count
     done := ops.len() - 1
-    filtered := vm.filtered
+    if program.anchored && from > 0:
+        return false
+    anchored := program.anchored || end >= 0
+    filtered := vm.filtered && end < 0
     # The sides of the current and the next thread list, and the length of
     # the current one.
     let current: usize = 0
@@ -2235,10 +2250,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 next_count = add_thread(vm, program, next, next_count, pc + 1, after)
                 if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
-        if at >= size:
+        if at >= size || i64(at) == end:
             break
         at = after
-        if !matched:
+        if !matched && !anchored:
             let seed = i64(at)
             if filtered:
                 seed = start_from(vm, at, next_count > 0)
@@ -2922,10 +2937,12 @@ fn reverse_start(vm: &mut Vm, from: usize, end: usize) -> i64:
 # and the Pike VM runs the search when either one's cache gives out.
 fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     if vm.program.contextual:
-        return run(vm, from, earliest)
+        return run(vm, from, earliest, -1)
+    if vm.program.anchored && from > 0:
+        return false
     end := forward_end(vm, from, earliest)
     if end == -2:
-        return run(vm, from, earliest)
+        return run(vm, from, earliest, -1)
     if end < 0:
         return false
     if earliest:
@@ -2934,7 +2951,7 @@ fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     if usize(end) > from:
         start = reverse_start(vm, from, usize(end))
         if start < 0:
-            return run(vm, from, earliest)
+            return run(vm, from, earliest, -1)
     vm.found[0] = start
     vm.found[1] = end
     true
