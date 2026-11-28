@@ -1,0 +1,9 @@
+[package]
+name = "fuzz"
+
+[capabilities]
+Args = true
+Console = true
+Clock = true
+Process = true
+FsWrite = true

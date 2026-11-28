@@ -1,0 +1,347 @@
+use std.cli.Cli
+use std.fs.{FsError, FsWrite, create_dir_all, write_text}
+use std.path.Path
+use std.process.{Command, Process, ProcessError, ProcessOutput}
+use std.task.{TimedOut, apply, timeout}
+use std.time.{Clock, elapsed, monotonic}
+use std.text.StringBuilder
+use pkg.generate.{Program, generate}
+
+## Compare deterministic random programs across compiler profiles on Wasmtime.
+@derive(Cli)
+pub struct Options:
+    ## Existing compiler selected by the launcher.
+    pub hd: string
+    ## First seed; the next program uses the next seed.
+    pub seed: u64 = 1
+    ## Number of programs when --minutes is zero.
+    pub count: usize = 1000
+    ## Run for this many minutes instead of a fixed count.
+    pub minutes: u32 = 0
+    ## Continue finding and reducing failures after the first one.
+    pub keep_going: bool
+    ## Corpus, cache and finding directory, relative to tools/fuzz.
+    pub directory: string = "../../target/fuzz"
+
+@error
+pub enum RunError:
+    @error("process: $error")
+    Start(
+        @from
+        error: ProcessError,
+    )
+    @error("filesystem: $error")
+    Files(
+        @from
+        error: FsError,
+    )
+    @error("process deadline: $error")
+    Deadline(
+        @from
+        error: TimedOut,
+    )
+    @error("$message")
+    Setup(message: string)
+
+pub struct Stats:
+    pub generated: usize = 0
+    pub accepted: usize = 0
+    pub rejected: usize = 0
+    pub findings: usize = 0
+    pub reductions: usize = 0
+
+# One bounded child at a time. TimeLimit cancels the host process operation,
+# including its child process group; the cleanup bound also has a deadline.
+fn invoke!(
+    hd: string,
+    args: List[string],
+    cache: string,
+) -> Result[ProcessOutput, RunError] $ Process + Clock:
+    command := Command {
+        program: hd,
+        args: args,
+        env: [("HD_CACHE", cache), ("HD_JOBS", "2"), ("NO_COLOR", "1")],
+    }
+    apply!(timeout(30s, cleanup=1s), fn!() -> Result[ProcessOutput, RunError] $ Process:
+        match command.run!():
+            .Ok(output) => .Ok(output)
+            .Err(error) => .Err(RunError.Start(error))
+    )
+
+struct Trial:
+    rejected: bool = false
+    difference: bool = false
+    signature: string = ""
+    details: string = ""
+
+fn child!(hd: string, args: List[string], cache: string) -> ProcessOutput $ Process + Clock:
+    match invoke!(hd, args, cache):
+        .Ok(output) => output
+        .Err(error) => ProcessOutput { program: hd, status: -1, stderr: "$error" }
+
+fn checked_source(source: string, expected: string) -> string:
+    # The wrapper is outside the reducible program: removing an otherwise
+    # unused import must not manufacture a checked-only name error.
+    "use std.console.MemoryConsole\n${source}\ntests:\n    it(\"checksum\"):\n        console := MemoryConsole::new()\n        \$.with(Console=console):\n            main()\n        assert_equal(console.output().join(\"\"), ${debug(expected)})\n"
+
+# Exactly one checker and three Wasmtime executions. Checked uses the
+# existing checked test profile and asserts the same main's captured output
+# against dev. All processes, including compiler startup, have a deadline.
+fn trial!(
+    hd: string,
+    directory: string,
+    source: string,
+) -> Result[Trial, RunError] $ FsWrite + Process + Clock:
+    if !source.contains("pub fn main()") || !source.contains("fn checksum()"):
+        return .Ok(Trial { rejected: true })
+    file := "${directory}/candidate.hd"
+    checked_file := "${directory}/checked.hd"
+    cache := "${directory}/cache"
+    write_text!(Path(file), source)?
+    check := child!(hd, ["check", "--format", "json", file], cache)
+    if check.status != 0:
+        rejected := check.status == 101 && check.stdout.contains("\"kind\":\"diagnostic\"")
+        return .Ok(
+            Trial {
+                rejected: rejected,
+                difference: !rejected,
+                signature: "check/${check.status}",
+                details: "check stdout:\n${check.stdout}\ncheck stderr:\n${check.stderr}",
+            },
+        )
+    dev := child!(hd, [file, "--engine", "wasmtime", "--time-limit", "5s"], cache)
+    write_text!(Path(checked_file), checked_source(source, dev.stdout))?
+    checked := child!(
+        hd,
+        [
+            "test",
+            checked_file,
+            "--engine",
+            "wasmtime",
+            "--filter",
+            "checksum",
+            "--time-limit",
+            "5s",
+        ],
+        cache,
+    )
+    release := child!(hd, [file, "--release", "--engine", "wasmtime", "--time-limit", "5s"], cache)
+    .Ok(classify(dev, checked, release))
+
+fn classify(dev: ProcessOutput, checked: ProcessOutput, release: ProcessOutput) -> Trial:
+    checked_ok := checked.status == 0 && checked.stdout.contains("1 passed; 0 failed")
+    same_release := release.stdout == dev.stdout
+    valid_checksum := dev.stdout.trim().parse::[i64]().is_ok()
+    difference := (
+        dev.status != 0
+        || !checked_ok
+        || release.status != 0
+        || !same_release
+        || !valid_checksum
+    )
+    signature := "${dev.status}/${checked.status}/${release.status}/${checked_ok}/${same_release}/${valid_checksum}"
+    details := "dev (${dev.status}):\n${dev.stdout}\n${dev.stderr}\nchecked (${checked.status}):\n${checked.stdout}\n${checked.stderr}\nrelease (${release.status}):\n${release.stdout}\n${release.stderr}"
+    Trial { difference: difference, signature: signature, details: details }
+
+struct LinePlan:
+    pending: List[(usize, usize)]
+
+impl LinePlan:
+    fn new(count: usize) -> *mut LinePlan:
+        box(LinePlan { pending: if count == 0: [] else: [(0usize, count)] })
+
+    fn next(&mut self) -> (usize, usize)?:
+        self.pending.pop()
+
+    fn keep(&mut self, span: (usize, usize)) -> void:
+        let (lo, hi) = span
+        if hi - lo > 1:
+            middle := lo + (hi - lo) / 2
+            self.pending.push((middle, hi))
+            self.pending.push((lo, middle))
+
+fn render_lines(lines: &List[string], removed: &List[bool], lo: usize, hi: usize) -> string:
+    out := StringBuilder::new()
+    for (index, line) in lines.enumerate():
+        if !removed[index] && (index < lo || index >= hi):
+            out.push(line)
+            out.push("\n")
+    out.build()
+
+# Hierarchical delta debugging: every original line interval is visited at
+# most once. Failed deletions split in two; successful ones need no children.
+# Width L takes at most 2L-1 oracle calls, plus E expression-site calls.
+# Candidate rendering and each compiler run cost their actual input bytes.
+# There is no native recursion or repeated global fixed point.
+fn reduce!(
+    options: &Options,
+    program: &Program,
+    signature: string,
+    stats: *mut Stats,
+) -> Result[string, RunError] $ FsWrite + Process + Clock:
+    lines := program.source.split("\n")
+    let mut removed = [for _ in lines => false]
+    plan := LinePlan::new(lines.len())
+    let best = program.source
+    while true:
+        let .Some(span) = plan.next() else:
+            break
+        let (lo, hi) = span
+        candidate := render_lines(&lines, &removed, lo, hi)
+        result := trial!(options.hd, options.directory, candidate)?
+        stats.reductions += 1
+        if result.difference && result.signature == signature:
+            for index in lo..hi:
+                removed[index] = true
+            best = candidate
+        else:
+            plan.keep(span)
+    for expression in program.expressions:
+        if expression == "0i64" || !best.contains(expression):
+            continue
+        candidate := best.replace(expression, "0i64")
+        result := trial!(options.hd, options.directory, candidate)?
+        stats.reductions += 1
+        if result.difference && result.signature == signature:
+            best = candidate
+    .Ok(best)
+
+pub fn save_stats!(options: &Options, stats: &Stats) -> Result[void, RunError] $ FsWrite:
+    unfinished := stats.generated - stats.accepted - stats.rejected
+    text := "generated=${stats.generated}\naccepted=${stats.accepted}\nrejected=${stats.rejected}\nunfinished=${unfinished}\nfindings=${stats.findings}\nreduction_trials=${stats.reductions}\nfirst_seed=${options.seed}\ncompiler=${options.hd}\n"
+    write_text!(Path("${options.directory}/summary.txt"), text)?
+    .Ok(())
+
+pub fn campaign!(
+    options: Options,
+    stats: *mut Stats,
+) -> Result[void, RunError] $ FsWrite + Process + Clock + Console:
+    create_dir_all!(Path(options.directory))?
+    create_dir_all!(Path("${options.directory}/corpus"))?
+    create_dir_all!(Path("${options.directory}/findings"))?
+    version := invoke!(options.hd, ["--version"], "${options.directory}/cache")?
+    if version.status != 0:
+        help := invoke!(options.hd, ["--help"], "${options.directory}/cache")?
+        if help.status != 0:
+            return .Err(RunError.Setup("cannot run compiler: ${help.stderr}"))
+        write_text!(
+            Path("${options.directory}/compiler.txt"),
+            "compiler=${options.hd}\nversion option unavailable\n${help.stdout}${help.stderr}",
+        )?
+    else:
+        write_text!(Path("${options.directory}/compiler.txt"), version.stdout)?
+    probe := "fn checksum() -> i64: 42i64\npub fn main() -> void \$ Console:\n    println(checksum())\n"
+    preflight := trial!(options.hd, options.directory, probe)?
+    if preflight.rejected || preflight.difference:
+        return .Err(
+            RunError.Setup("three-profile Wasmtime preflight failed:\n${preflight.details}"),
+        )
+    started := monotonic()
+    let mut seen: Map[string, bool] = {}
+    while options.minutes > 0 || stats.generated < options.count:
+        if (
+            options.minutes > 0
+            && elapsed(started).as_milliseconds() >= i64(options.minutes) * 60000
+        ):
+            break
+        seed := options.seed.wrapping_add(u64(stats.generated))
+        program := generate(seed)
+        write_text!(Path("${options.directory}/corpus/seed-${seed}.hd"), program.source)?
+        stats.generated += 1
+        result := trial!(options.hd, options.directory, program.source)?
+        if result.rejected:
+            stats.rejected += 1
+            write_text!(
+                Path("${options.directory}/corpus/seed-${seed}.rejected.txt"),
+                result.details,
+            )?
+        else:
+            stats.accepted += 1
+            if result.difference:
+                base := "${options.directory}/findings/seed-${seed}"
+                write_text!(Path("${base}.original.hd"), program.source)?
+                write_text!(Path("${base}.original.txt"), result.details)?
+                # Count immediately: a campaign deadline during reduction
+                # must still report the persisted finding and fail the run.
+                stats.findings += 1
+                save_stats!(&options, &*stats)?
+                reduced := reduce!(&options, &program, result.signature, stats)?
+                duplicate := match seen.get(reduced):
+                    .Some(_) => true
+                    .None => false
+                if !duplicate:
+                    seen[reduced] = true
+                    final_result := trial!(options.hd, options.directory, reduced)?
+                    write_text!(Path("${base}.hd"), reduced)?
+                    write_text!(
+                        Path("${base}.txt"),
+                        "seed=${seed}\nsignature=${result.signature}\ncompiler=${options.hd}\n${final_result.details}",
+                    )?
+                    println("finding seed=${seed} source=${base}.hd")
+                else:
+                    stats.findings -= 1
+                if !options.keep_going:
+                    break
+        save_stats!(&options, &*stats)?
+        if stats.generated % 50 == 0:
+            println(
+                "generated=${stats.generated} rejected=${stats.rejected} findings=${stats.findings}",
+            )
+    save_stats!(&options, &*stats)
+
+tests:
+    use std.fs.MemoryFs
+    use std.process.ScriptedProcess
+    use std.time.{ManualClock, Timestamp}
+
+    it("checked reports are compared through their assertion, not raw test output"):
+        dev := ProcessOutput { stdout: "42\n" }
+        checked := ProcessOutput { stdout: "test result: ok. 1 passed; 0 failed; 0 ignored\n" }
+        assert(!classify(dev, checked, dev).difference)
+        assert(classify(dev, checked, ProcessOutput { stdout: "43\n" }).difference)
+        assert(classify(dev, ProcessOutput { stdout: "0 passed; 0 failed" }, dev).difference)
+        assert(classify(dev, checked, ProcessOutput { status: 101, stderr: "panic" }).difference)
+        malformed := ProcessOutput { stdout: "not a checksum" }
+        assert(classify(malformed, checked, malformed).difference)
+
+    it("line work is bounded at width 1000 and source depth 20"):
+        for count in [1000usize, 1000usize * 20usize]:
+            plan := LinePlan::new(count)
+            let calls = 0usize
+            while true:
+                let .Some(span) = plan.next() else:
+                    break
+                calls += 1
+                plan.keep(span)
+            assert_equal(calls, 2 * count - 1)
+
+    it("line deletion preserves original line identities"):
+        lines := ["first", "second", "third", "fourth"]
+        removed := [false, true, false, false]
+        assert_equal(render_lines(&lines, &removed, 2, 3), "first\nfourth\n")
+
+    it("checked wrapper keeps its import outside the reducible source"):
+        source := checked_source("pub fn main() -> void: pass\n", "42\n")
+        assert(source.starts_with("use std.console.MemoryConsole\n"))
+        assert(source.contains("assert_equal(console.output().join(\"\"), \"42\\n\")"))
+
+    it("reduction deletes irrelevant lines and simplifies expressions"):
+        process := ScriptedProcess::new()
+        process.reply(
+            "compiler",
+            .Ok(ProcessOutput { status: -1, stderr: "injected checker crash" }),
+        )
+        fs := MemoryFs::new()
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        source := "# irrelevant\nfn checksum() -> i64: 1i64\npub fn main() -> void: pass\n"
+        program := Program { source: source, expressions: ["1i64"] }
+        options := Options { hd: "compiler", directory: "scratch", keep_going: false }
+        stats := box(Stats {})
+        $.with(FsWrite=fs, Process=process, Clock=clock):
+            create_dir_all!(Path("scratch")).expect("memory directory")
+            reduced := reduce!(&options, &program, "check/-1", stats).expect("scripted reduction")
+            assert(!reduced.contains("irrelevant"))
+            assert(reduced.contains("fn checksum() -> i64: 0i64"))
+            assert(reduced.contains("pub fn main()"))
+        assert(stats.reductions <= 2 * source.split("\n").len())
+        assert(!process.received().is_empty())
