@@ -250,7 +250,7 @@ export function cutRelease(version: string, root = process.cwd()): void {
     throw error;
   }
   console.log(
-    `Created local v${version}. Review CHANGELOG.md, then push the commit, wait for main Test to pass, and push the tag yourself. Nothing was pushed.`,
+    `Created local v${version}. Review CHANGELOG.md, merge the commit onto main, and push the tag yourself. The release's native builds and smoke tests gate publication. Nothing was pushed.`,
   );
 }
 
