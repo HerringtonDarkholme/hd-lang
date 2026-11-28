@@ -452,6 +452,25 @@ obj/
   it, so a pack a reader's pages name but it cannot find means another
   process committed since: the reader reads the head and its pages again,
   once per vanished pack, as git rescans its packs when one disappears.
+- **Gone includes delete pending (#2458).** On Windows a file removed
+  while another handle holds it stays *delete pending* until the last
+  handle closes: its name stays, and opening, querying, removing or
+  renaming onto it fails with `ERROR_ACCESS_DENIED` (`PermissionDenied`).
+  A reader holds the packs and segments it read until its command ends,
+  so another reader whose older log names one a merge removed meets that
+  state, not `NotFound`. Readers and merges treat both as gone
+  (`files::gone`): they read the log again, or skip the source. No
+  removal waits for every reader instead: a language server holds its
+  store for hours, and RocksDB's deferral (a file is obsolete once no
+  `Version` refers to it, `Version::~Version`) counts references in one
+  process only. Packs and segments get fresh names, so none is created
+  at a pending name. A rename onto a page, head or table name, whose
+  readers hold it for one read, retries while it is in use with git's
+  waits (0, 1, 10, 20, 40 ms; `retry_ask_yes_no`, `compat/mingw.c`), as
+  SQLite's `winDelete` retries a delete a scanner blocks. Cost: nothing
+  until a file is pending, then one log read, as for a removed file.
+  Tests give a root these semantics on any host
+  (`files::windows::emulate`).
   A pack, once renamed into place, is removed only by GC under the lock,
   also when the commit that follows fails.
 - **Each entry computed once (#1932).** A store claims only when its

@@ -1152,7 +1152,7 @@ mod packed {
     }
 
     struct Opened {
-        file: File,
+        file: files::Handle,
         len: u64,
     }
 
@@ -1707,7 +1707,7 @@ mod packed {
 
     /// Reads a regular file of at most `limit` bytes; `None` when missing.
     fn read_small(path: &Path, limit: usize) -> io::Result<Option<Vec<u8>>> {
-        match std::fs::symlink_metadata(path) {
+        match files::metadata(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e),
             Ok(meta)
@@ -1719,10 +1719,10 @@ mod packed {
             Ok(_) => {}
         }
         let mut bytes = Vec::new();
-        match File::open(path) {
+        match files::open(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(e),
-            Ok(file) => file
+            Ok(file) => (&*file)
                 .take(u64::try_from(limit + 1).expect("limit"))
                 .read_to_end(&mut bytes)?,
         };
@@ -1760,7 +1760,7 @@ mod packed {
             file.write_all(bytes)?;
             count!(index_written, bytes.len());
             count!(index_files, 1);
-            std::fs::rename(&tmp, dir.join(name))?;
+            files::rename(&tmp, &dir.join(name))?;
             Ok(file)
         })();
         if result.is_err() {
@@ -1770,9 +1770,267 @@ mod packed {
     }
 
     fn remove_missing_ok(path: &Path) -> io::Result<()> {
-        match std::fs::remove_file(path) {
+        match files::remove(path) {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
             result => result,
+        }
+    }
+
+    /// The file operations whose Windows behaviour differs from Unix's
+    /// (#2458), in one place, so a test can give them Windows' semantics on
+    /// any host. On Windows a file removed while another handle holds it
+    /// stays *delete pending*: its name stays until the last handle closes,
+    /// and opening, querying, removing or renaming onto it fails with
+    /// `ERROR_ACCESS_DENIED` (`PermissionDenied`). Unix frees the name at
+    /// once. A reader holds packs and segments for its whole command, so
+    /// another reader whose older log names one a merge removed meets that
+    /// state, not `NotFound`.
+    mod files {
+        use std::fs::{File, Metadata};
+        use std::io;
+        use std::path::Path;
+
+        /// An open pack, segment or index file.
+        pub(super) struct Handle {
+            file: File,
+            #[cfg(test)]
+            _hold: Option<windows::Hold>,
+        }
+
+        impl std::ops::Deref for Handle {
+            type Target = File;
+            fn deref(&self) -> &File {
+                &self.file
+            }
+        }
+
+        impl std::ops::DerefMut for Handle {
+            fn deref_mut(&mut self) -> &mut File {
+                &mut self.file
+            }
+        }
+
+        /// Whether `error`, opening or querying a file an index named, says
+        /// the file is gone: removed (`NotFound`), or removed on Windows
+        /// while another handle holds it (delete pending, `PermissionDenied`).
+        /// Packs and segments are removed only after the index stops naming
+        /// them, so either way a later index no longer names it.
+        pub(super) fn gone(error: &io::Error) -> bool {
+            matches!(
+                error.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied
+            )
+        }
+
+        pub(super) fn open(path: &Path) -> io::Result<Handle> {
+            #[cfg(test)]
+            if let Some(opened) = windows::open(path) {
+                return opened;
+            }
+            Ok(Handle {
+                file: File::open(path)?,
+                #[cfg(test)]
+                _hold: None,
+            })
+        }
+
+        /// The file's own metadata, not a link's target.
+        pub(super) fn metadata(path: &Path) -> io::Result<Metadata> {
+            #[cfg(test)]
+            windows::query(path)?;
+            std::fs::symlink_metadata(path)
+        }
+
+        pub(super) fn remove(path: &Path) -> io::Result<()> {
+            #[cfg(test)]
+            if let Some(removed) = windows::remove(path) {
+                return removed;
+            }
+            std::fs::remove_file(path)
+        }
+
+        /// The waits before each retry of a rename another process blocks:
+        /// git's for an unlink or rename a file in use fails
+        /// (`retry_ask_yes_no` in `compat/mingw.c`), 71 ms in all. The
+        /// names renamed onto are pages, heads, tables and logs, which
+        /// readers hold only for one read, and a scanner's handle without
+        /// `FILE_SHARE_DELETE` is as short.
+        const IN_USE_MS: [u64; 5] = [0, 1, 10, 20, 40];
+
+        /// Renames `from` onto `to`, retrying while `to` is in use: delete
+        /// pending after a removal while a reader read it, or held by a
+        /// process that denies its deletion. At most [`IN_USE_MS`] waits.
+        pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
+            let mut waits = IN_USE_MS.iter();
+            loop {
+                #[cfg(test)]
+                let renamed =
+                    windows::rename(from, to).unwrap_or_else(|| std::fs::rename(from, to));
+                #[cfg(not(test))]
+                let renamed = std::fs::rename(from, to);
+                let error = match renamed {
+                    Ok(()) => return Ok(()),
+                    Err(error) => error,
+                };
+                // ERROR_SHARING_VIOLATION has no error kind of its own.
+                let in_use = error.kind() == io::ErrorKind::PermissionDenied
+                    || (cfg!(windows) && error.raw_os_error() == Some(32));
+                match waits.next() {
+                    Some(&ms) if in_use => {
+                        std::thread::sleep(std::time::Duration::from_millis(ms));
+                    }
+                    _ => return Err(error),
+                }
+            }
+        }
+
+        /// Windows' delete-pending semantics, on any host, for the files
+        /// under the roots a test names: [`emulate`] (#2458).
+        #[cfg(test)]
+        pub(super) mod windows {
+            use std::collections::BTreeMap;
+            use std::io;
+            use std::path::{Path, PathBuf};
+            use std::sync::{Mutex, MutexGuard, PoisonError};
+
+            use super::Handle;
+
+            /// A name some handle holds: which opening of it, the handles
+            /// open, and whether it is delete pending.
+            struct Name {
+                id: u64,
+                open: usize,
+                pending: bool,
+            }
+
+            struct State {
+                roots: Vec<PathBuf>,
+                names: BTreeMap<PathBuf, Name>,
+                next: u64,
+            }
+
+            static STATE: Mutex<State> = Mutex::new(State {
+                roots: Vec::new(),
+                names: BTreeMap::new(),
+                next: 0,
+            });
+
+            fn state() -> MutexGuard<'static, State> {
+                STATE.lock().unwrap_or_else(PoisonError::into_inner)
+            }
+
+            /// Gives the files under `root` Windows' semantics.
+            pub(in super::super) fn emulate(root: &Path) {
+                state().roots.push(root.to_path_buf());
+            }
+
+            /// The emulation's state, when `path` is under an emulated root.
+            fn under(path: &Path) -> Option<MutexGuard<'static, State>> {
+                let state = state();
+                state
+                    .roots
+                    .iter()
+                    .any(|root| path.starts_with(root))
+                    .then_some(state)
+            }
+
+            fn pending() -> io::Error {
+                io::Error::new(io::ErrorKind::PermissionDenied, "delete pending")
+            }
+
+            /// One open handle of a name; the last one to close removes a
+            /// delete-pending file.
+            pub(super) struct Hold {
+                path: PathBuf,
+                id: u64,
+            }
+
+            impl Drop for Hold {
+                fn drop(&mut self) {
+                    let mut state = state();
+                    let Some(name) = state.names.get_mut(&self.path) else {
+                        return;
+                    };
+                    // A rename onto the name replaced the file this held.
+                    if name.id != self.id {
+                        return;
+                    }
+                    name.open -= 1;
+                    if name.open == 0 {
+                        let pending = name.pending;
+                        state.names.remove(&self.path);
+                        if pending {
+                            let _ = std::fs::remove_file(&self.path);
+                        }
+                    }
+                }
+            }
+
+            pub(super) fn open(path: &Path) -> Option<io::Result<Handle>> {
+                let mut state = under(path)?;
+                if state.names.get(path).is_some_and(|n| n.pending) {
+                    return Some(Err(pending()));
+                }
+                let file = match std::fs::File::open(path) {
+                    Ok(file) => file,
+                    Err(e) => return Some(Err(e)),
+                };
+                let next = state.next;
+                let name = state.names.entry(path.to_path_buf()).or_insert(Name {
+                    id: next,
+                    open: 0,
+                    pending: false,
+                });
+                name.open += 1;
+                let id = name.id;
+                state.next += 1;
+                Some(Ok(Handle {
+                    file,
+                    _hold: Some(Hold {
+                        path: path.to_path_buf(),
+                        id,
+                    }),
+                }))
+            }
+
+            pub(super) fn query(path: &Path) -> io::Result<()> {
+                match under(path) {
+                    Some(state) if state.names.get(path).is_some_and(|n| n.pending) => {
+                        Err(pending())
+                    }
+                    _ => Ok(()),
+                }
+            }
+
+            /// A removal: a name a handle holds becomes delete pending.
+            pub(super) fn remove(path: &Path) -> Option<io::Result<()>> {
+                let mut state = under(path)?;
+                Some(match state.names.get_mut(path) {
+                    Some(name) if name.pending => Err(pending()),
+                    Some(name) => {
+                        name.pending = true;
+                        Ok(())
+                    }
+                    None => std::fs::remove_file(path),
+                })
+            }
+
+            /// A rename onto a name that is not delete pending succeeds even
+            /// while a handle holds it, as std's POSIX-semantics fallback does.
+            pub(super) fn rename(from: &Path, to: &Path) -> Option<io::Result<()>> {
+                let mut state = under(to)?;
+                let busy = |p: &Path| state.names.get(p).is_some_and(|n| n.pending);
+                if busy(from) || busy(to) {
+                    return Some(Err(pending()));
+                }
+                if let Err(e) = std::fs::rename(from, to) {
+                    return Some(Err(e));
+                }
+                // The handles of either name now hold files no name reaches.
+                state.names.remove(to);
+                state.names.remove(from);
+                Some(Ok(()))
+            }
         }
     }
 
@@ -1946,15 +2204,15 @@ mod packed {
     /// The segments a reader or writer has opened, and the buckets it read.
     #[derive(Default)]
     struct SegmentCache {
-        files: BTreeMap<u128, File>,
+        files: BTreeMap<u128, files::Handle>,
         buckets: BTreeMap<(u128, u64), Changes>,
     }
 
     impl SegmentCache {
         /// `key`'s change in `segments`, newest first: `None` when no segment holds
         /// it. One directory entry and one bucket per segment, each read once.
-        /// A segment gone from `dir` is `NotFound`: a later spill or fold
-        /// replaced the log that named it.
+        /// A segment gone from `dir` ([`files::gone`]: removed, or delete
+        /// pending on Windows) was replaced by a later spill or fold.
         // Outer: whether a segment holds the key; inner: its change.
         #[allow(clippy::option_option)]
         fn change(
@@ -1969,7 +2227,7 @@ mod packed {
                     let file = match self.files.entry(segment.id) {
                         Slot::Occupied(file) => file.into_mut(),
                         Slot::Vacant(slot) => {
-                            slot.insert(File::open(dir.join(segment_name(segment.id)))?)
+                            slot.insert(files::open(&dir.join(segment_name(segment.id)))?)
                         }
                     };
                     let changes = segment_read(file, segment, bucket)?;
@@ -3248,10 +3506,10 @@ mod packed {
 
         fn open(&self, id: u128) -> io::Result<Opened> {
             let path = self.path(id);
-            if !std::fs::symlink_metadata(&path)?.file_type().is_file() {
+            if !files::metadata(&path)?.file_type().is_file() {
                 return Err(invalid("cache pack is not a regular file"));
             }
-            let file = File::open(path)?;
+            let file = files::open(&path)?;
             count!(packs_opened, 1);
             let len = file.metadata()?.len();
             Ok(Opened { file, len })
@@ -3293,7 +3551,7 @@ mod packed {
                     Some(change) => Some(*change),
                     None => match segments.change(&dir, &view.overlay.segments, key) {
                         Ok(change) => change,
-                        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                        Err(e) if files::gone(&e) => {
                             let fresh = self.read_view(shard);
                             if fresh.epoch == view.epoch
                                 && fresh.overlay.segments == view.overlay.segments
@@ -3400,9 +3658,7 @@ mod packed {
                     }
                     // A pack the index still names after a refresh is
                     // missing for good: a miss, left to the collection.
-                    Err(e)
-                        if e.kind() == io::ErrorKind::NotFound && state.gone.insert(loc.pack) =>
-                    {
+                    Err(e) if files::gone(&e) && state.gone.insert(loc.pack) => {
                         state.views.clear();
                         state.pages.clear();
                     }
@@ -4244,9 +4500,13 @@ mod packed {
                                     );
                                 }
                                 // A missing or corrupt page is empty to
-                                // writers too.
+                                // writers too; one a merge removed since is
+                                // newer than the view, which the epoch check
+                                // below finds.
                                 Ok(None) => {}
-                                Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
+                                Err(e)
+                                    if e.kind() == io::ErrorKind::InvalidData
+                                        || files::gone(&e) => {}
                                 Err(e) => return Err(e),
                             }
                         }
@@ -4259,7 +4519,7 @@ mod packed {
                     for segment in &view.overlay.segments {
                         match segment_all(&dir, segment) {
                             Ok(segment) => changes.extend(segment),
-                            Err(e) if e.kind() == io::ErrorKind::NotFound => whole = false,
+                            Err(e) if files::gone(&e) => whole = false,
                             // A corrupt segment is misses to readers too.
                             Err(e) if e.kind() == io::ErrorKind::InvalidData => {}
                             Err(e) => return Err(e),
@@ -4330,7 +4590,7 @@ mod packed {
                     let size = std::fs::symlink_metadata(&path).map_or(0, |m| m.len());
                     // An open reader on Windows may postpone this; a later
                     // collection retries it.
-                    if std::fs::remove_file(path).is_ok() {
+                    if files::remove(&path).is_ok() {
                         gone += size;
                     }
                 }
@@ -4371,12 +4631,12 @@ mod packed {
                 let mut file = match self.open(source.id) {
                     Ok(opened) => opened.file,
                     // Another collection or merge took it first.
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(0),
+                    Err(e) if files::gone(&e) => return Ok(0),
                     Err(e) => return Err(e),
                 };
                 for &(key, from, len) in &source.copy {
                     file.seek(SeekFrom::Start(from))?;
-                    let got = io::copy(&mut (&mut file).take(len), &mut lease.file)?;
+                    let got = io::copy(&mut (&mut *file).take(len), &mut lease.file)?;
                     count!(merge_frames, 1);
                     count!(merge_bytes, got);
                     if got != len {
@@ -4643,7 +4903,7 @@ mod packed {
             let doomed = self.evict(&inv, &suspects, &victims, &dead)?;
             // Packs no row names: no lock, as no row can name them again.
             for id in doomed {
-                let _ = std::fs::remove_file(self.path(id));
+                let _ = files::remove(&self.path(id));
             }
             let over = before > cap;
             for (id, copy) in rows_of {
@@ -4872,7 +5132,7 @@ mod packed {
                 let buckets = txn.txn()?.head.buckets();
                 for &(_, bucket) in inv.pages.iter().filter(|(s, _)| *s == shard) {
                     if bucket >= buckets {
-                        let _ = std::fs::remove_file(self.index_dir(shard).join(page_name(bucket)));
+                        let _ = files::remove(&self.index_dir(shard).join(page_name(bucket)));
                     }
                 }
                 self.adopt(&txn);
@@ -6275,29 +6535,37 @@ mod packed {
         /// Two writers spill, merge segments, fold and merge packs in one shard
         /// while a reader checks every key they published so far: a reader
         /// never misses a published key across segments replaced under it.
-        #[test]
-        #[cfg_attr(
-            windows,
-            ignore = "#2458: on Windows a reader misses a key and the run can hang; fix in progress"
-        )]
-        fn readers_find_every_key_while_writers_spill_merge_and_fold_segments() {
+        /// With `windows`, under Windows' delete-pending semantics (#2458).
+        /// A writer that fails, or no end within the deadline, fails the
+        /// test rather than leave the reader polling.
+        fn readers_race_spills_merges_and_folds(label: &str, windows: bool) {
             const BATCHES: u128 = 24;
-            let (root, _) = paged("segment-writers");
+            // A run takes about 0.5 s; this is the slowest CI host's margin.
+            const DEADLINE: Duration = Duration::from_mins(2);
+            let (root, _) = paged(label);
+            if windows {
+                files::windows::emulate(&root);
+            }
             let done = [AtomicU64::new(0), AtomicU64::new(0)];
+            let start = Instant::now();
             std::thread::scope(|scope| {
-                for (w, done) in done.iter().enumerate() {
-                    let root = &root;
-                    // cost: two test threads, 24 publications of 80 keys each.
-                    scope.spawn(move || {
-                        for b in 0..BATCHES {
-                            let from = 100_000 * (w as u128 + 1) + b * 80;
-                            let store = Store::new(root);
-                            store.publish(&batch(from..from + 80, b"segment")).unwrap();
-                            store.settle(u64::MAX).unwrap();
-                            done.store(u64::try_from(b + 1).unwrap(), Ordering::Release);
-                        }
-                    });
-                }
+                let writers: Vec<_> = done
+                    .iter()
+                    .enumerate()
+                    .map(|(w, done)| {
+                        let root = &root;
+                        // cost: two test threads, 24 publications of 80 keys each.
+                        scope.spawn(move || {
+                            for b in 0..BATCHES {
+                                let from = 100_000 * (w as u128 + 1) + b * 80;
+                                let store = Store::new(root);
+                                store.publish(&batch(from..from + 80, b"segment")).unwrap();
+                                store.settle(u64::MAX).unwrap();
+                                done.store(u64::try_from(b + 1).unwrap(), Ordering::Release);
+                            }
+                        })
+                    })
+                    .collect();
                 loop {
                     let seen = done
                         .each_ref()
@@ -6320,9 +6588,167 @@ mod packed {
                     if seen == [BATCHES; 2] {
                         break;
                     }
+                    for (w, writer) in writers.iter().enumerate() {
+                        // Its last store happens before it ends.
+                        let ended = writer.is_finished();
+                        let batches = u128::from(done[w].load(Ordering::Acquire));
+                        assert!(
+                            !ended || batches == BATCHES,
+                            "writer {w} failed after {batches} batches"
+                        );
+                    }
+                    assert!(start.elapsed() < DEADLINE, "no end after {seen:?} batches");
                 }
             });
             assert_eq!(load(&Store::new(&root)).len(), 2000 + 2 * 24 * 80);
+        }
+
+        #[test]
+        fn readers_find_every_key_while_writers_spill_merge_and_fold_segments() {
+            readers_race_spills_merges_and_folds("segment-writers", false);
+        }
+
+        /// The same race under Windows' semantics (#2458): a reader holds the
+        /// packs and segments it read until it ends, so merges leave them
+        /// delete pending. Before #2458's fix a reader missed a key whose
+        /// segment was pending, and a merge failed on a pending source.
+        #[test]
+        fn readers_find_every_key_while_writers_spill_merge_and_fold_on_windows() {
+            readers_race_spills_merges_and_folds("segment-writers-windows", true);
+        }
+
+        /// On Windows a segment a spill merged away while a reader held it
+        /// stays delete pending (#2458): another reader whose older log names it
+        /// cannot open it, and reads the log again as for a removed one: one
+        /// log read, no writer lock, no directory listing.
+        #[test]
+        fn a_reader_finds_a_key_whose_segment_a_spill_removed_while_another_held_it() {
+            let (root, writer) = paged("segment-pending");
+            files::windows::emulate(&root);
+            writer.publish(&batch(10_000..10_080, b"one")).unwrap();
+            let first = writer.open_shard(0).unwrap().overlay.segments.clone();
+            assert_eq!(first.len(), 1, "a spill, not a fold");
+            writer.publish(&[item(20_000, b"tail")]).unwrap();
+            // A reader whose log names the segment, which it has not opened.
+            let stale = Store::new(&root);
+            assert_eq!(
+                stale.get(EntryKind::Check, &Hash128(20_000)).as_deref(),
+                Some(b"tail".as_slice())
+            );
+            let holder = Store::new(&root);
+            assert_eq!(
+                holder.get(EntryKind::Check, &Hash128(10_001)).as_deref(),
+                Some(b"one".as_slice())
+            );
+            // The next spill merges the segment into a new one and removes it.
+            writer.publish(&batch(10_080..10_160, b"two")).unwrap();
+            let pending = root
+                .join(NAMESPACE)
+                .join("index/0")
+                .join(segment_name(first[0].id));
+            assert!(pending.exists(), "delete pending while held");
+            cost::take();
+            assert_eq!(
+                stale.get(EntryKind::Check, &Hash128(10_002)).as_deref(),
+                Some(b"one".as_slice())
+            );
+            let work = cost::take();
+            assert_eq!(
+                (work.views_read, work.writer_locks, work.dirs_listed),
+                (1, 0, 0),
+                "{work:?}"
+            );
+            drop(holder);
+            assert!(!pending.exists(), "removed at its last close");
+        }
+
+        /// On Windows a pack a merge removed while a reader held it stays
+        /// delete pending (#2458): a second merge that chose it before then
+        /// skips it, as a removed one, rather than fail its run's settlement.
+        #[test]
+        fn a_merge_skips_packs_another_merge_removed_while_a_reader_held_them() {
+            let root = scratch("merge-pending");
+            files::windows::emulate(&root);
+            let keys = 0..FANOUT as u128;
+            {
+                let store = Store::new(&root);
+                for key in keys.clone() {
+                    store.publish(&[item(key, &[3; 64])]).unwrap();
+                }
+            }
+            let holder = Store::new(&root);
+            for key in keys.clone() {
+                assert!(holder.get(EntryKind::Check, &Hash128(key)).is_some());
+            }
+            // This merge chose the packs; another merges them first.
+            let mut late = Store::new(&root);
+            let other = root.clone();
+            let raced = Arc::new(AtomicBool::new(false));
+            let once = Arc::clone(&raced);
+            late.on_pause = Some(Arc::new(move |at| {
+                if at == "copy" && !once.swap(true, Ordering::Relaxed) {
+                    Store::new(&other).merge_small(1).unwrap();
+                }
+            }));
+            late.merge_small(1).unwrap();
+            assert!(raced.load(Ordering::Relaxed));
+            let packs = || {
+                // cost: a test listing one namespace of a handful of files.
+                std::fs::read_dir(root.join(NAMESPACE))
+                    .unwrap()
+                    .filter_map(Result::ok)
+                    .filter(|e| {
+                        Path::new(&e.file_name())
+                            .extension()
+                            .is_some_and(|x| x == "pack")
+                    })
+                    .count()
+            };
+            assert_eq!(packs(), FANOUT + 1, "the merged sources are delete pending");
+            for key in keys.clone() {
+                assert_eq!(
+                    Store::new(&root)
+                        .get(EntryKind::Check, &Hash128(key))
+                        .as_deref(),
+                    Some([3; 64].as_slice())
+                );
+                assert!(holder.get(EntryKind::Check, &Hash128(key)).is_some());
+            }
+            drop(holder);
+            assert_eq!(packs(), 1);
+        }
+
+        /// A rename onto a delete-pending name retries within git's 71 ms, then
+        /// fails; once the last handle closes it succeeds (#2458).
+        #[test]
+        fn a_rename_onto_a_delete_pending_name_is_retried_a_bounded_time() {
+            let root = scratch("rename-pending");
+            files::windows::emulate(&root);
+            let name = page_name(1);
+            let page = root.join(&name);
+            std::fs::write(&page, b"old").unwrap();
+            let held = files::open(&page).unwrap();
+            files::remove(&page).unwrap();
+            assert_eq!(
+                files::open(&page).err().map(|e| e.kind()),
+                Some(io::ErrorKind::PermissionDenied)
+            );
+            let start = Instant::now();
+            let error = replace_file(&root, &name, b"new").err();
+            assert_eq!(
+                error.map(|e| e.kind()),
+                Some(io::ErrorKind::PermissionDenied)
+            );
+            assert!(start.elapsed() >= Duration::from_millis(71));
+            drop(held);
+            replace_file(&root, &name, b"new").unwrap();
+            assert_eq!(std::fs::read(&page).unwrap(), b"new");
+            // cost: a test listing a directory of one file.
+            assert_eq!(
+                std::fs::read_dir(&root).unwrap().count(),
+                1,
+                "no temporary left"
+            );
         }
 
         /// A segment that fails its checksum hides its keys: a reader and a
