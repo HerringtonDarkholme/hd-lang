@@ -1,0 +1,42 @@
+use std.cli.{Args, Cli}
+use std.console.eprintln
+use std.fs.FsWrite
+use std.process.{ExitCode, Process}
+use std.task.{apply, timeout}
+use std.time.{Clock, minutes}
+use pkg.runner.{Options, RunError, Stats, campaign, save_stats}
+
+pub fn main!() -> ExitCode $ Args + Console + FsWrite + Process + Clock:
+    options := match Options::parse_args():
+        .Ok(value) => value
+        .Err(error) => return error.exit()
+    stats := box(Stats {})
+    result := if options.minutes == 0:
+        campaign!(options, stats)
+    else:
+        apply!(
+            timeout(minutes(i64(options.minutes)), cleanup=2s),
+            fn!() -> Result[void, RunError] $ Console + FsWrite + Process + Clock:
+                campaign!(options, stats)
+        )
+    match result:
+        .Err(.Deadline(_)) => pass
+        .Err(error) =>
+            eprintln("fuzz: $error")
+            return ExitCode(2)
+        .Ok(_) => pass
+    match save_stats!(&options, &*stats):
+        .Ok(_) => pass
+        .Err(error) =>
+            eprintln("fuzz: $error")
+            return ExitCode(2)
+    unfinished := stats.generated - stats.accepted - stats.rejected
+    println(
+        "generated=${stats.generated} accepted=${stats.accepted} rejected=${stats.rejected} unfinished=${unfinished} findings=${stats.findings} reduction_trials=${stats.reductions}",
+    )
+    if stats.findings > 0:
+        return ExitCode(1)
+    if stats.generated > 0 && stats.rejected * 10 >= stats.generated:
+        eprintln("fuzz: generator rejection rate must be below 10%")
+        return ExitCode(2)
+    ExitCode(0)
