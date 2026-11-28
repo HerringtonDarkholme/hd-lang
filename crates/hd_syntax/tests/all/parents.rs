@@ -4,18 +4,18 @@
 use hd_syntax::parse;
 
 #[test]
-fn a_typed_block_preserves_its_node_and_children() {
+fn a_declarations_body_is_its_block_child() {
     let parsed = parse(include_bytes!("parents.hd"));
-    let mut blocks = 0;
-    for node in parsed.tree.root().descendants() {
-        if let Some(block) = hd_syntax::Block::cast(node) {
-            let raw = std::hint::black_box(hd_syntax::Block::node)(block);
-            assert_eq!(raw.index(), node.index());
-            assert_eq!(raw.children().count(), node.children().count());
-            blocks += 1;
+    let tree = &parsed.tree;
+    let mut bodies = 0;
+    for node in tree.root().descendants() {
+        if let Some(body) = hd_syntax::Decl::cast(node).and_then(hd_syntax::Decl::body) {
+            assert_eq!(body.kind(), hd_syntax::SyntaxKind::Block);
+            assert_eq!(tree.parent(body.index()), Some(node.index()));
+            bodies += 1;
         }
     }
-    assert!(blocks > 0);
+    assert!(bodies > 0);
 }
 
 #[test]
