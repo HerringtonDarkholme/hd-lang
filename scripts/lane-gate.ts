@@ -201,7 +201,7 @@ const planRule: Rule = (ctx) => [
         step("spec_sync", "a file outside crate sources changed", [
           "sh",
           "-c",
-          "bash scripts/hd-tools.sh check-rule-citations && node scripts/check-removed-forms.ts",
+          "bash scripts/hd-tools.sh check-rule-citations && bash scripts/hd-tools.sh check-removed-forms",
         ]),
       ]
     : []),

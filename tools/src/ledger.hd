@@ -1,0 +1,234 @@
+use pkg.doc_files.{ToolError, tracked_files}
+use pkg.numbers.number_label
+use pkg.spec_rules.pattern
+use std.fs.{FsRead, FsWrite, temp_dir, create_dir_all, read_text, write_text}
+use std.path.Path
+use std.process.{Command, Process, ProcessError, ProcessOutput}
+use std.task.{TimedOut, apply, map_join, timeout}
+use std.time.Clock
+use std.text.r
+
+pub struct Run:
+    pub built: usize = 0
+    pub failed: usize = 0
+    pub counts: Map[string, f64] = {}
+
+@error
+enum InvocationError:
+    @error("$error")
+    Process(
+        @from
+        error: ProcessError,
+    )
+    @error("compiler deadline exceeded")
+    Deadline(
+        @from
+        error: TimedOut,
+    )
+
+pub fn parse_rows(stderr: string) -> Map[string, f64]:
+    let mut rows: Map[string, f64] = {}
+    for line in stderr.split("\n"):
+        fields := line.split("\t")
+        if fields[0] != "LEDGER":
+            continue
+        key := fields.get(1).unwrap_or("undefined")
+        value := match fields.get(2):
+            .Some(text) =>
+                stripped := text.trim()
+                if stripped.is_empty(): 0.0 else: stripped.parse::[f64]().unwrap_or(0.0 / 0.0)
+            .None => 0.0 / 0.0
+        rows[key] = rows.get(key).unwrap_or(0.0) + value
+    rows
+
+pub fn accumulate(run: &mut Run, rows: Map[string, f64]?) -> void:
+    match rows:
+        .None => run.failed += 1
+        .Some(values) =>
+            run.built += 1
+            for (key, count) in values:
+                run.counts[*key] = run.counts.get(*key).unwrap_or(0.0) + count
+
+pub fn report(bench: Run, stage: Run) -> string:
+    let mut keys: Map[string, bool] = {}
+    for key in bench.counts.keys():
+        keys[key] = true
+    for key in stage.counts.keys():
+        keys[key] = true
+    let mut lines = [
+        "| Counter | Bench, release (${bench.built} built, ${bench.failed} not) | Stage, dev (${stage.built} built, ${stage.failed} not) |",
+        "| --- | ---: | ---: |",
+    ]
+    for key in keys.keys().collect::[List[string]]().sorted():
+        bench_count := number_label(bench.counts.get(key).unwrap_or(0.0))
+        stage_count := number_label(stage.counts.get(key).unwrap_or(0.0))
+        lines.push("| `${key}` | ${bench_count} | ${stage_count} |")
+    lines.join("\n") + "\n"
+
+pub fn corpus!(
+    root: Path,
+    patterns: List[string],
+    main: bool,
+) -> Result[List[string], ToolError] $ Process + FsRead:
+    files := tracked_files!(root, patterns)?
+    if !main:
+        return .Ok(files)
+    entry := pattern(r"(?m)^(pub )?fn main\b")?
+    let mut selected: List[string] = []
+    for file in files:
+        text := read_text!(root.join(file)).map_err(fn(error): ToolError.Host("$error"))?
+        if entry.is_match(text):
+            selected.push(file)
+    .Ok(selected)
+
+# Build into a caller-supplied empty directory; build! owns its lifetime.
+pub fn build_at!(
+    compiler: string,
+    root: Path,
+    directory: Path,
+    file: string,
+    release: bool,
+) -> Result[Map[string, f64]?, ToolError] $ Process + FsRead + FsWrite + Clock:
+    create_dir_all!(directory.join("src")).map_err(fn(error): ToolError.Host("$error"))?
+    manifest := """[package]
+name = "ledger"
+
+[capabilities]
+Console = true
+Clock = true
+"""
+    write_text!(directory.join("hd.toml"), manifest).map_err(fn(error): ToolError.Host("$error"))?
+    source := read_text!(root.join(file)).map_err(fn(error): ToolError.Host("$error"))?
+    write_text!(directory.join("src/main.hd"), source).map_err(fn(error): ToolError.Host("$error"))?
+    let mut arguments = ["build", "--engine", "node"]
+    if release:
+        arguments.push("--release")
+    let output: Result[ProcessOutput, InvocationError] = apply!(timeout(120s, cleanup=2s)):
+        Command::new(compiler)
+            .args(arguments)
+            .current_dir(directory)
+            .env("HD_CACHE", "${directory.join("cache")}")
+            .env("HD_LEDGER", "1")
+            .run!()
+            .map_err(fn(error): InvocationError.Process(error))
+    match output:
+        .Err(_) => .Ok(.None)
+        .Ok(result) =>
+            rows := parse_rows(result.stderr)
+            .Ok(if result.status != 0 || rows.is_empty(): .None else: .Some(rows))
+
+## Build one program in a fresh temporary directory, removed on every exit.
+pub fn build!(
+    compiler: string,
+    root: Path,
+    file: string,
+    release: bool,
+) -> Result[Map[string, f64]?, ToolError] $ Process + FsRead + FsWrite + Clock:
+    using! directory = temp_dir!("hd-ledger-").map_err(fn(error): ToolError.Host("$error"))?
+    build_at!(compiler, root, directory.path, file, release)
+
+## Measure with at most two active builds and temporary directories.
+pub fn measure!(
+    compiler: string,
+    root: Path,
+    files: List[string],
+    release: bool,
+) -> Result[Run, ToolError] $ Process + FsRead + FsWrite + Clock:
+    run := box(Run {})
+    results := map_join!(files, 2, fn!(file: string) -> Result[
+        void,
+        ToolError,
+    ] $ Process + FsRead + FsWrite + Clock:
+        rows := build!(compiler, root, file, release)?
+        # Local async tasks cannot interleave inside this non-waiting merge.
+        # Retain only aggregate counters, not one map per corpus program.
+        accumulate(&mut *run, rows)
+        .Ok(())
+    )
+    for result in results:
+        result?
+    .Ok(*run)
+
+tests:
+    use std.fs.MemoryFs
+    use std.process.ScriptedProcess
+    use std.time.{ManualClock, Timestamp}
+
+    it("sums repeated ledger counters and ignores compiler diagnostics"):
+        rows := parse_rows("warning: example\nLEDGER\tzeta\t2\nLEDGER\talpha\t1\nLEDGER\tzeta\t3\n")
+        assert_equal(rows["zeta"], 5.0)
+        assert_equal(rows["alpha"], 1.0)
+
+    it("prints sorted counters with zero values and failed build totals"):
+        let mut bench = Run {}
+        let mut stage = Run {}
+        accumulate(&mut bench, .Some({ "zeta": 2.0, "alpha": 3.0 }))
+        accumulate(&mut bench, .None)
+        accumulate(&mut stage, .Some({ "zeta": 4.0 }))
+        expected := """| Counter | Bench, release (1 built, 1 not) | Stage, dev (1 built, 0 not) |
+| --- | ---: | ---: |
+| `alpha` | 3 | 0 |
+| `zeta` | 2 | 4 |
+"""
+        assert_equal(report(bench, stage), expected)
+
+    it("retains malformed counter values as NaN like the existing checker"):
+        assert(parse_rows("LEDGER\tbroken\tnot-a-count")["broken"].is_nan())
+
+    it("builds a one-file package with the selected profile and isolated cache"):
+        fs := MemoryFs::new()
+        process := ScriptedProcess::new()
+        process.reply("compiler", .Ok(ProcessOutput { stderr: "LEDGER\tdecision\t3\n" }))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(FsRead=fs, FsWrite=fs, Process=process, Clock=clock):
+            assert(create_dir_all!(Path("repo")).is_ok())
+            assert(write_text!(Path("repo/main.hd"), "pub fn main() -> void: pass").is_ok())
+            result := build_at!("compiler", Path("repo"), Path("work/p0"), "main.hd", true)
+                .expect("filesystem")
+            assert_equal(result, .Some({ "decision": 3.0 }))
+            assert_equal(
+                read_text!(Path("work/p0/src/main.hd")).ok(),
+                .Some("pub fn main() -> void: pass"),
+            )
+        command := process.received()[0]
+        assert_equal(command.args, ["build", "--engine", "node", "--release"])
+        assert_equal(command.current_dir, .Some(Path("work/p0")))
+        assert_equal(command.env, [("HD_CACHE", "work/p0/cache"), ("HD_LEDGER", "1")])
+
+    it("counts nonzero and uninstrumented compiler results as failed builds"):
+        fs := MemoryFs::new()
+        process := ScriptedProcess::new()
+        process.reply("compiler", .Ok(ProcessOutput { status: 1, stderr: "LEDGER\tdecision\t3\n" }))
+        process.reply("compiler", .Ok(ProcessOutput { stdout: "compiled without ledger" }))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(FsRead=fs, FsWrite=fs, Process=process, Clock=clock):
+            assert(create_dir_all!(Path("repo")).is_ok())
+            assert(write_text!(Path("repo/main.hd"), "pub fn main() -> void: pass").is_ok())
+            assert_equal(
+                build_at!("compiler", Path("repo"), Path("work/p0"), "main.hd", false).ok(),
+                .Some(.None),
+            )
+            assert_equal(
+                build_at!("compiler", Path("repo"), Path("work/p1"), "main.hd", false).ok(),
+                .Some(.None),
+            )
+
+    it("owned build workspaces are removed after success, nonzero status and spawn errors"):
+        fs := MemoryFs::new()
+        process := ScriptedProcess::new()
+        process.reply("compiler", .Ok(ProcessOutput { stderr: "LEDGER\tdecision\t3\n" }))
+        process.reply("compiler", .Ok(ProcessOutput { status: 1 }))
+        process.reply("compiler", .Err(ProcessError.NotFound("compiler")))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(FsRead=fs, FsWrite=fs, Process=process, Clock=clock):
+            create_dir_all!(Path("repo")).expect("repository")
+            write_text!(Path("repo/main.hd"), "pub fn main() -> void: pass").expect("source")
+            assert_equal(
+                build!("compiler", Path("repo"), "main.hd", false).ok(),
+                .Some(.Some({ "decision": 3.0 })),
+            )
+            assert_equal(build!("compiler", Path("repo"), "main.hd", false).ok(), .Some(.None))
+            assert_equal(build!("compiler", Path("repo"), "main.hd", false).ok(), .Some(.None))
+            for command in process.received():
+                path := command.current_dir.expect("working directory")
+                assert_equal(fs.stat!(path), .Ok(.None))

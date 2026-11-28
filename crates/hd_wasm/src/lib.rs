@@ -9,7 +9,7 @@
 //! and encodes them. There is no per-instance code cache yet: the driver
 //! calls [`build`] once per program, at link.
 
-/// Counts one emitter decision under a key (`scripts/ledger.ts`): `"key"`
+/// Counts one emitter decision under a key (`tools/tasks/ledger.hd`): `"key"`
 /// or a `format!` key, `if cond => key`, or `"key" += n`. Without the
 /// `ledger` feature it expands to nothing.
 macro_rules! ledger {

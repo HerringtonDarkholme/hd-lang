@@ -1,0 +1,147 @@
+use pkg.doc_files.{ToolError, repository_root}
+use pkg.ledger.{corpus, measure, report}
+use std.cli.{Args, Cli}
+use std.console.{eprintln, print}
+use std.fs.{FsRead, FsWrite}
+use std.path.Path
+use std.process.{Command, ExitCode, Process, ProcessError, ProcessOutput}
+use std.task.{TimedOut, apply, timeout}
+use std.time.{Clock, elapsed, monotonic}
+
+## Build the bench and stage corpora and report emitter decision counters.
+@derive(Cli)
+struct Options:
+    ## Use an existing compiler built with hd_driver/ledger.
+    hd: string?
+
+@error
+enum CargoError:
+    @error("$error")
+    Process(
+        @from
+        error: ProcessError,
+    )
+    @error("compiler build deadline exceeded")
+    Deadline(
+        @from
+        error: TimedOut,
+    )
+
+fn compiler!(
+    root: Path,
+    selected: string?,
+) -> Result[string, ToolError] $ Process + Clock + Console:
+    match selected:
+        .Some(path) => return .Ok(path)
+        .None => pass
+    target := root.join("target/ledger")
+    # Instrumentation is for the measured compiler. The stage0 task runner is reused.
+    let result: Result[ProcessOutput, CargoError] = apply!(timeout(600s, cleanup=2s)):
+        Command::new("cargo")
+            .args(
+                [
+                    "build",
+                    "--release",
+                    "-p",
+                    "hd_command",
+                    "--bin",
+                    "hd",
+                    "--features",
+                    "hd_driver/ledger",
+                    "--target-dir",
+                    "$target",
+                    "-j",
+                    "2",
+                ],
+            )
+            .current_dir(root)
+            .run!()
+            .map_err(fn(error): CargoError.Process(error))
+    output := result.map_err(fn(error): ToolError.Host("$error"))?
+    print(output.stdout)
+    $.use(Console).write_error_sync(output.stderr).map_err(fn(error): ToolError.Host("$error"))?
+    _ := output.ok().map_err(fn(error): ToolError.Host("$error"))?
+    .Ok("${target.join("release/hd")}")
+
+fn run!(
+    options: Options,
+) -> Result[ExitCode, ToolError] $ Console + Process + FsRead + FsWrite + Clock:
+    started := monotonic()
+    root := repository_root!()?
+    hd := compiler!(root, options.hd)?
+    bench_files := corpus!(root, ["bench/study/*.hd", "bench/runtime/progs/*.hd"], false)?
+    bench := measure!(hd, root, bench_files, true)?
+    stage_files := corpus!(
+        root,
+        ["crates/hd_driver/tests/cases/*.hd", "crates/hd_wasm/tests/cases/*.hd"],
+        true,
+    )?
+    stage := measure!(hd, root, stage_files, false)?
+    print(report(bench, stage))
+    seconds := (elapsed(started).as_milliseconds() + 500) / 1000
+    eprintln("ledger: $seconds s")
+    .Ok(ExitCode(0))
+
+pub fn main!() -> ExitCode $ Args + Console + Process + FsRead + FsWrite + Clock:
+    options := match Options::parse_args():
+        .Ok(options) => options
+        .Err(error) => return error.exit()
+    match run!(options):
+        .Ok(status) => status
+        .Err(error) =>
+            eprintln("$error")
+            ExitCode(1)
+
+tests:
+    use std.cli.ScriptedArgs
+    use std.console.MemoryConsole
+    use std.fs.{MemoryFs, create_dir_all, write_text}
+    use std.process.ScriptedProcess
+    use std.time.{ManualClock, Timestamp}
+
+    it("accepts an explicit instrumented compiler without rebuilding it"):
+        options := Options::parse(["--hd", "/compiler"]).expect("compiler argument")
+        assert_equal(options.hd, .Some("/compiler"))
+
+    it("runs the CLI over selected bench and stage files and cleans every workspace"):
+        fs := MemoryFs::new()
+        process := ScriptedProcess::new()
+        console := MemoryConsole::new()
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        arguments := box(ScriptedArgs::new("ledger", ["--hd", "compiler"]))
+        process.reply("git", .Ok(ProcessOutput { stdout: "repo\n" }))
+        process.reply("git", .Ok(ProcessOutput { stdout: "bench/a.hd\0bench/b.hd\0" }))
+        process.reply("compiler", .Ok(ProcessOutput { stderr: "LEDGER\talpha\t2\n" }))
+        process.reply("compiler", .Ok(ProcessOutput { status: 1 }))
+        process.reply("git", .Ok(ProcessOutput { stdout: "stage/a.hd\0stage/library.hd\0" }))
+        process.reply("compiler", .Ok(ProcessOutput { stderr: "LEDGER\tzeta\t4\n" }))
+        $.with(
+            Args=arguments,
+            Console=console,
+            FsRead=fs,
+            FsWrite=fs,
+            Process=process,
+            Clock=clock,
+        ):
+            for file in ["bench/a.hd", "bench/b.hd", "stage/a.hd", "stage/library.hd"]:
+                path := Path("repo").join(file)
+                create_dir_all!(path.parent().expect("parent")).expect("directories")
+                text := if file == "stage/library.hd":
+                    "fn helper() -> void: pass"
+                else:
+                    "pub fn main() -> void: pass"
+                write_text!(path, text).expect("fixture source")
+            assert_equal(main!(), ExitCode(0))
+        assert_equal(
+            console.output().join(""),
+            """| Counter | Bench, release (1 built, 1 not) | Stage, dev (1 built, 0 not) |
+| --- | ---: | ---: |
+| `alpha` | 2 | 0 |
+| `zeta` | 0 | 4 |
+""",
+        )
+        assert_equal(console.error_output().join(""), "ledger: 0 s\n")
+        for command in process.received():
+            if command.program == "compiler":
+                path := command.current_dir.expect("workspace")
+                assert_equal(fs.stat!(path), .Ok(.None))

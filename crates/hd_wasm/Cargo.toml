@@ -18,7 +18,7 @@ checked-report = []
 # What `tests/unit` reaches inside the backend, and the work counters its
 # cost tests read; the dev-dependency on itself below turns it on.
 testing = []
-# The decision ledger (`src/ledger.rs`, `scripts/ledger.ts`): counts each
+# The decision ledger (`src/ledger.rs`, `tools/tasks/ledger.hd`): counts each
 # emitter decision as it fires. Off in every shipped, web and test build.
 ledger = []
 
