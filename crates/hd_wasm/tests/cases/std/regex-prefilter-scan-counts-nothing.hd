@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: wasmtime release std
+# @helpers: std/regex/next_start
+# expected: the prefilter scan, run once per search, reads the prefilter
+# and the text in place: no retain or release (#2463).
+use std.regex.Regex
+
+fn probe(regex: &Regex, text: string) -> usize:
+    regex.captures_all(text).len()
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

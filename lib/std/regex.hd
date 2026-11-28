@@ -2448,29 +2448,30 @@ fn put(trail: &mut UniqList[i64], top: usize, value: i64) -> void:
 # continuation byte, and a literal starts at a scalar boundary, so every
 # byte this returns starts a scalar.
 fn next_start(vm: &mut Vm, at: usize) -> i64:
-    filter := vm.filter
-    text := vm.text
+    # The prefilter and the text are read in place: a copy of either would
+    # count its parts up and down again on every call, once per search.
     size := vm.size
-    width := bytes_len(filter.literal)
-    firsts := filter.firsts
+    width := bytes_len(vm.filter.literal)
+    lo := vm.filter.lo
+    hi := vm.filter.hi
     let position = at
     while true:
         if width > 0 && !literal_near(vm, position):
-            if position + filter.lo + width > size || vm.hit < 0:
+            if position + lo + width > size || vm.hit < 0:
                 return -1
             # The next literal is more than `hi` bytes ahead, and a match
             # starts at most that far before it: go there, backed up to
             # the first byte of a scalar.
-            let earliest = usize(vm.hit) - usize(filter.hi)
-            while continuation(bytes_at(text, earliest)):
+            let earliest = usize(vm.hit) - usize(hi)
+            while continuation(bytes_at(vm.text, earliest)):
                 earliest = earliest - 1
             position = earliest
-        if firsts.len() == 0:
+        if vm.filter.firsts.len() == 0:
             return i64(position)
         let next = position
         while next < size:
-            byte := bytes_at(text, next)
-            if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 != 0:
+            byte := bytes_at(vm.text, next)
+            if (vm.filter.firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 != 0:
                 break
             next = next + 1
         if next >= size:
@@ -2486,12 +2487,11 @@ fn next_start(vm: &mut Vm, at: usize) -> i64:
 fn start_from(vm: &mut Vm, at: usize, alive: bool) -> i64:
     if !alive:
         return next_start(vm, at)
-    firsts := vm.filter.firsts
-    if firsts.len() > 0:
+    if vm.filter.firsts.len() > 0:
         if at >= vm.size:
             return -1
         byte := bytes_at(vm.text, at)
-        if (firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 == 0:
+        if (vm.filter.firsts[usize(byte / 64)] >> u64(byte % 64)) & 1 == 0:
             return -1
     # A literal with no bound on its place is tested only where the
     # search jumps: testing it at every byte costs more than the threads
