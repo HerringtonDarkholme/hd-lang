@@ -23,7 +23,7 @@ import {
 import {
   archiveName,
   checksum,
-  greenMainRun,
+  mainTestNotice,
   publish,
   releaseNotes,
   targets,
@@ -119,18 +119,17 @@ test("release notes select one exact version and assets cover five distinct targ
   }
 });
 
-test("release gate requires the latest main Test at the exact source SHA", () => {
+test("main's Test state is a notice, never a gate", () => {
   const green = { id: 1, head_sha: "abc", conclusion: "success", status: "completed" };
-  assert.equal(greenMainRun([green], "abc"), green);
-  assert.throws(() => greenMainRun([green], "def"), /must be green/);
-  assert.throws(
-    () => greenMainRun([green, { ...green, id: 2, conclusion: "failure" }], "abc"),
-    /must be green/,
+  assert.match(mainTestNotice([green], "abc"), /run 1 at abc: success/);
+  assert.match(mainTestNotice([green], "def"), /no run at def/);
+  assert.match(
+    mainTestNotice([green, { ...green, id: 2, conclusion: "failure" }], "abc"),
+    /run 2 at abc: failure/,
   );
-  assert.throws(
-    () =>
-      greenMainRun([green, { ...green, id: 2, conclusion: null, status: "in_progress" }], "abc"),
-    /must be green/,
+  assert.match(
+    mainTestNotice([green, { ...green, id: 2, conclusion: null, status: "in_progress" }], "abc"),
+    /run 2 at abc is in_progress/,
   );
 });
 

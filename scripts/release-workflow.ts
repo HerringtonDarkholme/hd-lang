@@ -52,14 +52,21 @@ export interface TestRun {
   status: string;
 }
 
-export function greenMainRun(runs: TestRun[], sha: string): TestRun {
+/**
+ * What main's latest Test run at `sha` says, for the release notes. It does
+ * not gate the release (owner, 2026-11-27): main is often red for reasons the
+ * shipped binary does not show, and the release's own five-target build and
+ * archive smoke tests are what gate it.
+ */
+export function mainTestNotice(runs: TestRun[], sha: string): string {
   const run = runs.filter((entry) => entry.head_sha === sha).sort((aa, bb) => bb.id - aa.id)[0];
-  if (!run || run.status !== "completed" || run.conclusion !== "success") {
-    throw new Error(
-      `main's latest Test run at ${sha} must be green; rerun Release after it passes`,
-    );
+  if (!run) {
+    return `main's Test has no run at ${sha}`;
   }
-  return run;
+  if (run.status !== "completed") {
+    return `main's Test run ${run.id} at ${sha} is ${run.status}`;
+  }
+  return `main's Test run ${run.id} at ${sha}: ${run.conclusion}`;
 }
 
 export function gate(): void {
@@ -84,7 +91,14 @@ export function gate(): void {
   ) as {
     workflow_runs: TestRun[];
   };
-  const run = greenMainRun(response.workflow_runs, sha);
+  // The release builds from main only: the tagged commit must be on it.
+  try {
+    git("merge-base", "--is-ancestor", sha, "origin/main");
+  } catch {
+    throw new Error(`${sha} is not on main`);
+  }
+  const notice = mainTestNotice(response.workflow_runs, sha);
+  console.log(`::notice::${notice}`);
   const tag = dry ? `dry-run-v${version}-${process.env.GITHUB_RUN_ID}` : `v${version}`;
   if (!process.env.GITHUB_OUTPUT) {
     throw new Error("GITHUB_OUTPUT is required");
@@ -93,7 +107,7 @@ export function gate(): void {
     process.env.GITHUB_OUTPUT,
     `version=${version}\nsha=${sha}\ntag=${tag}\ndry=${dry}\n`,
   );
-  console.log(`Release ${tag} from ${sha}; Test run ${run.id} passed.`);
+  console.log(`Release ${tag} from ${sha}; ${notice}.`);
 }
 
 export async function checksum(file: string): Promise<string> {

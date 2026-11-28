@@ -36,7 +36,7 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
-      - name: Require matching version and green main CI
+      - name: Require the matching version and a commit on main
         id: release
         env:
           GH_TOKEN: ${{ github.token }}

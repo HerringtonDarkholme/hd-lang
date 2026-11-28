@@ -24,19 +24,20 @@ layouts. Ungrouped commits remain under Other changes.
 
 It creates the local commit `Release vX.Y.Z` and annotated tag `vX.Y.Z`.
 **It never pushes.** Review the manifest, lockfile and changelog before
-pushing the commit to main through the normal review process. Once the
-main Test workflow is green at that exact commit, a human pushes its tag:
+pushing the commit to main through the normal review process. Once it is
+on main, a human pushes its tag:
 
 ```sh
 git show v0.0.4
-# Push only after reviewing the local release commit and main's Test result.
+# Push only after reviewing the local release commit.
 git push origin v0.0.4
 ```
 
-Do not create a release tag on a different commit: the workflow checks the
-tag, manifest and the latest main Test run for the same SHA. It fails fast
-if that run is missing, unfinished or red; rerun Release after Test passes.
-It does not poll CI or accept an older green run at another SHA.
+Do not create a release tag on a different commit: the workflow checks that
+the tag names the manifest's version and a commit on main. Main's Test state
+at that commit is reported as a notice, not a gate (owner, 2026-11-27): main
+is often red for reasons the shipped binary doesn't show. The release's own
+five native builds and archive smoke tests are what gate it.
 
 ## What the workflow does
 
@@ -67,7 +68,7 @@ native smoke test. GitHub's documented native runner labels are used:
 
 ## Validate with a draft
 
-After the workflow exists on main and main's Test is green, dispatch it:
+Once the workflow is on main, dispatch it:
 
 ```sh
 gh workflow run release.yml --ref main
@@ -90,8 +91,6 @@ CHANGELOG.md. Leave that test version local; do not push its tag.
   index entries it changed. If committing succeeded but tagging failed,
   inspect the release commit and create its annotated tag locally; no
   remote state has changed.
-- If main Test was not green yet, rerun Release after it passes at the tag's
-  exact SHA.
 - If one native build failed, fix the cause before releasing; do not drop a
   target. Rerunning all jobs refreshes the complete five-target artifact set.
 - If asset upload stopped, rerun the publisher while all five build
