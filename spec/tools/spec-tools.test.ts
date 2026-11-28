@@ -670,7 +670,7 @@ test("the spec tools import only Node built-ins and spec/", async () => {
     for (const match of text.matchAll(/^import [^"]*"([^"]+)"/gm)) {
       const specifier = match[1]!;
       assert.ok(
-        specifier.startsWith("node:") || /^\.\/[\w-]+\.ts$/.test(specifier),
+        specifier.startsWith("node:") || /^\.\/[\w-]+\.(?:ts|json)$/.test(specifier),
         `${name} imports ${specifier}`,
       );
     }

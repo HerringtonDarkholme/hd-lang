@@ -1,6 +1,6 @@
 # Sloppy code in the compiler core, outside tests (owner, 2026-11-08: "unsupported is
 # just one kind of sloppy code"; "it should only be banned in compiler core and not in test").
-# scripts/check-sloppy.ts counts this rule's matches per crate against
+# tools/tasks/check-sloppy.hd counts this rule's matches per crate against
 # scripts/sloppy-ceiling.tsv, which only goes down.
 id: sloppy-for-now
 language: Rust

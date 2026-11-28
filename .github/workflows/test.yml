@@ -142,12 +142,21 @@ jobs:
     permissions:
       contents: read
       actions: read
+    env:
+      # Keep repository tools on the released compiler, independently of
+      # the main-branch compiler downloaded below for its own gates.
+      HD: hd
     steps:
       # Change quality and the count steps read earlier commits.
       - name: Check out
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Set up stage0 hd for repository tools
+        uses: HerringtonDarkholme/setup-hd@v1
+        with:
+          version: v0.0.4
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

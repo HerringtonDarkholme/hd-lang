@@ -1,0 +1,10 @@
+[package]
+name = "repo-tools"
+
+[capabilities]
+Args = true
+Console = true
+Process = true
+FsRead = true
+FsWrite = true
+Clock = true

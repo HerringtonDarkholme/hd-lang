@@ -1,0 +1,122 @@
+use pkg.doc_files.{DocFile, ToolError, doc_files, repository_root, tracked_files}
+use pkg.spec_rules.{corpus_ids, group, pattern, rule_id_pattern}
+use std.cli.{Args, Cli}
+use std.console.eprintln
+use std.encoding.json.decode
+use std.fs.{FsRead, read_text}
+use std.process.{ExitCode, Process}
+use std.text.r
+
+## Check that prose and compiler citations name existing specification rules.
+@derive(Cli)
+struct Options:
+    pass
+
+# Sorted prefix lookup uses the library's binary search, as Rust's slice
+# binary_search does. It avoids materializing every dotted prefix of a
+# deeply nested ID: O(log R) comparisons per distinct citation, O(R) storage.
+fn existing_rule_or_group(ids: List[string], id: string) -> bool:
+    if ids.binary_search(&id).is_ok():
+        return true
+    prefix := "$id."
+    position := match ids.binary_search(&prefix):
+        .Ok(index) => index
+        .Err(index) => index
+    match ids.get(position):
+        .Some(candidate) => candidate.starts_with(prefix)
+        .None => false
+
+fn stale_citations(
+    documents: List[DocFile],
+    ids: List[string],
+    prefixes: Map[string, bool],
+) -> Result[List[string], ToolError]:
+    backticked := pattern(r"`([^`\s]+)`")?
+    valid := rule_id_pattern()?
+    file := pattern(r"\.(?:rs|ts|md|hd|tsv|json|wat)$")?
+    syntax := ["module.item", "module.name", "module.name.member", "module.Type.Variant"]
+    wasm := ["ref.func", "ref.cast", "ref.null", "ref.eq", "ref.test", "ref.is_null"]
+    let mut stale: List[string] = []
+    let mut known: Map[string, bool] = {}
+    for document in documents:
+        lines := document.text.split("\n")
+        for index in 0..lines.len():
+            for found in backticked.captures_all(lines[index]):
+                token := group(found, 1)
+                id := token.strip_suffix(".*").unwrap_or(token)
+                if (
+                    !valid.is_match(id)
+                    || !prefixes.contains_key(id.split(".")[0])
+                    || syntax.contains(&id)
+                    || wasm.contains(&id)
+                    || file.is_match(id)
+                ):
+                    continue
+                exists := match known.get(id):
+                    .Some(result) => result
+                    .None =>
+                        result := existing_rule_or_group(ids, id)
+                        known[id] = result
+                        result
+                if !exists:
+                    stale.push("${document.file}:${index + 1}: `${id}`")
+    .Ok(stale)
+
+fn run!() -> Result[ExitCode, ToolError] $ Console + Process + FsRead:
+    root := repository_root!()?
+    inventory := corpus_ids!(root)?
+    ids := inventory.keys().collect::[List[string]]().sorted()
+    metadata := read_text!(root.join("spec/tools/chapter-prefixes.json"))
+        .map_err(fn(error): ToolError.Host("$error"))?
+    chapters := decode::[Map[string, string]](metadata)
+        .map_err(fn(error): ToolError.Host("$error"))?
+    let mut prefixes: Map[string, bool] = {}
+    for (_, prefix) in chapters:
+        prefixes[*prefix] = true
+    let mut documents: List[DocFile] = []
+    for file in tracked_files!(root, ["crates/*.rs", "crates/**/*.rs"])?:
+        text := read_text!(root.join(file)).map_err(fn(error): ToolError.Host("$error"))?
+        documents.push(DocFile { file, text, dated: false })
+    for document in doc_files!(root)?:
+        if !document.dated:
+            documents.push(document)
+    stale := stale_citations(documents, ids, prefixes)?
+    if !stale.is_empty():
+        eprintln(
+            "${stale.len()} citation(s) of spec rules the spec does not have:\n${stale.join("\n")}",
+        )
+        return .Ok(ExitCode(1))
+    .Ok(ExitCode(0))
+
+pub fn main!() -> ExitCode $ Args + Console + Process + FsRead:
+    match Options::parse_args():
+        .Ok(_) => pass
+        .Err(error) => return error.exit()
+    match run!():
+        .Ok(status) => status
+        .Err(error) =>
+            eprintln("$error")
+            ExitCode(1)
+
+tests:
+    it("accepts exact IDs and dotted groups without accepting lexical neighbours"):
+        ids := ["types.a-b", "types.a.child", "types.b"]
+        assert(existing_rule_or_group(ids, "types.a"))
+        assert(existing_rule_or_group(ids, "types.b"))
+        assert(!existing_rule_or_group(ids, "types.a-"))
+        assert(!existing_rule_or_group(ids, "types.missing"))
+
+    it("reports stale references in source order and excludes syntax and file names"):
+        documents := [
+            DocFile {
+                file: "source.rs",
+                dated: false,
+                text: "`types.current` `types.old`\n`module.item` `ref.func` `types.rs` `alien.old` `types.group.*`",
+            },
+        ]
+        ids := ["types.current", "types.group.child"]
+        prefixes := { "types": true, "module": true, "ref": true }
+        assert_equal(
+            stale_citations(documents, ids, prefixes).expect("citations"),
+            ["source.rs:1: `types.old`"],
+        )

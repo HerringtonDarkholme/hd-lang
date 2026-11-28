@@ -1,0 +1,88 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.process.{Command, Process}
+use std.regex.Regex
+use std.text.r
+
+## A tracked prose document, with its repository-relative path.
+pub struct DocFile:
+    pub file: string
+    pub text: string
+    pub dated: bool
+
+@error
+pub enum ToolError:
+    @error("$message")
+    Host(message: string)
+
+## Find the enclosing repository without depending on the caller's directory.
+pub fn repository_root!() -> Result[Path, ToolError] $ Process:
+    output := Command::new("git").args(["rev-parse", "--show-toplevel"]).run!()
+        .map_err(fn(error): ToolError.Host("$error"))?
+    checked := output.ok().map_err(fn(error): ToolError.Host("$error"))?
+    .Ok(Path(checked.stdout.trim()))
+
+## List tracked files in Git's order, keeping the original pathspec semantics.
+pub fn tracked_files!(
+    root: Path,
+    patterns: List[string],
+) -> Result[List[string], ToolError] $ Process:
+    output := Command::new("git")
+        .args(["ls-files", "-z", "--", patterns...])
+        .current_dir(root)
+        .run!()
+        .map_err(fn(error): ToolError.Host("$error"))?
+    checked := output.ok().map_err(fn(error): ToolError.Host("$error"))?
+    .Ok(checked.stdout.split("\0").filter(fn(file): !file.is_empty()))
+
+## Read the same tracked prose set as the repository's original doc-files helper.
+pub fn doc_files!(root: Path) -> Result[List[DocFile], ToolError] $ Process + FsRead:
+    files := tracked_files!(
+        root,
+        [
+            "docs/**/*.md",
+            "docs/*.md",
+            "README.md",
+            "AGENTS.md",
+            "crates/README.md",
+            "crates/*/DESIGN.md",
+            "website/guide/*.md",
+        ],
+    )?
+    let mut documents: List[DocFile] = []
+    for file in files:
+        text := read_text!(root.join(file)).map_err(fn(error): ToolError.Host("$error"))?
+        documents.push(DocFile { file, text, dated: file.starts_with("docs/audit/") })
+    .Ok(documents)
+
+## Compile once per checker, then reuse for every prose line.
+pub fn history_pattern() -> Result[Regex, ToolError]:
+    Regex::new(r"git (?:history|show)|\b[0-9a-f]{9}\b").map_err(fn(error): ToolError.Host("$error"))
+
+tests:
+    use std.fs.{FsWrite, MemoryFs, create_dir_all, write_text}
+    use std.process.{ProcessOutput, ScriptedProcess}
+
+    it("reads tracked prose in order and identifies dated audit records"):
+        process := ScriptedProcess::new()
+        process.reply("git", .Ok(ProcessOutput { stdout: "README.md\0docs/audit/note.md\0" }))
+        fs := MemoryFs::new()
+        $.with(Process=process, FsRead=fs, FsWrite=fs):
+            assert(create_dir_all!(Path("repo/docs/audit")).is_ok())
+            assert(write_text!(Path("repo/README.md"), "current").is_ok())
+            assert(write_text!(Path("repo/docs/audit/note.md"), "historical").is_ok())
+            documents := doc_files!(Path("repo")).expect("tracked documents")
+            assert_equal(documents.len(), 2)
+            assert_equal(documents[0].file, "README.md")
+            assert_equal(documents[0].text, "current")
+            assert(!documents[0].dated)
+            assert(documents[1].dated)
+        assert_equal(process.received()[0].args[0], "ls-files")
+        assert_equal(process.received()[0].current_dir, .Some(Path("repo")))
+
+    it("recognizes explicit history references and nine-digit commit words"):
+        pattern := history_pattern().expect("constant history pattern")
+        for line in ["git history at abc", "git show HEAD:path", "at 5d6992009"]:
+            assert(pattern.is_match(line))
+        for line in ["current docs", "a5d6992009b", "5d699200"]:
+            assert(!pattern.is_match(line))

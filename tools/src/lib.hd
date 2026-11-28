@@ -1,0 +1,8 @@
+pub use self.doc_files.{
+    DocFile,
+    ToolError,
+    doc_files,
+    history_pattern,
+    repository_root,
+    tracked_files,
+}

@@ -1,3 +1,5 @@
+import chapterPrefixes from "./chapter-prefixes.json" with { type: "json" };
+
 // Shared reading of specification Markdown for the style lint
 // (spec/check-spec-style.ts) and the rule inventory (spec/tools/rule-inventory.ts).
 //
@@ -31,63 +33,7 @@ interface RuleMarker {
  * spec/cli/ (spec/cli/README.md). spec/STYLE.md documents the same table;
  * keep the two in step. A stdlib key may name a file that a later move adds.
  */
-export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
-  "lang/01-lexical-structure.md": "lex",
-  "lang/02-grammar.md": "grammar",
-  "lang/03-names-and-scopes.md": "names",
-  "lang/04-type-system.md": "types",
-  "lang/05-expressions.md": "expr",
-  "lang/06-control-flow.md": "flow",
-  "lang/07-functions.md": "fn",
-  "lang/08-data-and-enums.md": "data",
-  "lang/09-traits.md": "trait",
-  "lang/10-modules.md": "module",
-  "lang/11-requirements-and-suspension.md": "req",
-  "lang/12-variadic-generics.md": "pack",
-  "lang/13-values-and-references.md": "ref",
-  "lang/14-annotations.md": "annot",
-  "std/format.md": "std-format",
-  "std/iter.md": "std-iter",
-  "std/testing.md": "std-testing",
-  "std/text.md": "std-text",
-  "std/time.md": "std-time",
-  "std/task.md": "std-task",
-  "std/sync.md": "std-sync",
-  "std/thread.md": "std-thread",
-  "std/arena.md": "std-arena",
-  "std/ops.md": "std-ops",
-  "std/cmp.md": "std-cmp",
-  "std/hash.md": "std-hash",
-  "std/collections.md": "std-collections",
-  "std/console.md": "std-console",
-  "std/contract.md": "std-contract",
-  "std/convert.md": "std-convert",
-  "std/host.md": "std-host",
-  "std/fs.md": "std-fs",
-  "std/io.md": "std-io",
-  "std/path.md": "std-path",
-  "std/random.md": "std-random",
-  "std/option.md": "std-option",
-  "std/result.md": "std-result",
-  "std/num.md": "std-num",
-  "std/error.md": "std-error",
-  "std/encoding.md": "std-encoding",
-  "std/crypto.md": "std-crypto",
-  "std/crypto-sha512.md": "std-crypto-sha512",
-  "std/crypto-aes.md": "std-crypto-aes",
-  "std/crypto-cipher.md": "std-crypto-cipher",
-  "std/crypto-rand.md": "std-crypto-rand",
-  "std/json.md": "std-json",
-  "std/serde.md": "std-serde",
-  "std/cli.md": "std-cli",
-  "std/regex.md": "std-regex",
-  "std/remote.md": "std-remote",
-  "std/validate.md": "std-validate",
-  "std/process.md": "std-process",
-  "std/http.md": "std-http",
-  "std/net.md": "std-net",
-  "cli/command-line.md": "cli",
-};
+export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = chapterPrefixes;
 
 /** The subdirectory of spec/ that holds the numbered language chapters. */
 export const LANG_DIRECTORY = "lang";

@@ -1,0 +1,213 @@
+use pkg.doc_files.ToolError
+use std.fs.{FsRead, list_dir, read_text}
+use std.path.Path
+use std.regex.{Captures, Regex}
+use std.text.r
+
+pub fn pattern(text: string) -> Result[Regex, ToolError]:
+    Regex::new(text).map_err(fn(error): ToolError.Host("$error"))
+
+pub fn group(captures: Captures, index: usize) -> string:
+    captures.get(index).map(fn(found): found.text).unwrap_or("")
+
+struct Block:
+    text: string
+    row: bool = false
+
+fn flush(parts: &mut List[string], blocks: &mut List[Block]) -> void:
+    if !parts.is_empty():
+        blocks.push(Block { text: parts.join(" ") })
+        *parts = []
+
+fn table_cells(row: string) -> List[string]:
+    text := row.strip_prefix("|").unwrap_or(row)
+    text2 := text.strip_suffix("|").unwrap_or(text)
+    let mut cells: List[string] = []
+    let start = 0
+    let previous = ' '
+    for (index, character) in text2.char_indices():
+        if character == '|' && previous != '\\':
+            cells.push(text2.slice(start, index).trim())
+            start = index + 1
+        previous = character
+    cells.push(text2.slice(start, text2.len()).trim())
+    cells
+
+# Match the block scanner used by the spec inventory: fold prose once per
+# block, skip fenced code/headings, and preserve table-cell boundaries.
+struct ProsePatterns:
+    fence: Regex
+    heading: Regex
+    item: Regex
+    quote: Regex
+    table_rule: Regex
+    lead: Regex
+    valid: Regex
+
+impl ProsePatterns:
+    fn new() -> Result[ProsePatterns, ToolError]:
+        .Ok(
+            ProsePatterns {
+                fence: pattern(r"^(\s*)(`{3,}|~{3,})(.*)$")?,
+                heading: pattern(r"^#{1,6}\s+")?,
+                item: pattern(r"^(\s*)(?:[-*+]|\d+[.)])\s+")?,
+                quote: pattern(r"^\s*>\s?(.*)$")?,
+                table_rule: pattern(r"^\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$")?,
+                lead: pattern(r"^r\[([^\]]*)\](?:\s+|$)")?,
+                valid: rule_id_pattern()?,
+            },
+        )
+
+fn prose_blocks(text: string, patterns: &ProsePatterns) -> List[Block]:
+    let mut blocks: List[Block] = []
+    let mut parts: List[string] = []
+    let kind = ""
+    let fence_mark = ""
+    for raw_line in text.split("\n"):
+        line := raw_line.strip_suffix("\r").unwrap_or(raw_line)
+        marker := patterns.fence.captures(line)
+        if !fence_mark.is_empty():
+            match marker:
+                .Some(found) =>
+                    mark := group(found, 2)
+                    if (
+                        mark.starts_with(fence_mark.slice(0, 1))
+                        && mark.len() >= fence_mark.len()
+                        && group(found, 3).trim().is_empty()
+                    ):
+                        fence_mark = ""
+                .None => pass
+            continue
+        match marker:
+            .Some(found) =>
+                flush(&mut parts, &mut blocks)
+                kind = ""
+                fence_mark = group(found, 2)
+                continue
+            .None => pass
+        if line.trim().is_empty():
+            flush(&mut parts, &mut blocks)
+            kind = ""
+            continue
+        if patterns.heading.is_match(line):
+            flush(&mut parts, &mut blocks)
+            kind = ""
+            continue
+        if line.trim_start().starts_with("|"):
+            flush(&mut parts, &mut blocks)
+            kind = ""
+            if !patterns.table_rule.is_match(line.trim()):
+                blocks.push(Block { text: line.trim(), row: true })
+            continue
+        match patterns.quote.captures(line):
+            .Some(found) =>
+                if kind != "quote":
+                    flush(&mut parts, &mut blocks)
+                kind = "quote"
+                body := group(found, 1).trim()
+                if body.is_empty():
+                    flush(&mut parts, &mut blocks)
+                else:
+                    parts.push(body)
+                continue
+            .None => pass
+        match patterns.item.find(line):
+            .Some(found) =>
+                flush(&mut parts, &mut blocks)
+                kind = "item"
+                parts.push(line.slice(found.end, line.len()).trim())
+                continue
+            .None => pass
+        if parts.is_empty():
+            kind = "paragraph"
+        parts.push(line.trim())
+    flush(&mut parts, &mut blocks)
+    blocks
+
+pub fn rule_id_pattern() -> Result[Regex, ToolError]:
+    pattern(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$")
+
+pub fn rule_ids(text: string) -> Result[List[string], ToolError]:
+    patterns := ProsePatterns::new()?
+    .Ok(scan_rule_ids(text, &patterns))
+
+fn scan_rule_ids(text: string, patterns: &ProsePatterns) -> List[string]:
+    let mut ids: List[string] = []
+    for block in prose_blocks(text, patterns):
+        cells := if block.row: table_cells(block.text) else: [block.text]
+        for cell in cells:
+            let .Some(found) = patterns.lead.captures(cell) else:
+                continue
+            id := group(found, 1)
+            if patterns.valid.is_match(id):
+                ids.push(id)
+    ids
+
+pub fn corpus_ids!(root: Path) -> Result[Map[string, bool], ToolError] $ FsRead:
+    language := pattern(r"^\d\d-.*\.md$")?
+    patterns := ProsePatterns::new()?
+    let mut ids: Map[string, bool] = {}
+    for tier in ["lang", "std", "cli"]:
+        directory := root.join("spec/$tier")
+        entries := list_dir!(directory).unwrap_or([])
+        for entry in entries:
+            name := entry.path.file_name().unwrap_or("")
+            if (
+                !name.ends_with(".md")
+                || name == "README.md"
+                || (tier == "lang" && !language.is_match(name))
+            ):
+                continue
+            text := read_text!(directory.join(name)).unwrap_or("")
+            for id in scan_rule_ids(text, &patterns):
+                ids[id] = true
+    .Ok(ids)
+
+tests:
+    it("finds markers only at prose-block and table-cell openings"):
+        source := """# r[flow.heading] ignored
+
+1. r[flow.item] valid.
+   continuation r[flow.stray] ignored.
+
+> r[flow.quote] valid.
+>
+> r[flow.second] valid.
+
+| r[flow.cell] valid | text r[flow.stray] ignored |
+| --- | --- |
+
+~~~text
+r[flow.code] ignored.
+~~~~
+
+r[flow.paragraph] valid.
+"""
+        assert_equal(
+            rule_ids(source).expect("prose"),
+            ["flow.item", "flow.quote", "flow.second", "flow.cell", "flow.paragraph"],
+        )
+
+    it("dispatches all marker starts while retaining code fences and continuations"):
+        source := """  ```hd
+r[flow.code] ignored.
+  ~~~ not the closing delimiter
+  ````
+
+\t> r[flow.quote] Quoted.
+
+42) r[flow.numbered] Numbered.
+
+* r[flow.star] Star.
+
++ r[flow.plus] Plus.
+
+- r[flow.dash] Dash.
+
+é is ordinary prose.
+r[flow.continuation] Not a block opening.
+"""
+        assert_equal(
+            rule_ids(source).expect("all marker starts"),
+            ["flow.quote", "flow.numbered", "flow.star", "flow.plus", "flow.dash"],
+        )
