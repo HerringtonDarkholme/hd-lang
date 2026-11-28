@@ -901,7 +901,7 @@ function fsProviders({ grant, flush, fsClient, st }: DynamicRecord): DynamicReco
     opened.ok ? issue({ special: opened.value }) : opened;
   const recordTemporaryDirectory = (name: string, args: Dynamic[], result: Dynamic): void => {
     if (result.ok === true && name === "create_temp_dir") {
-      (st.temporaryDirectories ??= new Set<string>()).add(result.value);
+      (st.temporaryDirectories ??= new Set<string>()).add(resolveTarget(result.value));
     } else if (result.ok === true && name === "remove_dir_all") {
       st.temporaryDirectories?.delete(resolveTarget(args[0]));
     }
