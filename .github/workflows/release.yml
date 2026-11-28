@@ -75,6 +75,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           key: release-${{ matrix.target }}
+      - name: Check native archive creation and extraction
+        run: node --test --test-name-pattern="native archive tool" scripts/release.test.ts
       - name: Build the shipped binary
         env:
           TARGET: ${{ matrix.target }}

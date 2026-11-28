@@ -22,6 +22,7 @@ import {
 } from "./release.ts";
 import {
   archiveName,
+  archiveTool,
   checksum,
   mainTestNotice,
   publish,
@@ -41,6 +42,32 @@ hd_probe = { path = "probe", version = "=0.0.3" }
 [profile.release]
 opt-level = 3
 `;
+
+test("native archive tool round-trips absolute paths with spaces", () => {
+  assert.equal(archiveTool("win32", "D:\\Windows"), "D:\\Windows\\System32\\tar.exe");
+  const directory = mkdtempSync(join(tmpdir(), "hd native archive "));
+  try {
+    const source = join(directory, "bundle");
+    const destination = join(directory, "unpacked");
+    mkdirSync(source);
+    mkdirSync(destination);
+    writeFileSync(join(source, ".node-version"), "26.13.1\n");
+    const windows = process.platform === "win32";
+    const file = join(directory, windows ? "archive.zip" : "archive.tar.gz");
+    const options = windows ? ["-a", "-cf"] : ["-czf"];
+    // cost: two bounded native archive commands over one tiny fixture.
+    execFileSync(archiveTool(), [...options, file, "-C", source, ".node-version"], {
+      timeout: 10_000,
+    });
+    execFileSync(archiveTool(), ["-xf", file, "-C", destination], { timeout: 10_000 });
+    assert.equal(readFileSync(join(destination, ".node-version"), "utf8"), "26.13.1\n");
+    if (windows) {
+      assert.equal(readFileSync(file).subarray(0, 4).toString("hex"), "504b0304");
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("version ordering is numeric, strict and does not truncate large components", () => {
   assert.equal(compareVersions("0.10.0", "0.9.99"), 1);

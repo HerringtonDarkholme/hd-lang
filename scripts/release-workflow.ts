@@ -12,7 +12,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, join, resolve, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 import { manifestVersion } from "./release.ts";
 
@@ -32,6 +32,15 @@ const git = (...args: string[]): string => command("git", args).trim();
 const gh = (...args: string[]): string => command("gh", args);
 export const archiveName = (target: string): string =>
   `hd-${target}.${target.includes("windows") ? "zip" : "tar.gz"}`;
+
+// Windows ships ZIP-capable bsdtar; Git Bash's GNU tar reads drive letters
+// as remote archive hosts. https://learn.microsoft.com/en-us/windows/tar/
+export function archiveTool(
+  platform: NodeJS.Platform = process.platform,
+  systemRoot = process.env.SystemRoot ?? "C:\\Windows",
+): string {
+  return platform === "win32" ? win32.join(systemRoot, "System32", "tar.exe") : "tar";
+}
 
 export function releaseNotes(changelog: string, version: string): string {
   const escaped = version.replaceAll(".", "\\.");
@@ -137,13 +146,7 @@ export async function pack(target: string): Promise<void> {
   }
   const archive = join(work, archiveName(target));
   const options = target.includes("windows") ? ["-a", "-cf"] : ["-czf"];
-  // On Windows runners PATH's `tar` is Git's GNU tar, which reads `D:\...` as
-  // a remote `host:path`. Windows' own bsdtar takes drive paths and writes a
-  // zip for `-a`.
-  const tar =
-    process.platform === "win32"
-      ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
-      : "tar";
+  const tar = archiveTool();
   command(tar, [...options, archive, "-C", bundle, binary, ".node-version"]);
   const unpacked = join(work, `smoke-${target}`);
   mkdirSync(unpacked, { recursive: true });
