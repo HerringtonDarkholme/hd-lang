@@ -23,30 +23,6 @@
     end
   )
 )
-== @build: wasmtime checked
-(module
-  (import "fixture" "impl Url.parse" (func $"impl Url.parse" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (func $parse_reference (param $text.0 i32) (param $text.1 i32) (param $t2 i32) (local $t1 i32) (local $t0 i32)
-    ;; 6 |     Url::parse(text)
-    block
-      local.get $text.0
-      local.get $text.1
-      local.set $t0
-      local.set $t1
-      i32.const 0
-      local.set $text.0
-      i32.const 0
-      local.set $text.1
-      local.get $t1
-      local.get $t0
-      local.get $t2
-      call $"impl Url.parse"
-      local.get $text.0
-      call $rt:release_ref
-    end
-  )
-)
 == @build: wasmtime release
 (module
   (import "fixture" "impl Url.parse" (func $"impl Url.parse" (param i32 i32 i32)))
