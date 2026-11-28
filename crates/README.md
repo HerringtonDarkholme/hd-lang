@@ -120,52 +120,30 @@ HD_CONFORMANCE_ENGINE=wasmtime cargo test --features wasmtime -p hd_driver --tes
 
 ## Publishing
 
-`cargo install hd-lang` builds the `hd-lang` crate from crates.io. It is a
-`main` over `hd_command::main` and exists for its feature set:
-`cargo install` takes a crate's default features, and `hd-lang` turns on
-`hd_command`'s `dist`, while `hd_command`'s own defaults stay Wasmtime-free
-for developer builds. `hd-lang` is outside `default-members`, like
-`hd_run_wasmtime`.
+The version-cut command, binary workflow, draft validation and recovery
+procedure are in [RELEASING.md](../RELEASING.md).
 
-crates.io takes a dependency by name and version, so every crate `hd-lang`
-is built from is published too, as wasmtime-cli and typst-cli publish
-theirs. The others (`hd_web`, `hd_wat`, `hd_testkit`) say
-`publish = false`.
+`cargo install hd-lang` builds the `hd-lang` wrapper over `hd_command`.
+It enables `dist`, including Wasmtime, and is outside `default-members`.
+Every published crate shares `[workspace.package].version`; exact
+`=X.Y.Z` internal dependencies name one compiler source set.
 
-| Rule | Where |
-| --- | --- |
-| One version for all published crates | `[workspace.package] version` in the root manifest |
-| Internal dependencies are exact (`=0.0.1`) | `[workspace.dependencies]` in the root manifest |
-| A dev-dependency names a path only, so cargo drops it from the published manifest | each crate's `[dev-dependencies]` |
-| A package holds `src/` and `build.rs`, not tests or baselines | `include` in the root manifest |
-
-A package cannot read outside its own directory, and two crates do in a
-checkout. `scripts/publish-crates.ts` stages a copy of the workspace under
-`target/publish/stage` and adds what they read:
-
-| Crate | Checkout | Package |
-| --- | --- | --- |
-| `hd_driver` | embeds `lib/std`; build id hashes every crate's sources | embeds its staged `std/`; build id is its version |
-| `hd_command` | runs Node to strip `host/*.ts` | embeds its staged `host/`, so the build needs no Node |
+`scripts/publish-crates.ts` stages packages under `target/publish/`.
+It embeds `lib/std` inside hd_driver and the stripped Node host inside
+hd_command, because registry packages cannot read sibling directories.
+It packages every crate, builds from the unpacked packages, and runs the
+packaged hd on Wasmtime without Node. No source checkout is rewritten.
 
 ```sh
-node scripts/publish-crates.ts             # stage, package, build each package, run the packaged hd
-node scripts/publish-crates.ts --publish   # the same, then upload to crates.io
+node scripts/publish-crates.ts             # package and verify, without upload
+node scripts/publish-crates.ts --publish   # verify, then upload in dependency order
 ```
 
-The dry run builds each package against the other packages, never against
-workspace paths, then runs the packaged `hd` on Wasmtime with an empty
-`PATH`. Each run builds from nothing, in its own cargo home under
-`target/publish`: cargo takes a package of one version as never changing,
-so kept state would check new packages against old ones. `--publish` needs a clean tree and a crates.io token
-(`cargo login`). It uploads in dependency order and skips a version
-crates.io already has, so a stopped run resumes. crates.io limits new crate
-names to a burst of 5 and then one every 10 minutes; the script waits and
-retries.
-
-To release: set `[workspace.package] version` and the versions in
-`[workspace.dependencies]` to the new number, commit, and run the script
-with `--publish`.
+Publishing requires crates.io authentication. Existing crate versions are
+skipped so interrupted uploads can resume. A first publication can wait
+for crates.io's new-name limit; later releases reuse those crate names.
+The release workflow uses the owner-provided `CARGO_REGISTRY_TOKEN` secret
+and skips registry publication with a notice when it is absent.
 
 ## Inspection Examples
 

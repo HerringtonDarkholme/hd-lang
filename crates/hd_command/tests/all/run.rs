@@ -577,3 +577,22 @@ fn workspace_run_selects_members_with_p_from_inside_a_member() {
     assert_eq!(r.code, Some(101));
     assert!(r.err.contains("`-p nope` names no member"), "{}", r.err);
 }
+
+/// The release archive and setup-hd action use the compiler's own version.
+#[test]
+fn version_prints_without_building_or_opening_a_cache() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = cache("version-no-cache");
+    let output = hd_own_objects(&directory)
+        .arg("--version")
+        .env("HD_CACHE_MAX_SIZE", "invalid")
+        .env("HD_ENGINE", "no-such-engine")
+        .output()?;
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert_eq!(
+        String::from_utf8(output.stdout)?,
+        format!("hd {}\n", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(output.stderr.is_empty());
+    assert!(!directory.exists());
+    Ok(())
+}

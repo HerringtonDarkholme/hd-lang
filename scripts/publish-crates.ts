@@ -255,7 +255,7 @@ function smoke(): void {
   const result = spawnSync(hd, ["--engine", "wasmtime", SMOKE], {
     cwd: root,
     encoding: "utf8",
-    env: { PATH: "", HOME: process.env.HOME ?? "" },
+    env: { PATH: "", HOME: process.env.HOME ?? "", HD_CACHE: join(work, "cache") },
     timeout: 120_000,
   });
   if (result.status !== 0 || result.stdout !== "42\n") {

@@ -45,12 +45,14 @@ says which program a command starts. Its diagnostic codes are in the
 | `hd clean`, `hd clean --cache` | [removes the package's build directory, or the dependency cache](#cleaning) |
 | `hd fmt [--check] [FILE]` | [formats the package's source files](#formatting), or one FILE |
 | `hd cache gc` | [evicts compiled entries](#compiled-cache) down to the size cap |
+| `hd --version` | prints the compiler release version and exits |
 | `hd help`, `hd --help`, `hd help COMMAND` | prints the command list, or one command's usage and flags |
 
 1. r[cli.command.help] `hd help` and `hd --help` print the command list. It names every command of the table above.
 2. r[cli.command.help.command] `hd help COMMAND` and `hd COMMAND --help` print the command's usage line and each flag it takes. So the help of `hd add` names `--dev` and `--name`, and the help of `hd clean` names `--cache`.
 3. r[cli.command.positional.operands] A positional word denotes the command's declared NAME, FILE, SOURCE, PATH or TARGET.
 4. r[cli.command.positional.package-directory] A directory operand to `hd run` or `hd test` is an error whose message suggests [`-p`](#selecting-members).
+5. r[cli.command.version] `hd --version` prints `hd VERSION` followed by a newline and exits with status 0, where VERSION is the compiler release version.
 
 ```sh
 hd help          # the command list

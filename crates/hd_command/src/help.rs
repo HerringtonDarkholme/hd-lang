@@ -391,6 +391,13 @@ const COMMANDS: &[Command] = &[
         flags: &[],
     },
     Command {
+        name: "--version",
+        summary: "print the compiler version",
+        usage: "hd --version",
+        about: &["Print the compiler release version and exit."],
+        flags: &[],
+    },
+    Command {
         name: "help",
         summary: "print the commands, or one command's flags",
         usage: "hd help [COMMAND]",

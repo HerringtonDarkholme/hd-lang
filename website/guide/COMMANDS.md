@@ -13,7 +13,7 @@ each job the way you would do it, with real output.
 $ cargo install hd-lang
 ```
 
-This puts `hd` in `~/.cargo/bin`. `hd help` lists every command.
+This puts `hd` in `~/.cargo/bin`. `hd help` lists every command. `hd --version` prints the installed compiler release version.
 
 ## Start A Project
 
