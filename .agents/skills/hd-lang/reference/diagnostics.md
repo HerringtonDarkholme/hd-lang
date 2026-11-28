@@ -75,7 +75,8 @@ covers many causes, so match on the middle column.
 | `syntax-error` | `n as i32` | `i32(n)` |
 | `syntax-error` | `P { ..p, x: 1 }` | `P { ...p, x: 1 }`, three dots |
 | `syntax-error` | `pair.0` | `pair._0` |
-| `syntax-error` | `pub let LIMIT = 3`, `pub LIMIT := 3` | a private `LIMIT := 3`, plus `pub fn limit() -> usize: LIMIT` |
+| `missing-binding-type` | `pub let LIMIT = 3` | write the public binding's type: `pub let LIMIT: usize = 3` |
+| `syntax-error` | `pub LIMIT := 3` | write `pub let LIMIT: usize = 3` |
 | `syntax-error` | `pub use self.format.receipt` | `pub use self.format.{receipt}` |
 | `syntax-error` | `read_text!` imported as `use std.fs.read_text!` | `use std.fs.read_text`; the `!` is written only at the call |
 | `syntax-error` | `trait Marker: pass` or `impl T for X: pass` on one line | put `pass` on its own indented line; only `struct Name: pass` fits one line |
