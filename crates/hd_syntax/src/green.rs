@@ -283,32 +283,16 @@ impl<'t> Iterator for ChildIter<'t> {
     }
 }
 
-/// A typed view of one node kind: the two that callers outside the parser
-/// name, `Block` (a declaration's suite or member block, `Decl::body`) and
-/// `ImplDecl` (`ImplDecl::header_types`). Everything else reads children
-/// by kind (`NodeRef::part`, `Src::child`).
-macro_rules! typed_nodes {
-    ($( $name:ident ),+ $(,)?) => {$ (
-        #[derive(Clone, Copy)]
-        pub struct $name<'t>(NodeRef<'t>);
+/// A typed view of the one node kind that callers outside the parser
+/// name, `ImplDecl` (`ImplDecl::header_types`). Everything else reads
+/// children by kind (`NodeRef::part`, `Src::child`).
+#[derive(Clone, Copy)]
+pub struct ImplDecl<'t>(NodeRef<'t>);
 
-        impl<'t> $name<'t> {
-            #[must_use]
-            pub fn cast(node: NodeRef<'t>) -> Option<Self> {
-                (node.kind() == SyntaxKind::$name).then_some(Self(node))
-            }
-
-
-        }
-    )+ };
-}
-
-typed_nodes!(Block, ImplDecl);
-
-impl<'t> Block<'t> {
+impl<'t> ImplDecl<'t> {
     #[must_use]
-    pub fn node(self) -> NodeRef<'t> {
-        self.0
+    pub fn cast(node: NodeRef<'t>) -> Option<Self> {
+        (node.kind() == SyntaxKind::ImplDecl).then_some(Self(node))
     }
 }
 
@@ -521,8 +505,8 @@ impl<'t> Decl<'t> {
 
     /// The suite or member block.
     #[must_use]
-    pub fn body(self) -> Option<Block<'t>> {
-        self.0.children().find_map(Block::cast)
+    pub fn body(self) -> Option<NodeRef<'t>> {
+        self.0.children().find(|c| c.kind() == SyntaxKind::Block)
     }
 }
 

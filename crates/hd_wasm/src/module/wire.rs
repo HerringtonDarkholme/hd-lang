@@ -115,14 +115,6 @@ impl Wire for bool {
         }
     }
 }
-impl Wire for u16 {
-    fn put(&self, o: &mut Out) {
-        o.w.u32(u32::from(*self));
-    }
-    fn get(i: &mut In<'_>) -> Option<Self> {
-        u16::try_from(i.r.u32()).ok()
-    }
-}
 impl Wire for u32 {
     fn put(&self, o: &mut Out) {
         o.w.u32(*self);

@@ -112,7 +112,7 @@ fn indented(text: &str) -> String {
 fn members(node: NodeRef<'_>) -> Vec<NodeRef<'_>> {
     Decl::cast(node)
         .and_then(Decl::body)
-        .map(|b| b.node().children().collect())
+        .map(|b| b.children().collect())
         .unwrap_or_default()
 }
 

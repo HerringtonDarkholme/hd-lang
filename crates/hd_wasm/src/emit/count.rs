@@ -135,15 +135,9 @@ impl Em<'_, '_, '_> {
                     "an in-place count of a value that is no reference",
                 ));
             };
-            if let Some(shim) =
-                crate::rt::in_place_shim(self.input, self.m, inner, portion, retain)?
-            {
-                self.f.get(at);
-                self.f.call(shim);
-                return Ok(());
-            }
-            let counted = crate::rt::counted_of_portion(self.input, self.m, inner, portion)?;
-            counted.emit_at(&mut self.f, self.m, &|f| f.get(at), &|_, _| {}, retain);
+            let shim = crate::rt::in_place_shim(self.input, self.m, inner, portion, retain)?;
+            self.f.get(at);
+            self.f.call(shim);
             return Ok(());
         }
         let Some(ls) = self.vals.get(&value).cloned() else {

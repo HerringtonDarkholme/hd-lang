@@ -178,14 +178,12 @@ impl<'a> Defs<'a> {
     }
 
     /// Computes instruction `i`'s definition and those it needs, each
-    /// once, latest first off a stack (no recursion).
+    /// once, latest first off a stack (no recursion). An instruction is
+    /// pushed only while not computed, and only a later one needs it, so
+    /// nothing above it on the stack is it: the top is never computed yet.
     fn resolve(&self, i: usize) {
         let mut stack = vec![i];
         while let Some(&x) = stack.last() {
-            if let Slot::Done(_) = self.memo.borrow()[x] {
-                stack.pop();
-                continue;
-            }
             match self.compute(x) {
                 Ok(d) => {
                     scans(1);
@@ -239,11 +237,13 @@ impl<'a> Defs<'a> {
                     mem_at: NONE,
                 }))
             }
-            Tag::Read => {
-                let Some(p) = b.decode_place(b.data[i][0]) else {
-                    return Ok(None);
-                };
-                self.of_place(&p, i)?.map(|d| {
+            // ruled out: a malformed place, which the TIR verifier
+            // rejects; a read or reference of one would define nothing.
+            Tag::Read => (b.decode_place(b.data[i][0]))
+                .map(|p| self.of_place(&p, i))
+                .transpose()?
+                .flatten()
+                .map(|d| {
                     let through = self.derefs(d.key) != 0;
                     Def {
                         key: self.child(d.key, Proj::Deref),
@@ -254,12 +254,11 @@ impl<'a> Defs<'a> {
                             d.mem_at
                         },
                     }
-                })
-            }
-            Tag::Ref => match b.decode_place(b.data[i][0]) {
-                Some(p) => self.of_place(&p, i)?,
-                None => None,
-            },
+                }),
+            Tag::Ref => (b.decode_place(b.data[i][0]))
+                .map(|p| self.of_place(&p, i))
+                .transpose()?
+                .flatten(),
             Tag::Coerce
                 if b.record(b.data[i][1]).first()
                     == Some(&(hd_tir::ir::Coercion::Identity as u32)) =>

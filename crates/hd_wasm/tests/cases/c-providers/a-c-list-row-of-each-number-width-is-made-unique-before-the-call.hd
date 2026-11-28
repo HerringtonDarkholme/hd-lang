@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: program
+# @c-host: main.Disk
+# A `&mut List` of each C number row crosses as its elements' address and
+# length, the list made its own first, which copies its elements at their
+# width; a method returning `void` gives the import no result
+# (module.host.package.c-types).
+@host
+pub trait Disk:
+    fn bytes(&mut self, into: &mut List[u8]) -> void
+    fn longs(&mut self, into: &mut List[i64]) -> void
+    fn wides(&mut self, into: &mut List[u64]) -> void
+    fn floats(&mut self, into: &mut List[f32]) -> void
+    fn doubles(&mut self, into: &mut List[f64]) -> void
+
+pub fn main() -> void $ Disk + Console:
+    disk := $.use(Disk)
+    let mut a: List[u8] = [1]
+    let mut b: List[i64] = [2]
+    let mut c: List[u64] = [3]
+    let mut d: List[f32] = [4.0]
+    let mut e: List[f64] = [5.0]
+    disk.bytes(&mut a)
+    disk.longs(&mut b)
+    disk.wides(&mut c)
+    disk.floats(&mut d)
+    disk.doubles(&mut e)
+    println("${a[0]} ${b[0]} ${c[0]} ${d[0]} ${e[0]}")

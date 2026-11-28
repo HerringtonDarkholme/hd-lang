@@ -73,9 +73,7 @@ pub trait Cx {
     }
     /// Whether a call of `callee` may write memory its caller reaches
     /// (`hd_tir::own::Summary::writes`).
-    fn call_writes(&self, _callee: &Callee) -> bool {
-        true
-    }
+    fn call_writes(&self, callee: &Callee) -> bool;
 }
 
 /// Clears the bounds check of each element access `b` proves in range.
@@ -1390,6 +1388,9 @@ mod tests {
                 Callee::TraitMethod { .. } => None,
             }
         }
+        fn call_writes(&self, _: &Callee) -> bool {
+            true
+        }
     }
     fn inspect<R>(
         body: &Body,
@@ -1487,6 +1488,34 @@ mod tests {
                 "exhausted traversal supplies no fact"
             );
         });
+    }
+
+    /// Two fields of one local's referent are apart; places through two
+    /// locals never are, since both may reach one referent (#2374).
+    #[test]
+    fn places_through_two_locals_are_never_apart() {
+        let mut b = build();
+        let root = b.open_block();
+        let x = local(&mut b, REF_LIST);
+        let y = local(&mut b, REF_LIST);
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let body = finish(b, root);
+        let topo = Topology::new(&body);
+        let nest = Nest::new(&body, &topo);
+        let sets = Sets::new(&body);
+        let stored = |_: u32, _: usize| false;
+        let defs = places::Defs::new(&body, &topo, &nest, &sets, &stored);
+        let key = |l, f| {
+            let proj = vec![Proj::Deref, Proj::Field(f)];
+            let p = Place {
+                root: PlaceRoot::Local(l),
+                proj,
+            };
+            defs.place(&p, 0).expect("a key through a parameter").key
+        };
+        assert!(defs.apart(key(x, 0), key(x, 1)));
+        assert!(!defs.apart(key(x, 0), key(x, 0)));
+        assert!(!defs.apart(key(x, 0), key(y, 1)));
     }
 
     #[test]
