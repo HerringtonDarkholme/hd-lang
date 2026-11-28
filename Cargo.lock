@@ -850,6 +850,7 @@ dependencies = [
  "hd_tir",
  "hd_types",
  "hd_wasm",
+ "rayon",
  "wasmparser 0.261.0",
 ]
 

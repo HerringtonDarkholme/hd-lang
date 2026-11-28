@@ -116,20 +116,15 @@ fn an_enum_reference_at_growing_arguments() {
     assert_eq!(output_of("grow", main), "1\n0\n");
 }
 
-#[test]
-fn a_large_recursion_group_and_long_chains_of_types() {
-    // One group of `N` struct types (a ring through `&`), a chain of `N`
-    // struct types and a chain of `N` enums each held by value: layout,
-    // encoding and link walk them with loops, so their depth is no native
-    // stack depth. A chain value is thousands of Wasm values, more than an
-    // engine takes as a function's parameters, so it passes through the shadow stack
-    // (`crates/hd_wasm/DESIGN.md` §23.29).
-    const N: usize = 1500;
+/// One group of `n` struct types (a ring through `&`), a chain of `n`
+/// struct types and a chain of `n` enums each held by value, and a `main`
+/// that prints `2`, `4` and `1`.
+fn long_chains(n: usize) -> String {
     let mut main = String::new();
-    for i in 0..N {
-        let ring = (i + 1) % N;
+    for i in 0..n {
+        let ring = (i + 1) % n;
         // The chain's last type holds an `i32` where the others hold the next.
-        let (chain, held) = if i + 1 < N {
+        let (chain, held) = if i + 1 < n {
             (format!("C{}", i + 1), format!("E{}", i + 1))
         } else {
             ("i32".to_owned(), "i32".to_owned())
@@ -161,5 +156,49 @@ pub fn main() -> void $ Console:
     println(tag(E0.Go(E1.Stop)))
 ",
     );
-    assert_eq!(output_of("long", &main), "2\n4\n1\n");
+    main
+}
+
+#[test]
+fn a_large_recursion_group_and_long_chains_of_types() {
+    // Layout, encoding and link walk the types with loops, so their depth
+    // is no native stack depth. A chain value is thousands of Wasm values,
+    // more than an engine takes as a function's parameters, so it passes
+    // through the shadow stack (`crates/hd_wasm/DESIGN.md` §23.29).
+    assert_eq!(output_of("long", &long_chains(1500)), "2\n4\n1\n");
+}
+
+/// #2423: a pool build runs its tasks on its own threads, each at the
+/// bottom of a `hd_sched::pool::WORKER_STACK` stack, wherever its caller
+/// runs. Here the caller is a 64 KiB rayon worker, and the long chains'
+/// build needs about 100 KiB: a run that stayed on a rayon caller, as
+/// nested runs do, overflowed it.
+#[test]
+fn a_pool_build_from_a_small_rayon_worker_runs_on_the_pool_stacks()
+-> Result<(), rayon::ThreadPoolBuildError> {
+    let mut src = MemorySources::default();
+    src.insert("main.hd", &long_chains(1500));
+    let small = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .stack_size(64 << 10)
+        .build()?;
+    let out = small.install(|| {
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &MemoryStore::default(),
+            clock: &NoClock,
+            executor: Executor::Pool(2),
+        };
+        build(
+            &host,
+            "app",
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        )
+    });
+    assert!(out.diags.is_empty(), "{}", out.render());
+    assert!(out.wasm.is_some());
+    Ok(())
 }

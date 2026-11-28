@@ -12,43 +12,46 @@ use std::collections::{BinaryHeap, VecDeque};
 pub mod pool;
 
 /// The threads a batched parallel iterator inside a task may use (§6.2):
-/// the pool's when this thread is one of its workers, else 1. Nested graphs
-/// run on their caller and keep their batched maps serial too.
+/// the run's map pool's when this thread runs a pool task, else 1. A map
+/// item, a nested graph and any other thread, a rayon worker included,
+/// map in order.
 #[must_use]
 pub fn task_threads() -> usize {
     #[cfg(feature = "threads")]
-    if !pool::on_caller() && rayon::current_thread_index().is_some() {
-        return rayon::current_num_threads();
+    if let Some(maps) = pool::maps() {
+        return maps.current_num_threads();
     }
     1
 }
 
-/// Maps `items` inside one task (§6.2 granularity rule): on the task's
+/// Maps `items` inside one task (§6.2 granularity rule): on the run's map
 /// pool when [`task_threads`] is above 1, else in order on this thread.
 /// Either way the output is in item order.
 pub fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send) -> Vec<R> {
     #[cfg(feature = "threads")]
-    if task_threads() > 1 {
+    if let Some(maps) = pool::maps().filter(|m| m.current_num_threads() > 1) {
         use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-        return items.par_iter().map(f).collect();
+        return maps.install(|| items.par_iter().map(f).collect());
     }
     items.iter().map(f).collect()
 }
 
 /// Runs `f` on each of `items` with its index, as [`par_map`] maps: on
-/// the task's pool when [`task_threads`] is above 1, else in order. Each
+/// the run's map pool when [`task_threads`] is above 1, else in order. Each
 /// call owns its item, so the items end the same at any thread count.
 pub fn par_each_mut<T: Send>(items: &mut [T], f: impl Fn(usize, &mut T) + Sync + Send) {
     #[cfg(feature = "threads")]
-    if task_threads() > 1 {
+    if let Some(maps) = pool::maps().filter(|m| m.current_num_threads() > 1) {
         use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
         // A job of at least 16 items: one split per small function costs
         // more than its cleanup.
-        items
-            .par_iter_mut()
-            .with_min_len(16)
-            .enumerate()
-            .for_each(|(k, item)| f(k, item));
+        maps.install(|| {
+            items
+                .par_iter_mut()
+                .with_min_len(16)
+                .enumerate()
+                .for_each(|(k, item)| f(k, item));
+        });
         return;
     }
     items

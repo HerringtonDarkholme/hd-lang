@@ -132,10 +132,21 @@ became ready; the driver reports a nonzero count as an internal error.
   O(1), or O(log n) for `Priority`, and an edge O(1), where the scan of
   the whole queue per pop made n ready tasks cost n² (#2032). The CLI runs it for one
   thread; `hd_web` and the tests run it too.
-- **Pool.** `run_pool` builds a rayon pool of `threads` workers. The
-  graph sits behind one mutex, held only to add, edge, release or
-  complete; each task that becomes ready is spawned into the pool's
-  scope. This replaces a design with per-node atomics and successor
+- **Pool.** `run_pool` starts `threads` graph threads and a rayon pool
+  of `threads` map workers, each with `WORKER_STACK`. The graph sits
+  behind one mutex, held only to pop, add, edge, release or complete;
+  each graph thread pops the next ready task, in readiness order. A
+  task's batched map (`par_map`) runs on the map pool, which the graph
+  thread enters from outside and waits on without running other work.
+  So every task starts at the bottom of a graph thread's stack and every
+  map item at the bottom of a map worker's, however busy the machine is
+  (#2423): a rayon worker waiting in a `join` runs queued jobs on its own
+  frames, and when tasks were rayon jobs a task waiting in its map ran
+  other whole tasks there. A map item, a nested graph and any thread
+  outside a run map in order; a nested `run_pool` runs on its caller. A
+  caller on a rayon worker only waits, so the run's depth never depends
+  on the caller's stack. A task's panic stops the run and resumes on the
+  caller. This replaces a design with per-node atomics and successor
   locks; at module granularity a run has hundreds of tasks, so one
   short-held lock does not contend and is far simpler to get right. If the pool cannot be built, the graph runs serially. The CLI
   uses it when the thread count is above 1: `--jobs N`, else `HD_JOBS`,

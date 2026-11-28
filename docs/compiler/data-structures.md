@@ -860,9 +860,9 @@ an edge into a ready task leaves its entry dead, and a pop skips it.
 - **Creation guard.** `add_held` starts a task with `waiting_on = 1`; the
   creator adds its edges, then `release` drops the guard. So a task never
   becomes Ready while its edges are still being added.
-- **The pool executor** (feature `threads`) runs ready tasks on rayon's
-  work-stealing pool; the graph sits behind one mutex, held only to add,
-  edge, release or complete.
+- **The pool executor** (feature `threads`) runs ready tasks on its own
+  graph threads, and their batched maps on a rayon pool; the graph sits
+  behind one mutex, held only to pop, add, edge, release or complete.
 - **Result slots** are per-kind `OnceLock`s in the driver, indexed by
   the dense file, unit or module ID.
 
