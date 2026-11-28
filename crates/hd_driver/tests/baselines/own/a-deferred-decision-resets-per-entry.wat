@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $repeat_after_callback (param $xs i32) (param $rounds i32) (param $tick.0 i32) (param $tick.1 i32) (result i32) (local $total i32) (local $t0 i32) (local $round i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $i i32)
+  (func $repeat_after_callback (param $xs i32) (param $rounds i32) (param $tick i32) (result i32) (local $total i32) (local $t0 i32) (local $round i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $i i32)
     ;; 8 |     for round in 0..rounds:
     block
       loop
@@ -21,9 +21,10 @@
         local.set $t0
     ;; 9 |         total += tick()
         local.get $total
-        local.get $tick.1
+        local.get $tick
         i32.const 0
-        local.get $tick.0
+        local.get $tick
+        i32.load $heap
         call_indirect $table0 (param i32 i32) (result i32)
         i32.add
         local.set $total

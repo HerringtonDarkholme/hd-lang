@@ -12,33 +12,35 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $through_ptr (param $items i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32) (local $t0 i32)
+  (func $through_ptr (param $items i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 30 |     fn() -> void: items.push(s)
-    i32.const 2
-    i32.const 12
+    i32.const 16
     i32.const -2147483647
     call $rt:new/class-2
     local.tee $t0
-    local.get $items
+    i32.const 5
     i32.store $heap
     local.get $t0
-    local.get $s.0
+    local.get $items
     i32.store $heap offset=4
     local.get $t0
-    local.get $s.1
+    local.get $s.0
     i32.store $heap offset=8
+    local.get $t0
+    local.get $s.1
+    i32.store $heap offset=12
     local.get $t0
   )
   (func $through_ptr#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 30 |     fn() -> void: items.push(s)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.tee $s.0
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=12
     local.set $env
     local.tee $t0
     if
@@ -60,7 +62,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 4
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $ctx
@@ -186,7 +188,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 4
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $xs
@@ -230,7 +232,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 4
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $xs

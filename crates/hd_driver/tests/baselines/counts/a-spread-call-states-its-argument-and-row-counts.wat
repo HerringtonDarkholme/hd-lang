@@ -6,32 +6,33 @@
   (import "fixture" "release_value[(string, List[i32])]" (func $"release_value[(string, List[i32])]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $one (param $f.0 i32) (param $f.1 i32) (param $value.0.0 i32) (param $value.0.1 i32) (param $value.1 i32) (result i32)
+  (func $one (param $f i32) (param $value.0.0 i32) (param $value.0.1 i32) (param $value.1 i32) (result i32)
     ;; 19 |     f(value)
-    local.get $f.1
+    local.get $f
     local.get $value.0.0
     local.get $value.0.1
     local.get $value.1
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
   )
-  (func $spread (param $f.0 i32) (param $f.1 i32) (param $values.0.0 i32) (param $values.0.1 i32) (param $values.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
+  (func $spread (param $f i32) (param $values.0.0 i32) (param $values.0.1 i32) (param $values.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 13 |     call(f, values)
-    local.get $f.1
+    local.get $f
     local.get $values.0.0
     local.get $values.0.1
     local.get $values.1
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $f.1
+    local.tee $t0
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $f.1
+    local.get $t0
     local.get $provider0
     i32.store $heap offset=24
-    local.get $f.1
+    local.get $t0
     local.get $provider0.vtable
     i32.store $heap offset=28
     local.get $provider0
@@ -39,12 +40,13 @@
       local.get $provider0
       call $retain
     end
-    local.get $f.1
-    local.get $f.0
+    local.get $t0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-    local.get $f.1
+    local.get $t0
     if
-      local.get $f.1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $values.0.0
@@ -52,13 +54,14 @@
     local.get $values.1
     call $"release_value[(string, List[i32])]"
   )
-  (func $scalars (param $f.0 i32) (param $f.1 i32) (param $values.0 i32) (param $values.1 i32) (result i32)
+  (func $scalars (param $f i32) (param $values.0 i32) (param $values.1 i32) (result i32)
     ;; 16 |     call(f, values)
-    local.get $f.1
+    local.get $f
     local.get $values.0
     local.get $values.1
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
   )
 )

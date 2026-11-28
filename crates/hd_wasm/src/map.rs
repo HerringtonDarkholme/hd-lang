@@ -1256,9 +1256,9 @@ pub fn slot_next(m: &Module) -> Func {
 
 /// [`Helper::MapStep`]: `(env, at) -> (usize, (K, V))?`, the step closure
 /// code of std's `map_steps` (`emit/iter.rs`): the first live entry from
-/// entry `at` on, with its entry number. The environment holds the map's
-/// table at 0, a count of it that keeps it as `iter` found it
-/// (`flow.for.cursor.snapshot`), and the written entry count at 4. The
+/// entry `at` on, with its entry number. The closure object holds its code
+/// at 0, the map's table at 4, a count of it that keeps it as `iter` found
+/// it (`flow.for.cursor.snapshot`), and the written entry count at 8. The
 /// entry leaves with its own counts. `item` is the optional's layout: its
 /// `.Some` payload's leaf 0 is the entry number and leaf `k` the entry's
 /// leaf `k - 1`. No entry leaves the results `.None`'s values, set first.
@@ -1284,13 +1284,13 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
             f.set(*x);
         }
     }
-    load_u32(&mut f, 0, 0);
+    load_u32(&mut f, 0, 4);
     f.set(t);
     load_u32(&mut f, t, CAP);
     f.set(cap);
     f.get(1);
     f.set(i);
-    load_u32(&mut f, 0, 4);
+    load_u32(&mut f, 0, 8);
     f.set(end);
     f.op(I::Block(BlockType::Empty));
     f.op(I::Loop(BlockType::Empty));

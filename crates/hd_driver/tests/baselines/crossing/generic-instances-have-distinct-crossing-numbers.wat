@@ -3,9 +3,9 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
+  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32) (result i64)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "run[i32]" (func $"run[i32]" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]" (func $"run[i32]" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -27,44 +27,36 @@
     end
     local.get $env
   )
-  (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
+  (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i64) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     block
-      i32.const 2
-      i32.const 0
+      i32.const 572 ;; &vtable[apply#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       call $rt:retain_known
       i64.const 9205219690481346809
-      local.get $t1
       local.get $t0
       call $"crossing_number[fn((i32)) -> i32]"
-      local.set $t2
-      i32.const 3
+      local.set $t1
       i32.const 24
       i32.const -2147483647
       call $rt:new/class-2
-      local.set $t3
-      local.get $t3
-      local.get $t1
+      local.set $t2
+      local.get $t2
+      i32.const 12
       i32.store $heap
-      local.get $t3
+      local.get $t2
       local.get $t0
       i32.store $heap offset=4
-      local.get $t3
+      local.get $t2
       local.get $n
       i32.store $heap offset=8
-      local.get $t3
       local.get $t2
+      local.get $t1
       i64.store $heap offset=16
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.set $n
-      local.get $n
-      local.get $t3
+      local.get $t2
       call $"run[i32]"
       local.set $n
       local.get $t0
@@ -72,20 +64,17 @@
     end
     local.get $n
   )
-  (func $"apply#2[i32]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[i32]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -96,74 +85,65 @@
     i32.and
     i32.store $heap
     block
-      local.get $t3
+      local.get $t2
       if
-        local.get $t2
         local.get $t1
+        local.get $t0
         call $"crossing_frame[(i32)]"
         local.set $env
         i32.const 1
-        local.set $t3
+        local.set $t2
       else
+        local.get $ctx
         local.get $t0
-        local.get $t1
         i32.const 0
         local.get $ctx
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $env
         i32.const 0
-        local.set $t3
+        local.set $t2
       end
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
       i32.const 0
       local.set $ctx
-      i32.const 0
-      local.set $t0
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
-  (func $"apply[u64]" (param $t2 i64) (param $n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     block
-      i32.const 8
-      i32.const 0
+      i32.const 620 ;; &vtable[apply#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       call $rt:retain_known
       i64.const -1240979003453888366
-      local.get $t1
       local.get $t0
       call $"crossing_number[fn((i32)) -> i32]"
-      local.set $t2
-      i32.const 9
+      local.set $t1
       i32.const 24
       i32.const -2147483647
       call $rt:new/class-2
-      local.set $t3
-      local.get $t3
-      local.get $t1
+      local.set $t2
+      local.get $t2
+      i32.const 14
       i32.store $heap
-      local.get $t3
+      local.get $t2
       local.get $t0
       i32.store $heap offset=4
-      local.get $t3
+      local.get $t2
       local.get $n
       i32.store $heap offset=8
-      local.get $t3
       local.get $t2
+      local.get $t1
       i64.store $heap offset=16
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.set $n
-      local.get $n
-      local.get $t3
+      local.get $t2
       call $"run[i32]"
       local.set $n
       local.get $t0
@@ -171,20 +151,17 @@
     end
     local.get $n
   )
-  (func $"apply#2[u64]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[u64]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -195,34 +172,33 @@
     i32.and
     i32.store $heap
     block
-      local.get $t3
+      local.get $t2
       if
-        local.get $t2
         local.get $t1
+        local.get $t0
         call $"crossing_frame[(i32)]"
         local.set $env
         i32.const 1
-        local.set $t3
+        local.set $t2
       else
+        local.get $ctx
         local.get $t0
-        local.get $t1
         i32.const 0
         local.get $ctx
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $env
         i32.const 0
-        local.set $t3
+        local.set $t2
       end
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
       i32.const 0
       local.set $ctx
-      i32.const 0
-      local.set $t0
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
@@ -247,9 +223,9 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
+  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32) (result i64)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "run[i32]" (func $"run[i32]" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]" (func $"run[i32]" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 129))
@@ -271,44 +247,36 @@
     end
     local.get $env
   )
-  (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
+  (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i64) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     block
-      i32.const 2
-      i32.const 0
+      i32.const 912 ;; &vtable[apply#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       call $rt:retain_known
       i64.const 9205219690481346809
-      local.get $t1
       local.get $t0
       call $"crossing_number[fn((i32)) -> i32]"
-      local.set $t2
-      i32.const 3
+      local.set $t1
       i32.const 24
       i32.const -2147483647
       call $rt:new
-      local.set $t3
-      local.get $t3
-      local.get $t1
+      local.set $t2
+      local.get $t2
+      i32.const 12
       i32.store $heap
-      local.get $t3
+      local.get $t2
       local.get $t0
       i32.store $heap offset=4
-      local.get $t3
+      local.get $t2
       local.get $n
       i32.store $heap offset=8
-      local.get $t3
       local.get $t2
+      local.get $t1
       i64.store $heap offset=16
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.set $n
-      local.get $n
-      local.get $t3
+      local.get $t2
       call $"run[i32]"
       local.set $n
       local.get $t0
@@ -316,20 +284,17 @@
     end
     local.get $n
   )
-  (func $"apply#2[i32]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[i32]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -340,74 +305,65 @@
     i32.and
     i32.store $heap
     block
-      local.get $t3
+      local.get $t2
       if
-        local.get $t2
         local.get $t1
+        local.get $t0
         call $"crossing_frame[(i32)]"
         local.set $env
         i32.const 1
-        local.set $t3
+        local.set $t2
       else
+        local.get $ctx
         local.get $t0
-        local.get $t1
         i32.const 0
         local.get $ctx
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $env
         i32.const 0
-        local.set $t3
+        local.set $t2
       end
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
       i32.const 0
       local.set $ctx
-      i32.const 0
-      local.set $t0
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
-  (func $"apply[u64]" (param $t2 i64) (param $n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     block
-      i32.const 8
-      i32.const 0
+      i32.const 960 ;; &vtable[apply#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       call $rt:retain_known
       i64.const -1240979003453888366
-      local.get $t1
       local.get $t0
       call $"crossing_number[fn((i32)) -> i32]"
-      local.set $t2
-      i32.const 9
+      local.set $t1
       i32.const 24
       i32.const -2147483647
       call $rt:new
-      local.set $t3
-      local.get $t3
-      local.get $t1
+      local.set $t2
+      local.get $t2
+      i32.const 14
       i32.store $heap
-      local.get $t3
+      local.get $t2
       local.get $t0
       i32.store $heap offset=4
-      local.get $t3
+      local.get $t2
       local.get $n
       i32.store $heap offset=8
-      local.get $t3
       local.get $t2
+      local.get $t1
       i64.store $heap offset=16
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.set $n
-      local.get $n
-      local.get $t3
+      local.get $t2
       call $"run[i32]"
       local.set $n
       local.get $t0
@@ -415,20 +371,17 @@
     end
     local.get $n
   )
-  (func $"apply#2[u64]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[u64]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -439,34 +392,33 @@
     i32.and
     i32.store $heap
     block
-      local.get $t3
+      local.get $t2
       if
-        local.get $t2
         local.get $t1
+        local.get $t0
         call $"crossing_frame[(i32)]"
         local.set $env
         i32.const 1
-        local.set $t3
+        local.set $t2
       else
+        local.get $ctx
         local.get $t0
-        local.get $t1
         i32.const 0
         local.get $ctx
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $env
         i32.const 0
-        local.set $t3
+        local.set $t2
       end
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
       i32.const 0
       local.set $ctx
-      i32.const 0
-      local.set $t0
-      local.get $t0
+      local.get $ctx
       call $rt:release_ref
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
@@ -489,12 +441,12 @@
 )
 == @build: release
 (module
-  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
+  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32) (result i64)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "run[i32]'1" (func $"run[i32]'1" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]'1" (func $"run[i32]'1" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
-  (import "fixture" "run[i32]'2" (func $"run[i32]'2" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]'2" (func $"run[i32]'2" (param i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 20 funcref))
@@ -507,20 +459,18 @@
   (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i64) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const 9205219690481346809
-    i32.const 2
+    i32.const 532 ;; &vtable[apply#1]
     local.tee $t0
-    i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 3
     i32.const 24
     i32.const -2147483647
     call $rt:new/class-2
     local.tee $t2
-    local.get $t0
+    i32.const 12
     i32.store $heap
     local.get $t2
-    i32.const 0
+    local.get $t0
     i32.store $heap offset=4
     local.get $t2
     local.get $n
@@ -544,20 +494,17 @@
       end
     end
   )
-  (func $"apply#2[i32]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[i32]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -567,57 +514,56 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
+    local.get $t2
     if
       i32.const 1
-      local.get $t2
       local.get $t1
+      local.get $t0
       call $"crossing_frame[(i32)]"
       local.set $env
-      local.set $t3
+      local.set $t2
     else
       i32.const 0
+      local.get $ctx
       local.get $t0
-      local.get $t1
       i32.const 0
       local.get $ctx
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
-      local.set $t3
+      local.set $t2
     end
-    local.get $t0
+    local.get $ctx
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       end
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 8
+    i32.const 580 ;; &vtable[apply#1]
     local.tee $t0
-    i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new/class-2
     local.tee $t2
-    local.get $t0
+    i32.const 14
     i32.store $heap
     local.get $t2
-    i32.const 0
+    local.get $t0
     i32.store $heap offset=4
     local.get $t2
     local.get $n
@@ -641,20 +587,17 @@
       end
     end
   )
-  (func $"apply#2[u64]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[u64]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -664,38 +607,39 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
+    local.get $t2
     if
       i32.const 1
-      local.get $t2
       local.get $t1
+      local.get $t0
       call $"crossing_frame[(i32)]"
       local.set $env
-      local.set $t3
+      local.set $t2
     else
       i32.const 0
+      local.get $ctx
       local.get $t0
-      local.get $t1
       i32.const 0
       local.get $ctx
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
-      local.set $t3
+      local.set $t2
     end
-    local.get $t0
+    local.get $ctx
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       end
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)
@@ -707,13 +651,13 @@
 )
 == @build: release checked
 (module
-  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32 i32) (result i64)))
+  (import "fixture" "crossing_number[fn((i32)) -> i32]" (func $"crossing_number[fn((i32)) -> i32]" (param i64 i32) (result i64)))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "run[i32]'1" (func $"run[i32]'1" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]'1" (func $"run[i32]'1" (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "crossing_frame[(i32)]" (func $"crossing_frame[(i32)]" (param i64 i32) (result i32)))
-  (import "fixture" "run[i32]'2" (func $"run[i32]'2" (param i32 i32) (result i32)))
+  (import "fixture" "run[i32]'2" (func $"run[i32]'2" (param i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 20 funcref))
@@ -726,20 +670,18 @@
   (func $"apply[i32]" (param $t0 i32) (param $n i32) (result i32) (local $t1 i64) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const 9205219690481346809
-    i32.const 2
+    i32.const 872 ;; &vtable[apply#1]
     local.tee $t0
-    i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 3
     i32.const 24
     i32.const -2147483647
     call $rt:new
     local.tee $t2
-    local.get $t0
+    i32.const 12
     i32.store $heap
     local.get $t2
-    i32.const 0
+    local.get $t0
     i32.store $heap offset=4
     local.get $t2
     local.get $n
@@ -767,20 +709,17 @@
       call $skipped_test
     end
   )
-  (func $"apply#2[i32]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[i32]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -790,34 +729,35 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
+    local.get $t2
     if
       i32.const 1
-      local.get $t2
       local.get $t1
+      local.get $t0
       call $"crossing_frame[(i32)]"
       local.set $env
-      local.set $t3
+      local.set $t2
     else
       i32.const 0
+      local.get $ctx
       local.get $t0
-      local.get $t1
       i32.const 0
       local.get $ctx
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
-      local.set $t3
+      local.set $t2
     end
-    local.get $t0
+    local.get $ctx
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       else
         call $skipped_test
@@ -825,26 +765,24 @@
     else
       call $skipped_test
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 8
+    i32.const 920 ;; &vtable[apply#1]
     local.tee $t0
-    i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new
     local.tee $t2
-    local.get $t0
+    i32.const 14
     i32.store $heap
     local.get $t2
-    i32.const 0
+    local.get $t0
     i32.store $heap offset=4
     local.get $t2
     local.get $n
@@ -872,20 +810,17 @@
       call $skipped_test
     end
   )
-  (func $"apply#2[u64]" (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64)
+  (func $"apply#2[u64]" (param $env i32) (param $t2 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i64)
     ;; 14 |     run(fn() -> i32: n + 1)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $t0
     local.get $env
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $env
     i64.load $heap offset=16
-    local.set $t2
+    local.set $t1
     local.get $env
     i32.const 4
     i32.sub
@@ -895,34 +830,35 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t3
+    local.get $t2
     if
       i32.const 1
-      local.get $t2
       local.get $t1
+      local.get $t0
       call $"crossing_frame[(i32)]"
       local.set $env
-      local.set $t3
+      local.set $t2
     else
       i32.const 0
+      local.get $ctx
       local.get $t0
-      local.get $t1
       i32.const 0
       local.get $ctx
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
-      local.set $t3
+      local.set $t2
     end
-    local.get $t0
+    local.get $ctx
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       else
         call $skipped_test
@@ -930,7 +866,7 @@
     else
       call $skipped_test
     end
-    local.get $t3
+    local.get $t2
     local.get $env
   )
   (func $"apply#1[i32]" (param $env i32) (param $t0 i32) (param $ctx i32) (result i32)

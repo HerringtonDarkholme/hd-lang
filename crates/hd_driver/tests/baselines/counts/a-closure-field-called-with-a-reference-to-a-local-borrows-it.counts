@@ -34,5 +34,5 @@ pub fn main() -> void $ Console:
 >   release string (last use)
     let mut pointed: Gate[*mut Cell] = Gate { keep: fn(c): c.value > 1 }
     println("${plain.admit(2)} ${pointed.admit(box(Cell { value: 3 }))}")
->   release app.main.Gate[i64] [keep.1] (last use)
->   release app.main.Gate[*mut app.main.Cell] [keep.1] (last use)
+>   release app.main.Gate[i64] (last use)
+>   release app.main.Gate[*mut app.main.Cell] (last use)

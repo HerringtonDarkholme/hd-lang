@@ -3,30 +3,29 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $nominal_view (result i32 i32)
+  (func $nominal_view (result i32)
     ;; 42 |     nominal_read
-    i32.const 0
-    i32.const 0
+    i32.const 200 ;; &vtable[nominal_read#adapter]
   )
   (func $nested_view (param $values i32) (result i32)
     ;; 26 |     values
     local.get $values
   )
-  (func $own_view (result i32 i32)
+  (func $own_view (result i32)
     ;; 23 |     keep
-    i32.const 2
-    i32.const 0
+    i32.const 212 ;; &vtable[keep#adapter]
   )
   (func $keep (param $value i32) (result i32)
     ;; 16 |     value
     local.get $value
   )
-  (func $"invoke[*i32]" (param $call.0 i32) (param $call.1 i32) (param $value i32) (result i32)
+  (func $"invoke[*i32]" (param $call i32) (param $value i32) (result i32)
     ;; 30 |     call(value)
-    local.get $call.1
+    local.get $call
     local.get $value
     i32.const 0
-    local.get $call.0
+    local.get $call
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
   (func $read (param $value i32) (result i32)
@@ -40,12 +39,12 @@
   )
   (func $use_lent (param $value i32) (result i32) (local $t0 i32)
     ;; 33 |     invoke(lend_view(), value)
-    i32.const 4
-    call_indirect $table0 (result i32 i32)
+    i32.const 5
+    call_indirect $table0 (result i32)
     local.tee $t0
     local.get $value
-    i32.const 5
-    call_indirect $table0 (param i32 i32 i32) (result i32)
+    i32.const 6
+    call_indirect $table0 (param i32 i32) (result i32)
     local.get $t0
     if
       local.get $t0
@@ -58,9 +57,8 @@
       end
     end
   )
-  (func $lend_view (result i32 i32)
+  (func $lend_view (result i32)
     ;; 20 |     read
-    i32.const 6
-    i32.const 0
+    i32.const 224 ;; &vtable[read#adapter]
   )
 )

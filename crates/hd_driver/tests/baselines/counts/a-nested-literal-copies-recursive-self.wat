@@ -5,25 +5,23 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $nested_sum#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $seed i32)
+  (func $nested_sum#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32)
     ;; 12 |     sum(limit)
-    i32.const 1
-    local.set $ctx
     local.get $env
-    i32.load $heap
-    local.set $seed
+    i32.load $heap offset=4
+    local.set $ctx
     ;; 7 |         if n == 0:
     local.get $n
     i32.eqz
     ;; 6 |     sum := fn(n: i32) -> i32:
     if (result i32)
     ;; 8 |             seed
-      local.get $seed
+      local.get $ctx
     ;; 6 |     sum := fn(n: i32) -> i32:
     else
     ;; 9 |         else:
       local.get $n
-    ;; 10 |             next := fn() -> i32: sum(n - 1)
+    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $env
     ;; 11 |             n + next()
       local.get $n
@@ -31,26 +29,26 @@
       i32.const 1
       i32.sub
       i32.const 0
-    ;; 10 |             next := fn() -> i32: sum(n - 1)
-      local.get $ctx
-    ;; 6 |     sum := fn(n: i32) -> i32:
+      local.get $env
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       i32.add
     end
   )
   (func $nested_sum (param $seed i32) (param $limit i32) (result i32) (local $t0 i32)
     ;; 12 |     sum(limit)
-    i32.const 1
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
-    local.get $seed
+    i32.const 1
     i32.store $heap
-    ;; (no span)
-    local.set $seed
+    local.get $t0
+    local.get $seed
+    i32.store $heap offset=4
     local.get $t0
     if
+    ;; (no span)
       local.get $t0
       i32.const 8
       i32.sub
@@ -76,7 +74,8 @@
     local.get $t0
     local.get $limit
     i32.const 0
-    local.get $seed
+    local.get $t0
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t0
     if

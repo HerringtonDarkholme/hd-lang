@@ -37,7 +37,7 @@
     i32.store $heap
     ;; (no span)
     local.get $values'1
-    i32.const 8
+    i32.const 12
     call_indirect $table0 (param i32) (result i32)
     call $"impl string.len"
     local.set $values'2

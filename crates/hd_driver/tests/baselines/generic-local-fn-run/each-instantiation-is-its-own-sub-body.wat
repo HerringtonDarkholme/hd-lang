@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "release_value[(string, string)]" (func $"release_value[(string, string)]" (param i32 i32 i32 i32)))
@@ -19,99 +19,87 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 14 funcref))
-  (func $"nested[usize]" (param $x i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $"nested[usize]" (param $x i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 25 |     fn a[S](s: S) -> S:
     block
     ;; 29 |     a(a(x))
-      i32.const 3
-      i32.const 0
+      i32.const 304 ;; &vtable[nested#1]
       local.set $t0
+      i32.const 304 ;; &vtable[nested#1]
       local.set $t1
-      i32.const 3
-      i32.const 0
-      local.set $t2
-      local.set $t3
-      local.get $t2
-      local.get $x
-      i32.const 0
-      local.get $t3
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $x
-      local.get $t2
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $t3
-      i32.const 0
-      local.set $t2
-      local.get $t0
+      local.get $t1
       local.get $x
       i32.const 0
       local.get $t1
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32) (result i32)
+      local.set $x
+      local.get $t1
+      call $rt:release_ref'1
+      i32.const 0
+      local.set $t1
+      local.get $t0
+      local.get $x
+      i32.const 0
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $x
     ;; 25 |     fn a[S](s: S) -> S:
       local.get $t0
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t1
       i32.const 0
       local.set $t0
     end
     local.get $x
   )
-  (func $countdown (param $n i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
+  (func $countdown (param $n i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 32 |     fn down[S](k: i32, s: S) -> i32:
     block
     ;; 34 |     down(n, "x") + down(n, 1)
-      i32.const 4
-      i32.const 0
+      i32.const 316 ;; &vtable[countdown#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       local.get $n
       i32.const 113 ;; &"x"
       i32.const 1
       i32.const 0
-      local.get $t1
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
-      local.set $t2
+      local.set $t1
       local.get $t0
       call $rt:release_ref'1
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      i32.const 5
-      i32.const 0
+      i32.const 328 ;; &vtable[countdown#1]
       local.set $t0
-      local.set $t1
       local.get $t0
       local.get $n
       i32.const 1
       i32.const 0
-      local.get $t1
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32) (result i32)
       local.set $n
       local.get $t0
       call $rt:release_ref'1
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
-      local.get $t2
+      local.get $t1
       i64.extend_i32_s
-      local.set $t3
+      local.set $t2
       local.get $n
       i64.extend_i32_s
-      local.set $t4
-      local.get $t3
-      local.get $t4
-      i64.add
       local.set $t3
+      local.get $t2
       local.get $t3
+      i64.add
+      local.set $t2
+      local.get $t2
       i64.const 2147483647
       i64.gt_s
-      local.get $t3
+      local.get $t2
       i64.const -2147483648
       i64.lt_s
       i32.or
@@ -119,7 +107,7 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $t3
+      local.get $t2
       i32.wrap_i64
       local.set $n
     ;; 32 |     fn down[S](k: i32, s: S) -> i32:
@@ -132,46 +120,46 @@
     end
     local.get $u
   )
-  (func $generic (param $captured.0 i32) (param $captured.1 i32) (result i32 i32 i32 i32 i32) (local $a.1 i32) (local $a.0 i32) (local $s.0 i32) (local $m i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t4 i64) (local $t5 i64)
+  (func $generic (param $captured.0 i32) (param $captured.1 i32) (result i32 i32 i32 i32 i32) (local $a.1 i32) (local $s.1 i32) (local $m i32) (local $n i32) (local $a.0 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $s.0 i32) (local $t3 i64) (local $t4 i64)
     ;; 10 |     fn pair[T](value: T) -> (string, T):
     block
     ;; 12 |     let (a, n) = pair(1)
-      i32.const 6
-      i32.const 8
+      i32.const 12
       i32.const 1
-      call $rt:new/class-1
+      call $rt:new/class-2
       local.set $a.1
       local.get $a.1
-      local.get $captured.0
+      i32.const 11
       i32.store $heap
       local.get $a.1
-      local.get $captured.1
+      local.get $captured.0
       i32.store $heap offset=4
       local.get $a.1
+      local.get $captured.1
+      i32.store $heap offset=8
+      local.get $a.1
       call $rt:retain_fields
-      local.set $a.0
       local.get $a.1
       i32.const 1
       i32.const 0
-      local.get $a.0
+      local.get $a.1
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
       local.set $n
       local.set $m
-      local.set $s.0
+      local.set $s.1
       local.get $a.1
       call $rt:release_ref'1
-      i32.const 0
-      local.set $a.0
       i32.const 0
       local.set $a.1
       block
         block
-          local.get $s.0
+          local.get $s.1
           local.get $m
           local.set $a.1
           local.set $a.0
           i32.const 0
-          local.set $s.0
+          local.set $s.1
           i32.const 0
           local.set $m
           br 0
@@ -180,135 +168,135 @@
         br 0
       end
     ;; 13 |     let (_, m) = pair(2)
-      i32.const 6
-      i32.const 8
+      i32.const 12
       i32.const 1
-      call $rt:new/class-1
+      call $rt:new/class-2
       local.set $m
       local.get $m
-      local.get $captured.0
+      i32.const 11
       i32.store $heap
       local.get $m
-      local.get $captured.1
+      local.get $captured.0
       i32.store $heap offset=4
       local.get $m
+      local.get $captured.1
+      i32.store $heap offset=8
+      local.get $m
       call $rt:retain_fields
-      local.set $s.0
       local.get $m
       i32.const 2
       i32.const 0
-      local.get $s.0
+      local.get $m
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
+      local.set $s.1
       local.set $t0
-      local.set $s.0
-      local.set $t1
+      local.set $t0
       local.get $m
       call $rt:release_ref'1
-      i32.const 0
-      local.set $s.0
       i32.const 0
       local.set $m
       block
         block
-          local.get $t0
+          local.get $s.1
           local.set $m
           br 0
           unreachable
         end
         br 0
       end
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
       i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $s.0
+      local.set $t0
       i32.const 0
       local.set $t0
+      i32.const 0
+      local.set $s.1
     ;; 14 |     let (_, s) = pair("s")
-      i32.const 7
-      i32.const 8
+      i32.const 12
       i32.const 1
-      call $rt:new/class-1
-      local.set $s.0
-      local.get $s.0
-      local.get $captured.0
+      call $rt:new/class-2
+      local.set $s.1
+      local.get $s.1
+      i32.const 12
       i32.store $heap
-      local.get $s.0
-      local.get $captured.1
+      local.get $s.1
+      local.get $captured.0
       i32.store $heap offset=4
+      local.get $s.1
+      local.get $captured.1
+      i32.store $heap offset=8
       i32.const 0
       local.set $captured.0
       i32.const 0
       local.set $captured.1
-      local.set $captured.1
-      local.get $s.0
+      local.get $s.1
       i32.const 114 ;; &"s"
       i32.const 1
       i32.const 0
-      local.get $captured.1
+      local.get $s.1
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
+      local.set $captured.1
       local.set $t0
       local.set $t1
       local.set $t2
-      local.set $t3
-      local.get $s.0
+      local.get $s.1
       call $rt:release_ref'1
       i32.const 0
-      local.set $captured.1
-      i32.const 0
-      local.set $s.0
+      local.set $s.1
       block
         block
-          local.get $t1
           local.get $t0
-          local.set $captured.1
+          local.get $captured.1
+          local.set $s.1
           local.set $s.0
           i32.const 0
-          local.set $t1
-          i32.const 0
           local.set $t0
+          i32.const 0
+          local.set $captured.1
           br 0
           unreachable
         end
         br 0
       end
-      local.get $t3
       local.get $t2
       local.get $t1
       local.get $t0
+      local.get $captured.1
       call $"release_value[(string, string)]"
-      i32.const 0
-      local.set $t3
       i32.const 0
       local.set $t2
       i32.const 0
       local.set $t1
       i32.const 0
       local.set $t0
+      i32.const 0
+      local.set $captured.1
     ;; 15 |     (a, n + m, s)
       local.get $a.0
       local.get $a.1
+      local.set $captured.1
       local.set $t0
-      local.set $t1
       i32.const 0
       local.set $a.0
       i32.const 0
       local.set $a.1
       local.get $n
       i64.extend_i32_s
-      local.set $t4
+      local.set $t3
       local.get $m
       i64.extend_i32_s
-      local.set $t5
-      local.get $t4
-      local.get $t5
-      i64.add
       local.set $t4
+      local.get $t3
       local.get $t4
+      i64.add
+      local.set $t3
+      local.get $t3
       i64.const 2147483647
       i64.gt_s
-      local.get $t4
+      local.get $t3
       i64.const -2147483648
       i64.lt_s
       i32.or
@@ -316,26 +304,26 @@
         call $rt:panic'1
         unreachable
       end
-      local.get $t4
+      local.get $t3
       i32.wrap_i64
       local.set $a.1
       local.get $s.0
-      local.get $captured.1
-      local.set $a.0
+      local.get $s.1
       local.set $n
+      local.set $m
       i32.const 0
       local.set $s.0
       i32.const 0
-      local.set $captured.1
+      local.set $s.1
     ;; 10 |     fn pair[T](value: T) -> (string, T):
       local.get $captured.0
       call $rt:release_ref'2
     end
-    local.get $t1
     local.get $t0
+    local.get $captured.1
     local.get $a.1
+    local.get $m
     local.get $n
-    local.get $a.0
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value.1'1 i32) (local $s.0 i32) (local $s.1 i32) (local $text.0 i32) (local $text.1 i32) (local $n i32) (local $t0 i32) (local $a.0 i32) (local $a.1 i32) (local $k i32) (local $t.0 i32) (local $t.1 i32) (local $value'1 i64) (local $value'2 i64) (local $value'3 i64) (local $offset'1 i32) (local $offset'2 i32) (local $value'4 i64) (local $value'5 i64) (local $width i32) (local $t1 i64) (local $value.1'2 i32) (local $t2 i64) (local $value.0 i32) (local $size i32) (local $offset'3 i32) (local $offset'4 i32) (local $offset'5 i32) (local $offset'6 i32) (local $offset'7 i32) (local $offset'8 i32) (local $offset'9 i32) (local $offset'10 i32) (local $offset'11 i32) (local $offset'12 i32) (local $offset'13 i32) (local $offset'14 i32) (local $offset'15 i32) (local $result.0 i32) (local $offset'16 i32)
     ;; 64 |     let (a, n, s) = generic("c")
@@ -1570,10 +1558,10 @@
   (func $"generic#1[string]" (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 10 |     fn pair[T](value: T) -> (string, T):
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $env
     local.get $ctx
     call $retain
@@ -1608,34 +1596,31 @@
     local.get $t2
     local.get $env
   )
-  (func $bounded (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $bounded (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 47 |     fn total[S < Area](a: S, b: S) -> i32:
     block
     ;; 49 |     total(Sq { side: 2 }, Sq { side: 3 })
-      i32.const 8
-      i32.const 0
+      i32.const 340 ;; &vtable[bounded#1]
       local.set $t0
-      local.set $t1
       i32.const 2
-      local.set $t2
+      local.set $t1
       i32.const 3
-      local.set $t3
-      local.get $t0
-      local.get $t2
-      local.get $t3
-      i32.const 0
-      local.get $t1
-      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
       local.set $t2
+      local.get $t0
+      local.get $t1
+      local.get $t2
+      i32.const 0
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32 i32) (result i32)
+      local.set $t1
     ;; 47 |     fn total[S < Area](a: S, b: S) -> i32:
       local.get $t0
       call $rt:release_ref'1
       i32.const 0
-      local.set $t1
-      i32.const 0
       local.set $t0
     end
-    local.get $t2
+    local.get $t1
   )
   (func $"Named.shout#1[Sq, string]" (param $env i32) (param $s.0 i32) (param $s.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 54 |         fn twice[S](s: S) -> (S, S):
@@ -1679,10 +1664,8 @@
         i32.const 0
         local.set $env
       else
-        i32.const 5
-        i32.const 0
+        i32.const 328 ;; &vtable[countdown#1]
         local.set $env
-        local.set $ctx
         local.get $k
         i32.const -2147483647
         i32.lt_s
@@ -1698,13 +1681,12 @@
         local.get $k
         local.get $s
         i32.const 0
-        local.get $ctx
+        local.get $env
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32 i32) (result i32)
         local.set $k
         local.get $env
         call $rt:release_ref'1
-        i32.const 0
-        local.set $ctx
         i32.const 0
         local.set $env
         local.get $k
@@ -1783,28 +1765,25 @@
     local.get $env
     local.get $u
   )
-  (func $"outer[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32 i32) (local $k i32) (local $t.0 i32) (local $t.1 i32) (local $t0 i32) (local $b i32) (local $t1 i32)
+  (func $"outer[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32 i32) (local $k i32) (local $t.1 i32) (local $t0 i32) (local $b i32) (local $t.0 i32)
     ;; 18 |     fn wrap[U](u: U, t: T) -> (T, U):
     block
     ;; 20 |     let (t, k) = wrap(4, x)
-      i32.const 9
-      i32.const 0
+      i32.const 352 ;; &vtable[outer#1]
       local.set $t.1
-      local.set $t.0
       local.get $t.1
       i32.const 4
       local.get $x.0
       local.get $x.1
       i32.const 0
-      local.get $t.0
+      local.get $t.1
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32 i32)
       local.set $k
       local.set $b
       local.set $t0
       local.get $t.1
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t.0
       i32.const 0
       local.set $t.1
       block
@@ -1823,24 +1802,21 @@
         br 0
       end
     ;; 21 |     let (_, b) = wrap(true, x)
-      i32.const 10
-      i32.const 0
+      i32.const 364 ;; &vtable[outer#1]
       local.set $b
-      local.set $t0
       local.get $b
       i32.const 1
       local.get $x.0
       local.get $x.1
       i32.const 0
-      local.get $t0
+      local.get $b
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32 i32)
       local.set $x.1
       local.set $t0
-      local.set $t1
+      local.set $t0
       local.get $b
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t0
       i32.const 0
       local.set $b
       block
@@ -1852,10 +1828,10 @@
         end
         br 0
       end
-      local.get $t1
+      local.get $t0
       call $rt:release_ref'2
       i32.const 0
-      local.set $t1
+      local.set $t0
       i32.const 0
       local.set $t0
       i32.const 0
@@ -1896,10 +1872,8 @@
         i32.const 0
         local.set $env
       else
-        i32.const 4
-        i32.const 0
+        i32.const 316 ;; &vtable[countdown#1]
         local.set $env
-        local.set $ctx
         local.get $k
         i32.const -2147483647
         i32.lt_s
@@ -1916,13 +1890,12 @@
         local.get $s.0
         local.get $s.1
         i32.const 0
-        local.get $ctx
+        local.get $env
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
         local.set $k
         local.get $env
         call $rt:release_ref'1
-        i32.const 0
-        local.set $ctx
         i32.const 0
         local.set $env
         local.get $k
@@ -1941,90 +1914,81 @@
     end
     local.get $env
   )
-  (func $"nested#1[usize, usize]" (param $env i32) (param $s i32) (param $ctx i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $"nested#1[usize, usize]" (param $env i32) (param $s i32) (param $ctx i32) (result i32)
     ;; 25 |     fn a[S](s: S) -> S:
     block
     ;; 28 |         b(b(s))
-      i32.const 11
-      i32.const 0
+      i32.const 376 ;; &vtable[nested#2]
       local.set $env
+      i32.const 376 ;; &vtable[nested#2]
       local.set $ctx
-      i32.const 11
-      i32.const 0
-      local.set $t0
-      local.set $t1
-      local.get $t0
-      local.get $s
-      i32.const 0
-      local.get $t1
-      call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $s
-      local.get $t0
-      call $rt:release_ref'1
-      i32.const 0
-      local.set $t1
-      i32.const 0
-      local.set $t0
-      local.get $env
+      local.get $ctx
       local.get $s
       i32.const 0
       local.get $ctx
+      i32.load $heap
+      call_indirect $table0 (param i32 i32 i32) (result i32)
+      local.set $s
+      local.get $ctx
+      call $rt:release_ref'1
+      i32.const 0
+      local.set $ctx
+      local.get $env
+      local.get $s
+      i32.const 0
+      local.get $env
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $s
     ;; 25 |     fn a[S](s: S) -> S:
       local.get $env
       call $rt:release_ref'1
-      i32.const 0
-      local.set $ctx
       i32.const 0
       local.set $env
     end
     local.get $s
   )
-  (func $"Named.shout[Sq]" (param $self i32) (result i32 i32) (local $b.1 i32) (local $a.0 i32) (local $b.0 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $"Named.shout[Sq]" (param $self i32) (result i32 i32) (local $a.0 i32) (local $b.1 i32) (local $t2 i32) (local $b.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 54 |         fn twice[S](s: S) -> (S, S):
     block
     ;; 56 |         let (a, b) = twice(self.name())
-      i32.const 12
-      i32.const 0
+      i32.const 388 ;; &vtable[Named.shout#1]
       local.set $a.0
-      local.set $b.1
       local.get $self
       call $"impl Named for Sq.name"
       local.set $self
-      local.set $b.0
+      local.set $b.1
       local.get $a.0
-      local.get $b.0
+      local.get $b.1
       local.get $self
       i32.const 0
-      local.get $b.1
+      local.get $a.0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32 i32)
       local.set $t0
       local.set $t1
+      local.set $b.0
       local.set $t2
-      local.set $t3
-      local.get $b.0
+      local.get $b.1
       call $rt:release_ref'2
       i32.const 0
-      local.set $b.0
+      local.set $b.1
       i32.const 0
       local.set $self
       local.get $a.0
       call $rt:release_ref'1
       i32.const 0
-      local.set $b.1
-      i32.const 0
       local.set $a.0
       block
         block
-          local.get $t3
           local.get $t2
+          local.get $b.0
           local.set $self
           local.set $a.0
           i32.const 0
-          local.set $t3
-          i32.const 0
           local.set $t2
+          i32.const 0
+          local.set $b.0
           local.get $t1
           local.get $t0
           local.set $b.1
@@ -2130,10 +2094,10 @@
   (func $"generic#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 10 |     fn pair[T](value: T) -> (string, T):
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $env
     local.get $ctx
     call $retain

@@ -50,7 +50,7 @@
       local.get $value
       local.get $t1
       local.get $t0
-      i32.const 22
+      i32.const 25
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $value
       local.get $t1
@@ -116,7 +116,7 @@
     local.get $value
     local.get $provider0.vtable
     local.get $provider0
-    i32.const 7
+    i32.const 13
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $provider0.vtable
     if

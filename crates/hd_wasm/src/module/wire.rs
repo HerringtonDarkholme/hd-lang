@@ -740,7 +740,6 @@ wire_enum!(Global {
     7 => AbSeen,
     8 => Rewake,
     9 => IdleHook,
-    10 => IdleEnv,
     11 => Root,
     12 => Owner,
     13 => WakeTab,

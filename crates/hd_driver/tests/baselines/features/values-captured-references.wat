@@ -10,7 +10,7 @@
   (func $bump#1 (param $env i32) (param $ctx i32)
     ;; 14 |     fn() -> void: p.x = p.x + 1
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     i32.load $heap offset=8
     i32.const 1
@@ -26,7 +26,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 17 |     origin := box(Point { name: s, x: 0 })
     i32.const 12
     i32.const 1
@@ -55,18 +55,18 @@
     end
     local.get $s.0
     call $bump
-    local.set $s.0
-    local.tee $s.1
+    local.tee $s.0
     ;; 19 |     step()
-    local.set $t1
-    local.get $s.0
+    local.tee $s.1
     i32.const 0
-    local.get $t1
+    local.get $s.1
+    i32.load $heap
     call_indirect $table0 (param i32 i32)
     ;; 20 |     step()
     local.get $s.0
     i32.const 0
-    local.get $s.1
+    local.get $s.0
+    i32.load $heap
     call_indirect $table0 (param i32 i32)
     local.get $s.0
     if
@@ -99,15 +99,17 @@
       end
     end
   )
-  (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
+  (func $bump (param $p i32) (result i32) (local $t0 i32)
     ;; 14 |     fn() -> void: p.x = p.x + 1
-    i32.const 3
-    i32.const 4
+    i32.const 8
     i32.const -2147483646
     call $rt:new/class-1
     local.tee $t0
-    local.get $p
+    i32.const 6
     i32.store $heap
+    local.get $t0
+    local.get $p
+    i32.store $heap offset=4
     local.get $t0
   )
 )

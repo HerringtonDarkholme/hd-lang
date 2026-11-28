@@ -4,34 +4,27 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"adapt[i32, i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[i32, i32]" (param $callback i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 32 |     callback
     block
-      local.get $callback.0
-      local.get $callback.1
+      local.get $callback
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
+      local.set $callback
       i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
-      local.set $callback.0
-      local.get $callback.0
+      local.set $t1
       local.get $t1
+      i32.const 8
       i32.store $heap
-      local.get $callback.0
+      local.get $t1
       local.get $t0
       i32.store $heap offset=4
-      i32.const 5
-      local.set $t0
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $t0
-    local.get $callback.0
+    local.get $t1
   )
 )
 == @build: checked
@@ -39,52 +32,44 @@
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (func $"adapt[i32, i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"adapt[i32, i32]" (param $callback i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 32 |     callback
     block
-      local.get $callback.0
-      local.get $callback.1
+      local.get $callback
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
+      local.set $callback
       i32.const 8
       i32.const -2147483647
       call $rt:new
-      local.set $callback.0
-      local.get $callback.0
+      local.set $t1
       local.get $t1
+      i32.const 8
       i32.store $heap
-      local.get $callback.0
+      local.get $t1
       local.get $t0
       i32.store $heap offset=4
-      i32.const 5
-      local.set $t0
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $t0
-    local.get $callback.0
+    local.get $t1
   )
 )
 == @build: release
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"adapt[i32, i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
+  (func $"adapt[i32, i32]" (param $callback i32) (result i32) (local $t0 i32)
     ;; 32 |     callback
     i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $callback.0
+    i32.const 8
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
-    i32.const 5
     local.get $t0
   )
 )
@@ -92,18 +77,17 @@
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"adapt[i32, i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
+  (func $"adapt[i32, i32]" (param $callback i32) (result i32) (local $t0 i32)
     ;; 32 |     callback
     i32.const 8
     i32.const -2147483647
     call $rt:new
     local.tee $t0
-    local.get $callback.0
+    i32.const 8
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
-    i32.const 5
     local.get $t0
   )
 )

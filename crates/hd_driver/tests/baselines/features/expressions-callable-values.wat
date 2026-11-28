@@ -83,13 +83,14 @@
       call $rt:release_ref
     end
   )
-  (func $stored_fn (param $h.callback.0 i32) (param $h.callback.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32)
+  (func $stored_fn (param $h i32) (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 34 |     (h.callback)(s)
-    local.get $h.callback.1
+    local.get $h
     local.get $s.0
     local.get $s.1
     i32.const 0
-    local.get $h.callback.0
+    local.get $h
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
   )
 )

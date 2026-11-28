@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "println[u32]" (func $"println[u32]" (param i32 i32 i32)))
-  (import "fixture" "crossing_number[fn((u32, Image)) -> Image]" (func $"crossing_number[fn((u32, Image)) -> Image]" (param i64 i32 i32) (result i64)))
+  (import "fixture" "crossing_number[fn((u32, Image)) -> Image]" (func $"crossing_number[fn((u32, Image)) -> Image]" (param i64 i32) (result i64)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "crossing_frame[(u32, Image)]" (func $"crossing_frame[(u32, Image)]" (param i64 i32 i32 i32) (result i32)))
@@ -41,53 +41,50 @@
     local.get $t0
     local.get $t1
   )
-  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code.1 i32)
+  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code i32)
     ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     i64.const -2549619231260123173
-    i32.const 16
+    i32.const 876 ;; &vtable[demo#1]
     local.tee $t0
-    i32.const 0
     call $"crossing_number[fn((u32, Image)) -> Image]"
     local.set $t1
-    i32.const 17
     i32.const 32
     i32.const -2147483647
     call $rt:new/class-3
-    local.tee $code.1
-    local.get $t0
+    local.tee $code
+    i32.const 22
     i32.store $heap
-    local.get $code.1
-    i32.const 0
+    local.get $code
+    local.get $t0
     i32.store $heap offset=4
-    local.get $code.1
+    local.get $code
     local.get $side
     i32.store $heap offset=16
-    local.get $code.1
+    local.get $code
     local.get $photo.width
     i32.store $heap offset=12
-    local.get $code.1
+    local.get $code
     local.get $photo.pixels
     i32.store $heap offset=8
-    local.get $code.1
+    local.get $code
     local.get $t1
     i64.store $heap offset=24
-    drop
-    local.get $code.1
+    local.get $code
     i32.const 0
     i32.const 0
     call $demo#2
     local.set $photo.width
     local.set $photo.pixels
-    local.get $code.1
+    local.get $code
     if
-      local.get $code.1
+      local.get $code
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $code.1
+        local.get $code
         call $rt:release_ref
       end
     end
@@ -106,26 +103,23 @@
     end
     local.get $photo.width
   )
-  (func $demo#2 (param $env i32) (param $t5 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+  (func $demo#2 (param $env i32) (param $t4 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=16
     local.set $t0
     local.get $env
-    i32.load $heap offset=16
+    i32.load $heap offset=12
     local.set $t1
     local.get $env
-    i32.load $heap offset=12
+    i32.load $heap offset=8
     local.set $t2
     local.get $env
-    i32.load $heap offset=8
-    local.set $t3
-    local.get $env
     i64.load $heap offset=24
-    local.set $t4
+    local.set $t3
     local.get $env
     i32.const 4
     i32.sub
@@ -135,41 +129,42 @@
     i32.const -65536
     i32.and
     i32.store $heap
-    local.get $t5
+    local.get $t4
     if
       i32.const 0
-      local.get $t4
+      local.get $t3
+      local.get $t0
       local.get $t1
       local.get $t2
-      local.get $t3
       call $"crossing_frame[(u32, Image)]"
       local.set $env
-      local.set $t5
+      local.set $t4
     else
+      local.get $ctx
       local.get $t0
       local.get $t1
       local.get $t2
-      local.get $t3
       i32.const 0
       local.get $ctx
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32)
-      local.set $t5
+      local.set $t4
       local.set $env
     end
-    local.get $t0
+    local.get $ctx
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       end
     end
-    local.get $t5
+    local.get $t4
     local.get $env
   )
 )

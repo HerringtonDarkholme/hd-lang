@@ -7,25 +7,23 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $size i32) (local $width i32) (local $number i32) (local $value i64) (local $t0 i64) (local $t1 i64) (local $offset i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $width i32) (local $number i32) (local $value i64) (local $t0 i64) (local $t1 i64) (local $result.0 i32) (local $offset i32)
     ;; 11 |     fn make[N](value: N) -> Box[N]:
     block
     ;; 14 |     number := make(+7)
-      i32.const 3
-      i32.const 0
+      i32.const 352 ;; &vtable[main#1]
       local.set $width
-      local.set $size
       local.get $width
       i32.const 7
       i32.const 0
-      local.get $size
+      local.get $width
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $number
       local.get $width
       call $rt:release_ref
-      i32.const 0
-      local.set $size
       i32.const 0
       local.set $width
     ;; 15 |     println("${number.item}")
@@ -45,19 +43,19 @@
               local.get $value
               i64.const 0
               i64.lt_s
-              local.set $size
-              local.get $size
+              local.set $number
+              local.get $number
               if
                 i32.const 1
-                local.set $size
+                local.set $number
               else
                 i32.const 0
-                local.set $size
+                local.set $number
               end
               local.get $width
               i64.extend_i32_u
               local.set $t0
-              local.get $size
+              local.get $number
               i64.extend_i32_u
               local.set $t1
               local.get $t0
@@ -83,16 +81,16 @@
       i32.const 0
       local.get $width
       i32.add
-      local.set $size
+      local.set $number
       block
         block
           i32.const 16
-          local.set $number
-          local.get $size
+          local.set $result.0
+          local.get $number
           if
-            local.get $size
+            local.get $number
             call $rt:str
-            local.set $number
+            local.set $result.0
           end
           br 0
         end
@@ -101,7 +99,7 @@
       local.set $offset
       block
         block
-          local.get $number
+          local.get $result.0
           local.get $offset
           i32.const 1
           i32.mul
@@ -114,8 +112,8 @@
           br 0
         end
       end
+      local.get $result.0
       local.get $number
-      local.get $size
       local.get $provider0
       local.get $provider0.vtable
       call $"println[string]"

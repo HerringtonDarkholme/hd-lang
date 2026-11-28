@@ -7,7 +7,7 @@
     block
       i32.const 19 ;; &"fact body ran"
       i32.const 13
-      i32.const 2
+      i32.const 8
       call_indirect $table0 (param i32 i32)
       unreachable
     end
@@ -16,7 +16,7 @@
     ;; ...
     local.get $t0
     ;; ...
-    i32.const 628 ;; &vtable[rt:type_id]
+    i32.const 612 ;; &vtable[rt:type_id]
     ;; ...
   )
 )

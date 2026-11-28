@@ -346,7 +346,7 @@
     ;; 28 |     println(stack("stack"))
           i32.const 68 ;; &"stack"
           i32.const 5
-          i32.const 6
+          i32.const 9
           call_indirect $table0 (param i32 i32) (result i32 i32)
           local.set $provider0.vtable
           local.set $t4
@@ -364,7 +364,7 @@
     ;; 29 |     println(direct("direct"))
           i32.const 73 ;; &"direct"
           i32.const 6
-          i32.const 7
+          i32.const 10
           call_indirect $table0 (param i32 i32) (result i32 i32)
           local.set $provider0.vtable
           local.set $t4
@@ -756,7 +756,7 @@
             local.set $provider0
             local.get $t4
             local.get $provider0
-            i32.const 9
+            i32.const 12
             call_indirect $table0 (param i32 i32) (result i32)
             local.set $provider0
             i32.const 0
@@ -1240,7 +1240,7 @@
       local.set $t2
       local.get $t1
       local.get $t2
-      i32.const 9
+      i32.const 12
       call_indirect $table0 (param i32 i32) (result i32)
       local.set $t2
       i32.const 0
@@ -1377,7 +1377,7 @@
             local.set $provider0
             local.get $t5
             local.get $provider0
-            i32.const 10
+            i32.const 13
             call_indirect $table0 (param i32 i32) (result i32)
             local.set $provider0
             i32.const 0

@@ -89,7 +89,7 @@
       i32.const -4
       i32.and
       local.tee $text.1
-      i32.const 16
+      i32.const 12
       i32.add
       local.get $text.0
       i32.load $heap offset=4
@@ -97,13 +97,13 @@
       if
         local.get $text.0
         local.get $text.1
-        i32.const 16
+        i32.const 12
         i32.add
         i32.store $heap
         br 1
       end
       local.get $arena
-      i32.const 16
+      i32.const 12
       i32.const 4
       call $"impl Arena.refill"
       local.set $text.1
@@ -115,16 +115,13 @@
     local.set $text.0
     local.tee $t0
     local.get $text.0
-    i32.store $heap offset=8
+    i32.store $heap offset=4
     local.get $t0
     local.get $at
-    i32.store $heap offset=12
+    i32.store $heap offset=8
     local.get $t0
-    i32.const 1
+    i32.const 232 ;; &vtable[std/arena/drop_at#adapter]
     i32.store $heap
-    local.get $t0
-    i32.const 0
-    i32.store $heap offset=4
     local.get $arena
     i32.load $heap
     local.get $text.1

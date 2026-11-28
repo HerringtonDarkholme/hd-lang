@@ -252,7 +252,7 @@
       end
     end
   )
-  (func $"impl[T] List[T].any[i32, fn(&i32) -> bool]" (param $t1 i32) (param $t0 i32) (param $t6 i32) (result i32) (local $t7 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $"impl[T] List[T].any[i32, fn(&i32) -> bool]" (param $t1 i32) (param $t6 i32) (result i32) (local $t7 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t0 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -352,33 +352,35 @@
   (func $any#1 (param $env i32) (param $value i32) (param $ctx i32) (result i32)
     ;; 8 |     values.any(fn(value: &i32) -> bool: *value == target)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $env
     local.get $value
     i32.load $heap
     local.get $env
     i32.eq
   )
-  (func $any (param $values i32) (param $target i32) (result i32)
+  (func $any (param $values i32) (param $target i32) (result i32) (local $t0 i32)
     ;; 8 |     values.any(fn(value: &i32) -> bool: *value == target)
-    local.get $values
-    i32.const 4
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
-    local.tee $values
-    local.get $target
+    local.tee $t0
+    i32.const 4
     i32.store $heap
+    local.get $t0
+    local.get $target
+    i32.store $heap offset=4
     local.get $values
+    local.get $t0
     call $"impl[T] List[T].any[i32, fn(&i32) -> bool]"
-    local.get $values
+    local.get $t0
     if
-      local.get $values
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $values
+        local.get $t0
         call $rt:release_ref
       end
     end

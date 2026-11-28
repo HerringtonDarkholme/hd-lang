@@ -4,9 +4,9 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "impl Held.text" (func $"impl Held.text" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "impl Held.text" (func $"impl Held.text" (param i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (local $t2 i32) (local $replace.1 i32) (local $source i32) (local $replace.0 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
+  (func $main (local $t2 i32) (local $replace i32) (local $source i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
     block
       ;; ...
     ;; 20 |     _ := source.text(replace)
@@ -72,26 +72,21 @@
       i32.const 65536
       i32.add
       local.set $t4
-      local.get $replace.0
-      local.get $replace.1
+      local.get $replace
       local.set $t0
-      local.set $t3
       i32.const 0
-      local.set $replace.0
-      i32.const 0
-      local.set $replace.1
+      local.set $replace
       local.get $t1
-      local.get $t3
       local.get $t0
       call $"impl Held.text"
-      local.set $replace.1
-      local.set $replace.1
+      local.set $replace
+      local.set $replace
       local.get $t2
       if
         local.get $t2
         i32.load $heap
-        local.set $replace.0
-        local.get $replace.0
+        local.set $t0
+        local.get $t0
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -101,7 +96,7 @@
           call $rt:loan_unshare
         else
           local.get $t2
-          local.get $replace.0
+          local.get $t0
           i32.const 65536
           i32.sub
           i32.store $heap

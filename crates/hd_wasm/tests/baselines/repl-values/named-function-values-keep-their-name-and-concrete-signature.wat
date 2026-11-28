@@ -2,25 +2,21 @@
 (module
   (import "fixture" "hd:session:0/hd.session.f.80" (func $hd:session:0/hd.session.f.80 (param i32)))
   (import "fixture" "hd:session:0/hd.session.f.30" (func $hd:session:0/hd.session.f.30 (param i32)))
-  (import "fixture" "hd:session:1/hd.session.f.12" (func $hd:session:1/hd.session.f.12 (param i32 i32) (result i32)))
+  (import "fixture" "hd:session:1/hd.session.f.15" (func $hd:session:1/hd.session.f.15 (param i32 i32) (result i32)))
   (import "fixture" "hd:session:0/hd.session.f.71" (func $hd:session:0/hd.session.f.71))
-  (import "fixture" "hd:session:1/hd.session.f.13" (func $hd:session:1/hd.session.f.13 (param i32) (result i32 i32)))
-  (import "fixture" "hd:session:1/hd.session.f.16" (func $hd:session:1/hd.session.f.16 (param i32 i32 i32 i32 i32)))
+  (import "fixture" "hd:session:1/hd.session.f.16" (func $hd:session:1/hd.session.f.16 (param i32) (result i32 i32)))
+  (import "fixture" "hd:session:1/hd.session.f.19" (func $hd:session:1/hd.session.f.19 (param i32 i32 i32 i32 i32)))
   (import "fixture" "hd:session:0/hd.session.f.73" (func $hd:session:0/hd.session.f.73 (param i32 i32) (result i32)))
   (import "fixture" "hd:rt/stdout" (func $hd:rt/stdout (param i32)))
   (import "fixture" "hd:session:0/hd.session.f.77" (func $hd:session:0/hd.session.f.77 (param i32)))
   (import "fixture" "session_data" (global $session_data i32))
-  (func $app/$repl4/init.init (local $text.0 i32) (local $text.1 i32) (local $ty.0 i32) (local $ty.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
+  (func $app/$repl4/init.init (local $text.1 i32) (local $text.0 i32) (local $ty.0 i32) (local $ty.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32)
     block
     ;; 5 | identity::[i32]
-      i32.const 8
-      i32.const 0
+      global.get $session_data
       local.set $text.1
-      local.set $text.0
       local.get $text.1
       call $hd:session:0/hd.session.f.80
-      i32.const 0
-      local.set $text.0
       i32.const 0
       local.set $text.1
       global.get $session_data
@@ -49,7 +45,7 @@
           call $hd:session:0/hd.session.f.30
           local.get $t1
           local.get $t0
-          call $hd:session:1/hd.session.f.12
+          call $hd:session:1/hd.session.f.15
           local.set $text.1
           local.get $ty.0
           local.get $ty.1
@@ -63,7 +59,7 @@
           call $hd:session:0/hd.session.f.30
           local.get $t2
           local.get $text.0
-          call $hd:session:1/hd.session.f.12
+          call $hd:session:1/hd.session.f.15
           local.set $ty.1
           i32.const 0
           local.get $text.1
@@ -101,7 +97,7 @@
           i32.wrap_i64
           local.set $ty.1
           local.get $ty.1
-          call $hd:session:1/hd.session.f.13
+          call $hd:session:1/hd.session.f.16
           local.set $ty.1
           local.set $t5
           local.get $t5
@@ -111,7 +107,7 @@
           i32.const 0
           local.get $t1
           local.get $t0
-          call $hd:session:1/hd.session.f.16
+          call $hd:session:1/hd.session.f.19
           local.get $t5
           call $hd:session:0/hd.session.f.30
           local.get $t5
@@ -121,7 +117,7 @@
           i32.const 86
           i32.add
           i32.const 3
-          call $hd:session:1/hd.session.f.16
+          call $hd:session:1/hd.session.f.19
           local.get $t5
           call $hd:session:0/hd.session.f.30
           local.get $t5
@@ -129,7 +125,7 @@
           local.get $ty.0
           local.get $t2
           local.get $text.0
-          call $hd:session:1/hd.session.f.16
+          call $hd:session:1/hd.session.f.19
           local.get $t5
           local.get $ty.1
           call $hd:session:0/hd.session.f.73

@@ -667,9 +667,10 @@ fn mem_one(
                 None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
             },
         },
-        // A function value's code is a table slot, which may be 0, and its
-        // environment is 0 when it captures nothing: no niche.
-        TyData::Fn { .. } => pair(Mem::address(), Mem::address()),
+        // A function value is the payload address of a closure object
+        // `[count][descriptor][code][captures...]`, never 0: a capture-free
+        // one's is a static object's.
+        TyData::Fn { .. } => Mem::nonnull(),
         TyData::TraitValue { .. } => pair(Mem::address(), Mem::nonnull()),
         // A `$.Context` value is the address of a counted context
         // (`rt::ctx_elem`).
@@ -791,7 +792,7 @@ pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf
         };
         match pool.get(t) {
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => leaf(0, true),
-            TyData::Fn { .. } => leaf(1, true),
+            TyData::Fn { .. } => leaf(0, true),
             TyData::Context(_) => leaf(0, true),
             TyData::Adt(AdtId::Product { .. }, _) => fields(&tuple_members(pool, t), &mut work),
             TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => {
@@ -930,7 +931,7 @@ pub fn holds_thin_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     })
 }
 
-/// A closure environment's layout from its captures, each its type's
+/// A closure object's payload layout: its code's table slot at offset 0, then its captures, each its type's
 /// value or, when shared, a cell's address; with the places of the
 /// captures.
 pub fn env_mem(
@@ -938,12 +939,17 @@ pub fn env_mem(
     env: &dyn ProgramEnv,
     fields: &[(Ty, bool)],
 ) -> StageResult<(Mem, Vec<Part>)> {
+    // The code's table slot comes first, at the payload's offset 0.
     let laid = |of: &dyn Fn(Ty) -> StageResult<Mem>| {
-        let ms = fields
-            .iter()
-            .map(|(t, shared)| if *shared { Ok(Mem::address()) } else { of(*t) })
+        let ms = std::iter::once(Ok(Mem::address()))
+            .chain(
+                (fields.iter())
+                    .map(|(t, shared)| if *shared { Ok(Mem::address()) } else { of(*t) }),
+            )
             .collect::<StageResult<Vec<_>>>()?;
-        record(&ms).map_err(|TooLarge| too_large("a closure's captures"))
+        let (m, mut parts) = record(&ms).map_err(|TooLarge| too_large("a closure's captures"))?;
+        parts.remove(0);
+        Ok((m, parts))
     };
     // The sum fits before any capture's leaves are copied, as in [`mem`].
     laid(&|t| layout(pool, env, t).map(|l| l.part()))?;

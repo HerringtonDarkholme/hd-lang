@@ -205,12 +205,9 @@ pub fn build(m: &Module, row: &RowAdapter) -> Func {
     f.op(I::If(BlockType::Empty));
     f.op(I::Unreachable);
     f.op(I::End);
-    if row.code.is_some() {
-        f.get(0);
-    } else {
-        f.get(0);
-        f.op(I::I32Load(mem(HEAP, 4, 2)));
-    }
+    // The original closure object, at offset 4 of the adapter's.
+    f.get(0);
+    f.op(I::I32Load(mem(HEAP, 4, 2)));
     for p in 1..incoming {
         f.get(p);
     }
@@ -219,6 +216,7 @@ pub fn build(m: &Module, row: &RowAdapter) -> Func {
         f.call(Sym::Inst(*code));
     } else {
         f.get(0);
+        f.op(I::I32Load(mem(HEAP, 4, 2)));
         f.op(I::I32Load(mem(HEAP, 0, 2)));
         f.call_indirect(row.params.clone(), row.results.clone());
     }

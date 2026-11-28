@@ -704,11 +704,10 @@ pub enum Global {
     /// host completions leaves a party that no wake will reach: the driver
     /// polls its root again.
     Rewake,
-    /// std's idle hook (`task_idle_hook`): its code's table slot, 0
-    /// until it is installed, and its environment. A driver about to wait
-    /// for the host runs it first (§14.4, "Idle hook").
+    /// std's idle hook (`task_idle_hook`): its closure object, 0 until it
+    /// is installed. A driver about to wait for the host runs it first
+    /// (§14.4, "Idle hook").
     IdleHook,
-    IdleEnv,
     /// The entry's pending root frame, 0 for none.
     Root,
     /// The `hd.poll` context that owns the root, plus one.
@@ -767,7 +766,6 @@ impl Global {
             | Global::AbSeen
             | Global::Rewake
             | Global::IdleHook
-            | Global::IdleEnv
             | Global::Root
             | Global::Owner
             | Global::WakeTab
@@ -1674,6 +1672,10 @@ pub struct Module {
     /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
     /// are still being built: no other table deduplicates into one.
     reserved_vtables: hd_base::HashSet<usize>,
+    /// The one-slot vtables that are static closure objects
+    /// ([`Module::fn_object`]): each is laid out after a zero count and
+    /// descriptor word.
+    fn_objects: hd_base::HashSet<usize>,
     /// Host handle vtables by trait and package boundary
     /// (`boundary::handle_vtable`). Each is reserved before its
     /// slots are built, so a handle method that returns its own trait
@@ -1794,6 +1796,7 @@ impl Module {
             #[cfg(feature = "testing")]
             vtable_compares: Default::default(),
             reserved_vtables: hd_base::HashSet::default(),
+            fn_objects: hd_base::HashSet::default(),
             handle_vtables: hd_base::HashMap::default(),
             dyn_vtables: hd_base::HashMap::default(),
             dyn_paths: std::cell::RefCell::default(),
@@ -2353,6 +2356,37 @@ impl Module {
         self.vtables.len() - 1
     }
 
+    /// The vtable index of the static closure object of the capture-free
+    /// code `code`: `[count 0][descriptor 0][code's table slot]`, whose
+    /// payload address [`Ins::VTable`] names. One object per code, so a
+    /// function's value is one address; retain and release skip its count
+    /// 0. Cost: one vtable lookup ([`Module::vtable_full`]).
+    pub fn fn_object(&mut self, code: Sym) -> usize {
+        let k = self.vtable_full(vec![code], Vec::new(), Vec::new());
+        self.fn_objects.insert(k);
+        k
+    }
+
+    /// The static closure objects no defined function names, as after
+    /// [`Module::reach`] dropped their only users: laid out nowhere. Cost:
+    /// one pass over the defined functions' callee edges.
+    fn dead_fn_objects(&self) -> hd_base::HashSet<usize> {
+        if self.fn_objects.is_empty() {
+            return hd_base::HashSet::default();
+        }
+        let named: hd_base::HashSet<usize> = (self.funcs.iter().flatten())
+            .flat_map(|f| &f.callees)
+            .filter_map(|e| match e {
+                Edge::VTable(k) => Some(*k),
+                Edge::Function(_) => None,
+            })
+            .collect();
+        (self.fn_objects.iter())
+            .filter(|&&k| !named.contains(&k))
+            .copied()
+            .collect()
+    }
+
     /// A vtable index whose table [`ReservedVtable::fill`] supplies later,
     /// for a table whose own slots refer to it.
     pub fn vtable_reserve(&mut self) -> ReservedVtable {
@@ -2378,10 +2412,12 @@ impl Module {
         let mut seen = Reached::default();
         let mut work: Vec<SymId> = self.exports.iter().map(|(_, s)| *s).collect();
         work.extend(self.retained.iter().copied());
+        // A static closure object is reached only through a function that
+        // names it ([`Module::fn_object`]).
         work.extend(
-            self.vtables
-                .iter()
-                .flat_map(|v| v.0.iter().chain(&v.2))
+            (self.vtables.iter().enumerate())
+                .filter(|(k, _)| !self.fn_objects.contains(k))
+                .flat_map(|(_, v)| v.0.iter().chain(&v.2))
                 .copied(),
         );
         while let Some(s) = work.pop() {
@@ -3291,7 +3327,16 @@ impl Module {
         // ruled out: static data fits a 32-bit Wasm memory.
         let mut vtable_at = Vec::with_capacity(self.vtables.len());
         let mut at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
-        for v in &self.vtables {
+        let dead = self.dead_fn_objects();
+        for (k, v) in self.vtables.iter().enumerate() {
+            if dead.contains(&k) {
+                vtable_at.push(0);
+                continue;
+            }
+            // A static closure object's zero count and descriptor.
+            if self.fn_objects.contains(&k) {
+                at += 8;
+            }
             vtable_at.push(at);
             // One 4-byte word per slot, parent and drive slot.
             for _ in v.0.iter().chain(&v.2) {
@@ -3305,7 +3350,13 @@ impl Module {
         if previous.is_some() {
             data_relocations.extend_from_slice(&self.data_pointers);
         }
-        for (v, at) in self.vtables.iter().zip(&vtable_at) {
+        for (k, (v, at)) in self.vtables.iter().zip(&vtable_at).enumerate() {
+            if dead.contains(&k) {
+                continue;
+            }
+            if self.fn_objects.contains(&k) {
+                self.data.extend_from_slice(&[0; 8]);
+            }
             assert_eq!(
                 self.data.len(),
                 (*at - STATIC_BASE) as usize,

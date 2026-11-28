@@ -48,7 +48,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -125,7 +125,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -200,7 +200,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -255,7 +255,7 @@
       i32.const 14
       i32.const 30 ;; &"collection capacity does not fit the address space"
       i32.const 50
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
       i32.const 0
@@ -267,15 +267,12 @@
     local.set $t1
     local.get $t1
   )
-  (func $addition (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $addition (result i32) (local $t0 i32)
     ;; 17 |     collection_capacity_sum
     block
-      i32.const 2
-      i32.const 0
+      i32.const 312 ;; &vtable[std/rt.bytes/collection_capacity_sum#adapter]
       local.set $t0
-      local.set $t1
     end
-    local.get $t1
     local.get $t0
   )
 )
@@ -328,7 +325,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -405,7 +402,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -480,7 +477,7 @@
           i32.const 14
           i32.const 30 ;; &"collection capacity does not fit the address space"
           i32.const 50
-          i32.const 0
+          i32.const 1
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
           i32.const 0
@@ -535,7 +532,7 @@
       i32.const 14
       i32.const 30 ;; &"collection capacity does not fit the address space"
       i32.const 50
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
       i32.const 0
@@ -547,15 +544,12 @@
     local.set $t1
     local.get $t1
   )
-  (func $addition (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $addition (result i32) (local $t0 i32)
     ;; 17 |     collection_capacity_sum
     block
-      i32.const 2
-      i32.const 0
+      i32.const 688 ;; &vtable[std/rt.bytes/collection_capacity_sum#adapter]
       local.set $t0
-      local.set $t1
     end
-    local.get $t1
     local.get $t0
   )
 )
@@ -598,7 +592,7 @@
       i32.const 14
       i32.const 30 ;; &"collection capacity does not fit the address space"
       i32.const 50
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
       i32.const 0
@@ -608,9 +602,8 @@
     local.get $t0
     i32.add
   )
-  (func $addition (result i32 i32)
+  (func $addition (result i32)
     ;; 17 |     collection_capacity_sum
-    i32.const 2
-    i32.const 0
+    i32.const 656 ;; &vtable[std/rt.bytes/collection_capacity_sum#adapter]
   )
 )

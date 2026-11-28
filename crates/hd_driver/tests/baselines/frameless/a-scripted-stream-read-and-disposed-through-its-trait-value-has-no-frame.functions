@@ -270,7 +270,6 @@ std/rt.bytes/write_unsigned_sized#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/format/impl Display for bool.to_string#0
-std/rt.alloc/release_value#0 [fn(usize, usize, usize) -> ()?]
 std/rt.alloc/release_value#0 [std.net.ScriptedConnection]
 std/rt.alloc/retain_value#0 [std.net.ScriptedConnection]
 std/rt.alloc/release_value#0 [Result[*mut std.net.TcpStream, std.net.NetError]]
@@ -606,7 +605,6 @@ std/rt.bytes/write_unsigned_sized#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/format/impl Display for bool.to_string#0
-std/rt.alloc/release_value#0 [fn(usize, usize, usize) -> ()?]
 std/rt.alloc/release_value#0 [std.net.ScriptedConnection]
 std/rt.alloc/retain_value#0 [std.net.ScriptedConnection]
 std/rt.alloc/release_value#0 [Result[*mut std.net.TcpStream, std.net.NetError]]

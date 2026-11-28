@@ -2,25 +2,25 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $apply (param $by.0 i32) (param $by.1 i32) (param $left i32) (param $right i32) (result i32)
+  (func $apply (param $by i32) (param $left i32) (param $right i32) (result i32)
     ;; 9 |     by(left, right)
-    local.get $by.1
+    local.get $by
     local.get $left
     local.get $right
     i32.const 0
-    local.get $by.0
+    local.get $by
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32 i32) (result i32)
   )
   (func $difference (param $reverse i32) (param $left i32) (param $right i32) (result i32)
     ;; 12 |     by := if reverse: fn(a: &i32, b: &i32): *b - *a else: fn(a: &i32, b: &i32): *a - *b
     local.get $reverse
     if (result i32)
-      i32.const 0
+      i32.const 200 ;; &vtable[difference#1]
     else
-      i32.const 1
+      i32.const 212 ;; &vtable[difference#2]
     end
     ;; 13 |     apply(by, left, right)
-    i32.const 0
     local.get $left
     local.get $right
     call $apply

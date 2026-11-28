@@ -2,36 +2,33 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $recursive (result i32 i32) (local $sum.0 i32) (local $sum.1 i32) (local $t0 i32)
+  (func $recursive (result i32) (local $sum i32) (local $t0 i32)
     block
     ;; 6 |     sum := fn(n: i32) -> i32:
-      i32.const 1
-      i32.const 0
+      i32.const 200 ;; &vtable[recursive#1]
       local.set $t0
-      local.set $sum.0
-      local.get $sum.1
+      local.get $sum
       call $rt:release_ref
       local.get $t0
-      local.set $sum.1
+      local.set $sum
       ;; ...
     end
     ;; ...
   )
-  (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
+  (func $recursive#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t0 i64) (local $t1 i64)
     ;; 6 |     sum := fn(n: i32) -> i32:
-    i32.const 1
-    local.set $ctx
     block
     ;; 7 |         if n == 0: 0 else: n + sum(n - 1)
       local.get $n
       i32.const 0
       i32.eq
-      local.set $t0
-      local.get $t0
+      local.set $ctx
+      local.get $ctx
       if
         i32.const 0
-        local.set $t0
+        local.set $ctx
       else
         local.get $n
         i32.const -2147483647
@@ -43,27 +40,28 @@
         local.get $n
         i32.const 1
         i32.sub
-        local.set $t0
+        local.set $ctx
         local.get $env
-        local.get $t0
-        i32.const 0
         local.get $ctx
+        i32.const 0
+        local.get $env
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $t0
+        local.set $ctx
         local.get $n
         i64.extend_i32_s
+        local.set $t0
+        local.get $ctx
+        i64.extend_i32_s
         local.set $t1
         local.get $t0
-        i64.extend_i32_s
-        local.set $t2
         local.get $t1
-        local.get $t2
         i64.add
-        local.set $t1
-        local.get $t1
+        local.set $t0
+        local.get $t0
         i64.const 2147483647
         i64.gt_s
-        local.get $t1
+        local.get $t0
         i64.const -2147483648
         i64.lt_s
         i32.or
@@ -71,12 +69,12 @@
           call $rt:panic
           unreachable
         end
-        local.get $t1
+        local.get $t0
         i32.wrap_i64
-        local.set $t0
+        local.set $ctx
       end
     ;; 6 |     sum := fn(n: i32) -> i32:
     end
-    local.get $t0
+    local.get $ctx
   )
 )

@@ -10,7 +10,7 @@
   (func $"later#1[*Point]" (param $env i32) (param $ctx i32) (result i32)
     ;; 28 |     fn() -> T: value
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     if
       local.get $env
@@ -27,7 +27,7 @@
   (func $handle#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 24 |     fn() -> Handle: value
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     if
       local.get $env
@@ -50,33 +50,35 @@
     local.get $value
     i32.load $heap offset=8
   )
-  (func $handle (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $handle (param $value i32) (result i32) (local $t0 i32)
     ;; 24 |     fn() -> Handle: value
-    i32.const 3
-    i32.const 4
+    i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $value
+    i32.const 6
     i32.store $heap
     local.get $t0
+    local.get $value
+    i32.store $heap offset=4
+    local.get $t0
   )
-  (func $generic (param $value i32) (result i32 i32)
+  (func $generic (param $value i32) (result i32)
     ;; 48 |     later(value)
     local.get $value
-    i32.const 4
-    call_indirect $table0 (param i32) (result i32 i32)
+    i32.const 7
+    call_indirect $table0 (param i32) (result i32)
   )
   (func $local_view (param $value i32) (result i32)
     ;; 45 |     loan(View(value))
     local.get $value
-    i32.const 5
+    i32.const 8
     call_indirect $table0 (param i32) (result i32)
   )
   (func $capture#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     fn() -> i32:
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     ;; 19 |         value.x += 1
     i32.load $heap offset=8
@@ -90,7 +92,7 @@
     local.get $env
     i32.load $heap offset=8
   )
-  (func $fresh (param $name.0 i32) (param $name.1 i32) (result i32 i32) (local $t0 i32)
+  (func $fresh (param $name.0 i32) (param $name.1 i32) (result i32) (local $t0 i32)
     ;; 35 |     capture(box(Point { name: name, x: 0 }))
     i32.const 12
     i32.const 2
@@ -105,21 +107,23 @@
     i32.const 0
     i32.store $heap offset=8
     local.get $t0
-    i32.const 6
-    call_indirect $table0 (param i32) (result i32 i32)
+    i32.const 9
+    call_indirect $table0 (param i32) (result i32)
   )
-  (func $capture (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $capture (param $value i32) (result i32) (local $t0 i32)
     ;; 18 |     fn() -> i32:
-    i32.const 7
-    i32.const 4
+    i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $value
+    i32.const 10
     i32.store $heap
     local.get $t0
+    local.get $value
+    i32.store $heap offset=4
+    local.get $t0
   )
-  (func $live (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $live (param $value i32) (result i32) (local $t0 i32)
     ;; 38 |     step := capture(value)
     local.get $value
     if
@@ -133,14 +137,13 @@
       end
     end
     local.get $value
-    i32.const 6
-    call_indirect $table0 (param i32) (result i32 i32)
+    i32.const 9
+    call_indirect $table0 (param i32) (result i32)
     ;; 39 |     step() + value.x
-    local.set $t0
-    local.set $t1
-    local.get $t0
+    local.tee $t0
     i32.const 0
-    local.get $t1
+    local.get $t0
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $t0
     if
@@ -159,15 +162,17 @@
     i32.load $heap offset=8
     i32.add
   )
-  (func $"later[*Point]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"later[*Point]" (param $value i32) (result i32) (local $t0 i32)
     ;; 28 |     fn() -> T: value
     i32.const 8
-    i32.const 4
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $value
+    i32.const 11
     i32.store $heap
+    local.get $t0
+    local.get $value
+    i32.store $heap offset=4
     local.get $t0
   )
 )

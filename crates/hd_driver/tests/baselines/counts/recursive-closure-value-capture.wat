@@ -5,18 +5,16 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $sum_to#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $seed i32)
+  (func $sum_to#1 (param $env i32) (param $n i32) (param $ctx i32) (result i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
-    i32.const 0
-    local.set $ctx
     local.get $env
-    i32.load $heap
-    local.set $seed
+    i32.load $heap offset=4
+    local.set $ctx
     ;; 7 |         if n == 0: seed
     local.get $n
     i32.eqz
     if (result i32)
-      local.get $seed
+      local.get $ctx
     else
     ;; 8 |         else: n + sum(n - 1)
       local.get $n
@@ -25,7 +23,8 @@
       i32.const 1
       i32.sub
       i32.const 0
-      local.get $ctx
+      local.get $env
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       i32.add
     ;; 7 |         if n == 0: seed
@@ -33,16 +32,17 @@
   )
   (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t0 i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
-    i32.const 0
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
-    local.get $seed
+    i32.const 1
     i32.store $heap
-    ;; 9 |     sum(limit)
-    local.set $seed
     local.get $t0
+    local.get $seed
+    i32.store $heap offset=4
+    local.get $t0
+    ;; 9 |     sum(limit)
     if
       local.get $t0
       i32.const 8
@@ -69,7 +69,8 @@
     local.get $t0
     local.get $limit
     i32.const 0
-    local.get $seed
+    local.get $t0
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     ;; 6 |     sum := fn(n: i32) -> i32:
     local.get $t0

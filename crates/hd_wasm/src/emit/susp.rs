@@ -2030,14 +2030,10 @@ pub(super) fn finish(
                 // Save it directly in the fresh frame, with the same ownership
                 // as a capture loaded from that environment.
                 let ls = em.locals[&l].clone();
-                for (j, x) in ls.iter().enumerate() {
+                for x in &ls {
                     if let Some((at, v)) = at_of(*x) {
                         em.f.get(fr);
-                        if j == 0 {
-                            em.f.table_slot(Sym::Inst(key));
-                        } else {
-                            em.f.get(0);
-                        }
+                        em.f.get(0);
                         em.f.op(store_op(v, at));
                     }
                 }

@@ -7,43 +7,38 @@
   (import "fixture" "release_value[std.text.StringBuilder]" (func $"release_value[std.text.StringBuilder]" (param i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $show (result i32 i32) (local $call.0 i32) (local $call.1 i32) (local $t0 i32) (local $value.0 i32) (local $t1 i64) (local $t2 i32)
+  (func $show (result i32 i32) (local $call i32) (local $capacity i32) (local $t0 i64) (local $t1 i32) (local $value.0 i32) (local $t2 i32)
     ;; ...
     block
       ;; ...
     ;; 10 |     "${call()}"
-      local.get $call.0
-      local.get $call.1
-      local.set $value.0
-      local.set $t0
+      local.get $call
+      local.set $capacity
       i32.const 0
-      local.set $call.0
+      local.set $call
+      local.get $capacity
       i32.const 0
-      local.set $call.1
-      local.get $value.0
-      i32.const 0
-      local.get $t0
+      local.get $capacity
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i64)
-      local.set $t1
-      local.get $value.0
+      local.set $t0
+      local.get $capacity
       call $rt:release_ref
       i32.const 0
-      local.set $t0
-      i32.const 0
-      local.set $value.0
+      local.set $capacity
       ;; ...
-      local.get $call.1
-      local.get $t1
+      local.get $call
+      local.get $t0
       i64.store $heap
       block
         block
           i32.const 0
-          local.set $call.0
+          local.set $capacity
           block
             block
               i32.const 1
               local.set $value.0
-              local.get $call.0
+              local.get $capacity
               local.get $value.0
               call $room
               local.set $value.0
@@ -51,7 +46,7 @@
             end
           end
           i32.const 0
-          local.set $t0
+          local.set $t1
           br 0
         end
       end
@@ -60,10 +55,10 @@
       local.get $value.0
       i32.store $heap
       local.get $t2
-      local.get $call.0
+      local.get $capacity
       i32.store $heap offset=4
       local.get $t2
-      local.get $t0
+      local.get $t1
       i32.store $heap offset=8
       local.get $t2
       i32.const 1
@@ -84,24 +79,24 @@
       i32.const 1
       i32.store $heap offset=32
       local.get $t2
-      local.set $call.0
-      local.get $call.1
-      local.get $call.0
+      local.set $capacity
+      local.get $call
+      local.get $capacity
       call $"impl Display for i64.write"
       i32.const 0
-      local.set $call.0
+      local.set $capacity
       i32.const 0
-      local.set $call.1
+      local.set $call
       i32.const 0
-      local.set $call.1
+      local.set $call
       local.get $t2
-      local.set $call.1
-      local.get $call.1
+      local.set $call
+      local.get $call
       call $"impl StringBuilder.build"
-      local.set $call.0
+      local.set $capacity
       local.set $value.0
       i32.const 0
-      local.set $call.1
+      local.set $call
       local.get $t2
       if
         local.get $t2
@@ -111,8 +106,8 @@
       local.set $t2
       block
         block
-          local.get $call.0
-          local.set $call.1
+          local.get $capacity
+          local.set $call
           br 0
         end
       end

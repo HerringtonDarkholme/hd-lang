@@ -585,7 +585,7 @@
     ;; 15 |     let mut tally = Tally { n: 0 }
     call $rt:frame'2
   )
-  (func $bump'1 (param $frame i32) (param $t i32) (result i32) (local $t4 i32) (local $t6 i32) (local $step.0 i32) (local $t0 i32) (local $t5 i64) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+  (func $bump'1 (param $frame i32) (param $t i32) (result i32) (local $t4 i32) (local $t6 i32) (local $step i32) (local $t0 i32) (local $t5 i64) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 11 |     step := fn!() -> i64: 1
     global.get $stack
     global.get $stack_limit
@@ -652,7 +652,8 @@
           local.get $t4
           i32.eqz
           if
-            i32.const 4
+            i32.const 368 ;; &vtable[bump#1]
+            local.set $step
     ;; 12 |     t.n += step!()
             local.get $t1
             i32.load $heap
@@ -662,16 +663,15 @@
             local.get $t5
             i64.store $heap offset=8
             local.get $t1
-            local.get $step.0
+            local.get $step
             i32.store $heap offset=16
-            drop
             local.get $t1
             i32.load $heap offset=16
             i32.const 0
             call $bump#1'2
-            local.set $step.0
+            local.set $step
             local.get $t1
-            local.get $step.0
+            local.get $step
             i32.store $heap offset=20
     ;; 11 |     step := fn!() -> i64: 1
           end
@@ -747,7 +747,7 @@
                   br 2
                 end
                 i32.const 1
-                local.set $step.0
+                local.set $step
                 br 5
               end
               local.get $t4
@@ -773,7 +773,7 @@
             local.set $t
             if
               i32.const 1
-              local.set $step.0
+              local.set $step
               br 4
             end
             local.get $t
@@ -962,7 +962,7 @@
     local.get $t
     i32.store $heap offset=16
     local.get $frame
-    local.get $step.0
+    local.get $step
     i32.store $heap offset=8
     local.get $frame
     local.get $frame

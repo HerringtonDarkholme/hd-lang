@@ -623,7 +623,7 @@
     end
     local.get $t0
   )
-  (func $pause'1 (param $frame i32) (result i32) (local $step.0 i32) (local $t3 i32) (local $step.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $pause'1 (param $frame i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t4 i32) (local $step i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 24 |     step := fn!() -> void: pass
     global.get $stack
     global.get $stack_limit
@@ -671,32 +671,32 @@
         if
           local.get $frame
           i32.load $heap offset=8
-          local.set $step.0
+          local.set $t3
         end
         block
-          local.get $step.0
+          local.get $t3
           i32.eqz
           if
-            i32.const 11
+            i32.const 548 ;; &vtable[pause#1]
+            local.set $step
     ;; 25 |     step!()
             local.get $t1
-            local.get $step.1
+            local.get $step
             i32.store $heap
-            drop
             local.get $t1
             i32.load $heap
             i32.const 0
             call $pause#1'2
-            local.set $step.1
+            local.set $step
             local.get $t1
-            local.get $step.1
+            local.get $step
             i32.store $heap offset=4
     ;; 24 |     step := fn!() -> void: pass
           end
     ;; 25 |     step!()
           block
             block
-              local.get $step.0
+              local.get $t3
               i32.const 1
               i32.eq
               if
@@ -706,38 +706,38 @@
                 i32.and
                 br_if 1
               end
-              local.get $step.0
+              local.get $t3
               i32.const 1
               i32.eq
               if
                 local.get $frame
                 i32.load $heap offset=16
-                local.set $step.1
+                local.set $t4
                 i32.const 1
-                local.set $step.0
+                local.set $t3
               else
                 local.get $t1
                 i32.load $heap offset=4
-                local.set $step.1
+                local.set $t4
                 i32.const 0
-                local.set $step.0
+                local.set $t3
               end
-              local.get $step.1
-              local.get $step.1
+              local.get $t4
+              local.get $t4
               i32.load $heap
               call_indirect $table0 (param i32) (result i32)
               i32.eqz
               if
-                local.get $step.0
+                local.get $t3
                 i32.eqz
                 if
-                  local.get $step.1
+                  local.get $t4
                   if
-                    local.get $step.1
+                    local.get $t4
                     call $retain
                   end
                 end
-                local.get $step.1
+                local.get $t4
                 i32.load $heap offset=12
                 i32.const 8
                 i32.and
@@ -753,7 +753,7 @@
                   i32.add
                   local.set $t1
                   local.get $frame
-                  local.get $step.1
+                  local.get $t4
                   i32.store $heap offset=16
                   local.get $frame
                   local.get $frame
@@ -764,19 +764,19 @@
                   br 2
                 end
                 i32.const 1
-                local.set $step.0
+                local.set $step
                 br 5
               end
-              local.get $step.0
+              local.get $t3
               if
-                local.get $step.1
+                local.get $t4
                 if
                   local.get $frame
                   i32.const 0
                   i32.store $heap offset=16
-                  local.get $step.1
+                  local.get $t4
                   if
-                    local.get $step.1
+                    local.get $t4
                     call $rt:release_ref'1
                   end
                 end
@@ -787,35 +787,35 @@
             call $rt:cancel_child
             local.get $frame
             i32.load $heap offset=16
-            local.set $step.1
+            local.set $t4
             if
               i32.const 1
-              local.set $step.0
+              local.set $step
               br 4
             end
-            local.get $step.1
+            local.get $t4
             if
               local.get $frame
               i32.const 0
               i32.store $heap offset=16
-              local.get $step.1
+              local.get $t4
               if
-                local.get $step.1
+                local.get $t4
                 call $rt:release_ref'1
               end
             end
             local.get $t1
             i32.load $heap
-            local.tee $t3
+            local.tee $t5
             if
-              local.get $t3
+              local.get $t5
               i32.const 8
               i32.sub
               i32.load $heap
               global.get $tracing
               i32.or
               if
-                local.get $t3
+                local.get $t5
                 call $rt:release_ref'2
               end
             end
@@ -824,16 +824,16 @@
             i32.store $heap
             local.get $t1
             i32.load $heap offset=4
-            local.tee $t3
+            local.tee $t5
             if
-              local.get $t3
+              local.get $t5
               i32.const 8
               i32.sub
               i32.load $heap
               global.get $tracing
               i32.or
               if
-                local.get $t3
+                local.get $t5
                 call $rt:release_ref'2
               end
             end
@@ -841,22 +841,22 @@
             i32.const 0
             i32.store $heap offset=4
             i32.const 1
-            local.set $t3
+            local.set $t5
             br 1
           end
     ;; 24 |     step := fn!() -> void: pass
           local.get $t1
           i32.load $heap offset=4
-          local.tee $step.0
+          local.tee $step
           if
-            local.get $step.0
+            local.get $step
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $step.0
+              local.get $step
               call $rt:release_ref'2
             end
           end
@@ -865,16 +865,16 @@
           i32.store $heap offset=4
           local.get $t1
           i32.load $heap
-          local.tee $step.0
+          local.tee $step
           if
-            local.get $step.0
+            local.get $step
             i32.const 8
             i32.sub
             i32.load $heap
             global.get $tracing
             i32.or
             if
-              local.get $step.0
+              local.get $step
               call $rt:release_ref'2
             end
           end
@@ -891,7 +891,7 @@
           i32.or
           i32.store $heap offset=12
         end
-        local.get $t3
+        local.get $t5
         if (result i32)
           local.get $frame
           local.get $frame
@@ -957,10 +957,10 @@
     call $rt:frame_ensure'2
     drop
     local.tee $frame
-    local.get $step.1
+    local.get $t4
     i32.store $heap offset=16
     local.get $frame
-    local.get $step.0
+    local.get $step
     i32.store $heap offset=8
     local.get $frame
     local.get $frame
@@ -1208,7 +1208,7 @@
                 i32.eq
                 if
                   local.get $t4
-                  i32.const 12
+                  i32.const 15
                   call_indirect $table0 (param i32) (result i32)
                   local.set $t4
                 end

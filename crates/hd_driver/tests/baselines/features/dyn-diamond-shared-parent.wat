@@ -25,7 +25,7 @@
     end
     local.get $x.0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32) (local $t6 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
@@ -159,86 +159,75 @@
       local.get $provider0.vtable
       call $"println[i32]"
     ;; 47 |     reader := read
-      i32.const 4
-      i32.const 0
+      i32.const 320 ;; &vtable[read#adapter]
       local.set $t2
-      local.set $t4
     ;; 48 |     println(reader(boxed))
-      local.get $t4
       local.get $t2
-      local.set $mutable.0
-      local.set $t5
-      i32.const 0
       local.set $t4
       i32.const 0
       local.set $t2
       local.get $boxed.0
       local.get $t3
       local.set $t2
-      local.set $t4
-      local.get $mutable.0
+      local.set $mutable.0
       local.get $t4
+      local.get $mutable.0
       local.get $t2
       i32.const 0
-      local.get $t5
+      local.get $t4
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-      local.set $t6
-      i32.const 0
-      local.set $t4
-      i32.const 0
-      local.set $t2
-      local.get $mutable.0
-      call $rt:release_ref'2
-      i32.const 0
       local.set $t5
       i32.const 0
       local.set $mutable.0
-      local.get $t6
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t4
+      local.get $t5
       local.get $provider0
       local.get $provider0.vtable
       call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
-      i32.const 5
-      i32.const 12
+      i32.const 16
       i32.const -2147483647
       call $rt:new/class-2
       local.set $t2
       local.get $t2
-      local.get $boxed.0
+      i32.const 8
       i32.store $heap
       local.get $t2
-      local.get $t3
+      local.get $boxed.0
       i32.store $heap offset=4
       local.get $t2
-      local.get $t1
+      local.get $t3
       i32.store $heap offset=8
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=12
       local.get $t2
       call $rt:retain_fields
       i32.const 0
       local.set $boxed.0
       i32.const 0
       local.set $t3
-      local.set $t1
     ;; 50 |     println(callback())
-      local.get $t1
       local.get $t2
-      local.set $t3
-      local.set $t4
-      i32.const 0
       local.set $t1
       i32.const 0
       local.set $t2
-      local.get $t3
+      local.get $t1
       i32.const 0
-      local.get $t4
+      local.get $t1
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
       local.set $t2
-      local.get $t3
+      local.get $t1
       call $rt:release_ref'2
       i32.const 0
-      local.set $t4
-      i32.const 0
-      local.set $t3
+      local.set $t1
       i32.const 0
       local.set $t1
       local.get $t2
@@ -402,13 +391,13 @@
   (func $main#1 (param $env i32) (param $ctx i32) (result i32) (local $boxed.1 i32)
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $boxed.1
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=12
     local.set $env
     block
       local.get $ctx
@@ -448,7 +437,7 @@
     end
     local.get $x.0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32) (local $t6 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $boxed.0 i32) (local $t3 i32) (local $t4 i32) (local $mutable.0 i32) (local $t5 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
@@ -582,86 +571,75 @@
       local.get $provider0.vtable
       call $"println[i32]"
     ;; 47 |     reader := read
-      i32.const 4
-      i32.const 0
+      i32.const 664 ;; &vtable[read#adapter]
       local.set $t2
-      local.set $t4
     ;; 48 |     println(reader(boxed))
-      local.get $t4
       local.get $t2
-      local.set $mutable.0
-      local.set $t5
-      i32.const 0
       local.set $t4
       i32.const 0
       local.set $t2
       local.get $boxed.0
       local.get $t3
       local.set $t2
-      local.set $t4
-      local.get $mutable.0
+      local.set $mutable.0
       local.get $t4
+      local.get $mutable.0
       local.get $t2
       i32.const 0
-      local.get $t5
+      local.get $t4
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32) (result i32)
-      local.set $t6
-      i32.const 0
-      local.set $t4
-      i32.const 0
-      local.set $t2
-      local.get $mutable.0
-      call $rt:release_ref'2
-      i32.const 0
       local.set $t5
       i32.const 0
       local.set $mutable.0
-      local.get $t6
+      i32.const 0
+      local.set $t2
+      local.get $t4
+      call $rt:release_ref'2
+      i32.const 0
+      local.set $t4
+      local.get $t5
       local.get $provider0
       local.get $provider0.vtable
       call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
-      i32.const 5
-      i32.const 12
+      i32.const 16
       i32.const -2147483647
       call $rt:new
       local.set $t2
       local.get $t2
-      local.get $boxed.0
+      i32.const 8
       i32.store $heap
       local.get $t2
-      local.get $t3
+      local.get $boxed.0
       i32.store $heap offset=4
       local.get $t2
-      local.get $t1
+      local.get $t3
       i32.store $heap offset=8
+      local.get $t2
+      local.get $t1
+      i32.store $heap offset=12
       local.get $t2
       call $rt:retain_fields
       i32.const 0
       local.set $boxed.0
       i32.const 0
       local.set $t3
-      local.set $t1
     ;; 50 |     println(callback())
-      local.get $t1
       local.get $t2
-      local.set $t3
-      local.set $t4
-      i32.const 0
       local.set $t1
       i32.const 0
       local.set $t2
-      local.get $t3
+      local.get $t1
       i32.const 0
-      local.get $t4
+      local.get $t1
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
       local.set $t2
-      local.get $t3
+      local.get $t1
       call $rt:release_ref'2
       i32.const 0
-      local.set $t4
-      i32.const 0
-      local.set $t3
+      local.set $t1
       i32.const 0
       local.set $t1
       local.get $t2
@@ -825,13 +803,13 @@
   (func $main#1 (param $env i32) (param $ctx i32) (result i32) (local $boxed.1 i32)
     ;; 49 |     callback := fn() -> i32: read(boxed)
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $boxed.1
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=12
     local.set $env
     block
       local.get $ctx

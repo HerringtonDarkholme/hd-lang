@@ -5,26 +5,27 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $plain (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $plain (param $callback i32) (result i32)
     ;; 14 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
-    local.get $callback.0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
   )
-  (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
+  (func $ordinary (param $callback i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $callback.1
+    local.tee $t0
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $callback.1
+    local.get $t0
     local.get $provider0
     i32.store $heap offset=24
-    local.get $callback.1
+    local.get $t0
     local.get $provider0.vtable
     i32.store $heap offset=28
     local.get $provider0
@@ -32,28 +33,29 @@
       local.get $provider0
       call $retain
     end
-    local.get $callback.1
-    local.get $callback.0
+    local.get $t0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $callback.1
+    local.get $t0
     if
-      local.get $callback.1
+      local.get $t0
       call $rt:release_ref
     end
   )
-  (func $cold (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
+  (func $cold (param $callback i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 11 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $callback.1
+    local.tee $t0
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $callback.1
+    local.get $t0
     local.get $provider0
     i32.store $heap offset=24
-    local.get $callback.1
+    local.get $t0
     local.get $provider0.vtable
     i32.store $heap offset=28
     local.get $provider0
@@ -61,28 +63,29 @@
       local.get $provider0
       call $retain
     end
-    local.get $callback.1
-    local.get $callback.0
+    local.get $t0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $callback.1
+    local.get $t0
     if
-      local.get $callback.1
+      local.get $t0
       call $rt:release_ref
     end
   )
-  (func $through_row (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
+  (func $through_row (param $callback i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 20 |     forward(callback)
-    local.get $callback.1
+    local.get $callback
     i32.const 1
     i32.const 0
     call $rt:ctx_new
-    local.tee $callback.1
+    local.tee $t0
     i64.const -8941934570327064298
     i64.store $heap offset=16
-    local.get $callback.1
+    local.get $t0
     local.get $provider0
     i32.store $heap offset=24
-    local.get $callback.1
+    local.get $t0
     local.get $provider0.vtable
     i32.store $heap offset=28
     local.get $provider0
@@ -90,20 +93,22 @@
       local.get $provider0
       call $retain
     end
-    local.get $callback.1
-    local.get $callback.0
+    local.get $t0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $callback.1
+    local.get $t0
     if
-      local.get $callback.1
+      local.get $t0
       call $rt:release_ref
     end
   )
-  (func $through_empty (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $through_empty (param $callback i32) (result i32)
     ;; 23 |     forward(callback)
-    local.get $callback.1
+    local.get $callback
     i32.const 0
-    local.get $callback.0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
   )
 )

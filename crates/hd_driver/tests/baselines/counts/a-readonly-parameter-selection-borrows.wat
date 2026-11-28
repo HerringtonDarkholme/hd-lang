@@ -7,10 +7,9 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $closure (result i32 i32)
+  (func $closure (result i32)
     ;; 38 |     fn(c, a, b):
-    i32.const 1
-    i32.const 0
+    i32.const 316 ;; &vtable[closure#1]
   )
   (func $matched (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
     ;; 16 |     selected := match k:

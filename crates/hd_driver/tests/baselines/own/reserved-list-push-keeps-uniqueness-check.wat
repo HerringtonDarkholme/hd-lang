@@ -3,7 +3,7 @@
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $fresh (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
+  (func $fresh (param $count i32) (param $transform i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 23 |     let mut output: List[usize] = []
     i32.const 80 ;; &empty-buffer
     local.set $output
@@ -22,10 +22,11 @@
         i32.add
         local.set $t0
     ;; 25 |         output.push(transform(index))
-        local.get $transform.1
+        local.get $transform
         local.get $index
         i32.const 0
-        local.get $transform.0
+        local.get $transform
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $index
         local.get $output
@@ -61,7 +62,7 @@
     ;; 26 |     output
     local.get $output
   )
-  (func $with_capacity (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
+  (func $with_capacity (param $count i32) (param $transform i32) (result i32) (local $items i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     let mut output = List::[usize].with_capacity(count)
     i32.const 80 ;; &empty-buffer
     local.set $items
@@ -87,10 +88,11 @@
         i32.add
         local.set $t0
     ;; 12 |         output.push(transform(index))
-        local.get $transform.1
+        local.get $transform
         local.get $index
         i32.const 0
-        local.get $transform.0
+        local.get $transform
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $index
         local.get $items
@@ -126,7 +128,7 @@
     ;; 13 |     output
     local.get $items
   )
-  (func $reserve (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
+  (func $reserve (param $count i32) (param $transform i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
     ;; 16 |     let mut output: List[usize] = []
     i32.const 80 ;; &empty-buffer
     ;; 17 |     output.reserve(count)
@@ -153,10 +155,11 @@
         i32.add
         local.set $t0
     ;; 19 |         output.push(transform(index))
-        local.get $transform.1
+        local.get $transform
         local.get $index
         i32.const 0
-        local.get $transform.0
+        local.get $transform
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $index
         local.get $output

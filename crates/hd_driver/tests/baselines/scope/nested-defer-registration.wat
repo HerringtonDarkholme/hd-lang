@@ -15,7 +15,7 @@
   (func $nested#1 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 8 |     defer(fn() -> void: log.push(+1))
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     i32.load $heap
     call $rt:list_unique
@@ -31,7 +31,7 @@
     i32.eq
     if
       local.get $ctx
-      i32.const 1
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
@@ -54,7 +54,7 @@
   (func $nested#2 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 10 |         defer(fn() -> void: log.push(+2))
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     i32.load $heap
     call $rt:list_unique
@@ -70,7 +70,7 @@
     i32.eq
     if
       local.get $ctx
-      i32.const 1
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
@@ -90,7 +90,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $nested (param $log i32) (param $early i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $nested (param $log i32) (param $early i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 8 |     defer(fn() -> void: log.push(+1))
     global.get $stack
     global.get $stack_limit
@@ -107,28 +107,26 @@
     local.tee $t0
     global.set $stack
     block
-      i32.const 3
-      i32.const 4
+      i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
       local.tee $t1
-      local.get $log
+      i32.const 6
       i32.store $heap
       local.get $t1
+      local.get $log
+      i32.store $heap offset=4
+      local.get $t1
       call $rt:retain_fields
-      local.set $t2
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t3
-      local.get $t2
-      i32.store $heap
-      local.get $t3
+      local.tee $t2
       local.get $t1
-      i32.store $heap offset=4
+      i32.store $heap
     ;; 9 |     if early:
       local.get $early
       if
@@ -143,25 +141,22 @@
           local.tee $early
           i32.const 0
           i32.store $heap
-          local.get $early
-          i32.const 0
-          i32.store $heap offset=4
           block
             block
-              local.get $early
-              i32.const 4
-              i32.const 4
+              i32.const 8
               i32.const -2147483647
               call $rt:new/class-1
               local.tee $t1
-              local.get $log
+              i32.const 7
               i32.store $heap
+              local.get $t1
+              local.get $log
+              i32.store $heap offset=4
               local.get $t1
               call $rt:retain_fields
-              i32.store $heap
               local.get $early
               local.get $t1
-              i32.store $heap offset=4
+              i32.store $heap
               i32.const 3
               local.set $t1
               br 1
@@ -182,7 +177,7 @@
           local.get $early
           if
             local.get $early
-            i32.load $heap offset=4
+            i32.load $heap
             local.tee $early
             if
               local.get $early
@@ -202,7 +197,7 @@
           i32.add
           global.set $forbid
     ;; 8 |     defer(fn() -> void: log.push(+1))
-          local.get $t3
+          local.get $t2
           i32.const 0
           call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
     ;; 10 |         defer(fn() -> void: log.push(+2))
@@ -223,10 +218,10 @@
               call $rt:release_ref
             end
           end
-          local.get $t3
+          local.get $t2
           if
-            local.get $t3
-            i32.load $heap offset=4
+            local.get $t2
+            i32.load $heap
             local.tee $log
             if
               local.get $log
@@ -250,17 +245,17 @@
       i32.const 1
       i32.add
       global.set $forbid
-      local.get $t3
+      local.get $t2
       i32.const 0
       call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
       global.get $forbid
       i32.const -1
       i32.add
       global.set $forbid
-      local.get $t3
+      local.get $t2
       if
-        local.get $t3
-        i32.load $heap offset=4
+        local.get $t2
+        i32.load $heap
         local.tee $t1
         if
           local.get $t1

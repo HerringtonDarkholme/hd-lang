@@ -6,7 +6,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $invoke (param $callback.0 i32) (param $callback.1 i32) (param $result.0.1.1.1.1.1.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $invoke (param $callback i32) (param $result.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     result := callback(value)
     global.get $stack
     global.get $stack_limit
@@ -27,137 +27,137 @@
     i32.const 1064
     memory.fill $heap
     block
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=4
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=8
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=12
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=16
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=20
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=24
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=28
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=32
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=36
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=40
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=44
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=48
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=52
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=56
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=60
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=64
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=68
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=72
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=76
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=80
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=84
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=88
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=92
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=96
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=100
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=104
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=108
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=112
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=116
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=120
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=124
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=128
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=132
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=136
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=140
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=144
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=148
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=152
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=156
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=160
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=164
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=168
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=172
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=176
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=180
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=184
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=188
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=192
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=196
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=200
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=204
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=208
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=212
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=216
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=220
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=224
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=228
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=232
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=236
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=240
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=244
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=248
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=252
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.load $heap offset=256
-      local.set $result.0.1.1.1.1.1.1
+      local.set $result.1
       local.set $t1
       local.get $t0
       local.get $t1
@@ -414,7 +414,7 @@
       local.get $t0
       local.get $t1
       i32.store $heap
-      local.get $callback.1
+      local.get $callback
       local.get $t0
       i32.load $heap
       local.get $t0
@@ -543,9 +543,10 @@
       i32.load $heap offset=496
       local.get $t0
       i32.load $heap offset=504
-      local.get $result.0.1.1.1.1.1.1
+      local.get $result.1
       i32.const 0
-      local.get $callback.0
+      local.get $callback
+      i32.load $heap
       local.set $t1
       local.get $t0
       local.get $t1
@@ -1375,8 +1376,7 @@
       i32.const 536
       i32.add
       global.set $stack
-      local.set $callback.0
-      local.set $result.0.1.1.1.1.1.1
+      local.set $result.1
       local.set $t1
       local.get $t0
       local.get $t1
@@ -1629,10 +1629,14 @@
       local.get $t0
       local.get $t1
       i32.store $heap offset=8
-      local.get $callback.1
+      local.set $t1
+      local.get $t0
+      local.get $t1
+      i32.store $heap
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $callback.0
+    local.get $result.1
     local.get $t0
     i32.const 1064
     i32.add

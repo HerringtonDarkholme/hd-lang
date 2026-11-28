@@ -61,7 +61,7 @@
     i32.store $heap offset=16
     local.get $t1
     ;; 35 |     name = [Mark { label: "mark" }]
-    i32.const 548 ;; &vtable[rt:type_id]
+    i32.const 532 ;; &vtable[rt:type_id]
     ;; 31 | struct Record:
     i32.store $heap offset=20
     local.get $t1
@@ -80,7 +80,7 @@
   )
   (func $inspect_field (result i32)
     ;; 38 |     Record { name: "name" }.has_facts()
-    i32.const 189 ;; &"name"
+    i32.const 185 ;; &"name"
     i32.const 4
     call $"impl HasFacts for Record by Structure.has_facts"
   )

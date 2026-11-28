@@ -2,12 +2,11 @@
 (module
   (import "fixture" "impl[T < ?Copy] T?.unwrap_or[&User]" (func $"impl[T < ?Copy] T?.unwrap_or[&User]" (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
@@ -28,7 +27,7 @@
   (func $"later#1[*User]" (param $env i32) (param $ctx i32) (result i32)
     ;; 30 |     fn() -> T: value
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     if
       local.get $env
@@ -46,7 +45,7 @@
     ;; 33 |     kept := keep(u)
     i32.const 8
     i32.const 1
-    call $rt:new/class-1'1
+    call $rt:new/class-1
     local.tee $t0
     local.get $u.name.0
     i32.store $heap
@@ -56,11 +55,10 @@
     local.get $t0
     ;; 34 |     later(kept)().name.len()
     call $"later[*User]"
-    local.set $u.name.0
-    local.set $u.name.1
-    local.get $u.name.0
+    local.tee $u.name.0
     i32.const 0
-    local.get $u.name.1
+    local.get $u.name.0
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     local.tee $u.name.1
     local.get $u.name.0
@@ -118,15 +116,17 @@
     ;; 24 |     n.len()
     call $"impl string.len"
   )
-  (func $"later[*User]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"later[*User]" (param $value i32) (result i32) (local $t0 i32)
     ;; 30 |     fn() -> T: value
-    i32.const 3
-    i32.const 4
+    i32.const 8
     i32.const -2147483646
-    call $rt:new/class-1'2
+    call $rt:new/class-1
     local.tee $t0
-    local.get $value
+    i32.const 6
     i32.store $heap
+    local.get $t0
+    local.get $value
+    i32.store $heap offset=4
     local.get $t0
   )
 )

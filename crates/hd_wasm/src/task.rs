@@ -2204,17 +2204,14 @@ fn wait_signal(m: &Module) -> Func {
     f
 }
 
-/// [`Helper::IdleHook`]: `(code, env)`, installs std's idle hook, a
-/// function value of type `fn() -> void`, in [`Global::IdleHook`] and
-/// [`Global::IdleEnv`]. std passes a top-level function, whose
-/// environment is empty, so the globals own no count. Installing it again
-/// replaces it.
+/// [`Helper::IdleHook`]: `(hook)`, installs std's idle hook, a function
+/// value of type `fn() -> void`, in [`Global::IdleHook`]. std passes a
+/// top-level function, whose static object has no count, so the global
+/// owns none. Installing it again replaces it.
 fn idle_hook(m: &Module) -> Func {
-    let mut f = m.func("rt:idle_hook", vec![Val::I32, Val::I32], vec![]);
+    let mut f = m.func("rt:idle_hook", vec![Val::I32], vec![]);
     f.get(0);
     f.global_set(Global::IdleHook);
-    f.get(1);
-    f.global_set(Global::IdleEnv);
     f
 }
 
@@ -2228,11 +2225,12 @@ fn idle_wake(m: &Module) -> Func {
     let mut f = m.func("rt:idle_wake", vec![], vec![]);
     f.global_get(Global::IdleHook);
     f.op(Instruction::If(BlockType::Empty));
-    // A function value's call: its environment, then the context of its
-    // empty row, through its code's table slot (`emit/closure.rs`).
-    f.global_get(Global::IdleEnv);
+    // A function value's call: its closure object, then the context of
+    // its empty row, through the code at its offset 0 (`emit/closure.rs`).
+    f.global_get(Global::IdleHook);
     f.i32(0);
     f.global_get(Global::IdleHook);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.call_indirect(vec![Val::I32, Val::I32], vec![]);
     f.op(Instruction::End);
     f

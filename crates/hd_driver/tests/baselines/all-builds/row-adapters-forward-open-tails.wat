@@ -4,34 +4,27 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"widen[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
+  (func $"widen[{open row}]" (param $callback i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 34 |     callback
     block
-      local.get $callback.0
-      local.get $callback.1
+      local.get $callback
       local.set $ctx
-      local.set $t0
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
+      local.set $callback
       i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
-      local.set $callback.0
-      local.get $callback.0
+      local.set $t0
       local.get $t0
+      i32.const 10
       i32.store $heap
-      local.get $callback.0
+      local.get $t0
       local.get $ctx
       i32.store $heap offset=4
-      i32.const 7
-      local.set $ctx
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $ctx
-    local.get $callback.0
+    local.get $t0
   )
 )
 == @build: checked
@@ -39,34 +32,27 @@
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (func $"widen[{open row}]" (param $callback.0 i32) (param $callback.1 i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
+  (func $"widen[{open row}]" (param $callback i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 34 |     callback
     block
-      local.get $callback.0
-      local.get $callback.1
+      local.get $callback
       local.set $ctx
-      local.set $t0
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
+      local.set $callback
       i32.const 8
       i32.const -2147483647
       call $rt:new
-      local.set $callback.0
-      local.get $callback.0
+      local.set $t0
       local.get $t0
+      i32.const 10
       i32.store $heap
-      local.get $callback.0
+      local.get $t0
       local.get $ctx
       i32.store $heap offset=4
-      i32.const 7
-      local.set $ctx
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $ctx
-    local.get $callback.0
+    local.get $t0
   )
 )
 == @build: release

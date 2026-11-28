@@ -12,18 +12,15 @@
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $seven (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $seven (result i32) (local $t0 i32)
     ;; 12 |     Thunk(seven)
     block
-      i32.const 2
-      i32.const 0
+      i32.const 356 ;; &vtable[seven#adapter]
       local.set $t0
-      local.set $t1
     end
-    local.get $t1
     local.get $t0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $maybe i32) (local $t0 i32) (local $t1 i32) (local $forest i32) (local $wrapped i32) (local $offset'1 i32) (local $value'1 i64) (local $value'2 i64) (local $t2 i64) (local $t3 i64) (local $offset'2 i32) (local $offset'3 i32) (local $size i32) (local $result.0 i32) (local $offset'4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $maybe i32) (local $t0 i32) (local $offset'1 i32) (local $forest i32) (local $wrapped i32) (local $offset'2 i32) (local $value'1 i64) (local $value'2 i64) (local $t1 i64) (local $t2 i64) (local $offset'3 i32) (local $offset'4 i32) (local $size i32) (local $result.0 i32) (local $offset'5 i32)
     ;; 18 |     let maybe: Link? = .None
     block
       i32.const 0
@@ -32,7 +29,7 @@
       i32.const 128 ;; &empty-buffer
       local.set $t0
       i32.const 128 ;; &empty-buffer
-      local.set $t1
+      local.set $offset'1
       i32.const 1
       local.set $forest
       local.get $forest
@@ -44,66 +41,63 @@
       local.get $wrapped
       local.set $forest
       local.get $forest
-      local.get $t1
+      local.get $offset'1
       i32.store $heap offset=16
       local.get $forest
       i32.const 4
       i32.add
       local.set $forest
       i32.const 2
-      local.set $t1
-      local.get $t1
+      local.set $offset'1
+      local.get $offset'1
       call $rt:list_buf'1
       local.set $forest
       local.get $forest
-      local.get $t1
+      local.get $offset'1
       i32.store $heap offset=4
       local.get $forest
-      local.set $t1
-      local.get $t1
+      local.set $offset'1
+      local.get $offset'1
       local.get $t0
       i32.store $heap offset=16
-      local.get $t1
+      local.get $offset'1
       i32.const 4
       i32.add
-      local.set $t1
-      local.get $t1
+      local.set $offset'1
+      local.get $offset'1
       local.get $wrapped
       i32.store $heap offset=16
-      local.get $t1
+      local.get $offset'1
       i32.const 4
       i32.add
-      local.set $t1
+      local.set $offset'1
     ;; 20 |     _thunk := seven()
       call $seven
       local.set $t0
-      local.set $t1
       local.get $t0
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t1
       i32.const 0
       local.set $t0
     ;; 21 |     let wrapped: List[Wrap[Wrap[i32]]] = [Wrap(Wrap(5))]
       i32.const 5
       local.set $t0
       i32.const 1
-      local.set $t1
-      local.get $t1
+      local.set $offset'1
+      local.get $offset'1
       call $rt:list_buf'2
       local.set $wrapped
       local.get $wrapped
-      local.get $t1
+      local.get $offset'1
       i32.store $heap offset=4
       local.get $wrapped
-      local.set $t1
-      local.get $t1
+      local.set $offset'1
+      local.get $offset'1
       local.get $t0
       i32.store $heap offset=16
-      local.get $t1
+      local.get $offset'1
       i32.const 4
       i32.add
-      local.set $t1
+      local.set $offset'1
     ;; 22 |     println("${maybe.is_none()} ${count(forest)} ${wrapped.len()}")
       block
         block
@@ -150,15 +144,15 @@
       block
         block
           local.get $maybe
-          local.set $t1
+          local.set $offset'1
           br 0
         end
       end
       local.get $forest
-      local.set $offset'1
+      local.set $offset'2
       i32.const 0
       local.set $forest
-      local.get $offset'1
+      local.get $offset'2
       call $count
       local.set $forest
       local.get $forest
@@ -173,16 +167,16 @@
         end
       end
       local.get $wrapped
-      local.set $offset'1
+      local.set $offset'2
       i32.const 0
       local.set $wrapped
-      local.get $offset'1
+      local.get $offset'2
       i32.load $heap offset=4
       local.set $wrapped
-      local.get $offset'1
+      local.get $offset'2
       call $rt:release_fresh
       i32.const 0
-      local.set $offset'1
+      local.set $offset'2
       local.get $wrapped
       i64.extend_i32_u
       local.set $value'2
@@ -195,69 +189,69 @@
         end
       end
       i32.const 0
-      local.get $t1
-      i32.add
-      local.set $t1
-      local.get $t1
-      i32.const -2
-      i32.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t1
-      i32.const 1
+      local.get $offset'1
       i32.add
       local.set $offset'1
       local.get $offset'1
-      i64.extend_i32_u
-      local.set $t2
-      local.get $forest
-      i64.extend_i32_u
-      local.set $t3
-      local.get $t2
-      local.get $t3
-      i64.add
-      local.set $t2
-      local.get $t2
-      i64.const 4294967295
-      i64.gt_u
-      if
-        call $rt:panic
-        unreachable
-      end
-      local.get $t2
-      i32.wrap_i64
-      local.set $offset'2
-      local.get $offset'2
       i32.const -2
       i32.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $offset'2
+      local.get $offset'1
       i32.const 1
       i32.add
-      local.set $offset'3
-      local.get $offset'3
+      local.set $offset'2
+      local.get $offset'2
+      i64.extend_i32_u
+      local.set $t1
+      local.get $forest
       i64.extend_i32_u
       local.set $t2
-      local.get $wrapped
-      i64.extend_i32_u
-      local.set $t3
+      local.get $t1
       local.get $t2
-      local.get $t3
       i64.add
-      local.set $t2
-      local.get $t2
+      local.set $t1
+      local.get $t1
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic
         unreachable
       end
+      local.get $t1
+      i32.wrap_i64
+      local.set $offset'3
+      local.get $offset'3
+      i32.const -2
+      i32.gt_u
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $offset'3
+      i32.const 1
+      i32.add
+      local.set $offset'4
+      local.get $offset'4
+      i64.extend_i32_u
+      local.set $t1
+      local.get $wrapped
+      i64.extend_i32_u
+      local.set $t2
+      local.get $t1
       local.get $t2
+      i64.add
+      local.set $t1
+      local.get $t1
+      i64.const 4294967295
+      i64.gt_u
+      if
+        call $rt:panic
+        unreachable
+      end
+      local.get $t1
       i32.wrap_i64
       local.set $size
       block
@@ -274,30 +268,30 @@
         end
       end
       i32.const 0
-      local.set $offset'4
+      local.set $offset'5
       block
         block
           local.get $result.0
           i64.extend_i32_u
-          local.set $t2
-          local.get $offset'4
+          local.set $t1
+          local.get $offset'5
           i64.extend_i32_u
-          local.set $t3
-          local.get $t2
-          local.get $t3
-          i64.add
           local.set $t2
+          local.get $t1
           local.get $t2
+          i64.add
+          local.set $t1
+          local.get $t1
           i64.const 4294967295
           i64.gt_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t2
+          local.get $t1
           i32.wrap_i64
-          local.set $offset'4
-          local.get $offset'4
+          local.set $offset'5
+          local.get $offset'5
           local.get $t0
           local.get $maybe
           call $rt:memory_copy/0/0
@@ -318,25 +312,25 @@
         block
           local.get $result.0
           i64.extend_i32_u
+          local.set $t1
+          local.get $offset'1
+          i64.extend_i32_u
           local.set $t2
           local.get $t1
-          i64.extend_i32_u
-          local.set $t3
           local.get $t2
-          local.get $t3
           i64.add
-          local.set $t2
-          local.get $t2
+          local.set $t1
+          local.get $t1
           i64.const 4294967295
           i64.gt_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t2
-          i32.wrap_i64
-          local.set $t1
           local.get $t1
+          i32.wrap_i64
+          local.set $offset'1
+          local.get $offset'1
           local.get $t0
           local.get $maybe
           call $rt:memory_copy/0/0
@@ -352,7 +346,7 @@
       block
         block
           local.get $result.0
-          local.get $offset'1
+          local.get $offset'2
           i32.const 1
           i32.mul
           i32.add
@@ -373,11 +367,11 @@
           local.get $result.0
           i64.extend_i32_u
           local.set $value'1
-          local.get $offset'2
+          local.get $offset'3
           i64.extend_i32_u
-          local.set $t2
+          local.set $t1
           local.get $value'1
-          local.get $t2
+          local.get $t1
           i64.add
           local.set $value'1
           local.get $value'1
@@ -389,8 +383,8 @@
           end
           local.get $value'1
           i32.wrap_i64
-          local.set $t1
-          local.get $t1
+          local.set $offset'1
+          local.get $offset'1
           local.get $t0
           local.get $maybe
           call $rt:memory_copy/0/0
@@ -406,7 +400,7 @@
       block
         block
           local.get $result.0
-          local.get $offset'3
+          local.get $offset'4
           i32.const 1
           i32.mul
           i32.add

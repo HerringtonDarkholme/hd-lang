@@ -93,32 +93,25 @@ impl Em<'_, '_, '_> {
             open,
             code,
         });
-        // Consume the original function exactly once; only its environment
-        // owns a count. No provider from this conversion site is captured.
+        // Consume the original function exactly once: the adapter's closure
+        // object `[adapter code][original]` owns its count. No provider
+        // from this conversion site is captured.
         let original_value = self.consumed(original)?;
-        let environment = if code.is_some() {
-            let local = self.f.local(Val::I32);
-            self.src(&original_value, 1)?;
-            self.f.set(local);
-            local
-        } else {
-            // Ordinary typed function payload (code, old env), 8 bytes. Its
-            // existing count walk/drop/cycle traversal owns only old env.
-            let layout = crate::layout::mem(self.pool(), self.env(), source_ty)?;
-            let cyclic = self.cyclic_holding(&[source_ty]);
-            let counted = self.typed_parts(source_ty)?;
-            let at = self.object_parts(&layout, counted, cyclic, false);
-            #[cfg(feature = "checked-report")]
-            crate::rt::checked_kind(&mut self.f, self.m, 1);
-            for component in 0..2 {
-                self.f.get(at);
-                self.src(&original_value, component)?;
-                self.f.op(I::I32Store(mem(HEAP, component as u64 * 4, 2)));
-            }
-            at
-        };
+        let (layout, parts) =
+            crate::layout::env_mem(self.pool(), self.env(), &[(source_ty, false)])?;
+        let cyclic = self.cyclic_holding(&[source_ty]);
+        let counted = self.payload_parts(&[Some(source_ty)], &parts)?;
+        let at = self.object_parts(&layout, counted, cyclic, false);
+        #[cfg(feature = "checked-report")]
+        crate::rt::checked_kind(&mut self.f, self.m, 1);
+        self.f.get(at);
         self.f.table_slot(Sym::Helper(helper));
-        self.f.get(environment);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        self.f.get(at);
+        self.src(&original_value, 0)?;
+        self.f
+            .op(I::I32Store(mem(HEAP, u64::from(parts[0].offset), 2)));
+        self.f.get(at);
         self.store(i)
     }
 }

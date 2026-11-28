@@ -9,11 +9,12 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $run_plain (param $f.0 i32) (param $f.1 i32)
+  (func $run_plain (param $f i32)
     ;; 10 |     f()
-    local.get $f.1
+    local.get $f
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32)
   )
   (func $probe (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $r i32) (local $t3 i32) (local $t2 i32)

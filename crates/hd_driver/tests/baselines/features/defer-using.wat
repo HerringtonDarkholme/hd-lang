@@ -2,9 +2,10 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-2'1" (func $rt:new/class-2'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:new/class-2'2" (func $rt:new/class-2'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]" (func $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]" (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
@@ -43,7 +44,7 @@
     i32.eq
     if
       local.get $t3
-      i32.const 4
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t3
       local.get $self
@@ -72,7 +73,7 @@
     ;; 23 |     using r = box(Res { name: s, log: log })
     i32.const 12
     i32.const -2147483647
-    call $rt:new/class-2
+    call $rt:new/class-2'1
     local.tee $t0
     local.get $s.0
     i32.store $heap
@@ -116,7 +117,7 @@
     end
     local.get $log
   )
-  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))
     global.get $stack
     global.get $stack_limit
@@ -132,49 +133,47 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    i32.const 5
-    i32.const 12
+    i32.const 16
     i32.const -2147483646
-    call $rt:new/class-2
+    call $rt:new/class-2'2
     local.tee $t1
-    local.get $log
+    i32.const 8
     i32.store $heap
     local.get $t1
-    local.get $s.0
+    local.get $log
     i32.store $heap offset=4
     local.get $t1
-    local.get $s.1
+    local.get $s.0
     i32.store $heap offset=8
     local.get $t1
+    local.get $s.1
+    i32.store $heap offset=12
+    local.get $t1
     call $rt:retain_fields
-    local.set $t2
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t3
-    local.get $t2
-    i32.store $heap
-    local.get $t3
+    local.tee $t2
     local.get $t1
-    i32.store $heap offset=4
+    i32.store $heap
     global.get $forbid
     i32.const 1
     i32.add
     global.set $forbid
-    local.get $t3
+    local.get $t2
     i32.const 0
     call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
     global.get $forbid
     i32.const -1
     i32.add
     global.set $forbid
-    local.get $t3
+    local.get $t2
     if
-      local.get $t3
-      i32.load $heap offset=4
+      local.get $t2
+      i32.load $heap
       local.tee $t1
       if
         local.get $t1
@@ -216,13 +215,13 @@
   (func $with_defer#1 (param $env i32) (param $ctx i32) (local $s.0 i32) (local $t1 i32) (local $t0 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.tee $s.0
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=12
     local.set $env
     local.tee $t0
     if
@@ -244,7 +243,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 4
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $ctx

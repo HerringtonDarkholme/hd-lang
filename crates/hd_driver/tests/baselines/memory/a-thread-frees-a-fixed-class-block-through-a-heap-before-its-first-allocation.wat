@@ -4,7 +4,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "free_block" (func $free_block (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl['s] Scope['s].spawn[bool]" (func $"impl['s] Scope['s].spawn[bool]" (param i32 i32 i32) (result i32)))
+  (import "fixture" "impl['s] Scope['s].spawn[bool]" (func $"impl['s] Scope['s].spawn[bool]" (param i32 i32) (result i32)))
   (import "fixture" "wait" (func $wait (param i32) (result i32)))
   (import "fixture" "take[bool]" (func $"take[bool]" (param i32) (result i32)))
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32)))
@@ -13,7 +13,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 1 65536 shared))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $run (param $n i32) (result i32) (local $code.1 i32) (local $value i32) (local $t0 i32) (local $stopped i32) (local $t1 i32) (local $t2 i32) (local $thread i32) (local $state i32)
+  (func $run (param $n i32) (result i32) (local $code i32) (local $value i32) (local $t0 i32) (local $stopped i32) (local $t1 i32) (local $t2 i32) (local $thread i32) (local $state i32)
     ;; 14 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: n > 0).join())
     global.get $stack
     global.get $stack_limit
@@ -29,14 +29,15 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    i32.const 3
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
-    local.tee $code.1
-    local.get $n
+    local.tee $code
+    i32.const 3
     i32.store $heap
-    drop
+    local.get $code
+    local.get $n
+    i32.store $heap offset=4
     block
       local.get $t0
       i64.const 0
@@ -47,7 +48,7 @@
       local.tee $n
       i32.const 88 ;; &empty-buffer
       i32.store $heap
-      local.get $code.1
+      local.get $code
       local.get $n
       i32.const 0
       call $run#1
@@ -166,20 +167,20 @@
         i32.const 14
         i32.const 126 ;; &"a scope's thread stopped before its closure returned"
         i32.const 52
-        i32.const 0
+        i32.const 1
         call_indirect $table0 (param i32 i32 i32 i32)
         unreachable
       end
       br 0
     end
-    local.get $code.1
+    local.get $code
     if
-      local.get $code.1
+      local.get $code
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $code.1
+        local.get $code
         call $rt:release_ref
       end
     end
@@ -192,7 +193,7 @@
   (func $run#2 (param $env i32) (param $ctx i32) (result i32)
     ;; 14 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: n > 0).join())
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.get $env
     i32.const 4
     i32.sub
@@ -208,16 +209,18 @@
   (func $run#1 (param $env i32) (param $s i32) (param $ctx i32) (result i32)
     ;; 14 |     scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: n > 0).join())
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $env
     local.get $s
-    i32.const 4
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
     local.tee $s
-    local.get $env
+    i32.const 4
     i32.store $heap
+    local.get $s
+    local.get $env
+    i32.store $heap offset=4
     local.get $s
     call $"impl['s] Scope['s].spawn[bool]"
     local.tee $env
@@ -228,7 +231,7 @@
       i32.const 14
       i32.const 178 ;; &"a thread stopped before its closure returned"
       i32.const 44
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
     end

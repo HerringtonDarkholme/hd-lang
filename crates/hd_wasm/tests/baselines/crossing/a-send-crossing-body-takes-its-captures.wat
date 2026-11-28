@@ -148,26 +148,28 @@
       local.get $word.1'2
       local.get $t5
       i32.store $heap offset=4
-      i32.const 1
-      i32.const 20
+      i32.const 24
       i32.const 1
       call $rt:new/class-2
       local.set $word.1'2
       local.get $word.1'2
-      local.get $t2
+      i32.const 1
       i32.store $heap
       local.get $word.1'2
-      local.get $items.buffer.capacity'2
+      local.get $t2
       i32.store $heap offset=4
       local.get $word.1'2
-      local.get $items.len'2
+      local.get $items.buffer.capacity'2
       i32.store $heap offset=8
       local.get $word.1'2
-      local.get $word.0'1
+      local.get $items.len'2
       i32.store $heap offset=12
       local.get $word.1'2
-      local.get $word.1'1
+      local.get $word.0'1
       i32.store $heap offset=16
+      local.get $word.1'2
+      local.get $word.1'1
+      i32.store $heap offset=20
       local.get $word.1'2
       call $rt:retain_fields
       i32.const 0
@@ -176,7 +178,6 @@
       local.set $items.buffer.capacity'2
       i32.const 0
       local.set $items.len'2
-      local.set $t4
       i32.const 0
       local.set $t3
       local.get $word.0'1
@@ -200,7 +201,6 @@
       end
       i32.const 0
       local.set $t3
-      local.get $t4
       local.get $word.1'2
       call $"run[usize]"
       local.set $word.1'2
@@ -229,35 +229,36 @@
     i32.add
     global.set $stack
   )
-  (func $"run[usize]" (param $code.0 i32) (param $code.1 i32) (result i32)
+  (func $"run[usize]" (param $code i32) (result i32) (local $t0 i32)
     ;; 11 |     code()
     block
-      local.get $code.1
+      local.get $code
       i32.const 0
-      local.get $code.0
+      local.get $code
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
-      local.set $code.0
-      local.get $code.1
+      local.set $t0
+      local.get $code
       call $rt:release_ref'2
     end
-    local.get $code.0
+    local.get $t0
   )
   (func $send#1 (param $env i32) (param $ctx i32) (result i32) (local $items.buffer.capacity i32) (local $items.len i32) (local $word.0 i32) (local $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64)
     ;; 14 |     run(fn() -> usize: items.len() + word.len())
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $items.buffer.capacity
     local.get $env
-    i32.load $heap offset=8
+    i32.load $heap offset=12
     local.set $items.len
     local.get $env
-    i32.load $heap offset=12
+    i32.load $heap offset=16
     local.set $word.0
     local.get $env
-    i32.load $heap offset=16
+    i32.load $heap offset=20
     local.set $word.1
     local.get $env
     i32.const 4
@@ -272,6 +273,8 @@
       i32.const 1
       local.set $t0
       local.get $env
+      i32.const 4
+      i32.add
       local.set $word.1
       local.get $word.1
       call $"impl[T < ?Copy] UniqList[T].len[i32]"
@@ -294,7 +297,7 @@
       i32.const 0
       local.set $t0
       local.get $env
-      i32.const 12
+      i32.const 16
       i32.add
       local.set $word.1
       local.get $word.1

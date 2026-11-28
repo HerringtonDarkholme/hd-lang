@@ -4,10 +4,10 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (func $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (func $"invoke[fn(i32) -> i32 $ Console, i32, i32, {open row}]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 11 funcref))
-  (func $inferred#1 (param $env i32) (param $t0 i32) (param $t2 i32) (param $ctx i32) (result i32) (local $t1 i32)
+  (func $inferred#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32)
     ;; 15 |     invoke(Fn::call, logged, +15)
     local.get $ctx
     i64.const 6502919983801278103
@@ -22,51 +22,43 @@
     block
       local.get $t0
       i32.load $heap
-      local.set $t1
-      local.get $t0
-      i32.load $heap offset=4
       local.set $t0
       local.get $t0
-      local.get $t2
+      local.get $t1
       i32.const 1
       i32.const 0
       call $rt:ctx_new
-      local.set $t0
-      local.get $t0
+      local.set $t1
+      local.get $t1
       i64.const 6502919983801278103
       i64.store $heap offset=16
-      local.get $t0
+      local.get $t1
       local.get $ctx
       i32.store $heap offset=24
-      local.get $t0
+      local.get $t1
       local.get $env
       i32.store $heap offset=28
       local.get $ctx
       call $retain
-      local.get $t0
       local.get $t1
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $env
-      local.get $t0
+      local.get $t1
       call $rt:release_ref
     end
     local.get $env
   )
-  (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
+  (func $inferred (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 15 |     invoke(Fn::call, logged, +15)
     block
-      i32.const 3
-      i32.const 0
+      i32.const 348 ;; &vtable[inferred#1]
       local.set $t0
+      i32.const 360 ;; &vtable[logged#adapter]
       local.set $t1
-      i32.const 4
-      i32.const 0
-      local.set $t2
-      local.set $t3
-      local.get $t1
       local.get $t0
-      local.get $t3
-      local.get $t2
+      local.get $t1
       i32.const 15
       i32.const 1
       i32.const 0

@@ -496,7 +496,7 @@ fn body_func<'i>(
             em.f.op(Instruction::I32Eqz);
             em.f.op(Instruction::If(BlockType::Empty));
         }
-        em.load_captures(ci, u32::from(suspending), own.key)?;
+        em.load_captures(ci, u32::from(suspending))?;
         if suspending {
             em.f.op(Instruction::End);
         }
@@ -2828,8 +2828,8 @@ impl Em<'_, '_, '_> {
                 let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
                     unreachable!("collection records each reference's adapter");
                 };
-                self.f.table_slot(Sym::Inst(key));
-                self.f.i32(0);
+                let k = self.m.fn_object(Sym::Inst(key));
+                self.f.push(crate::module::Ins::VTable(k));
                 self.store(i)?;
             }
             Tag::CallValue => {
@@ -3869,7 +3869,6 @@ impl Em<'_, '_, '_> {
             // waits (§14.4, "Idle hook"), for std's `ManualClock`.
             "task_idle_hook" => {
                 self.comp(args[0], 0)?;
-                self.comp(args[0], 1)?;
                 self.f.helper(Helper::IdleHook);
                 Ok(())
             }
@@ -3900,9 +3899,9 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             "thread_spawn" => {
-                for (arg, part, offset) in [(1, 0, 8), (1, 1, 12), (2, 0, 20), (2, 1, 24)] {
+                for (arg, offset) in [(1, 8), (2, 20)] {
                     self.push(args[0])?;
-                    self.comp(args[arg], part)?;
+                    self.comp(args[arg], 0)?;
                     self.f.op(I::I32Store(mem(HEAP, offset, 2)));
                 }
                 self.push(args[0])?;

@@ -58,7 +58,7 @@
   (func $mixed#1 (param $env i32) (param $x.0 i32) (param $x.1 i32) (param $ctx i32)
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $env
     i32.load $heap
     local.set $x.0
@@ -106,20 +106,22 @@
         i32.add
         local.set $t1
     ;; 14 |         each(xs, fn(x: string) -> void: total += x.len())
-        local.get $xs
-        i32.const 3
-        i32.const 4
+        i32.const 8
         i32.const -2147483647
         call $rt:new/class-1
         local.tee $x.1
-        local.get $total
+        i32.const 6
         i32.store $heap
         local.get $x.1
+        local.get $total
+        i32.store $heap offset=4
+        local.get $x.1
         call $rt:retain_fields
+        local.get $xs
         local.get $x.1
         call $"each[fn(string) -> ()]"
-        local.get $x.1
     ;; 13 |     for _ in 0..3:
+        local.get $x.1
         if
           local.get $x.1
           i32.const 8
@@ -191,20 +193,20 @@
     i32.add
     global.set $stack
   )
-  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.1 i32) (local $x.0 i32)
+  (func $"each[fn(string) -> ()]" (param $xs i32) (param $f i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
-    local.set $f.0
+    local.set $t0
     block
       loop
+        local.get $t1
         local.get $t0
-        local.get $f.0
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $xs
-        local.get $t0
+        local.get $t1
         i32.const 8
         i32.mul
         i32.add
@@ -214,10 +216,10 @@
         i32.load $heap offset=20
         local.set $x.1
         local.set $x.0
-        local.get $t0
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
         block
           br 0
           unreachable
@@ -228,7 +230,7 @@
           local.get $x.0
           call $retain
         end
-        local.get $f.1
+        local.get $f
         local.get $x.0
         local.get $x.1
         i32.const 0

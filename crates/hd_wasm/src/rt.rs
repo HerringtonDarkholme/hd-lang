@@ -1349,7 +1349,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
 /// take the region whose top and limit are the block's first two words;
 /// the runtime modules' inits give the instance its own runtime storage
 /// (`fn.crossing.global.runtime`); then it calls the function value in the
-/// next two words, `thread_spawn`'s `run`, on the block, which ends the
+/// third word, `thread_spawn`'s `run`, on the block, which ends the
 /// thread in the block's fifth word, its state (`std.rt.thread`).
 /// When the instance stopped instead (a panic or a trap), the host calls
 /// it again with `stopped` 2, which only sets the state's ended and
@@ -1378,14 +1378,16 @@ fn thread_start(m: &Module) -> Func {
         }
         forbid_by(&mut f, -1);
     }
-    // A function value's call: its environment, the block, the context of
-    // its empty row, then its code's table slot (`emit/closure.rs`).
+    // A function value's call: its closure object, the block, the context
+    // of its empty row, then the code at the object's offset 0
+    // (`emit/closure.rs`).
     f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
     f.get(0);
     f.i32(0);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.call_indirect(vec![Val::I32, Val::I32, Val::I32], vec![]);
     f.op(Instruction::Else);
     // A thread that stopped never ended, so its two low bits are clear.
@@ -2456,11 +2458,11 @@ pub fn arity(helper: &Helper) -> (usize, usize) {
         | H::RaceDrop { .. }
         | H::TestInit { .. }
         | H::TestInitWalk { .. }
+        | H::IdleHook
         | H::TestInitPart { .. } => (1, 0),
         H::PanicStr
         | H::CopyElems { .. }
         | H::CancelLeave
-        | H::IdleHook
         | H::ThreadStart
         | H::WakeSignal
         | H::All { part: 4, .. } => (2, 0),
@@ -3799,15 +3801,16 @@ fn new_object(m: &Module, fixed: Option<u32>) -> Func {
 }
 
 /// [`Helper::Collect`].
-fn collect(m: &Module) -> Func {
+fn collect(m: &mut Module) -> Func {
     let mut f = m.func("rt:collect", vec![], vec![]);
     if m.acyclic {
         return f;
     }
     let r = m.runtime;
+    // Each hook is a capture-free function value: its static object.
     for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
-        f.table_slot(Sym::Helper(h));
-        f.i32(0);
+        let k = m.fn_object(Sym::Helper(h));
+        f.push(Ins::VTable(k));
     }
     f.call(Sym::Inst(r.cycle.collect));
     f

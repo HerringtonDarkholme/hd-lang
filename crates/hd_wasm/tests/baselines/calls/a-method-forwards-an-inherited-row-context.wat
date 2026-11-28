@@ -2,18 +2,15 @@
 (module
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32)
+  (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32)
     ;; 19 |         (self.job)(n)
     local.get $self
     i32.load $heap
-    local.get $self
-    i32.load $heap offset=4
-    local.set $self
-    local.set $t0
-    local.get $self
+    local.tee $self
     local.get $n
     local.get $ctx
-    local.get $t0
+    local.get $self
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
   )
 )

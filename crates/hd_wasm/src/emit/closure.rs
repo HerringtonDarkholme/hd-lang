@@ -1,8 +1,10 @@
 //! Closures and function values (`crates/hd_wasm/DESIGN.md` §23.8, §23.19,
-//! job 11). A function value is `(code, environment)`: the function-table
-//! slot of its code instance and the address of a counted environment
-//! that holds the captures, 0 when there are none. A code instance takes
-//! the environment first, then its parameters, then the context its
+//! job 11). A function value is the payload address of a closure object
+//! `[count][descriptor][code][captures...]`: the function-table slot of
+//! its code instance at offset 0, then the captures. A capture-free value
+//! is one static object per code instance, whose count 0 retain and
+//! release skip ([`crate::module::Module::fn_object`]). A code instance
+//! takes the object first, then its parameters, then the context its
 //! caller passes, which holds the providers of its type's row (`ctx.rs`). A local that a closure shares (`Shared`, one
 //! that is assigned after it is captured) lives in a cell, a counted
 //! object holding its value, and every holder keeps the cell's address.
@@ -11,7 +13,7 @@
 
 use crate::op::Op as I;
 use hd_base::SliceSort as _;
-use hd_base::{Hash128, StageResult};
+use hd_base::StageResult;
 use hd_mono::Target;
 use hd_tir::ir::{Body, CaptureMode, NONE, Storage, Tag, box_word, local_flags};
 use hd_types::{Ty, TyData};
@@ -443,8 +445,9 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `Closure`: the code instance's table slot and a new environment
-    /// holding the captures, each counted once more, or 0 for none.
+    /// `Closure`: a new closure object holding the code instance's table
+    /// slot and the captures, each counted once more, or the code's static
+    /// object for none.
     pub(super) fn closure(&mut self, i: u32) -> StageResult<()> {
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             unreachable!("collection selects every emitted closure's code instance");
@@ -458,9 +461,9 @@ impl Em<'_, '_, '_> {
             .zip(&caps)
             .map(|(mv, (l, _))| mv && !self.borrowed.contains(l))
             .collect();
-        self.f.table_slot(Sym::Inst(key));
         if caps.is_empty() {
-            self.f.i32(0);
+            let k = self.m.fn_object(Sym::Inst(key));
+            self.f.push(crate::module::Ins::VTable(k));
             return self.store(i);
         }
         let (m, parts) = self.env_layout(i as usize, &caps)?;
@@ -490,6 +493,10 @@ impl Em<'_, '_, '_> {
         let at = self.object_parts(&m, counted.clone(), cyclic, false);
         #[cfg(feature = "checked-report")]
         crate::rt::checked_kind(&mut self.f, self.m, 1);
+        self.f.get(at);
+        self.f.table_slot(Sym::Inst(key));
+        self.f
+            .op(I::I32Store(crate::module::mem(crate::module::HEAP, 0, 2)));
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;
         }
@@ -534,13 +541,11 @@ impl Em<'_, '_, '_> {
     /// The prologue of closure `ci`'s code instance: each capture loaded
     /// from the environment, parameter `env`, into its local, as a value or
     /// a cell's address.
-    pub(super) fn load_captures(&mut self, ci: usize, env: u32, key: Hash128) -> StageResult<()> {
+    pub(super) fn load_captures(&mut self, ci: usize, env: u32) -> StageResult<()> {
         if let Some(l) = self_local(&self.recursive_bindings, ci) {
             let ls = self.local(u32::try_from(l).expect("locals"))?;
-            self.f.table_slot(Sym::Inst(key));
-            self.f.set(ls[0]);
             self.f.get(env);
-            self.f.set(ls[1]);
+            self.f.set(ls[0]);
             if env == 0 {
                 // The caller holds this environment throughout the call.
                 self.borrowed.insert(l);
@@ -593,9 +598,10 @@ impl Em<'_, '_, '_> {
             .op(I::I32Store(crate::module::mem(crate::module::HEAP, 0, 2)));
     }
 
-    /// `CallValue`: the environment, the arguments and the context of the
-    /// callee type's row (`ctx.rs`), then an indirect call of the code, or
-    /// a direct one of a closure collection resolved.
+    /// `CallValue`: the closure object, the arguments and the context of
+    /// the callee type's row (`ctx.rs`), then an indirect call of the code
+    /// at the object's offset 0, or a direct one of a closure collection
+    /// resolved.
     pub(super) fn call_value(&mut self, i: u32, callee: u32, args: &[u32]) -> StageResult<()> {
         let ft = self.ty_of(callee);
         // A suspending value's code is its cold constructor, which
@@ -615,7 +621,7 @@ impl Em<'_, '_, '_> {
         }
         // ruled out: check_args/tuple_inputs_args already coerced each TIR
         // argument to its parameter type, so their flattened ABIs agree.
-        self.comp(callee, 1)?;
+        self.comp(callee, 0)?;
         // Copy inputs and references use the common borrowed convention;
         // noncopy values retain their ownership transfer.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
@@ -627,6 +633,8 @@ impl Em<'_, '_, '_> {
             self.f.call(Sym::Inst(key));
         } else {
             self.comp(callee, 0)?;
+            self.f
+                .op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
             self.f.call_indirect(ps, results);
         }
         let ty = match self.pool().get(strip_newtype(self.pool(), self.env(), ft)) {

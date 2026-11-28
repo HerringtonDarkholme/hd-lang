@@ -31,31 +31,34 @@
     local.get $t0
     i32.add
   )
-  (func $measure (param $label.0 i32) (param $label.1 i32) (param $body.0 i32) (param $body.1 i32) (result i32)
+  (func $measure (param $label.0 i32) (param $label.1 i32) (param $body i32) (result i32)
     ;; 8 |     label.len() + body().len()
-    local.get $body.1
+    local.get $body
     i32.const 0
-    local.get $body.0
+    local.get $body
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $label.0
-    local.tee $body.0
+    local.tee $body
     if
-      local.get $body.0
+      local.get $body
       call $rt:release_ref
     end
     local.get $label.1
     local.get $label.0
     i32.add
   )
-  (func $twice (param $body.0 i32) (param $body.1 i32) (result i32)
+  (func $twice (param $body i32) (result i32)
     ;; 15 |     body() + body()
-    local.get $body.1
+    local.get $body
     i32.const 0
-    local.get $body.0
+    local.get $body
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
-    local.get $body.1
+    local.get $body
     i32.const 0
-    local.get $body.0
+    local.get $body
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     i32.add
   )

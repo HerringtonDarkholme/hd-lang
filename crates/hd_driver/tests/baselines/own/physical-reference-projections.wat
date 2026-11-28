@@ -3,7 +3,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
@@ -45,7 +45,7 @@
   (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32)
     ;; 53 |         fn() -> usize:
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.tee $ctx
     if
       local.get $ctx
@@ -53,6 +53,8 @@
     end
     ;; 54 |             borrowed := &value
     local.get $env
+    i32.const 4
+    i32.add
     ;; 55 |             borrowed.len()
     call $"impl string.len"
     ;; 53 |         fn() -> usize:
@@ -69,18 +71,20 @@
     local.get $value
     call $"impl Probes.same"
   )
-  (func $"impl Probes.captured_copy" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Probes.captured_copy" (param $value.0 i32) (param $value.1 i32) (result i32) (local $t0 i32)
     ;; 53 |         fn() -> usize:
-    i32.const 4
-    i32.const 8
-    i32.const 1
-    call $rt:new/class-1
+    i32.const 12
+    i32.const 2
+    call $rt:new/class-2
     local.tee $t0
-    local.get $value.0
+    i32.const 5
     i32.store $heap
     local.get $t0
-    local.get $value.1
+    local.get $value.0
     i32.store $heap offset=4
+    local.get $t0
+    local.get $value.1
+    i32.store $heap offset=8
     local.get $t0
     call $rt:retain_fields
     local.get $t0

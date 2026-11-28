@@ -72,7 +72,7 @@
       local.set $t2
       local.get $t1
       local.get $t2
-      i32.const 2
+      i32.const 3
       call_indirect $table0 (param i32 i32) (result i32)
       local.set $t2
       i32.const 0
@@ -122,15 +122,12 @@
     end
     local.get $a
   )
-  (func $nested (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $nested (result i32) (local $t0 i32)
     ;; 31 |     fn(value: string) -> string:
     block
-      i32.const 3
-      i32.const 0
+      i32.const 236 ;; &vtable[nested#1]
       local.set $t0
-      local.set $t1
     end
-    local.get $t1
     local.get $t0
   )
   (func $nested#1 (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32 i32) (local $t2 i32) (local $t3 i32)

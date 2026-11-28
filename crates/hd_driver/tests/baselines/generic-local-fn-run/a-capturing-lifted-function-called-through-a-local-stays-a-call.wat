@@ -88,18 +88,19 @@
     local.get $x
     ;; 10 |     fn shift[T](x: T) -> (T, i32):
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
   )
-  (func $total (param $xs i32) (param $offset i32) (result i32) (local $f.1 i32) (local $sum i32) (local $t0 i32) (local $x i32) (local $a i32)
+  (func $total (param $xs i32) (param $offset i32) (result i32) (local $f i32) (local $sum i32) (local $t0 i32) (local $x i32) (local $a i32)
     ;; 12 |     let f = shift::[i32]
-    i32.const 2
-    i32.const 4
+    i32.const 8
     i32.const 0
     call $rt:new/class-1
-    local.tee $f.1
-    local.get $offset
+    local.tee $f
+    i32.const 2
     i32.store $heap
-    drop
+    local.get $f
+    local.get $offset
+    i32.store $heap offset=4
     ;; 14 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -127,7 +128,7 @@
           unreachable
         end
     ;; 15 |         let (a, b) = f(x)
-        local.get $f.1
+        local.get $f
         local.get $x
         i32.const 0
         call $"total#1[i32]"
@@ -148,14 +149,14 @@
         br 0
       end
     end
-    local.get $f.1
+    local.get $f
     if
-      local.get $f.1
+      local.get $f
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $f.1
+        local.get $f
         call $rt:release_ref'1
       end
     end

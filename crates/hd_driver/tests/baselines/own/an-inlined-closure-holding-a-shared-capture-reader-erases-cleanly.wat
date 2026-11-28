@@ -83,8 +83,9 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
+    ;; 26 |     looped := fn(mut value: usize) -> usize:
+    i32.const 296 ;; &vtable[main#8]
     ;; 33 |     println(looped(9))
-    i32.const 0
     i32.const 9
     i32.const 0
     call $main#8

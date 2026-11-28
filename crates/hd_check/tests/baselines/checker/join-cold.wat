@@ -20,25 +20,22 @@
   (import "fixture" "all_polls" (global $all_polls (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 16 funcref))
-  (func $later (result i32) (local $t3 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $later (result i32) (local $t2 i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     join(ready())
     block
       call $ready
       local.set $t0
-      i32.const 5
-      i32.const 0
+      i32.const 368 ;; &vtable[later#1]
       local.set $t1
-      local.set $t2
       local.get $t1
       local.get $t0
       i32.const 0
-      local.get $t2
+      local.get $t1
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $t3
+      local.set $t2
       local.get $t1
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t2
       i32.const 0
       local.set $t1
       local.get $t0
@@ -46,7 +43,7 @@
       i32.const 0
       local.set $t0
     end
-    local.get $t3
+    local.get $t2
   )
   (func $later#1'1 (param $frame i32) (param $env i32) (param $t3 i32) (param $ctx i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 9 |     join(ready())

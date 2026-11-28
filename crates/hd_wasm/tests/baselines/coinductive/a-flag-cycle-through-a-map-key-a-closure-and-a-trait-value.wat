@@ -5,14 +5,15 @@
   (import "fixture" "rt:map_hash" (func $rt:map_hash (param i32 i64) (result i32)))
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "impl Fast for Tree.regular#evaluating" (global $"impl Fast for Tree.regular#evaluating" (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $value i32)
+  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $value i32)
     ;; 39 |         let mut seen: Map[Key, i32] = {}
     global.get $"impl Fast for Tree.regular#evaluating"
     if
@@ -35,10 +36,10 @@
     local.get $step
     i32.const 1
     call $rt:map_find
-    local.set $bump.1
+    local.set $bump
     local.get $seen
     local.get $step
-    local.get $bump.1
+    local.get $bump
     i32.const 1
     i32.const 2
     call $rt:map_put
@@ -47,14 +48,15 @@
     i32.load $heap
     local.set $step
     ;; 42 |         bump := fn(n: i32) -> i32:
-    i32.const 1
-    i32.const 4
+    i32.const 8
     i32.const 0
-    call $rt:new/class-1
-    local.tee $bump.1
-    local.get $step
+    call $rt:new/class-1'1
+    local.tee $bump
+    i32.const 4
     i32.store $heap
-    drop
+    local.get $bump
+    local.get $step
+    i32.store $heap offset=4
     ;; 51 |         apply(bump, seen.get(Key { id: +1 }).unwrap_or(0)) + sized().size() > 0 && Tree::regular()
     local.get $seen
     local.tee $step
@@ -108,30 +110,30 @@
         br 1
       end
     end
-    local.get $bump.1
+    local.get $bump
     local.get $value
     i32.const 0
     call $"impl Fast for Tree.regular#1"
     local.set $t2
-    local.get $bump.1
+    local.get $bump
     if
-      local.get $bump.1
+      local.get $bump
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $bump.1
+        local.get $bump
         call $rt:release_ref'1
       end
     end
     i32.const 4
     i32.const 0
-    call $rt:new/class-1
+    call $rt:new/class-1'2
     local.tee $t1
     i32.const 1
     i32.store $heap
     local.get $t1
-    i32.const 444 ;; &vtable[rt:dyn_slot]
+    i32.const 436 ;; &vtable[rt:dyn_slot]
     local.set $t1
     local.tee $value
     local.tee $seen
@@ -171,7 +173,7 @@
   (func $"impl Fast for Tree.regular#1" (param $env i32) (param $n i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 42 |         bump := fn(n: i32) -> i32:
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $env
     ;; 44 |             for i in 0..step:
     block

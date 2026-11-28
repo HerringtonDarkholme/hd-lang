@@ -5,7 +5,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $through (param $f.0 i32) (param $f.1 i32) (local $tally i32) (local $t0 i32)
+  (func $through (param $f i32) (local $tally i32) (local $t0 i32)
     ;; 12 |     let mut tally = Tally { n: 0 }
     global.get $stack
     global.get $stack_limit
@@ -31,10 +31,11 @@
     i64.const 0
     i64.store $heap
     ;; 13 |     f(&mut tally)
-    local.get $f.1
+    local.get $f
     local.get $tally
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32)
     ;; 12 |     let mut tally = Tally { n: 0 }
     local.get $t0

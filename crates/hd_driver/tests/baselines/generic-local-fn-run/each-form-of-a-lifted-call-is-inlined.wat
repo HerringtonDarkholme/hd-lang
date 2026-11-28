@@ -231,7 +231,7 @@
   )
   (func $recursive (param $n i32) (result i32)
     ;; 37 |     down(n, n)
-    i32.const 0
+    i32.const 264 ;; &vtable[recursive#1]
     local.get $n
     local.get $n
     i32.const 0
@@ -261,14 +261,12 @@
     ;; 34 |         if k == 0:
     end
     ;; 36 |         1 + down(v, k - 1)
+    i32.const 1
+    i32.const 264 ;; &vtable[recursive#1]
+    local.get $v
     local.get $k
     i32.const 1
     i32.sub
-    local.set $env
-    i32.const 1
-    i32.const 0
-    local.get $v
-    local.get $env
     i32.const 0
     call $"recursive#1[i32]"
     i32.add

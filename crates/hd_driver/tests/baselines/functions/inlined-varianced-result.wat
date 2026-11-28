@@ -3,40 +3,34 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $early_view (param $first i32) (result i32 i32)
+  (func $early_view (param $first i32) (result i32)
     ;; 14 |     if first:
-    block
-      local.get $first
-      if
-    ;; 15 |         return read
-        i32.const 0
-        local.set $first
-        br 1
-    ;; 14 |     if first:
-      end
-    ;; 16 |     read
-      i32.const 0
-    ;; 14 |     if first:
-      local.set $first
-    end
     local.get $first
-    i32.const 0
+    if
+    ;; 15 |         return read
+      i32.const 200 ;; &vtable[read#adapter]
+      return
+    ;; 14 |     if first:
+    end
+    ;; 16 |     read
+    i32.const 200 ;; &vtable[read#adapter]
   )
-  (func $use_view (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $use_view (param $value i32) (result i32) (local $t0 i32)
     ;; 23 |     view()(value) + control()(value)
-    i32.const 0
+    i32.const 200 ;; &vtable[read#adapter]
+    local.tee $t0
     local.get $value
     i32.const 0
-    i32.const 0
+    local.get $t0
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     i32.const 1
-    call_indirect $table0 (result i32 i32)
-    local.set $t0
-    local.set $t1
-    local.get $t0
+    call_indirect $table0 (result i32)
+    local.tee $t0
     local.get $value
     i32.const 0
-    local.get $t1
+    local.get $t0
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t0
     if
@@ -51,33 +45,32 @@
     end
     i32.add
   )
-  (func $view (result i32 i32)
+  (func $view (result i32)
     ;; 11 |     read
-    i32.const 0
-    i32.const 0
+    i32.const 200 ;; &vtable[read#adapter]
   )
   (func $use_early_view (param $first i32) (param $value i32) (result i32)
     ;; 26 |     early_view(first)(value)
     block
       local.get $first
       if
-        i32.const 0
+        i32.const 200 ;; &vtable[read#adapter]
         local.set $first
         br 1
       end
-      i32.const 0
+      i32.const 200 ;; &vtable[read#adapter]
       local.set $first
     end
-    i32.const 0
+    local.get $first
     local.get $value
     i32.const 0
     local.get $first
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
-  (func $control (result i32 i32)
+  (func $control (result i32)
     ;; 20 |     read
-    i32.const 0
-    i32.const 0
+    i32.const 200 ;; &vtable[read#adapter]
   )
   (func $read (param $value i32) (result i32)
     ;; 8 |     *value

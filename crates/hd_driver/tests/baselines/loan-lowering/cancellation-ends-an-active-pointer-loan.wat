@@ -68,7 +68,7 @@
         i32.eq
         if
           local.get $change
-          i32.const 11
+          i32.const 14
           call_indirect $table0 (param i32) (result i32)
           local.set $change
           local.get $alias
@@ -875,7 +875,7 @@
           i32.eq
           if
             local.get $provider0
-            i32.const 11
+            i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.set $provider0
             local.get $t1
@@ -2105,7 +2105,7 @@
       i32.eq
       if
         local.get $change
-        i32.const 11
+        i32.const 14
         call_indirect $table0 (param i32) (result i32)
         local.set $change
         local.get $alias
@@ -2897,7 +2897,7 @@
           i32.eq
           if
             local.get $provider0
-            i32.const 11
+            i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.set $provider0
             local.get $t1

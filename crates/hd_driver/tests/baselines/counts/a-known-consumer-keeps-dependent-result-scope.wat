@@ -4,13 +4,12 @@
   (func $kept (param $text i32) (result i32)
     ;; 16 |     through(text, fn() -> void: ())
     local.get $text
-    i32.const 0
-    i32.const 0
+    i32.const 200 ;; &vtable[kept#1]
     call $"through[fn() -> ()]"
   )
-  (func $"through[fn() -> ()]" (param $text i32) (param $f.0 i32) (param $f.1 i32) (result i32) (local $t0 i32)
+  (func $"through[fn() -> ()]" (param $text i32) (param $f i32) (result i32) (local $t0 i32)
     ;; 9 |     f()
-    local.get $f.1
+    local.get $f
     i32.const 0
     call $kept#1
     ;; 11 |     for _ in 0..2:
@@ -26,7 +25,7 @@
         i32.add
         local.set $t0
     ;; 12 |         f()
-        local.get $f.1
+        local.get $f
         i32.const 0
         call $kept#1
     ;; 11 |     for _ in 0..2:

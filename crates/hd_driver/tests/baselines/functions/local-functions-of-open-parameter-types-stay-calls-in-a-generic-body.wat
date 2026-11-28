@@ -15,17 +15,18 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (import "fixture" "table0" (table $table0 11 funcref))
+  (import "fixture" "table0" (table $table0 12 funcref))
   (func $"held[usize]" (param $x i32) (result i32)
     ;; 18 |     read(Hold { v: x }).v
     local.get $x
   )
-  (func $"counted[i32]" (param $x i32) (param $f.0 i32) (param $f.1 i32) (result i32)
+  (func $"counted[i32]" (param $x i32) (param $f i32) (result i32)
     ;; 34 |     apply(f, x)
-    local.get $f.1
+    local.get $f
     local.get $x
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
   (func $"Named.twice[P]" (param $self i32) (result i32)
@@ -72,8 +73,7 @@
     call $unsigned_width
     local.set $t4
     i32.const 7
-    i32.const 3
-    i32.const 0
+    i32.const 436 ;; &vtable[main#1]
     call $"counted[i32]"
     i64.extend_i32_s
     local.tee $t6
@@ -465,8 +465,8 @@
     local.tee $x
     local.get $t1
     i32.store $heap
+    i32.const 448 ;; &vtable[borrowed#1]
     ;; 23 |     read(&x)
-    i32.const 0
     local.get $x
     i32.const 0
     call $"borrowed#1[usize]"

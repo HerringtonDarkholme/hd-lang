@@ -92,8 +92,8 @@ impl[T < ?Copy & Send] Drop for Handle[T]:
         release(self.thread)
 
 @intrinsic("thread_spawn")
-# Writes `run` into `block`'s third and fourth words and moves `code` into
-# its sixth and seventh, and asks the host for a thread whose instance runs
+# Writes `run` into `block`'s third word and moves `code` into its sixth,
+# and asks the host for a thread whose instance runs
 # `run(block)` on the frame region of the block's first two
 # (module.rt.thread.spawn); whether the host started it. The block owns
 # the environment's count, so the call here neither runs nor drops `code`.

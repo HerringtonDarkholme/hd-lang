@@ -30,8 +30,9 @@
     local.tee $counter
     local.get $seed
     i32.store $heap
+    ;; 63 |     local := fn(value: &mut Counter) -> void: value.value += 1
+    i32.const 432 ;; &vtable[written#1]
     ;; 64 |     local(&mut counter)
-    i32.const 0
     local.get $counter
     i32.const 0
     i32.const 2

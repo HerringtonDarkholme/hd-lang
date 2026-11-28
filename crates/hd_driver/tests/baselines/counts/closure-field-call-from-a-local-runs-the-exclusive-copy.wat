@@ -3,42 +3,39 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32) (local $t0 i32)
+  (func $"impl Mapper.apply'1" (param $self i32) (param $x i32) (result i32)
     ;; 19 |         (self.transform)(x)
     local.get $self
     i32.load $heap
-    local.get $self
-    i32.load $heap offset=4
-    local.set $self
-    local.set $t0
-    local.get $self
+    local.tee $self
     local.get $x
     i32.const 0
-    local.get $t0
+    local.get $self
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
-  (func $"impl Mapper.apply'2" (param $self.transform.0 i32) (param $self.transform.1 i32) (param $x i32) (result i32)
+  (func $"impl Mapper.apply'2" (param $self i32) (param $x i32) (result i32)
     ;; 19 |         (self.transform)(x)
-    local.get $self.transform.1
+    local.get $self
     local.get $x
     i32.const 0
-    local.get $self.transform.0
+    local.get $self
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
   )
-  (func $run (param $m.transform.0 i32) (param $m.transform.1 i32) (param $x i32) (result i32)
+  (func $run (param $m i32) (param $x i32) (result i32)
     ;; 22 |     m.apply(x)
-    local.get $m.transform.0
-    local.get $m.transform.1
+    local.get $m
     local.get $x
     call $"impl Mapper.apply'2"
-    local.get $m.transform.1
+    local.get $m
     if
-      local.get $m.transform.1
+      local.get $m
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $m.transform.1
+        local.get $m
         call $rt:release_ref
       end
     end

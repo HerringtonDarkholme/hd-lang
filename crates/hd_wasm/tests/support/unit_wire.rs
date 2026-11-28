@@ -1026,7 +1026,6 @@ pub fn round_trip_records() {
     check(&Global::AbSeen);
     check(&Global::Rewake);
     check(&Global::IdleHook);
-    check(&Global::IdleEnv);
     check(&Global::Root);
     check(&Global::Owner);
     check(&Global::WakeTab);

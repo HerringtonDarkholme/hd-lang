@@ -196,9 +196,10 @@ A method with its own type or row parameter has no dispatch table slot
 
 ### Closures And Mutably Captured Variables
 
-A closure is `(code, environment)`, two `i32` values. A capture-free
-closure has environment 0; captured values and shared cells use counted
-storage. See [§23.19](../../crates/hd_wasm/DESIGN.md#2319-closure-and-trait-values)
+A closure is one `i32`, the payload address of a closure object
+`[count][descriptor][code][captures...]`. A capture-free closure is its
+code's static object, whose count 0 retain and release skip; captured
+values and shared cells use counted storage. See [§23.19](../../crates/hd_wasm/DESIGN.md#2319-closure-and-trait-values)
 for mutable captures and immutable self-recursion.
 
 ### `List[T]`

@@ -50,7 +50,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 5
+      i32.const 8
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $items

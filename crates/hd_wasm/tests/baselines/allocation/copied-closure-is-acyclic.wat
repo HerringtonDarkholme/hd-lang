@@ -2,26 +2,26 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $copied (param $seed i32) (result i32 i32) (local $t0 i32)
+  (func $copied (param $seed i32) (result i32) (local $t0 i32)
     ;; 5 |     fn() -> i32: seed
     block
-      i32.const 1
-      i32.const 4
+      i32.const 8
       i32.const 0
       call $rt:new/class-1
       local.set $t0
       local.get $t0
-      local.get $seed
+      i32.const 1
       i32.store $heap
-      local.set $seed
+      local.get $t0
+      local.get $seed
+      i32.store $heap offset=4
     end
-    local.get $seed
     local.get $t0
   )
   (func $copied#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 5 |     fn() -> i32: seed
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $env
     block
     end

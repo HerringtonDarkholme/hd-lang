@@ -90,7 +90,7 @@
     end
     local.get $t0
   )
-  (func $wrap_with (param $errors i32) (param $wrap.0 i32) (param $wrap.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.1 i32) (local $t2 i32) (local $e.0 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32)
+  (func $wrap_with (param $errors i32) (param $wrap i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.1 i32) (local $t2 i32) (local $e.0 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t6 i32)
     ;; 18 |     [for e in errors => wrap(e)]
     i32.const 24 ;; &empty-buffer
     local.set $t0
@@ -130,16 +130,17 @@
           br 0
           unreachable
         end
+        local.get $wrap
         local.get $e.0
         if
           local.get $e.0
           call $retain
         end
-        local.get $wrap.1
         local.get $e.0
         local.get $e.1
         i32.const 0
-        local.get $wrap.0
+        local.get $wrap
+        i32.load $heap
         call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32 i32)
         local.set $e.1
         local.set $t3

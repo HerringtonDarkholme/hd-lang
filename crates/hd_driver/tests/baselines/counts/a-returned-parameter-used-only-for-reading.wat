@@ -129,7 +129,7 @@
     local.get $s.1
     i32.add
   )
-  (func $reads_heap_field_after (param $value i32) (param $action.0 i32) (param $action.1 i32) (result i32) (local $result.0 i32)
+  (func $reads_heap_field_after (param $value i32) (param $action i32) (result i32) (local $result.0 i32)
     ;; 64 |     result := ident(value.name)
     local.get $value
     i32.load $heap
@@ -144,9 +144,10 @@
     end
     local.get $result.0
     ;; 65 |     action()
-    local.get $action.1
+    local.get $action
     i32.const 0
-    local.get $action.0
+    local.get $action
+    i32.load $heap
     call_indirect $table0 (param i32 i32)
     ;; 64 |     result := ident(value.name)
     if
@@ -155,10 +156,9 @@
     end
     local.get $value
   )
-  (func $adapter (result i32 i32)
+  (func $adapter (result i32)
     ;; 25 |     ident
-    i32.const 1
-    i32.const 0
+    i32.const 268 ;; &vtable[ident#adapter]
   )
   (func $"generic[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32)
     ;; 13 |     x

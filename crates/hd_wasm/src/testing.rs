@@ -43,7 +43,7 @@ pub fn define_runtime(module: &mut Module) {
     let keys = crate::runtime_items(false, false);
     for (i, (_, name)) in keys.into_iter().enumerate() {
         let (args, result) = match name {
-            "collect" => (6, false),
+            "collect" => (3, false),
             "due" | "marking" | "metadata" => (0, true),
             "alloc_class" | "lookup" | "type_of" => {
                 (if name == "alloc_class" { 2 } else { 1 }, true)

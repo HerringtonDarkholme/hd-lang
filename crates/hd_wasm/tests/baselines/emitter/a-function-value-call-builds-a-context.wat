@@ -6,10 +6,10 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
-  (func $notify (param $send.0 i32) (param $send.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
+  (func $notify (param $send i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 9 |     send("ada")
     block
-      local.get $send.1
+      local.get $send
       i32.const 16 ;; &"ada"
       i32.const 3
       i32.const 1
@@ -28,11 +28,12 @@
       local.get $provider0
       call $retain
       local.get $t0
-      local.get $send.0
+      local.get $send
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32)
       local.get $t0
       call $rt:release_ref'1
-      local.get $send.1
+      local.get $send
       call $rt:release_ref'2
     end
   )

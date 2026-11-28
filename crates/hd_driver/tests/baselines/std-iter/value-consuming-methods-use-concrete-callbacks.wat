@@ -4,8 +4,8 @@
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]" (param i32) (result i32 i32)))
-  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (param i32 i32 i32 i32 i32)))
-  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (param i32 i32 i32 i32) (result i32 i32)))
+  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (param i32 i32 i32 i32)))
+  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -40,14 +40,14 @@
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 48
+    i32.const 40
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 48
+    i32.const 40
     i32.sub
     local.tee $t0
     global.set $stack
@@ -68,7 +68,7 @@
     i32.const 0
     local.get $self.source.end
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
-    i32.const 0
+    i32.const 280 ;; &vtable[sum_positive#1]
     ;; 10 |     values.iter()
     local.set $values
     local.set $self.source.end
@@ -93,9 +93,6 @@
       local.get $cursor
       local.get $values
       i32.store $heap offset=12
-      local.get $cursor
-      i32.const 0
-      i32.store $heap offset=16
       loop
         local.get $cursor
         call $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]"
@@ -128,8 +125,6 @@
             i32.load $heap offset=8
             local.get $cursor
             i32.load $heap offset=12
-            local.get $cursor
-            i32.load $heap offset=16
             call $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]"
           end
           br 2
@@ -142,7 +137,7 @@
     i32.load $heap
     ;; 9 |     let total = +0
     local.get $t0
-    i32.const 48
+    i32.const 40
     i32.add
     global.set $stack
   )
@@ -182,8 +177,7 @@
     i32.store $heap offset=8
     ;; 6 |     cursor.position(fn(value: i32) -> bool: value > 0)
     local.get $cursor
-    i32.const 1
-    i32.const 0
+    i32.const 292 ;; &vtable[matching#1]
     i32.const 0
     call $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]"
     local.set $values
@@ -224,8 +218,8 @@
   (import "fixture" "Iterator.last[std.iter.ListIter[i32], i32]" (func $"Iterator.last[std.iter.ListIter[i32], i32]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]" (param i32) (result i32 i32)))
-  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (param i32 i32 i32 i32 i32)))
-  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (param i32 i32 i32 i32) (result i32 i32)))
+  (import "fixture" "release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (func $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]" (param i32 i32 i32 i32)))
+  (import "fixture" "Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (func $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]" (param i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -261,14 +255,14 @@
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 48
+    i32.const 40
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 48
+    i32.const 40
     i32.sub
     local.tee $t0
     global.set $stack
@@ -289,7 +283,7 @@
     i32.const 0
     local.get $self.source.end
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
-    i32.const 1
+    i32.const 620 ;; &vtable[sum_positive#1]
     ;; 10 |     values.iter()
     local.set $values
     local.set $self.source.end
@@ -314,9 +308,6 @@
       local.get $cursor
       local.get $values
       i32.store $heap offset=12
-      local.get $cursor
-      i32.const 0
-      i32.store $heap offset=16
       loop
         local.get $cursor
         call $"impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[U,] for FilterMap[I, T, U, F].next[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]"
@@ -349,8 +340,6 @@
             i32.load $heap offset=8
             local.get $cursor
             i32.load $heap offset=12
-            local.get $cursor
-            i32.load $heap offset=16
             call $"release_value[std.iter.FilterMap[std.iter.ListIter[i32], i32, i32, fn(i32) -> i32?]]"
           end
           br 2
@@ -363,7 +352,7 @@
     i32.load $heap
     ;; 9 |     let total = +0
     local.get $t0
-    i32.const 48
+    i32.const 40
     i32.add
     global.set $stack
   )
@@ -403,8 +392,7 @@
     i32.store $heap offset=8
     ;; 6 |     cursor.position(fn(value: i32) -> bool: value > 0)
     local.get $cursor
-    i32.const 2
-    i32.const 0
+    i32.const 632 ;; &vtable[matching#1]
     i32.const 0
     call $"Iterator.position[std.iter.ListIter[i32], i32, fn(i32) -> bool, {open row}]"
     local.set $values

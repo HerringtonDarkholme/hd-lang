@@ -4,44 +4,38 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $slice_fn.0 i32) (local $slice_fn.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $slice_fn i32) (local $t0 i32)
     ;; 14 |     slice_fn := bytes_slice
     block
-      i32.const 0
-      i32.const 0
-      local.set $slice_fn.1
-      local.set $slice_fn.0
+      i32.const 624 ;; &vtable[std/rt.bytes/bytes_slice#adapter]
+      local.set $slice_fn
     ;; 15 |     slice_fn(text, 0, 1)
-      local.get $slice_fn.0
-      local.get $slice_fn.1
+      local.get $slice_fn
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $slice_fn.0
-      i32.const 0
-      local.set $slice_fn.1
+      local.set $slice_fn
       local.get $t0
       local.get $text.0
       local.get $text.1
       i32.const 0
       i32.const 1
       i32.const 0
-      local.get $t1
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
       local.set $text.1
-      local.set $slice_fn.1
+      local.set $slice_fn
     ;; 14 |     slice_fn := bytes_slice
       local.get $t0
       call $rt:release_ref'1
-      i32.const 0
-      local.set $t1
       i32.const 0
       local.set $t0
       local.get $text.0
       call $rt:release_ref'2
     end
-    local.get $slice_fn.1
+    local.get $slice_fn
     local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)

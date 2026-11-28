@@ -15,10 +15,9 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 129))
-  (func $make (result i32 i32)
+  (func $make (result i32)
     ;; 7 |     fn!() -> void $ Clock: sleep!(ms(1))
-    i32.const 4
-    i32.const 0
+    i32.const 432 ;; &vtable[make#1]
   )
   (func $make#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32) (local $t4 i32) (local $t6 i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 7 |     fn!() -> void $ Clock: sleep!(ms(1))

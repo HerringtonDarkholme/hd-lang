@@ -11,7 +11,7 @@ use hd_types::AdtId;
 use hd_types::{Prim, Ty, TyData};
 
 use super::Em;
-use crate::layout::{Mem, Part, payload_mem};
+use crate::layout::{Mem, Part};
 use crate::map::USED;
 use crate::module::{HEAP, Sym, mem};
 use crate::rt::Helper;
@@ -37,11 +37,13 @@ impl Em<'_, '_, '_> {
             entry,
             item: Box::new((*opt).clone()),
         };
-        // ruled out: the environment has only a Map's i32 table pointer
-        // and an i32 used count, at offsets 0 and 4, for every K and V.
+        // ruled out: the closure object holds the code's table slot, a
+        // Map's i32 table pointer and an i32 used count, at offsets 0, 4
+        // and 8, for every K and V.
         let int = pool.intern_ty(&TyData::Prim(Prim::I32));
         let tys = [self.ty_of(map), int];
-        let (m, parts) = payload_mem(pool, self.env(), &tys)?;
+        let (m, parts) =
+            crate::layout::env_mem(pool, self.env(), &[(tys[0], false), (int, false)])?;
         let cyclic = self.cyclic_holding(&tys);
         let counted = self.payload_parts(&tys.map(Some), &parts)?;
         let env = self.object_parts(&m, counted.clone(), cyclic, false);
@@ -57,6 +59,9 @@ impl Em<'_, '_, '_> {
                 &mut |em: &mut Self| v(em),
             )
         };
+        self.f.get(env);
+        self.f.table_slot(Sym::Helper(code));
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         store(self, &m, parts[0], &|em| {
             em.f.get(h);
             Ok(())
@@ -79,9 +84,8 @@ impl Em<'_, '_, '_> {
         self.because(reason.as_slice()[0], |em| {
             em.retain_fields(env, &m, counted.clone());
         });
-        self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
-        // The new environment arrives with its count.
+        // The new closure object arrives with its count.
         self.store(i)
     }
 }

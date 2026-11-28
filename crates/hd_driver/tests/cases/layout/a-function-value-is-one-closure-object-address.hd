@@ -1,0 +1,37 @@
+# @dump: layout wat
+# @build: v8 release
+# expected: a `fn(...)` field is 4 bytes and `fn(...)?` is the same 4 with
+# 0 for `.None`; a call through a field or a local loads the code at the
+# object's offset 0 and calls it with the object; a named function's
+# value is its static object's address; a closure that captures `k`
+# stores its code at offset 0 and `k` at 4.
+use std.meta.inline
+
+struct Handler:
+    run: fn(i32) -> i32
+    maybe: (fn(i32) -> i32)?
+
+@inline(.Never)
+fn double(x: i32) -> i32:
+    x * 2
+
+@inline(.Never)
+fn named() -> Handler:
+    Handler { run: double, maybe: .None }
+
+@inline(.Never)
+fn capturing(k: i32) -> Handler:
+    Handler { run: fn(x: i32) -> i32: x + k, maybe: .Some(double) }
+
+@inline(.Never)
+fn call_field(h: &Handler, x: i32) -> i32:
+    (h.run)(x)
+
+@inline(.Never)
+fn call_local(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+pub fn main() -> void $ Console:
+    h := named()
+    c := capturing(5)
+    println("${call_field(&h, 1)} ${call_field(&c, 1)} ${call_local(c.run, 2)}")

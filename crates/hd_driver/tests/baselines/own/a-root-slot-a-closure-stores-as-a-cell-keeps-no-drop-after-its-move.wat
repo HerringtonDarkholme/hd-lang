@@ -17,8 +17,9 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "impl[T] List[T].map[string, string, fn(&string) -> string]" (func $"impl[T] List[T].map[string, string, fn(&string) -> string]" (param i32 i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "impl[T] List[T].map[string, string, fn(&string) -> string]" (func $"impl[T] List[T].map[string, string, fn(&string) -> string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -74,7 +75,7 @@
   (func $rounds_cell#1 (param $env i32) (param $ctx i32) (local $t0 i32)
     ;; 22 |     add := fn() -> void: xs.push("b")
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $env
     block
       local.get $env
@@ -98,7 +99,7 @@
       i32.eq
       if
         local.get $ctx
-        i32.const 4
+        i32.const 7
         call_indirect $table0 (param i32) (result i32)
         local.set $ctx
         local.get $env
@@ -127,10 +128,10 @@
   (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $value.1 i32) (local $capacity i32) (local $text.0 i32) (local $text.1 i32) (local $t0 i32) (local $offset i32) (local $t1 i64) (local $t2 i64)
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
     local.get $env
-    i32.load $heap
+    i32.load $heap offset=4
     local.set $ctx
     local.get $env
-    i32.load $heap offset=4
+    i32.load $heap offset=8
     local.set $env
     local.get $ctx
     call $retain
@@ -584,24 +585,24 @@
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
             local.get $xs
             local.set $n
-            i32.const 7
-            i32.const 8
+            i32.const 12
             i32.const 2
-            call $rt:new/class-1'2
+            call $rt:new/class-2
             local.set $offset'1
             local.get $offset'1
-            local.get $tag.0
+            i32.const 10
             i32.store $heap
             local.get $offset'1
-            local.get $size
+            local.get $tag.0
             i32.store $heap offset=4
+            local.get $offset'1
+            local.get $size
+            i32.store $heap offset=8
             i32.const 0
             local.set $tag.0
             i32.const 0
             local.set $size
-            local.set $size
             local.get $n
-            local.get $size
             local.get $offset'1
             call $"impl[T] List[T].map[string, string, fn(&string) -> string]"
             local.set $offset'1
@@ -723,7 +724,7 @@
     i32.add
     global.set $stack
   )
-  (func $rounds_cell (param $n i32) (result i32) (local $xs i32) (local $add.1 i32) (local $t0 i32) (local $add.0 i32) (local $t2 i32) (local $t1 i32) (local $x.0 i32) (local $t3 i64) (local $t4 i64)
+  (func $rounds_cell (param $n i32) (result i32) (local $xs i32) (local $add i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32) (local $t3 i64) (local $t4 i64)
     ;; 21 |     let mut xs: List[string] = ["a"]
     global.get $stack
     global.get $stack_limit
@@ -744,11 +745,11 @@
       local.set $xs
       local.get $xs
       call $rt:list_buf
-      local.set $add.1
-      local.get $add.1
+      local.set $add
+      local.get $add
       local.get $xs
       i32.store $heap offset=4
-      local.get $add.1
+      local.get $add
       local.set $xs
       local.get $xs
       i32.const 176 ;; &"a"
@@ -768,20 +769,21 @@
       i32.add
       local.set $xs
       local.get $xs
-      local.get $add.1
+      local.get $add
       i32.store $heap
     ;; 22 |     add := fn() -> void: xs.push("b")
       i32.const 8
-      i32.const 4
       i32.const -2147483645
-      call $rt:new/class-1'1
-      local.set $add.1
-      local.get $add.1
-      local.get $xs
+      call $rt:new/class-1'2
+      local.set $add
+      local.get $add
+      i32.const 11
       i32.store $heap
-      local.get $add.1
+      local.get $add
+      local.get $xs
+      i32.store $heap offset=4
+      local.get $add
       call $rt:retain_fields
-      local.set $add.0
     ;; 23 |     for _ in 0..n:
       i32.const 0
       local.get $n
@@ -809,9 +811,10 @@
             i32.add
             local.set $t2
     ;; 24 |         add()
-            local.get $add.1
+            local.get $add
             i32.const 0
-            local.get $add.0
+            local.get $add
+            i32.load $heap
             call_indirect $table0 (param i32 i32)
     ;; 23 |     for _ in 0..n:
           else
@@ -820,20 +823,18 @@
           br 0
         end
       end
-      local.get $add.1
+      local.get $add
       call $rt:release_ref'2
       i32.const 0
-      local.set $add.0
-      i32.const 0
-      local.set $add.1
+      local.set $add
     ;; 25 |     let mut total = 0
       i32.const 0
       local.set $n
     ;; 26 |     for x in xs:
       local.get $xs
       i32.load $heap
-      local.set $add.1
-      local.get $add.1
+      local.set $add
+      local.get $add
       call $rt:retain_coll
       local.get $xs
       if
@@ -845,42 +846,42 @@
       end
       i32.const 0
       local.set $xs
-      local.get $add.1
+      local.get $add
       i32.load $heap offset=4
-      local.set $add.0
-      i32.const 0
       local.set $t1
+      i32.const 0
+      local.set $t2
       block
         loop
-          local.get $t1
-          local.get $add.0
-          i32.lt_u
-          local.set $t2
           local.get $t2
+          local.get $t1
+          i32.lt_u
+          local.set $x.1
+          local.get $x.1
           if
-            local.get $add.1
-            local.get $t1
+            local.get $add
+            local.get $t2
             i32.const 8
             i32.mul
             i32.add
-            local.set $t2
-            local.get $t2
+            local.set $x.1
+            local.get $x.1
             i32.load $heap offset=16
-            local.get $t2
+            local.get $x.1
             i32.load $heap offset=20
-            local.set $t2
+            local.set $x.1
             local.set $x.0
-            local.get $t1
+            local.get $t2
             i32.const -2
             i32.gt_u
             if
               call $rt:panic'1
               unreachable
             end
-            local.get $t1
+            local.get $t2
             i32.const 1
             i32.add
-            local.set $t1
+            local.set $t2
             block
               block
                 br 0
@@ -890,13 +891,13 @@
               local.get $x.0
               call $retain
               local.get $x.0
-              local.get $t2
+              local.get $x.1
               call $eat
-              local.set $t2
+              local.set $x.1
               local.get $n
               i64.extend_i32_u
               local.set $t3
-              local.get $t2
+              local.get $x.1
               i64.extend_i32_u
               local.set $t4
               local.get $t3
@@ -922,10 +923,10 @@
           br 0
         end
       end
-      local.get $add.1
+      local.get $add
       call $rt:release_ref'2
       i32.const 0
-      local.set $add.1
+      local.set $add
     ;; 21 |     let mut xs: List[string] = ["a"]
       local.get $xs
       if

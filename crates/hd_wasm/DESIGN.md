@@ -138,8 +138,8 @@ the frame compares.
 
 **Idle hook.** std's `ManualClock` moves its virtual time only when every
 task waits (`std-time.manual.sleep.idle`). `task_idle_hook(hook)` installs
-one std function value, `fn() -> void`, in the `Global::IdleHook` and
-`Global::IdleEnv` globals; std passes a top-level function, so they own no count. Where a
+one std function value, `fn() -> void`, its closure object's address, in the
+`Global::IdleHook` global; std passes a top-level function, whose static object has no count. Where a
 driver would wait for the host, it runs the hook through `IdleWake`: the
 root driver when its root is Pending with no `Rewake`, and `block_on`
 through `IdleBlock`, which replaces its call of the host's `block`. The
@@ -256,7 +256,7 @@ type in every position; aggregate values are inline in memory.
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5); of a trait value, that trait value (§23.20) | 4 bytes; 8 for a trait value |
 | a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
 | `List[T]`, `Map[K, V]` | the address of a counted buffer (§23.7) | 4 bytes |
-| closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
+| closure | the payload address of a closure object `[count][descriptor][code][captures...]`, never 0; a capture-free one's is a static object with count 0 | 4 bytes |
 | trait value reference (`&dyn Tr`, `&mut dyn Tr`, `*dyn Tr`, `*mut dyn Tr`) | `(data, vtable)`: the referent's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
 | `void`, `()`, `never` | none | 0 bytes |
@@ -463,9 +463,10 @@ cannot move under one.
   in the order the bodies name them, so the descriptor word's 16-bit glue
   field (§23.4) holds any glue's slot; vtables, closures and cold helpers
   follow, with no limit but Wasm's.
-- **A closure** is `(code, environment)`. The environment is a counted
-  object holding the captures inline, absent (0) when nothing is captured;
-  each closure literal's environment layout has its own descriptor, whose
+- **A closure** is one address: a counted closure object holding its
+  code's table slot at offset 0 and the captures inline after it, or the
+  code's static object (count 0) when nothing is captured; each closure
+  literal's object layout has its own descriptor, whose
   release and trace know the captures (the tier-1 design (`58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`) §9.3).
 - **A `dyn Trait` value** is `(data, vtable)`. The data is always one
   counted address (the value itself, or a box of it, §23.19), so dropping
@@ -1125,11 +1126,12 @@ Closure environments and function-value calls are in `emit/closure.rs`.
 Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
 `emit/iter.rs` (§23.8).
 
-- **Function values.** `(code, environment)`: the function-table slot of
-  the code instance and the address of a counted environment, 0 when
-  nothing is captured. A code instance takes the environment first, then
-  its parameters, then the providers of its type's row in key order, so a
-  call of a value pushes them and makes one `call_indirect`, or a direct
+- **Function values.** The address of a closure object whose offset 0
+  holds the code instance's function-table slot; a capture-free value is
+  the code's one static object (`Module::fn_object`), count 0. A code
+  instance takes the object first, then its parameters, then the
+  providers of its type's row in key order, so a call of a value pushes
+  them, loads the code at offset 0 and makes one `call_indirect`, or a direct
   call when collection knows the closure (`KnownClosure`). A function
   reference (`double` as a value) is an adapter instance that ignores its
   environment and calls its target.

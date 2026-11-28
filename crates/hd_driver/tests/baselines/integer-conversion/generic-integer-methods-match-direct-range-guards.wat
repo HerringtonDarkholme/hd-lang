@@ -6,10 +6,9 @@
     local.get $value
     i64.extend_i32_s
   )
-  (func $sign_change_value (result i32 i32)
+  (func $sign_change_value (result i32)
     ;; 36 |     u64::try_from
-    i32.const 0
-    i32.const 0
+    i32.const 76 ;; &vtable[std/convert/TryFrom.try_from#adapter]
   )
   (func $narrow_hand (param $value i64) (result i32 i32)
     ;; 17 |     if value < -128 || value > 127:
@@ -108,10 +107,9 @@
     i32.wrap_i64
     i32.extend8_s
   )
-  (func $narrowing_value (result i32 i32)
+  (func $narrowing_value (result i32)
     ;; 33 |     i8::try_from
-    i32.const 1
-    i32.const 0
+    i32.const 88 ;; &vtable[std/convert/TryFrom.try_from#adapter]
   )
   (func $sign_change (param $value i64) (result i32 i64) (local $t0 i32) (local $t1 i64)
     ;; 22 |     u64::try_from(value)
@@ -154,9 +152,8 @@
     i32.const 0
     local.get $value
   )
-  (func $widening_value (result i32 i32)
+  (func $widening_value (result i32)
     ;; 30 |     i64::try_from
-    i32.const 2
-    i32.const 0
+    i32.const 100 ;; &vtable[std/convert/TryFrom.try_from#adapter]
   )
 )

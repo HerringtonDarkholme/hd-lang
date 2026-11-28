@@ -34,7 +34,7 @@
     end
     local.get $value
   )
-  (func $call (result i32) (local $t0 i32) (local $owner i32) (local $callback.0 i32) (local $t2 i32) (local $t1 i32)
+  (func $call (result i32) (local $t2 i32) (local $t0 i32) (local $owner i32) (local $t1 i32)
     ;; 14 |     let owner: *i32 = box(+7)
     block
       i32.const 4
@@ -49,17 +49,11 @@
       i32.const 0
       local.set $t0
     ;; 15 |     let callback: fn((&i32)?) -> i32 = read
-      i32.const 2
-      i32.const 0
+      i32.const 200 ;; &vtable[read#adapter]
       local.set $t0
-      local.set $callback.0
     ;; 16 |     callback(.Some(owner))
-      local.get $callback.0
       local.get $t0
       local.set $t1
-      local.set $t2
-      i32.const 0
-      local.set $callback.0
       i32.const 0
       local.set $t0
       local.get $owner
@@ -67,16 +61,15 @@
       local.get $t1
       local.get $t0
       i32.const 0
-      local.get $t2
+      local.get $t1
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32) (result i32)
-      local.set $callback.0
+      local.set $t2
     ;; 14 |     let owner: *i32 = box(+7)
       i32.const 0
       local.set $t0
       local.get $t1
       call $rt:release_ref
-      i32.const 0
-      local.set $t2
       i32.const 0
       local.set $t1
       local.get $owner
@@ -84,6 +77,6 @@
       i32.const 0
       local.set $owner
     end
-    local.get $callback.0
+    local.get $t2
   )
 )

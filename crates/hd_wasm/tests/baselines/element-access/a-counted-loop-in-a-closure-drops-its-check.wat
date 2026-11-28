@@ -3,7 +3,7 @@
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 3 funcref))
+  (import "fixture" "table0" (table $table0 4 funcref))
   (func $sums#1 (param $env i32) (param $xs i32) (param $ctx i32) (result i32) (local $sum i32) (local $t0 i32)
     ;; 9 |         n := xs.len()
     local.get $xs
@@ -40,7 +40,10 @@
     ;; 12 |         sum
     local.get $sum
   )
-  (func $sums (param $rows i32) (result i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $r i32) (local $t2 i32) (local $t3 i32)
+  (func $sums (param $rows i32) (result i32) (local $total i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $r i32) (local $t2 i32) (local $t3 i32)
+    ;; 7 |     total := fn(xs: List[i32]) -> i32:
+    i32.const 284 ;; &vtable[sums#1]
+    local.set $total
     ;; 13 |     let mut out: List[i32] = []
     i32.const 80 ;; &empty-buffer
     local.set $out
@@ -73,7 +76,7 @@
     ;; 15 |         out.push(total(r))
         local.get $r
         call $rt:retain_coll
-        i32.const 0
+        local.get $total
         local.get $r
         i32.const 0
         call $sums#1
@@ -98,7 +101,7 @@
         i32.eq
         if
           local.get $r
-          i32.const 1
+          i32.const 2
           call_indirect $table0 (param i32) (result i32)
           local.tee $r
           local.set $out

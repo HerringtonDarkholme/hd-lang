@@ -3,6 +3,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "dbg[(List[string]...)]" (func $"dbg[(List[string]...)]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 18 funcref))
   (func $function_value#1 (param $env i32) (param $t0 i32) (param $ctx i32)
     ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
@@ -36,32 +37,25 @@
       call $rt:release_ref
     end
   )
-  (func $function_value (param $values i32) (local $show.0 i32) (local $show.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $function_value (param $values i32) (local $show i32) (local $t0 i32)
     ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
     block
-      i32.const 8
-      i32.const 0
-      local.set $show.1
-      local.set $show.0
+      i32.const 708 ;; &vtable[function_value#1]
+      local.set $show
     ;; 9 |     show(values)
-      local.get $show.0
-      local.get $show.1
+      local.get $show
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $show.0
-      i32.const 0
-      local.set $show.1
+      local.set $show
       local.get $t0
       local.get $values
       i32.const 0
-      local.get $t1
+      local.get $t0
+      i32.load $heap
       call_indirect $table0 (param i32 i32 i32)
     ;; 8 |     let show: fn((List[string]...,)) -> void = dbg
       local.get $t0
       call $rt:release_ref
-      i32.const 0
-      local.set $t1
       i32.const 0
       local.set $t0
       local.get $values

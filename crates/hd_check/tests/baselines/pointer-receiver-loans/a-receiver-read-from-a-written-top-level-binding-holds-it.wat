@@ -3,7 +3,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "impl Held.text" (func $"impl Held.text" (param i32 i32 i32) (result i32 i32)))
+  (import "fixture" "impl Held.text" (func $"impl Held.text" (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -70,12 +70,9 @@
       i32.const 65536
       i32.add
       local.set $t4
-      i32.const 2
-      i32.const 0
+      i32.const 316 ;; &vtable[replace#adapter]
       local.set $t0
-      local.set $t3
       local.get $t1
-      local.get $t3
       local.get $t0
       call $"impl Held.text"
       local.set $t0

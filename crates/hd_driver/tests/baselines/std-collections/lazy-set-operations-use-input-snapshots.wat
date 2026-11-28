@@ -2,20 +2,18 @@
 (module
   (import "fixture" "impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (func $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32) (result i32)))
-  (import "fixture" "impl[T < Eq & Hash] Set[T].union[i32]" (func $"impl[T < Eq & Hash] Set[T].union[i32]" (param i32 i32) (result i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.set.Union[i32], i32]" (func $"Iterator.count[std.collections.set.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "impl[T < Eq & Hash] Set[T].intersection[i32]" (func $"impl[T < Eq & Hash] Set[T].intersection[i32]" (param i32 i32) (result i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.set.Intersection[i32], i32]" (func $"Iterator.count[std.collections.set.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
+  (import "fixture" "impl[T < Eq & Hash] Set[T].union[i32]" (func $"impl[T < Eq & Hash] Set[T].union[i32]" (param i32 i32) (result i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "Iterator.count[std.collections.set.Union[i32], i32]" (func $"Iterator.count[std.collections.set.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "impl[T < Eq & Hash] Set[T].intersection[i32]" (func $"impl[T < Eq & Hash] Set[T].intersection[i32]" (param i32 i32) (result i32 i32 i32)))
+  (import "fixture" "Iterator.count[std.collections.set.Intersection[i32], i32]" (func $"Iterator.count[std.collections.set.Intersection[i32], i32]" (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 129))
   (func $"impl[T < Eq & Hash] Iterator[T] for Union[T].next[i32]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     block
     ;; (no span)
       local.get $t0
-      i32.load8_u $heap offset=28
+      i32.load8_u $heap offset=20
       if
         local.get $t0
-        i32.const 4
-        i32.add
         call $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]"
         local.set $t1
         local.set $t2
@@ -35,12 +33,12 @@
           end
           local.get $t0
           i32.const 0
-          i32.store8 $heap offset=28
+          i32.store8 $heap offset=20
         end
       end
       loop
         local.get $t0
-        i32.const 16
+        i32.const 8
         i32.add
         call $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]"
         local.set $t1
@@ -55,7 +53,7 @@
               unreachable
             end
             local.get $t0
-            i32.load $heap
+            i32.load $heap offset=16
             local.tee $t2
             i32.const 0
             local.get $t1
@@ -121,8 +119,6 @@
       loop
     ;; (no span)
         local.get $t0
-        i32.const 4
-        i32.add
         call $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]"
         local.set $t1
         local.set $t2
@@ -136,7 +132,7 @@
               unreachable
             end
             local.get $t0
-            i32.load $heap
+            i32.load $heap offset=8
             local.tee $t2
             i32.const 0
             local.get $t1

@@ -2,13 +2,15 @@
 (module
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "name_of#adapter" (func $name_of#adapter (param i32 i32 i32) (result i32)))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $apply'1 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
+  (func $apply'1 (param $f i32) (param $u i32) (result i32)
     ;; 13 |     f(u).len()
-    local.get $f.1
+    local.get $f
     local.get $u
     i32.const 0
-    local.get $f.0
+    local.get $f
+    i32.load $heap
     call_indirect $table0 (param i32 i32 i32) (result i32)
     call $"impl string.len"
   )
@@ -20,17 +22,17 @@
     ;; 10 |     &u.name
     local.get $u
   )
-  (func $apply'2 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
+  (func $apply'2 (param $f i32) (param $u i32) (result i32)
     ;; 13 |     f(u).len()
-    local.get $f.1
+    local.get $f
     local.get $u
     i32.const 0
     call $demo#1
     call $"impl string.len"
   )
-  (func $apply'3 (param $f.0 i32) (param $f.1 i32) (param $u i32) (result i32)
+  (func $apply'3 (param $f i32) (param $u i32) (result i32)
     ;; 13 |     f(u).len()
-    local.get $f.1
+    local.get $f
     local.get $u
     i32.const 0
     call $name_of#adapter
@@ -38,12 +40,10 @@
   )
   (func $demo (param $a i32) (result i32)
     ;; 16 |     apply(name_of, a) + apply(fn(u): &u.name, a)
-    i32.const 0
-    i32.const 0
+    i32.const 200 ;; &vtable[name_of#adapter]
     local.get $a
     call $apply'3
-    i32.const 1
-    i32.const 0
+    i32.const 212 ;; &vtable[demo#1]
     local.get $a
     call $apply'2
     i32.add

@@ -9,14 +9,11 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
     block
-      i32.const 2
-      i32.const 0
+      i32.const 264 ;; &vtable[main#1]
       local.set $t0
-      local.set $t1
-      local.get $t1
       local.get $t0
       call $middle
       local.set $t0
@@ -26,89 +23,73 @@
       call $"println[i32]"
     end
   )
-  (func $middle (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $work.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $middle (param $callback i32) (result i32) (local $work i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
     block
-      i32.const 3
       i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
-      local.set $work.1
-      local.get $work.1
-      local.get $callback.0
+      local.set $work
+      local.get $work
+      i32.const 6
       i32.store $heap
-      local.get $work.1
-      local.get $callback.1
+      local.get $work
+      local.get $callback
       i32.store $heap offset=4
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      local.set $callback.0
+      local.set $callback
     ;; 15 |     invoke(work)
-      local.get $callback.0
-      local.get $work.1
+      local.get $work
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $work.1
-      local.get $t1
+      local.set $work
       local.get $t0
       call $invoke
-      local.set $callback.0
+      local.set $work
     ;; 12 |     work := fn() -> i32:
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $callback.0
+    local.get $work
   )
-  (func $middle#2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t4 i64)
+  (func $middle#2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
       local.get $env
       i32.const 0
-      local.get $ctx
+      local.get $env
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
+      local.set $ctx
+      local.get $env
+      local.set $t0
+      i32.const 0
+      local.set $env
+      local.get $t0
+      i32.const 0
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $env
+      i32.const 0
       local.set $t0
       local.get $ctx
-      local.get $env
+      i64.extend_i32_s
       local.set $t1
+      local.get $env
+      i64.extend_i32_s
       local.set $t2
-      i32.const 0
-      local.set $ctx
-      i32.const 0
-      local.set $env
       local.get $t1
-      i32.const 0
       local.get $t2
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $env
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      i64.extend_i32_s
-      local.set $t3
-      local.get $env
-      i64.extend_i32_s
-      local.set $t4
-      local.get $t3
-      local.get $t4
       i64.add
-      local.set $t3
-      local.get $t3
+      local.set $t1
+      local.get $t1
       i64.const 2147483647
       i64.gt_s
-      local.get $t3
+      local.get $t1
       i64.const -2147483648
       i64.lt_s
       i32.or
@@ -116,24 +97,25 @@
         call $rt:panic
         unreachable
       end
-      local.get $t3
+      local.get $t1
       i32.wrap_i64
       local.set $env
     end
     local.get $env
   )
-  (func $invoke (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke (param $callback i32) (result i32) (local $t0 i32)
     ;; 8 |     callback()
     block
-      local.get $callback.1
+      local.get $callback
       i32.const 0
-      local.get $callback.0
+      local.get $callback
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
-      local.set $callback.0
-      local.get $callback.1
+      local.set $t0
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $callback.0
+    local.get $t0
   )
   (func $main#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
@@ -143,11 +125,8 @@
     end
     local.get $env
   )
-  (func $middle#1 (param $env i32) (param $ctx i32) (result i32) (local $nested.1 i32) (local $nested.0 i32) (local $t0 i32)
+  (func $middle#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
@@ -155,37 +134,28 @@
     call $rt:retain_known
     block
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-      i32.const 5
       i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
-      local.set $nested.1
-      local.get $nested.1
+      local.set $ctx
       local.get $ctx
+      i32.const 8
       i32.store $heap
-      local.get $nested.1
+      local.get $ctx
       local.get $env
       i32.store $heap offset=4
-      local.get $nested.1
+      local.get $ctx
       call $rt:retain_fields
-      local.set $nested.0
       local.get $env
       call $rt:release_ref
       i32.const 0
-      local.set $ctx
-      i32.const 0
       local.set $env
     ;; 14 |         invoke(nested)
-      local.get $nested.0
-      local.get $nested.1
-      local.set $ctx
+      local.get $ctx
       local.set $t0
       i32.const 0
-      local.set $nested.0
-      i32.const 0
-      local.set $nested.1
+      local.set $ctx
       local.get $t0
-      local.get $ctx
       call $invoke
       local.set $ctx
     ;; 12 |     work := fn() -> i32:
@@ -205,14 +175,11 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "heap" (memory $heap 129))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
     block
-      i32.const 2
-      i32.const 0
+      i32.const 640 ;; &vtable[main#1]
       local.set $t0
-      local.set $t1
-      local.get $t1
       local.get $t0
       call $middle
       local.set $t0
@@ -222,89 +189,73 @@
       call $"println[i32]"
     end
   )
-  (func $middle (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $work.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $middle (param $callback i32) (result i32) (local $work i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
     block
-      i32.const 3
       i32.const 8
       i32.const -2147483647
       call $rt:new
-      local.set $work.1
-      local.get $work.1
-      local.get $callback.0
+      local.set $work
+      local.get $work
+      i32.const 6
       i32.store $heap
-      local.get $work.1
-      local.get $callback.1
+      local.get $work
+      local.get $callback
       i32.store $heap offset=4
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $callback.1
-      local.set $callback.0
+      local.set $callback
     ;; 15 |     invoke(work)
-      local.get $callback.0
-      local.get $work.1
+      local.get $work
       local.set $t0
-      local.set $t1
       i32.const 0
-      local.set $callback.0
-      i32.const 0
-      local.set $work.1
-      local.get $t1
+      local.set $work
       local.get $t0
       call $invoke
-      local.set $callback.0
+      local.set $work
     ;; 12 |     work := fn() -> i32:
-      local.get $callback.1
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $callback.0
+    local.get $work
   )
-  (func $middle#2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i64) (local $t4 i64)
+  (func $middle#2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t2 i64)
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
     block
       local.get $env
       i32.const 0
-      local.get $ctx
+      local.get $env
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
+      local.set $ctx
+      local.get $env
+      local.set $t0
+      i32.const 0
+      local.set $env
+      local.get $t0
+      i32.const 0
+      local.get $t0
+      i32.load $heap
+      call_indirect $table0 (param i32 i32) (result i32)
+      local.set $env
+      i32.const 0
       local.set $t0
       local.get $ctx
-      local.get $env
+      i64.extend_i32_s
       local.set $t1
+      local.get $env
+      i64.extend_i32_s
       local.set $t2
-      i32.const 0
-      local.set $ctx
-      i32.const 0
-      local.set $env
       local.get $t1
-      i32.const 0
       local.get $t2
-      call_indirect $table0 (param i32 i32) (result i32)
-      local.set $env
-      i32.const 0
-      local.set $t2
-      i32.const 0
-      local.set $t1
-      local.get $t0
-      i64.extend_i32_s
-      local.set $t3
-      local.get $env
-      i64.extend_i32_s
-      local.set $t4
-      local.get $t3
-      local.get $t4
       i64.add
-      local.set $t3
-      local.get $t3
+      local.set $t1
+      local.get $t1
       i64.const 2147483647
       i64.gt_s
-      local.get $t3
+      local.get $t1
       i64.const -2147483648
       i64.lt_s
       i32.or
@@ -312,24 +263,25 @@
         call $rt:panic
         unreachable
       end
-      local.get $t3
+      local.get $t1
       i32.wrap_i64
       local.set $env
     end
     local.get $env
   )
-  (func $invoke (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke (param $callback i32) (result i32) (local $t0 i32)
     ;; 8 |     callback()
     block
-      local.get $callback.1
+      local.get $callback
       i32.const 0
-      local.get $callback.0
+      local.get $callback
+      i32.load $heap
       call_indirect $table0 (param i32 i32) (result i32)
-      local.set $callback.0
-      local.get $callback.1
+      local.set $t0
+      local.get $callback
       call $rt:release_ref
     end
-    local.get $callback.0
+    local.get $t0
   )
   (func $main#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
@@ -339,11 +291,8 @@
     end
     local.get $env
   )
-  (func $middle#1 (param $env i32) (param $ctx i32) (result i32) (local $nested.1 i32) (local $nested.0 i32) (local $t0 i32)
+  (func $middle#1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.set $env
@@ -351,37 +300,28 @@
     call $rt:retain_known
     block
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-      i32.const 5
       i32.const 8
       i32.const -2147483647
       call $rt:new
-      local.set $nested.1
-      local.get $nested.1
+      local.set $ctx
       local.get $ctx
+      i32.const 8
       i32.store $heap
-      local.get $nested.1
+      local.get $ctx
       local.get $env
       i32.store $heap offset=4
-      local.get $nested.1
+      local.get $ctx
       call $rt:retain_fields
-      local.set $nested.0
       local.get $env
       call $rt:release_ref
       i32.const 0
-      local.set $ctx
-      i32.const 0
       local.set $env
     ;; 14 |         invoke(nested)
-      local.get $nested.0
-      local.get $nested.1
-      local.set $ctx
+      local.get $ctx
       local.set $t0
       i32.const 0
-      local.set $nested.0
-      i32.const 0
-      local.set $nested.1
+      local.set $ctx
       local.get $t0
-      local.get $ctx
       call $invoke
       local.set $ctx
     ;; 12 |     work := fn() -> i32:
@@ -401,17 +341,14 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
-  (func $invoke'1 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'1 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#2'1
   )
-  (func $middle#1'1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $middle#1'1 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $env
@@ -426,17 +363,16 @@
       end
     end
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    i32.const 2
     i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
-    local.tee $t0
-    local.get $ctx
+    local.tee $ctx
+    i32.const 6
     i32.store $heap
-    local.get $t0
+    local.get $ctx
     local.get $env
     i32.store $heap offset=4
-    local.get $t0
+    local.get $ctx
     call $rt:retain_fields
     local.get $env
     if
@@ -451,51 +387,49 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
+    local.get $ctx
     ;; 14 |         invoke(nested)
     call $invoke'1
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $t0
+    local.get $ctx
     ;; 12 |     work := fn() -> i32:
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       end
     end
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
-    i32.const 3
-    i32.const 0
+    i32.const 264 ;; &vtable[main#1]
     call $middle'1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
   )
-  (func $invoke'2 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'2 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#2'2
   )
-  (func $middle'2 (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $t0 i32)
+  (func $middle'2 (param $callback i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    i32.const 4
     i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $callback.0
+    i32.const 7
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
     local.get $t0
     ;; 15 |     invoke(work)
@@ -515,26 +449,25 @@
       end
     end
   )
-  (func $invoke'3 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'3 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#1'2
   )
   (func $middle#2'2 (param $env i32) (param $ctx i32) (result i32)
     ;; 13 |         nested := fn() -> i32: callback() + callback()
     local.get $env
-    i32.load $heap
-    local.set $ctx
-    local.get $env
     i32.load $heap offset=4
     local.tee $env
     i32.const 0
-    local.get $ctx
+    local.get $env
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $env
     i32.const 0
-    local.get $ctx
+    local.get $env
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     i32.add
   )
@@ -550,34 +483,34 @@
     call $main#1
     i32.add
   )
-  (func $invoke'4 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'4 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#1'1
   )
-  (func $invoke'5 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'5 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
-    local.get $callback.0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
   )
   (func $main#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
     i32.const 7
   )
-  (func $middle'1 (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $t0 i32)
+  (func $middle'1 (param $callback i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    i32.const 6
     i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
-    local.get $callback.0
+    i32.const 9
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
     local.get $t0
     ;; 15 |     invoke(work)
@@ -597,11 +530,8 @@
       end
     end
   )
-  (func $middle#1'2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $middle#1'2 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $env
@@ -616,17 +546,16 @@
       end
     end
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    i32.const 7
     i32.const 8
     i32.const -2147483647
     call $rt:new/class-1
-    local.tee $t0
-    local.get $ctx
+    local.tee $ctx
+    i32.const 10
     i32.store $heap
-    local.get $t0
+    local.get $ctx
     local.get $env
     i32.store $heap offset=4
-    local.get $t0
+    local.get $ctx
     call $rt:retain_fields
     local.get $env
     if
@@ -641,21 +570,21 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
+    local.get $ctx
     ;; 14 |         invoke(nested)
     call $invoke'2
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $t0
+    local.get $ctx
     ;; 12 |     work := fn() -> i32:
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       end
     end
@@ -672,17 +601,14 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 14 funcref))
-  (func $invoke'1 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'1 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#2'1
   )
-  (func $middle#1'1 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $middle#1'1 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $env
@@ -701,17 +627,16 @@
       call $skipped_test
     end
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    i32.const 2
     i32.const 8
     i32.const -2147483647
     call $rt:new
-    local.tee $t0
-    local.get $ctx
+    local.tee $ctx
+    i32.const 6
     i32.store $heap
-    local.get $t0
+    local.get $ctx
     local.get $env
     i32.store $heap offset=4
-    local.get $t0
+    local.get $ctx
     call $rt:retain_fields
     local.get $env
     if
@@ -730,21 +655,21 @@
     else
       call $skipped_test
     end
-    local.get $t0
+    local.get $ctx
     ;; 14 |         invoke(nested)
     call $invoke'1
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $t0
+    local.get $ctx
     ;; 12 |     work := fn() -> i32:
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       else
         call $skipped_test
@@ -755,30 +680,28 @@
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
-    i32.const 3
-    i32.const 0
+    i32.const 604 ;; &vtable[main#1]
     call $middle'1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
   )
-  (func $invoke'2 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'2 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#2'2
   )
-  (func $middle'2 (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $t0 i32)
+  (func $middle'2 (param $callback i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    i32.const 4
     i32.const 8
     i32.const -2147483647
     call $rt:new
     local.tee $t0
-    local.get $callback.0
+    i32.const 7
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
     local.get $t0
     ;; 15 |     invoke(work)
@@ -802,26 +725,25 @@
       call $skipped_test
     end
   )
-  (func $invoke'3 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'3 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#1'2
   )
   (func $middle#2'2 (param $env i32) (param $ctx i32) (result i32)
     ;; 13 |         nested := fn() -> i32: callback() + callback()
     local.get $env
-    i32.load $heap
-    local.set $ctx
-    local.get $env
     i32.load $heap offset=4
     local.tee $env
     i32.const 0
-    local.get $ctx
+    local.get $env
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $env
     i32.const 0
-    local.get $ctx
+    local.get $env
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
     i32.add
   )
@@ -837,34 +759,34 @@
     call $main#1
     i32.add
   )
-  (func $invoke'4 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'4 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
     call $middle#1'1
   )
-  (func $invoke'5 (param $callback.0 i32) (param $callback.1 i32) (result i32)
+  (func $invoke'5 (param $callback i32) (result i32)
     ;; 8 |     callback()
-    local.get $callback.1
+    local.get $callback
     i32.const 0
-    local.get $callback.0
+    local.get $callback
+    i32.load $heap
     call_indirect $table0 (param i32 i32) (result i32)
   )
   (func $main#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 18 |     println(middle(fn() -> i32: +7))
     i32.const 7
   )
-  (func $middle'1 (param $callback.0 i32) (param $callback.1 i32) (result i32) (local $t0 i32)
+  (func $middle'1 (param $callback i32) (result i32) (local $t0 i32)
     ;; 12 |     work := fn() -> i32:
-    i32.const 6
     i32.const 8
     i32.const -2147483647
     call $rt:new
     local.tee $t0
-    local.get $callback.0
+    i32.const 9
     i32.store $heap
     local.get $t0
-    local.get $callback.1
+    local.get $callback
     i32.store $heap offset=4
     local.get $t0
     ;; 15 |     invoke(work)
@@ -888,11 +810,8 @@
       call $skipped_test
     end
   )
-  (func $middle#1'2 (param $env i32) (param $ctx i32) (result i32) (local $t0 i32)
+  (func $middle#1'2 (param $env i32) (param $ctx i32) (result i32)
     ;; 12 |     work := fn() -> i32:
-    local.get $env
-    i32.load $heap
-    local.set $ctx
     local.get $env
     i32.load $heap offset=4
     local.tee $env
@@ -911,17 +830,16 @@
       call $skipped_test
     end
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    i32.const 7
     i32.const 8
     i32.const -2147483647
     call $rt:new
-    local.tee $t0
-    local.get $ctx
+    local.tee $ctx
+    i32.const 10
     i32.store $heap
-    local.get $t0
+    local.get $ctx
     local.get $env
     i32.store $heap offset=4
-    local.get $t0
+    local.get $ctx
     call $rt:retain_fields
     local.get $env
     if
@@ -940,21 +858,21 @@
     else
       call $skipped_test
     end
-    local.get $t0
+    local.get $ctx
     ;; 14 |         invoke(nested)
     call $invoke'2
     ;; 13 |         nested := fn() -> i32: callback() + callback()
-    local.get $t0
+    local.get $ctx
     ;; 12 |     work := fn() -> i32:
     if
-      local.get $t0
+      local.get $ctx
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $ctx
         call $rt:release_ref
       else
         call $skipped_test

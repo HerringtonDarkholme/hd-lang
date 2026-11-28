@@ -19,9 +19,9 @@ use std.rt.memory.{
 }
 
 # A thread's block, as `start_thread` reads it: the top and the limit of
-# its frame region, `run`'s code and environment, the state word, the
-# work's code and environment; then the hand-off word and, 16-aligned,
-# the value the work returns.
+# its frame region, `run`'s closure object and a free word, the state
+# word, the work's closure object and a free word; then the hand-off word
+# and, 16-aligned, the value the work returns.
 LIMIT := 4
 STATE := 16
 WORK := 20
