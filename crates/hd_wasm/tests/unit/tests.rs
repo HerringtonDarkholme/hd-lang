@@ -1472,6 +1472,21 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
     }
     check(Helper::Enc(every_boundary_type()));
     check(Helper::Dec(every_boundary_type()));
+    // A C call returning a handle gives its trait value's two values; a
+    // point's cancel of its child takes the frame and gives whether the
+    // child is left unwinding.
+    check(Helper::HostCall {
+        module: "hd:stage".into(),
+        method: "open".into(),
+        args: vec![HostArg::Scalar(Val::I32)],
+        result: hd_wasm::testing::boundary::CallRes::Handle(hd_wasm::testing::boundary::LHandle {
+            vtable: 0,
+            wrap: Hash128(9),
+            release: None,
+        }),
+        owned: None,
+    });
+    check(Helper::CancelChild);
     let args = vec![
         HostArg::Scalar(Val::I64),
         HostArg::Buf(every_boundary_type()),

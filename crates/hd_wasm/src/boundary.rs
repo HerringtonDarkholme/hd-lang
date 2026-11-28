@@ -189,13 +189,13 @@ pub struct LEnum {
 }
 
 /// A host handle's trait value: a box holding the handle number, beside
-/// the static vtable `vtable` of host calls that take the number first.
-/// With `wrap`, the `std.rt.host_provider` instance that puts it behind
+/// the static vtable `vtable` of host calls that take the number first,
+/// and `wrap`, the `std.rt.host_provider` instance that puts it behind
 /// a trait value reference (`std-net.handles.ref`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LHandle {
     pub vtable: usize,
-    pub wrap: Option<Hash128>,
+    pub wrap: Hash128,
     /// Package handles release the JS registry record on the last HD count.
     /// This drops a binding, without invoking a provider's resource methods.
     pub release: Option<String>,
@@ -425,19 +425,17 @@ fn of_at(
             // wrapper for each trait value reference a host result brings
             // in, and module.boundary.not-safe.error (hd_check
             // header::crossing_fault) rejects one passed to the host.
-            let wrap = input.collected.boundary.get(&t).and_then(|c| c.handle_ref);
-            debug_assert!(
-                wrap.is_some(),
-                "a host handle without its `host_provider` wrapper"
-            );
+            let Some(wrap) = input.collected.boundary.get(&t).and_then(|c| c.handle_ref) else {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "a host handle without its `host_provider` wrapper",
+                ));
+            };
             // ruled out: module.host.package.not-generic (hd_check
             // header::boundary) rejects a returned handle trait with type
             // parameters, and std's handle traits declare none.
             debug_assert_eq!(args, TyList::EMPTY, "a generic host handle trait");
-            LTy::Handle(Box::new(LHandle {
-                wrap,
-                ..handle_of(input, m, def, at)?
-            }))
+            LTy::Handle(Box::new(handle_of(input, m, def, at, wrap)?))
         }
         TyData::Adt(AdtId::Sum, args) => {
             let variants: Vec<Vec<Ty>> = pool.list_items(args).iter().map(|&t| vec![t]).collect();
@@ -548,12 +546,13 @@ fn of_at(
 }
 
 /// The host handle of trait `def`, returned by a host method at `at`
-/// ([`LHandle`]), before [`of_at`] gives it its `host_provider` wrapper.
+/// ([`LHandle`]), behind its `host_provider` wrapper `wrap`.
 fn handle_of(
     input: &Input<'_>,
     m: &mut Module,
     def: DefId,
     at: Option<AtProfile<'_>>,
+    wrap: Hash128,
 ) -> StageResult<LHandle> {
     let path = (input.path)(def).replace('/', ".");
     // ruled out: module.boundary.not-safe.error (hd_check
@@ -593,7 +592,7 @@ fn handle_of(
     };
     Ok(LHandle {
         vtable: handle_vtable(input, m, def, host)?,
-        wrap: None,
+        wrap,
         release,
     })
 }
@@ -1017,25 +1016,26 @@ pub fn c_slot(
             Ret::Void => CallRes::Void,
             Ret::Bool | Ret::Num(_) => CallRes::Scalar(one(ret)?),
             Ret::Handle(_) => {
-                if let LTy::Handle(h) = of(input, mm, ret, Some(AtProfile { out: false, ..at }))? {
-                    CallRes::Handle(*h)
-                } else {
-                    // ruled out: module.host.package.c-handles (hd_check
-                    // header::c_result) gives a handle row only to a
-                    // returned trait value reference, a handle.
-                    debug_assert!(false, "a C handle row of another boundary type");
-                    CallRes::Void
-                }
+                // ruled out: module.host.package.c-handles (hd_check
+                // header::c_result) gives a handle row only to a
+                // returned trait value reference, a handle.
+                let LTy::Handle(h) = of(input, mm, ret, Some(AtProfile { out: false, ..at }))?
+                else {
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a C handle row of another boundary type",
+                    ));
+                };
+                CallRes::Handle(*h)
             }
             // ruled out: module.host.package.c-types (hd_check
             // header::c_result) gives a method that returns at once no
             // bytes or `Result` row.
             Ret::Bytes | Ret::Result(_) => {
-                debug_assert!(
-                    false,
-                    "a C method that returns at once with a completion row"
-                );
-                CallRes::Void
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "a C method that returns at once with a completion row",
+                ));
             }
         };
         return Ok(Helper::HostCall {
@@ -1046,12 +1046,10 @@ pub fn c_slot(
             owned: synchronous_owned_arguments(input, mm, &types)?,
         });
     }
-    let b = result_type(input, mm, m, ret, Some(at))?;
-    let res = if b.is_tags() && layout::vals(pool, env, ret)? == [Val::I32, Val::I32] {
-        HostRes::Tags
-    } else {
-        HostRes::Buf(b)
-    };
+    // ruled out: a C completion encoded as only enum tags. c_result
+    // admits numbers, List[u8], or Result of one with an i32 error;
+    // none has payloads consisting only of payload-free enums (is_tags).
+    let res = HostRes::Buf(result_type(input, mm, m, ret, Some(at))?);
     let (area, counts) = args_area(input, mm, &types, m)?;
     Ok(Helper::HostCold {
         module,
@@ -2746,7 +2744,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
 /// Puts the handle `number` (a local) behind its trait value: a box of its
 /// own holding the number, whose last release drops the host's binding
 /// (never an I/O resource), beside the handle trait's vtable, and through
-/// its `host_provider` wrapper when it has one. Pushes the trait value's
+/// its `host_provider` wrapper. Pushes the trait value's
 /// two values. A decoded handle and a C provider's returned one share it.
 fn wrap_handle(f: &mut Func, m: &Module, h: &LHandle, number: u32) {
     let data = f.local(Val::I32);
@@ -2769,14 +2767,12 @@ fn wrap_handle(f: &mut Func, m: &Module, h: &LHandle, number: u32) {
     f.op(I::I32Store(mem(HEAP, 0, 2)));
     f.get(data);
     f.push(Ins::VTable(h.vtable));
-    if let Some(wrap) = h.wrap {
-        // The reference arrives with a count of its own; the box's
-        // first goes. `wrap` owns its argument (`layout::Pass`),
-        // so it takes a count of the box of its own.
-        own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
-        f.call(Sym::Inst(wrap));
-        release(f, m, &[data], &ADDRESS);
-    }
+    // The reference arrives with a count of its own; the box's first
+    // goes. `wrap` owns its argument (`layout::Pass`), so it takes a
+    // count of the box of its own.
+    own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
+    f.call(Sym::Inst(h.wrap));
+    release(f, m, &[data], &ADDRESS);
 }
 
 /// [`dec_body`] of a map: its count, then each entry put into a table

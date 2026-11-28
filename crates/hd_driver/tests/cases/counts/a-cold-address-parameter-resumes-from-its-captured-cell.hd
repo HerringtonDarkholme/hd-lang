@@ -1,0 +1,69 @@
+# @dump: layout stdout
+# @build: dev | checked | release | release checked
+# A wide value has memory layout; its cold ABI still passes scalar leaves.
+# A closure shares the parameter cell, which the ready poll unpacks.
+
+use std.meta.inline
+use std.task.block_on
+
+@inline(.Never)
+fn drive[T](work: Suspend[T]) -> T:
+    match block_on(work):
+        .Completed(value) => value
+        .Cancelled => panic("unexpected cancellation")
+        .Abandoned => panic("unexpected abandonment")
+
+struct Wide:
+    a: u64
+    b: u64
+    c: u64
+    d: u64
+    e: u64
+    f: u64
+    g: u64
+    h: u64
+    i: u64
+    j: u64
+    k: u64
+    l: u64
+    m: u64
+    n: u64
+    o: u64
+    p: u64
+    q: u64
+    text: string
+
+@inline(.Never)
+fn invoke(change: fn() -> void) -> void:
+    change()
+
+fn update!(mut value: Wide) -> string:
+    change := fn() -> void:
+        value.a = value.a + 1
+        value.text = "${value.text}:${value.a}"
+    invoke(change)
+    value.text
+
+pub fn main() -> void $ Console:
+    value := Wide {
+        a: 1,
+        b: 2,
+        c: 3,
+        d: 4,
+        e: 5,
+        f: 6,
+        g: 7,
+        h: 8,
+        i: 9,
+        j: 10,
+        k: 11,
+        l: 12,
+        m: 13,
+        n: 14,
+        o: 15,
+        p: 16,
+        q: 17,
+        text: "wide",
+    }
+    println(drive(update(value)))
+    println(value.text)

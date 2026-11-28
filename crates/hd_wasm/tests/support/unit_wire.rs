@@ -19,7 +19,7 @@ fn s<T: Sample>(seed: u32) -> T {
 macro_rules! integer_samples { ($($t:ty),*) => {$(impl Sample for $t {
     fn sample(seed: u32) -> Self { Self::try_from(seed % 97 + 1).unwrap() }
 })*}; }
-integer_samples!(u8, u16, u32, u64, usize, i32, i64);
+integer_samples!(u8, u32, u64, usize, i32, i64);
 impl Sample for bool {
     fn sample(seed: u32) -> Self {
         seed.is_multiple_of(2)
@@ -1188,7 +1188,6 @@ fn malformed<T: Wire>(bytes: &[u8], tys: &[Ty]) {
 fn malformed_records() {
     malformed::<bool>(&[2], &[]);
     malformed::<Option<u32>>(&[2], &[]);
-    malformed::<u16>(&65536u32.to_le_bytes(), &[]);
     malformed::<Ty>(&0u32.to_le_bytes(), &[]);
     malformed::<Op>(&[255], &[]);
     malformed::<Edit>(&[255], &[]);
