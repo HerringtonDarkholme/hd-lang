@@ -25,6 +25,14 @@ const OPENING: &[&str] = &[
 
 /// What `.start` of an `Fs` method does.
 pub enum Start {
+    /// A fresh directory is registered with the host before its path enters hd.
+    Temporary(super::temp::Directory),
+    /// A successful recursive removal releases the host's fallback owner.
+    Removed {
+        path: PathBuf,
+        succeeded: bool,
+        encoded: Enc,
+    },
     /// The result, at once: a refusal, an error, or a regular file or a
     /// directory, which run inline on the program thread.
     Ready(Enc),
@@ -235,6 +243,13 @@ pub fn start(
 ) -> wasmtime::Result<Start> {
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
+    if method == "create_temp_dir" {
+        // A sole string argument uses the ABI's raw UTF-8 fast path.
+        let prefix = std::str::from_utf8(bytes).map_err(|_| {
+            crate::host::Stop::Contract("temporary-directory prefix is not UTF-8".into())
+        })?;
+        return super::temp::create(prefix, grants, sandbox, deadline, cwd);
+    }
     let abi::Path(path) = Wire::dec(&mut d)?;
     let to = if matches!(method, "rename" | "copy") {
         let abi::Path(to) = Wire::dec(&mut d)?;
@@ -274,7 +289,7 @@ pub fn start(
         }
     }
     // `stat`, `remove` and `rename` act on a final symbolic link itself.
-    let follow = !matches!(method, "stat" | "remove" | "rename");
+    let follow = !matches!(method, "stat" | "remove" | "remove_dir_all" | "rename");
     let create = method == "create_dir_all";
     let place_of =
         |p: &str, resource: &str| sandbox.place(grants, resource, &at(cwd, p), follow, create);
@@ -288,6 +303,20 @@ pub fn start(
         },
         None => None,
     };
+    if method == "remove_dir_all" {
+        sandbox.forget(&place);
+        let result = place.remove_dir_all();
+        let succeeded = result.is_ok();
+        let encoded = match result {
+            Ok(()) => ok(()),
+            Err(error) => failure(&path, method, &path, &Failure::new("rmdir", error)),
+        };
+        return Ok(Start::Removed {
+            path: at(cwd, &path),
+            succeeded,
+            encoded,
+        });
+    }
     let special = (OPENING.contains(&method) || method == "copy") && place.is_special()
         || method == "copy" && to_place.as_ref().is_some_and(Place::is_special);
     let job = Job {
@@ -327,7 +356,13 @@ pub fn call_until_at(
     let sandbox = Sandbox::default();
     Ok(
         match start(key, method, bytes, grants, &sandbox, deadline, cwd)? {
-            Start::Ready(encoded) | Start::Opened(Err(encoded)) => encoded,
+            Start::Ready(encoded)
+            | Start::Opened(Err(encoded))
+            | Start::Removed { encoded, .. } => encoded,
+            // The direct API test wrapper retains no resource, as for File.
+            Start::Temporary(directory) => ok(crate::abi::Path(
+                directory.path.to_string_lossy().into_owned(),
+            )),
             // A test's call registers no handle: the file closes here.
             Start::Opened(Ok(_)) => ok(crate::codec::Handle(0)),
             Start::Run(job) => job.run_blocking(),

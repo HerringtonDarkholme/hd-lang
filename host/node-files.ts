@@ -14,6 +14,7 @@ const {
   fstatSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
@@ -22,6 +23,7 @@ const {
   realpathSync,
   renameSync,
   rmdirSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -29,6 +31,8 @@ const {
 const { dirname, isAbsolute, join, parse, resolve, sep } = process.getBuiltinModule("node:path");
 
 export const pathSeparator = sep;
+const { tmpdir } = process.getBuiltinModule("node:os");
+export const temporaryRoot = (): string => resolvePath(tmpdir());
 
 // A path resolved as the OS resolves it, so no path escapes a granted
 // directory (cli.cap.scope.path.resolved); `hd_run::resolve_path` on the
@@ -391,6 +395,33 @@ export const fileOperations = {
     },
   },
   "hd:FsWrite": {
+    create_temp_dir: (prefix: string) => {
+      if (
+        prefix.includes("/") ||
+        (sep === "\\" && prefix.includes("\\")) ||
+        prefix.includes("\0")
+      ) {
+        return Err({
+          tag: "Other",
+          message: "temporary-directory prefix contains a path separator or NUL",
+        });
+      }
+      return Ok(mkdtempSync(`${temporaryRoot()}${sep}${prefix}`));
+    },
+    remove_dir_all: (path: string) => {
+      try {
+        const entry = lstatSync(path);
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+          return fsErr(path, "NotADirectory");
+        }
+      } catch (error) {
+        if (errorLike(error).code !== "ENOENT") {
+          throw error;
+        }
+      }
+      rmSync(path, { recursive: true, force: true });
+      return Ok(undefined);
+    },
     write_bytes: (path: string, bytes: Uint8Array) =>
       Ok(opening(path, () => writeFileSync(path, bytes))),
     write_text: (path: string, text: string) => Ok(opening(path, () => writeFileSync(path, text))),
@@ -453,6 +484,6 @@ export function fileOperation(module: string, name: string, args: unknown[]): un
     const methods = METHODS as unknown as Record<string, Record<string, { params: unknown[] }>>;
     const method = methods[module]?.[name];
     const paths = args.filter((_, index) => method?.params[index] === Path) as string[];
-    return fsFail(paths[paths.length - 1]!, error);
+    return fsFail(name === "create_temp_dir" ? temporaryRoot() : paths[paths.length - 1]!, error);
   }
 }

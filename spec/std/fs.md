@@ -7,7 +7,7 @@ over the language tier:
 
 - the host capability traits `FsRead` and `FsWrite`;
 - the error enum `FsError`, and the `Entry` value that describes a file;
-- a free helper for each method of `FsRead` and `FsWrite`;
+- free helpers over the reading and writing capabilities;
 - `File`, a file opened to read in chunks, with the helper `open!`;
 - `walk!` and `glob!`, which find entries below a directory;
 - `MemoryFs`, the deterministic provider of both traits.
@@ -87,9 +87,11 @@ pub trait FsWrite:
     fn remove!(&mut self, path: Path) -> Result[void, FsError]
     fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
     fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn create_temp_dir!(&mut self, prefix: string) -> Result[Path, FsError]
+    fn remove_dir_all!(&mut self, path: Path) -> Result[void, FsError]
 ```
 
-1. r[std-fs.write.copy-decl] `std.fs` declares the host capability trait `FsWrite` with the methods above. Code imports it, as in `use std.fs.FsWrite`.
+1. r[std-fs.write.temporary-decl] `std.fs` declares the host capability trait `FsWrite` with the methods above. Code imports it, as in `use std.fs.FsWrite`.
 2. r[std-fs.write.replace] `write_bytes!` and `write_text!` create the file at `path`, or replace its whole content.
 3. r[std-fs.write.append] `append_text!` adds `text` at the end of the file at `path`, and creates the file when there is none.
 4. r[std-fs.write.create-dir-all] `create_dir_all!` creates the directory at `path` and every missing directory above it.
@@ -98,6 +100,39 @@ pub trait FsWrite:
 7. r[std-fs.write.mut-ref.reference-values] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share.counted-values`](../lang/11-requirements-and-suspension.md#r-req.ref.share.counted-values).
 8. r[std-fs.write.destination-parent] For `write_bytes!`, `write_text!`, `append_text!`, `copy!`, and `rename!`, a missing destination parent returns `NotFound` containing the supplied destination path.
 9. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
+
+## Temporary Directories
+
+A **temporary directory** is an owned tree registered with `using!` for cleanup.
+
+```hd
+use std.fs.{FsError, FsWrite, temp_dir, write_text}
+
+fn prepare!() -> Result[void, FsError] $ FsWrite:
+    using! dir = temp_dir!("ledger-")?
+    write_text!(dir.path.join("input.txt"), "input")?
+    .Ok(())
+```
+
+1. r[std-fs.temp-dir.declaration] `temp_dir!(prefix: string) -> Result[TempDir, FsError] $ FsWrite` returns a fresh temporary-directory resource.
+2. r[std-fs.temp-dir.atomic] Creation atomically claims a directory under the host's operating-system temporary directory, independently of concurrent processes.
+3. r[std-fs.temp-dir.prefix] The literal filename prefix must contain neither a path separator nor NUL; an invalid prefix returns `FsError.Other`.
+4. r[std-fs.temp-dir.path] `TempDir` is a value with a public `path: Path` naming its created directory and private ownership state.
+5. r[std-fs.temp-dir.protocol] `TempDir` implements `AsyncDisposable` without an additional requirement row.
+6. r[std-fs.temp-dir.dispose] Disposal recursively removes the created tree on normal, error, and cancelled exits, under the [using rules](../lang/06-control-flow.md#using-bindings).
+7. r[std-fs.temp-dir.aliases] Copies share ownership state, so disposal through one copy also disposes every alias and repeated disposal does nothing.
+8. r[std-fs.temp-dir.original-path] Changing the public `path` field does not change the tree that disposal removes.
+9. r[std-fs.temp-dir.provider] The resource retains its creating provider, including after that provider's `$.with` scope ends.
+10. r[std-fs.temp-dir.grant] Host creation requires an `FsWrite` grant covering the operating-system temporary directory.
+11. r[std-fs.temp-dir.memory] `MemoryFs` creates and removes independent virtual temporary trees without accessing the host filesystem.
+12. r[std-fs.temp-dir.raw-create] `FsWrite.create_temp_dir!(prefix: string) -> Result[Path, FsError]` performs the atomic creation used by `temp_dir!`.
+13. r[std-fs.temp-dir.remove-tree] `FsWrite.remove_dir_all!(path: Path) -> Result[void, FsError]` recursively removes the named tree without following symbolic links inside it.
+14. r[std-fs.temp-dir.absent] Removing an absent tree succeeds; a regular file instead returns `NotADirectory(path)`.
+
+> **Why.** `using!` ties cleanup to a scope, while counted provider values preserve the filesystem that created the resource.
+> Atomic creation follows `mkdtemp`, Go's `os.MkdirTemp`, and Rust's `tempfile::TempDir`.
+
+See also: [temporary-directory grants](../cli/command-line.md#temporary-directory-scope), [provider values](../lang/11-requirements-and-suspension.md#provider-values).
 
 ## Copying Files
 

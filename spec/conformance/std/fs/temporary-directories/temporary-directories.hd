@@ -1,0 +1,115 @@
+# test: TempDir removes its original tree on normal, error, and cancelled scope exit.
+# Spec: std-fs.temp-dir.declaration, std-fs.temp-dir.dispose.
+use std.fs.{FsRead, FsWrite, FsError, MemoryFs, TempDir, temp_dir, write_text}
+use std.path.Path
+use std.ops.AsyncDisposable
+use std.task.{Receiver, channel, race}
+
+struct Seen:
+    path: Path = Path("")
+
+fn ordinary!() -> Result[Path, FsError] $ FsWrite:
+    using! dir = temp_dir!("normal-")?
+    $.use(FsWrite).create_dir_all!(dir.path.join("nested"))?
+    write_text!(dir.path.join("nested/file"), "data")?
+    .Ok(dir.path)
+
+fn fail!(seen: *mut Seen) -> Result[void, FsError] $ FsWrite:
+    using! dir = temp_dir!("error-")?
+    seen.path = dir.path
+    write_text!(dir.path.join("file"), "data")?
+    .Err(.Other("expected failure"))
+
+fn wait!(seen: *mut Seen, rx: Receiver[bool]) -> bool $ FsWrite:
+    using! dir = temp_dir!("cancel-").expect("fresh directory")
+    seen.path = dir.path
+    _ := write_text!(dir.path.join("file"), "data").expect("write")
+    rx.recv!().unwrap_or(true)
+
+fn ready!() -> bool:
+    false
+
+fn from_provider!(files: *mut MemoryFs) -> Result[TempDir, FsError]:
+    $.with(FsWrite=files):
+        temp_dir!("retained-")
+
+tests:
+    it("two temporary directories are independent and removed normally"):
+        files := MemoryFs::new()
+        let first = Path("")
+        let second = Path("")
+        $.with(FsWrite=files):
+            using! a = temp_dir!("pair-").expect("first")
+            using! b = temp_dir!("pair-").expect("second")
+            first = a.path
+            second = b.path
+            assert(first != second)
+            assert(files.stat!(first).expect("stat").is_some())
+            assert(files.stat!(second).expect("stat").is_some())
+        assert_equal(files.stat!(first), .Ok(.None))
+        assert_equal(files.stat!(second), .Ok(.None))
+
+    it("normal return removes nested contents"):
+        files := MemoryFs::new()
+        let path = Path("")
+        $.with(FsWrite=files):
+            path = ordinary!().expect("normal return")
+        assert_equal(files.stat!(path), .Ok(.None))
+        assert_equal(files.stat!(path.join("nested/file")), .Ok(.None))
+
+    it("error return removes the directory"):
+        files := MemoryFs::new()
+        seen := box(Seen {})
+        $.with(FsWrite=files):
+            assert_equal(fail!(seen), .Err(FsError.Other("expected failure")))
+        assert_equal(files.stat!(seen.path), .Ok(.None))
+        assert_equal(files.stat!(seen.path.join("file")), .Ok(.None))
+
+    it("cancellation waits for directory cleanup"):
+        files := MemoryFs::new()
+        seen := box(Seen {})
+        let (keep, rx) = channel::[bool](1)
+        $.with(FsWrite=files):
+            assert_equal(race!(wait(seen, rx), ready()), false)
+        assert(seen.path != Path(""))
+        assert_equal(files.stat!(seen.path), .Ok(.None))
+        assert_equal(files.stat!(seen.path.join("file")), .Ok(.None))
+        _ := keep
+
+    it("the guard retains its creator after its provider scope ends"):
+        files := MemoryFs::new()
+        other := MemoryFs::new()
+        let path = Path("")
+        $.with(FsWrite=other):
+            let mut value = from_provider!(files).expect("retained provider")
+            using! dir = &mut value
+            path = dir.path
+            dir.path = Path("unrelated")
+            assert(files.stat!(path).expect("stat").is_some())
+        assert_equal(files.stat!(path), .Ok(.None))
+
+    it("aliases dispose once and cannot delete a later tree at the same path"):
+        files := MemoryFs::new()
+        let path = Path("")
+        $.with(FsWrite=files):
+            using! dir = temp_dir!("alias-").expect("directory")
+            let mut alias = dir
+            path = dir.path
+            alias.dispose!()
+            files.create_dir_all!(path).expect("new persistent tree")
+            alias.dispose!()
+        assert(files.stat!(path).expect("stat").is_some())
+
+    it("recursive removal respects directory boundaries and virtual roots"):
+        files := MemoryFs::new()
+        files.create_dir_all!(Path("tree/sub")).expect("tree")
+        files.create_dir_all!(Path("tree-neighbour")).expect("neighbour")
+        files.write_text!(Path("tree/sub/file"), "inside").expect("inside")
+        files.write_text!(Path("tree-neighbour/file"), "outside").expect("outside")
+        files.write_text!(Path("/absolute"), "separate root").expect("absolute")
+        files.remove_dir_all!(Path("tree")).expect("remove tree")
+        assert_equal(files.stat!(Path("tree/sub/file")), .Ok(.None))
+        assert_equal(files.read_text!(Path("tree-neighbour/file")), .Ok("outside"))
+        files.remove_dir_all!(Path(".")).expect("remove relative root")
+        assert_equal(files.stat!(Path("tree-neighbour/file")), .Ok(.None))
+        assert_equal(files.read_text!(Path("/absolute")), .Ok("separate root"))

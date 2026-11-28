@@ -104,8 +104,8 @@ impl File for MemoryFile
 pub fn open!(path: Path) -> Result[*mut dyn File, FsError] $ FsRead:
     $.use(FsRead).open!(path)
 
-## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, and `copy!`.
-## See [std-fs.write.copy-decl](../../spec/std/fs.md#r-std-fs.write.copy-decl).
+## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, `copy!`, `create_temp_dir!`, and `remove_dir_all!`.
+## See [std-fs.write.temporary-decl](../../spec/std/fs.md#r-std-fs.write.temporary-decl).
 pub trait FsWrite:
     fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
     fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
@@ -114,6 +114,33 @@ pub trait FsWrite:
     fn remove!(&mut self, path: Path) -> Result[void, FsError]
     fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
     fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn create_temp_dir!(&mut self, prefix: string) -> Result[Path, FsError]
+    fn remove_dir_all!(&mut self, path: Path) -> Result[void, FsError]
+
+## A fresh temporary directory whose original tree is removed by `using!`.
+pub struct TempDir:
+    ## The created directory path; editing it does not change the tree owned by this guard.
+    pub path: Path
+    state: *mut TempDirState
+
+# Copies share disposal state and retain the creating provider. Public `path`
+# edits cannot redirect cleanup, and a later provider scope cannot replace it.
+struct TempDirState:
+    path: Path
+    files: *mut dyn FsWrite
+    closed: bool = false
+
+impl AsyncDisposable for TempDir:
+    fn dispose!(&mut self) -> void:
+        if !self.state.closed:
+            self.state.closed = true
+            _ := self.state.files.remove_dir_all!(self.state.path)
+
+## Atomically creates a fresh directory under the provider's temporary root.
+pub fn temp_dir!(prefix: string) -> Result[TempDir, FsError] $ FsWrite:
+    let files: *mut dyn FsWrite = $.use(FsWrite)
+    path := files.create_temp_dir!(prefix)?
+    .Ok(TempDir { path: path, state: box(TempDirState { path: path, files: files }) })
 
 # Reads a file through the covering `FsRead` provider
 # (spec/std/fs.md#r-std-fs.helper.read-text).
@@ -397,6 +424,8 @@ pub struct MemoryFs:
     files: Map[string, List[u8]]
     modified: Map[string, Timestamp]
     dirs: List[string]
+    directory_index: Map[string, bool] = {}
+    next_temp: u64 = 0
 
 # Lexical keys only: no host access, symlinks or parent-component resolution.
 fn memory_key(path: Path) -> string:
@@ -442,10 +471,7 @@ impl MemoryFs:
     fn dir_at(&self, key: string) -> bool:
         if key == "." || key == "/":
             return true
-        for made in self.dirs:
-            if made == key:
-                return true
-        false
+        self.directory_index.get(key).is_some()
 
     # Whether a file's key is a directory above `key`.
     fn file_above(&self, key: string) -> bool:
@@ -557,7 +583,51 @@ impl FsRead for MemoryFs:
                 else:
                     .Ok(.None)
 
+fn memory_in_tree(name: &string, root: &string, prefix: &string) -> bool:
+    if *root == ".": !name.starts_with("/") else: *name == *root || name.starts_with(*prefix)
+
 impl FsWrite for MemoryFs:
+    fn create_temp_dir!(&mut self, prefix: string) -> Result[Path, FsError]:
+        if prefix.contains("/") || prefix.to_utf8().contains(&0u8):
+            return .Err(.Other("temporary-directory prefix contains a path separator or NUL"))
+        # Indexed directory membership makes each collision check constant-time;
+        # each occupied candidate advances the counter once, never rescanning dirs.
+        let path = Path("/tmp/$prefix${self.next_temp}")
+        self.next_temp = self.next_temp.wrapping_add(1)
+        while self.file_at(memory_key(path)).is_some() || self.dir_at(memory_key(path)):
+            path = Path("/tmp/$prefix${self.next_temp}")
+            self.next_temp = self.next_temp.wrapping_add(1)
+        self.create_dir_all!(path)?
+        .Ok(path)
+
+    fn remove_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
+        key := memory_key(path)
+        if self.file_at(key).is_some():
+            return .Err(.NotADirectory(path))
+        if !self.dir_at(key):
+            return .Ok(())
+        prefix := if key.ends_with("/"): key else: key + "/"
+        # The existing flat fake stores entries by complete path. Deleting a
+        # tree filters each map/list once, O(all virtual entries), without recursion.
+        let mut files: Map[string, List[u8]] = {}
+        for (name, bytes) in self.files:
+            if !memory_in_tree(name, &key, &prefix):
+                files[*name] = *bytes
+        self.files = files
+        let mut modified: Map[string, Timestamp] = {}
+        for (name, stamp) in self.modified:
+            if !memory_in_tree(name, &key, &prefix):
+                modified[*name] = *stamp
+        self.modified = modified
+        let mut directories: List[string] = []
+        for directory in self.dirs:
+            if !memory_in_tree(&directory, &key, &prefix):
+                directories.push(directory)
+            else:
+                _ := self.directory_index.remove(directory)
+        self.dirs = directories
+        .Ok(())
+
     fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
         bytes := self.read_bytes!(from)?
         self.write_bytes!(to, bytes)
@@ -604,12 +674,9 @@ impl FsWrite for MemoryFs:
         let index: usize = 0
         while index < parts.len():
             level = if index == 0: parts[0] else: "${level}/${parts[index]}"
-            let known = level == ""
-            for made in self.dirs:
-                if made == level:
-                    known = true
-            if !known:
+            if level != "" && !self.dir_at(level):
                 self.dirs.push(level)
+                self.directory_index[level] = true
             index = index + 1
         .Ok(())
 
@@ -630,6 +697,7 @@ impl FsWrite for MemoryFs:
             if made != key:
                 kept.push(made)
         self.dirs = kept
+        _ := self.directory_index.remove(key)
         _ := self.modified.remove(key)
         .Ok(())
 
@@ -683,6 +751,19 @@ impl FsWrite for MemoryFs:
             else:
                 renamed.push(made)
         self.dirs = renamed
+        self.directory_index = {}
+        for directory in self.dirs:
+            self.directory_index[directory] = true
         for (stored, time) in times:
             self.modified["${target}${stored.slice(source.len(), stored.len())}"] = time
         .Ok(())
+
+tests:
+    it("fresh virtual directory collision work is linear in occupied names"):
+        files := MemoryFs::new()
+        for index in 0..1000:
+            files.create_dir_all!(Path("/tmp/occupied-$index")).expect("seed directory")
+        directory := files.create_temp_dir!("occupied-").expect("fresh candidate")
+        assert_equal(directory, Path("/tmp/occupied-1000"))
+        assert_equal(files.next_temp, 1001u64)
+        assert_equal(files.directory_index.len(), 1002)

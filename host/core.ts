@@ -331,7 +331,19 @@ export function createGrant(
   limits: Record<string, boolean | string[]> = {},
   resolveTarget: (path: string, cwd?: string) => string = (path) => path,
   sep = "/",
+  temporaryRoot?: () => string,
 ): Grant {
+  // Expand the reserved OS-temp scope once at boundary setup, never per I/O.
+  if (temporaryRoot !== undefined) {
+    limits = Object.fromEntries(
+      Object.entries(limits).map(([key, scope]) => [
+        key,
+        (key === "FsRead" || key === "FsWrite") && Array.isArray(scope)
+          ? scope.map((entry) => (entry === "temp" ? temporaryRoot() : entry))
+          : scope,
+      ]),
+    );
+  }
   const limit = (key: string): boolean | string[] | null =>
     Object.hasOwn(limits, key) ? limits[key]! : null;
   const check = (key: string, covers: (entry: string) => boolean): boolean => {
@@ -1086,7 +1098,7 @@ function coreState(env: CoreEnv, layer: Dynamic): Dynamic {
   return {
     args: env.args ?? [],
     program: env.program ?? "",
-    grant: createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep),
+    grant: createGrant(env.grants ?? {}, layer?.resolveTarget, layer?.sep, layer?.temporaryRoot),
     seed: env.seed ?? null,
     st: initialState(env, layer),
     module,

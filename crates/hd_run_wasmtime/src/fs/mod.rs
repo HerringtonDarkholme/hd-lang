@@ -28,6 +28,7 @@ pub(crate) mod file;
 pub(crate) mod io;
 pub(crate) mod ops;
 pub(crate) mod sandbox;
+pub(crate) mod temp;
 
 pub(crate) use api::{read_file_until, write_file_until};
 pub(crate) use sandbox::Sandbox;
@@ -68,6 +69,19 @@ pub(crate) fn call(
         &cwd,
     )? {
         api::Start::Ready(e) => Ret::ready(e),
+        api::Start::Temporary(directory) => Ret::ready(api::ok(crate::abi::Path(
+            host.temporary_directories.insert(directory),
+        ))),
+        api::Start::Removed {
+            path,
+            succeeded,
+            encoded,
+        } => {
+            if succeeded {
+                host.temporary_directories.forget(&path);
+            }
+            Ret::ready(encoded)
+        }
         api::Start::Opened(opened) => Ret::ready(file::issue(host, opened, false)),
         api::Start::Run(job) => pending(host.reactor.offload(job.run()), api::not_run),
     }

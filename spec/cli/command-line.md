@@ -539,6 +539,18 @@ Sys = ["os", "arch"]
 > of the package ([`cli.test.process`](#r-cli.test.process)), so a
 > `Process` entry there names one of them.
 
+##### Temporary Directory Scope
+
+```toml
+[capabilities]
+FsWrite = ["temp"]
+```
+
+1. r[cli.cap.scope.path.temp] The exact scope entry `"temp"` for `FsRead` or `FsWrite` denotes the host's operating-system temporary directory.
+2. r[cli.cap.scope.path.temp-base] This reserved entry is independent of the package directory and command working directory, including in `--cap` flags.
+3. r[cli.cap.scope.path.temp-literal] `"./temp"` remains an ordinary relative path to a directory named `temp`.
+4. r[cli.cap.scope.path.temp-other] Other capability traits treat `"temp"` as an ordinary scope entry.
+
 #### Total Deny
 
 A trait whose grant is `false` is **totally denied**. A program that can

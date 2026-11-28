@@ -227,6 +227,20 @@ pub static TABLE: &[HostTrait] = &[
         std_path: "std.fs.FsWrite",
         methods: &[
             m(
+                "create_temp_dir",
+                &[B("string")],
+                B("Result[Path, FsError]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "remove_dir_all",
+                &[B("Path")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
+            m(
                 "write_bytes",
                 &[B("Path"), B("List[u8]")],
                 B("Result[void, FsError]"),

@@ -7499,6 +7499,8 @@ lang/expressions/unary-and-binary-operators/exponentiation/power-f32-matches-wid
 std/url/parsed-urls/uri-references.hd	runtime	accept	std/url.md#parsed-urls
 std/url/url-errors/uri-errors.hd	runtime	accept	std/url.md#url-errors
 std/url/typed-queries/uri-query-values.hd	runtime	accept	std/url.md#typed-queries
+std/fs/temporary-directories/temporary-directories.hd	runtime	accept	std/fs.md#temporary-directories
+std/fs/temporary-directories/native-temporary-directories.hd	runtime	accept	std/fs.md#temporary-directories
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

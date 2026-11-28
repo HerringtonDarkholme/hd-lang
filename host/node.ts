@@ -37,6 +37,7 @@ import {
   fsErr,
   readOpen,
   resolvePath,
+  temporaryRoot,
   validHost,
 } from "./node-files.ts";
 import { Err, Ok, variant } from "./wire.ts";
@@ -883,7 +884,7 @@ const waitFile = (
 };
 
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
-function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
+function fsProviders({ grant, flush, fsClient, st }: DynamicRecord): DynamicRecord {
   // An open file's handle is a number never issued twice, not its
   // descriptor, so an alias of a disposed file is `Closed` even once the
   // OS reuses the descriptor (std-fs.open.dispose). A regular file's
@@ -898,6 +899,13 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
   // A special file's handle is issued when the program takes its open.
   const openedSpecial = (opened: Dynamic): Dynamic =>
     opened.ok ? issue({ special: opened.value }) : opened;
+  const recordTemporaryDirectory = (name: string, args: Dynamic[], result: Dynamic): void => {
+    if (result.ok === true && name === "create_temp_dir") {
+      (st.temporaryDirectories ??= new Set<string>()).add(result.value);
+    } else if (result.ok === true && name === "remove_dir_all") {
+      st.temporaryDirectories?.delete(resolveTarget(args[0]));
+    }
+  };
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.ts). A
   // special-file call is offloaded after these checks. Output is flushed
@@ -910,9 +918,10 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
         const message = (METHODS as DynamicRecord)[module][name];
         const { create = false } = typeof op === "function" ? {} : (op as DynamicRecord);
         const provider = (...args: Dynamic[]) => {
-          const ps = args.filter(
-            (_, i) => message.resource === "path" && message.params[i] === Path,
-          );
+          const ps =
+            name === "create_temp_dir"
+              ? [temporaryRoot()]
+              : args.filter((_, i) => message.resource === "path" && message.params[i] === Path);
           const refused = ps.find(
             (item, i) =>
               !grant.coversPath(
@@ -939,7 +948,9 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
           if (module === "hd:FsRead" && typeof kinds[0] === "number") {
             return fileOperation(module, name, [...args, kinds[0]]);
           }
-          return fileOperation(module, name, args);
+          const result = fileOperation(module, name, args) as Dynamic;
+          recordTemporaryDirectory(name, args, result);
+          return result;
         };
         return [name, provider];
       }),
@@ -1191,7 +1202,7 @@ const resolveTarget = (path: string, cwd = process.cwd()): string => resolvePath
 
 // The grant with Node's path resolution.
 export const createGrant = (limits: DynamicRecord = {}) =>
-  createCoreGrant(limits, resolveTarget, sep);
+  createCoreGrant(limits, resolveTarget, sep, temporaryRoot);
 
 // `count` bytes of the operating system's random source. Reading the
 // device needs no `crypto`, whose module costs about 3 ms to load.
@@ -1229,6 +1240,7 @@ export const nodeLayer = {
   randomBytes: process.platform === "win32" ? undefined : urandom,
   resolveTarget,
   sep,
+  temporaryRoot,
   files: nodeFiles,
   providers: ({ env, sink, st, grant, flush, left }: DynamicRecord) => {
     let reactor: Int32Array<SharedArrayBuffer> | undefined;
@@ -1312,7 +1324,7 @@ export const nodeLayer = {
           "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
           "hd:Net": netProvider({ grant, netClient }),
           "hd:Env": envProvider({ grant, sink, st, flush }),
-          ...fsProviders({ grant, flush, fsClient: client(files) }),
+          ...fsProviders({ grant, flush, fsClient: client(files), st }),
           "hd:Process": processProvider({
             grant,
             env,
@@ -1357,6 +1369,16 @@ export const nodeLayer = {
           child.stop();
           files.stop();
           input.stop();
+          // Fallback owners cover cancellation before a fresh path reaches its
+          // hd TempDir guard. Explicit disposal removes the entry in O(1).
+          for (const path of st.temporaryDirectories ?? []) {
+            try {
+              rmSync(path, { recursive: true, force: true });
+            } catch {
+              /* best effort */
+            }
+          }
+          st.temporaryDirectories?.clear();
           if (st.ownTemp) {
             try {
               rmSync(st.ownTemp, { recursive: true, force: true });

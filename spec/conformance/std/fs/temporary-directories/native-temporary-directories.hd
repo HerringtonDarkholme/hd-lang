@@ -1,0 +1,48 @@
+# test: native filesystem temporary trees are removed on normal, error and cancelled exits.
+# Spec: std-fs.temp-dir.atomic, std-fs.temp-dir.dispose.
+# expect-stdout: normal error cancellation cleaned
+use std.fs.{FsRead, FsWrite, FsError, temp_dir, stat, write_text}
+use std.path.Path
+use std.task.{Receiver, channel, race}
+use std.testing.{assert, assert_equal}
+
+struct Seen:
+    path: Path = Path("")
+
+fn ordinary!() -> Result[Path, FsError] $ FsWrite:
+    using! dir = temp_dir!("normal-")?
+    $.use(FsWrite).create_dir_all!(dir.path.join("nested"))?
+    file := dir.path.join("nested/file")
+    write_text!(file, "data")?
+    assert_equal($.use(FsWrite).remove_dir_all!(file), .Err(FsError.NotADirectory(file)))
+    .Ok(dir.path)
+
+fn fail!(seen: *mut Seen) -> Result[void, FsError] $ FsWrite:
+    using! dir = temp_dir!("error-")?
+    seen.path = dir.path
+    write_text!(dir.path.join("file"), "data")?
+    .Err(.Other("expected failure"))
+
+fn wait!(seen: *mut Seen, rx: Receiver[bool]) -> bool $ FsWrite:
+    using! dir = temp_dir!("cancel-").expect("fresh directory")
+    seen.path = dir.path
+    _ := write_text!(dir.path.join("file"), "data").expect("write")
+    rx.recv!().unwrap_or(true)
+
+fn ready!() -> bool:
+    false
+
+pub fn main!() -> void $ FsRead + FsWrite + Console:
+    normal := ordinary!().expect("normal scope")
+    assert_equal(stat!(normal), .Ok(.None))
+    seen := box(Seen {})
+    assert_equal(fail!(seen), .Err(FsError.Other("expected failure")))
+    assert(seen.path != Path(""))
+    assert_equal(stat!(seen.path), .Ok(.None))
+    seen.path = Path("")
+    let (keep, rx) = channel::[bool](1)
+    assert_equal(race!(wait(seen, rx), ready()), false)
+    assert(seen.path != Path(""))
+    assert_equal(stat!(seen.path), .Ok(.None))
+    _ := keep
+    println("normal error cancellation cleaned")

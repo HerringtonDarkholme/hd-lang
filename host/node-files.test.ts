@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { byteOrder, fileOperations, resolvePath } from "./node-files.ts";
+import { byteOrder, fileOperations, resolvePath, temporaryRoot } from "./node-files.ts";
 import { fixture, netHost, positivePid, signalProcess } from "./node-test-support.ts";
 import { Err, Ok } from "./wire.ts";
 
@@ -551,4 +551,57 @@ test("read_bytes and read_text read a regular file by the size its stat gave", (
   assert.deepEqual(api.call("read_text", root), {
     result: Err({ tag: "IsADirectory", path: root }),
   });
+});
+
+test("Fs temporary directories are fresh, scoped, and removed recursively", (testContext) => {
+  const api = netHost(testContext, "hd:FsWrite", { grants: { FsWrite: ["temp"] } });
+  const first = api.call("create_temp_dir", "hd-owned-").result;
+  const second = api.call("create_temp_dir", "hd-owned-").result;
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.notEqual(first.value, second.value);
+  assert.equal(first.value.startsWith(temporaryRoot()), true);
+  mkdirSync(join(first.value, "nested"));
+  writeFileSync(join(first.value, "nested/file"), "data");
+  assert.deepEqual(api.call("remove_dir_all", first.value), { result: Ok(undefined) });
+  assert.equal(existsSync(first.value), false);
+  assert.equal(existsSync(second.value), true);
+  assert.deepEqual(api.call("remove_dir_all", first.value), { result: Ok(undefined) });
+  api.host.close();
+  assert.equal(existsSync(second.value), false, "unclaimed paths retain a host fallback owner");
+});
+
+test("Fs temporary-directory creation checks the OS-temp grant and prefix", (testContext) => {
+  const root = fixture(testContext, {});
+  const denied = netHost(testContext, "hd:FsWrite", { grants: { FsWrite: [root] } });
+  assert.deepEqual(denied.call("create_temp_dir", "refused-"), {
+    result: Err({ tag: "NotGranted", path: temporaryRoot() }),
+  });
+  const granted = netHost(testContext, "hd:FsWrite", { grants: { FsWrite: ["temp"] } });
+  for (const prefix of [
+    "../escape",
+    "a/b",
+    "a\0b",
+    ...(process.platform === "win32" ? ["a\\b"] : []),
+  ]) {
+    assert.deepEqual(granted.call("create_temp_dir", prefix), {
+      result: Err({
+        tag: "Other",
+        message: "temporary-directory prefix contains a path separator or NUL",
+      }),
+    });
+  }
+  for (const prefix of ["", ".", "..", ...(process.platform === "win32" ? [] : ["literal*?"])]) {
+    const made = granted.call("create_temp_dir", prefix).result;
+    assert.equal(made.ok, true);
+    assert.equal(dirname(made.value), temporaryRoot());
+    assert.deepEqual(granted.call("remove_dir_all", made.value), { result: Ok(undefined) });
+  }
+  const file = join(root, "file");
+  writeFileSync(file, "preserve");
+  const unrestricted = netHost(testContext, "hd:FsWrite");
+  assert.deepEqual(unrestricted.call("remove_dir_all", file), {
+    result: Err({ tag: "NotADirectory", path: file }),
+  });
+  assert.equal(existsSync(file), true);
 });

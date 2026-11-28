@@ -468,10 +468,59 @@ impl Place {
         }
     }
 
+    pub(crate) fn create_private_dir(&self) -> io::Result<()> {
+        match self {
+            Place::Ambient(path) => {
+                let builder = &mut std::fs::DirBuilder::new();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::DirBuilderExt;
+                    builder.mode(0o700);
+                }
+                builder.create(path)
+            }
+            Place::Under { dir, rel, .. } => {
+                let builder = &mut cap_std::fs::DirBuilder::new();
+                #[cfg(unix)]
+                {
+                    use cap_std::fs::DirBuilderExt;
+                    builder.mode(0o700);
+                }
+                dir.create_dir_with(rel, builder)
+            }
+            Place::Unreachable(error) => Err(again(error)),
+        }
+    }
+
     pub(crate) fn remove_file(&self) -> io::Result<()> {
         match self {
             Place::Ambient(path) => std::fs::remove_file(path),
             Place::Under { dir, rel, .. } => dir.remove_file(rel),
+            Place::Unreachable(error) => Err(again(error)),
+        }
+    }
+
+    pub(crate) fn remove_dir_all(&self) -> io::Result<()> {
+        match self.symlink_metadata() {
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+            result => {
+                result?;
+            }
+        }
+        match self {
+            Place::Ambient(path) => (|| {
+                // Preserve empty-path errors before making the path absolute.
+                std::fs::symlink_metadata(path)?;
+                let path = std::path::absolute(path)?;
+                let parent = path.parent().unwrap_or(&path);
+                let name = path.file_name().map_or(Path::new("."), Path::new);
+                remove_tree_at(
+                    Arc::new(Dir::open_ambient_dir(parent, ambient_authority())?),
+                    name,
+                )
+                .map(|_| ())
+            })(),
+            Place::Under { dir, rel, .. } => remove_tree_at(Arc::clone(dir), rel).map(|_| ()),
             Place::Unreachable(error) => Err(again(error)),
         }
     }
@@ -573,3 +622,89 @@ pub(crate) fn below_a_file(_: &Place, error: io::Error) -> io::Error {
 
 /// A directory's entry names as they are read.
 pub(crate) type Names = Box<dyn Iterator<Item = io::Result<std::ffi::OsString>>>;
+
+/// cap-primitives' `remove_dir_all_recursive` visits entries once, but recurses
+/// natively. Keep its no-follow, postorder algorithm on an explicit heap stack.
+/// Cost: O(entries) directory operations and O(depth) live directory handles.
+fn remove_tree_at(parent: Arc<Dir>, name: &Path) -> io::Result<usize> {
+    struct Frame {
+        parent: Arc<Dir>,
+        name: PathBuf,
+        directory: Arc<Dir>,
+        entries: cap_std::fs::ReadDir,
+    }
+    let kind = match parent.symlink_metadata(name) {
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(0),
+        result => result?.file_type(),
+    };
+    if kind.is_symlink() {
+        parent.remove_file_or_symlink(name)?;
+        return Ok(1);
+    }
+    if !kind.is_dir() {
+        return Err(ErrorKind::NotADirectory.into());
+    }
+    let open = |parent: Arc<Dir>, name: PathBuf| -> io::Result<Frame> {
+        let directory = Arc::new(parent.open_dir_nofollow(&name)?);
+        // cost: each directory is enumerated once, and each entry visited once.
+        let entries = directory.entries()?;
+        Ok(Frame {
+            parent,
+            name,
+            directory,
+            entries,
+        })
+    };
+    let mut stack = vec![open(parent, name.to_owned())?];
+    let mut removed = 0;
+    while let Some(frame) = stack.last_mut() {
+        if let Some(entry) = frame.entries.next() {
+            let entry = entry?;
+            let name = entry.file_name();
+            if entry.file_type()?.is_dir() {
+                let next = open(Arc::clone(&frame.directory), name.into())?;
+                stack.push(next);
+            } else {
+                frame.directory.remove_file_or_symlink(name)?;
+                removed += 1;
+            }
+        } else {
+            // ruled out: last_mut above establishes a nonempty stack.
+            let frame = stack.pop().expect("nonempty traversal stack");
+            let Frame {
+                parent,
+                name,
+                directory,
+                entries,
+            } = frame;
+            drop(entries);
+            drop(directory); // Windows must close the child before removal.
+            parent.remove_dir(name)?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+#[cfg(test)]
+mod tree_cost_tests {
+    use super::*;
+
+    #[test]
+    fn tree_removal_visits_wide_and_deep_entries_once() {
+        let root = tempfile::tempdir().unwrap();
+        let tree = root.path().join("tree");
+        std::fs::create_dir(&tree).unwrap();
+        for n in 0..1000 {
+            std::fs::write(tree.join(n.to_string()), b"x").unwrap();
+        }
+        let mut at = tree.clone();
+        for _ in 0..20 {
+            at.push("nested");
+            std::fs::create_dir(&at).unwrap();
+        }
+        let parent = Arc::new(Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap());
+        assert_eq!(remove_tree_at(parent, Path::new("tree")).unwrap(), 1021);
+        assert!(!tree.exists());
+    }
+}

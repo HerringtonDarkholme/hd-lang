@@ -1108,13 +1108,13 @@ std/format.md	5	complete	std/format/references/reference-derived-debug.hd|std/fo
 std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-
-std/fs.md	4	complete	std/fs/file-helpers/fs-helpers.hd
 std/fs.md	5	complete	std/fs/file-helpers/fs-helpers.hd
-std/fs.md	6	type-fragment	-
-std/fs.md	7	complete	-
-std/fs.md	8	type-fragment	-
-std/fs.md	9	complete	std/fs/walking-and-globbing/fs-walk.hd|std/fs/walking-and-globbing/fs-glob.hd
-std/fs.md	10	complete	std/fs/memory-file-system/memory-fs.hd
+std/fs.md	6	complete	std/fs/file-helpers/fs-helpers.hd
+std/fs.md	7	type-fragment	-
+std/fs.md	8	complete	-
+std/fs.md	9	type-fragment	-
+std/fs.md	10	complete	std/fs/walking-and-globbing/fs-walk.hd|std/fs/walking-and-globbing/fs-glob.hd
+std/fs.md	11	complete	std/fs/memory-file-system/memory-fs.hd
 std/hash.md	1	complete	std/hash/derived-hashing/derived-hash.hd
 std/hash.md	2	complete	lang/traits/trait-implementations/implementation-targets/tuple-derived-traits.hd
 std/hash.md	3	complete	lang/types/map-key-types/list-map-key.hd
@@ -1388,3 +1388,4 @@ std/io.md	4	complete	std/io/reading-in-chunks/cursor-reads-in-chunks.hd
 std/io.md	5	complete	-
 std/io.md	6	type-fragment	-
 std/url.md	1	complete	-
+std/fs.md	4	complete	std/fs/temporary-directories/temporary-directories.hd

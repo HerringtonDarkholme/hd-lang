@@ -29,7 +29,7 @@ item's full text and examples, run `hd doc std.time.sleep` inside any package.
 | `std.collections.heap` | [collections.heap.txt](collections.heap.txt) | 8 | `Heap` |
 | `std.iter` | [iter.txt](iter.txt) | 53 | `Iterator`, `ByRef`, `Sum`, `Product`, `DynIterator`, `FromFn`, `from_fn`, `MapIter`, ... |
 | `std.console` | [console.txt](console.txt) | 20 | `Console`, `ConsoleInput`, `read_line`, `read_all`, `MemoryConsole`, `println`, `print`, `eprintln`, ... |
-| `std.fs` | [fs.txt](fs.txt) | 25 | `FsError`, `EntryKind`, `Entry`, `FsRead`, `FsWrite`, `read_text`, `write_text`, `copy`, ... |
+| `std.fs` | [fs.txt](fs.txt) | 30 | `FsError`, `EntryKind`, `Entry`, `FsRead`, `FsWrite`, `read_text`, `write_text`, `copy`, ... |
 | `std.path` | [path.txt](path.txt) | 7 | `Path` |
 | `std.cli` | [cli.txt](cli.txt) | 28 | `ArgKind`, `Arg`, `ArgParser`, `Parsed`, `CliError`, `Cli`, `Short`, `short`, ... |
 | `std.host` | [host.txt](host.txt) | 14 | `Signal`, `Signals`, `ScriptedSignals`, `Env`, `env`, `env_as`, `env_decode`, `HostError`, ... |

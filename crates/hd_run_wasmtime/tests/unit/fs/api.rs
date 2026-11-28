@@ -7,6 +7,68 @@ mod tests {
     use std::time::Instant;
 
     #[test]
+    fn temporary_directory_creation_is_atomic_and_unpublished_owners_clean_up() {
+        use hd_run_wasmtime::internals::fs::Sandbox;
+        use hd_run_wasmtime::internals::fs::api::{Start, start};
+        let cwd = std::env::current_dir().unwrap();
+        let sandbox = Sandbox::default();
+        let directories = std::thread::scope(|threads| {
+            let started: Vec<_> = (0..16)
+                .map(|_| {
+                    let cwd = &cwd;
+                    let sandbox = &sandbox;
+                    threads.spawn(move || {
+                        match start(
+                            "FsWrite",
+                            "create_temp_dir",
+                            b"hd-owned-",
+                            &Grants::default(),
+                            sandbox,
+                            None,
+                            cwd,
+                        )
+                        .unwrap()
+                        {
+                            Start::Temporary(directory) => directory,
+                            _ => panic!("temporary creation did not return its owner"),
+                        }
+                    })
+                })
+                .collect();
+            started
+                .into_iter()
+                .map(|thread| thread.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        let paths: hd_base::HashSet<_> = directories
+            .iter()
+            .map(|directory| directory.path.clone())
+            .collect();
+        assert_eq!(paths.len(), 16);
+        for path in &paths {
+            fs::create_dir(path.join("nested")).unwrap();
+            fs::write(path.join("nested/file"), b"contents").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(
+                    fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                    0o700
+                );
+            }
+        }
+        let outside = TempDir::new();
+        fs::write(outside.0.join("preserve"), b"outside").unwrap();
+        #[cfg(unix)]
+        for path in &paths {
+            std::os::unix::fs::symlink(&outside.0, path.join("link")).unwrap();
+        }
+        drop(directories);
+        assert!(paths.iter().all(|path| !path.exists()));
+        assert_eq!(fs::read(outside.0.join("preserve")).unwrap(), b"outside");
+    }
+
+    #[test]
     fn copy_uses_independent_endpoint_grants_and_preserves_opened_aliases() {
         let dir = TempDir::new();
         let source = dir.0.join("source");
