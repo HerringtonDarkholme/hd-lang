@@ -400,6 +400,8 @@ A local reference escapes when it reaches one of these positions, and each is an
 12. r[ref.local.escape.fn-capture.fix-copy] The copy fix-it is offered only when the closure does not write through the reference.
 
 ```text
+use std.ops.Fn
+
 struct Point:
     x: i32
 
@@ -423,7 +425,7 @@ fn bound(p: Point) -> i32:
 fn reader(p: &Point) -> fn() -> i32:
     fn() -> i32: p.x  # error: local-reference-escapes
 
-fn keep(f: fn() -> i32) -> fn() -> i32:
+fn hold(f: fn() -> i32) -> fn() -> i32:
     f  # valid: a `fn(...)` value holds no local reference
 
 fn call_now(f: impl Fn() -> i32) -> i32:
@@ -434,17 +436,15 @@ fn borrowed(p: &Point) -> i32:
 
 fn copied(p: &Point) -> fn() -> i32:
     p := *p  # the copy fix-it
-    keep(fn() -> i32: p.x)  # valid: the closure captures a copy
+    hold(fn() -> i32: p.x)  # valid: the closure captures a copy
 ```
-
-> **Why.** A `fn(...)` value may be stored anywhere its type may, as a
-> field, a list element, or a result. A borrowing closure goes to a type
-> parameter instead, as Rust's `impl Fn` and Swift's non-escaping closures
-> do, so a function type never needs a lifetime for what it captured.
 
 > **Why.** Most references are lent for one call, as Swift's `inout`
 > parameters are. A counted reference is a separate ownership choice, not
-> a mechanical repair for a local reference that escapes.
+> a mechanical repair for a local reference that escapes. A `fn(...)` value
+> may be stored anywhere its type may, so a borrowing closure goes to a
+> type parameter instead, as Rust's `impl Fn` and Swift's non-escaping
+> closures do, and a function type needs no lifetime for its captures.
 
 See also: [Captured References](#captured-references),
 [Reference Receivers](07-functions.md#reference-receivers).
@@ -531,7 +531,7 @@ fn bad_local() -> &string:  # error: reference-result-without-source
 fn bad_pick(a: &User, b: &User) -> &User:  # error: ambiguous-reference-source
     a
 
-fn bad_compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:  # error: ambiguous-reference-source
+fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:  # valid: neither holds a local reference
     fn(x: i32) -> i32: g(f(x))
 
 fn bad_value(u: User, other: &User) -> &string:

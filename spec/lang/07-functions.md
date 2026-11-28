@@ -935,6 +935,8 @@ fn other_name(u: &User) -> usize:
 ```
 
 ```text
+use std.ops.FnMut
+
 struct Point:
     x: i32
 
@@ -945,7 +947,7 @@ impl['s] Shelf['s]:
     fn keep(&mut self, point: &'s Point) -> void:
         self.count += point.x
 
-fn fill['s](code: fn(&mut Shelf['s]) -> i32) -> i32:
+fn fill['s](mut code: impl FnMut(&mut Shelf['s]) -> i32) -> i32:
     let mut shelf = Shelf { count: 0 }
     code(&mut shelf)
 

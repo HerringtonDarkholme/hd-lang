@@ -663,13 +663,13 @@ fn internal_transport(root_pem: string) -> Result[*mut dyn Http, HttpConfigError
     root := Certificate::from_pem(root_pem)?
     .Ok($.use(Http).tls(roots=[root]).connect_timeout(2s).response_header_timeout(5s))
 
-fn fetch_internal!(request: &Request, root_pem: string) -> Result[Response, HttpError] $ Http + Clock:
+fn fetch_internal!(request: Request, root_pem: string) -> Result[Response, HttpError] $ Http + Clock:
     transport := match internal_transport(root_pem):
         .Ok(transport) => transport
         .Err(error) => return .Err(.Other("$error"))
     $.with(Http=transport):
         apply!(timeout(10s)):
-            $.use(Http).send!(request, 10)
+            $.use(Http).send!(&request, 10)
 ```
 
 ### Setting Values
