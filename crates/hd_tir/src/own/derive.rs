@@ -2664,8 +2664,8 @@ pub(super) struct MatchReads {
     /// Each node's root value as a node, or `NONE`: an instruction or a
     /// constant (after the instructions).
     parent: Vec<u32>,
-    /// Each node's entry and exit time in the tour, `NONE` for a node on
-    /// no root path.
+    /// Each node's entry and exit time in the tour, which visits every
+    /// node: the parents form a forest.
     enter: Vec<u32>,
     exit: Vec<u32>,
     /// The steps behind a dereference or an element on each node's path
@@ -2729,7 +2729,7 @@ impl MatchReads {
             }
             let place = b.view(b.data[r][0]);
             if let Root::Value(value) = place.root {
-                parent[r] = value_node(n, nodes, value);
+                parent[r] = value_node(n, value);
                 own_behind[r] = place.kinds(b).0 > 0;
             }
             stop[r] = !borrows(r);
@@ -2810,9 +2810,6 @@ impl MatchReads {
     /// stop fewer on the root path of each node of its subtree.
     pub(super) fn borrows(&mut self, r: usize) {
         let (a, z) = (self.enter[r], self.exit[r]);
-        if a == NONE {
-            return;
-        }
         let mut add = |at: u32, d: u32| {
             let mut k = at as usize + 1;
             while k <= self.fewer.len() {
@@ -2832,10 +2829,9 @@ impl MatchReads {
         if s == NONE || p == NONE {
             return false;
         }
-        let s = value_node(self.subject.len(), self.parent.len(), s);
-        if s == NONE || self.enter[s as usize] == NONE || self.enter[p as usize] == NONE {
-            return false;
-        }
+        // Every node is on the tour: each read's parent is made before it,
+        // so the parents form a forest, each of whose roots starts a tour.
+        let s = value_node(self.subject.len(), s);
         let ancestor = s == p
             || self.enter[s as usize] < self.enter[p as usize]
                 && self.exit[p as usize] <= self.exit[s as usize];
@@ -2847,18 +2843,13 @@ impl MatchReads {
     }
 }
 
-/// The node of value `v` in a forest of `n` instructions and then the
-/// constants, `nodes` in all, or `NONE`.
-fn value_node(n: usize, nodes: usize, v: u32) -> u32 {
-    let at = if v & Ref::CONST_BIT != 0 {
-        n + (v & !Ref::CONST_BIT) as usize
+/// The node of value `v`, an instruction's or a constant's, in a forest
+/// of `n` instructions and then the constants.
+fn value_node(n: usize, v: u32) -> u32 {
+    if v & Ref::CONST_BIT != 0 {
+        u32_of(n + (v & !Ref::CONST_BIT) as usize)
     } else {
-        v as usize
-    };
-    if v != NONE && at < nodes {
-        u32_of(at)
-    } else {
-        NONE
+        v
     }
 }
 
