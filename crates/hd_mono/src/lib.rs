@@ -3537,9 +3537,16 @@ impl Cx<'_> {
                             } else {
                                 let pick = match choice.0 {
                                     ChoiceKind::Impl => Some(DefId::from_raw(choice.1)),
-                                    ChoiceKind::Bound => None,
-                                    ChoiceKind::TraitValue => {
-                                        return err("a trait-value choice at a concrete receiver");
+                                    // ruled out: instantiate/fold_and_inline
+                                    // rechoose concrete bound calls (owned
+                                    // invariant 24), and trait-value receivers
+                                    // already dispatched through their table
+                                    // above. Neither needs another selection.
+                                    ChoiceKind::Bound | ChoiceKind::TraitValue => {
+                                        return Err(NotImplemented::bug(
+                                            Stage::Collect,
+                                            "an unresolved trait choice at a concrete receiver",
+                                        ));
                                     }
                                     ChoiceKind::Builtin => {
                                         let name = env.path_hash(method);
