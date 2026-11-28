@@ -14,9 +14,9 @@ pub struct Options:
     pub hd: string
     ## First seed; the next program uses the next seed.
     pub seed: u64 = 1
-    ## Number of programs when --minutes is zero.
+    ## Maximum number of programs.
     pub count: usize = 1000
-    ## Run for this many minutes instead of a fixed count.
+    ## Optional time bound; stop at this or the program count, whichever comes first.
     pub minutes: u32 = 0
     ## Continue finding and reducing failures after the first one.
     pub keep_going: bool
@@ -49,6 +49,7 @@ pub struct Stats:
     pub rejected: usize = 0
     pub findings: usize = 0
     pub reductions: usize = 0
+    pub expected_overflows: usize = 0
 
 # One bounded child at a time. TimeLimit cancels the host process operation,
 # including its child process group; the cleanup bound also has a deadline.
@@ -99,6 +100,7 @@ fn trial!(
     hd: string,
     directory: string,
     source: string,
+    overflow: (string, string)? = .None,
 ) -> Result[Trial, RunError] $ FsWrite + Process + Clock:
     if !source.contains("pub fn main()") || !source.contains("fn checksum()"):
         return .Ok(Trial { rejected: true })
@@ -113,7 +115,7 @@ fn trial!(
             Trial {
                 rejected: rejected,
                 difference: !rejected,
-                signature: "check/${check.status}",
+                signature: "check/${check.status}/${panic_kind(&check)}",
                 details: "check stdout:\n${check.stdout}\ncheck stderr:\n${check.stderr}",
             },
         )
@@ -134,7 +136,52 @@ fn trial!(
         cache,
     )
     release := child!(hd, [file, "--release", "--engine", "wasmtime", "--time-limit", "5s"], cache)
-    .Ok(classify(dev, checked, release))
+    match overflow:
+        .Some(pair) =>
+            let (raw, wrapping) = pair
+            reference_source := source.replace(raw, wrapping)
+            if reference_source == source:
+                return .Ok(Trial { rejected: true })
+            reference_file := "${directory}/wrapping.hd"
+            write_text!(Path(reference_file), reference_source)?
+            reference := child!(
+                hd,
+                [reference_file, "--engine", "wasmtime", "--time-limit", "5s"],
+                cache,
+            )
+            .Ok(classify_overflow(dev, checked, release, reference))
+        .None => .Ok(classify(dev, checked, release))
+
+fn panic_kind(output: &ProcessOutput) -> string:
+    text := output.stderr + output.stdout
+    for marker in ["panic: ", "panicked at ", "internal compiler error: "]:
+        parts := text.split(marker)
+        if parts.len() > 1:
+            tail := parts[1].split("\n")[0]
+            return if marker == "panic: ": tail.split(":")[0].split(" ")[0] else: tail
+    if output.status == 0: "ok" else: "exit-${output.status}"
+
+fn classify_overflow(
+    dev: ProcessOutput,
+    checked: ProcessOutput,
+    release: ProcessOutput,
+    reference: ProcessOutput,
+) -> Trial:
+    dev_ok := dev.status != 0 && panic_kind(&dev) == "integer-overflow"
+    checked_ok := checked.status != 0 && panic_kind(&checked) == "integer-overflow"
+    same := release.stdout == reference.stdout
+    valid := reference.stdout.trim().parse::[i64]().is_ok()
+    difference := (
+        !dev_ok
+        || !checked_ok
+        || release.status != 0
+        || reference.status != 0
+        || !same
+        || !valid
+    )
+    signature := "overflow/${panic_kind(&dev)}/${panic_kind(&checked)}/${panic_kind(&release)}/${panic_kind(&reference)}/${same}/${valid}"
+    details := "dev (${dev.status}):\n${dev.stdout}\n${dev.stderr}\nchecked (${checked.status}):\n${checked.stdout}\n${checked.stderr}\nrelease (${release.status}):\n${release.stdout}\n${release.stderr}\nwrapping reference (${reference.status}):\n${reference.stdout}\n${reference.stderr}"
+    Trial { difference, signature, details }
 
 fn classify(dev: ProcessOutput, checked: ProcessOutput, release: ProcessOutput) -> Trial:
     checked_ok := checked.status == 0 && checked.stdout.contains("1 passed; 0 failed")
@@ -147,7 +194,7 @@ fn classify(dev: ProcessOutput, checked: ProcessOutput, release: ProcessOutput) 
         || !same_release
         || !valid_checksum
     )
-    signature := "${dev.status}/${checked.status}/${release.status}/${checked_ok}/${same_release}/${valid_checksum}"
+    signature := "${dev.status}/${checked.status}/${release.status}/${checked_ok}/${same_release}/${valid_checksum}/${panic_kind(&dev)}/${panic_kind(&checked)}/${panic_kind(&release)}"
     details := "dev (${dev.status}):\n${dev.stdout}\n${dev.stderr}\nchecked (${checked.status}):\n${checked.stdout}\n${checked.stderr}\nrelease (${release.status}):\n${release.stdout}\n${release.stderr}"
     Trial { difference: difference, signature: signature, details: details }
 
@@ -176,27 +223,27 @@ fn render_lines(lines: &List[string], removed: &List[bool], lo: usize, hi: usize
             out.push("\n")
     out.build()
 
-# Hierarchical delta debugging: every original line interval is visited at
-# most once. Failed deletions split in two; successful ones need no children.
-# Width L takes at most 2L-1 oracle calls, plus E expression-site calls.
-# Candidate rendering and each compiler run cost their actual input bytes.
-# There is no native recursion or repeated global fixed point.
-fn reduce!(
+# A line interval is visited once per pass; expression cuts visit each
+# tree node once. Two line passes, with expression simplification between,
+# take at most 4L-2+E+N oracle calls for L lines, E legacy expressions and
+# N planned expression nodes. Each render/compile costs its candidate size.
+fn reduce_lines!(
     options: &Options,
-    program: &Program,
+    source: string,
+    overflow: (string, string)?,
     signature: string,
     stats: *mut Stats,
 ) -> Result[string, RunError] $ FsWrite + Process + Clock:
-    lines := program.source.split("\n")
+    lines := source.split("\n")
     let mut removed = [for _ in lines => false]
     plan := LinePlan::new(lines.len())
-    let best = program.source
+    let best = source
     while true:
         let .Some(span) = plan.next() else:
             break
         let (lo, hi) = span
         candidate := render_lines(&lines, &removed, lo, hi)
-        result := trial!(options.hd, options.directory, candidate)?
+        result := trial!(options.hd, options.directory, candidate, overflow)?
         stats.reductions += 1
         if result.difference && result.signature == signature:
             for index in lo..hi:
@@ -204,19 +251,44 @@ fn reduce!(
             best = candidate
         else:
             plan.keep(span)
-    for expression in program.expressions:
-        if expression == "0i64" || !best.contains(expression):
+    .Ok(best)
+
+fn reduce!(
+    options: &Options,
+    program: &Program,
+    signature: string,
+    stats: *mut Stats,
+) -> Result[string, RunError] $ FsWrite + Process + Clock:
+    let best = reduce_lines!(options, program.source, program.overflow, signature, stats)?
+    for tree in program.trees:
+        let current = tree.text
+        if !best.contains(current):
             continue
-        candidate := best.replace(expression, "0i64")
-        result := trial!(options.hd, options.directory, candidate)?
+        let mut removed = [for _ in 0..tree.nodes => false]
+        for node in 0..tree.nodes:
+            replacement := tree.candidate(node, &removed)
+            if replacement == current:
+                continue
+            candidate := best.replace(current, replacement)
+            result := trial!(options.hd, options.directory, candidate, program.overflow)?
+            stats.reductions += 1
+            if result.difference && result.signature == signature:
+                best = candidate
+                current = replacement
+                removed[node] = true
+    for (expression, zero) in program.expressions:
+        if expression == zero || !best.contains(expression):
+            continue
+        candidate := best.replace(expression, zero)
+        result := trial!(options.hd, options.directory, candidate, program.overflow)?
         stats.reductions += 1
         if result.difference && result.signature == signature:
             best = candidate
-    .Ok(best)
+    reduce_lines!(options, best, program.overflow, signature, stats)
 
 pub fn save_stats!(options: &Options, stats: &Stats) -> Result[void, RunError] $ FsWrite:
     unfinished := stats.generated - stats.accepted - stats.rejected
-    text := "generated=${stats.generated}\naccepted=${stats.accepted}\nrejected=${stats.rejected}\nunfinished=${unfinished}\nfindings=${stats.findings}\nreduction_trials=${stats.reductions}\nfirst_seed=${options.seed}\ncompiler=${options.hd}\n"
+    text := "generated=${stats.generated}\naccepted=${stats.accepted}\nrejected=${stats.rejected}\nunfinished=${unfinished}\nfindings=${stats.findings}\nexpected_overflows=${stats.expected_overflows}\nreduction_trials=${stats.reductions}\nfirst_seed=${options.seed}\ncompiler=${options.hd}\n"
     write_text!(Path("${options.directory}/summary.txt"), text)?
     .Ok(())
 
@@ -249,7 +321,7 @@ pub fn main() -> void \$ Console:
         )
     started := monotonic()
     let mut seen: Map[string, bool] = {}
-    while options.minutes > 0 || stats.generated < options.count:
+    while stats.generated < options.count:
         if (
             options.minutes > 0
             && elapsed(started).as_milliseconds() >= i64(options.minutes) * 60000
@@ -259,7 +331,7 @@ pub fn main() -> void \$ Console:
         program := generate(seed)
         write_text!(Path("${options.directory}/corpus/seed-${seed}.hd"), program.source)?
         stats.generated += 1
-        result := trial!(options.hd, options.directory, program.source)?
+        result := trial!(options.hd, options.directory, program.source, program.overflow)?
         if result.rejected:
             stats.rejected += 1
             write_text!(
@@ -268,6 +340,8 @@ pub fn main() -> void \$ Console:
             )?
         else:
             stats.accepted += 1
+            if program.overflow.is_some():
+                stats.expected_overflows += 1
             if result.difference:
                 base := "${options.directory}/findings/seed-${seed}"
                 write_text!(Path("${base}.original.hd"), program.source)?
@@ -282,7 +356,12 @@ pub fn main() -> void \$ Console:
                     .None => false
                 if !duplicate:
                     seen[reduced] = true
-                    final_result := trial!(options.hd, options.directory, reduced)?
+                    final_result := trial!(
+                        options.hd,
+                        options.directory,
+                        reduced,
+                        program.overflow,
+                    )?
                     write_text!(Path("${base}.hd"), reduced)?
                     write_text!(
                         Path("${base}.txt"),
@@ -303,6 +382,8 @@ pub fn main() -> void \$ Console:
 tests:
     use std.fs.MemoryFs
     use std.process.ScriptedProcess
+    use std.random.Rng
+    use pkg.expression.tree
     use std.time.{ManualClock, Timestamp}
 
     it("checked reports are compared through their assertion, not raw test output"):
@@ -332,7 +413,11 @@ tests:
         assert_equal(render_lines(&lines, &removed, 2, 3), "first\nfourth\n")
 
     it("checked wrapper keeps its import outside the reducible source"):
-        source := checked_source("pub fn main() -> void: pass\n", "42\n")
+        source := checked_source(
+            """pub fn main() -> void: pass
+""",
+            "42\n",
+        )
         assert(source.starts_with("use std.console.MemoryConsole\n"))
         assert(source.contains("assert_equal(console.output().join(\"\"), \"42\\n\")"))
 
@@ -348,14 +433,58 @@ tests:
 fn checksum() -> i64: 1i64
 pub fn main() -> void: pass
 """
-        program := Program { source: source, expressions: ["1i64"] }
+        program := Program { source: source, expressions: [("1i64", "0i64")] }
         options := Options { hd: "compiler", directory: "scratch", keep_going: false }
         stats := box(Stats {})
         $.with(FsWrite=fs, Process=process, Clock=clock):
             create_dir_all!(Path("scratch")).expect("memory directory")
-            reduced := reduce!(&options, &program, "check/-1", stats).expect("scripted reduction")
+            reduced := reduce!(&options, &program, "check/-1/exit--1", stats)
+                .expect("scripted reduction")
             assert(!reduced.contains("irrelevant"))
             assert(reduced.contains("fn checksum() -> i64: 0i64"))
             assert(reduced.contains("pub fn main()"))
-        assert(stats.reductions <= 2 * source.split("\n").len())
+        assert(stats.reductions <= 4 * source.split("\n").len())
         assert(!process.received().is_empty())
+
+    it("intentional checked overflow compares release to a wrapping reference"):
+        overflow := ProcessOutput {
+            status: 101,
+            stderr: "panic: integer-overflow: integer overflow\n",
+        }
+        value := ProcessOutput { stdout: "-128\n" }
+        assert(!classify_overflow(overflow, overflow, value, value).difference)
+        wrong := ProcessOutput { status: 101, stderr: "panic: index-out-of-bounds: bad index\n" }
+        assert(classify_overflow(wrong, overflow, value, value).difference)
+        assert(
+            classify_overflow(overflow, overflow, ProcessOutput { stdout: "127\n" }, value)
+                .difference,
+        )
+        assert(classify_overflow(value, overflow, value, value).difference)
+
+    it("panic categories remain part of the reduction signature"):
+        a := ProcessOutput { status: 101, stderr: "panic: integer-overflow: integer overflow\n" }
+        b := ProcessOutput { status: 101, stderr: "panic: index-out-of-bounds: bad index\n" }
+        checked := ProcessOutput { stdout: "test result: ok. 1 passed; 0 failed" }
+        assert(classify(a, checked, a).signature != classify(b, checked, b).signature)
+
+    it("reduction uses the expression tree's own typed zero"):
+        expr := tree(Rng::new(3), &["1i64"], "u16", 31, 8)
+        source := """fn checksum() -> i64: i64(${expr.text})
+pub fn main() -> void: pass
+"""
+        program := Program { source, expressions: [], trees: [expr] }
+        process := ScriptedProcess::new()
+        process.reply(
+            "compiler",
+            .Ok(ProcessOutput { status: -1, stderr: "injected checker crash" }),
+        )
+        fs := MemoryFs::new()
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        options := Options { hd: "compiler", directory: "scratch", keep_going: false }
+        stats := box(Stats {})
+        $.with(FsWrite=fs, Process=process, Clock=clock):
+            create_dir_all!(Path("scratch")).expect("memory directory")
+            reduced := reduce!(&options, &program, "check/-1/exit--1", stats)
+                .expect("typed reduction")
+            assert(reduced.contains("i64(0u16)"))
+            assert(!reduced.contains(expr.text))
