@@ -27,6 +27,7 @@ import {
   publish,
   releaseNotes,
   targets,
+  writeReleaseNotes,
 } from "./release-workflow.ts";
 
 const manifest = `[workspace]
@@ -321,3 +322,28 @@ test(
     }
   },
 );
+
+test("oversized real-world notes remain complete as a checksummed asset", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "hd-release-large-notes-"));
+  try {
+    const completeNotes = "Commit: abc\n\n" + "Full change entry.\n".repeat(50_000);
+    writeFileSync(join(directory, "SHA256SUMS"), "");
+    const files = await writeReleaseNotes({
+      directory,
+      version: "0.0.4",
+      repo: "owner/repo",
+      completeNotes,
+    });
+    assert.equal(files.length, 1);
+    assert.equal(readFileSync(files[0]!, "utf8"), completeNotes);
+    const body = readFileSync(join(directory, "notes.md"), "utf8");
+    assert.ok(body.length < 125_000);
+    assert.match(body, /releases\/download\/v0\.0\.4\/CHANGELOG-v0\.0\.4\.md/);
+    assert.equal(
+      readFileSync(join(directory, "SHA256SUMS"), "utf8"),
+      `${await checksum(files[0]!)}  CHANGELOG-v0.0.4.md\n`,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
