@@ -1,0 +1,21 @@
+# @dump: own stdout
+# @build: dev | checked | release | release checked
+# A local reference names the same storage as its owner. Replacing the
+# referent drops the previous string and leaves the new value initialized.
+use std.meta.inline
+
+struct Payload:
+    text: string
+
+@inline(.Always)
+fn replace(value: &mut Payload) -> void:
+    *value = Payload { text: "replacement" }
+
+fn run() -> string:
+    let mut value = Payload { text: "original:${1}" }
+    reference := &mut value
+    replace(reference)
+    value.text
+
+pub fn main() -> void $ Console:
+    println(run())

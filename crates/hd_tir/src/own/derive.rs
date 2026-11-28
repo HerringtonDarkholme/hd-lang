@@ -236,9 +236,6 @@ pub(crate) struct Tables {
     kid_start: Vec<u32>,
     kids: Vec<u32>,
     stack: Vec<(u32, u32)>,
-    /// (write, parent): a `Store` or mutable `Ref` into a parent's own
-    /// words, which changes the parent itself.
-    write_ups: Vec<(u32, u32)>,
     // What each instruction writes, in rows.
     write_start: Vec<u32>,
     writes: Vec<Write>,
@@ -327,7 +324,6 @@ impl Tables {
         self.key_rows.clear();
         self.paths.clear();
         self.writes.clear();
-        self.write_ups.clear();
         self.wpaths.clear();
         self.frame_uses.clear();
         self.root_uses.clear();
@@ -644,16 +640,6 @@ impl Tables {
                 if kids {
                     self.note_kids(bit, note, s, live);
                 }
-            }
-        }
-        let k = self.write_ups.partition_point(|w| w.0 < x);
-        for k in k..self.write_ups.len() {
-            let (at, up) = self.write_ups[k];
-            if at != x {
-                break;
-            }
-            if s.get(live, up) {
-                self.note(up, NONE, 0);
             }
         }
         let e = self.effects[i];
@@ -1333,13 +1319,12 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             t.effects[i].through = p.value().unwrap_or(NONE);
             if mutable_ref || tag == Tag::Store {
                 t.source(b, a, false, Walk::Write);
-                // A write into a value parent's own words changes the
-                // parent, which then keeps a count, as a write at the
-                // parent's own source would; one behind a reference or in
-                // a buffer there reaches every exposed place (`reach`).
-                if t.value != NONE && t.steps == (false, false) {
-                    t.write_ups.push((u32_of(i), t.value));
-                }
+                // ruled out: writing a value parent's own words. TIR
+                // invariant 21 (`Place::writable`) requires Deref/Elem
+                // through a value root; source retains those steps (a
+                // pinned dereference becomes an element). A local,
+                // global or pointer root has no value parent. Ordinary
+                // place links and `reach` record every valid write.
                 t.write_links(Dropped::Nothing);
             } else {
                 t.source(b, a, false, Walk::First);
@@ -2661,11 +2646,11 @@ pub(super) struct MatchReads {
     /// Each instruction's decision subject: the match whose first block
     /// encloses it, as that match's candidate, or `NONE`.
     subject: Vec<u32>,
-    /// Each node's root value as a node, or `NONE`: an instruction or a
-    /// constant (after the instructions).
+    /// Each instruction node's root instruction, or `NONE`. A constant
+    /// place is `Root::Const`, so no read has a constant parent.
     parent: Vec<u32>,
-    /// Each node's entry and exit time in the tour, `NONE` for a node on
-    /// no root path.
+    /// Each node's entry and exit time in the tour, which visits every
+    /// node: the parents form a forest.
     enter: Vec<u32>,
     exit: Vec<u32>,
     /// The steps behind a dereference or an element on each node's path
@@ -2686,7 +2671,7 @@ impl MatchReads {
         mut visit: impl FnMut(),
     ) -> Self {
         let n = b.len();
-        let nodes = n + b.consts.len();
+        let nodes = n;
         // The subject inside each block, each block resolved once: a walk
         // up stops at a block already known, then fills the blocks it
         // passed.
@@ -2707,7 +2692,9 @@ impl MatchReads {
                 if owner != NONE && b.tags[owner as usize] == Tag::Match {
                     let [candidate, blocks] = b.data[owner as usize];
                     if b.record(blocks).first() == Some(&block) {
-                        found = candidate;
+                        // A constant cannot be an ancestor: place decoding
+                        // gives it Root::Const, never a Root::Value parent.
+                        found = Ref(candidate).as_inst().map_or(NONE, |i| i.0);
                         break;
                     }
                 }
@@ -2729,7 +2716,7 @@ impl MatchReads {
             }
             let place = b.view(b.data[r][0]);
             if let Root::Value(value) = place.root {
-                parent[r] = value_node(n, nodes, value);
+                parent[r] = value;
                 own_behind[r] = place.kinds(b).0 > 0;
             }
             stop[r] = !borrows(r);
@@ -2810,9 +2797,6 @@ impl MatchReads {
     /// stop fewer on the root path of each node of its subtree.
     pub(super) fn borrows(&mut self, r: usize) {
         let (a, z) = (self.enter[r], self.exit[r]);
-        if a == NONE {
-            return;
-        }
         let mut add = |at: u32, d: u32| {
             let mut k = at as usize + 1;
             while k <= self.fewer.len() {
@@ -2832,10 +2816,8 @@ impl MatchReads {
         if s == NONE || p == NONE {
             return false;
         }
-        let s = value_node(self.subject.len(), self.parent.len(), s);
-        if s == NONE || self.enter[s as usize] == NONE || self.enter[p as usize] == NONE {
-            return false;
-        }
+        // Every node is on the tour: each read's parent is made before it,
+        // so the parents form a forest, each of whose roots starts a tour.
         let ancestor = s == p
             || self.enter[s as usize] < self.enter[p as usize]
                 && self.exit[p as usize] <= self.exit[s as usize];
@@ -2844,21 +2826,6 @@ impl MatchReads {
         ancestor
             && (s == p || self.stops(p) == self.stops(s))
             && self.behind[r] > self.behind[s as usize]
-    }
-}
-
-/// The node of value `v` in a forest of `n` instructions and then the
-/// constants, `nodes` in all, or `NONE`.
-fn value_node(n: usize, nodes: usize, v: u32) -> u32 {
-    let at = if v & Ref::CONST_BIT != 0 {
-        n + (v & !Ref::CONST_BIT) as usize
-    } else {
-        v as usize
-    };
-    if v != NONE && at < nodes {
-        u32_of(at)
-    } else {
-        NONE
     }
 }
 
@@ -2925,6 +2892,43 @@ mod lending_tests {
     use hd_types::{Ty, TyList};
 
     const LOCAL_REF: Ty = Ty(1_000_004);
+
+    #[test]
+    fn a_pinned_element_view_uses_the_pinned_header_as_its_owner() {
+        use crate::ir::{Place, Proj, ref_word};
+        let mut build = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let syn = NodeIdx::NONE;
+        let root = build.open_block();
+        let list = build.local(Ty(1_000_005), Symbol::NONE, local_flags::PARAM, syn);
+        let header = build.get(list, Ty(1_000_005), syn);
+        let index = build.const_value(Ty::prim(hd_types::Prim::Usize), 0);
+        let element = build.place(&Place {
+            root: PlaceRoot::Value(header),
+            proj: vec![Proj::Elem(index)],
+        });
+        let pin = build.emit(Tag::Ref, element, ref_word::PINS, LOCAL_REF, syn);
+        let whole = build.place(&Place {
+            root: PlaceRoot::Value(pin),
+            proj: vec![],
+        });
+        let view = build.emit(Tag::Read, whole, ReadMode::Borrow as u32, LOCAL_REF, syn);
+        let referent = build.place(&Place {
+            root: PlaceRoot::Value(view),
+            proj: vec![Proj::Deref],
+        });
+        let value = build.emit(Tag::Read, referent, ReadMode::Borrow as u32, Ty::I32, syn);
+        let root = build.close_block(root, Some(value), Ty::I32, syn);
+        let body = build
+            .finish_tolerating(root, &[], &[22])
+            .expect("pinned element view");
+        let mut tables = Tables::default();
+        tables.reset(body.len(), body.local_ty.len());
+        let source = tables.source(&body, referent, false, Walk::Read);
+        assert!(source.known);
+        assert!(!source.heap);
+        assert!(!source.elem_heap);
+        assert!(body.pinned_element_ref(pin.0 as usize));
+    }
 
     #[test]
     fn forwarding_aliases_collapse_once_at_width_and_depth() {

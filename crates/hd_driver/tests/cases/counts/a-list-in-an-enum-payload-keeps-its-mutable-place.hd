@@ -1,0 +1,20 @@
+# @dump: counts stdout
+# @build: dev | checked | release | release checked
+# Indexing a list borrowed through an enum payload walks the variant and
+# field before it reaches the list. Its updated value remains in the enum.
+struct Bucket:
+    items: List[string]
+
+impl !Copy for Bucket
+
+fn replace(value: &mut (Bucket?)) -> void:
+    match value:
+        .Some(bucket) => (*bucket).items[0] = "changed"
+        .None => pass
+
+pub fn main() -> void $ Console:
+    let mut value: Bucket? = .Some(Bucket { items: ["original"] })
+    replace(&mut value)
+    match &value:
+        .Some(bucket) => println(bucket.items[0])
+        .None => println("missing")

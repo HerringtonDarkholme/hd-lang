@@ -42,7 +42,7 @@ impl VerifyCx for CorpusFacts {
 /// The owned cases' facts: type 78 has a counted leaf, and item 8 has
 /// one non-suspending owned ABI parameter; item 9 has a cold parameter,
 /// and item 10 a cold requirement row. Other types have no counted
-/// leaf; ownership balance is exercised in the unit tests. Item 7
+/// leaf; type 79 is a local reference to i32. Ownership balance is exercised in the unit tests. Item 7
 /// constructs a borrowed-buffer string result with an explicit count;
 /// item 11 is the map-probe intrinsic.
 struct OwnershipFacts;
@@ -73,6 +73,12 @@ impl hd_tir::own::OwnCx for OwnershipFacts {
     }
     fn counted(&self, ty: Ty) -> bool {
         ty == Ty(78)
+    }
+    fn reference_target(&self, ty: Ty) -> Option<Ty> {
+        (ty == Ty(79)).then_some(Ty::I32)
+    }
+    fn plain_reference(&self, ty: Ty) -> bool {
+        ty == Ty(79)
     }
     fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
         hd_tir::own::Pass::Lent
