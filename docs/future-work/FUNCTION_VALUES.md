@@ -1,389 +1,371 @@
-# Function Values: Opt-In Closure Types And A Capture-Free `FnPtr`
+# Function Values: A Static `fn(..)` First
 
-Proposal, 2026-11-21, revised 2026-11-23 after the owner's feedback;
-domain: language (function types, closures), std, backend ABI; not
-accepted. Issues #1436 (Route A) and #1449 on top.
+Proposal, 2026-11-21, revised 2026-11-27 for the owner's direction
+("address `fn` first"); domain: language (function types, closures),
+backend ABI; not accepted. Issues #1436, #2409, #1449.
 
 ## The proposal
 
-`fn(..)` keeps today's meaning: a function value that may capture. Two
-faster forms are opt-in, with no new syntax:
+Three steps. Step 1 is the owner's decided form; this doc asks for its
+approval with the census and the plan.
 
-- **A type per closure**, through `F < Fn/FnMut(..)` or an `impl FnMut(..)`
-  parameter: a closure literal or function name there gets its own type,
-  called directly, captures held by value, no environment object.
-- **A capture-free function**, `FnPtr[(A,), O]`: one word, never counted.
+1. **`fn(..)` is always static, and it is one pointer.** A function value
+   never holds a local reference (`&T`, `&mut T`). A closure that captures
+   one goes only to `F < Fn/FnMut(..)` or `impl Fn/FnMut(..)`. A `fn(..)`
+   value is the address of a closure object `[count][descriptor][code][captures…]`.
+   A capture-free function is one static object, count 0.
+2. **A type per closure** through `F < Fn/FnMut(..)` (no new syntax).
+3. **#1449**: a closure type's `let` cells become frame slots.
 
-```text
-use std.function.{FnMut, FnPtr}
+```hd
+use std.ops.Fn
 
-struct Handlers:
-    on_event: List[fn(i32) -> void] # unchanged: may capture, erased
+struct Point:
+    x: i32
 
-struct Keep[F < FnMut(i32) -> bool]:
-    test: F # opt-in: one type per closure
+struct Handler:
+    run: fn() -> i32
 
-struct Collector:
-    trace: FnPtr[(usize,), void] # opt-in: captures nothing, one word
+fn keep(f: fn() -> i32) -> Handler:
+    Handler { run: f } # #2409: always valid, `f` holds no local reference
 
-fn demo(xs: List[i32], floor: i32) -> usize:
-    xs.filter(fn(x): *x > floor).len() # filter's F: this closure's own type
+fn call_now(f: impl Fn() -> i32) -> i32:
+    f()
+
+fn borrowed(p: &Point) -> i32:
+    call_now(fn() -> i32: p.x) # valid: an `impl Fn` parameter may borrow
+
+fn copied(p: &Point) -> Handler:
+    p := *p # fix-it 2: capture a copy
+    keep(fn() -> i32: p.x) # without the copy: local-reference-escapes
 ```
 
 ## Open questions
 
-1. Type per closure spelled by the existing `F < FnMut(..)` and
-   `impl FnMut(..)`, with no new syntax (B1 and B2 below)?
-   **Recommendation:** yes.
-2. Capture-free form spelled `FnPtr[(A,), O]`, a std constructor with no
-   sugar (A1)? **Recommendation:** yes; add `thin fn(..)` sugar (A2)
-   only if user code needs it.
-3. A function name at those positions also gets its own zero-size type,
-   as a Rust fn item does? **Recommendation:** yes, the same rule.
-4. A closure type is `Copy` only when its captures are, and the 50 std
-   bounds without `?Copy` gain it? **Recommendation:** yes (Rust parity).
-5. Delete `hd_opt`'s literal-consumer copies, so `fn(..)` parameters
-   are no longer specialized? **Recommendation:** yes, by the decision.
-6. `sorted_by` keeps `F` and costs 4.9 KB per distinct comparator?
-   **Recommendation:** yes, as Rust's `sort_by`.
-7. Growth-OK for +300 net lines, all from `FnPtr` and #1449?
-   **Recommendation:** yes.
+1. Approve step 1 as below, rules and plan included? **Recommendation:** yes.
+2. `Scope.spawn`'s crossing parameter `fn() -> T + Send & 's` keeps its
+   written lifetime in step 1, and moves to `F` in step 2? **Recommendation:**
+   yes. `F < Fn() -> T & Send` fails today (`fn() -> i32 does not implement
+   Send`), and a closure type that is `Send` by its captures is step 2.
+3. The callee fix-it is offered only for a callee in the checked package;
+   a std callee gets the copy fix-it alone? **Recommendation:** yes.
 
 ## Problems it solves
 
-**1. Iterator chains call through the table.** In the `closures` bench
-(`items.iter().map(..).filter(..).fold(..)`), each `next` of the one
-`MapIter[.., fn(i32) -> i32]` uses `call_indirect`. Hand-written with a
-struct per closure, as closure types give, it takes **126 ms, not 246
-(-49%)**, and **6844 bytes, not 7806 (-12%)**; a fused loop, 104 ms.
+**1. A `fn` parameter cannot be stored (#2409).** gojq's dispatch table
+wraps each function through a helper, `argFunc1(funcHas)`. Today the store
+`Function { callback: f }` is `local-reference-escapes`, because `f` might
+hold a caller's borrow. After step 1 the store is valid: nothing to track.
 
-**2. One `filter` closure costs an allocation.** `xs.filter(fn(x): *x >
-floor)` calls `rt:new/class-1` for `floor`'s environment, then the shared
-`List[T].filter[i32, fn(&i32) -> bool]`. With a closure type,
-`filter[i32, {closure}]` holds `floor` and runs `*x > floor` inline.
+**2. Two `fn` parameters cannot make a result.** `compose(f, g) -> fn(..)`
+is `ambiguous-reference-source` today: "the result may hold what `f` or `g`
+captures". After step 1 a `fn` result depends on nothing.
 
-**3. A capture-free hook carries an environment.** `rt/cycle`'s `trace`,
-`release` and `free` hold runtime helpers with empty environments
-(`Helper::Collect` in `crates/hd_wasm/src/rt.rs`). A call loads two words
-and passes an environment and a context: 25 bytes. As `FnPtr`: 10.
-
-## Candidate spellings
-
-| Form | Candidate | Example | Parses today |
-|---|---|---|---|
-| capture-free | **A1** std constructor (Rust's name) | `trace: FnPtr[(usize,), void]` | yes; the checker needs the type |
-| capture-free | A2 modifier (Swift's `thin`) | `trace: thin fn(usize) -> void` | no: parser work |
-| capture-free | A3 modifier (C++ `static`) | `trace: static fn(usize) -> void` | no: parser work |
-| per closure | **B1** generic bound | `struct Keep[F < FnMut(i32) -> bool]` | yes, checks |
-| per closure | **B2** `impl` parameter | `mut test: impl FnMut(&i32) -> bool` | yes, checks |
-| per closure | B3 Kotlin `inline` callee | `@inline(.Always)` over `test: fn(..)` | yes, checks |
-
-**Recommendation: A1, and B1 with B2.** No parser work; they reuse forms
-hd has (`Fn[I, O, $R]` names what `fn(..)` stands for). B1 is already
-std's opt-in: 97 bounds, iterator adaptors included. A1's 20 std sites,
-all runtime or derived code, are too few for a keyword (A2, A3). B3
-cannot live in a struct field (nor can Kotlin's), so `Filter` can't use it.
+**3. A stored callback is two words.** A field, a list element or a map
+value of type `fn(..)` is 8 bytes (code slot, environment), and a named
+function's value is `(slot, 0)`. Layout A makes it 4 bytes.
 
 ## How it works
 
-**Closure types.** A closure literal or function name has its own type
-at the two positions `fn.trait.read-only.positions` lists: a call
-argument for a bare type parameter (an `impl` parameter is one), and a
-struct literal field of one. Elsewhere it is `fn(..)`, so `f := fn(x): x +
-1` stays `fn(..)`. It implements `Fn` or only `FnMut` by
-`fn.trait.read-only.*`, and `Copy` when its captures are. Its value is a
-struct of its captures: a copy for an immutable one, the cell's address
-for a `let` one, so copies share cells. Calling it calls its body
-directly; a function name's type has no fields. No conversion to
-`fn(..)` is added: `F` stays opaque in an instance.
+**The rules** as the spec would read (`spec/STYLE.md` form; not applied yet):
 
-**`FnPtr`.** `std.function` declares `FnPtr[I, O, $R]` beside `Fn`.
+```markdown
+<!-- 13-values-and-references.md, Local References table: replaces ref.local.escape.capture-stored -->
+| r[ref.local.escape.fn-capture] Function value capture | is captured by a closure or a bound method reference whose value is a `fn(...)` value, a captured `self` included | `keep(fn() -> i32: p.x)` | `local-reference-escapes` |
 
-| From | To | When |
+8. r[ref.local.fn-static] A `fn(...)` value holds no local reference, so it may be stored, returned and copied wherever its type may.
+9. r[ref.local.escape.fn-capture.fix] The diagnostic offers two fix-its: the callee's parameter as `impl Fn(...)`, and a copy of the referent bound before the closure.
+10. r[ref.local.escape.fn-capture.fix-callee] The callee fix-it is offered only when the callee is declared in the checked package.
+11. r[ref.local.escape.fn-capture.fix-copy] The copy fix-it is offered only when the closure does not write through the reference.
+
+<!-- 07-functions.md, Copied And Shared Captures: replaces items 11 to 14 and 17; local-field and local-generic stay -->
+11. r[fn.capture.no-local-reference] A closure whose value is a `fn(...)` value must not capture a local reference, as the Function value capture row of [Local References](13-values-and-references.md#local-references) states. Error: `local-reference-escapes`.
+```
+
+Retired (their meaning goes): `ref.local.escape.capture-stored`,
+`ref.local.capture-parameter`, `ref.local.capture-origin`,
+`ref.capture.local-scoped`, `ref.capture.local-stored`,
+`ref.dep.capture-position`, `ref.dep.capture-elide`,
+`ref.dep.capture-elide.ambiguous`, and `fn.capture.local-parameter`,
+`-origins`, `-uses`, `-store`, `no-local-reference-stored`. Thirteen rules
+out, six in. The borrowing forms keep their rules: `ref.generic.outlives.field`
+and `.argument`, `fn.capture.local-field` and `fn.capture.local-generic`.
+
+**The representation.** A `fn(..)` value is one `i32`: the payload address
+of a closure object, never 0.
+
+| Word | Layout A | Today |
 |---|---|---|
-| function name, one-field variant, method reference | `FnPtr[..]` | always |
-| closure literal | `FnPtr[..]` | it captures nothing; else `closure-captures`, fix-it: `fn(..)` |
-| `FnPtr[..]` | `fn(..)` | always: paired with environment 0 |
-| `FnPtr[..]` | `F < Fn(..)` | always: it implements `Fn` |
+| `-8` count | 1+ on the heap; 0 for a static object | the environment's |
+| `-4` descriptor | release glue slot, 0 without counted captures | the same |
+| `0` code | the code's table slot | (in the value's first word) |
+| `4…` captures | as today | from offset 0 |
 
-Its value is an `i32` table slot holding the function itself: a call is
-`call_indirect (args)`, with a context only when `$R` is not empty.
+- **A call** pushes the pointer as the code's first argument, then the
+  arguments and the context, then `local.get f; i32.load offset=0;
+  call_indirect`. The code's ABI `(env, params…, ctx)` is unchanged; `env`
+  is now the object.
+- **A capture-free function** (a named function, a method reference, a
+  closure that captures nothing) is one static object per code instance,
+  deduplicated by its key as vtables are (`Module::vtable`). Same function,
+  same address. hd has no `fn` equality today (`expr.is.value-operand`);
+  this keeps `is` by address open.
+- **Count 0 is never changed.** A `fn` value's count leaf is a known payload
+  start (`hd_layout/src/shims.rs:183`), so it takes `RetainKnown` and
+  `ReleaseKnown`. Each skips count 0, as the static empty buffer relies on
+  (`rt.rs:1152-1162`). Cited in Appendix D.
+- **A niche gained:** the pointer is never 0, so `fn(..)?` can use 0 for
+  `none` (today `fn(..)` has no niche, `hd_layout/src/lib.rs:670-672`).
+- **Fast paths unchanged.** `devirt_known`, `closure_spec`, the
+  literal-consumer copies (`hd_opt/src/inline.rs`) and `Target::KnownClosure`
+  resolve a `CallValue` on TIR value flow, before any layout exists. A
+  known call still calls the code directly, passing the object as `env`.
+  The one new cost is the code load of an unresolved call; it is
+  loop-invariant, so `loop_loads` (#2374) hoists it.
 
-**#1449 on top.** A closure type has no environment object by
-construction. #1449 keeps only captured `let` cells: when the holder (the
-closure, or a `Filter` holding it) never leaves its frame by a return, a
-`*mut` store or a `box`, the cell becomes a frame slot (`CaptureMode::Frame`).
+**Layout B**, finding the code through the descriptor, is the A/B gate's
+other arm (Appendix C).
 
 ## Cost
 
-**Lines.** `crates/` is 378,673 lines at 6712c5923. End state about
-378,970: +750 added, -450 deleted, net +300. Step 1 (closure types)
-deletes the consumer copies in the same commit, about net zero.
+Measured at `1290ef6e1` (main `6e89c61fa` merged), release, V8, from a
+stage fixture's WAT (Appendix D). Layout A's rows are derived from the
+same instructions, not measured.
 
-| Component | Lines | What |
-|---|---:|---|
-| **Delete:** literal-consumer copies | **-450** | `hd_opt/src/inline.rs`: `LiteralConsumer`, `consumer_copy`, `literal_consumer`, `make_literal_consumer`, their tests (-330); `hd_tir/src/inline/closures.rs`: `literal_arguments`, `called_parameters`, their tests (-120) |
-| Closure types: checker | +200 to +250 | identity at the two positions, `Fn`/`FnMut`, `Copy` |
-| Closure types: mono, TIR, Wasm | +200 to +250 | instance key; captures struct; direct call |
-| `FnPtr` | +200 to +250 | the type, coercions, `closure-captures`, one-word ABI |
-| #1449 | +50 to +100 | frame slots for closure-type cells |
-
-**Runtime and size**, measured at 6712c5923 (release, V8; Appendix D):
-
-| Case | Today | With the proposal |
+| Case | Today | Layout A |
 |---|---|---|
-| call through a `fn(i32) -> i32` field | 2 loads, `call_indirect (env, x, ctx)`, 25 bytes | `FnPtr`: 1 load, `call_indirect (x)`, 10 bytes |
-| create a capturing closure | `rt:new/class-1` + store | closure type: none (a struct field) |
-| one more closure to `filter` | shared instance | +159 bytes (a new instance) |
-| one more closure to `.iter().map(..).sum()` | shared instance | +379 bytes |
-| one more comparator to `sorted_by` | shared instance | +4873 bytes |
-| compile time | one instance per `fn(..)` type | at most one instance per literal per generic: linear, no iteration |
-| web compiler gzip | | the net lines, under 1 KB |
+| call of a `fn(i32) -> i32` field | 11 instructions, 25 bytes, 2 loads | 8 instructions, 19 bytes, 2 dependent loads |
+| call of a `fn(i32) -> i32` local | 5 instructions, 11 bytes, 0 loads | 6 instructions, 14 bytes, 1 load (hoistable) |
+| a stored callback (field, element) | 8 bytes | 4 bytes |
+| a named function's value | `(slot, 0)`, no heap | a 12-byte static object, once per module |
+| a closure capturing one `i32` | 8 bytes + a 16-byte block | 4 bytes + a 16-byte block (payload code + `k`) |
 
-**std signatures** (`lib/std`, 6712c5923; 107 `fn(..)` type sites, 99
-closure literals, 97 `Fn`/`FnMut` bounds):
+A heap closure grows by 4 bytes. With 16-byte size classes
+(`lib/std/rt/alloc.hd:375`), that crosses a class only when the captures
+take 9 to 12 bytes past a multiple of 16.
 
-| Move | Count | Sites |
+**The A/B gate**, the done check for step 1's implementation (not for this
+lane): `closures`, `dyn_iter`, `function-value-inputs` and md-reader, in
+release on V8 and Wasmtime, A against B against today. It must show no
+runtime loss and halved storage for stored callbacks (8 to 4 bytes).
+
+**The census** (Appendix D lists every site): the step-1 check, patched into
+the checker, against `lib/std`, the conformance corpus, `../md-reader` and
+`../hdjq`.
+
+| Corpus | New errors | Fix |
 |---|---:|---|
-| already `F < Fn/FnMut`: becomes per closure, no edit | 97 bounds | `iter` adaptors, `List`/`Map`/`Option` combinators, `defer`, `ensure`, retry |
-| add `?Copy` to such a bound (question 4) | 50 | `iter` (26), `task` (7), `ops` (7), `contract` (6), 4 others |
-| `fn(..)` to `F < FnMut(..)` | 4 | `Result.map`, `map_err`, `and_then`, `Option.and_then` |
-| `fn(..)` to `FnPtr` | about 20 | `rt/cycle` (7), `structure` records (4), derived-order `other_index` (3), `wire_put`/`wire_take` (2), `rt/wait`, `rt/checked` (3), `start_thread` (1) |
-| stays `fn(..)` | about 83 | stored callbacks that may capture: `task` layers, `testing` generators, `format` printers, `remote`, `thread` |
+| `lib/std` bodies | 0 | none; one signature, `thread.scope`, for its callers |
+| conformance, 9,051 files | 194 files | 176 by one generator edit, 7 callee edits, 6 `std.thread`, 3 retired-rule fixtures, 2 moved errors |
+| md-reader | 0 | |
+| hdjq | 0 | |
+
+**Step 1's implementation:** about 130 to 190 lines added and 275 to 395
+deleted, net −85 to −265 (component table in Appendix E).
 
 ---
 
 ## A. Stress test
 
-1. **The `closures` bench** (map, filter, fold): unchanged source; each
-   closure gets an instance. Measured ceiling -49% time (Problem 1).
-2. **Rust's `Iterator::filter(..).map(..)` chains** as `dyn_iter` writes
-   them: `Filter[Counter, i64, {c1}]` inside `MapIter[.., {c2}]`, one
-   instance per chain, linear in literals. Works.
-3. **An event registry** (`addEventListener`): `List[fn(Event) -> void]`
-   stays erased, and each listener may capture. Works unchanged; this is
-   why `fn(..)` keeps its meaning.
-4. **A C `qsort` comparator or a runtime hook table:**
-   `List[FnPtr[(usize,), void]]` of named functions. Works; a capturing
-   closure there is `closure-captures` with a `fn(..)` fix-it.
-5. **Two closures for one `F`**: `f := if c: fn(x): x + 1 else: fn(x): x
-   * 2; apply(f)`. `f` is a binding, so it is `fn(..)`, and `F = fn(i32)
-   -> i32` gives today's erased instance. Works, with no fast path;
-   writing `apply` in each branch restores it.
-6. **A capture of a `!Copy` value** (`xs.iter().filter(fn(x): .. image
-   ..)` with `impl !Copy for Image`) checks today because `fn(..)` is
-   `Copy`. With closure types it fails `Filter`'s implicit `Copy` bound.
-   **Found:** question 4 adds `?Copy` to 50 bounds.
-7. **Parser combinators** (nom's `tag(..)` returns `impl Fn`): an hd
-   combinator returns `fn(..)`, which stays erased. **Found:** closure
-   types at opaque results (`-> impl Fn(..)`) are a later extension, not
-   in this proposal.
-8. **`F` passed on to a `fn(..)` parameter** inside an instance:
-   `type-mismatch` today (probe), and still after. The callee goes
-   generic, or the caller passes a `fn(..)`.
-9. **Code size**: a program with ten different `sorted_by` comparators
-   grows by about 44 KB. **Found:** question 6.
-10. **Crossing closures** (`fn() -> T + Send`): already literal-only and
-    per call; unchanged.
+1. **gojq's dispatch table** (#2409): `map[string]function{argFunc1(funcHas),
+   …}` as `Map[string, Function]` built through `arg_func1(f: fn(..))`.
+   Works after step 1, with no enum workaround.
+2. **`compose(f, g)`**: checks after step 1 (today `ambiguous-reference-source`).
+3. **The pointer-loan matrix** (176 generated fixtures): each passes a
+   borrowing closure to `apply(.., read: fn() -> string)`. **Found:** the
+   generator (`spec/tools/generate-pointer-loan-matrix.ts`) writes
+   `read: impl Fn() -> string`, and the runtime loan checks still apply.
+4. **Scoped threads:** `scope(fn(s): s.spawn(fn(): point.x).join())`.
+   **Found:** `scope` needs `impl FnMut`, and `spawn` needs question 2.
+5. **A `&mut self` method reference** (`twice(p::shift, 1.0)` with
+   `p: &mut Point`): error; the callee takes `impl FnMut`.
+6. **A `let mut` capture** (`xs.each(fn(x): total += x)`): a cell, not a
+   local reference. Unchanged.
+7. **`self` in a `&self` method**, passed to a `fn(..)` parameter: error with
+   both fix-its; std's iteration methods already take `F` (97 bounds).
+8. **A static closure in a cycle:** the collector's `visit` finds no block
+   for a static address and stops (`lib/std/rt/cycle.hd:169-171`).
+9. **A suspending value** (`fn() -> T !`): its code word is the cold
+   constructor, as its table slot is today.
+10. **A `&mut` capture with the copy fix-it:** the copy would lose the
+    writes, so rule `fix-copy` withholds it.
+11. **A local closure value** (`f := fn() -> i32: p.x; f()`): an error today
+    (the old rule's own example) and still one. The copy fix-it applies;
+    step 2 does not change it, since a binding stays `fn(..)`.
 
 ## B. Prior art, with code
 
-Probes in `/tmp/lt255/probes` (not in the repo); each claim below names
-its source.
+**Go** (go1.27.3 darwin/arm64, `go build -gcflags=-S`; layout A exactly).
+A func value is a pointer to a `funcval` whose first word is the code.
 
-**Rust** (rustc 1.97.1 `-O`, `--emit=mir`; the
-[Reference](https://doc.rust-lang.org/reference/types/closure.html): "a
-closure value with a unique, anonymous type"). A fn item is 0 bytes, a
-`fn` pointer 8, a capture-free closure 0, a closure capturing an `i32`
-4, a `Box<dyn FnMut>` 16.
+```go
+type Mapper struct{ transform func(int32) int32 }
+func apply(m *Mapper, x int32) int32 { return m.transform(x) }
+// MOVD (R0), R26   load the func value; R26 is the closure context
+// MOVD (R26), R2   load the code word at offset 0
+// CALL (R2)
+func makeNamed() Mapper { return Mapper{transform: named} }
+// MOVD $main.named·f(SB), R0   a static funcval, one per function
+func makeClosure(k int32) Mapper { return Mapper{transform: func(x int32) int32 { return x * k }} }
+// allocates struct { F uintptr; X0 int32 }, stores the code at offset 0
+```
+
+hd takes the layout, the static object per function, and the object as
+the code's context argument.
+
+**Rust** (rustc 1.97.1). A borrowing closure goes to `impl Fn`, never to a
+stored function type: this is step 1's rule.
 
 ```rust
-let item = double;                          // own type, size 0
-let ptr: fn(i32) -> i32 = double;           // one word: ReifyFnPointer
-let coerced: fn(i32) -> i32 = |x| x + 1;    // MIR: ClosureFnPointer
-let bad: fn(i32) -> i32 = move |x| x + k;   // E0308: expected fn pointer, found closure
-fn apply_generic<F: FnMut(i32) -> i32>(mut f: F, x: i32) -> i32 { f(x) }
+fn call_ptr(f: fn() -> i32) -> i32 { f() }
+fn call_impl(f: impl Fn() -> i32) -> i32 { f() }
+fn demo(p: &Point) -> i32 {
+    call_impl(|| p.x) + call_ptr(|| p.x)
+    // E0308: expected fn pointer, found closure
+}
 ```
 
-hd takes the closure type and the capture-free pointer, both opt-in;
-Rust's default spelling is the fast one, hd's is the erased one.
+Rust's `fn` pointer is capture-free; hd's `fn(..)` may still capture
+copies and counted references. The previous revision's `FnPtr` was Rust's
+`fn` pointer; one pointer to a static object makes it unneeded.
 
-**Swift** (swiftc 6.4). Function values are thick: 16 bytes. The
-[reference](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/ReferenceManual/Attributes.md)
-documents `@convention(swift | block | c)` only; `@convention(thin)`
-compiles (8 bytes), but a capturing closure there is "INTERNAL ERROR:
-feature not implemented". `@escaping` marks a parameter that may be
-stored.
+**Swift** (swiftc 6.4): a stored (`@escaping`) closure cannot capture an
+`inout` parameter; a non-escaping one may.
 
 ```swift
-struct Mapper { var transform: (Int32) -> Int32 }               // 16 bytes
-struct CMapper { var transform: @convention(c) (Int32) -> Int32 } // 8 bytes
-let c: @convention(c) (Int32) -> Int32 = { $0 + k }
-// error: a C function pointer cannot be formed from a closure that captures context
+func store(_ f: @escaping () -> Int) { kept.append(f) }
+func run(_ f: () -> Int) -> Int { f() }
+func demo(_ n: inout Int) -> Int {
+    let a = run { n + 1 }  // valid
+    store { n + 1 }        // error: escaping closure captures 'inout' parameter 'n'
+    return a
+}
 ```
 
-hd matches Swift's default (thick, may capture) and spells the thin form
-as a type, A1, not an attribute. Swift's non-escaping default does not
-fit hd, where a `fn(..)` parameter may be stored.
+hd's `fn(..)` is Swift's `@escaping` always; hd's borrowing form is a
+generic parameter, not an attribute. Swift values are two words.
 
-**Kotlin** ([inline functions](https://kotlinlang.org/docs/inline-functions.html)):
-`inline` inlines the function and "the lambdas passed to it"; `noinline`
-lambdas "can be manipulated in any way you like, including being stored";
-`crossinline` forbids non-local returns from a lambda called in another
-context.
-
-```kotlin
-inline fun <T> lock(lock: Lock, body: () -> T): T { ... }
-inline fun foo(inlined: () -> Unit, noinline notInlined: () -> Unit) { ... }
-inline fun f(crossinline body: () -> Unit) { val f = object: Runnable { override fun run() = body() } }
-```
-
-hd rejects it as the opt-in (B3): an inlined lambda cannot live in a
-struct field, and hd's adaptors store theirs.
-
-**Zig** (0.17.1 probe; [Functions](https://ziglang.org/documentation/0.15.2/#Functions):
-"function bodies are comptime-only types while function pointers may be
-runtime-known"). There are no closures.
-
-```zig
-const Mapper = struct { transform: *const fn (i32) i32 };   // 8 bytes
-fn applyComptime(comptime f: fn (i32) i32, x: i32) i32 { return f(x); }
-// var f: fn (i32) i32 = double;  error: must be const or comptime
-```
-
-hd's `FnPtr` is Zig's `*const fn`, and a closure type at `F` is its
-comptime body.
-
-**C++** (clang 23 `-std=c++20 -O2`;
-[cppreference](https://en.cppreference.com/w/cpp/language/lambda):
-"unique unnamed ... class type, known as closure type"; conversion to a
-pointer "only if the lambda expression has no captures"). Sizes: pointer
-8, capture-free lambda 1, lambda capturing an `int` 4, `std::function` 32.
+**C++** ([cppreference](https://en.cppreference.com/w/cpp/language/lambda)):
+a lambda has a unique closure type; `std::function` erases it (32 bytes
+in clang 23, may allocate); a template parameter keeps it.
 
 ```cpp
-template <class F> int apply_generic(F f, int x) { return f(x); }  // per lambda
-int (*p)(int) = [](int x) { return x + 1; };                      // captureless converts
-std::function<int(int)> erased = [k](int x) { return x + k; };    // erased, may allocate
-// int (*q)(int) = [k](int x) { return x + k; };  error: no viable conversion
+template <class F> int apply(F f, int x) { return f(x); }  // per lambda, may borrow
+std::function<int(int)> erased = [k](int x) { return x + k; };
 ```
 
-The closest match: `std::function` is hd's `fn(..)`, a template
-parameter is `F`, and a function pointer is `FnPtr`.
+## C. Alternatives considered
 
-## C. Candidate spellings in full
-
-Each block was checked with `hd check` (Parse log, Appendix E).
-
-```text
-use std.function.FnPtr
-
-struct Collector:
-    trace: FnPtr[(usize,), void]
-
-fn run(c: &Collector, block: usize) -> void:
-    (c.trace)(block)
-```
-
-```text
-struct Collector:
-    trace: thin fn(usize) -> void  # hypothetical syntax
-```
-
-```text
-struct Collector:
-    trace: static fn(usize) -> void  # hypothetical syntax
-```
-
-```text
-use std.function.FnMut
-
-struct Keep[F < FnMut(&i32) -> bool]:
-    test: F
-
-fn count_if[F < FnMut(&i32) -> bool](items: List[i32], mut test: F) -> usize:
-    let mut n: usize = 0
-    for item in items:
-        if test(&item):
-            n += 1
-    n
-```
-
-```text
-use std.annotation.inline
-
-@inline(.Always)
-fn count_if(items: List[i32], test: fn(&i32) -> bool) -> usize:
-    let mut n: usize = 0
-    for item in items:
-        if test(&item):
-            n += 1
-    n
-```
-
-Also rejected: `*fn(..)` and `&fn(..)` (`*` and `&` are hd references;
-`&fn` is already `syntax-error: a function value is already a reference`),
-and a marker bound `fn(..) -> O + Bare` (marker bounds mean a crossing
-parameter, `fn.crossing.parameter`, and fail to parse in a field).
-
-The previous revision made `fn(..)` capture-free and spelled stored
-closures `*mut dyn FnMut(..)`. The owner rejected it (2026-11-21), and
-`ref.type.dyn.no-fn` forbade that type anyway.
+- **Keep the direct-argument exception:** #2409 and `compose` stay
+  errors, and the checker keeps the capture slot. Rejected by the owner.
+- **Layout B**, the measured alternative: no code word; the code is found
+  through the descriptor. It saves 4 bytes per heap closure, but costs about
+  3 instructions per indirect call (load the descriptor at `-4`, mask its
+  glue field, add the code's offset) and puts every closure's code into the
+  16-bit glue slot range (#1536). Variant to measure with A: a static object
+  recognised by address, so a named function's value points into a dense
+  code array.
 
 ## D. Today in hd
 
-- `fn(..)` is (table slot, counted environment), environment 0 when
-  nothing is captured; a code instance takes (environment, parameters,
-  context) (`crates/hd_wasm/src/emit/closure.rs`).
-- Stage cases, built `v8 release` and kept in `/tmp/lt255/stage-cases`
-  (not in the repo). A field call (`(self.transform)(x)`):
+**Census method.** The patch (not committed) made a closure or bound
+method reference scoped only for a bare type parameter whose bound is
+`Fn`/`FnMut` (`FnWant::scoped`), in the three argument sites of
+`hd_check/src/call.rs` (positional, named, trailing). `lib/std`:
+`every_std_body_checks_with_no_diagnostic` passes. Corpus: `hd check` on
+each `cases.tsv` file with both builds, diffing `local-reference-escapes`
+lines. md-reader and hdjq: `hd check src/main.hd` and the tests file, on
+copies. Each local reports once per body, so a body may hide a second site.
 
-  ```wat
-  local.get $self
-  i32.load $heap
-  local.get $self
-  i32.load $heap offset=4
-  local.set $self
-  local.set $t0
-  local.get $self
-  local.get $x
-  i32.const 0
-  local.get $t0
-  call_indirect $table0 (param i32 i32 i32) (result i32)
-  ```
+| Fixture (`spec/conformance/`) | Fix |
+|---|---|
+| `lang/references/pointer-loans/closure/*` (176) | the generator: `read: impl Fn() -> string` |
+| `lang/functions/closures/lifetime-closure-call-loan-lasts-the-call`, `lifetime-closure-call-stores-a-capture` | `fill` takes `impl FnMut` |
+| `lang/functions/function-types-and-values/method-references/receiver-method-references` | `twice`, `read` take `impl FnMut`/`impl Fn` |
+| `lang/references/boxes/captured-reference-list-reads` | `apply` takes `impl Fn` |
+| `lang/references/dependent-results/frozen-loans/frozen-loan-for-scope` | `total` takes `impl Fn` |
+| `lang/references/moves/mut-reference-capture-after-move` | `run` takes `impl Fn`, so the move stays the test |
+| `std/sync/arc/writes-through-a-mut-field-of-a-get-reference-are-kept` | `each` takes `impl FnMut` |
+| `std/thread/a-thread-borrows-a-reference-that-outlives-its-scope`, `a-place-a-thread-borrows-is-not-written-before-its-scope-returns`, `a-thread-may-not-borrow-a-local-of-its-scopes-closure` | `scope` takes `impl FnMut`; `spawn` by question 2 |
+| `lang/references/dependent-results/frozen-loans/frozen-loan-blocks-element-store`, `frozen-loan-ends-with-its-lifetime`, `std/arena/an-arena-is-not-lent-to-another-thread` | `spawn`, by question 2 |
+| `lang/functions/closures/function-parameter-captures-local-reference`, `function-parameter-stored-in-a-local-through-a-reference`, `lang/references/dependent-results/function-parameter-capture-dependent-return` | fixtures of retired rules: become reject cases of `fn-capture` |
+| `lang/references/generic-locality/function-parameter-capture-boxed`, `lang/references/local-references/for-element-references-capture` | still rejected; the error moves to the call, or names the capture |
 
-  A capturing closure (`fn(x: i32) -> i32: x * k`) calls
-  `rt:new/class-1` and stores `k`. A closure in a generic field gives
-  `Keep[F].count[fn(i32) -> bool]`, which calls it with `call_indirect`.
-  Release builds take no counts at these sites (#1436 Route B).
-- `F` already solves to `fn(..)` for a closure (`fn.trait.bound.closure-inputs`),
-  and `hd_opt`'s literal-consumer copies specialize some consumers under a
-  budget. `List[T].filter` was not specialized in the stage case.
-- **Bench method.** `bench/study/closures.hd` as is; the same with
-  `MapR`/`Even` structs written for the two closures; and a fused loop.
-  Each built with `hd build --release`, run as `HD_ENGINE=node hd
-  FILE.wasm`, timed by `hyperfine -w 2 -r 10`; all print 745614.
-- **Instance sizes.** Release module bytes with a second element type
-  (`i32` and `i64`) at the same call: a second `sorted_by` +4873,
-  `filter` +159, `.iter().map(..).sum()` +379.
+**Today's calls** (`# @build: v8 release` stage fixture, `hd_wasm` `wat`
+view; the fixture is not in the repo). A field call:
+
+```wat
+local.get $self
+i32.load $heap            ;; code slot
+local.get $self
+i32.load $heap offset=4   ;; environment
+local.set $self
+local.set $t0
+local.get $self
+local.get $x
+i32.const 0               ;; context
+local.get $t0
+call_indirect $table0 (param i32 i32 i32) (result i32)
+```
+
+A local `f(x)`: `local.get $f.1; local.get $x; i32.const 0; local.get
+$f.0; call_indirect`. A named function's value: `i32.const 2; i32.const
+0`. A closure capturing `k`: `rt:new/class-1` with 4 payload bytes, then
+`i32.store`.
+
+**Count 0 is skipped**, at every layer a `fn` value's count reaches:
+
+- `lib/std/rt/alloc.hd:276-282`, `retain_known`: `if count != 0` before the
+  increment.
+- `lib/std/rt/alloc.hd:299-305`, `release_known`: `if count == 0: return 0`.
+- `crates/hd_wasm/src/opt.rs:5097-5107`, `inline_counts`' inline retain:
+  `i32.eqz; br_if 0` on the loaded count; its release decrements only above
+  1 (`5108-5143`), and else calls `ReleaseKnown`.
+- `crates/hd_wasm/src/count_tests.rs:120-132`: the test before a known count
+  call loads the count and calls only when it is not 0 (or `Tracing`).
+- `crates/hd_wasm/src/emit/count.rs:504-533`, `count_locals_inner`: a known
+  address, as a `fn` value's is, emits `RetainKnown` or `ReleaseKnown`
+  (or `ReleaseFresh`, for a block this body allocated, never a static one).
 
 ## E. Details
 
-- **Spec (07, 13):** new `fn.closure.type` (the two positions),
-  `fn.closure.type.copy`, `fn.ptr.*` (the `FnPtr` table, `closure-captures`);
-  `fn.trait.bound.closure-inputs` changes "still solves `F`" to the
-  closure's own type; `fn.capture.*` gain the frame-slot rule from #1449.
-- **Ownership:** a closure type counts its captures as struct fields do;
-  `FnPtr` is never counted; `fn(..)` is unchanged, Route B included.
-- **Diagnostics:** `closure-captures` at the closure, naming its first
-  capture, with a fix-it to the `fn(..)` type.
-- **Phases** (each about an hour, each with its test): closure types in
-  the checker; mono keys and direct calls; delete the consumer copies;
-  std `?Copy` bounds and the four `Result`/`Option` moves; bench report;
-  then `FnPtr` (type, ABI, std moves); then #1449 (frame-slot cells, with
-  the issue's stage case).
-- **Parse log** (`scripts/hd-conformance.sh parse` and `hd check`, at
-  6712c5923): blocks 1, 2, 5 and 6 parse; 3 and 4 fail at `fn` (`expected
-  a line ending`), the hypothetical modifiers. Blocks 5 and 6 check.
-  Blocks 1 and 2 fail `hd check` only on the import of `FnPtr`, which
-  does not exist yet; with `fn(usize) -> void` in its place, both check.
-  Blocks 1, 2, 5 and 6 pass `hd fmt --check`.
+- **Spec:** 07 and 13 as in How it works; `std/thread.md`
+  `std-thread.spawn.borrow` follows question 2. A retired ID is deleted and
+  named in the commit (`spec/STYLE.md` Stability).
+- **Diagnostics:** `local-reference-escapes` at the closure, naming the
+  captured reference, with the fix-its of rules `fix`, `fix-callee`,
+  `fix-copy`.
+
+**Step 1's implementation** (lines estimated from the sites named):
+
+| Crate | Files | Added | Deleted | What |
+|---|---|---:|---:|---|
+| `hd_check` | `call.rs`, `trial.rs`, `fnref.rs` | 5 | 40 | the direct `fn(...)` argument exception |
+| `hd_check` | `dep_results.rs`, `dep_results/constraints.rs`, `regions.rs` | 0 | 200 to 300 | a function type's capture slot: `capture_elided`, `FieldCapture`, the #2409 message, the capture ambiguity |
+| `hd_check` | `local_refs.rs` | 40 to 60 | 0 | the two fix-its |
+| `hd_layout` | `lib.rs`, `shims.rs` | 5 | 5 | `Fn` is one non-null address; count leaf 0 |
+| `hd_wasm` | `emit/closure.rs`, `emit.rs`, `module.rs`, `rt.rs` | 80 to 120 | 30 to 50 | the code word, static objects, the call's load, `rt:collect`'s three hooks |
+| `lib/std` | `thread.hd` | 2 | 2 | `scope` takes `impl FnMut` |
+| **Total** | | **130 to 190** | **275 to 395** | **net −85 to −265** |
+
+It deletes today's `(code, env)` pair (two words in `hd_layout`, the
+`(slot, 0)` builds in `emit.rs` and `rt.rs`), the environment-0 case of
+every capture-free value, and the direct-argument exception with the
+capture slot behind it. Cost per run: the check is a constant per closure
+argument, less than today's origin tracking; static objects cost one hash
+lookup per function value, linear in the values a module names.
+
+- **Phases of step 1** (each about an hour, each with its test):
+  1. the check and the fix-its, with the 194 fixtures and the generator,
+     deleting the exception (conformance `lang/functions`, `lang/references`,
+     `std/thread`);
+  2. the capture slot's deletion in `dep_results` (the #2409 and `compose`
+     cases as accept fixtures);
+  3. layout A: the code word, static objects, the call's load (stage cases
+     for a field call, a local call, a named value, `fn(..)?`);
+  4. the A/B gate report: A, B and today on the four programs.
+- **Steps 2 and 3** keep the previous revision's design: a closure literal
+  at a bare `F` gets its own type, implementing `Fn` or `FnMut` by
+  `fn.trait.read-only.*`, `Copy` when its captures are; #1449 then turns its
+  `let` cells into frame slots when its holder never leaves the frame. Both
+  are priced when step 1 lands.
