@@ -406,7 +406,9 @@ export const fileOperations = {
           message: "temporary-directory prefix contains a path separator or NUL",
         });
       }
-      return Ok(mkdtempSync(`${temporaryRoot()}${sep}${prefix}`));
+      const root = temporaryRoot();
+      const base = root.endsWith(sep) ? root : root + sep;
+      return Ok(mkdtempSync(base + prefix));
     },
     remove_dir_all: (path: string) => {
       try {
