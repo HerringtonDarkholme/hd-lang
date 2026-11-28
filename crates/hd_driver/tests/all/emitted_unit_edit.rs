@@ -142,6 +142,25 @@ fn the_merge_of_units_is_linear_in_the_program() {
     assert_eq!(b - a, c - b, "{a} {b} {c}");
 }
 
+/// A function that names a capture-free function value, a named
+/// function's or a closure's, holds its static closure object by the
+/// unit's own number, which the merge makes the module's (#1436): the
+/// unit is stored, so an edit of `note` emits only `note` and `main`.
+#[test]
+fn a_unit_naming_a_static_closure_object_is_reused() {
+    let store = MemoryStore::default();
+    let source = include_str!("programs/emitted_unit_edit/function_values.hd");
+    let cold = build(&store, &main_file(source));
+    assert!(own_emitted(&cold).contains(&"own/main/named"));
+    let edited = source.replacen("    \"a\"", "    \"b\"", 1);
+    let warm = build(&store, &main_file(&edited));
+    assert_eq!(own_emitted(&warm), ["own/main/main", "own/main/note"]);
+    assert_eq!(
+        warm.wasm,
+        build(&MemoryStore::default(), &main_file(&edited)).wasm
+    );
+}
+
 /// The one file of `source`, as `main.hd`.
 fn main_file(source: &str) -> Vec<(String, String)> {
     vec![("main.hd".to_owned(), source.to_owned())]

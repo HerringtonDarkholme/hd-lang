@@ -243,6 +243,9 @@ pub(crate) struct Remap {
     /// Each static request's local offset and its module address, in
     /// request order, so in offset order.
     statics: Vec<(u32, u32)>,
+    /// Each of the unit's static closure objects, by its local number: the
+    /// module's vtable ([`Unit::fn_objects`]).
+    vtables: Vec<usize>,
 }
 /// Id `id`, whose bits are `bits`: the module's own, or `table`'s entry.
 fn remapped<T: Copy>(table: &[T], bits: u32, id: T) -> T {
@@ -258,6 +261,7 @@ impl Remap {
             && self.globals.is_empty()
             && self.signatures.is_empty()
             && self.statics.is_empty()
+            && self.vtables.is_empty()
     }
     /// Static address `at`: the module's own, or one inside a unit
     /// request, at the same offset in the request's module copy. Cost:
@@ -292,6 +296,9 @@ impl Remap {
             Ins::GlobalGet(g) | Ins::GlobalSet(g) => *g = remapped(&self.globals, g.0, *g),
             Ins::CallIndirect(sig, _) => *sig = remapped(&self.signatures, sig.0, *sig),
             Ins::Static(at) => *at = self.addr(*at),
+            Ins::VTable(k) if *k & LOCAL as usize != 0 => {
+                *k = self.vtables[*k & !(LOCAL as usize)];
+            }
             Ins::Op(_) | Ins::VTable(_) | Ins::LoadAll | Ins::SpillBase => {}
         }
     }
@@ -415,6 +422,7 @@ impl Symbols {
         let added = std::mem::take(&mut *local.live_mut());
         Remap {
             statics: Vec::new(),
+            vtables: Vec::new(),
             syms: added.names.into_iter().map(|s| self.intern(s)).collect(),
             globals: added
                 .globals
@@ -1492,6 +1500,12 @@ struct Unit {
     static_len: u32,
     /// Whether the merge emits it again in order ([`Module::in_order`]).
     serial: bool,
+    /// The code of each static closure object it named, by its local
+    /// number, which its `Ins::VTable` holds with [`LOCAL`] set: the merge
+    /// makes each the module's ([`Module::fn_object`]).
+    fn_objects: Vec<SymId>,
+    /// Each code's local number in `fn_objects`.
+    fn_object_at: hd_base::HashMap<SymId, usize>,
     /// The instances its emission looked up by key ([`Module::inst`]),
     /// whose content a stored unit's reuse checks again.
     reads: std::cell::RefCell<Vec<Hash128>>,
@@ -2046,11 +2060,14 @@ impl Module {
             emitted
         };
         let mut remap = self.symbols.absorb(&symbols);
+        remap.vtables = (unit.fn_objects.iter())
+            .map(|&code| self.module_fn_object(remap.sym(code)))
+            .collect();
         // The merge's work, which the cost test counts: one intern per
-        // entry of the unit's tables, one step per static request and per
-        // instruction remapped.
+        // entry of the unit's tables, one step per static request, per
+        // static closure object and per instruction remapped.
         let work = remap.syms.len() + remap.globals.len() + remap.signatures.len();
-        let work = work + unit.statics.len();
+        let work = work + unit.statics.len() + unit.fn_objects.len();
         self.place_statics(unit.statics, &mut remap);
         let mut f = f?;
         let work = work
@@ -2369,6 +2386,11 @@ impl Module {
             parents,
             drives.into_iter().map(|s| self.symbols.intern(s)).collect(),
         );
+        self.vtable_of(v)
+    }
+
+    /// The number of vtable `v`, whose symbols are interned.
+    fn vtable_of(&mut self, v: VTable) -> usize {
         let hash = vtable_hash(&v);
         if let Some(&k) = self.vtable_at.get(&hash) {
             #[cfg(feature = "testing")]
@@ -2390,9 +2412,27 @@ impl Module {
     /// code `code`: `[count 0][descriptor 0][code's table slot]`, whose
     /// payload address [`Ins::VTable`] names. One object per code, so a
     /// function's value is one address; retain and release skip its count
-    /// 0. Cost: one vtable lookup ([`Module::vtable_full`]).
+    /// 0. A unit numbers the objects it names itself, and the merge makes
+    /// each the module's: no table entry the module numbers is read, so the
+    /// unit is not emitted again in order ([`Module::merge`]). Cost: one
+    /// hash lookup in the unit, one vtable lookup ([`Module::vtable_full`])
+    /// in the module.
     pub fn fn_object(&mut self, code: Sym) -> usize {
-        let k = self.vtable_full(vec![code], Vec::new(), Vec::new());
+        let code = self.symbols.intern(code);
+        if !self.symbols.is_local() {
+            return self.module_fn_object(code);
+        }
+        let unit = &mut self.unit;
+        let at = *unit.fn_object_at.entry(code).or_insert_with(|| {
+            unit.fn_objects.push(code);
+            unit.fn_objects.len() - 1
+        });
+        LOCAL as usize | at
+    }
+
+    /// [`Module::fn_object`] of the module's interned `code`.
+    fn module_fn_object(&mut self, code: SymId) -> usize {
+        let k = self.vtable_of((vec![code], Vec::new(), Vec::new()));
         self.fn_objects.insert(k);
         k
     }

@@ -1102,8 +1102,12 @@ fn put_func(f: &Func, o: &mut Out) {
         at,
         inlined,
     } = f;
-    if body.iter().any(|ins| matches!(ins, Ins::VTable(_))) {
-        // A vtable's number is the module's ([`super::Module::in_order`]).
+    if body
+        .iter()
+        .any(|ins| matches!(ins, Ins::VTable(k) if *k & super::LOCAL as usize == 0))
+    {
+        // A vtable's number is the module's ([`super::Module::in_order`]);
+        // a unit's own static closure object's is the unit's.
         o.unstorable = true;
     }
     labels.put(o);
@@ -1168,7 +1172,7 @@ fn get_func(i: &mut In<'_>, symbols: &Symbols) -> Option<Func> {
 /// The version of the listings above: a stored unit of another version
 /// is a miss. Bump it with any change to a listing or to what a unit
 /// holds.
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Unit `e`'s stored form and the types it names, or `None` for a unit
 /// that is not stored: one the merge emits again in order, one whose
@@ -1195,6 +1199,8 @@ pub(crate) fn encode<E>(e: &Emitted<E>) -> Option<(Vec<u8>, Vec<Ty>)> {
         statics,
         static_len,
         serial: _,
+        fn_objects,
+        fn_object_at: _,
         reads: _,
     } = &e.unit;
     o.w.len_of(defines);
@@ -1207,6 +1213,7 @@ pub(crate) fn encode<E>(e: &Emitted<E>) -> Option<(Vec<u8>, Vec<Ty>)> {
     edits.put(&mut o);
     statics.put(&mut o);
     static_len.put(&mut o);
+    fn_objects.put(&mut o);
     (!o.unstorable).then_some((o.w.bytes, o.tys))
 }
 
@@ -1262,6 +1269,8 @@ pub(crate) fn decode<E>(bytes: &[u8], tys: &[Ty]) -> Option<Emitted<E>> {
         statics: Wire::get(i)?,
         static_len: Wire::get(i)?,
         serial: false,
+        fn_objects: Wire::get(i)?,
+        fn_object_at: hd_base::HashMap::default(),
         reads: std::cell::RefCell::default(),
     };
     (i.r.ok() && i.r.at_end()).then_some(Emitted {

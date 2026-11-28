@@ -11,7 +11,7 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $callback i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     block
-      i32.const 308 ;; &vtable[original#adapter]
+      i32.const 316 ;; &vtable[original#adapter]
       local.set $t0
       i32.const 8
       i32.const -2147483647
@@ -44,7 +44,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 316 ;; &vtable[]
+      i32.const 304 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -99,7 +99,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 316 ;; &vtable[]
+      i32.const 304 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -150,7 +150,7 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $callback i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     block
-      i32.const 684 ;; &vtable[original#adapter]
+      i32.const 692 ;; &vtable[original#adapter]
       local.set $t0
       i32.const 8
       i32.const -2147483647
@@ -183,7 +183,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 692 ;; &vtable[]
+      i32.const 680 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -238,7 +238,7 @@
       i32.const 0
       local.set $t0
       local.get $t1
-      i32.const 692 ;; &vtable[]
+      i32.const 680 ;; &vtable[]
       local.set $t0
       local.set $t2
       i32.const 0
@@ -299,7 +299,7 @@
     i32.const 8
     i32.store $heap
     local.get $callback
-    i32.const 308 ;; &vtable[original#adapter]
+    i32.const 316 ;; &vtable[original#adapter]
     i32.store $heap offset=4
     local.get $callback
     i32.const 4
@@ -323,7 +323,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 316 ;; &vtable[]
+    i32.const 304 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -372,7 +372,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 316 ;; &vtable[]
+    i32.const 304 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -434,7 +434,7 @@
     i32.const 8
     i32.store $heap
     local.get $callback
-    i32.const 648 ;; &vtable[original#adapter]
+    i32.const 656 ;; &vtable[original#adapter]
     i32.store $heap offset=4
     local.get $callback
     i32.const 4
@@ -458,7 +458,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 30 |     $.with(Named=box(S { n: 4 })):
-    i32.const 656 ;; &vtable[]
+    i32.const 644 ;; &vtable[]
     ;; 31 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1
@@ -513,7 +513,7 @@
     i32.store $heap offset=24
     local.get $t2
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 656 ;; &vtable[]
+    i32.const 644 ;; &vtable[]
     ;; 33 |         println(invoke(callback))
     i32.store $heap offset=28
     local.get $t1

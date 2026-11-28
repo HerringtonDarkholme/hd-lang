@@ -1,0 +1,17 @@
+fn twice(f: fn(i64) -> i64, x: i64) -> i64:
+    f(f(x))
+
+fn inc(x: i64) -> i64:
+    x + 1
+
+pub fn note() -> string:
+    "a"
+
+pub fn named(x: i64) -> i64:
+    twice(inc, x)
+
+pub fn closed(x: i64) -> i64:
+    twice(fn(y): y * 2, x)
+
+pub fn main() -> void $ Console:
+    println("${named(1)} ${closed(2)} ${note()}")
