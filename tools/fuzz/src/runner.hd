@@ -82,7 +82,15 @@ fn child!(hd: string, args: List[string], cache: string) -> ProcessOutput $ Proc
 fn checked_source(source: string, expected: string) -> string:
     # The wrapper is outside the reducible program: removing an otherwise
     # unused import must not manufacture a checked-only name error.
-    "use std.console.MemoryConsole\n${source}\ntests:\n    it(\"checksum\"):\n        console := MemoryConsole::new()\n        \$.with(Console=console):\n            main()\n        assert_equal(console.output().join(\"\"), ${debug(expected)})\n"
+    """use std.console.MemoryConsole
+${source}
+tests:
+    it("checksum"):
+        console := MemoryConsole::new()
+        \$.with(Console=console):
+            main()
+        assert_equal(console.output().join(""), ${debug(expected)})
+"""
 
 # Exactly one checker and three Wasmtime executions. Checked uses the
 # existing checked test profile and asserts the same main's captured output
@@ -230,7 +238,10 @@ pub fn campaign!(
         )?
     else:
         write_text!(Path("${options.directory}/compiler.txt"), version.stdout)?
-    probe := "fn checksum() -> i64: 42i64\npub fn main() -> void \$ Console:\n    println(checksum())\n"
+    probe := """fn checksum() -> i64: 42i64
+pub fn main() -> void \$ Console:
+    println(checksum())
+"""
     preflight := trial!(options.hd, options.directory, probe)?
     if preflight.rejected || preflight.difference:
         return .Err(
@@ -333,7 +344,10 @@ tests:
         )
         fs := MemoryFs::new()
         clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
-        source := "# irrelevant\nfn checksum() -> i64: 1i64\npub fn main() -> void: pass\n"
+        source := """# irrelevant
+fn checksum() -> i64: 1i64
+pub fn main() -> void: pass
+"""
         program := Program { source: source, expressions: ["1i64"] }
         options := Options { hd: "compiler", directory: "scratch", keep_going: false }
         stats := box(Stats {})
