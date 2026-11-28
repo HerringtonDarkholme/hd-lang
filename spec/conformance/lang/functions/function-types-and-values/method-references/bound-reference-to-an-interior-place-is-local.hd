@@ -1,5 +1,5 @@
 # test: a bound `&self` method reference on a field takes a local reference, which a stored function value cannot capture
-# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.capture-stored.
+# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.fn-capture.
 struct Point:
     x: i32
 

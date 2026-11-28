@@ -8,7 +8,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $bump#1 (param $env i32) (param $ctx i32)
-    ;; 12 |     fn() -> void: p.x = p.x + 1
+    ;; 14 |     fn() -> void: p.x = p.x + 1
     local.get $env
     i32.load $heap
     local.tee $env
@@ -21,20 +21,13 @@
     i32.store $heap offset=8
   )
   (func $local (param $xs i32) (result i32)
-    ;; 25 |     apply(fn() -> usize: xs.len())
+    ;; 27 |     apply(fn() -> usize: xs.len())
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $apply (param $f.0 i32) (param $f.1 i32) (result i32)
-    ;; 22 |     f()
-    local.get $f.1
-    i32.const 0
-    local.get $f.0
-    call_indirect $table0 (param i32 i32) (result i32)
-  )
   (func $demo (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 15 |     origin := box(Point { name: s, x: 0 })
+    ;; 17 |     origin := box(Point { name: s, x: 0 })
     i32.const 12
     i32.const 1
     call $rt:new/class-2
@@ -48,7 +41,7 @@
     i32.const 0
     i32.store $heap offset=8
     local.get $t0
-    ;; 16 |     step := bump(origin)
+    ;; 18 |     step := bump(origin)
     local.tee $s.0
     if
       local.get $s.0
@@ -64,13 +57,13 @@
     call $bump
     local.set $s.0
     local.tee $s.1
-    ;; 17 |     step()
+    ;; 19 |     step()
     local.set $t1
     local.get $s.0
     i32.const 0
     local.get $t1
     call_indirect $table0 (param i32 i32)
-    ;; 18 |     step()
+    ;; 20 |     step()
     local.get $s.0
     i32.const 0
     local.get $s.1
@@ -88,10 +81,10 @@
         call $rt:release_ref
       end
     end
-    ;; 19 |     origin.x
+    ;; 21 |     origin.x
     local.get $t0
     i32.load $heap offset=8
-    ;; 15 |     origin := box(Point { name: s, x: 0 })
+    ;; 17 |     origin := box(Point { name: s, x: 0 })
     local.get $t0
     if
       local.get $t0
@@ -107,7 +100,7 @@
     end
   )
   (func $bump (param $p i32) (result i32 i32) (local $t0 i32)
-    ;; 12 |     fn() -> void: p.x = p.x + 1
+    ;; 14 |     fn() -> void: p.x = p.x + 1
     i32.const 3
     i32.const 4
     i32.const -2147483646

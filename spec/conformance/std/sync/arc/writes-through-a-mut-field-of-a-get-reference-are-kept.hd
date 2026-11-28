@@ -4,6 +4,7 @@
 # expect-stdout: method 2
 # expect-stdout: closure 3
 # expect-stdout: stored 2 then 3
+use std.ops.FnMut
 use std.sync.Arc
 
 struct Node:
@@ -13,7 +14,7 @@ impl Node:
     fn add(&self, v: i32) -> void:
         self.edges.push(v)
 
-fn each(values: List[i32], f: fn(i32) -> void) -> void:
+fn each(values: List[i32], mut f: impl FnMut(i32) -> void) -> void:
     for v in values:
         f(v)
 

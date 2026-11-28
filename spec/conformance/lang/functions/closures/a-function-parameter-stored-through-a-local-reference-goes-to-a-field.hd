@@ -1,0 +1,13 @@
+# test: a function parameter stored into a local through a reference holds no local reference, so that local may be stored in a field
+# Spec 13 Local References: ref.local.fn-static.
+struct Point:
+    x: i32
+
+struct Holder:
+    f: fn(&Point) -> i32
+
+fn keep(f: fn(&Point) -> i32) -> Holder:
+    let mut k = fn(q: &Point) -> i32: q.x
+    r := &mut k
+    *r = f
+    Holder { f: k }

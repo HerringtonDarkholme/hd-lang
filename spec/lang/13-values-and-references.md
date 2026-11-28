@@ -390,12 +390,14 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.element] Collection element | is stored as an element of a list, a map, or a set whose element type holds no local reference, by a literal or a method such as `push` | `points.push(p)` | `local-reference-escapes` |
 | r[ref.local.escape.top-level] Top-level binding | is bound by a top-level binding | `let origin_ref: &Point = &origin` | `local-reference-escapes` |
 | r[ref.local.escape.fn-value-result] Function value result | is the result of a function value whose type gives it no source among the inputs, as for a method bound to its receiver | `p::x_ref` for `fn x_ref(&self) -> &i32` | `local-reference-escapes` |
-| r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a [type parameter field](#r-ref.generic.outlives.field), and a [type parameter argument](#r-ref.generic.outlives.argument), a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
+| r[ref.local.escape.fn-capture] Function value capture | is captured by a closure or a bound method reference whose value is a `fn(...)` value, a captured `self` included | `keep(fn() -> i32: p.x)` | `local-reference-escapes` |
 | r[ref.local.escape.trait-argument] Trait argument | is a type argument of a trait or a trait value, written or inferred | `dyn Store[&Point]` | `local-reference-escapes` |
 
 8. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
-9. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
-10. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
+9. r[ref.local.fn-static] A `fn(...)` value holds no local reference, so it may be stored, returned and copied wherever its type may.
+10. r[ref.local.escape.fn-capture.fix] The diagnostic offers two fix-its: the callee's parameter as `impl Fn(...)`, and a copy of the referent bound before the closure.
+11. r[ref.local.escape.fn-capture.fix-callee] The callee fix-it is offered only when the callee is declared in the checked package.
+12. r[ref.local.escape.fn-capture.fix-copy] The copy fix-it is offered only when the closure does not write through the reference.
 
 ```text
 struct Point:
@@ -420,7 +422,25 @@ fn bound(p: Point) -> i32:
 
 fn reader(p: &Point) -> fn() -> i32:
     fn() -> i32: p.x  # error: local-reference-escapes
+
+fn keep(f: fn() -> i32) -> fn() -> i32:
+    f  # valid: a `fn(...)` value holds no local reference
+
+fn call_now(f: impl Fn() -> i32) -> i32:
+    f()
+
+fn borrowed(p: &Point) -> i32:
+    call_now(fn() -> i32: p.x)  # valid: an `impl Fn` parameter may borrow
+
+fn copied(p: &Point) -> fn() -> i32:
+    p := *p  # the copy fix-it
+    keep(fn() -> i32: p.x)  # valid: the closure captures a copy
 ```
+
+> **Why.** A `fn(...)` value may be stored anywhere its type may, as a
+> field, a list element, or a result. A borrowing closure goes to a type
+> parameter instead, as Rust's `impl Fn` and Swift's non-escaping closures
+> do, so a function type never needs a lifetime for what it captured.
 
 > **Why.** Most references are lent for one call, as Swift's `inout`
 > parameters are. A counted reference is a separate ownership choice, not
@@ -461,29 +481,26 @@ fn demo(u: &mut User) -> void:
 1. r[ref.dep.result] A function's or a method's result type may hold a local reference: `&T`, `&mut T`, a tuple of them, or an instance of a generic struct or enum, such as `&T?` or `Result[&T, E]`.
 2. r[ref.dep.result.opaque] An opaque result type that borrows is a dependent result too, and its hidden value follows these rules ([Opaque Results That Borrow](04-type-system.md#opaque-results-that-borrow)).
 3. r[ref.dep.position] Each `&` or `&mut` in a parameter's type is one **reference position**: in `&self`, in `p: &T`, in `opt: &T?`, and in each element of `pair: (&A, &B)`. A `&` inside a function type is none.
-4. r[ref.dep.capture-position] A direct `fn(...)` parameter is one **capture position** with a fresh lifetime, and a direct function result has one capture position too.
-5. r[ref.dep.capture-elide] An elided direct function result depends on the one direct function parameter's capture position.
-6. r[ref.dep.capture-elide.ambiguous] A direct function result with two or more direct function parameters is an error, since it has no one capture position to depend on. Error: `ambiguous-reference-source`.
-7. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
-8. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
-9. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
-10. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
-11. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
-12. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
-13. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
-14. r[ref.dep.call.pointer] A dependent result whose source argument is a `*T` or `*mut T` is a local reference to that argument's root, the local or parameter the pointer was read from, as `&*p` is. So after `r := boxed.slot()` or `r := borrow(boxed)`, a write through `boxed` while `r` is in use is an error ([`ref.excl.call`](#r-ref.excl.call)), and so is a use of `r` outside the scope of the local `boxed` ([`ref.dep.scope`](#r-ref.dep.scope)). Error: `conflicting-access` for the write, `local-reference-outlives-local` for the use.
-15. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
-16. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
-17. r[ref.dep.caller] While a dependent result is in use, the caller may read its source. It may write the source only as [Writes While Borrowed](#writes-while-borrowed) allows. A read through the result sees the source's current value.
-18. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
-19. r[ref.dep.suspension] A suspension, the `Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, after the positions of `R`.
-20. r[ref.dep.suspension.local] A suspension that holds a local reference is a local reference value of the caller, so every rule of [Local References](#local-references) and [`ref.dep.return`](#r-ref.dep.return) applies to it. Error: `local-reference-escapes`.
-21. r[ref.dep.suspension.output] Each position of `R` depends on what the call's result would depend on with `!`, by [`ref.dep.call`](#r-ref.dep.call).
-22. r[ref.dep.suspension.counted] A suspension retains a counted reference that its call lends, by itself or as the trait value behind it, by [`ref.box.lifetime`](#r-ref.box.lifetime). So it holds no origin for that argument.
-23. r[ref.dep.suspension.result] A `Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
-24. r[ref.dep.suspension.lifetime] `Suspend` takes one optional lifetime argument after its result type, as in `Suspend[R, 'a]`. It names the suspension's own position, as a lifetime struct's argument names one of the struct's positions ([`ref.lifetime.struct.position`](#r-ref.lifetime.struct.position)). More than one is an error. Error: `argument-count`.
-25. r[ref.dep.suspension.lifetime.field] A field typed `Suspend[R, 'a]` in a lifetime struct may hold a suspension that holds `'a` data. A field that writes no lifetime for its suspension holds one that holds no local reference.
-26. r[ref.dep.suspension.store] A suspension that holds a local reference never reaches a box, a provider, a host call, a top-level binding, or a struct field that is neither of a type parameter nor written with a lifetime. A list, a map, a tuple, or an optional keeps it in its own positions. Error: `local-reference-escapes`.
+4. r[ref.dep.elide] In a signature that writes no lifetime, a dependent result's source is `self` when the receiver is `&self` or `&mut self`. Otherwise it is the parameter of the one reference position.
+5. r[ref.dep.elide.none] In a signature that writes no lifetime, a dependent result with no reference receiver and no reference position is an error. Error: `reference-result-without-source`.
+6. r[ref.dep.elide.ambiguous] In a signature that writes no lifetime, a dependent result with no reference receiver and two or more reference positions is an error. Error: `ambiguous-reference-source`.
+7. r[ref.dep.return] Every value a function returns, by `return` or as its body's value, may depend only on its source. Error: `local-reference-escapes`.
+8. r[ref.dep.return.message] The diagnostic's message names the root the value depends on, as a local, a parameter's own storage, or another parameter. It has no fix-it.
+9. r[ref.dep.call] A call's dependent result depends on what its source argument depends on.
+10. r[ref.dep.call.local] The result is a local reference value of the caller, so every rule of [Local References](#local-references) applies to it. The caller may return it only as [`ref.dep.return`](#r-ref.dep.return) allows.
+11. r[ref.dep.call.pointer] A dependent result whose source argument is a `*T` or `*mut T` is a local reference to that argument's root, the local or parameter the pointer was read from, as `&*p` is. So after `r := boxed.slot()` or `r := borrow(boxed)`, a write through `boxed` while `r` is in use is an error ([`ref.excl.call`](#r-ref.excl.call)), and so is a use of `r` outside the scope of the local `boxed` ([`ref.dep.scope`](#r-ref.dep.scope)). Error: `conflicting-access` for the write, `local-reference-outlives-local` for the use.
+12. r[ref.dep.trait] An impl's method has the source of the trait method it implements. A call through a bound, an impl, or a trait value reference takes its source from the trait's signature.
+13. r[ref.dep.store] A value that holds a local reference, stored through a reference, must land in a place of the function. A store into a place the caller owns, as through `out: &mut (&T)`, is an error, unless the place's type names the value's lifetime ([`ref.lifetime.store`](#r-ref.lifetime.store)). Error: `local-reference-escapes`.
+14. r[ref.dep.caller] While a dependent result is in use, the caller may read its source. It may write the source only as [Writes While Borrowed](#writes-while-borrowed) allows. A read through the result sees the source's current value.
+15. r[ref.dep.temporary] A dependent result of a call on a temporary, as in `make().name()`, keeps the temporary alive while the result is in use.
+16. r[ref.dep.suspension] A suspension, the `Suspend[R]` of a bang call made without `!`, holds every reference that its call's arguments hold, the receiver's included. It holds them in one position of its own, after the positions of `R`.
+17. r[ref.dep.suspension.local] A suspension that holds a local reference is a local reference value of the caller, so every rule of [Local References](#local-references) and [`ref.dep.return`](#r-ref.dep.return) applies to it. Error: `local-reference-escapes`.
+18. r[ref.dep.suspension.output] Each position of `R` depends on what the call's result would depend on with `!`, by [`ref.dep.call`](#r-ref.dep.call).
+19. r[ref.dep.suspension.counted] A suspension retains a counted reference that its call lends, by itself or as the trait value behind it, by [`ref.box.lifetime`](#r-ref.box.lifetime). So it holds no origin for that argument.
+20. r[ref.dep.suspension.result] A `Suspend[R]` in a declared result type has that position too. It depends on the one lifetime of the parameters' positions, or on every parameter under two or more. With no parameter position, it depends on nothing.
+21. r[ref.dep.suspension.lifetime] `Suspend` takes one optional lifetime argument after its result type, as in `Suspend[R, 'a]`. It names the suspension's own position, as a lifetime struct's argument names one of the struct's positions ([`ref.lifetime.struct.position`](#r-ref.lifetime.struct.position)). More than one is an error. Error: `argument-count`.
+22. r[ref.dep.suspension.lifetime.field] A field typed `Suspend[R, 'a]` in a lifetime struct may hold a suspension that holds `'a` data. A field that writes no lifetime for its suspension holds one that holds no local reference.
+23. r[ref.dep.suspension.store] A suspension that holds a local reference never reaches a box, a provider, a host call, a top-level binding, or a struct field that is neither of a type parameter nor written with a lifetime. A list, a map, a tuple, or an optional keeps it in its own positions. Error: `local-reference-escapes`.
 
 ```hd
 fn count!(s: &string) -> usize:
@@ -1491,7 +1508,7 @@ impl Shift:
 2. r[ref.generic.outlives.one] A second lifetime bound on one type parameter is not checked yet, so it is an error. Error: `references-not-yet-checked`.
 3. r[ref.generic.outlives.field] A struct literal may give a function value with captured origins to a field whose type is a type parameter that `'static` does not bound. A closure written there may capture local references. The struct value holds the captured origins in that parameter's positions, as [`ref.generic.outlives.instance`](#r-ref.generic.outlives.instance) states. Error: `local-reference-escapes`.
 4. r[ref.generic.outlives.position] A field whose type parameter has a lifetime bound lies in that lifetime's position. A literal adds the closure's captured origins to that position, and reading the field gives a function value with that position's origins.
-5. r[ref.generic.outlives.read] A function value with captured origins follows [`fn.capture.local-uses`](07-functions.md#r-fn.capture.local-uses) and [`fn.capture.local-store`](07-functions.md#r-fn.capture.local-store). Returning it where the result has no source for those origins is an error. Error: `local-reference-escapes`.
+5. r[ref.generic.outlives.read] Returning a function value with captured origins where the result has no source for those origins is an error. Error: `local-reference-escapes`.
 6. r[ref.generic.outlives.box] Boxing a function value with captured origins, or passing it for a type parameter bounded by `'static`, is an error. Error: `local-reference-escapes`.
 7. r[ref.generic.outlives.read-only] A store through a captured `&mut` reference, as `c.n += 1` above, changes a capture. Such a closure needs an `FnMut` bound, as [`fn.trait.read-only`](07-functions.md#r-fn.trait.read-only) states. Error: `not-writable`.
 8. r[ref.generic.outlives.argument] A closure written as a call argument for a parameter of a bare type parameter `F`, as `mut f: F`, may capture local references. The callee's signature must not name `F` inside a function type or an opaque type, and `'static` must not bound `F`. Error: `local-reference-escapes`.
@@ -1988,9 +2005,6 @@ fn demo() -> i32:
 
 > **Why.** A reference already names a place, so copying it shares that
 > place.
-
-4. r[ref.capture.local-scoped] A closure supplied directly for a function parameter may capture a local reference under [`ref.local.capture-parameter`](#r-ref.local.capture-parameter).
-5. r[ref.capture.local-stored] Any other closure capture of a local reference is an error under [`ref.local.escape.capture-stored`](#r-ref.local.escape.capture-stored).
 
 See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-captures),
 [`ref.read.shallow`](#r-ref.read.shallow).

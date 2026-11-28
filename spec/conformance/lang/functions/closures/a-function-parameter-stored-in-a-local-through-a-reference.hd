@@ -1,5 +1,5 @@
-# test: storing a function parameter into a local, directly or through a reference to it, keeps it in the callee, which may call it
-# Spec 07 Captures: fn.capture.local-store, fn.capture.local-uses.
+# test: a function parameter stored into a local, directly or through a reference to it, may be called, and a closure argument for it may not capture a local reference
+# Spec 13 Local References: ref.local.escape.fn-capture, ref.local.fn-static.
 struct Point:
     x: i32
 
@@ -18,6 +18,6 @@ fn pick(f: fn(&Point) -> i32, g: fn(&Point) -> i32) -> i32:
     k(&p)
 
 fn total(origin: &Point) -> i32:
-    n := pick(fn(q: &Point) -> i32: q.x + origin.x, fn(q: &Point) -> i32: q.x)
+    n := pick(fn(q: &Point) -> i32: q.x + origin.x, fn(q: &Point) -> i32: q.x) # diagnostic: local-reference-escapes
     m := swap(fn(q: &Point) -> i32: q.x, fn(q: &Point) -> i32: q.x, origin)
     n + m

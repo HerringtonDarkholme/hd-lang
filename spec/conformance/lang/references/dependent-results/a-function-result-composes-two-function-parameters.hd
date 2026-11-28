@@ -1,0 +1,9 @@
+# test: a function result may hold two function parameters, since neither holds a local reference
+# Spec 13 Local References: ref.local.fn-static.
+# expect-stdout: 7
+fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: g(f(x))
+
+pub fn main() -> void $ Console:
+    h := compose(fn(x: i32) -> i32: x + 1, fn(x: i32) -> i32: x * 2 + 1)
+    println("${h(2)}")

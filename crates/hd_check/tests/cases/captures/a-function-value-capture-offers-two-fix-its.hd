@@ -1,0 +1,20 @@
+# @dump: diagnostics
+# expected: a closure for a `fn(...)` parameter that captures a local reference offers the callee's parameter as `impl Fn`, `impl FnMut` with `mut` for a `&mut` capture, and a copy of a `&` capture (ref.local.escape.fn-capture.fix)
+struct Point:
+    x: i32
+
+fn call_fn(f: fn() -> i32) -> i32:
+    f()
+
+fn read(p: &Point) -> i32:
+    call_fn(fn() -> i32: p.x)
+
+fn bump(p: &mut Point) -> i32:
+    call_fn(fn() -> i32:
+        p.x += 1
+        p.x
+    )
+
+fn trailing(p: &Point) -> i32:
+    call_fn:
+        p.x

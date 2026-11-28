@@ -943,12 +943,12 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `ref.local.escape.capture-stored`: the closure `n` captures a local
+    /// `ref.local.escape.fn-capture`: the closure `n` captures a local
     /// that holds a local reference, `self` of a `&self` method included.
-    /// A closure passed directly to a `fn(...)` parameter is scoped and
-    /// carries those origins instead (`fn.capture.local-parameter`). Each
-    /// rejected local reports once, at the outermost closure that captures
-    /// it.
+    /// A closure written for a bare `F < Fn(..)` parameter is scoped and
+    /// carries those origins instead (`ref.generic.outlives.argument`).
+    /// Each rejected local reports once, at the outermost closure that
+    /// captures it, with the fix-its of `ref.local.escape.fn-capture.fix`.
     pub(crate) fn local_ref_captures(
         &mut self,
         mark: hd_tir::ir::SubMark,
@@ -968,6 +968,7 @@ impl Ck<'_, '_> {
                 self.ref_captured.insert(l);
                 self.log_undo(crate::trial::BodyUndo::RefCaptured(l));
                 self.err(Code::LocalReferenceEscapes, n, &message(Escape::Capture));
+                self.fn_capture_fixes(n, l, t);
             } else if pool.has_param(t) && !self.meets_static(t) {
                 // `ref.generic.static.capture`: a capture of a type
                 // parameter's value needs the parameter's `'static`.
@@ -981,6 +982,129 @@ impl Ck<'_, '_> {
                 self.err(Code::LocalReferenceEscapes, n, &msg);
             }
         }
+    }
+
+    /// The fix-its for closure `n` capturing local `l` of type `t`: the
+    /// callee's `fn(...)` parameter as `impl Fn(...)`, or `mut` and
+    /// `impl FnMut(...)` for a `&mut` capture, when the callee is a
+    /// function of this file (`ref.local.escape.fn-capture.fix-callee`),
+    /// and a copy of a `&T` referent bound before the statement
+    /// (`ref.local.escape.fn-capture.fix-copy`). On the error path only:
+    /// one walk up from `n` and one scan of the file's top-level items.
+    fn fn_capture_fixes(&mut self, n: NodeRef<'_>, l: LocalId, t: Ty) {
+        let src = self.cx.src;
+        let TyData::Ref {
+            counted: false,
+            mutable,
+            ..
+        } = self.pool().get(t)
+        else {
+            return;
+        };
+        let point = |lo| hd_base::Span {
+            file: src.file,
+            lo,
+            hi: lo,
+        };
+        if let Some(edits) = self.callee_fn_param(n, mutable, &point) {
+            let title = format!("take the callee's parameter as `{}(...)`", edits[0].1);
+            let edits: Vec<_> = edits.iter().map(|(at, x)| (*at, x.as_str())).collect();
+            (self.diags).add_fix(&title, hd_diag::FixSafety::Suggestion, &edits);
+        }
+        let name = self.cx.names.text(self.b.body().local_name[l.idx()]);
+        let tree = &src.parse.tree;
+        let statement = std::iter::successors(Some(n.index()), |&x| tree.parent(x)).find(|&x| {
+            tree.parent(x)
+                .is_some_and(|p| tree.kind(p) == SyntaxKind::Block)
+        });
+        if let (false, false, Some(x)) = (mutable, name == "self", statement) {
+            let lo = src.span(tree.node(x)).lo;
+            let indent = " ".repeat(src.line_column(lo).1.saturating_sub(1));
+            let text = format!("{name} := *{name}\n{indent}");
+            let title = format!("capture a copy of `*{name}`");
+            (self.diags).add_fix(
+                &title,
+                hd_diag::FixSafety::Suggestion,
+                &[(point(lo), &text)],
+            );
+        }
+    }
+
+    /// The edits that make the parameter that closure `n` is written for
+    /// take `impl Fn(...)`, or `impl FnMut(...)` when `writes`: `n` is a
+    /// positional argument or a trailing block of a call of a function
+    /// declared at the top of this file, with a written `fn(...)` type
+    /// there. They add the trait's `use` when the module binds none.
+    fn callee_fn_param(
+        &self,
+        n: NodeRef<'_>,
+        writes: bool,
+        point: &dyn Fn(u32) -> hd_base::Span,
+    ) -> Option<Vec<(hd_base::Span, String)>> {
+        let (src, toks) = (self.cx.src, &self.cx.src.parse.tokens);
+        let up = |x: NodeRef<'_>| {
+            src.parse
+                .tree
+                .parent(x.index())
+                .map(|p| src.parse.tree.node(p))
+        };
+        let parent = up(n)?;
+        let (callee, j) = match parent.kind() {
+            SyntaxKind::Argument => {
+                let call = up(up(parent)?)?;
+                let [callee, list] = (call.kind() == SyntaxKind::CallExpr).then(|| call.parts())?;
+                let before = list.children().take_while(|c| c.index() != parent.index());
+                (
+                    callee,
+                    before.filter(|c| c.kind() == SyntaxKind::Argument).count(),
+                )
+            }
+            SyntaxKind::TrailingCallExpr => match parent.parts() {
+                [head, _] if head.kind() == SyntaxKind::CallExpr => {
+                    let [callee, list] = head.parts();
+                    (callee, list.children().count())
+                }
+                [head, _] => (head, 0),
+            },
+            _ => return None,
+        };
+        // A local that shadows a function names no declaration here.
+        if callee.kind() != SyntaxKind::NameExpr || self.find_local(self.sym_of(callee)).is_some() {
+            return None;
+        }
+        let name = src.text(src.first(callee));
+        let decl = (src.root().children()).find(|f| {
+            f.kind() == SyntaxKind::FnDecl && f.name(toks).is_some_and(|t| src.text(t) == name)
+        })?;
+        let param = (Src::child(decl, SyntaxKind::ParameterList)?.children())
+            .filter(|c| c.kind() == SyntaxKind::Parameter)
+            .nth(j)?;
+        let ty = param
+            .children()
+            .find(|c| c.kind() == SyntaxKind::FunctionType)?;
+        let kw = ty.direct_token(toks, TokenKind::KwFn)?;
+        let known = &self.cx.names.known;
+        let (tr, word) = if writes {
+            (known.fn_mut_trait, "FnMut")
+        } else {
+            (known.fn_trait, "Fn")
+        };
+        let mut edits = vec![(src.token_span(kw), format!("impl {word}"))];
+        // Calling an `FnMut` value needs a writable binding (`fn.trait.read-only`).
+        if writes && param.direct_token(toks, TokenKind::KwMut).is_none() {
+            edits.push((point(src.span(param).lo), "mut ".to_owned()));
+        }
+        if !self.cx.scope.def.contains(&tr) {
+            let place = src.parse.use_insertion(src.text);
+            let nl = place.newline;
+            let line = if place.after_use {
+                format!("{nl}use std.ops.{word}")
+            } else {
+                format!("use std.ops.{word}{nl}{nl}")
+            };
+            edits.push((point(place.at), line));
+        }
+        Some(edits)
     }
 
     /// Whether `t` meets `'static` (`ref.generic.static`); a goal that

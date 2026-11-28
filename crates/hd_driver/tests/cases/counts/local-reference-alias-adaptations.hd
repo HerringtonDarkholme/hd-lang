@@ -2,6 +2,7 @@
 # @build: checked | release checked
 # expected: a weakened local reference aliases the original writable place.
 use std.meta.{cold, inline}
+use std.ops.Fn
 use std.collections.UniqList
 use std.testing.assert_equal
 
@@ -100,7 +101,7 @@ fn mixed_effects(values: List[usize], target: *mut Counter) -> usize:
     size
 
 @cold
-fn evaluate(callback: fn() -> usize) -> usize:
+fn evaluate(callback: impl Fn() -> usize) -> usize:
     callback()
 
 @cold

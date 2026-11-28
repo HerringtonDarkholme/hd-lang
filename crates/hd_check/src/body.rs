@@ -559,9 +559,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The references `box(e)` makes, as opposed to the counted address
     /// of a loop's cursor (`ref.generic.outlives.box`).
     pub boxes: HashSet<u32>,
-    /// The closure expression currently checked as a direct argument of a
-    /// `fn(...)` parameter. Only that closure may capture local references
-    /// (`fn.capture.local-parameter`).
+    /// The closure expression currently checked as an argument for a bare
+    /// `F < Fn(..)` parameter or a type parameter field. Only that closure
+    /// may capture local references (`ref.generic.outlives.argument`).
     pub local_capture_argument: Option<hd_base::NodeIdx>,
     /// Each closure expression that changes a captured local, with the
     /// first such local (`fn.trait.read-only`).

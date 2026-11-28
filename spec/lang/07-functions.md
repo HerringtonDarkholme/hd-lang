@@ -918,6 +918,7 @@ doubled := apply_all(counts, fn(count): count * 2)
 8. r[fn.closure.lifetime.return] Each value a closure returns may depend only on the closure's parameter positions of each result position's lifetime. Error: `local-reference-escapes`.
 9. r[fn.closure.lifetime.call] A closure literal written as a call's argument, for a parameter whose function type writes a lifetime of the callee at an input position, gives its parameter there the call's lifetime. What the closure stores there through a `&mut` may hold the references it captured, which outlive the call, but no place or temporary of its own body. Error: `local-reference-escapes`.
 10. r[fn.closure.lifetime.call.loan] A loan the closure stores there lasts until the call returns: for the rest of the closure's body, a write to its place is an error. Error: `conflicting-access`.
+11. r[fn.closure.lifetime.call.bound] A closure literal written for a bare type parameter takes the lifetimes that its `Fn` or `FnMut` bound writes at its inputs, as one for a function type does.
 
 ```text
 struct User:
@@ -1012,13 +1013,9 @@ fn demo() -> i32:
 8. r[fn.capture.copies] Copying a closure value copies no cell: the copies share every cell the closure captured.
 9. r[fn.capture.call.any] A closure may be called any number of times, through any copy of it.
 10. r[fn.capture.reference] Capturing a counted reference copies the reference, as [`ref.capture.copy`](13-values-and-references.md#r-ref.capture.copy) states.
-11. r[fn.capture.local-parameter] A closure supplied directly for a `fn(A) -> R $ Row` parameter may capture local references because that parameter has a fresh lifetime.
-12. r[fn.capture.local-origins] The supplied closure value carries the origins of its captured local references.
-13. r[fn.capture.local-uses] The callee may call that parameter, pass it to another direct function parameter, or return it as a dependent result.
-14. r[fn.capture.local-store] Storing that parameter in a field, a box, a provider, or a top-level binding is an error. Error: `local-reference-escapes`.
-15. r[fn.capture.local-field] A closure written for a struct field of a type parameter may capture local references, as [`ref.generic.outlives.field`](13-values-and-references.md#r-ref.generic.outlives.field) states.
-16. r[fn.capture.local-generic] A closure written as a call argument for a bare type parameter may capture local references, as [`ref.generic.outlives.argument`](13-values-and-references.md#r-ref.generic.outlives.argument) states.
-17. r[fn.capture.no-local-reference-stored] A closure in any other function-value position must not capture a local reference, as [`ref.local.escape.capture-stored`](13-values-and-references.md#r-ref.local.escape.capture-stored) states. Error: `local-reference-escapes`.
+11. r[fn.capture.fn-static] A closure whose value is a `fn(...)` value must not capture a local reference, as the Function value capture row of [Local References](13-values-and-references.md#local-references) states. Error: `local-reference-escapes`.
+12. r[fn.capture.local-field] A closure written for a struct field of a type parameter may capture local references, as [`ref.generic.outlives.field`](13-values-and-references.md#r-ref.generic.outlives.field) states.
+13. r[fn.capture.local-generic] A closure written as a call argument for a bare type parameter may capture local references, as [`ref.generic.outlives.argument`](13-values-and-references.md#r-ref.generic.outlives.argument) states.
 
 > **Why.** An immutable binding never changes, so copying it and sharing it
 > look the same. A variable changes, so the closure and its scope must refer

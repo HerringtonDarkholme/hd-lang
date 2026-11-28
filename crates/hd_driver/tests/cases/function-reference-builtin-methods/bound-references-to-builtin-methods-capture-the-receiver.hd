@@ -1,10 +1,12 @@
 # @dump: stdout
 # A bound reference to a built-in method captures its receiver when the
 # reference is made, and a bound `push` changes that receiver. A bound
-# reference to a local captures a local reference, so it is passed straight
-# to a `fn(...)` parameter, never stored (`ref.local.escape.capture-stored`).
-fn size_of(f: fn() -> usize) -> usize: f()
-fn push_two(f: fn(i32) -> void) -> void:
+# reference to a local captures a local reference, so it is passed to an
+# `impl Fn` parameter, never to a `fn(...)` one (`ref.local.escape.fn-capture`).
+use std.ops.{Fn, FnMut}
+
+fn size_of(f: impl Fn() -> usize) -> usize: f()
+fn push_two(mut f: impl FnMut(i32) -> void) -> void:
     f(5)
     f(6)
 

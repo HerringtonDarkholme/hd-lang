@@ -1,0 +1,10 @@
+# test: a closure written directly for a `fn(...)` parameter is a function value, so it may not capture a local reference
+# Spec 13 Local References: ref.local.escape.fn-capture. Spec 07 Copied And Shared Captures: fn.capture.fn-static.
+struct Counter:
+    value: i32
+
+fn call(reader: fn() -> i32) -> i32:
+    reader()
+
+fn read(counter: &Counter) -> i32:
+    call(fn() -> i32: counter.value) # diagnostic: local-reference-escapes

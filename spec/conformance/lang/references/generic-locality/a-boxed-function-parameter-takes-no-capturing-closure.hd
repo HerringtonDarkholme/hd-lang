@@ -1,0 +1,10 @@
+# test: boxing a function parameter is valid, and a closure argument for it may not capture a local reference
+# Spec 13 Local References: ref.local.escape.fn-capture, ref.local.fn-static.
+struct Counter:
+    n: i32
+
+fn keep(f: fn() -> void) -> void:
+    kept := box(f)
+
+fn run(c: &mut Counter) -> void:
+    keep(fn(): c.n += 1) # diagnostic: local-reference-escapes

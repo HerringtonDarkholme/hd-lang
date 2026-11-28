@@ -1,7 +1,8 @@
 # Spec 13 Values and References: ref.count.local.
 # expect-stdout: 2 1 2
+use std.ops.FnMut
 
-fn apply(f: fn() -> usize) -> usize:
+fn apply(mut f: impl FnMut() -> usize) -> usize:
     f()
 
 fn read_twice[T](xs: &List[T]) -> usize:

@@ -5321,17 +5321,18 @@ impl Lower<'_, '_, '_> {
         gn.opaque_params.push((ParamRef { owner, index }, false));
 
         let mut bounds = Vec::new();
+        let mut written = Vec::new();
         if let Some(bound_node) = n.children().find(|c| c.kind() == SyntaxKind::NamedType) {
             // The bound is no part of the parameter's type, which is the
             // type parameter and has no reference slot: its references
             // record no slot of the signature (`FnSig::lifetimes`), as a
-            // named type parameter's bound records none.
-            let slots = self.slots.take();
+            // named type parameter's bound records none, but the bound's
+            // own (`Generic::bound_lifetimes`).
             let held = self.held.take();
-            let bound = self
-                .trait_value(bound_node, gn, Some(ty))
-                .unwrap_or(Ty::POISON);
-            self.slots = slots;
+            let (bound, lifetimes) =
+                self.with_slots(|low| low.trait_value(bound_node, gn, Some(ty)));
+            let bound = bound.unwrap_or(Ty::POISON);
+            written.push(lifetimes);
             self.held = held;
             if self.r.frozen.is_none()
                 && self
@@ -5384,6 +5385,7 @@ impl Lower<'_, '_, '_> {
         // A function's parameter, so `Copy` by default
         // (`ref.copy.generic.default`).
         bounds.push(self.copy_bound());
+        generic.bound_lifetimes = self.slot_lists(&bounds, written);
         generic.bounds = bounds;
         (ty, generic)
     }

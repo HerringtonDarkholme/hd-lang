@@ -67,7 +67,7 @@ function's value is `(slot, 0)`. Layout A makes it 4 bytes.
 
 ## How it works
 
-**The rules** as the spec would read (`spec/STYLE.md` form; not applied yet):
+**The rules**, applied to [13 Local References](../../spec/lang/13-values-and-references.md#local-references) and [07 Copied And Shared Captures](../../spec/lang/07-functions.md#copied-and-shared-captures); item 11 below is `fn.capture.fn-static` there, since `fn.capture.no-local-reference` was retired before:
 
 ```markdown
 <!-- 13-values-and-references.md, Local References table: replaces ref.local.escape.capture-stored -->

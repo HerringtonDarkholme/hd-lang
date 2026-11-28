@@ -10,9 +10,9 @@ use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::{
-    ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROOF_MSG, PROVIDER_MSG, RunLoans, STATIC,
-    STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, capture_slot, closure_allows,
+    ANON, ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG,
+    Inputs, LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROOF_MSG, PROVIDER_MSG, RunLoans,
+    STATIC, STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, closure_allows,
     intrinsic_ops, local_ref, referent, returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
@@ -465,7 +465,7 @@ impl Gen<'_, '_> {
     /// Seeds parameter `l`'s slots with its placeholders, but for a
     /// function type written inside another type (`ref.generic.outlives.written`).
     fn param(&mut self, l: u32) {
-        let (pool, ls) = (self.s.pool, self.s.ls);
+        let ls = self.s.ls;
         let (regions, pt) = (self.local(l).0, ls.of(self.s.params[l as usize]));
         if pt.slots.len() != regions.len() {
             // Each slot takes all of them, as `fit` does.
@@ -477,12 +477,16 @@ impl Gen<'_, '_> {
             }
             return;
         }
+        // A `fn(..)` parameter holds no local reference (`ref.local.fn-static`),
+        // but for a crossing parameter's, which lends for its written
+        // lifetime ([`DepSig::with_crossing`]).
+        let ids = (self.s.own)
+            .and_then(|own| own.params.get(l as usize))
+            .map(|p| &p.1);
         for (k, &r) in regions.iter().enumerate() {
             let s = pt.slots[k];
-            let hidden = match (0..k).rev().find(|&j| pt.slots[j].end > k) {
-                None => s.written,
-                Some(j) => s.fun && !s.hold && !capture_slot(pool, referent(pool, pt.slots[j].ty)),
-            };
+            let hidden =
+                s.fun && !s.hold && ids.is_none_or(|ids| ids.get(k).is_none_or(|&id| id >= ANON));
             if !hidden {
                 self.seed(r, Origin::Param(l, w(k)));
             }
@@ -1113,7 +1117,7 @@ impl Gen<'_, '_> {
     }
 
     /// Each destination that keeps a captured function value
-    /// (`fn.capture.local-store`): its top capture slots ⊑ `'static`, by
+    /// (`ref.generic.outlives.read`): its top capture slots ⊑ `'static`, by
     /// the destination's category. A call checks its arguments' in
     /// [`Gen::call`].
     fn escapes(&mut self, i: u32) {
@@ -1246,7 +1250,7 @@ impl Gen<'_, '_> {
     /// Whether the place `word` is the whole of a local: the local itself,
     /// or `*r` for a `:=` local `r` bound to `&mut k` of a local `k`. A
     /// store there keeps a captured function value in the local, where
-    /// the walk follows it (`fn.capture.local-store` names no local).
+    /// the walk follows it (`ref.generic.outlives.read` names no local).
     fn local_target(&self, word: u32) -> bool {
         let b = self.s.b;
         let whole_local = |p: &Option<hd_tir::ir::Place>| {
@@ -1591,7 +1595,8 @@ impl Gen<'_, '_> {
                     self.call(sig, &me);
                 }
             }
-            // `fn.capture.local-origins`: what each captured local holds.
+            // `ref.generic.outlives.argument-origins`: what each captured
+            // local holds.
             Tag::Closure if !b.is_instantiation(iu) => {
                 if let [start, len, ..] = *b.record(d) {
                     for c in start..start.saturating_add(len) {
@@ -1807,7 +1812,7 @@ impl Gen<'_, '_> {
     /// `o`: the run of its referent's top slot, or its whole slot, has one
     /// lifetime, and a result of that lifetime may depend on `o`
     /// (`ref.lifetime.store`). A capture slot takes nothing
-    /// (`fn.capture.local-store`).
+    /// (`ref.generic.outlives.read`).
     /// Whether slot `j` of closure parameter `q` is at a call's lifetime
     /// and `o` outlives that call: a place or temporary the closure's own
     /// body does not declare, which its call keeps alive as a capture

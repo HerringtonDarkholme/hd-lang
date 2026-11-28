@@ -5,6 +5,8 @@
 # expected: `bump` moves `p` into one environment; `demo` retains
 # `origin` once for it; `local#1` reads through the captured address
 # without copying or releasing the list.
+use std.ops.Fn
+
 struct Point:
     name: string
     x: i32
@@ -45,11 +47,11 @@ fn demo(s: string) -> i32:
     origin.x
 >   %12 = Read [*$2 .x] : i32
 
-fn apply(f: fn() -> usize) -> usize:
+fn apply(f: impl Fn() -> usize) -> usize:
     f()
 > app/main/apply
->   local $0 f: fn() -> usize [param read]
->   %0 = Read [$0] : fn() -> usize
+>   local $0 f: impl Trait [param read]
+>   %0 = Read [$0] : impl Trait
 >   %1 = CallValue %0 [] : usize
 >   %2 = Block %1 : usize
 
@@ -60,5 +62,5 @@ fn local(xs: &List[string]) -> usize:
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Block %1 : usize
 >   %3 = Closure #1 : fn() -> usize
->   %4 = Call app/main/apply[] (%3) : usize
+>   %4 = Call app/main/apply[fn() -> usize] (%3) : usize
 >   %5 = Block %4 : usize

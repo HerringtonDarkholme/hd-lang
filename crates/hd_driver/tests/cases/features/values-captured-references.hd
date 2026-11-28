@@ -4,6 +4,8 @@
 # expected: `bump` moves `p` into one environment; `demo` retains
 # `origin` once for it; `local#1` reads through the captured address
 # without copying or releasing the list.
+use std.ops.Fn
+
 struct Point:
     name: string
     x: i32
@@ -18,7 +20,7 @@ fn demo(s: string) -> i32:
     step()
     origin.x
 
-fn apply(f: fn() -> usize) -> usize:
+fn apply(f: impl Fn() -> usize) -> usize:
     f()
 
 fn local(xs: &List[string]) -> usize:

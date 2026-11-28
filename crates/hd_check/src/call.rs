@@ -449,13 +449,17 @@ pub(crate) struct Formals<'a> {
 }
 
 /// Whether a closure written for parameter `j` may capture local
-/// references: any parameter but a crossing one whose marker bound names
-/// no lifetime (`ref.frozen.no-lifetime`).
-fn lends(formals: &Formals<'_>, j: usize) -> bool {
-    formals
-        .crossing
-        .iter()
-        .all(|c| usize::from(c.param) != j || c.lifetime != 0)
+/// references: one for a bare `F < Fn(..)` parameter
+/// (`ref.generic.outlives.argument`), unless it is a crossing parameter
+/// whose marker bound names no lifetime (`ref.frozen.no-lifetime`), and
+/// one for a crossing parameter whose bound names a lifetime
+/// (`ref.frozen.lifetime`). Any other `fn(..)` value holds no local
+/// reference (`ref.local.fn-static`).
+fn lends(formals: &Formals<'_>, j: usize, want: Option<FnWant>) -> bool {
+    match formals.crossing.iter().find(|c| usize::from(c.param) == j) {
+        Some(c) => c.lifetime != 0,
+        None => want.is_some_and(|f| f.scoped),
+    }
 }
 
 /// A bare generic parameter's function bound, as [`Formals`] reads it.
@@ -2602,7 +2606,6 @@ impl Ck<'_, '_> {
                 });
             // A closure whose parameter types a later argument solves is
             // checked against them (§2.4 step 4).
-            let mut bounded = None;
             let fn_want = formals
                 .closure_wants
                 .and_then(|xs| xs.get(skip + i))
@@ -2610,14 +2613,14 @@ impl Ck<'_, '_> {
                 .flatten();
             let expect = match w {
                 Some(want) if e.kind() == SyntaxKind::ClosureExpr => {
-                    bounded = fn_want.map(|f| f.ty);
                     let later: Vec<(NodeRef<'_>, Ty)> = args.positional[i + 1..]
                         .iter()
                         .zip(rest.get(i + 1..nfixed).unwrap_or(&[]))
                         .map(|(a, p)| (*a, p.1))
                         .chain(self.named_params(rest, &args.named))
                         .collect();
-                    bounded
+                    fn_want
+                        .map(|f| f.ty)
                         .or_else(|| {
                             self.open_inputs(want)
                                 .then(|| self.solved_by_later(want, &later))
@@ -2628,10 +2631,8 @@ impl Ck<'_, '_> {
                 _ => w,
             };
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
-                && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
-                    || fn_want.is_some_and(|f| f.scoped));
+                && lends(formals, skip + i, fn_want);
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
-            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
             let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
@@ -2740,7 +2741,6 @@ impl Ck<'_, '_> {
             let w = self.argument_want(rest[i].1, *e)?;
             let rejoin =
                 open[i] && !matches!(pool.get(self.infer.shallow(pool, w)), TyData::Infer(_));
-            let mut bounded = None;
             let fn_want = formals
                 .closure_wants
                 .and_then(|xs| xs.get(skip + i))
@@ -2750,9 +2750,9 @@ impl Ck<'_, '_> {
                 read_only_named.push((i, *e));
             }
             let expect = if e.kind() == SyntaxKind::ClosureExpr {
-                bounded = fn_want.map(|f| f.ty);
                 let later = self.named_params(rest, &args.named[k + 1..]);
-                bounded
+                fn_want
+                    .map(|f| f.ty)
                     .or_else(|| {
                         self.open_inputs(w)
                             .then(|| self.solved_by_later(w, &later))
@@ -2763,10 +2763,8 @@ impl Ck<'_, '_> {
                 w
             };
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
-                && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
-                    || fn_want.is_some_and(|f| f.scoped));
+                && lends(formals, skip + i, fn_want);
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
-            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
             let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
@@ -2824,23 +2822,13 @@ impl Ck<'_, '_> {
                     let msg = format!("`{pname}` is given twice");
                     self.err(Code::DuplicateArgument, block, &msg);
                 } else {
-                    let last_is_generic = formals
-                        .inferred
-                        .get(skip + last)
-                        .is_some_and(|xs| !xs.is_empty())
-                        || formals
-                            .closure_wants
-                            .and_then(|xs| xs.get(skip + last))
-                            .is_some_and(Option::is_some);
-                    let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
                     let before = self.diags.mark();
                     let crossing = self.crossing_arg(formals, skip + last, block, true);
                     let (r, t) = self.trailing_closure(
                         block,
                         last_want.map_or(w, |f| f.ty),
-                        scoped
-                            && formals.destination.storage().is_none()
-                            && lends(formals, skip + last),
+                        formals.destination.storage().is_none()
+                            && lends(formals, skip + last, last_want),
                     )?;
                     let r = self.crossing_captures(crossing, (r, t), block);
                     if let Some(place) = formals.destination.storage()

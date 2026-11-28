@@ -6,7 +6,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $lexical (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 36 |     $.with(Tag=Named { label: s }):
+    ;; 38 |     $.with(Tag=Named { label: s }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -18,7 +18,7 @@
     i32.store $heap offset=4
     local.get $t0
     i32.const 192 ;; &vtable[rt:dyn_read]
-    ;; 38 |         apply(fn() -> usize: tag.name().len())
+    ;; 40 |         apply(fn() -> usize: tag.name().len())
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
@@ -27,7 +27,7 @@
       local.get $s.1
       call $rt:release_ref
     end
-    ;; 36 |     $.with(Tag=Named { label: s }):
+    ;; 38 |     $.with(Tag=Named { label: s }):
     local.get $t0
     if
       local.get $t0
@@ -35,15 +35,8 @@
     end
     local.get $s.0
   )
-  (func $apply (param $f.0 i32) (param $f.1 i32) (result i32)
-    ;; 33 |     f()
-    local.get $f.1
-    i32.const 0
-    local.get $f.0
-    call_indirect $table0 (param i32 i32) (result i32)
-  )
   (func $read_tag (param $provider0 i32) (param $provider0.vtable i32) (result i32)
-    ;; 20 |     $.use(Tag).name().len()
+    ;; 22 |     $.use(Tag).name().len()
     local.get $provider0
     local.get $provider0.vtable
     i32.load $heap
@@ -57,7 +50,7 @@
     local.get $provider0
   )
   (func $by_value (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 23 |     $.with(Tag=Named { label: s }):
+    ;; 25 |     $.with(Tag=Named { label: s }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -69,7 +62,7 @@
     i32.store $heap offset=4
     local.get $t0
     i32.const 192 ;; &vtable[rt:dyn_read]
-    ;; 24 |         read_tag()
+    ;; 26 |         read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
@@ -78,7 +71,7 @@
       local.get $s.1
       call $rt:release_ref
     end
-    ;; 23 |     $.with(Tag=Named { label: s }):
+    ;; 25 |     $.with(Tag=Named { label: s }):
     local.get $t0
     if
       local.get $t0
@@ -87,12 +80,12 @@
     local.get $s.0
   )
   (func $"impl Tag for Named.name" (param $self.label.0 i32) (param $self.label.1 i32) (result i32 i32)
-    ;; 17 |         self.label
+    ;; 19 |         self.label
     local.get $self.label.0
     local.get $self.label.1
   )
   (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 43 |     $.with(Tag=Named { label: s }):
+    ;; 45 |     $.with(Tag=Named { label: s }):
     local.get $s.0
     if
       local.get $s.0
@@ -109,7 +102,7 @@
     i32.store $heap offset=4
     local.get $t0
     i32.const 192 ;; &vtable[rt:dyn_read]
-    ;; 44 |         read_tag() + f()
+    ;; 46 |         read_tag() + f()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $s.0
@@ -120,7 +113,7 @@
     end
     local.get $s.0
     local.get $s.1
-    ;; 43 |     $.with(Tag=Named { label: s }):
+    ;; 45 |     $.with(Tag=Named { label: s }):
     i32.add
     ;; (no span)
     local.set $s.0
@@ -132,7 +125,7 @@
     local.get $s.0
   )
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
-    ;; 27 |     $.with(Tag=Named { label: a }):
+    ;; 29 |     $.with(Tag=Named { label: a }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -144,7 +137,7 @@
     i32.store $heap offset=4
     local.get $t0
     i32.const 192 ;; &vtable[rt:dyn_read]
-    ;; 28 |         outer := read_tag()
+    ;; 30 |         outer := read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $a.0
@@ -153,7 +146,7 @@
       local.get $a.1
       call $rt:release_ref
     end
-    ;; 29 |         $.with(Tag=Named { label: b }):
+    ;; 31 |         $.with(Tag=Named { label: b }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -165,7 +158,7 @@
     i32.store $heap offset=4
     local.get $a.1
     i32.const 192 ;; &vtable[rt:dyn_read]
-    ;; 30 |             outer + read_tag()
+    ;; 32 |             outer + read_tag()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $b.0
@@ -177,9 +170,9 @@
     local.get $a.0
     local.get $b.0
     i32.add
-    ;; 29 |         $.with(Tag=Named { label: b }):
+    ;; 31 |         $.with(Tag=Named { label: b }):
     local.set $a.0
-    ;; 27 |     $.with(Tag=Named { label: a }):
+    ;; 29 |     $.with(Tag=Named { label: a }):
     local.get $a.1
     if
       local.get $a.1

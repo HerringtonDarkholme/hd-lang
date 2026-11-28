@@ -1,5 +1,5 @@
 # test: a bound `&mut self` method reference on a local captures a local reference, which a binding cannot store
-# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.capture-stored, fn.capture.no-local-reference-stored.
+# Spec 07 Method References: fn.ref.bound.address; Spec 13: ref.local.escape.fn-capture, fn.capture.fn-static.
 struct Vec2:
     x: f64
 

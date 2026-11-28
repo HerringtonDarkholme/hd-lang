@@ -151,8 +151,8 @@ pub(crate) enum PathOwner {
 impl Ck<'_, '_> {
     /// Whether `e` is a bound method reference on a local, `local::name`,
     /// which a call checks against its parameter's type so that one passed
-    /// directly to a `fn(...)` parameter may hold a local reference to
-    /// that local (`fn.capture.local-parameter`).
+    /// for a bare `F < Fn(..)` parameter may hold a local reference to that
+    /// local (`ref.generic.outlives.argument`).
     pub(crate) fn bound_local_ref(&self, e: NodeRef<'_>) -> bool {
         e.kind() == SyntaxKind::PathExpr
             && e.children().next().is_some_and(|base| {
@@ -269,8 +269,8 @@ impl Ck<'_, '_> {
 
     /// A bound method reference `n` keeps its receiver, as a closure keeps
     /// what it captures, so a local reference receiver escapes
-    /// (`ref.local.escape.capture-stored`) unless `n` is passed directly
-    /// to a `fn(...)` parameter (`fn.capture.local-parameter`).
+    /// (`ref.local.escape.fn-capture`) unless `n` is passed for a bare
+    /// `F < Fn(..)` parameter (`ref.generic.outlives.argument`).
     fn bound_receiver_kept(&mut self, recv: Ref, base: NodeRef<'_>, n: NodeRef<'_>) {
         if recv.0 != NONE
             && self.local_capture_argument != Some(n.index())

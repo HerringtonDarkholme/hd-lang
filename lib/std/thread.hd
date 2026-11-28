@@ -6,6 +6,7 @@
 # `std::thread::scope`; `background!` is Kotlin's `withContext` and
 # Swift's detached task, a thread whose end a task awaits.
 use std.meta.Send
+use std.ops.FnMut
 use std.rt.{Drop}
 use std.rt.{panic_with}
 use std.rt.{abandon, new_block, release, run, run_here, running, share, take, wait}
@@ -30,7 +31,7 @@ impl[T < ?Copy & Send] Send for Handle[T]
 
 ## Calls `code` with a new `Scope`, then waits for every thread it started, and gives what `code` returned.
 ## See [std-thread.scope](../../spec/std/thread.md#r-std-thread.scope).
-pub fn scope['s, R < ?Copy](code: fn(&mut Scope['s]) -> R) -> R:
+pub fn scope['s, R < ?Copy](mut code: impl FnMut(&mut Scope['s]) -> R) -> R:
     let mut threads = Scope { threads: [] }
     value := code(&mut threads)
     # Every thread ends before any is reported (std-thread.scope.stopped).

@@ -1,5 +1,5 @@
 # test: a closure returned outside a direct function-parameter call cannot capture a local reference
-# Spec 13 Local References: ref.local.escape.capture-stored.
+# Spec 13 Local References: ref.local.escape.fn-capture.
 struct Point:
     x: i32
 

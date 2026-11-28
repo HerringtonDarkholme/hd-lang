@@ -32,7 +32,7 @@ fn sum(point: &Point) -> i32:
 1. r[std-thread.scope] `scope(code)` calls `code` with a new `Scope`, then waits until every thread that scope started has ended, and returns what `code` returned. The threads run at the same time as the caller and as each other.
 2. r[std-thread.scope.stopped] When a thread of the scope stopped before its closure returned, by a panic or any other stop, `scope` panics once every thread has ended. Panic: `thread-stopped`.
 3. r[std-thread.spawn] `s.spawn(code)` starts a thread that runs `code` and returns a `Handle[T]` to it. `code` is a crossing closure whose marker is `Send` ([Crossing Closures](../lang/07-functions.md#crossing-closures)), and `T` is `Send`.
-4. r[std-thread.spawn.borrow] The closure may capture a reference that outlives the call of `scope`, since the scope's parameter is at that call's lifetime ([`fn.closure.lifetime.call`](../lang/07-functions.md#r-fn.closure.lifetime.call)). The reference is a [frozen loan](../lang/13-values-and-references.md#frozen-loans) until `scope` returns.
+4. r[std-thread.spawn.borrow] The closure may capture a reference that outlives the call of `scope`, since the scope's parameter is at that call's lifetime ([`fn.closure.lifetime.call.bound`](../lang/07-functions.md#r-fn.closure.lifetime.call.bound)). The reference is a [frozen loan](../lang/13-values-and-references.md#frozen-loans) until `scope` returns.
 5. r[std-thread.spawn.here] On a host that starts no threads, `spawn` runs `code` on the calling thread before it returns.
 6. r[std-thread.scope.not-copy] `Scope` and `Handle[T]` are not `Copy`. Only `scope` makes a `Scope`.
 

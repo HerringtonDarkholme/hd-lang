@@ -1,12 +1,14 @@
 # test: a closure that captures a moved `&mut` binding uses it
 # Spec 13 Moves: ref.move.use.forms.
+use std.ops.Fn
+
 struct Counter:
     count: i32
 
 fn keep[T < ?Copy](x: T) -> void:
     pass
 
-fn run(f: fn() -> i32) -> i32:
+fn run(f: impl Fn() -> i32) -> i32:
     f()
 
 fn after_capture(c: &mut Counter) -> i32:

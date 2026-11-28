@@ -1,5 +1,5 @@
 # test: an explicit variant callback is stored rather than lent
-# Rule: ref.local.escape.capture-stored.
+# Rule: ref.local.escape.fn-capture.
 enum Callback:
     Run(job: fn() -> i32)
 

@@ -7,6 +7,8 @@
 # moves `s` into it; `nested` makes one object per scope; `$.use` and
 # `name` read the provider with no count;
 # `lexical` captures the provider reference with no environment.
+use std.ops.Fn
+
 trait Tag:
     fn name(self) -> string
 
@@ -40,7 +42,7 @@ fn nested(a: string, b: string) -> usize:
             outer + read_tag()
 >   release string (last use)
 
-fn apply(f: fn() -> usize) -> usize:
+fn apply(f: impl Fn() -> usize) -> usize:
     f()
 
 fn lexical(s: string) -> usize:

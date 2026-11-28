@@ -924,15 +924,11 @@ impl Ck<'_, '_> {
         if let Some(&(_, r, t)) = self.pre_args.iter().rev().find(|p| p.0 == e.index()) {
             return Ok((r, t));
         }
-        let direct_fn = want.is_some_and(|t| {
-            let pool = self.pool();
-            matches!(pool.get(self.resolved(t)), TyData::Fn { .. })
-        });
         let saved = self.local_capture_argument;
-        // A closure, or a bound method reference, passed directly to a
-        // `fn(...)` parameter may capture local references
-        // (`fn.capture.local-parameter`).
-        if scoped_capture && direct_fn {
+        // A closure, or a bound method reference, written for a bare
+        // `F < Fn(..)` parameter may capture local references
+        // (`ref.generic.outlives.argument`).
+        if scoped_capture {
             self.local_capture_argument = Some(e.index());
         }
         let result = self.expr(e, want);

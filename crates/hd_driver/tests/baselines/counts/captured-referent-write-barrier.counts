@@ -3,7 +3,9 @@
 # @build: v8 release
 # A copied capture supplies the address. A write through that address
 # still separates a list snapshot from the current list.
-fn apply(f: fn() -> usize) -> usize:
+use std.ops.FnMut
+
+fn apply(mut f: impl FnMut() -> usize) -> usize:
     f()
 
 fn snapshot(xs: &mut List[string]) -> usize:

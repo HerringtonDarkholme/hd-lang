@@ -124,8 +124,6 @@ pub(crate) struct DepSig {
     ret: Ty,
     /// Elision for ordinary local-reference result slots.
     elided: Elided,
-    /// Elision for a direct function result's hidden capture slot.
-    capture_elided: Elided,
     /// The lifetimes a result with no slot of its own may depend on as a
     /// whole: its projections' ([`Ck::whole_lifetimes`]).
     whole: Vec<u32>,
@@ -202,11 +200,6 @@ impl DepSig {
                     .flat_map(|(_, (t, ids))| ref_ids_of(ls, *t, ids)),
             ),
         };
-        let capture_elided = one_id(
-            ps.iter()
-                .filter(|(t, _)| capture_slot(pool, *t))
-                .filter_map(|(_, ids)| ids.first().copied()),
-        );
         let held = hold_id(&ps);
         let mut r = 0;
         let outs = (ls.of(ret).slots.iter())
@@ -224,11 +217,10 @@ impl DepSig {
                 if whole {
                     return None;
                 }
+                // A `fn(..)` result holds no local reference
+                // (`ref.local.fn-static`).
                 if fun {
-                    return match capture_elided {
-                        Elided::Lifetime(id) => Some(id),
-                        Elided::Missing | Elided::Ambiguous => None,
-                    };
+                    return None;
                 }
                 let j = r;
                 r += 1;
@@ -249,7 +241,6 @@ impl DepSig {
             outs,
             ret,
             elided,
-            capture_elided,
             whole: Vec::new(),
         }
     }
@@ -293,12 +284,6 @@ impl DepSig {
             })
             .collect::<Vec<_>>();
         let elided = one_id(params.iter().flat_map(|(p, ids)| ref_ids_of(ls, *p, ids)));
-        let capture_elided = one_id(
-            params
-                .iter()
-                .filter(|(p, _)| capture_slot(pool, *p))
-                .filter_map(|(_, ids)| ids.first().copied()),
-        );
         // A type that writes no map has no reference result slots.
         let held = hold_id(&params);
         let mut r = 0;
@@ -318,10 +303,7 @@ impl DepSig {
                     return Some(None);
                 }
                 if fun {
-                    return Some(match capture_elided {
-                        Elided::Lifetime(id) => Some(id),
-                        Elided::Missing | Elided::Ambiguous => None,
-                    });
+                    return Some(None);
                 }
                 let l = *written_outs.get(r)?;
                 r += 1;
@@ -338,7 +320,6 @@ impl DepSig {
             outs,
             ret: result,
             elided,
-            capture_elided,
             whole: Vec::new(),
         })
     }
@@ -517,9 +498,6 @@ impl DepSig {
         if let Elided::Lifetime(id) = self.elided {
             ids.push(id);
         }
-        if let Elided::Lifetime(id) = self.capture_elided {
-            ids.push(id);
-        }
         ids.extend_from_slice(&self.whole);
         ids.sort_stable();
         ids.dedup();
@@ -579,7 +557,8 @@ fn slot_ids(
                 return held().unwrap_or(own);
             }
             // A whole slot writes no lifetime: [`Ck::with_wholes`] gives
-            // it its referent's.
+            // it its referent's; a function type's slot holds nothing its
+            // body sees (`ref.local.fn-static`).
             if s.fun || s.whole {
                 return own;
             }
@@ -902,7 +881,7 @@ pub fn line_up_with(
                 keys.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
                 true
             }
-            // A function value's one capture slot (`fn.capture.local-parameter`).
+            // A function value's one capture slot (`ref.generic.outlives.instance`).
             (TyData::Fn { .. }, TyData::Fn { .. }) => {
                 decl(&mut next, &mut keys, 1);
                 true
@@ -1610,15 +1589,11 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
 
 // The messages of `local-reference-escapes` for a store into a place the
 // caller owns and for each destination of a captured function value.
-/// The start of each message of a captured function value but
-/// [`HELD_MSG`]'s.
-const CAPTURED: &str = "a local reference captured by this function value";
 const BOX_MSG: &str = "a local reference captured by this function value never escapes to a box";
 const STORE_FN_MSG: &str = "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns";
 const PROOF_MSG: &str = "a reference does not outlive the lifetime required by its trait bound";
 const STATIC_MSG: &str = "a local reference captured by this function value never escapes to a type parameter bounded by `'static`";
-const FN_PARAM_MSG: &str =
-    "a local reference captured by this function value may be passed only to a `fn(...)` parameter";
+const FN_PARAM_MSG: &str = "a local reference captured by this function value may be passed only for a bare type parameter, as `f: F` with `F < Fn(...)`";
 const FIELD_MSG: &str = "a local reference captured by this function value never escapes to a field or collection element";
 const ELEM_MSG: &str =
     "a local reference captured by this function value never escapes to a collection element";
@@ -2453,7 +2428,7 @@ struct Inputs<'a> {
     /// The reads that move a binding or a part of it (`ref.excl.move`).
     moves: &'a HashSet<u32>,
     /// Locals whose closure capture is already `local-reference-escapes`
-    /// (`ref.local.escape.capture-stored`): they add no capture origins.
+    /// (`ref.local.escape.fn-capture`): they add no capture origins.
     reported: &'a HashSet<hd_base::LocalId>,
     /// The body's own result paths (`ref.result.path.callee`).
     paths: &'a [OwnPath],
@@ -3368,10 +3343,19 @@ impl Ck<'_, '_> {
             }
         } else if let Some(sig) = &sig {
             let n = sig.params.len();
-            for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
+            for p in 0..n {
                 // A function type nested in the parameter's type is
-                // matched to no part of the argument.
-                let lts = own_inputs(ls.pool, sig.params[p].1, lts);
+                // matched to no part of the argument. A bare `F < Fn(..)`
+                // parameter gives a closure its bound's inputs.
+                let lts = match pool.get(sig.params[p].1) {
+                    TyData::Param(q) if def == Some(q.owner) => {
+                        bound_inputs(pool, self.cx.names.known, sig, q.index)
+                    }
+                    _ => sig
+                        .fn_lifetimes
+                        .get(p)
+                        .map_or(&[][..], |lts| own_inputs(pool, sig.params[p].1, lts)),
+                };
                 let Some(a) = (lts.iter().any(|&l| l != 0))
                     .then(|| source_arg(b, i, p))
                     .flatten()
@@ -3418,8 +3402,7 @@ impl Ck<'_, '_> {
         // Export runtime dependencies after lining up generic arguments,
         // not just the reference types spelled in the declaration. Keep
         // the existing lifetime-variable links, including trait bindings.
-        let bare: Vec<_> = ([dep.elided, dep.capture_elided].map(lifetime).into_iter())
-            .flatten()
+        let bare: Vec<_> = (lifetime(dep.elided).into_iter())
             .filter(|_| elides)
             .chain(bare)
             .collect();
@@ -4103,7 +4086,6 @@ impl Ck<'_, '_> {
         let (projs, other) = wholes(ls, dep.ret);
         if !projs.is_empty() && !other {
             dep.elided = Elided::Missing;
-            dep.capture_elided = Elided::Missing;
         }
         dep.whole = self.whole_lifetimes(ls, dep.ret);
         dep
@@ -4825,11 +4807,7 @@ impl Ck<'_, '_> {
         let mut static_proofs = StaticProofCache::default();
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
-        let mut through = !statics.is_empty()
-            || !markers.is_empty()
-            || body.local_ty.iter().enumerate().any(|(l, &t)| {
-                body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
-            });
+        let mut through = !statics.is_empty() || !markers.is_empty();
         let (mut last_write, mut first_elem_ref) = (None, u32::MAX);
         for i in 0..body.tags.len() {
             if matches!(
@@ -4922,7 +4900,6 @@ impl Ck<'_, '_> {
                                 outs: vec![],
                                 ret: result,
                                 elided: Elided::Missing,
-                                capture_elided: Elided::Missing,
                                 whole: Vec::new(),
                             });
                             let hidden = body.sub_root.get(sub).map_or(result, |&r| {
@@ -5051,27 +5028,17 @@ impl Ck<'_, '_> {
         {
             self.source_error(elided == Some(Elided::Missing), f);
         }
-        // A direct function result with two or more `fn(...)` parameters
-        // has no one capture source (`ref.dep.capture-elide.ambiguous`).
-        if let (Some(o), Some(f)) = (&own, fun)
-            && o.capture_elided == Elided::Ambiguous
-            && (ls.of(o.ret).slots.iter()).any(|s| s.fun && !s.hold && !s.written)
-        {
-            self.capture_source_error(self.b.body().item, f);
-        }
         // A result path that crosses a pointer is the one report for what
         // the body returns through it (`ref.result.path.counted`).
         let crossed = errs.iter().any(|e| e.1 == Code::LocalReferenceEscapes);
-        // A function value in the result may carry captures with no source
-        // (`ref.generic.outlives.read`) when no `fn(...)` parameter gives one.
         for (at, code, msg) in errs {
             self.err(code, self.cx.src.parse.tree.node(at), &msg);
         }
+        // A function value or a suspension in the result is checked to
+        // hold nothing it has no source for (`ref.local.fn-static`,
+        // `ref.dep.suspension.local`).
         let own = own.filter(|o| {
-            opaque
-                || o.depends()
-                || o.capture_elided == Elided::Missing
-                    && ls.of(o.ret).tops.iter().any(|&k| ls.of(o.ret).slots[k].fun)
+            opaque || o.depends() || (ls.of(o.ret).tops.iter()).any(|&k| ls.of(o.ret).slots[k].fun)
         });
         // A place through a pointer may take a run-time loan, whose holders
         // the regions give.
@@ -5428,14 +5395,8 @@ impl Ck<'_, '_> {
                 push(at, &|| self.passed_message(own, (o, l, value), fun));
             }
         }
-        for (at, o, msg) in v.capture {
-            push(at, &|| {
-                if msg == PROOF_MSG {
-                    msg.to_owned()
-                } else {
-                    capture_message(body, self.cx, o, msg)
-                }
-            });
+        for (at, _, msg) in v.capture {
+            push(at, &|| msg.to_owned());
         }
         if let Some(own) = own {
             for (at, o, id) in v.results {
@@ -5484,31 +5445,6 @@ impl Ck<'_, '_> {
                 "the result may borrow from more than one reference parameter; write the result type with a lifetime",
             );
         }
-    }
-
-    /// `ambiguous-reference-source` at the result type of `f`, or at `f`
-    /// when it omits one, naming the first two `fn(...)` parameters.
-    fn capture_source_error(&mut self, item: DefId, f: NodeRef<'_>) {
-        let pool = self.pool();
-        let sig = self.cx.lookup.item(item).and_then(|i| i.sig());
-        let names: Vec<&str> = sig
-            .map_or(&[][..], |s| &s.params[..])
-            .iter()
-            .filter(|&&(_, t)| capture_slot(pool, t))
-            .map(|&(s, _)| self.cx.names.text(s))
-            .take(2)
-            .collect();
-        let msg = match names.as_slice() {
-            [a, b] => format!(
-                "the result may hold what `{a}` or `{b}` captures; take them as type parameters bounded by `'static`"
-            ),
-            _ => "the result may hold what more than one function parameter captures; take them as type parameters bounded by `'static`".to_owned(),
-        };
-        self.err(
-            Code::AmbiguousReferenceSource,
-            Src::type_child(f).unwrap_or(f),
-            &msg,
-        );
     }
 
     /// The lifetime each layout slot of each closure parameter writes, by
@@ -5748,21 +5684,6 @@ impl Ck<'_, '_> {
     }
 }
 
-/// The message of a captured function value kept where `msg` says it may
-/// not go, holding `o`. A function parameter's capture slot holds what a
-/// closure the caller supplied for it captured, so the message names the
-/// parameter (`fn.capture.local-store`).
-fn capture_message(b: &Body, cx: &BodyCx<'_>, o: Origin, msg: &str) -> String {
-    let fn_param = |p: u32| b.local_flags[p as usize] & hd_tir::ir::local_flags::PARAM != 0;
-    match (o, msg.strip_prefix(CAPTURED)) {
-        (Origin::Param(p, _), Some(rest)) if fn_param(p) => format!(
-            "`{}` is a function parameter, which may hold a closure that captures the caller's local references; it{rest}",
-            cx.names.text(b.local_name[p as usize])
-        ),
-        _ => msg.to_owned(),
-    }
-}
-
 /// `fn.closure.lifetime`: the message for a closure's returned value that
 /// depends on `o`.
 fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
@@ -5828,9 +5749,7 @@ fn result_slots(
     paths: &[OwnPath],
 ) -> Vec<Option<Vec<u32>>> {
     let rl = ls.of(ret);
-    let capture = |k: usize| {
-        own.capture_elided == Elided::Missing && rl.tops.get(k).is_some_and(|&t| rl.slots[t].fun)
-    };
+    let capture = |k: usize| rl.tops.get(k).is_some_and(|&t| rl.slots[t].fun);
     let tops = &ls.of(own.ret).tops;
     let lined = tops.len() == rl.tops.len();
     (own.result_ids(ls, ret).into_iter().enumerate())
@@ -5994,6 +5913,26 @@ enum Spot {
 /// The record slots of function type `t`'s own inputs, when `rec` is
 /// the record of a whole type `t`: after those of the function types in
 /// its inputs and result, and before those of its own result.
+/// The lifetimes the inputs of generic `index`'s `Fn` or `FnMut` bound
+/// write, in [`Types::ref_slots`] order (`fn.closure.lifetime.call`).
+fn bound_inputs<'s>(
+    pool: Types<'_>,
+    known: &hd_resolve::KnownItems,
+    sig: &'s hd_resolve::FnSig,
+    index: u16,
+) -> &'s [u16] {
+    let Some(g) = sig.generics.get(usize::from(index)) else {
+        return &[];
+    };
+    (g.bounds.iter().zip(&g.bound_lifetimes))
+        .find_map(|(&b, lts)| {
+            let (tr, args) = pool.trait_value(b)?;
+            known.fn_trait_name(tr)?;
+            lts.get(..pool.ref_slots(*pool.list_items(args).first()?))
+        })
+        .unwrap_or(&[])
+}
+
 fn own_inputs<'r>(pool: Types<'_>, t: Ty, rec: &'r [u16]) -> &'r [u16] {
     let TyData::Fn { params, result, .. } = pool.get(t) else {
         return &[];

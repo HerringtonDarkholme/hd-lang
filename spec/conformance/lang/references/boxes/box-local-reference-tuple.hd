@@ -1,5 +1,5 @@
 # test: a box of a tuple that holds a local reference is local, so a stored closure cannot capture it
-# Spec 13 Boxes: ref.box.local; Local References: ref.local.holding, ref.local.escape.capture-stored.
+# Spec 13 Boxes: ref.box.local; Local References: ref.local.holding, ref.local.escape.fn-capture.
 struct Point:
     x: i32
 

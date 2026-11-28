@@ -7,6 +7,8 @@
 # moves `s` into it; `nested` makes one object per scope; `$.use` and
 # `name` read the provider with no count;
 # `lexical` captures the provider reference with no environment.
+use std.ops.Fn
+
 trait Tag:
     fn name(self) -> string
 
@@ -207,12 +209,12 @@ fn nested(a: string, b: string) -> usize:
 >   storage sub 0: $6 cell, $10 cell
 >   summary kept [$0 $1] writes
 
-fn apply(f: fn() -> usize) -> usize:
+fn apply(f: impl Fn() -> usize) -> usize:
     f()
 > app/main/apply
->   local $0 f: fn() -> usize [param read] value
+>   local $0 f: <impl:0> [param read] value
 >     uses $0: entry -> %0 lend last
->   %0 = Read borrow [$0] : fn() -> usize
+>   %0 = Read borrow [$0] : <impl:0>
 >   %1 = CallValue %0 [] : usize
 >   %2 = Intrinsic ParamOwned [0:i32] : bool
 >   %3 = Drop [$0] : ()

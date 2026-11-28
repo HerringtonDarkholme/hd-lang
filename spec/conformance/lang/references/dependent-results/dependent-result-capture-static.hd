@@ -1,5 +1,5 @@
 # test: type parameters bounded by 'static give a composed function result its lifetime
-# Spec 13 Dependent Results: ref.dep.capture-elide.ambiguous.
+# Spec 13 Lifetime Bounds: ref.generic.static.fn-conjunction.
 # expect-stdout: 10
 use std.ops.FnMut
 
