@@ -1207,6 +1207,7 @@ fn fresh_unit() -> Emitted<()> {
         symbols,
         unit: Unit::default(),
         f: Ok(f),
+        cell: None,
     }
 }
 fn emitted_units() {

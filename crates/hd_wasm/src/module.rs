@@ -1503,6 +1503,10 @@ pub(crate) struct Emitted<E> {
     symbols: Symbols,
     unit: Unit,
     f: Result<Func, E>,
+    /// A serial unit's body facts cell, which its siblings share, for its
+    /// emission again in the merge: the body's facts are computed once,
+    /// not once per sub-body.
+    cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
 }
 
 impl<E> Emitted<E> {
@@ -1986,7 +1990,8 @@ impl Module {
     /// reads `facts`, numbers what it names in tables of its own
     /// ([`Symbols::unit`]) and keeps what it adds in its [`Unit`] for
     /// [`Module::merge`]. Units emit at once on the task's threads.
-    /// Cost: one empty module, and the cell of the instance's body facts.
+    /// Cost: one empty module, and the cell of the instance's body facts,
+    /// kept until the merge for a serial unit.
     pub(crate) fn emit_unit<E>(
         facts: &Arc<Facts>,
         cell: Option<(hd_base::InstId, crate::emit::BodyFactCell)>,
@@ -1995,10 +2000,11 @@ impl Module {
         let mut unit = Self::new(&facts.runtime);
         unit.facts = Arc::clone(facts);
         unit.symbols = Symbols::unit();
-        unit.body_facts.extend(cell);
+        unit.body_facts.extend(cell.clone());
         let f = emit(&mut unit);
         Emitted {
             symbols: unit.symbols,
+            cell: cell.filter(|_| unit.unit.serial),
             unit: unit.unit,
             f,
         }
@@ -2020,7 +2026,10 @@ impl Module {
         emit: impl FnOnce(&mut Self) -> Result<Func, E>,
     ) -> Result<Func, E> {
         let vtables = self.vtables.len();
-        let Emitted { symbols, unit, f } = if emitted.unit.serial {
+        let Emitted {
+            symbols, unit, f, ..
+        } = if emitted.unit.serial {
+            self.body_facts.extend(emitted.cell);
             // Its view reads the module as it stands, so a vtable entry
             // takes the id an earlier unit gave its symbol and the table
             // deduplicates as it would have.
@@ -2031,6 +2040,7 @@ impl Module {
                 symbols: std::mem::replace(&mut self.symbols, module),
                 unit: std::mem::take(&mut self.unit),
                 f,
+                cell: None,
             }
         } else {
             emitted

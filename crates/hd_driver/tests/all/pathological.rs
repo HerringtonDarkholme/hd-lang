@@ -4717,6 +4717,46 @@ fn a_nested_tuple_release_emits_no_unused_count_shims() {
     });
 }
 
+/// Local functions nested `n` deep, the innermost returning: the scale
+/// check's `fn-nest`.
+fn fn_nest(n: usize) -> String {
+    let mut s = String::from("fn outer(x0: i32) -> i32:\n");
+    for k in 1..=n {
+        let _ = writeln!(s, "{}fn f{k}(x{k}: i32) -> i32:", "    ".repeat(k));
+    }
+    let _ = writeln!(s, "{}return x{n}", "    ".repeat(n + 1));
+    for k in (1..=n).rev() {
+        let _ = writeln!(s, "{}f{k}(x{})", "    ".repeat(k), k - 1);
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(\"${outer(1)}\")\n");
+    s
+}
+
+// Emit: layout A (#1436) gave each sub-body naming a local function's
+// static object a vtable, so the merge emits its unit again in order. The
+// re-emission had no facts cell and computed the whole body's facts once
+// per sub-body: O(depth^2) for `fn-nest`. It now keeps the cell its
+// siblings share, as the parallel emission does.
+#[test]
+fn nested_local_functions_compute_their_body_facts_once() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let work = |k: usize| {
+            let (out, work) = hd_wasm::work::count_use_facts(|| compile(&fn_nest(k), &goal));
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        let (k4, k16, k64) = (work(4), work(16), work(64));
+        let (small, large) = (k16 - k4, k64 - k16);
+        assert!(
+            small > 0 && large <= 5 * small,
+            "use facts from 4 to 16 and from 16 to 64 levels: {small} and {large}"
+        );
+    });
+}
+
 /// `n` functions, each called once from `main` as `t = f0000(t)`: the
 /// scale check's `fn-items`.
 fn fn_items(n: usize) -> String {

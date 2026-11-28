@@ -1268,6 +1268,7 @@ pub(crate) fn decode<E>(bytes: &[u8], tys: &[Ty]) -> Option<Emitted<E>> {
         symbols,
         unit,
         f: Ok(f),
+        cell: None,
     })
 }
 
