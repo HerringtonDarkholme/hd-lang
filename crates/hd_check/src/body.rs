@@ -853,6 +853,8 @@ pub(crate) enum ProjectSite {
 
 /// The checker of one body: the item whose parameters and bounds are in
 /// scope (`env`), the TIR item and kind, its result and row.
+/// On the heap: a `Ck` is 6 KiB, and a caller's frame stays small
+/// while it checks the body below it (#2423).
 pub(crate) fn new_ck<'a, 'c>(
     cx: &'c BodyCx<'a>,
     local: &'c hd_types::LocalPool,
@@ -861,9 +863,9 @@ pub(crate) fn new_ck<'a, 'c>(
     kind: BodyKind,
     (ret, row): (Ty, RowId),
     diags: &'c mut DiagBuf,
-) -> Ck<'a, 'c> {
+) -> Box<Ck<'a, 'c>> {
     let pool = cx.names.pool;
-    let mut ck = Ck {
+    let mut ck = hd_base::stack::on_heap(|| Ck {
         cx,
         local,
         tool_facts: crate::comparison::SourceFacts::default(),
@@ -1020,7 +1022,7 @@ pub(crate) fn new_ck<'a, 'c>(
         gen_owner: env,
         next_gen: 0,
         in_template: None,
-    };
+    });
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
     let Some(it) = cx.lookup.item(env) else {

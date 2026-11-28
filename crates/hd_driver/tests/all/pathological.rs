@@ -492,8 +492,9 @@ fn a_top_first_alias_chain_checks_on_a_small_stack() {
 // stacks: a value that weakens `*mut i32` to `*i32` under 990 levels of
 // `List` checks on a 96 KiB stack, through the variance walk
 // (`Ck::variance_fits`, `readonly_reference_fits`, `perm_fits`), the
-// nested rows (`Ck::solve_nested_rows`) and the escape check
-// (`local_refs::escape_in`). A program 5 levels deep needs the same stack.
+// nested rows (`Ck::solve_nested_rows`), the escape check
+// (`local_refs::escape_in`) and the cache entry's type rows
+// (`TableWriter::ty`, #2423). A program 5 levels deep needs the same stack.
 #[test]
 fn a_variance_at_the_type_depth_checks_on_a_small_stack() {
     let n = 990;

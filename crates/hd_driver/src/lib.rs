@@ -3092,7 +3092,8 @@ fn build_packages_inner(
         k.finish()
     };
     let rows = rows::Rows::new(host.store, toolchain, &identities, kind, &table);
-    let run = Run {
+    // A `Run` is 10 KiB.
+    let run = hd_base::stack::on_heap(|| Run {
         lint: analysis::Lint::new(analysis, n),
         host,
         package: package.to_owned(),
@@ -3241,7 +3242,7 @@ fn build_packages_inner(
         glue_items: OnceLock::new(),
         table,
         module_nodes,
-    };
+    });
     lock(&run.report).ok(Stage::Discover);
     // Without the feature a checked request would silently build an
     // unchecked program.
@@ -3316,6 +3317,20 @@ fn build_packages_inner(
             );
         }
     }
+    run_output(run, host, packages, result_key, toolchain)
+}
+
+/// The output of a finished run, in a frame of its own: its temporaries
+/// never sit under the run's tasks, which check on the caller's stack
+/// (#2423).
+#[inline(never)]
+fn run_output(
+    run: Box<Run<'_>>,
+    host: &Host<'_>,
+    packages: &Packages<'_>,
+    result_key: Option<Hash128>,
+    toolchain: Hash128,
+) -> Output {
     if let (Some(reuse), Some(left)) = (packages.reuse, &run.reusing) {
         let _ = reuse.0.set(Reused {
             pool: Arc::clone(&run.pool),
@@ -7595,7 +7610,7 @@ impl Run<'_> {
         let solver = TableSolver;
         let locals = hd_resolve::local_items(&heads);
         let session = self.session_nodes(m);
-        let cx = BodyCx {
+        let cx = hd_base::stack::on_heap(|| BodyCx {
             names,
             src,
             scope: &scope,
@@ -7625,7 +7640,7 @@ impl Run<'_> {
             session: &session,
             fuel: self.fuel_of(m),
             verify_tir: self.verify_tir,
-        };
+        });
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
         // `ref.local.escape.*`: written local references that are kept.

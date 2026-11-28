@@ -32,8 +32,10 @@ pub struct TableWriter<'a> {
     row_index: HashMap<u32, u32>,
     sym_rows: Vec<Symbol>,
     sym_index: HashMap<Symbol, u32>,
-    /// How many [`TableWriter::ty`] calls are open.
-    depth: u32,
+    /// The explicit stack of [`TableWriter::ty`]: each type with whether
+    /// its parts are pushed. A nested call (a row's keys) works above the
+    /// caller's entries, so one buffer serves every call.
+    walk: Vec<(Ty, bool)>,
     /// The content hash of a type whose row a fingerprint writes as that
     /// hash ([`TableWriter::hashing`]); `None` writes its rows.
     hashed: Option<&'a dyn Fn(Ty) -> Option<Hash128>>,
@@ -41,10 +43,44 @@ pub struct TableWriter<'a> {
     hashed_tys: Vec<Ty>,
 }
 
-/// The nesting of [`TableWriter::ty`] calls past which a type's parts are
-/// written first with an explicit stack ([`TableWriter::parts_first`]).
-/// Shallower types keep the recursive order.
-const NATIVE_DEPTH: u32 = 64;
+/// Pushes the parts of `t` not `written` yet, unexpanded, in the order
+/// [`TableWriter::ty_row`] writes them: not a row's keys or a trait
+/// value's bindings, which it writes in a content order of their own.
+fn nested_parts(pool: &InternPool, written: &HashMap<u32, u32>, t: Ty, out: &mut Vec<(Ty, bool)>) {
+    let mut push = |p: Ty| {
+        if !written.contains_key(&p.0) {
+            out.push((p, false));
+        }
+    };
+    match pool.get(t) {
+        TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
+            pool.list_items(args).iter().copied().for_each(push);
+        }
+        TyData::Opaque { args, bound, .. } => {
+            pool.list_items(args).iter().copied().for_each(&mut push);
+            push(bound);
+        }
+        TyData::Ref { inner, .. } => push(inner),
+        TyData::Fn { params, result, .. } => {
+            pool.list_items(params).iter().copied().for_each(&mut push);
+            push(result);
+        }
+        TyData::Assoc { self_ty, args, .. } => {
+            push(self_ty);
+            pool.list_items(args).iter().copied().for_each(push);
+        }
+        // A leaf, or parts written in an order of their own.
+        TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Row(_)
+        | TyData::Context(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_) => {}
+    }
+}
 
 /// Type-row tags.
 mod tag {
@@ -93,7 +129,7 @@ impl<'a> TableWriter<'a> {
             row_index: HashMap::default(),
             sym_rows: Vec::new(),
             sym_index: HashMap::default(),
-            depth: 0,
+            walk: Vec::new(),
             hashed: None,
             hashed_tys: Vec::new(),
         }
@@ -247,92 +283,51 @@ impl<'a> TableWriter<'a> {
         Ok(row)
     }
 
+    /// The row of `t`, after the rows of its parts: each part is written
+    /// before the type that holds it, with an explicit stack, so the
+    /// native stack stays the same at any type depth (#2423). A type
+    /// whose parts are all written is one probe. Cost: one visit per part
+    /// not written yet, plus a nested call per row key and trait-value
+    /// binding, which keep a content order of their own.
     pub fn ty(&mut self, t: Ty) -> StageResult<u32> {
         if let Some(&r) = self.ty_index.get(&t.0) {
             return Ok(r);
         }
-        if let Some(h) = self.hashed.and_then(|f| f(t)) {
-            let b = h.0.to_le_bytes();
-            let word = |i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
-            let row = self.row(tag::HASHED, &[word(0), word(4), word(8), word(12)]);
-            self.ty_index.insert(t.0, row);
-            self.hashed_tys.push(t);
-            return Ok(row);
-        }
-        if self.depth >= NATIVE_DEPTH {
-            self.parts_first(t)?;
-        }
-        self.depth += 1;
-        let row = self.ty_row(t);
-        self.depth -= 1;
+        let base = self.walk.len();
+        self.walk.push((t, false));
+        let row = self.walk_from(base);
+        self.walk.truncate(base);
         row
     }
 
-    /// The parts a type nests through, in the order [`Self::ty_row`]
-    /// writes them: not a row's keys or a trait value's bindings, which
-    /// it writes in a content order of their own.
-    fn nested_parts(&self, t: Ty, out: &mut Vec<Ty>) {
-        let items = |l: TyList| self.pool.list_items(l);
-        match self.pool.get(t) {
-            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
-                out.extend_from_slice(items(args));
-            }
-
-            TyData::Opaque { args, bound, .. } => {
-                out.extend_from_slice(items(args));
-                out.push(bound);
-            }
-            TyData::Ref { inner, .. } => out.push(inner),
-            TyData::Fn { params, result, .. } => {
-                out.extend_from_slice(items(params));
-                out.push(result);
-            }
-            TyData::Assoc { self_ty, args, .. } => {
-                out.push(self_ty);
-                out.extend_from_slice(items(args));
-            }
-            // A leaf, or parts written in an order of their own.
-            TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Param(_)
-            | TyData::Const(_)
-            | TyData::Row(_)
-            | TyData::Context(_)
-            | TyData::Infer(_)
-            | TyData::Canon(_) => {}
-        }
-    }
-
-    /// Writes the parts of `t` that are not written yet, each after its
-    /// own parts, with an explicit stack: a type nested 20,000 deep, as
-    /// a chain of aliases makes, writes without native recursion. Each
-    /// part is visited once, so the cost is the parts not written yet.
-    fn parts_first(&mut self, t: Ty) -> StageResult<()> {
-        let mut stack = vec![(t, false)];
-        let mut parts = Vec::new();
-        while let Some((u, expanded)) = stack.pop() {
+    /// Pops the walk down to `base`, writing each type after its parts;
+    /// the row of the type at `base`, which is written last.
+    fn walk_from(&mut self, base: usize) -> StageResult<u32> {
+        let mut last = NONE;
+        while self.walk.len() > base {
+            let Some((u, expanded)) = self.walk.pop() else {
+                break;
+            };
             if self.ty_index.contains_key(&u.0) {
                 continue;
             }
             if expanded {
-                if u != t {
-                    self.ty_row(u)?;
-                }
-                continue;
+                last = self.ty_row(u)?;
+            } else if let Some(h) = self.hashed.and_then(|f| f(u)) {
+                let b = h.0.to_le_bytes();
+                let word = |i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+                last = self.row(tag::HASHED, &[word(0), word(4), word(8), word(12)]);
+                self.ty_index.insert(u.0, last);
+                self.hashed_tys.push(u);
+            } else {
+                self.walk.push((u, true));
+                let first = self.walk.len();
+                nested_parts(self.pool, &self.ty_index, u, &mut self.walk);
+                // Popped in the order [`Self::ty_row`] writes them.
+                self.walk[first..].reverse();
             }
-            stack.push((u, true));
-            parts.clear();
-            self.nested_parts(u, &mut parts);
-            stack.extend(
-                parts
-                    .iter()
-                    .rev()
-                    .filter(|p| !self.ty_index.contains_key(&p.0))
-                    .map(|&p| (p, false)),
-            );
         }
-        Ok(())
+        Ok(last)
     }
 
     /// The row of `t`, which is not written yet.
@@ -832,6 +827,34 @@ mod tests {
         assert_eq!(output.bytes, bytes.bytes);
     }
 
+    /// #2423: a type's rows take the same native stack at any depth. A
+    /// cache entry's type 64 levels deep took 672 bytes of stack per level
+    /// (arm64, release), so a checking thread's 96 KiB lost 43 of them.
+    #[test]
+    fn a_type_sixty_four_deep_writes_on_a_small_stack() {
+        // cost: one thread, writing one type of 64 levels.
+        std::thread::Builder::new()
+            .stack_size(32 << 10)
+            .spawn(|| {
+                let (pool, paths, syms) = (
+                    InternPool::new(),
+                    PathTable::new(),
+                    ShardedInterner::default(),
+                );
+                let list = paths.item("app", "values", "List");
+                let mut t = Ty::I32;
+                for _ in 0..64 {
+                    t = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[t])));
+                }
+                let mut tables = TableWriter::new(&pool, &paths, &syms);
+                let row = tables.ty(t).expect("row");
+                assert_eq!(row, 128, "each level is one list row and one ADT row");
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
     use super::{TableWriter, Tables};
     use crate::pool::{InternPool, ParamRef, RowData, Ty, TyData};
     use hd_base::PathId;
@@ -963,10 +986,10 @@ mod tests {
             (9, &[1, 2]),               // type list
             (28, &[0, 2, 3]),           // declared Point[&i32, bool]
             (14, &[2, 0, 2, 2, 2]),     // sorted keys and row parameter
-            (9, &[4, 1]),               // function inputs
             (9, &[0, 4]),               // product members: fixed i32, rest Point
-            (28, &[3, u32::MAX, 7]),    // anonymous product with a rest
-            (8, &[6, 8, 5, 1]),         // suspending function
+            (28, &[3, u32::MAX, 6]),    // anonymous product with a rest
+            (9, &[4, 1]),               // function inputs, after every part
+            (8, &[8, 7, 5, 1]),         // suspending function
             (9, &[]),                   // empty trait arguments
             (12, &[3, 10, 4, 1, 5, 2]), // bindings sorted Alpha, Zulu
         ];

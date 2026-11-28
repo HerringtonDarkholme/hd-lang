@@ -16,3 +16,15 @@ pub fn all<T>(first: T, mut step: impl FnMut(T, &mut Vec<T>) -> bool) -> bool {
     }
     true
 }
+
+/// `make`'s value on the heap, built in this function's own frame: a
+/// large value (the checker's `Ck`, the driver's `Run`) never sits in the
+/// frame of a caller that runs deep work below it; the caller keeps one
+/// pointer. A thread's stack pays for the frames on its deepest path
+/// (#2423). Cost: one allocation.
+#[inline(never)]
+pub fn on_heap<T>(make: impl FnOnce() -> T) -> Box<T> {
+    // Allocated first, so the value is written once, not built and then
+    // moved: `Box::new(make())` held two copies in this frame.
+    Box::write(Box::new_uninit(), make())
+}
