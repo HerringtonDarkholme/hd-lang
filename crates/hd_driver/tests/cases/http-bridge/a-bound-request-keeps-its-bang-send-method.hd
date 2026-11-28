@@ -1,0 +1,14 @@
+# @dump: stdout
+# @build: wasmtime dev | wasmtime checked | wasmtime release
+use std.http.{Http, Request, Response, ScriptedHttp}
+use std.url.Url
+
+pub fn main!() -> void $ Console:
+    provider := ScriptedHttp::new()
+    provider.reply("http://example.test/host", .Ok(Response::status(.Ok).set_text("ok")))
+    $.with(Http=provider):
+        request := Request::get(Url::parse("http://example.test/host").expect("URL"))
+            .set_header(.Host, "example.test")
+        response := request.send!().expect("send")
+        println(response.text().expect("body"))
+    println(provider.received()[0].header(.Host).unwrap_or("missing"))

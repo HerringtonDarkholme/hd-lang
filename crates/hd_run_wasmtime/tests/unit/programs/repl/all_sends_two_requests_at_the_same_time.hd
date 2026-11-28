@@ -1,6 +1,7 @@
 use std.http.{Request}
 use std.url.{Url}
 fn timed!() -> string $ Http:
-    match REQUEST.send!():
+    request := Request::get(Url::parse("__HTTP_URL__").expect("URL"))
+    match request.send!():
         .Ok(r) => "status ${r.status.code()}"
         .Err(e) => "${e}"

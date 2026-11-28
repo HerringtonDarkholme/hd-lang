@@ -1513,11 +1513,10 @@ fn all_sends_two_requests_at_the_same_time() {
         for input in HTTP_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let request = format!("Request::get(Url::parse(\"{url}\").expect(\"URL\"))");
         assert_eq!(
             repl.input(
                 &include_str!("programs/repl/all_sends_two_requests_at_the_same_time.hd")
-                    .replace("REQUEST", &request)
+                    .replace("__HTTP_URL__", &url)
             ),
             Outcome::Exit(0),
             "{}",

@@ -95,10 +95,12 @@ fn std_interfaces_build_with_no_diagnostic() {
             "std.rt.checked",
             "std.rt.crossing",
             "std.rt.entry",
-            "std.testing"
+            "std.testing",
+            "std.url",
+            "std.url_internal",
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 19);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 21);
 }
 
 #[test]
@@ -230,7 +232,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 19);
+    assert_eq!(base.len(), 21);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -333,8 +335,8 @@ fn std_typed_signatures_compile_through_headers() {
     crate::add_facades(&mut s);
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (20, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 20);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (22, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 22);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

@@ -1,0 +1,9 @@
+use std.testing.assert_equal
+use std.http.get
+use pkg.status_of
+
+it("reads a page"):
+    assert_equal(status_of("http://127.0.0.1:__PORT__/ok"), 200, reason="granted")
+
+it("is refused another host"):
+    assert_equal(status_of("http://localhost:__PORT__/ok"), 0, reason="not granted")
