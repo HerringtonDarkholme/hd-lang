@@ -1,0 +1,28 @@
+# @dump: functions
+# @build: dev | release
+# @host: main.Store
+# A package host may return a `*mut dyn Cursor` of its own, whose table is
+# no collected vtable: `Fixed.next!` never waits, but a call through
+# `*mut dyn Cursor` may reach the host's, so `first!` keeps its frame
+# (#2419).
+@host
+pub trait Store:
+    fn open(&mut self) -> *mut dyn Cursor
+
+pub trait Cursor:
+    fn next!(&mut self) -> i32
+
+struct Fixed:
+    n: i32
+
+impl Cursor for Fixed:
+    fn next!(&mut self) -> i32:
+        self.n
+
+fn first!(cursor: *mut dyn Cursor) -> i32:
+    cursor.next!()
+
+pub fn main!() -> void $ Console + Store:
+    let mine: *mut dyn Cursor = box(Fixed { n: 1 })
+    theirs := $.use(Store).open()
+    println("${first!(mine)} ${first!(theirs)}")

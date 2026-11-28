@@ -113,7 +113,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
     let mut frozen = vec![0u32; n + 1];
     let mut keyed: hd_base::HashMap<(u32, Option<u32>), Vec<u32>> = hd_base::HashMap::default();
     let mut keyed_root: hd_base::HashMap<u32, Vec<u32>> = hd_base::HashMap::default();
-    let mut loads: Vec<(u32, Part, Key, Class)> = Vec::new();
+    let mut loads: Vec<(u32, Part, Key, Class, Option<Ty>)> = Vec::new();
     for i in 0..n {
         let x = u32_of(i);
         let sub = topo.sub[i];
@@ -149,12 +149,12 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
         if awaits[sub as usize] {
             continue;
         }
-        if let Some((part, place)) = candidate(b, cx, i)
+        if let Some((part, place, ty)) = candidate(b, cx, i)
             && let Some(key) = key(&defs, &place, x)
             && let Some(class) = class_of(b, cx, &defs, key)
             && fixed(b, &sets, &cell, defs.local(key) as usize)
         {
-            loads.push((x, part, key, class));
+            loads.push((x, part, key, class, ty));
         }
     }
     // Each load joins the group of the nearest earlier load of its key
@@ -162,7 +162,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
     // stack of group leaders, each dominating the one above it.
     let mut groups: Vec<Group> = Vec::new();
     let mut open: hd_base::HashMap<Key, Vec<usize>> = hd_base::HashMap::default();
-    for (x, part, key, class) in loads {
+    for (x, part, key, class, ty) in loads {
         let sub = topo.sub[x as usize];
         let stack = open.entry(key).or_default();
         while let Some(&g) = stack.last() {
@@ -200,7 +200,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             }
             stack.pop();
         }
-        let Some(ty) = part_ty(b, cx, x as usize, part) else {
+        let Some(ty) = ty else {
             continue;
         };
         open.entry(key).or_default().push(groups.len());
@@ -266,9 +266,8 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
             let x = x as usize;
             match part {
                 Part::Whole => b.data[x] = [local | place::BARE_LOCAL, b.data[x][1]],
-                Part::Prefix(_) => {
-                    let rest =
-                        suffix_words(b, x, part).ok_or("a reused load's place is malformed")?;
+                Part::Prefix(j) => {
+                    let rest = suffix_words(b, x, j).ok_or("a reused load's place is malformed")?;
                     let mut w = vec![place::ROOT_VALUE, read, place::PROJ_DEREF];
                     w.extend(rest);
                     b.data[x][0] = push_record(b, &w);
@@ -282,15 +281,18 @@ pub(super) fn run(b: &mut Body, cx: &dyn Cx) -> Result<(), String> {
 /// The candidate load of instruction `i`: a copy or borrow `Read` through
 /// exactly one dereference, or the reference a place with a second
 /// dereference reads before it. Its place is rooted at a local, with
-/// fields and dereferences only up to the load.
-fn candidate(b: &Body, cx: &dyn Cx, i: usize) -> Option<(Part, Place)> {
+/// fields and dereferences only up to the load. With it, the type of what
+/// it reads, when it is one a group may name ([`part_ty`]).
+///
+/// Cost: O(the place's steps), twice.
+fn candidate(b: &Body, cx: &dyn Cx, i: usize) -> Option<(Part, Place, Option<Ty>)> {
     if !matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref)
         || b.data[i][0] & place::BARE_LOCAL != 0
     {
         return None;
     }
     let p = b.decode_place(b.data[i][0])?;
-    let PlaceRoot::Local(_) = p.root else {
+    let PlaceRoot::Local(root) = p.root else {
         return None;
     };
     let derefs: Vec<usize> = (p.proj.iter().enumerate())
@@ -311,9 +313,17 @@ fn candidate(b: &Body, cx: &dyn Cx, i: usize) -> Option<(Part, Place)> {
         _ => return None,
     };
     let proj = p.proj[..end].to_vec();
-    proj.iter()
+    if !proj
+        .iter()
         .all(|s| matches!(s, Proj::Field(_) | Proj::Deref))
-        .then_some((part, Place { root: p.root, proj }))
+    {
+        return None;
+    }
+    let ty = match part {
+        Part::Whole => Some(b.ty[i]),
+        Part::Prefix(_) => part_ty(cx, b.local_ty[root.idx()], &proj),
+    };
+    Some((part, Place { root: p.root, proj }, ty))
 }
 
 /// Whether local `k` holds one value through the whole body: a parameter
@@ -408,24 +418,15 @@ const RAW_WRITES: &[&str] = &[
     "mem_fill",
 ];
 
-/// The type of what candidate `part` of instruction `i` reads.
-fn part_ty(b: &Body, cx: &dyn Cx, i: usize, part: Part) -> Option<Ty> {
-    let Part::Prefix(end) = part else {
-        return Some(b.ty[i]);
-    };
-    let p = b.decode_place(b.data[i][0])?;
-    let PlaceRoot::Local(root) = p.root else {
-        return None;
-    };
-    let mut ty = b.local_ty[root.idx()];
-    for step in &p.proj[..end] {
+/// The type of the reference a prefix candidate reads: its local's type
+/// `ty` through `steps`, fields and dereferences ([`candidate`]). A
+/// dereference through a fat reference reaches a trait value, which no
+/// later field, dereference or thin reference check gets past.
+fn part_ty(cx: &dyn Cx, mut ty: Ty, steps: &[Proj]) -> Option<Ty> {
+    for step in steps {
         ty = match step {
-            Proj::Deref => match cx.ref_target(ty)? {
-                (t, false) => t,
-                (_, true) => return None,
-            },
             Proj::Field(k) => cx.field(ty, *k)?,
-            Proj::Elem(_) | Proj::Variant(_) => return None,
+            _ => cx.ref_target(ty)?.0,
         };
     }
     // The loaded reference itself, which must be a thin one.
@@ -433,11 +434,8 @@ fn part_ty(b: &Body, cx: &dyn Cx, i: usize, part: Part) -> Option<Ty> {
 }
 
 /// The projection words of instruction `x`'s place after its prefix's
-/// dereference, element payloads kept.
-fn suffix_words(b: &Body, x: usize, part: Part) -> Option<Vec<u32>> {
-    let Part::Prefix(j) = part else {
-        return None;
-    };
+/// dereference at step `j`, element payloads kept.
+fn suffix_words(b: &Body, x: usize, j: usize) -> Option<Vec<u32>> {
     record(b, x)?.get(2 + j + 1..).map(<[u32]>::to_vec)
 }
 

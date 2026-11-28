@@ -1,0 +1,9 @@
+# @dump: functions stdout
+# @build: dev | checked | release | release checked
+# Instantiating a local bang function produces a suspension constructor,
+# rather than an ordinary generic closure call that may be copied eagerly.
+pub fn main!() -> void $ Console:
+    fn local![T](value: T) -> T:
+        value
+    println(local!(7))
+    println(local!("local"))
